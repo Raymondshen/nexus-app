@@ -33,8 +33,12 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
-  const isAuthRoute = pathname.startsWith('/login') || pathname.startsWith('/signup')
-  const isAppRoute = pathname.startsWith('/app') || pathname.startsWith('/chat') || pathname.startsWith('/vault') || pathname.startsWith('/party')
+  const isAuthRoute = pathname.startsWith('/login')
+  const isAppRoute =
+    pathname.startsWith('/onboarding') ||
+    pathname.startsWith('/chat') ||
+    pathname.startsWith('/vault') ||
+    pathname.startsWith('/party')
 
   // Unauthenticated users trying to access protected routes → login
   if (!user && isAppRoute) {

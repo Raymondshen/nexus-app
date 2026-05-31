@@ -1,3 +1,12 @@
+// ─── Auth ─────────────────────────────────────────────────────────────────────
+
+export interface GuestUser {
+  id: string
+  username: string
+  isGuest: true
+  createdAt: string
+}
+
 // ─── Enums ────────────────────────────────────────────────────────────────────
 
 export type MessageType = 'text' | 'voice' | 'image' | 'reaction' | 'system'
@@ -84,6 +93,12 @@ export interface Artifact {
   mvp_user_id: string
   asset_type: string
   metadata: Record<string, unknown> | null
+}
+
+// ─── Derived / joined types ───────────────────────────────────────────────────
+
+export interface MessageWithProfile extends Message {
+  profile: Pick<Profile, 'id' | 'username' | 'avatar_class'>
 }
 
 // ─── Supabase Database type ───────────────────────────────────────────────────

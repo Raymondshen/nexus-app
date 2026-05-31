@@ -187,25 +187,48 @@ PHASE 1 — Prove The Loop
 Building in this exact order:
 1. ✅ Supabase client setup + TypeScript types
 2. Database schema + RLS policies
-3. ✅ Auth screens (login + signup)
+3. ✅ Auth screens (Google OAuth + guest mode)
 4. Crew creation and join flow
-5. Group chat with Supabase Realtime
-6. XP system with animated bar
+5. ✅ Group chat with Supabase Realtime
+6. ✅ XP system with animated bar
 7. The Void boss spawn + fight UI
 8. Win state + artifact card drop
 9. PWA configuration + push notifications
 10. End to end audit
 
+## Auth Strategy
+- Primary: Google OAuth via Supabase (`signInWithOAuth` → `/auth/callback`)
+- Secondary: Guest mode via Supabase anonymous sessions (`signInAnonymously`)
+- No email/password auth in this project
+- Guest data stored in localStorage (`guest_username`, `guest_data`)
+- Guest badge + Save Progress button shown in app header for guests
+- Save Progress triggers Google OAuth; guest session is abandoned on upgrade
+- Enable anonymous sign-ins: Supabase Dashboard → Authentication → Settings
+
 ## Completed Work
-### Auth Flow (src/app/(auth)/)
+### Auth Flow (src/app/(auth)/ + src/app/auth/)
 - Root layout: Press Start 2P font, #0a0612 background, Nexus metadata
 - Auth layout: scanline overlay, purple ambient glow, floating pixel particles, Nexus logo, purple-bordered card
-- Login page: useActionState + server action, signInWithPassword, redirect to /onboarding
-- Signup page: useActionState + server action, signUp + profile insert, username validation (3–20 chars)
+- Login page: Google OAuth button + guest username form, no email/password
+- src/lib/supabase/auth.ts: signInWithGoogle, signInAsGuest, signOut, getUser, isGuest
+- src/app/auth/callback/route.ts: exchanges OAuth code, redirects to /onboarding
+- src/app/(app)/layout.tsx: auth guard + GuestBanner client component
+- src/components/ui/GuestBanner.tsx: shows GUEST badge + Save Progress for anonymous users
+- src/types/index.ts: GuestUser + MessageWithProfile types added
 - src/components/ui/Button.tsx: primary/secondary/danger variants, pixel drop-shadow, loading dots
 - src/components/ui/Input.tsx: dark bg, purple focus ring, label + error, font-sans on input
 - tsconfig paths updated: @/* → ./src/*
 - App router moved to src/app/ (root app/ removed)
+
+### Chat + XP (src/app/(app)/chat/ + src/components/chat/ + supabase/functions/)
+- src/app/(app)/chat/[crewId]/page.tsx: server component, verifies membership, loads initial data, passes to client components
+- src/components/chat/ChatHeader.tsx: crew name, LVL badge, member avatars, animated XP bar, boss HP bar, +XP float animations (Framer Motion)
+- src/components/chat/MessageList.tsx: Realtime subscription on messages table, auto-scroll, date dividers, message grouping by sender
+- src/components/chat/MessageBubble.tsx: sent/received layout, element dots, system message variants (boss/xp/artifact), tap-to-react
+- src/components/chat/ChatInput.tsx: textarea (Enter to send, Shift+Enter newline), send/attach/mic buttons, calls award-xp edge function
+- src/store/chatStore.ts: Zustand — messages, crewXP, crewLevel, xpFloats, activeRaid
+- src/lib/game/xp.ts: XP_VALUES, calculateXP, getElementType, getLevelFromXP, getXPProgress constants + helpers
+- supabase/functions/award-xp/index.ts: calculates base XP + first-today + combo bonuses, updates crews.total_xp, spawns The Void at 500 XP threshold
 
 ## Code Rules
 - Always use TypeScript with strict types

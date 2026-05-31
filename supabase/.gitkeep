@@ -1,0 +1,19 @@
+# NEXUS PROJECT — Supabase directory
+#
+# Project:  Nexus App
+# Ref:      tlveyeisjbythssmocth
+# Org:      yfjegpwwcffihpfwnjqb
+#
+# STOP. Before running any migration commands, confirm you are
+# targeting the Nexus project and NOT another local Supabase project.
+#
+# To verify the linked project:
+#   supabase projects list
+#
+# To link (if unlinking accidentally occurred):
+#   supabase link --project-ref tlveyeisjbythssmocth
+#
+# Migration commands:
+#   supabase db push          — push local migrations to hosted project
+#   supabase db pull          — pull remote schema changes locally
+#   supabase migration list   — compare local vs remote migration history
