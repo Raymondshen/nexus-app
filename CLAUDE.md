@@ -185,9 +185,9 @@ artifacts
 ## Current Build Phase
 PHASE 1 — Prove The Loop
 Building in this exact order:
-1. Supabase client setup + TypeScript types
+1. ✅ Supabase client setup + TypeScript types
 2. Database schema + RLS policies
-3. Auth screens (login + signup)
+3. ✅ Auth screens (login + signup)
 4. Crew creation and join flow
 5. Group chat with Supabase Realtime
 6. XP system with animated bar
@@ -195,6 +195,17 @@ Building in this exact order:
 8. Win state + artifact card drop
 9. PWA configuration + push notifications
 10. End to end audit
+
+## Completed Work
+### Auth Flow (src/app/(auth)/)
+- Root layout: Press Start 2P font, #0a0612 background, Nexus metadata
+- Auth layout: scanline overlay, purple ambient glow, floating pixel particles, Nexus logo, purple-bordered card
+- Login page: useActionState + server action, signInWithPassword, redirect to /onboarding
+- Signup page: useActionState + server action, signUp + profile insert, username validation (3–20 chars)
+- src/components/ui/Button.tsx: primary/secondary/danger variants, pixel drop-shadow, loading dots
+- src/components/ui/Input.tsx: dark bg, purple focus ring, label + error, font-sans on input
+- tsconfig paths updated: @/* → ./src/*
+- App router moved to src/app/ (root app/ removed)
 
 ## Code Rules
 - Always use TypeScript with strict types
