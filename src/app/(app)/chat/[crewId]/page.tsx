@@ -38,7 +38,7 @@ export default async function ChatPage({ params }: ChatPageProps) {
   // Fetch all crew member profiles
   const { data: memberRows } = await supabase
     .from('crew_members')
-    .select('user_id')
+    .select('*')
     .eq('crew_id', crewId)
 
   const memberUserIds = (memberRows ?? []).map((r) => r.user_id)
