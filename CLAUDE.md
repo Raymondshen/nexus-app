@@ -212,9 +212,9 @@ Building in this exact order:
 - Auth layout: scanline overlay, purple ambient glow, floating pixel particles, Nexus logo, purple-bordered card
 - Login page: Google OAuth button + guest username form, no email/password
 - src/lib/supabase/auth.ts: signInWithGoogle, signInAsGuest, signOut, getUser, isGuest
-- src/app/auth/callback/route.ts: exchanges OAuth code, redirects to /onboarding
+- src/app/auth/callback/route.ts: exchanges OAuth code, redirects to /home
 - src/app/(app)/layout.tsx: auth guard + GuestBanner client component
-- src/components/ui/GuestBanner.tsx: shows GUEST badge + Save Progress for anonymous users
+- src/components/ui/GuestBanner.tsx: shows GUEST badge + Save Progress + LOG OUT for anonymous users
 - src/types/index.ts: GuestUser + MessageWithProfile types added
 - src/components/ui/Button.tsx: primary/secondary/danger variants, pixel drop-shadow, loading dots
 - src/components/ui/Input.tsx: dark bg, purple focus ring, label + error, font-sans on input
@@ -222,14 +222,16 @@ Building in this exact order:
 - App router moved to src/app/ (root app/ removed)
 
 ### Chat + XP (src/app/(app)/chat/ + src/components/chat/ + supabase/functions/)
-- src/app/(app)/chat/[crewId]/page.tsx: server component, verifies membership, loads initial data, passes to client components; accepts ?welcome=1 to trigger NewCrewDetector
-- src/components/chat/ChatHeader.tsx: crew name, LVL badge, member avatars, animated XP bar, boss HP bar, +XP float animations (Framer Motion)
+- src/app/(app)/chat/[crewId]/page.tsx: server component; parallel queries in 3 stages (auth+params → crew/members/messages/raid → profiles); single crew_members query serves both membership check and member list; accepts ?welcome=1 to trigger WelcomeDetector
+- src/app/(app)/chat/[crewId]/loading.tsx: pulsing skeleton shown instantly on tab tap (header + message bubbles + input + bottom nav)
+- src/components/chat/ChatHeader.tsx: crew name, LVL badge, member avatars, animated XP bar, boss HP bar, +XP float animations, user initial button → logout bottom sheet
 - src/components/chat/MessageList.tsx: Realtime subscription on messages table, auto-scroll, date dividers, message grouping by sender
 - src/components/chat/MessageBubble.tsx: sent/received layout, element dots, system message variants (boss/xp/artifact), tap-to-react
-- src/components/chat/ChatInput.tsx: textarea (Enter to send, Shift+Enter newline), send/attach/mic buttons, calls award-xp edge function; sets nexus_first_message localStorage key on first send; fontSize 16px to prevent iOS auto-zoom
+- src/components/chat/ChatInput.tsx: textarea (Enter to send, Shift+Enter newline), send/attach/mic buttons, calls award-xp edge function; ⚔ SPAWN BOSS dev button (visible when no active raid); sets nexus_first_message localStorage key on first send; fontSize 16px to prevent iOS auto-zoom
 - src/store/chatStore.ts: Zustand — messages, crewXP, crewLevel, xpFloats, activeRaid
 - src/lib/game/xp.ts: XP_VALUES, calculateXP, getElementType, getLevelFromXP, getXPProgress constants + helpers
 - supabase/functions/award-xp/index.ts: calculates base XP + first-today + combo bonuses, updates crews.total_xp, spawns The Void at 500 XP threshold
+- src/app/api/test/spawn-boss/route.ts: POST endpoint — verifies crew membership, creates active_raids row + BOSS_SPAWN system message using service role key
 
 ### PWA + Notifications (fully wired)
 - public/manifest.json: name, icons, shortcuts (chat + vault), theme #0a0612, standalone portrait
@@ -250,6 +252,17 @@ Building in this exact order:
 - src/app/(app)/layout.tsx: renders InstallPrompt + NotificationPrompt alongside existing auth guard
 - Crew creation (onboarding/create/actions.ts): redirects to /chat/${crewId}?welcome=1 so WelcomeDetector fires on first load
 - VAPID env vars: NEXT_PUBLIC_VAPID_PUBLIC_KEY (client), VAPID_PRIVATE_KEY + VAPID_SUBJECT (Edge Function secrets only)
+
+### Home Screen (src/app/(app)/home/)
+- src/app/(app)/home/page.tsx: server component; fetches user's crews with last message preview + unread counts (messages after last_seen from other users) + profile cache for realtime sender resolution; parallel query stages
+- src/app/(app)/home/HomeClient.tsx: crew cards (name, LVL badge, last message preview, unread badge, relative timestamp); per-crew Realtime subscriptions update previews and badges live; sorts by most recent activity; tapping a crew updates last_seen (marks as read) then navigates to /chat/[crewId]; create crew bottom sheet reuses createCrewAction; user initial → logout bottom sheet; FAB + header + button to create; empty state with create/join CTAs
+- src/app/(app)/home/loading.tsx: pulsing skeleton shown instantly on navigation
+- Unread count uses crew_members.last_seen as read cursor — messages after last_seen from other users = unread; ChatHeader updates last_seen every 60s; HomeClient updates it immediately on crew tap
+- Post-login flow: auth/callback → /home; onboarding page redirects existing crew members to /home
+
+### Vault
+- src/app/(app)/vault/[crewId]/page.tsx: parallel queries (auth+params → membership/crew/artifacts simultaneously)
+- src/app/(app)/vault/[crewId]/loading.tsx: pulsing skeleton shown instantly on tab tap
 
 ## localStorage Keys
 - nexus_first_message: timestamp (ms) of user's first sent message — triggers InstallPrompt after 10s
@@ -283,6 +296,9 @@ Building in this exact order:
 - Always handle loading and error states
 - Clean up Realtime subscriptions on component unmount
 - RLS must be enabled on every table from day one
+- Server component data fetching: always use Promise.all for independent queries; structure in stages: (1) auth.getUser() + params together, (2) all queries that only need userId/crewId together, (3) queries that depend on stage-2 results. Never await sequentially when queries are independent.
+- Add loading.tsx alongside every page.tsx that does server-side data fetching — shows instantly on navigation before server render completes
+- Logout: GuestBanner handles guest logout; ChatHeader user-initial button handles auth user logout; HomeClient has its own user-menu logout — all call signOut() from src/lib/supabase/auth then router.push('/login')
 
 ## Design Language
 - Dark theme throughout — background #0a0612
