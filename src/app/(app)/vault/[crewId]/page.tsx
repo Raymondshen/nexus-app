@@ -25,17 +25,17 @@ export default async function VaultPage({ params }: VaultPageProps) {
       .select('id')
       .eq('crew_id', crewId)
       .eq('user_id', user.id)
-      .maybeSingle() as Promise<{ data: Pick<CrewMember, 'id'> | null }>,
+      .maybeSingle() as unknown as Promise<{ data: Pick<CrewMember, 'id'> | null }>,
     supabase
       .from('crews')
       .select('*')
       .eq('id', crewId)
-      .single() as Promise<{ data: Crew | null }>,
+      .single() as unknown as Promise<{ data: Crew | null }>,
     supabase
       .from('artifacts')
       .select('*')
       .eq('crew_id', crewId)
-      .order('earned_at', { ascending: false }) as Promise<{ data: Artifact[] | null }>,
+      .order('earned_at', { ascending: false }) as unknown as Promise<{ data: Artifact[] | null }>,
   ])
 
   if (!membershipResult.data || !crewResult.data) redirect('/home')
