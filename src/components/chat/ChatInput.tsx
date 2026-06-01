@@ -26,11 +26,13 @@ function sanitizeMessage(raw: string): string {
 }
 
 export function ChatInput({ crewId, userId, userProfile }: ChatInputProps) {
-  const [text,       setText]       = useState('')
-  const [sending,    setSending]    = useState(false)
-  const [micTooltip, setMicTooltip] = useState(false)
-  const [sendError,  setSendError]  = useState<string | null>(null)
+  const [text,        setText]        = useState('')
+  const [sending,     setSending]     = useState(false)
+  const [micTooltip,  setMicTooltip]  = useState(false)
+  const [sendError,   setSendError]   = useState<string | null>(null)
   const [typingUsers, setTypingUsers] = useState<string[]>([])
+  const [spawning,    setSpawning]    = useState(false)
+  const [spawnError,  setSpawnError]  = useState<string | null>(null)
 
   const textareaRef    = useRef<HTMLTextAreaElement>(null)
   const rateRef        = useRef({ count: 0, resetAt: Date.now() + RATE_LIMIT_WINDOW })
@@ -159,6 +161,25 @@ export function ChatInput({ crewId, userId, userProfile }: ChatInputProps) {
     }
   }, [text, sending, crewId, userId, userProfile, addMessage, addXP, activeRaid, addDamageFloat]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  async function handleSpawnBoss() {
+    if (spawning || inRaid) return
+    setSpawning(true)
+    setSpawnError(null)
+    try {
+      const res  = await fetch('/api/test/spawn-boss', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ crew_id: crewId }),
+      })
+      const data = await res.json()
+      if (!res.ok) setSpawnError(data.error ?? 'Spawn failed')
+    } catch {
+      setSpawnError('Network error')
+    } finally {
+      setSpawning(false)
+    }
+  }
+
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
@@ -235,6 +256,22 @@ export function ChatInput({ crewId, userId, userProfile }: ChatInputProps) {
           <span className="font-pixel text-[7px] text-[#ff4444]">
             ⚔ RAID ACTIVE — every message deals damage
           </span>
+        </div>
+      )}
+
+      {/* Dev: spawn boss button — visible when no raid is active */}
+      {!inRaid && (
+        <div className="flex items-center gap-2 mb-1 px-1">
+          <button
+            onClick={handleSpawnBoss}
+            disabled={spawning}
+            className="font-pixel text-[7px] px-2 py-0.5 border border-[#ff4444]/40 text-[#ff4444]/70 hover:text-[#ff4444] hover:border-[#ff4444] transition-colors disabled:opacity-40"
+          >
+            {spawning ? 'SPAWNING...' : '⚔ SPAWN BOSS'}
+          </button>
+          {spawnError && (
+            <span className="font-pixel text-[7px] text-[#ff4444]/60">{spawnError}</span>
+          )}
         </div>
       )}
 
