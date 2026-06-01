@@ -3,7 +3,14 @@ import { createClient } from "@/lib/supabase/server";
 import { ChatHeader } from "@/components/chat/ChatHeader";
 import { MessageList } from "@/components/chat/MessageList";
 import { ChatInput } from "@/components/chat/ChatInput";
-import type { MessageWithProfile, Profile, CrewMember } from "@/types";
+import type {
+  MessageWithProfile,
+  Profile,
+  CrewMember,
+  Message,
+  Crew,
+  ActiveRaid,
+} from "@/types";
 
 interface ChatPageProps {
   params: Promise<{ crewId: string }>;
@@ -29,11 +36,11 @@ export default async function ChatPage({ params }: ChatPageProps) {
   if (!membership) redirect("/onboarding");
 
   // Fetch crew
-  const { data: crew } = await supabase
+  const { data: crew } = (await supabase
     .from("crews")
     .select("*")
     .eq("id", crewId)
-    .single();
+    .single()) as { data: Crew | null };
 
   if (!crew) redirect("/onboarding");
 
@@ -45,10 +52,12 @@ export default async function ChatPage({ params }: ChatPageProps) {
 
   const memberUserIds = (memberRows ?? []).map((r) => r.user_id);
 
-  const { data: profileRows } = await supabase
+  const { data: profileRows } = (await supabase
     .from("profiles")
     .select("id, username, avatar_class")
-    .in("id", memberUserIds);
+    .in("id", memberUserIds)) as {
+    data: Pick<Profile, "id" | "username" | "avatar_class">[] | null;
+  };
 
   const profiles = profileRows ?? [];
 
@@ -58,12 +67,12 @@ export default async function ChatPage({ params }: ChatPageProps) {
   > = Object.fromEntries(profiles.map((p) => [p.id, p]));
 
   // Fetch last 50 messages with profile info
-  const { data: messageRows } = await supabase
+  const { data: messageRows } = (await supabase
     .from("messages")
     .select("*")
     .eq("crew_id", crewId)
     .order("created_at", { ascending: true })
-    .limit(50);
+    .limit(50)) as { data: Message[] | null };
 
   const initialMessages: MessageWithProfile[] = (messageRows ?? []).map(
     (m) => ({
@@ -77,13 +86,13 @@ export default async function ChatPage({ params }: ChatPageProps) {
   );
 
   // Fetch active raid
-  const { data: raidRow } = await supabase
+  const { data: raidRow } = (await supabase
     .from("active_raids")
     .select("*")
     .eq("crew_id", crewId)
     .is("defeated_at", null)
     .gt("expires_at", new Date().toISOString())
-    .maybeSingle();
+    .maybeSingle()) as { data: ActiveRaid | null };
 
   return (
     <div
