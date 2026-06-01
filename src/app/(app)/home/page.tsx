@@ -78,7 +78,7 @@ export default async function HomePage() {
   // Build userId → username cache from all crew members
   const profileCache: Record<string, string> = {}
   for (const row of profilesResult.data ?? []) {
-    const username = (row.profiles as { username: string } | null)?.username
+    const username = (row.profiles as unknown as { username: string } | null)?.username
     if (username) profileCache[row.user_id] = username
   }
 
