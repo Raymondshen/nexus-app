@@ -166,10 +166,17 @@ export function ChatInput({ crewId, userId, userProfile }: ChatInputProps) {
     setSpawning(true)
     setSpawnError(null)
     try {
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token ?? ''
+
       const res = await fetch('/api/test/spawn-boss', {
         method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ crew_id: crewId }),
+        headers: {
+          'Content-Type':  'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ crew_id: crewId }),
       })
       let data: { error?: string; ok?: boolean } = {}
       try {
