@@ -21,11 +21,13 @@ export default async function HomePage() {
     .eq('id', user.id)
     .single()
 
-  const { data: memberRows } = await supabase
+  const { data: memberRows, error: memberError } = await supabase
     .from('crew_members')
     .select('crew_id, last_seen, joined_at')
     .eq('user_id', user.id)
     .order('joined_at', { ascending: false })
+
+  if (memberError) console.error('[home] crew_members query error:', memberError)
 
   const memberships = memberRows ?? []
 
