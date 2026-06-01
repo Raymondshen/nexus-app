@@ -43,3 +43,6 @@ next-env.d.ts
 
 # supabase cli state — project link is in supabase/.gitkeep, not here
 supabase/.temp
+
+.vercel
+.env*
