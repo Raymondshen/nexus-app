@@ -82,6 +82,17 @@ export interface ActiveRaid extends Record<string, unknown> {
   expires_at: string
   defeated_at: string | null
   mvp_user_id: string | null
+  expiry_notif_sent: boolean
+}
+
+export interface PushSubscription extends Record<string, unknown> {
+  id: string
+  user_id: string
+  crew_id: string | null
+  endpoint: string
+  p256dh: string
+  auth: string
+  created_at: string
 }
 
 export interface Artifact extends Record<string, unknown> {
@@ -163,6 +174,12 @@ export type Database = {
         Row: Artifact
         Insert: Omit<Artifact, 'id' | 'earned_at'> & { id?: string; earned_at?: string }
         Update: Partial<Omit<Artifact, 'id'>>
+        Relationships: []
+      }
+      push_subscriptions: {
+        Row: PushSubscription
+        Insert: Omit<PushSubscription, 'id' | 'created_at'> & { id?: string; created_at?: string }
+        Update: Partial<Omit<PushSubscription, 'id'>>
         Relationships: []
       }
     }
