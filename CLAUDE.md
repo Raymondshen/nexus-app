@@ -188,10 +188,10 @@ Building in this exact order:
 1. ✅ Supabase client setup + TypeScript types
 2. Database schema + RLS policies
 3. ✅ Auth screens (Google OAuth + guest mode)
-4. Crew creation and join flow
+4. ✅ Crew creation and join flow
 5. ✅ Group chat with Supabase Realtime
 6. ✅ XP system with animated bar
-7. The Void boss spawn + fight UI
+7. ✅ The Void boss spawn + fight UI
 8. Win state + artifact card drop
 9. PWA configuration + push notifications
 10. End to end audit

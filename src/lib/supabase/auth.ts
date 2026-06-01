@@ -14,7 +14,9 @@ export async function signInWithGoogle(): Promise<void> {
 
 export async function signInAsGuest(username: string): Promise<GuestUser> {
   const supabase = createClient()
-  const { data, error } = await supabase.auth.signInAnonymously()
+  const { data, error } = await supabase.auth.signInAnonymously({
+    options: { data: { username } },
+  })
   if (error) throw error
 
   const guestUser: GuestUser = {

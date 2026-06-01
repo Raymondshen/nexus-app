@@ -92,11 +92,13 @@ export default async function ChatPage({ params }: ChatPageProps) {
         currentUserId={user.id}
         initialMessages={initialMessages}
         memberProfiles={memberProfiles}
+        initialRaid={raidRow ?? null}
       />
 
       <ChatInput
         crewId={crewId}
         userId={user.id}
+        userProfile={memberProfiles[user.id] ?? { id: user.id, username: '???', avatar_class: null }}
       />
     </div>
   )
