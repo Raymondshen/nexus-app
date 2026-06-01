@@ -19,7 +19,12 @@ export const metadata: Metadata = {
   keywords:    ['messaging', 'RPG', 'group chat', 'game'],
   authors:     [{ name: 'Nexus' }],
   creator:     'Nexus',
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'),
+  metadataBase: (() => {
+    const raw = process.env.NEXT_PUBLIC_SITE_URL
+    if (raw?.startsWith('http')) return new URL(raw)
+    if (raw) return new URL(`https://${raw}`)
+    return new URL('http://localhost:3000')
+  })(),
   openGraph: {
     type:        'website',
     locale:      'en_US',
