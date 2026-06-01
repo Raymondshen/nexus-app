@@ -28,7 +28,7 @@ export async function createCrewAction(
     })
 
     if (!error && crewId) {
-      redirect(`/chat/${crewId}`)
+      redirect(`/chat/${crewId}?welcome=1`)
     }
 
     if (error && !error.message.includes('unique')) {

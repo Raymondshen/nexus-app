@@ -26,6 +26,11 @@ export function ChatInput({ crewId, userId, userProfile }: ChatInputProps) {
     const content = text.trim()
     if (!content || sending) return
 
+    // Mark first message sent (triggers InstallPrompt after 10s)
+    if (!localStorage.getItem('nexus_first_message')) {
+      localStorage.setItem('nexus_first_message', String(Date.now()))
+    }
+
     setSending(true)
     setSendError(null)
     setText('')
@@ -151,8 +156,9 @@ export function ChatInput({ crewId, userId, userProfile }: ChatInputProps) {
           onKeyDown={handleKeyDown}
           placeholder={activeRaid && !activeRaid.defeated_at ? 'Attack The Void...' : 'Send a message...'}
           rows={1}
-          className="flex-1 bg-[#0f0820] border text-white text-sm font-sans placeholder:text-[#3a2555] px-3 py-2 resize-none focus:outline-none transition-colors leading-relaxed"
+          className="flex-1 bg-[#0f0820] border text-white font-sans placeholder:text-[#3a2555] px-3 py-2 resize-none focus:outline-none transition-colors leading-relaxed"
           style={{
+            fontSize:    16,
             maxHeight:   120,
             borderColor: activeRaid && !activeRaid.defeated_at ? 'rgba(255,34,0,0.4)' : '#2a1545',
           }}

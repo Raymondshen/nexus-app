@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Nexus — Offline</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0a0612;
+      color: #ffffff;
+      font-family: system-ui, -apple-system, sans-serif;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      padding-bottom: max(env(safe-area-inset-bottom), 24px);
+      text-align: center;
+      overflow: hidden;
+    }
+
+    /* Scanline overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background: repeating-linear-gradient(
+        to bottom,
+        transparent 0px,
+        transparent 2px,
+        rgba(0, 0, 0, 0.08) 2px,
+        rgba(0, 0, 0, 0.08) 4px
+      );
+      z-index: 10;
+    }
+
+    /* Pixel N logo made of divs */
+    .logo {
+      display: grid;
+      grid-template-columns: repeat(7, 14px);
+      grid-template-rows: repeat(7, 14px);
+      gap: 2px;
+      margin-bottom: 40px;
+    }
+
+    .logo .px { width: 14px; height: 14px; background: transparent; }
+    .logo .px.on { background: #bf5fff; box-shadow: 0 0 6px rgba(191,95,255,0.6); }
+
+    h1 {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: clamp(14px, 4vw, 18px);
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      color: #ffffff;
+      margin-bottom: 16px;
+      text-transform: uppercase;
+    }
+
+    p {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: clamp(10px, 3vw, 13px);
+      color: #bf5fff;
+      letter-spacing: 0.1em;
+      margin-bottom: 48px;
+      line-height: 1.6;
+    }
+
+    .status {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 10px;
+      color: #3d2660;
+      letter-spacing: 0.08em;
+    }
+
+    .dot {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      background: #3d2660;
+      border-radius: 50%;
+      margin: 0 3px;
+      animation: pulse 1.4s ease-in-out infinite;
+    }
+    .dot:nth-child(2) { animation-delay: 0.2s; }
+    .dot:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 0.3; }
+      50% { opacity: 1; background: #bf5fff; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Pixel N: 7×7 grid, row-major. 1=purple, 0=transparent -->
+  <div class="logo" id="logo"></div>
+
+  <h1>You are offline</h1>
+  <p>Your crew is waiting.</p>
+
+  <div class="status">
+    Reconnecting
+    <span class="dot"></span>
+    <span class="dot"></span>
+    <span class="dot"></span>
+  </div>
+
+  <script>
+    // Build pixel N logo
+    var N = [
+      1,0,0,0,0,0,1,
+      1,1,0,0,0,0,1,
+      1,0,1,0,0,0,1,
+      1,0,0,1,0,0,1,
+      1,0,0,0,1,0,1,
+      1,0,0,0,0,1,1,
+      1,0,0,0,0,0,1
+    ];
+    var logo = document.getElementById('logo');
+    N.forEach(function(on) {
+      var px = document.createElement('div');
+      px.className = on ? 'px on' : 'px';
+      logo.appendChild(px);
+    });
+
+    // Auto-retry every 30 seconds; redirect when back online
+    function tryReconnect() {
+      if (navigator.onLine) {
+        fetch('/', { method: 'HEAD', cache: 'no-store' })
+          .then(function() { window.location.href = '/'; })
+          .catch(function() {});
+      }
+    }
+
+    setInterval(tryReconnect, 30000);
+
+    window.addEventListener('online', function() {
+      setTimeout(function() { window.location.href = '/'; }, 800);
+    });
+  </script>
+</body>
+</html>

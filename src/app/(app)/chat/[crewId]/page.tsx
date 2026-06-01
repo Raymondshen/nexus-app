@@ -12,12 +12,16 @@ import type {
   ActiveRaid,
 } from "@/types";
 
+import { WelcomeDetector } from '@/components/ui/WelcomeDetector'
+
 interface ChatPageProps {
-  params: Promise<{ crewId: string }>;
+  params:       Promise<{ crewId: string }>;
+  searchParams: Promise<{ welcome?: string }>;
 }
 
-export default async function ChatPage({ params }: ChatPageProps) {
+export default async function ChatPage({ params, searchParams }: ChatPageProps) {
   const { crewId } = await params;
+  const { welcome } = await searchParams;
   const supabase = await createClient();
 
   const {
@@ -96,9 +100,10 @@ export default async function ChatPage({ params }: ChatPageProps) {
 
   return (
     <div
-      className="flex flex-col h-[100dvh] bg-[#0a0612]"
-      style={{ maxWidth: 480, margin: "0 auto" }}
+      className="flex flex-col h-[100dvh] bg-[#0a0612] overscroll-none"
+      style={{ maxWidth: 480, margin: "0 auto", overflow: "hidden" }}
     >
+      {welcome === '1' && <WelcomeDetector crewId={crewId} />}
       <ChatHeader
         crew={crew}
         members={profiles}
@@ -108,6 +113,7 @@ export default async function ChatPage({ params }: ChatPageProps) {
 
       <MessageList
         crewId={crewId}
+        crewName={crew.name}
         currentUserId={user.id}
         initialMessages={initialMessages}
         memberProfiles={memberProfiles}

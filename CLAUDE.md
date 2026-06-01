@@ -193,7 +193,7 @@ Building in this exact order:
 6. ✅ XP system with animated bar
 7. ✅ The Void boss spawn + fight UI
 8. Win state + artifact card drop
-9. PWA configuration + push notifications
+9. ✅ PWA configuration + push notifications (structure)
 10. End to end audit
 
 ## Auth Strategy
@@ -221,14 +221,36 @@ Building in this exact order:
 - App router moved to src/app/ (root app/ removed)
 
 ### Chat + XP (src/app/(app)/chat/ + src/components/chat/ + supabase/functions/)
-- src/app/(app)/chat/[crewId]/page.tsx: server component, verifies membership, loads initial data, passes to client components
+- src/app/(app)/chat/[crewId]/page.tsx: server component, verifies membership, loads initial data, passes to client components; accepts ?welcome=1 to trigger NewCrewDetector
 - src/components/chat/ChatHeader.tsx: crew name, LVL badge, member avatars, animated XP bar, boss HP bar, +XP float animations (Framer Motion)
 - src/components/chat/MessageList.tsx: Realtime subscription on messages table, auto-scroll, date dividers, message grouping by sender
 - src/components/chat/MessageBubble.tsx: sent/received layout, element dots, system message variants (boss/xp/artifact), tap-to-react
-- src/components/chat/ChatInput.tsx: textarea (Enter to send, Shift+Enter newline), send/attach/mic buttons, calls award-xp edge function
+- src/components/chat/ChatInput.tsx: textarea (Enter to send, Shift+Enter newline), send/attach/mic buttons, calls award-xp edge function; sets nexus_first_message localStorage key on first send; fontSize 16px to prevent iOS auto-zoom
 - src/store/chatStore.ts: Zustand — messages, crewXP, crewLevel, xpFloats, activeRaid
 - src/lib/game/xp.ts: XP_VALUES, calculateXP, getElementType, getLevelFromXP, getXPProgress constants + helpers
 - supabase/functions/award-xp/index.ts: calculates base XP + first-today + combo bonuses, updates crews.total_xp, spawns The Void at 500 XP threshold
+
+### PWA + Notifications (structure — VAPID keys pending)
+- public/manifest.json: name, icons, shortcuts (chat + vault), theme #0a0612, standalone portrait
+- public/icons/icon-192.png + icon-512.png: pixel N on dark bg, gold sword — generated via scripts/generate-icons.mjs (@napi-rs/canvas)
+- public/offline.html: zero-dependency standalone page, pixel N div logo, 30s auto-retry, redirects on navigator online event
+- next.config.ts: next-pwa enabled in production only; CacheFirst static assets (30d), NetworkFirst API/Supabase/pages (10s timeout), offline fallback /offline.html, auth routes excluded from SW
+- src/lib/notifications.ts: requestPermission, subscribeToPush (stub — logs VAPID pending), isSupported, getPermissionState, savePermissionState
+- src/components/ui/InstallPrompt.tsx: iOS Safari step-by-step + Android Chrome native prompt; shows 10s after nexus_first_message set, once per device (nexus_install_prompted key)
+- src/components/ui/NotificationPrompt.tsx: RAID ALERTS sheet; shows after nexus_crew_created set, throttled 24h (nexus_notif_prompted key); 3 states: visible → granted (auto-dismiss) / denied (settings instructions)
+- src/components/ui/WelcomeDetector.tsx: client component that sets nexus_crew_created in localStorage when ?welcome=1 param detected, then strips param from URL
+- supabase/migrations/20240101000001_push_subscriptions.sql: push_subscriptions table with RLS (select/insert/delete own rows)
+- supabase/functions/send-notification/index.ts: stubbed Deno function; builds all 4 payloads (boss_spawned, boss_defeated, raid_expiring, crew_silent); ready for VAPID wiring
+- src/app/layout.tsx: Viewport export with viewportFit=cover, themeColor #0a0612; appleWebApp capable + black status bar; apple-touch-icon + manifest link
+- src/app/(app)/layout.tsx: renders InstallPrompt + NotificationPrompt alongside existing auth guard
+- Crew creation (onboarding/create/actions.ts): redirects to /chat/${crewId}?welcome=1 so WelcomeDetector fires on first load
+
+## localStorage Keys
+- nexus_first_message: timestamp (ms) of user's first sent message — triggers InstallPrompt after 10s
+- nexus_install_prompted: '1' — set after install prompt dismissed or accepted, never shows again
+- nexus_crew_created: '1' — set by WelcomeDetector when ?welcome=1 detected — triggers NotificationPrompt
+- nexus_notif_prompted: timestamp (ms) — throttles NotificationPrompt to once per 24h
+- nexus_notif_state: 'granted' | 'denied' | 'pending' — cached permission state
 
 ## Supabase Type System Rules
 - All row interfaces MUST extend `Record<string, unknown>` (e.g. `interface Profile extends Record<string, unknown>`)
