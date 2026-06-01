@@ -16,7 +16,7 @@ export default async function OnboardingPage() {
     .maybeSingle()
 
   if (membership) {
-    redirect(`/chat/${membership.crew_id}`)
+    redirect('/home')
   }
 
   return (
