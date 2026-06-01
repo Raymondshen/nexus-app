@@ -230,6 +230,16 @@ Building in this exact order:
 - src/lib/game/xp.ts: XP_VALUES, calculateXP, getElementType, getLevelFromXP, getXPProgress constants + helpers
 - supabase/functions/award-xp/index.ts: calculates base XP + first-today + combo bonuses, updates crews.total_xp, spawns The Void at 500 XP threshold
 
+## Supabase Type System Rules
+- All row interfaces MUST extend `Record<string, unknown>` (e.g. `interface Profile extends Record<string, unknown>`)
+  — Without this, `Database['public'] extends GenericSchema` evaluates to `never` inside the Supabase client's
+    conditional type machinery, causing every `.from()` query and `.rpc()` call to return `never`.
+- All table definitions in `Database` MUST include `Relationships: []` (required by `GenericTable` shape).
+- All Supabase RPC functions used in the app MUST be declared in `Database.Functions` with `Args` and `Returns`.
+- The `supabase/` directory MUST be excluded from `tsconfig.json` — Deno Edge Functions use `https://esm.sh/`
+  imports and the `Deno` global which are incompatible with the Next.js TypeScript compiler.
+- When adding a new `.rpc('fn_name', ...)` call, add `fn_name` to `Database.public.Functions` first.
+
 ## Code Rules
 - Always use TypeScript with strict types
 - Server components by default

@@ -3,7 +3,7 @@
 import { useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useChatStore, XP_PER_LEVEL } from '@/store/chatStore'
-import { getLevelFromXP, getXPProgress } from '@/lib/game/xp'
+import { getXPProgress } from '@/lib/game/xp'
 import type { Crew, Profile, ActiveRaid } from '@/types'
 import { formatDistanceToNow } from 'date-fns'
 

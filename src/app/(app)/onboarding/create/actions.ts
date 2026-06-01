@@ -25,7 +25,7 @@ export async function createCrewAction(
     const { data: crewId, error } = await supabase.rpc('create_crew', {
       p_name:        name,
       p_invite_code: generateInviteCode(),
-    } as never)
+    })
 
     if (!error && crewId) {
       redirect(`/chat/${crewId}`)

@@ -16,7 +16,7 @@ export async function joinCrewAction(
 
   const { data: crewId, error } = await supabase.rpc('join_crew', {
     p_invite_code: code,
-  } as never)
+  })
 
   if (error) {
     if (error.message.includes('Crew not found')) {

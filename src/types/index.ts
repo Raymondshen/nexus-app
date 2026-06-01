@@ -17,14 +17,14 @@ export type AvatarClass = 'berserker' | 'sage' | 'ghost' | 'hype_man' | 'the_voi
 
 // ─── Row types ────────────────────────────────────────────────────────────────
 
-export interface Profile {
+export interface Profile extends Record<string, unknown> {
   id: string
   username: string
   avatar_class: AvatarClass | null
   created_at: string
 }
 
-export interface Crew {
+export interface Crew extends Record<string, unknown> {
   id: string
   name: string
   invite_code: string
@@ -33,7 +33,7 @@ export interface Crew {
   created_at: string
 }
 
-export interface CrewMember {
+export interface CrewMember extends Record<string, unknown> {
   id: string
   crew_id: string
   user_id: string
@@ -41,7 +41,7 @@ export interface CrewMember {
   joined_at: string
 }
 
-export interface Message {
+export interface Message extends Record<string, unknown> {
   id: string
   crew_id: string
   user_id: string
@@ -52,7 +52,7 @@ export interface Message {
   created_at: string
 }
 
-export interface CrewXPLog {
+export interface CrewXPLog extends Record<string, unknown> {
   id: string
   crew_id: string
   user_id: string
@@ -61,7 +61,7 @@ export interface CrewXPLog {
   created_at: string
 }
 
-export interface Boss {
+export interface Boss extends Record<string, unknown> {
   id: string
   name: string
   type: BossType
@@ -70,7 +70,7 @@ export interface Boss {
   description: string | null
 }
 
-export interface ActiveRaid {
+export interface ActiveRaid extends Record<string, unknown> {
   id: string
   crew_id: string
   boss_id: string
@@ -83,7 +83,7 @@ export interface ActiveRaid {
   mvp_user_id: string | null
 }
 
-export interface Artifact {
+export interface Artifact extends Record<string, unknown> {
   id: string
   crew_id: string
   name: string
@@ -110,6 +110,7 @@ export type Database = {
         Row: Profile
         Insert: Omit<Profile, 'created_at'> & { created_at?: string }
         Update: Partial<Omit<Profile, 'id'>>
+        Relationships: []
       }
       crews: {
         Row: Crew
@@ -120,26 +121,31 @@ export type Database = {
           total_xp?: number
         }
         Update: Partial<Omit<Crew, 'id'>>
+        Relationships: []
       }
       crew_members: {
         Row: CrewMember
         Insert: Omit<CrewMember, 'id' | 'joined_at'> & { id?: string; joined_at?: string }
         Update: Partial<Omit<CrewMember, 'id'>>
+        Relationships: []
       }
       messages: {
         Row: Message
         Insert: Omit<Message, 'id' | 'created_at'> & { id?: string; created_at?: string }
         Update: Partial<Omit<Message, 'id'>>
+        Relationships: []
       }
       crew_xp_log: {
         Row: CrewXPLog
         Insert: Omit<CrewXPLog, 'id' | 'created_at'> & { id?: string; created_at?: string }
         Update: Partial<Omit<CrewXPLog, 'id'>>
+        Relationships: []
       }
       bosses: {
         Row: Boss
         Insert: Omit<Boss, 'id'> & { id?: string }
         Update: Partial<Omit<Boss, 'id'>>
+        Relationships: []
       }
       active_raids: {
         Row: ActiveRaid
@@ -150,15 +156,34 @@ export type Database = {
           mvp_user_id?: string | null
         }
         Update: Partial<Omit<ActiveRaid, 'id'>>
+        Relationships: []
       }
       artifacts: {
         Row: Artifact
         Insert: Omit<Artifact, 'id' | 'earned_at'> & { id?: string; earned_at?: string }
         Update: Partial<Omit<Artifact, 'id'>>
+        Relationships: []
       }
     }
     Views: Record<string, never>
-    Functions: Record<string, never>
+    Functions: {
+      create_crew: {
+        Args: { p_name: string; p_invite_code: string }
+        Returns: string
+      }
+      join_crew: {
+        Args: { p_invite_code: string }
+        Returns: string
+      }
+      insert_message: {
+        Args: {
+          p_crew_id: string
+          p_content: string
+          p_message_type: string
+        }
+        Returns: Message
+      }
+    }
     Enums: Record<string, never>
   }
 }
