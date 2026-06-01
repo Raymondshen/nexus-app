@@ -4,8 +4,8 @@ import { createClient } from '@/lib/supabase/server'
 
 // Dev-only manual boss spawn trigger
 export async function GET(request: NextRequest) {
-  if (process.env.NODE_ENV !== 'development') {
-    return NextResponse.json({ error: 'Only available in development' }, { status: 403 })
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ error: 'Not available in production' }, { status: 404 })
   }
 
   const supabase = await createClient()

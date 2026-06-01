@@ -3,6 +3,9 @@ import { createClient } from "@/lib/supabase/server";
 import { ChatHeader } from "@/components/chat/ChatHeader";
 import { MessageList } from "@/components/chat/MessageList";
 import { ChatInput } from "@/components/chat/ChatInput";
+import { BottomNav } from "@/components/ui/BottomNav";
+import { WelcomeDetector } from "@/components/ui/WelcomeDetector";
+import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import type {
   MessageWithProfile,
   Profile,
@@ -11,8 +14,6 @@ import type {
   Crew,
   ActiveRaid,
 } from "@/types";
-
-import { WelcomeDetector } from '@/components/ui/WelcomeDetector'
 
 interface ChatPageProps {
   params:       Promise<{ crewId: string }>;
@@ -48,13 +49,19 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
 
   if (!crew) redirect("/onboarding");
 
-  // Fetch all crew member profiles
+  // Fetch all crew members (including last_seen for presence)
   const { data: memberRows } = (await supabase
     .from("crew_members")
     .select("*")
     .eq("crew_id", crewId)) as { data: CrewMember[] | null };
 
   const memberUserIds = (memberRows ?? []).map((r) => r.user_id);
+
+  // Build last_seen map keyed by user_id
+  const memberLastSeen: Record<string, string | null> = {}
+  for (const row of memberRows ?? []) {
+    memberLastSeen[row.user_id] = row.last_seen ?? null
+  }
 
   const { data: profileRows } = (await supabase
     .from("profiles")
@@ -70,7 +77,7 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
     Pick<Profile, "id" | "username" | "avatar_class">
   > = Object.fromEntries(profiles.map((p) => [p.id, p]));
 
-  // Fetch last 50 messages with profile info
+  // Fetch last 50 messages
   const { data: messageRows } = (await supabase
     .from("messages")
     .select("*")
@@ -100,27 +107,34 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
 
   return (
     <div
-      className="flex flex-col h-[100dvh] bg-[#0a0612] overscroll-none"
-      style={{ maxWidth: 480, margin: "0 auto", overflow: "hidden" }}
+      className="flex flex-col bg-[#0a0612]"
+      style={{ height: '100dvh', maxWidth: 480, margin: '0 auto', overflow: 'hidden' }}
     >
-      {welcome === '1' && <WelcomeDetector crewId={crewId} />}
+      {welcome === "1" && <WelcomeDetector crewId={crewId} />}
+
       <ChatHeader
         crew={crew}
         members={profiles}
         initialXP={crew.total_xp}
         initialRaid={raidRow ?? null}
-      />
-
-      <MessageList
-        crewId={crewId}
-        crewName={crew.name}
         currentUserId={user.id}
-        initialMessages={initialMessages}
-        memberProfiles={memberProfiles}
-        initialRaid={raidRow ?? null}
+        crewId={crewId}
+        memberLastSeen={memberLastSeen}
       />
 
-      <ChatInput
+      <ErrorBoundary>
+        <MessageList
+          crewId={crewId}
+          crewName={crew.name}
+          currentUserId={user.id}
+          initialMessages={initialMessages}
+          memberProfiles={memberProfiles}
+          initialRaid={raidRow ?? null}
+        />
+      </ErrorBoundary>
+
+      <ErrorBoundary>
+        <ChatInput
         crewId={crewId}
         userId={user.id}
         userProfile={
@@ -130,7 +144,10 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
             avatar_class: null,
           }
         }
-      />
+        />
+      </ErrorBoundary>
+
+      <BottomNav crewId={crewId} />
     </div>
   );
 }

@@ -5,10 +5,10 @@ import { motion } from 'framer-motion'
 import { createClient } from '@/lib/supabase/client'
 import { getBossPhase, formatTimeRemaining, isRaidExpired } from '@/lib/game/boss'
 import { BossPhaseAlert } from './BossPhaseAlert'
+import { useChatStore } from '@/store/chatStore'
 import type { ActiveRaid, ElementType } from '@/types'
 
 // ─── Void pixel art — 16×16 ───────────────────────────────────────────────────
-// 0=empty 1=outer purple 2=inner dark 3=red eye 4=deep core
 const VOID_GRID = [
   '0000011111100000',
   '0001122222211000',
@@ -38,11 +38,7 @@ const PIXEL_COLORS: Record<string, string> = {
 
 function VoidSprite() {
   return (
-    <div
-      className="relative"
-      style={{ width: 64, height: 64 }}
-    >
-      {/* Glow behind sprite */}
+    <div className="relative" style={{ width: 64, height: 64 }}>
       <div
         className="absolute inset-0 rounded-full blur-xl"
         style={{ background: 'radial-gradient(circle, rgba(255,0,0,0.3) 0%, transparent 70%)' }}
@@ -86,43 +82,72 @@ const ELEMENT_COLORS: Record<ElementType, string> = {
 // ─── BossCard ─────────────────────────────────────────────────────────────────
 
 interface BossCardProps {
-  raidId: string
-  crewId: string
-  initialRaid: ActiveRaid
+  raidId:      string
+  crewId:      string
+  initialRaid: ActiveRaid | null
 }
 
 export function BossCard({ raidId, crewId, initialRaid }: BossCardProps) {
-  const [raid, setRaid]                   = useState<ActiveRaid>(initialRaid)
-  const [shaking, setShaking]             = useState(false)
-  const [phaseAlert, setPhaseAlert]       = useState<2 | 3 | null>(null)
-  const [damageLog, setDamageLog]         = useState<DamageLogEntry[]>([])
-  const [timeLeft, setTimeLeft]           = useState(() => formatTimeRemaining(initialRaid.expires_at))
-  const [freqBar, setFreqBar]             = useState(0)   // 0-100, Phase 3 frequency meter
-  const prevPhaseRef                      = useRef(getBossPhase(initialRaid.current_hp, initialRaid.max_hp))
-  const lastMessageRef                    = useRef(Date.now())
+  const [raid,       setRaid]       = useState<ActiveRaid | null>(initialRaid)
+  const [shaking,    setShaking]    = useState(false)
+  const [phaseAlert, setPhaseAlert] = useState<2 | 3 | null>(null)
+  const [damageLog,  setDamageLog]  = useState<DamageLogEntry[]>([])
+  const [timeLeft,   setTimeLeft]   = useState(() =>
+    initialRaid ? formatTimeRemaining(initialRaid.expires_at) : '--:--:--'
+  )
+  const [freqBar, setFreqBar] = useState(0)
 
-  const hpPct   = Math.max(0, (raid.current_hp / raid.max_hp) * 100)
-  const phase   = getBossPhase(raid.current_hp, raid.max_hp)
-  const expired = isRaidExpired(raid.expires_at)
-  const won     = !!raid.defeated_at
+  const { setActiveRaid } = useChatStore()
+
+  // Use ref to read latest raid HP without recreating the Realtime subscription
+  const raidRef = useRef(raid)
+  raidRef.current = raid
+
+  const prevPhaseRef    = useRef(raid ? getBossPhase(raid.current_hp, raid.max_hp) : 1)
+  const lastMessageRef  = useRef(Date.now())
+  const fetchedRef      = useRef(false)
+
+  // Fetch raid data if not supplied (boss spawned mid-session)
+  useEffect(() => {
+    if (raid || fetchedRef.current) return
+    fetchedRef.current = true
+    const supabase = createClient()
+    supabase
+      .from('active_raids')
+      .select('*')
+      .eq('id', raidId)
+      .single()
+      .then(({ data }) => {
+        if (data) {
+          const fetched = data as ActiveRaid
+          setRaid(fetched)
+          setActiveRaid(fetched)
+          setTimeLeft(formatTimeRemaining(fetched.expires_at))
+          prevPhaseRef.current  = getBossPhase(fetched.current_hp, fetched.max_hp)
+        }
+      })
+  }, [raidId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const hpPct   = raid ? Math.max(0, (raid.current_hp / raid.max_hp) * 100) : 0
+  const phase   = raid ? getBossPhase(raid.current_hp, raid.max_hp) : 1
+  const expired = raid ? isRaidExpired(raid.expires_at) : false
+  const won     = !!raid?.defeated_at
 
   // Countdown timer
   useEffect(() => {
-    if (won || expired) return
+    if (!raid || won || expired) return
     const t = setInterval(() => setTimeLeft(formatTimeRemaining(raid.expires_at)), 1000)
     return () => clearInterval(t)
-  }, [raid.expires_at, won, expired])
+  }, [raid?.expires_at, won, expired]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Phase 3 frequency meter — decays 1 unit per 600ms, fills to 100 on message
+  // Phase 3 frequency meter
   useEffect(() => {
     if (phase !== 3 || won) return
-    const t = setInterval(() => {
-      setFreqBar((v) => Math.max(0, v - 1.8))
-    }, 600)
+    const t = setInterval(() => setFreqBar((v) => Math.max(0, v - 1.8)), 600)
     return () => clearInterval(t)
   }, [phase, won])
 
-  // Realtime — active_raids HP updates
+  // Realtime — active_raids HP updates (stable dep: only raidId)
   useEffect(() => {
     const supabase = createClient()
     const channel  = supabase
@@ -131,26 +156,24 @@ export function BossCard({ raidId, crewId, initialRaid }: BossCardProps) {
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'active_raids', filter: `id=eq.${raidId}` },
         (payload) => {
-          const updated = payload.new as ActiveRaid
-          const oldHP   = raid.current_hp
-          const newHP   = updated.current_hp
+          const updated  = payload.new as ActiveRaid
+          const oldHP    = raidRef.current?.current_hp ?? updated.current_hp
+          const newHP    = updated.current_hp
           const newPhase = getBossPhase(newHP, updated.max_hp)
 
           setRaid(updated)
+          setActiveRaid(updated)
 
-          // Shake on damage
           if (newHP < oldHP) {
             setShaking(true)
             setTimeout(() => setShaking(false), 500)
           }
 
-          // Phase transition alert
           if (newPhase > prevPhaseRef.current) {
             setPhaseAlert(newPhase as 2 | 3)
             prevPhaseRef.current = newPhase
           }
 
-          // Freq bar fill on any update (means someone attacked)
           setFreqBar(100)
           lastMessageRef.current = Date.now()
         }
@@ -158,15 +181,13 @@ export function BossCard({ raidId, crewId, initialRaid }: BossCardProps) {
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
-  }, [raidId, raid.current_hp])
+  }, [raidId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Expose addDamageLog so ChatInput can call it
   const addDamageEntry = useCallback((entry: DamageLogEntry) => {
     setDamageLog((prev) => [entry, ...prev].slice(0, 5))
     setFreqBar(100)
   }, [])
 
-  // Make addDamageEntry available globally via a ref stored on the card DOM node
   const cardRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (cardRef.current) {
@@ -174,6 +195,18 @@ export function BossCard({ raidId, crewId, initialRaid }: BossCardProps) {
       cardRef.current.__addDamageEntry = addDamageEntry
     }
   }, [addDamageEntry])
+
+  // Loading state while raid data is being fetched
+  if (!raid) {
+    return (
+      <div
+        className="w-full my-2 p-4 text-center"
+        style={{ border: '1px solid rgba(255,34,0,0.4)', background: 'rgba(10,0,0,0.8)' }}
+      >
+        <p className="font-pixel text-[8px] text-[#ff4444]/60">BOSS INCOMING...</p>
+      </div>
+    )
+  }
 
   if (won) return <VictoryCard damageLog={damageLog} />
   if (expired) return <ExpiredCard />
@@ -187,7 +220,7 @@ export function BossCard({ raidId, crewId, initialRaid }: BossCardProps) {
         data-boss-card={raidId}
         animate={shaking ? { x: [-4, 4, -3, 3, 0] } : { x: 0 }}
         transition={{ duration: 0.4 }}
-        className="w-full my-2 overflow-hidden"
+        className="w-full my-2 overflow-hidden relative"
         style={{
           background: 'linear-gradient(180deg, #1a0000 0%, #0a0612 100%)',
           border: '1px solid rgba(255,34,0,0.4)',
@@ -230,14 +263,13 @@ export function BossCard({ raidId, crewId, initialRaid }: BossCardProps) {
               </div>
             </div>
 
-            {/* Phase badge + timer */}
             <div className="flex flex-col items-end gap-1">
               <span
                 className="font-pixel text-[8px] px-2 py-0.5 border"
                 style={{
-                  color:        phase === 3 ? '#ff2200' : phase === 2 ? '#ff8800' : '#bf5fff',
-                  borderColor:  phase === 3 ? 'rgba(255,34,0,0.5)' : phase === 2 ? 'rgba(255,136,0,0.5)' : 'rgba(191,95,255,0.5)',
-                  background:   phase === 3 ? 'rgba(255,0,0,0.1)' : 'transparent',
+                  color:       phase === 3 ? '#ff2200' : phase === 2 ? '#ff8800' : '#bf5fff',
+                  borderColor: phase === 3 ? 'rgba(255,34,0,0.5)' : phase === 2 ? 'rgba(255,136,0,0.5)' : 'rgba(191,95,255,0.5)',
+                  background:  phase === 3 ? 'rgba(255,0,0,0.1)' : 'transparent',
                 }}
               >
                 PHASE {phase}
@@ -267,6 +299,24 @@ export function BossCard({ raidId, crewId, initialRaid }: BossCardProps) {
                 }}
               />
             </div>
+          </div>
+
+          {/* Phase weakness hint — discovery arc */}
+          <div
+            className="mb-3 px-2 py-1.5 border"
+            style={{
+              borderColor: phase === 3 ? 'rgba(255,34,0,0.4)' : 'rgba(191,95,255,0.15)',
+              background:  phase === 3 ? 'rgba(255,0,0,0.06)' : 'rgba(191,95,255,0.03)',
+            }}
+          >
+            <p
+              className="font-pixel text-[7px] leading-relaxed"
+              style={{ color: phase === 3 ? '#ff4444' : '#6b4f8f' }}
+            >
+              {phase === 1 && 'The Void recoils from something...'}
+              {phase === 2 && 'Rapid messages seem to hurt it.'}
+              {phase === 3 && '⚡ WEAKNESS: FIRE — Send rapid messages!'}
+            </p>
           </div>
 
           {/* Phase 3 — frequency meter */}
@@ -333,8 +383,10 @@ function VictoryCard({ damageLog }: { damageLog: DamageLogEntry[] }) {
         boxShadow: '0 0 30px rgba(102,187,106,0.1)',
       }}
     >
-      <p className="font-pixel text-[14px] text-[#66bb6a] mb-1"
-        style={{ textShadow: '0 0 12px rgba(102,187,106,0.8)' }}>
+      <p
+        className="font-pixel text-[14px] text-[#66bb6a] mb-1"
+        style={{ textShadow: '0 0 12px rgba(102,187,106,0.8)' }}
+      >
         THE VOID FALLS
       </p>
       <p className="font-pixel text-[8px] text-[#4a8a4a]">Your crew defeated the darkness.</p>

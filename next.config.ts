@@ -5,7 +5,18 @@ const withPWA: any = require('next-pwa')
 
 const isDev = process.env.NODE_ENV === 'development'
 
-const baseConfig: NextConfig = {}
+const baseConfig: NextConfig = {
+  turbopack: {},
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: '*.supabase.co',
+        pathname: '/storage/v1/object/public/**',
+      },
+    ],
+  },
+}
 
 const pwaConfig = {
   dest: 'public',

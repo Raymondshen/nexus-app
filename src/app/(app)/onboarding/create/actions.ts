@@ -16,9 +16,10 @@ export async function createCrewAction(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const name = (formData.get('crewName') as string).trim()
+  const raw  = (formData.get('crewName') as string).trim().replace(/<[^>]*>/g, '')
+  const name = raw.slice(0, 30)
   if (name.length < 2)  return { error: 'Crew name must be at least 2 characters.' }
-  if (name.length > 32) return { error: 'Crew name must be 32 characters or less.' }
+  if (name.length > 30) return { error: 'Crew name must be 30 characters or less.' }
 
   // Retry up to 3 times on invite code collision
   for (let attempt = 0; attempt < 3; attempt++) {

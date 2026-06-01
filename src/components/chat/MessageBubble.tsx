@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { format } from 'date-fns'
+import { useState, useRef } from 'react'
+import { format, isToday, isYesterday } from 'date-fns'
 import type { MessageWithProfile, ElementType } from '@/types'
 
 const ELEMENT_COLORS: Record<ElementType, string> = {
@@ -24,6 +24,13 @@ const ELEMENT_LABELS: Record<ElementType, string> = {
 
 const REACTIONS = ['⚔️', '🔥', '💀', '✨']
 
+function formatTimestamp(date: Date): string {
+  const timeStr = format(date, 'h:mm a')
+  if (isToday(date))     return `Today at ${timeStr}`
+  if (isYesterday(date)) return `Yesterday at ${timeStr}`
+  return `${format(date, 'EEE')} at ${timeStr}`
+}
+
 interface MessageBubbleProps {
   message: MessageWithProfile
   isOwn: boolean
@@ -31,8 +38,29 @@ interface MessageBubbleProps {
 }
 
 export function MessageBubble({ message, isOwn, showHeader }: MessageBubbleProps) {
-  const [showTime, setShowTime] = useState(false)
+  const [showTime,      setShowTime]      = useState(false)
   const [showReactions, setShowReactions] = useState(false)
+  const [copied,        setCopied]        = useState(false)
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  function handleTouchStart() {
+    longPressTimer.current = setTimeout(() => setShowReactions(true), 500)
+  }
+
+  function handleTouchEnd() {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current)
+  }
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(message.content)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      // Clipboard unavailable
+    }
+    setShowReactions(false)
+  }
 
   if (message.message_type === 'system') {
     return <SystemMessage message={message} />
@@ -45,6 +73,9 @@ export function MessageBubble({ message, isOwn, showHeader }: MessageBubbleProps
     <div
       className={`flex items-end gap-2 ${isOwn ? 'flex-row-reverse' : 'flex-row'}`}
       onContextMenu={(e) => { e.preventDefault(); setShowReactions(true) }}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      onTouchMove={handleTouchEnd}
     >
       {/* Avatar — only shown for received messages */}
       {!isOwn && (
@@ -90,13 +121,13 @@ export function MessageBubble({ message, isOwn, showHeader }: MessageBubbleProps
           {showTime && (
             <div className={`absolute -bottom-5 ${isOwn ? 'right-0' : 'left-0'} whitespace-nowrap`}>
               <span className="font-pixel text-[7px] text-[#3d2660]">
-                {format(new Date(message.created_at), 'h:mm a')}
+                {formatTimestamp(new Date(message.created_at))}
               </span>
             </div>
           )}
         </div>
 
-        {/* Reaction picker */}
+        {/* Reaction + copy picker */}
         {showReactions && (
           <div className="flex gap-1 bg-[#0f0820] border border-[#2a1545] px-2 py-1">
             {REACTIONS.map((r) => (
@@ -108,6 +139,12 @@ export function MessageBubble({ message, isOwn, showHeader }: MessageBubbleProps
                 {r}
               </button>
             ))}
+            <button
+              className="font-pixel text-[7px] text-[#3d2660] hover:text-[#00e5ff] ml-1 px-1 transition-colors"
+              onClick={handleCopy}
+            >
+              {copied ? '✓' : 'COPY'}
+            </button>
             <button
               className="font-pixel text-[8px] text-[#3d2660] ml-1"
               onClick={() => setShowReactions(false)}
