@@ -4,12 +4,15 @@ import { createClient as createServerClient } from '@/lib/supabase/server'
 import { createClient } from '@supabase/supabase-js'
 
 export async function POST(request: NextRequest) {
+  try {
   const { crew_id } = await request.json()
   if (!crew_id) return NextResponse.json({ error: 'crew_id required' }, { status: 400 })
 
   // Verify caller is authenticated and a member of this crew
   const serverClient = await createServerClient()
-  const { data: { user } } = await serverClient.auth.getUser()
+  const { data: authData, error: authErr } = await serverClient.auth.getUser()
+  const user = authData?.user
+  if (authErr) console.error('[spawn-boss] auth error:', authErr.message)
   if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
 
   const { data: membership } = await serverClient
@@ -76,4 +79,9 @@ export async function POST(request: NextRequest) {
   })
 
   return NextResponse.json({ ok: true, raid_id: raid.id, boss_name: boss.name })
+  } catch (err) {
+    console.error('[spawn-boss] unhandled error:', err)
+    const msg = err instanceof Error ? err.message : 'Internal server error'
+    return NextResponse.json({ error: msg }, { status: 500 })
+  }
 }

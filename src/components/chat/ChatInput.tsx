@@ -166,15 +166,21 @@ export function ChatInput({ crewId, userId, userProfile }: ChatInputProps) {
     setSpawning(true)
     setSpawnError(null)
     try {
-      const res  = await fetch('/api/test/spawn-boss', {
+      const res = await fetch('/api/test/spawn-boss', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ crew_id: crewId }),
       })
-      const data = await res.json()
-      if (!res.ok) setSpawnError(data.error ?? 'Spawn failed')
-    } catch {
-      setSpawnError('Network error')
+      let data: { error?: string; ok?: boolean } = {}
+      try {
+        data = await res.json()
+      } catch {
+        setSpawnError(`Server error ${res.status}`)
+        return
+      }
+      if (!res.ok) setSpawnError(data.error ?? `Error ${res.status}`)
+    } catch (err) {
+      setSpawnError(err instanceof Error ? err.message : 'Network error')
     } finally {
       setSpawning(false)
     }

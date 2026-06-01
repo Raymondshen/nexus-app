@@ -227,11 +227,11 @@ Building in this exact order:
 - src/components/chat/ChatHeader.tsx: crew name, LVL badge, member avatars, animated XP bar, boss HP bar, +XP float animations, user initial button → logout bottom sheet
 - src/components/chat/MessageList.tsx: Realtime subscription on messages table, auto-scroll, date dividers, message grouping by sender
 - src/components/chat/MessageBubble.tsx: sent/received layout, element dots, system message variants (boss/xp/artifact), tap-to-react
-- src/components/chat/ChatInput.tsx: textarea (Enter to send, Shift+Enter newline), send/attach/mic buttons, calls award-xp edge function; ⚔ SPAWN BOSS dev button (visible when no active raid); sets nexus_first_message localStorage key on first send; fontSize 16px to prevent iOS auto-zoom
+- src/components/chat/ChatInput.tsx: textarea (Enter to send, Shift+Enter newline), send/attach/mic buttons, calls award-xp edge function; ⚔ SPAWN BOSS dev button (visible when no active raid); sets nexus_first_message localStorage key on first send; fontSize 16px to prevent iOS auto-zoom; spawn-boss error handling: parses non-JSON responses as `Server error ${status}`, shows actual server error message instead of generic "Network error"
 - src/store/chatStore.ts: Zustand — messages, crewXP, crewLevel, xpFloats, activeRaid
 - src/lib/game/xp.ts: XP_VALUES, calculateXP, getElementType, getLevelFromXP, getXPProgress constants + helpers
 - supabase/functions/award-xp/index.ts: calculates base XP + first-today + combo bonuses, updates crews.total_xp, spawns The Void at 500 XP threshold
-- src/app/api/test/spawn-boss/route.ts: POST endpoint — verifies crew membership, creates active_raids row + BOSS_SPAWN system message using service role key
+- src/app/api/test/spawn-boss/route.ts: POST endpoint — verifies crew membership, creates active_raids row + BOSS_SPAWN system message using service role key; entire handler wrapped in try/catch so unhandled throws return JSON `{ error }` instead of HTML 500; auth error logged to server console
 
 ### PWA + Notifications (fully wired)
 - public/manifest.json: name, icons, shortcuts (chat + vault), theme #0a0612, standalone portrait
