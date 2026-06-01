@@ -9,37 +9,39 @@ interface VaultPageProps {
 }
 
 export default async function VaultPage({ params }: VaultPageProps) {
-  const { crewId } = await params
-  const supabase   = await createClient()
+  const supabase = await createClient()
 
-  const { data: { user } } = await supabase.auth.getUser()
+  // Stage 1 — auth + route params in parallel
+  const [{ data: { user } }, { crewId }] = await Promise.all([
+    supabase.auth.getUser(),
+    params,
+  ])
   if (!user) redirect('/login')
 
-  // Verify membership
-  const { data: membership } = await supabase
-    .from('crew_members')
-    .select('id')
-    .eq('crew_id', crewId)
-    .eq('user_id', user.id)
-    .maybeSingle() as { data: Pick<CrewMember, 'id'> | null }
+  // Stage 2 — membership, crew data, and artifacts all in parallel (RLS enforces access)
+  const [membershipResult, crewResult, artifactsResult] = await Promise.all([
+    supabase
+      .from('crew_members')
+      .select('id')
+      .eq('crew_id', crewId)
+      .eq('user_id', user.id)
+      .maybeSingle() as Promise<{ data: Pick<CrewMember, 'id'> | null }>,
+    supabase
+      .from('crews')
+      .select('*')
+      .eq('id', crewId)
+      .single() as Promise<{ data: Crew | null }>,
+    supabase
+      .from('artifacts')
+      .select('*')
+      .eq('crew_id', crewId)
+      .order('earned_at', { ascending: false }) as Promise<{ data: Artifact[] | null }>,
+  ])
 
-  if (!membership) redirect('/onboarding')
+  if (!membershipResult.data || !crewResult.data) redirect('/home')
 
-  // Fetch crew
-  const { data: crew } = await supabase
-    .from('crews')
-    .select('*')
-    .eq('id', crewId)
-    .single() as { data: Crew | null }
-
-  if (!crew) redirect('/onboarding')
-
-  // Fetch all artifacts for this crew, newest first
-  const { data: artifacts } = await supabase
-    .from('artifacts')
-    .select('*')
-    .eq('crew_id', crewId)
-    .order('earned_at', { ascending: false }) as { data: Artifact[] | null }
+  const crew      = crewResult.data
+  const artifacts = artifactsResult.data ?? []
 
   return (
     <ErrorBoundary>
@@ -47,7 +49,7 @@ export default async function VaultPage({ params }: VaultPageProps) {
         crewId={crewId}
         crewName={crew.name}
         crewCreatedAt={crew.created_at}
-        artifacts={artifacts ?? []}
+        artifacts={artifacts}
       />
     </ErrorBoundary>
   )

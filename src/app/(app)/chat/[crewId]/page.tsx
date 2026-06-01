@@ -21,89 +21,68 @@ interface ChatPageProps {
 }
 
 export default async function ChatPage({ params, searchParams }: ChatPageProps) {
-  const { crewId } = await params;
-  const { welcome } = await searchParams;
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Stage 1 — auth + route params in parallel
+  const [{ data: { user } }, { crewId }, { welcome }] = await Promise.all([
+    supabase.auth.getUser(),
+    params,
+    searchParams,
+  ]);
   if (!user) redirect("/login");
 
-  // Verify membership
-  const { data: membership } = await supabase
-    .from("crew_members")
-    .select("id")
-    .eq("crew_id", crewId)
-    .eq("user_id", user.id)
-    .maybeSingle();
+  // Stage 2 — all crew data in parallel (RLS enforces access)
+  // Combining both crew_members queries into one to halve the round-trips.
+  const [allMembersResult, crewResult, messagesResult, raidResult] = await Promise.all([
+    supabase.from("crew_members").select("*").eq("crew_id", crewId),
+    supabase.from("crews").select("*").eq("id", crewId).single(),
+    supabase
+      .from("messages")
+      .select("*")
+      .eq("crew_id", crewId)
+      .order("created_at", { ascending: true })
+      .limit(50),
+    supabase
+      .from("active_raids")
+      .select("*")
+      .eq("crew_id", crewId)
+      .is("defeated_at", null)
+      .gt("expires_at", new Date().toISOString())
+      .maybeSingle(),
+  ]);
 
-  if (!membership) redirect("/onboarding");
+  const memberRows = (allMembersResult.data ?? []) as CrewMember[];
+  const crew       = crewResult.data as Crew | null;
 
-  // Fetch crew
-  const { data: crew } = (await supabase
-    .from("crews")
-    .select("*")
-    .eq("id", crewId)
-    .single()) as { data: Crew | null };
+  // Membership check — RLS returns empty if not a member
+  const isMember = memberRows.some((r) => r.user_id === user.id);
+  if (!isMember || !crew) redirect("/home");
 
-  if (!crew) redirect("/onboarding");
+  const memberUserIds = memberRows.map((r) => r.user_id);
 
-  // Fetch all crew members (including last_seen for presence)
-  const { data: memberRows } = (await supabase
-    .from("crew_members")
-    .select("*")
-    .eq("crew_id", crewId)) as { data: CrewMember[] | null };
-
-  const memberUserIds = (memberRows ?? []).map((r) => r.user_id);
-
-  // Build last_seen map keyed by user_id
-  const memberLastSeen: Record<string, string | null> = {}
-  for (const row of memberRows ?? []) {
-    memberLastSeen[row.user_id] = row.last_seen as string | null
-  }
-
-  const { data: profileRows } = (await supabase
+  // Stage 3 — profiles (depends on member IDs from stage 2)
+  const { data: profileRows } = await supabase
     .from("profiles")
     .select("id, username, avatar_class")
-    .in("id", memberUserIds)) as {
-    data: Pick<Profile, "id" | "username" | "avatar_class">[] | null;
-  };
+    .in("id", memberUserIds);
 
-  const profiles = profileRows ?? [];
+  const profiles = (profileRows ?? []) as Pick<Profile, "id" | "username" | "avatar_class">[];
 
-  const memberProfiles: Record<
-    string,
-    Pick<Profile, "id" | "username" | "avatar_class">
-  > = Object.fromEntries(profiles.map((p) => [p.id, p]));
+  const memberProfiles: Record<string, Pick<Profile, "id" | "username" | "avatar_class">> =
+    Object.fromEntries(profiles.map((p) => [p.id, p]));
 
-  // Fetch last 50 messages
-  const { data: messageRows } = (await supabase
-    .from("messages")
-    .select("*")
-    .eq("crew_id", crewId)
-    .order("created_at", { ascending: true })
-    .limit(50)) as { data: Message[] | null };
+  const memberLastSeen: Record<string, string | null> = {};
+  for (const row of memberRows) {
+    memberLastSeen[row.user_id] = row.last_seen as string | null;
+  }
 
-  const initialMessages: MessageWithProfile[] = (messageRows ?? []).map(
-    (m) => ({
-      ...m,
-      profile: memberProfiles[m.user_id] ?? {
-        id: m.user_id,
-        username: "???",
-        avatar_class: null,
-      },
-    }),
-  );
+  const messageRows = (messagesResult.data ?? []) as Message[];
+  const initialMessages: MessageWithProfile[] = messageRows.map((m) => ({
+    ...m,
+    profile: memberProfiles[m.user_id] ?? { id: m.user_id, username: "???", avatar_class: null },
+  }));
 
-  // Fetch active raid
-  const { data: raidRow } = (await supabase
-    .from("active_raids")
-    .select("*")
-    .eq("crew_id", crewId)
-    .is("defeated_at", null)
-    .gt("expires_at", new Date().toISOString())
-    .maybeSingle()) as { data: ActiveRaid | null };
+  const raidRow = raidResult.data as ActiveRaid | null;
 
   return (
     <div
@@ -135,15 +114,11 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
 
       <ErrorBoundary>
         <ChatInput
-        crewId={crewId}
-        userId={user.id}
-        userProfile={
-          memberProfiles[user.id] ?? {
-            id: user.id,
-            username: "???",
-            avatar_class: null,
+          crewId={crewId}
+          userId={user.id}
+          userProfile={
+            memberProfiles[user.id] ?? { id: user.id, username: "???", avatar_class: null }
           }
-        }
         />
       </ErrorBoundary>
 
