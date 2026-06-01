@@ -8,11 +8,19 @@
 *::before,
 *::after {
   box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
 }
 
 html,
 body {
   height: 100%;
+  overscroll-behavior: none;
+}
+
+/* Scrollable containers */
+.nexus-scroll {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
 }
 
 @keyframes float {

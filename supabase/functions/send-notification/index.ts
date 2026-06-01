@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import webpush from 'npm:web-push'
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin':  '*',
@@ -15,11 +16,12 @@ interface NotificationPayload {
 }
 
 function buildPayload(type: NotificationType, data: Record<string, unknown>) {
+  const crewTag = data.crew_name ? ` in ${data.crew_name}` : ''
   switch (type) {
     case 'boss_spawned':
       return {
         title: '⚔ RAID ALERT',
-        body:  `${data.boss_name ?? 'A boss'} has appeared! Your crew needs you.`,
+        body:  `${data.boss_name ?? 'A boss'} has appeared${crewTag}! Your crew needs you.`,
         icon:  '/icons/icon-192.png',
         badge: '/icons/icon-192.png',
         data:  { url: `/chat/${data.crew_id}` },
@@ -27,7 +29,7 @@ function buildPayload(type: NotificationType, data: Record<string, unknown>) {
     case 'boss_defeated':
       return {
         title: '🏆 VICTORY',
-        body:  `${data.boss_name ?? 'The boss'} has been defeated! Artifact incoming.`,
+        body:  `${data.boss_name ?? 'The boss'} defeated${crewTag}! Claim your artifact.`,
         icon:  '/icons/icon-192.png',
         badge: '/icons/icon-192.png',
         data:  { url: `/vault/${data.crew_id}` },
@@ -35,7 +37,7 @@ function buildPayload(type: NotificationType, data: Record<string, unknown>) {
     case 'raid_expiring':
       return {
         title: '⏳ RAID EXPIRING',
-        body:  'The boss escapes in 1 hour. Jump in now!',
+        body:  `The boss escapes${crewTag} in 2 hours. Jump in now!`,
         icon:  '/icons/icon-192.png',
         badge: '/icons/icon-192.png',
         data:  { url: `/chat/${data.crew_id}` },
@@ -43,7 +45,7 @@ function buildPayload(type: NotificationType, data: Record<string, unknown>) {
     case 'crew_silent':
       return {
         title: '💀 THE VOID STIRS',
-        body:  'Your crew has gone quiet. Send a message before The Void spawns.',
+        body:  `Your crew${crewTag ? ` (${data.crew_name})` : ''} has gone quiet. Send a message before The Void spawns.`,
         icon:  '/icons/icon-192.png',
         badge: '/icons/icon-192.png',
         data:  { url: `/chat/${data.crew_id}` },
@@ -67,30 +69,53 @@ Deno.serve(async (req: Request) => {
       )
     }
 
-    const notifPayload = buildPayload(type, payload)
-
-    // TODO: replace with real web push when VAPID keys are wired
-    console.log('[send-notification] VAPID pending — would send:', {
-      user_id,
-      type,
-      notifPayload,
-    })
+    webpush.setVapidDetails(
+      Deno.env.get('VAPID_SUBJECT')!,
+      Deno.env.get('NEXT_PUBLIC_VAPID_PUBLIC_KEY')!,
+      Deno.env.get('VAPID_PRIVATE_KEY')!,
+    )
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     )
 
-    // Fetch subscriptions for this user so we know where we'd push
     const { data: subs } = await supabase
       .from('push_subscriptions')
-      .select('endpoint, p256dh, auth')
+      .select('id, endpoint, p256dh, auth')
       .eq('user_id', user_id)
 
-    console.log(`[send-notification] ${subs?.length ?? 0} subscription(s) found for user`)
+    if (!subs || subs.length === 0) {
+      return new Response(
+        JSON.stringify({ status: 'no_subscriptions' }),
+        { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } },
+      )
+    }
+
+    const notifPayload = buildPayload(type, payload)
+    const results: { endpoint: string; status: string }[] = []
+
+    for (const sub of subs) {
+      try {
+        await webpush.sendNotification(
+          { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+          JSON.stringify(notifPayload),
+        )
+        results.push({ endpoint: sub.endpoint, status: 'sent' })
+      } catch (err: unknown) {
+        const code = (err as { statusCode?: number })?.statusCode
+        if (code === 410 || code === 404) {
+          await supabase.from('push_subscriptions').delete().eq('id', sub.id)
+          results.push({ endpoint: sub.endpoint, status: 'expired_deleted' })
+        } else {
+          console.error('[send-notification] push failed:', err)
+          results.push({ endpoint: sub.endpoint, status: 'error' })
+        }
+      }
+    }
 
     return new Response(
-      JSON.stringify({ status: 'VAPID pending', type, subscriptions: subs?.length ?? 0 }),
+      JSON.stringify({ type, results }),
       { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } },
     )
   } catch (err) {

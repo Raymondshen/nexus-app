@@ -39,6 +39,7 @@ export interface CrewMember extends Record<string, unknown> {
   user_id: string
   class: AvatarClass | null
   joined_at: string
+  last_seen: string | null
 }
 
 export interface Message extends Record<string, unknown> {
@@ -125,7 +126,7 @@ export type Database = {
       }
       crew_members: {
         Row: CrewMember
-        Insert: Omit<CrewMember, 'id' | 'joined_at'> & { id?: string; joined_at?: string }
+        Insert: Omit<CrewMember, 'id' | 'joined_at' | 'last_seen'> & { id?: string; joined_at?: string; last_seen?: string | null }
         Update: Partial<Omit<CrewMember, 'id'>>
         Relationships: []
       }

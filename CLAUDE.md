@@ -138,6 +138,7 @@ active_raids
   - expires_at timestamp
   - defeated_at timestamp nullable
   - mvp_user_id uuid nullable
+  - expiry_notif_sent boolean default false
 
 artifacts
   - id uuid
@@ -193,7 +194,7 @@ Building in this exact order:
 6. ✅ XP system with animated bar
 7. ✅ The Void boss spawn + fight UI
 8. Win state + artifact card drop
-9. ✅ PWA configuration + push notifications (structure)
+9. ✅ PWA configuration + push notifications (fully wired)
 10. End to end audit
 
 ## Auth Strategy
@@ -230,20 +231,25 @@ Building in this exact order:
 - src/lib/game/xp.ts: XP_VALUES, calculateXP, getElementType, getLevelFromXP, getXPProgress constants + helpers
 - supabase/functions/award-xp/index.ts: calculates base XP + first-today + combo bonuses, updates crews.total_xp, spawns The Void at 500 XP threshold
 
-### PWA + Notifications (structure — VAPID keys pending)
+### PWA + Notifications (fully wired)
 - public/manifest.json: name, icons, shortcuts (chat + vault), theme #0a0612, standalone portrait
 - public/icons/icon-192.png + icon-512.png: pixel N on dark bg, gold sword — generated via scripts/generate-icons.mjs (@napi-rs/canvas)
 - public/offline.html: zero-dependency standalone page, pixel N div logo, 30s auto-retry, redirects on navigator online event
 - next.config.ts: next-pwa enabled in production only; CacheFirst static assets (30d), NetworkFirst API/Supabase/pages (10s timeout), offline fallback /offline.html, auth routes excluded from SW
-- src/lib/notifications.ts: requestPermission, subscribeToPush (stub — logs VAPID pending), isSupported, getPermissionState, savePermissionState
+- src/lib/notifications.ts: isSupported (checks NEXT_PUBLIC_VAPID_PUBLIC_KEY), requestPermission, subscribeToPush (gets SW registration, calls pushManager.subscribe, saves endpoint/p256dh/auth to push_subscriptions via upsert on endpoint), getPermissionState, savePermissionState
 - src/components/ui/InstallPrompt.tsx: iOS Safari step-by-step + Android Chrome native prompt; shows 10s after nexus_first_message set, once per device (nexus_install_prompted key)
-- src/components/ui/NotificationPrompt.tsx: RAID ALERTS sheet; shows after nexus_crew_created set, throttled 24h (nexus_notif_prompted key); 3 states: visible → granted (auto-dismiss) / denied (settings instructions)
+- src/components/ui/NotificationPrompt.tsx: RAID ALERTS sheet; calls subscribeToPush() after permission granted; shows after nexus_crew_created set, throttled 24h (nexus_notif_prompted key); 3 states: visible → granted (auto-dismiss) / denied (settings instructions)
 - src/components/ui/WelcomeDetector.tsx: client component that sets nexus_crew_created in localStorage when ?welcome=1 param detected, then strips param from URL
-- supabase/migrations/20240101000001_push_subscriptions.sql: push_subscriptions table with RLS (select/insert/delete own rows)
-- supabase/functions/send-notification/index.ts: stubbed Deno function; builds all 4 payloads (boss_spawned, boss_defeated, raid_expiring, crew_silent); ready for VAPID wiring
+- supabase/migrations/20240101000001_push_subscriptions.sql: push_subscriptions table (user_id, crew_id nullable, endpoint, p256dh, auth) with RLS (select/insert/delete own rows)
+- supabase/migrations/20240101000003_push_notifications_fix.sql: makes crew_id nullable on push_subscriptions, adds UNIQUE index on endpoint, adds expiry_notif_sent to active_raids
+- supabase/functions/send-notification/index.ts: real web-push via npm:web-push — sets VAPID details from env, sends to all user subscriptions, deletes 410/404 expired endpoints
+- supabase/functions/award-xp/index.ts: on boss spawn, queries crew_members and fires send-notification (boss_spawned) for each member
+- supabase/functions/attack-boss/index.ts: on boss defeat, queries crew_members and fires send-notification (boss_defeated) for each member
+- supabase/functions/check-raid-expiry/index.ts: cron-triggered function; finds raids expiring within 2 hours where expiry_notif_sent=false, marks them sent, fires send-notification (raid_expiring) for all crew members
 - src/app/layout.tsx: Viewport export with viewportFit=cover, themeColor #0a0612; appleWebApp capable + black status bar; apple-touch-icon + manifest link
 - src/app/(app)/layout.tsx: renders InstallPrompt + NotificationPrompt alongside existing auth guard
 - Crew creation (onboarding/create/actions.ts): redirects to /chat/${crewId}?welcome=1 so WelcomeDetector fires on first load
+- VAPID env vars: NEXT_PUBLIC_VAPID_PUBLIC_KEY (client), VAPID_PRIVATE_KEY + VAPID_SUBJECT (Edge Function secrets only)
 
 ## localStorage Keys
 - nexus_first_message: timestamp (ms) of user's first sent message — triggers InstallPrompt after 10s
@@ -261,6 +267,7 @@ Building in this exact order:
 - The `supabase/` directory MUST be excluded from `tsconfig.json` — Deno Edge Functions use `https://esm.sh/`
   imports and the `Deno` global which are incompatible with the Next.js TypeScript compiler.
 - When adding a new `.rpc('fn_name', ...)` call, add `fn_name` to `Database.public.Functions` first.
+- Property access on types extending `Record<string, unknown>` resolves through the index signature (`unknown`), not the explicit property type. Use `as` casts when assigning to a narrower type (e.g. `row.last_seen as string | null`).
 
 ## Code Rules
 - Always use TypeScript with strict types

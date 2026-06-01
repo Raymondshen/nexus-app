@@ -60,7 +60,7 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
   // Build last_seen map keyed by user_id
   const memberLastSeen: Record<string, string | null> = {}
   for (const row of memberRows ?? []) {
-    memberLastSeen[row.user_id] = row.last_seen ?? null
+    memberLastSeen[row.user_id] = row.last_seen as string | null
   }
 
   const { data: profileRows } = (await supabase

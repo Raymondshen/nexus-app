@@ -39,7 +39,10 @@ export const useChatStore = create<ChatStore>((set) => ({
   setMessages: (messages) => set({ messages }),
 
   addMessage: (message) =>
-    set((s) => ({ messages: [...s.messages, message] })),
+    set((s) => {
+      if (s.messages.some((m) => m.id === message.id)) return {}
+      return { messages: [...s.messages, message] }
+    }),
 
   setCrewXP: (xp) =>
     set({ crewXP: xp, crewLevel: getLevelFromXP(xp) }),

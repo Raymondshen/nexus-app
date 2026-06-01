@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X } from 'lucide-react'
-import { requestPermission, isSupported, getPermissionState } from '@/lib/notifications'
+import { requestPermission, subscribeToPush, isSupported, getPermissionState } from '@/lib/notifications'
 
 const PROMPTED_KEY = 'nexus_notif_prompted'
 const CREW_KEY     = 'nexus_crew_created'
@@ -34,6 +34,7 @@ export function NotificationPrompt() {
   const handleEnable = useCallback(async () => {
     const result = await requestPermission()
     if (result === 'granted') {
+      await subscribeToPush()
       setState('granted')
       setTimeout(() => setState('hidden'), 2000)
     } else {
@@ -113,7 +114,7 @@ function DefaultContent({ onEnable, onLater }: { onEnable: () => void; onLater: 
 function GrantedContent() {
   return (
     <div className="px-5 py-6 flex items-center justify-center gap-3">
-      <span className="font-pixel text-[10px] text-[#66bb6a]">Alerts enabled ✓</span>
+      <span className="font-pixel text-[10px] text-[#66bb6a]">Raid alerts enabled ✓</span>
     </div>
   )
 }

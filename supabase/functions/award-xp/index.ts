@@ -14,9 +14,10 @@ const XP_VALUES: Record<string, number> = {
   system:    0,
 }
 
-const XP_BONUS_FIRST_TODAY = 20
-const XP_BONUS_COMBO       = 5
-const BOSS_XP_THRESHOLD    = 500
+const XP_BONUS_FIRST_TODAY  = 20
+const XP_BONUS_COMBO        = 5
+const BOSS_XP_THRESHOLD     = 500
+const XP_PER_LEVEL          = 500
 
 function getElementType(content: string, messageType: string): string {
   if (messageType === 'voice')    return 'lightning'
@@ -26,6 +27,10 @@ function getElementType(content: string, messageType: string): string {
   if (content.length < 20)        return 'fire'
   if (content.length > 150)       return 'water'
   return 'fire'
+}
+
+function getLevelFromXP(xp: number): number {
+  return Math.floor(xp / XP_PER_LEVEL) + 1
 }
 
 Deno.serve(async (req: Request) => {
@@ -50,7 +55,7 @@ Deno.serve(async (req: Request) => {
 
     let xpAwarded = XP_VALUES[message_type] ?? 0
 
-    // Check first message today bonus
+    // First message today bonus
     const todayStart = new Date()
     todayStart.setHours(0, 0, 0, 0)
 
@@ -66,7 +71,7 @@ Deno.serve(async (req: Request) => {
       xpAwarded += XP_BONUS_FIRST_TODAY
     }
 
-    // Check combo bonus (reply within 60s of last message in crew)
+    // Combo bonus (reply within 60s of someone else)
     const sixtySecondsAgo = new Date(Date.now() - 60_000).toISOString()
     const { count: recentCount } = await supabase
       .from('messages')
@@ -94,21 +99,25 @@ Deno.serve(async (req: Request) => {
       source:    message_type,
     })
 
-    // Update crew total_xp and capture old value for threshold check
+    // Read current crew XP + level
     const { data: crewBefore } = await supabase
       .from('crews')
-      .select('total_xp')
+      .select('total_xp, level, name')
       .eq('id', crew_id)
       .single()
 
-    const oldXP = crewBefore?.total_xp ?? 0
+    const oldXP    = crewBefore?.total_xp ?? 0
+    const newXP    = oldXP + xpAwarded
+    const oldLevel = getLevelFromXP(oldXP)
+    const newLevel = getLevelFromXP(newXP)
 
+    // Update crew total_xp and level
     await supabase
       .from('crews')
-      .update({ total_xp: oldXP + xpAwarded })
+      .update({ total_xp: newXP, level: newLevel })
       .eq('id', crew_id)
 
-    // Update message xp_awarded
+    // Update message xp_awarded + element_type
     await supabase
       .from('messages')
       .update({
@@ -117,12 +126,23 @@ Deno.serve(async (req: Request) => {
       })
       .eq('id', message_id)
 
-    // Check if XP crossed a boss threshold (every BOSS_XP_THRESHOLD XP)
+    // Level up notification
+    if (newLevel > oldLevel) {
+      await supabase.from('messages').insert({
+        crew_id,
+        user_id,
+        content:      `LEVEL_UP:${newLevel}`,
+        message_type: 'system',
+        element_type: 'arcane',
+        xp_awarded:   0,
+      })
+    }
+
+    // Boss spawn — check if XP crossed a threshold
     const oldThreshold = Math.floor(oldXP / BOSS_XP_THRESHOLD)
-    const newThreshold = Math.floor((oldXP + xpAwarded) / BOSS_XP_THRESHOLD)
+    const newThreshold = Math.floor(newXP  / BOSS_XP_THRESHOLD)
 
     if (newThreshold > oldThreshold) {
-      // Check no active raid already
       const { data: existingRaid } = await supabase
         .from('active_raids')
         .select('id')
@@ -134,7 +154,7 @@ Deno.serve(async (req: Request) => {
       if (!existingRaid) {
         const { data: voidBoss } = await supabase
           .from('bosses')
-          .select('id, max_hp')
+          .select('id, max_hp, name')
           .eq('type', 'void')
           .limit(1)
           .single()
@@ -142,29 +162,63 @@ Deno.serve(async (req: Request) => {
         if (voidBoss) {
           const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString()
 
-          await supabase.from('active_raids').insert({
-            crew_id,
-            boss_id:    voidBoss.id,
-            current_hp: voidBoss.max_hp,
-            max_hp:     voidBoss.max_hp,
-            expires_at: expiresAt,
-          })
+          const { data: newRaid } = await supabase
+            .from('active_raids')
+            .insert({
+              crew_id,
+              boss_id:    voidBoss.id,
+              current_hp: voidBoss.max_hp,
+              max_hp:     voidBoss.max_hp,
+              expires_at: expiresAt,
+            })
+            .select('id')
+            .single()
 
-          // System message announcing the boss
-          await supabase.from('messages').insert({
-            crew_id,
-            user_id,
-            content:      '💀 THE VOID HAS AWAKENED. Your crew has 48 hours to defeat it. Fight together.',
-            message_type: 'system',
-            element_type: 'arcane',
-            xp_awarded:   0,
-          })
+          if (newRaid) {
+            // BOSS_SPAWN: prefix is parsed by MessageList → renders BossCard
+            await supabase.from('messages').insert({
+              crew_id,
+              user_id,
+              content:      `BOSS_SPAWN:${newRaid.id}`,
+              message_type: 'system',
+              element_type: 'arcane',
+              xp_awarded:   0,
+            })
+
+            // Notify all crew members (fire-and-forget)
+            const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+            const serviceKey  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+
+            const { data: crewMembers } = await supabase
+              .from('crew_members')
+              .select('user_id')
+              .eq('crew_id', crew_id)
+
+            for (const member of crewMembers ?? []) {
+              fetch(`${supabaseUrl}/functions/v1/send-notification`, {
+                method:  'POST',
+                headers: {
+                  'Content-Type':  'application/json',
+                  'Authorization': `Bearer ${serviceKey}`,
+                },
+                body: JSON.stringify({
+                  user_id: member.user_id,
+                  type:    'boss_spawned',
+                  payload: {
+                    boss_name: voidBoss.name ?? 'The Void',
+                    crew_name: crewBefore?.name ?? '',
+                    crew_id,
+                  },
+                }),
+              }).catch(() => {})
+            }
+          }
         }
       }
     }
 
     return new Response(
-      JSON.stringify({ xp_awarded: xpAwarded }),
+      JSON.stringify({ xp_awarded: xpAwarded, new_level: newLevel }),
       { headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
     )
   } catch (err) {
