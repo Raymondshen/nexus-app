@@ -2,12 +2,14 @@
 
 import { useState, useEffect, useRef, useCallback, useActionState } from 'react'
 import { useRouter } from 'next/navigation'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence, useMotionValue, animate } from 'framer-motion'
+import type { PanInfo } from 'framer-motion'
 import { X, Plus } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { createClient } from '@/lib/supabase/client'
 import { signOut } from '@/lib/supabase/auth'
 import { createCrewAction } from '@/app/(app)/onboarding/create/actions'
+import { leaveCrewAction } from './actions'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import type { CrewSummary } from './page'
@@ -109,7 +111,7 @@ function UserMenuSheet({
   )
 }
 
-// ─── Create crew modal ────────────────────────────────────────────────────────
+// ─── Create crew sheet ────────────────────────────────────────────────────────
 
 function CreateCrewSheet({ onClose }: { onClose: () => void }) {
   const [state, action, isPending] = useActionState(createCrewAction, null)
@@ -188,26 +190,90 @@ function CreateCrewSheet({ onClose }: { onClose: () => void }) {
   )
 }
 
-// ─── Crew card ────────────────────────────────────────────────────────────────
+// ─── Leave confirm sheet ──────────────────────────────────────────────────────
+
+function LeaveConfirmSheet({
+  summary,
+  onConfirm,
+  onClose,
+  pending,
+  leaveError,
+}: {
+  summary:    CrewSummary
+  onConfirm:  () => void
+  onClose:    () => void
+  pending:    boolean
+  leaveError: string | null
+}) {
+  const isLast = summary.memberCount <= 1
+
+  return (
+    <motion.div
+      className="fixed inset-0 z-50 flex items-end justify-center"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+    >
+      <div className="absolute inset-0 bg-black/60" />
+      <motion.div
+        initial={{ y: 80, opacity: 0 }}
+        animate={{ y: 0,  opacity: 1 }}
+        exit={{   y: 80, opacity: 0 }}
+        transition={{ type: 'spring', stiffness: 280, damping: 26 }}
+        className="relative w-full max-w-[480px] bg-[#0f0820] border-t border-[#2a1545] p-6"
+        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 24px)' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-5">
+          <p className="font-pixel text-[8px] text-[#ff4444] mb-1">⚠ LEAVE CREW</p>
+          <h2 className="font-pixel text-[11px] text-white truncate">
+            {summary.crew.name.toUpperCase()}
+          </h2>
+        </div>
+
+        <p className="font-pixel text-[8px] text-[#6b4f8f] leading-relaxed">
+          {isLast
+            ? 'You are the last member. This will permanently delete the crew and all its history.'
+            : 'Your XP and artifact gains will be redistributed to the remaining members.'}
+        </p>
+
+        {leaveError && (
+          <p className="mt-3 font-pixel text-[8px] text-[#ff4444]">{leaveError}</p>
+        )}
+
+        <button
+          onClick={onConfirm}
+          disabled={pending}
+          className="mt-5 w-full h-12 font-pixel text-[9px] text-white bg-[#ff4444] active:opacity-80 transition-opacity disabled:opacity-50"
+        >
+          {pending ? '...' : isLast ? 'DELETE CREW' : 'LEAVE CREW'}
+        </button>
+
+        <button
+          onClick={onClose}
+          disabled={pending}
+          className="mt-3 w-full font-pixel text-[8px] text-[#3d2660] py-2 hover:text-[#6b4f8f] transition-colors disabled:opacity-50"
+        >
+          CANCEL
+        </button>
+      </motion.div>
+    </motion.div>
+  )
+}
+
+// ─── Crew card content (pure display) ────────────────────────────────────────
 
 const LEVEL_COLORS = ['#6b4f8f', '#bf5fff', '#00e5ff', '#ffd700', '#ff4444']
 
-function CrewCard({
-  summary,
-  onTap,
-}: {
-  summary: CrewSummary
-  onTap:   () => void
-}) {
+function CrewCardContent({ summary }: { summary: CrewSummary }) {
   const { crew, lastMessage, unreadCount } = summary
   const levelColor = LEVEL_COLORS[Math.min(Math.floor(crew.level / 3), LEVEL_COLORS.length - 1)]
   const hasUnread  = unreadCount > 0
 
   return (
-    <motion.button
-      onClick={onTap}
-      whileTap={{ scale: 0.98 }}
-      className="w-full text-left px-4 py-3.5 flex items-center gap-3 border-b border-[#1a1a2e] active:bg-[#0f0820]/80 transition-colors"
+    <div
+      className="w-full text-left px-4 py-3.5 flex items-center gap-3"
       style={{ background: hasUnread ? 'rgba(191,95,255,0.03)' : 'transparent' }}
     >
       {/* Level avatar */}
@@ -256,7 +322,84 @@ function CrewCard({
           )}
         </div>
       </div>
-    </motion.button>
+    </div>
+  )
+}
+
+// ─── Swipeable crew card ──────────────────────────────────────────────────────
+
+const LEAVE_REVEAL = 88
+
+function SwipeableCrewCard({
+  summary,
+  onTap,
+  onLeaveRequest,
+}: {
+  summary:        CrewSummary
+  onTap:          () => void
+  onLeaveRequest: () => void
+}) {
+  const x           = useMotionValue(0)
+  const [open, setOpen] = useState(false)
+  const wasDragging = useRef(false)
+
+  function snapTo(target: number, isOpen: boolean) {
+    animate(x, target, { type: 'spring', stiffness: 300, damping: 28 })
+    setOpen(isOpen)
+  }
+
+  function handleDragEnd(_: unknown, info: PanInfo) {
+    // Set flag briefly to distinguish drag-end click from tap
+    setTimeout(() => { wasDragging.current = false }, 50)
+    if (info.offset.x < -(LEAVE_REVEAL / 2)) {
+      snapTo(-LEAVE_REVEAL, true)
+    } else {
+      snapTo(0, false)
+    }
+  }
+
+  function handleClick() {
+    if (wasDragging.current) return
+    if (open) {
+      snapTo(0, false)
+    } else {
+      onTap()
+    }
+  }
+
+  return (
+    <div className="relative overflow-hidden border-b border-[#1a1a2e]">
+      {/* Leave button revealed behind */}
+      <div
+        className="absolute right-0 inset-y-0 flex flex-col items-center justify-center gap-1 bg-[#ff4444]"
+        style={{ width: LEAVE_REVEAL }}
+      >
+        <button
+          className="w-full h-full flex flex-col items-center justify-center gap-1"
+          onClick={() => { snapTo(0, false); onLeaveRequest() }}
+          tabIndex={open ? 0 : -1}
+          aria-label={`Leave ${summary.crew.name}`}
+        >
+          <span style={{ fontSize: 16 }}>🚪</span>
+          <span className="font-pixel text-[7px] text-white">LEAVE</span>
+        </button>
+      </div>
+
+      {/* Sliding card foreground */}
+      <motion.div
+        className="bg-[#0a0612] cursor-pointer"
+        drag="x"
+        dragConstraints={{ left: -LEAVE_REVEAL, right: 0 }}
+        dragElastic={{ left: 0.05, right: 0.1 }}
+        style={{ x }}
+        onDragStart={() => { wasDragging.current = true }}
+        onDragEnd={handleDragEnd}
+        onClick={handleClick}
+        whileTap={{ scale: open ? 1 : 0.98 }}
+      >
+        <CrewCardContent summary={summary} />
+      </motion.div>
+    </div>
   )
 }
 
@@ -304,6 +447,9 @@ export function HomeClient({
   const [crews,        setCrews]        = useState<CrewSummary[]>(initialCrews)
   const [showCreate,   setShowCreate]   = useState(false)
   const [showUserMenu, setShowUserMenu] = useState(false)
+  const [leaveTarget,  setLeaveTarget]  = useState<CrewSummary | null>(null)
+  const [leaving,      setLeaving]      = useState(false)
+  const [leaveError,   setLeaveError]   = useState<string | null>(null)
 
   const profileCacheRef = useRef<Record<string, string>>(profileCache)
   useEffect(() => { profileCacheRef.current = profileCache }, [profileCache])
@@ -347,7 +493,6 @@ export function HomeClient({
                         : cs.unreadCount + 1,
                   }
                 })
-                // Re-sort: crew with newest message floats to top
                 .sort((a, b) =>
                   (b.lastMessage?.created_at ?? '').localeCompare(
                     a.lastMessage?.created_at ?? '',
@@ -367,13 +512,11 @@ export function HomeClient({
   // ── Navigation: mark as read on tap ──────────────────────────────────────
   const handleCrewTap = useCallback(
     (crewId: string) => {
-      // Optimistically clear unread badge
       setCrews((prev) =>
         prev.map((cs) =>
           cs.crew.id === crewId ? { ...cs, unreadCount: 0 } : cs,
         ),
       )
-      // Update last_seen so unread resets properly (fire-and-forget)
       const supabase = createClient()
       supabase
         .from('crew_members')
@@ -387,8 +530,30 @@ export function HomeClient({
     [userId, router],
   )
 
+  // ── Leave crew ────────────────────────────────────────────────────────────
+  const handleLeaveCrew = useCallback(async () => {
+    if (!leaveTarget || leaving) return
+    setLeaving(true)
+    setLeaveError(null)
+    try {
+      const result = await leaveCrewAction(leaveTarget.crew.id)
+      if (result.error) {
+        setLeaveError(result.error)
+        return
+      }
+      // Optimistically remove the crew from the list
+      setCrews((prev) => prev.filter((c) => c.crew.id !== leaveTarget.crew.id))
+      setLeaveTarget(null)
+    } finally {
+      setLeaving(false)
+    }
+  }, [leaveTarget, leaving])
+
   const handleCloseCreate   = useCallback(() => setShowCreate(false), [])
   const handleCloseUserMenu = useCallback(() => setShowUserMenu(false), [])
+  const handleCloseLeave    = useCallback(() => {
+    if (!leaving) { setLeaveTarget(null); setLeaveError(null) }
+  }, [leaving])
 
   return (
     <div className="min-h-screen bg-[#0a0612] flex flex-col">
@@ -441,16 +606,17 @@ export function HomeClient({
       ) : (
         <div className="flex-1 overflow-y-auto">
           {crews.map((summary) => (
-            <CrewCard
+            <SwipeableCrewCard
               key={summary.crew.id}
               summary={summary}
               onTap={() => handleCrewTap(summary.crew.id)}
+              onLeaveRequest={() => { setLeaveTarget(summary); setLeaveError(null) }}
             />
           ))}
         </div>
       )}
 
-      {/* ── FAB (when crew list is non-empty) ── */}
+      {/* ── FAB ── */}
       {crews.length > 0 && (
         <button
           onClick={() => setShowCreate(true)}
@@ -470,6 +636,15 @@ export function HomeClient({
       <AnimatePresence>
         {showCreate   && <CreateCrewSheet onClose={handleCloseCreate} />}
         {showUserMenu && <UserMenuSheet username={username} onClose={handleCloseUserMenu} />}
+        {leaveTarget  && (
+          <LeaveConfirmSheet
+            summary={leaveTarget}
+            onConfirm={handleLeaveCrew}
+            onClose={handleCloseLeave}
+            pending={leaving}
+            leaveError={leaveError}
+          />
+        )}
       </AnimatePresence>
     </div>
   )

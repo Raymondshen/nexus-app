@@ -8,6 +8,7 @@ export interface CrewSummary {
   lastMessage: { content: string; sender: string; created_at: string } | null
   unreadCount: number
   lastSeen:    string | null
+  memberCount: number
 }
 
 export default async function HomePage() {
@@ -50,7 +51,7 @@ export default async function HomePage() {
 
     supabase
       .from('crew_members')
-      .select('user_id, profiles(username)')
+      .select('crew_id, user_id, profiles(username)')
       .in('crew_id', crewIds),
 
     ...memberships.flatMap((m) => [
@@ -77,11 +78,14 @@ export default async function HomePage() {
     (crewsResult.data ?? []).map((c) => [c.id, c as unknown as Crew]),
   )
 
-  // Build userId → username cache from all crew members
+  // Build userId → username cache and memberCount per crew from all crew members
   const profileCache: Record<string, string> = {}
+  const memberCountMap: Record<string, number> = {}
   for (const row of profilesResult.data ?? []) {
-    const username = (row.profiles as unknown as { username: string } | null)?.username
-    if (username) profileCache[row.user_id] = username
+    const r = row as unknown as { crew_id: string; user_id: string; profiles: { username: string } | null }
+    const username = r.profiles?.username
+    if (username) profileCache[r.user_id] = username
+    memberCountMap[r.crew_id] = (memberCountMap[r.crew_id] ?? 0) + 1
   }
 
   const summaries: CrewSummary[] = memberships.flatMap((m, i) => {
@@ -104,6 +108,7 @@ export default async function HomePage() {
       lastMessage,
       unreadCount: unreadData.count ?? 0,
       lastSeen:    m.last_seen as string | null,
+      memberCount: memberCountMap[m.crew_id] ?? 1,
     }]
   })
 

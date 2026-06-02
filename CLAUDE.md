@@ -254,8 +254,9 @@ Building in this exact order:
 - VAPID env vars: NEXT_PUBLIC_VAPID_PUBLIC_KEY (client), VAPID_PRIVATE_KEY + VAPID_SUBJECT (Edge Function secrets only)
 
 ### Home Screen (src/app/(app)/home/)
-- src/app/(app)/home/page.tsx: server component; fetches user's crews with last message preview + unread counts (messages after last_seen from other users) + profile cache for realtime sender resolution; parallel query stages
-- src/app/(app)/home/HomeClient.tsx: crew cards (name, LVL badge, last message preview, unread badge, relative timestamp); per-crew Realtime subscriptions update previews and badges live; sorts by most recent activity; tapping a crew updates last_seen (marks as read) then navigates to /chat/[crewId]; create crew bottom sheet reuses createCrewAction; user initial → logout bottom sheet; FAB + header + button to create; empty state with create/join CTAs
+- src/app/(app)/home/page.tsx: server component; fetches user's crews with last message preview + unread counts + memberCount per crew (crew_members join with crew_id); profile cache for realtime sender resolution; parallel query stages
+- src/app/(app)/home/HomeClient.tsx: SwipeableCrewCard — swipe right-to-left (drag="x" 88px) reveals LEAVE button, spring snap on release; tap open card closes it, tap closed card navigates; LeaveConfirmSheet with crew-name, context-aware warning (last member → DELETE CREW), and error display; leaveCrewAction on confirm with optimistic list removal; per-crew Realtime subscriptions; create/user-menu/leave sheets via AnimatePresence
+- src/app/(app)/home/actions.ts: leaveCrewAction server action — if last member deletes crew (CASCADE), else redistributes user's MVP artifacts round-robin then deletes crew_members row; revalidates /home
 - src/app/(app)/home/loading.tsx: pulsing skeleton shown instantly on navigation
 - Unread count uses crew_members.last_seen as read cursor — messages after last_seen from other users = unread; ChatHeader updates last_seen every 60s; HomeClient updates it immediately on crew tap
 - Post-login flow: auth/callback → /home; onboarding page redirects existing crew members to /home
