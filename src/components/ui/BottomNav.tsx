@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 
 interface BottomNavProps {
   crewId: string
@@ -9,6 +9,7 @@ interface BottomNavProps {
 
 export function BottomNav({ crewId }: BottomNavProps) {
   const pathname = usePathname()
+  const router   = useRouter()
   const isHome  = pathname === '/home'
   const isChat  = pathname.startsWith('/chat')
   const isVault = pathname.startsWith('/vault')
@@ -21,6 +22,8 @@ export function BottomNav({ crewId }: BottomNavProps) {
       <Link
         href="/home"
         className="flex-1 flex flex-col items-center justify-center gap-1 py-3"
+        onMouseEnter={() => router.prefetch('/home')}
+        onTouchStart={() => router.prefetch('/home')}
         style={{
           minHeight: 56,
           color: isHome ? '#bf5fff' : '#3d2660',
@@ -34,6 +37,8 @@ export function BottomNav({ crewId }: BottomNavProps) {
       <Link
         href={`/chat/${crewId}`}
         className="flex-1 flex flex-col items-center justify-center gap-1 py-3"
+        onMouseEnter={() => router.prefetch(`/chat/${crewId}`)}
+        onTouchStart={() => router.prefetch(`/chat/${crewId}`)}
         style={{
           minHeight: 56,
           color: isChat ? '#bf5fff' : '#3d2660',
@@ -47,6 +52,8 @@ export function BottomNav({ crewId }: BottomNavProps) {
       <Link
         href={`/vault/${crewId}`}
         className="flex-1 flex flex-col items-center justify-center gap-1 py-3"
+        onMouseEnter={() => router.prefetch(`/vault/${crewId}`)}
+        onTouchStart={() => router.prefetch(`/vault/${crewId}`)}
         style={{
           minHeight: 56,
           color: isVault ? '#bf5fff' : '#3d2660',

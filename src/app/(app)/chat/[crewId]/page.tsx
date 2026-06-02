@@ -31,10 +31,13 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
   ]);
   if (!user) redirect("/login");
 
-  // Stage 2 — all crew data in parallel (RLS enforces access)
-  // Combining both crew_members queries into one to halve the round-trips.
+  // Stage 2 — all crew data in parallel, profiles joined into crew_members
+  // to eliminate the Stage 3 round-trip that previously depended on member IDs.
   const [allMembersResult, crewResult, messagesResult, raidResult] = await Promise.all([
-    supabase.from("crew_members").select("*").eq("crew_id", crewId),
+    supabase
+      .from("crew_members")
+      .select("*, profile:profiles(id, username, avatar_class)")
+      .eq("crew_id", crewId),
     supabase.from("crews").select("*").eq("id", crewId).single(),
     supabase
       .from("messages")
@@ -51,30 +54,29 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
       .maybeSingle(),
   ]);
 
-  const memberRows = (allMembersResult.data ?? []) as CrewMember[];
+  type MemberWithProfile = CrewMember & {
+    profile: Pick<Profile, "id" | "username" | "avatar_class"> | null
+  }
+  const memberRows = (allMembersResult.data as unknown as MemberWithProfile[]) ?? [];
   const crew       = crewResult.data as Crew | null;
 
   // Membership check — RLS returns empty if not a member
   const isMember = memberRows.some((r) => r.user_id === user.id);
   if (!isMember || !crew) redirect("/home");
 
-  const memberUserIds = memberRows.map((r) => r.user_id);
-
-  // Stage 3 — profiles (depends on member IDs from stage 2)
-  const { data: profileRows } = await supabase
-    .from("profiles")
-    .select("id, username, avatar_class")
-    .in("id", memberUserIds);
-
-  const profiles = (profileRows ?? []) as Pick<Profile, "id" | "username" | "avatar_class">[];
-
   const memberProfiles: Record<string, Pick<Profile, "id" | "username" | "avatar_class">> =
-    Object.fromEntries(profiles.map((p) => [p.id, p]));
+    Object.fromEntries(
+      memberRows
+        .filter((r) => r.profile)
+        .map((r) => [r.user_id, r.profile!])
+    );
 
   const memberLastSeen: Record<string, string | null> = {};
   for (const row of memberRows) {
     memberLastSeen[row.user_id] = row.last_seen as string | null;
   }
+
+  const profiles = memberRows.filter((r) => r.profile).map((r) => r.profile!);
 
   const messageRows = (messagesResult.data ?? []) as Message[];
   const initialMessages: MessageWithProfile[] = messageRows.map((m) => ({
