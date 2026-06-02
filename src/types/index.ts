@@ -96,6 +96,14 @@ export interface PushSubscription extends Record<string, unknown> {
   created_at: string
 }
 
+export interface NotificationPreferences extends Record<string, unknown> {
+  user_id:        string
+  notif_messages: boolean
+  notif_raids:    boolean
+  notif_victory:  boolean
+  updated_at:     string
+}
+
 export interface Artifact extends Record<string, unknown> {
   id: string
   crew_id: string
@@ -181,6 +189,12 @@ export type Database = {
         Row: PushSubscription
         Insert: Omit<PushSubscription, 'id' | 'created_at'> & { id?: string; created_at?: string }
         Update: Partial<Omit<PushSubscription, 'id'>>
+        Relationships: []
+      }
+      notification_preferences: {
+        Row: NotificationPreferences
+        Insert: Omit<NotificationPreferences, 'updated_at'> & { updated_at?: string }
+        Update: Partial<Omit<NotificationPreferences, 'user_id'>>
         Relationships: []
       }
     }

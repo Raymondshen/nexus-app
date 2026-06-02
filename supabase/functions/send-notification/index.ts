@@ -7,7 +7,7 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-type NotificationType = 'boss_spawned' | 'boss_defeated' | 'raid_expiring' | 'crew_silent'
+type NotificationType = 'boss_spawned' | 'boss_defeated' | 'raid_expiring' | 'crew_silent' | 'message_received'
 
 interface NotificationPayload {
   user_id: string
@@ -15,9 +15,26 @@ interface NotificationPayload {
   payload: Record<string, unknown>
 }
 
+// Maps each notification type to its preference column in notification_preferences
+const PREF_COLUMN: Record<NotificationType, 'notif_messages' | 'notif_raids' | 'notif_victory'> = {
+  message_received: 'notif_messages',
+  boss_spawned:     'notif_raids',
+  raid_expiring:    'notif_raids',
+  crew_silent:      'notif_raids',
+  boss_defeated:    'notif_victory',
+}
+
 function buildPayload(type: NotificationType, data: Record<string, unknown>) {
   const crewTag = data.crew_name ? ` in ${data.crew_name}` : ''
   switch (type) {
+    case 'message_received':
+      return {
+        title: `${data.sender_name ?? 'Someone'}${crewTag}`,
+        body:  String(data.content_preview ?? ''),
+        icon:  '/icons/icon-192.png',
+        badge: '/icons/icon-192.png',
+        data:  { url: `/chat/${data.crew_id}` },
+      }
     case 'boss_spawned':
       return {
         title: '⚔ RAID ALERT',
@@ -79,6 +96,22 @@ Deno.serve(async (req: Request) => {
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     )
+
+    // Check user's notification preferences — if the preference row exists and
+    // the relevant column is false, skip sending entirely.
+    const prefCol = PREF_COLUMN[type]
+    const { data: prefs } = await supabase
+      .from('notification_preferences')
+      .select(prefCol)
+      .eq('user_id', user_id)
+      .maybeSingle()
+
+    if (prefs && prefs[prefCol] === false) {
+      return new Response(
+        JSON.stringify({ status: 'preference_disabled' }),
+        { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } },
+      )
+    }
 
     const { data: subs } = await supabase
       .from('push_subscriptions')

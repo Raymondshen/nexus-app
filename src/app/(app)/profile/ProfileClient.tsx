@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { ChevronLeft } from 'lucide-react'
@@ -14,6 +14,43 @@ interface ProfileClientProps {
   userId:          string
   initialUsername: string
   avatarUrl:       string | null
+}
+
+type NotifPrefs = {
+  notif_messages: boolean
+  notif_raids:    boolean
+  notif_victory:  boolean
+}
+
+const DEFAULT_PREFS: NotifPrefs = {
+  notif_messages: true,
+  notif_raids:    true,
+  notif_victory:  true,
+}
+
+// ─── Toggle switch ────────────────────────────────────────────────────────────
+
+function ToggleSwitch({ enabled, onChange, disabled }: { enabled: boolean; onChange: () => void; disabled?: boolean }) {
+  return (
+    <button
+      onClick={onChange}
+      disabled={disabled}
+      className="relative flex-shrink-0 h-6 w-11 transition-colors duration-200 disabled:opacity-40"
+      style={{
+        background:  enabled ? '#bf5fff' : '#1a1a2e',
+        border:      '1px solid',
+        borderColor: enabled ? '#bf5fff' : '#2a1545',
+      }}
+      aria-checked={enabled}
+      role="switch"
+    >
+      <motion.span
+        className="absolute top-1 w-4 h-4 bg-white pointer-events-none"
+        animate={{ left: enabled ? 22 : 4 }}
+        transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+      />
+    </button>
+  )
 }
 
 export function ProfileClient({ userId, initialUsername, avatarUrl }: ProfileClientProps) {
@@ -49,20 +86,64 @@ export function ProfileClient({ userId, initialUsername, avatarUrl }: ProfileCli
   const [notifSupported,  setNotifSupported]  = useState(false)
   const [notifPermission, setNotifPermission] = useState<PermissionState>('unsupported')
   const [enablingNotif,   setEnablingNotif]   = useState(false)
+  const [prefs,           setPrefs]           = useState<NotifPrefs>(DEFAULT_PREFS)
+  const [prefsLoading,    setPrefsLoading]    = useState(false)
+  const [savingPref,      setSavingPref]      = useState<keyof NotifPrefs | null>(null)
+
+  const fetchPrefs = useCallback(async () => {
+    setPrefsLoading(true)
+    try {
+      const supabase = createClient()
+      const { data } = await supabase
+        .from('notification_preferences')
+        .select('notif_messages, notif_raids, notif_victory')
+        .eq('user_id', userId)
+        .maybeSingle()
+      if (data) {
+        setPrefs({
+          notif_messages: data.notif_messages as boolean,
+          notif_raids:    data.notif_raids    as boolean,
+          notif_victory:  data.notif_victory  as boolean,
+        })
+      }
+    } finally {
+      setPrefsLoading(false)
+    }
+  }, [userId])
 
   useEffect(() => {
-    setNotifSupported(isSupported())
-    setNotifPermission(getPermissionState())
-  }, [])
+    const supported = isSupported()
+    const permission = getPermissionState()
+    setNotifSupported(supported)
+    setNotifPermission(permission)
+    if (supported && permission === 'granted') fetchPrefs()
+  }, [fetchPrefs])
 
   async function handleEnableNotifications() {
     setEnablingNotif(true)
     try {
       const state = await requestPermission()
       setNotifPermission(state)
-      if (state === 'granted') await subscribeToPush()
+      if (state === 'granted') {
+        await subscribeToPush()
+        fetchPrefs()
+      }
     } finally {
       setEnablingNotif(false)
+    }
+  }
+
+  async function handleTogglePref(key: keyof NotifPrefs) {
+    const next = { ...prefs, [key]: !prefs[key] }
+    setPrefs(next)
+    setSavingPref(key)
+    try {
+      const supabase = createClient()
+      await supabase
+        .from('notification_preferences')
+        .upsert({ user_id: userId, ...next, updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
+    } finally {
+      setSavingPref(null)
     }
   }
 
@@ -162,41 +243,58 @@ export function ProfileClient({ userId, initialUsername, avatarUrl }: ProfileCli
 
         {/* ── Notifications ── */}
         <section>
-          <p className="font-pixel text-[9px] text-[#bf5fff] tracking-widest mb-3">RAID ALERTS</p>
-          <div className="border border-[#1a1a2e] p-4" style={{ background: 'rgba(15,8,32,0.6)' }}>
+          <p className="font-pixel text-[9px] text-[#bf5fff] tracking-widest mb-3">NOTIFICATIONS</p>
+          <div className="border border-[#1a1a2e]" style={{ background: 'rgba(15,8,32,0.6)' }}>
             {!notifSupported ? (
-              <p className="font-pixel text-[8px] text-[#3d2660] leading-relaxed">
-                NOT SUPPORTED ON THIS DEVICE
-              </p>
-            ) : notifPermission === 'granted' ? (
-              <div className="flex items-center justify-between">
-                <p className="font-pixel text-[8px] text-[#66bb6a]">✓ NOTIFICATIONS ENABLED</p>
-                <span
-                  className="font-pixel text-[7px] text-[#66bb6a] border border-[#66bb6a]/40 px-2 py-0.5"
-                  style={{ background: 'rgba(102,187,106,0.08)' }}
-                >
-                  ACTIVE
-                </span>
-              </div>
-            ) : notifPermission === 'denied' ? (
-              <div>
-                <p className="font-pixel text-[8px] text-[#ff4444] mb-2">BLOCKED BY BROWSER</p>
-                <p className="font-pixel text-[7px] text-[#3d2660] leading-relaxed">
-                  ENABLE IN YOUR BROWSER SETTINGS TO RECEIVE RAID ALERTS
+              <div className="p-4">
+                <p className="font-pixel text-[8px] text-[#3d2660] leading-relaxed">
+                  NOT SUPPORTED ON THIS DEVICE
                 </p>
               </div>
-            ) : (
-              <div>
+            ) : notifPermission === 'denied' ? (
+              <div className="p-4">
+                <p className="font-pixel text-[8px] text-[#ff4444] mb-2">BLOCKED BY BROWSER</p>
+                <p className="font-pixel text-[7px] text-[#3d2660] leading-relaxed">
+                  ENABLE IN YOUR BROWSER SETTINGS TO RECEIVE NOTIFICATIONS
+                </p>
+              </div>
+            ) : notifPermission !== 'granted' ? (
+              <div className="p-4">
                 <p className="font-pixel text-[8px] text-[#6b4f8f] mb-3 leading-relaxed">
-                  GET NOTIFIED WHEN A BOSS SPAWNS OR YOUR CREW NEEDS YOU
+                  GET NOTIFIED FOR MESSAGES, BOSS SPAWNS, AND VICTORIES
                 </p>
                 <button
                   onClick={handleEnableNotifications}
                   disabled={enablingNotif}
-                  className="w-full h-10 font-pixel text-[9px] text-[#00e5ff] border border-[#00e5ff]/40 hover:border-[#00e5ff] hover:bg-[#00e5ff]/06 transition-colors disabled:opacity-50"
+                  className="w-full h-10 font-pixel text-[9px] text-[#00e5ff] border border-[#00e5ff]/40 hover:border-[#00e5ff] transition-colors disabled:opacity-50"
                 >
-                  {enablingNotif ? '...' : '⚔ ENABLE RAID ALERTS'}
+                  {enablingNotif ? '...' : '⚔ ENABLE NOTIFICATIONS'}
                 </button>
+              </div>
+            ) : (
+              // Granted — show individual toggles
+              <div className={prefsLoading ? 'opacity-50 pointer-events-none' : ''}>
+                {([
+                  { key: 'notif_messages' as const, label: 'Messages',    sub: 'New messages from your crew' },
+                  { key: 'notif_raids'    as const, label: 'Raid Alerts', sub: 'Boss spawns and expiry warnings' },
+                  { key: 'notif_victory'  as const, label: 'Victory',     sub: 'Boss defeated, artifact dropped' },
+                ] as const).map(({ key, label, sub }, i, arr) => (
+                  <div
+                    key={key}
+                    className="flex items-center justify-between px-4 py-3"
+                    style={{ borderBottom: i < arr.length - 1 ? '1px solid #1a1a2e' : 'none' }}
+                  >
+                    <div className="flex-1 min-w-0 mr-4">
+                      <p className="font-pixel text-[9px] text-white mb-0.5">{label}</p>
+                      <p className="font-pixel text-[7px] text-[#3d2660] leading-relaxed">{sub}</p>
+                    </div>
+                    <ToggleSwitch
+                      enabled={prefs[key]}
+                      onChange={() => handleTogglePref(key)}
+                      disabled={savingPref === key}
+                    />
+                  </div>
+                ))}
               </div>
             )}
           </div>

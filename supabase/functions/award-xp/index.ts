@@ -39,7 +39,7 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { message_id, crew_id, user_id, message_type, content } = await req.json()
+    const { message_id, crew_id, user_id, username, message_type, content } = await req.json()
 
     if (!message_id || !crew_id || !user_id || !message_type) {
       return new Response(
@@ -214,6 +214,38 @@ Deno.serve(async (req: Request) => {
             }
           }
         }
+      }
+    }
+
+    // Notify other crew members of the new message (skip reactions — not worth a push)
+    if (message_type !== 'reaction') {
+      const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+      const serviceKey  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+
+      const { data: otherMembers } = await supabase
+        .from('crew_members')
+        .select('user_id')
+        .eq('crew_id', crew_id)
+        .neq('user_id', user_id)
+
+      for (const member of otherMembers ?? []) {
+        fetch(`${supabaseUrl}/functions/v1/send-notification`, {
+          method:  'POST',
+          headers: {
+            'Content-Type':  'application/json',
+            'Authorization': `Bearer ${serviceKey}`,
+          },
+          body: JSON.stringify({
+            user_id: member.user_id,
+            type:    'message_received',
+            payload: {
+              sender_name:     username ?? 'Someone',
+              content_preview: (content ?? '').slice(0, 80),
+              crew_name:       crewBefore?.name ?? '',
+              crew_id,
+            },
+          }),
+        }).catch(() => {})
       }
     }
 

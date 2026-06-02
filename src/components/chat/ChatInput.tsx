@@ -125,7 +125,7 @@ export function ChatInput({ crewId, userId, userProfile }: ChatInputProps) {
       fetch(`${SUPABASE_URL}/functions/v1/award-xp`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
-        body: JSON.stringify({ message_id: raw.id, crew_id: crewId, user_id: userId, message_type: 'text', content }),
+        body: JSON.stringify({ message_id: raw.id, crew_id: crewId, user_id: userId, username: userProfile.username, message_type: 'text', content }),
       }).catch(() => {})
 
       // Attack boss if raid is active
