@@ -262,14 +262,26 @@ function SwipeableCrewCard({
   summary,
   onTap,
   onLeaveRequest,
+  openCardId,
+  onOpen,
 }: {
   summary:        CrewSummary
   onTap:          () => void
   onLeaveRequest: () => void
+  openCardId:     string | null
+  onOpen:         (id: string) => void
 }) {
   const x           = useMotionValue(0)
   const [open, setOpen] = useState(false)
   const wasDragging = useRef(false)
+
+  // Close this card whenever another card becomes the open one
+  useEffect(() => {
+    if (openCardId !== summary.crew.id) {
+      animate(x, 0, { type: 'spring', stiffness: 300, damping: 28 })
+      setOpen(false)
+    }
+  }, [openCardId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function snapTo(target: number, isOpen: boolean) {
     animate(x, target, { type: 'spring', stiffness: 300, damping: 28 })
@@ -309,7 +321,7 @@ function SwipeableCrewCard({
         dragConstraints={{ left: -LEAVE_REVEAL, right: 0 }}
         dragElastic={{ left: 0.05, right: 0.1 }}
         style={{ x, width: `calc(100% + ${LEAVE_REVEAL}px)` }}
-        onDragStart={() => { wasDragging.current = true }}
+        onDragStart={() => { wasDragging.current = true; onOpen(summary.crew.id) }}
         onDragEnd={handleDragEnd}
         whileTap={{ scale: open ? 1 : 0.98 }}
       >
@@ -381,6 +393,7 @@ export function HomeClient({
 
   const [crews,       setCrews]       = useState<CrewSummary[]>(initialCrews)
   const [showCreate,  setShowCreate]  = useState(false)
+  const [openCardId,  setOpenCardId]  = useState<string | null>(null)
   const [leaveTarget, setLeaveTarget] = useState<CrewSummary | null>(null)
   const [leaving,      setLeaving]      = useState(false)
   const [leaveError,   setLeaveError]   = useState<string | null>(null)
@@ -555,6 +568,8 @@ export function HomeClient({
               summary={summary}
               onTap={() => handleCrewTap(summary.crew.id)}
               onLeaveRequest={() => { setLeaveTarget(summary); setLeaveError(null) }}
+              openCardId={openCardId}
+              onOpen={setOpenCardId}
             />
           ))}
         </div>
