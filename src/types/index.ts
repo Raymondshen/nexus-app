@@ -201,6 +201,10 @@ export type Database = {
         }
         Returns: Message
       }
+      leave_crew: {
+        Args: { p_crew_id: string }
+        Returns: Record<string, unknown>
+      }
     }
     Enums: Record<string, never>
   }
