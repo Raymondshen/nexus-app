@@ -368,36 +368,42 @@ function SwipeableCrewCard({
   }
 
   return (
-    <div className="relative overflow-hidden border-b border-[#1a1a2e]">
-      {/* Leave button revealed behind */}
-      <div
-        className="absolute right-0 inset-y-0 flex flex-col items-center justify-center gap-1 bg-[#ff4444]"
-        style={{ width: LEAVE_REVEAL }}
+    <div className="overflow-hidden border-b border-[#1a1a2e]">
+      {/*
+        The motion row is wider than the container (100% + LEAVE_REVEAL).
+        At x=0 the card fills the viewport and the LEAVE button is off-screen
+        to the right, hidden by overflow-hidden. Dragging left slides the row
+        and reveals the button — identical to iMessage swipe-to-delete.
+      */}
+      <motion.div
+        className="flex"
+        drag="x"
+        dragConstraints={{ left: -LEAVE_REVEAL, right: 0 }}
+        dragElastic={{ left: 0.05, right: 0.1 }}
+        style={{ x, width: `calc(100% + ${LEAVE_REVEAL}px)` }}
+        onDragStart={() => { wasDragging.current = true }}
+        onDragEnd={handleDragEnd}
+        whileTap={{ scale: open ? 1 : 0.98 }}
       >
+        {/* Card — fills exactly the container width */}
+        <div
+          className="flex-1 min-w-0 bg-[#0a0612] cursor-pointer"
+          onClick={handleClick}
+        >
+          <CrewCardContent summary={summary} />
+        </div>
+
+        {/* LEAVE button — 88 px, fully off-screen until swiped */}
         <button
-          className="w-full h-full flex flex-col items-center justify-center gap-1"
-          onClick={() => { snapTo(0, false); onLeaveRequest() }}
+          className="flex-shrink-0 flex flex-col items-center justify-center gap-1 bg-[#ff4444]"
+          style={{ width: LEAVE_REVEAL }}
+          onClick={(e) => { e.stopPropagation(); snapTo(0, false); onLeaveRequest() }}
           tabIndex={open ? 0 : -1}
           aria-label={`Leave ${summary.crew.name}`}
         >
           <span style={{ fontSize: 16 }}>🚪</span>
           <span className="font-pixel text-[7px] text-white">LEAVE</span>
         </button>
-      </div>
-
-      {/* Sliding card foreground */}
-      <motion.div
-        className="bg-[#0a0612] cursor-pointer"
-        drag="x"
-        dragConstraints={{ left: -LEAVE_REVEAL, right: 0 }}
-        dragElastic={{ left: 0.05, right: 0.1 }}
-        style={{ x }}
-        onDragStart={() => { wasDragging.current = true }}
-        onDragEnd={handleDragEnd}
-        onClick={handleClick}
-        whileTap={{ scale: open ? 1 : 0.98 }}
-      >
-        <CrewCardContent summary={summary} />
       </motion.div>
     </div>
   )
