@@ -6,7 +6,10 @@ const withPWA: any = require('next-pwa')
 const isDev = process.env.NODE_ENV === 'development'
 
 const baseConfig: NextConfig = {
-  turbopack: {},
+  // turbopack removed from config — having it here enables Turbopack for
+  // production builds, which causes Vercel's pipeline to generate an internal
+  // proxy.ts from middleware.ts and then error on finding both files.
+  // Use `next dev --turbo` to opt into Turbopack during development.
   images: {
     remotePatterns: [
       {

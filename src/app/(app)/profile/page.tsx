@@ -23,6 +23,7 @@ export default async function ProfilePage() {
       initialUsername={profile?.username ?? ''}
       avatarUrl={(profile as unknown as { avatar_url?: string | null })?.avatar_url ?? null}
       isDev={user.email === DEV_EMAIL}
+      isGuest={user.is_anonymous === true}
     />
   )
 }

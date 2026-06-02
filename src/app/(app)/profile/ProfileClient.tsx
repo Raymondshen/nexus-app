@@ -16,6 +16,7 @@ interface ProfileClientProps {
   initialUsername: string
   avatarUrl:       string | null
   isDev:           boolean
+  isGuest:         boolean
 }
 
 type NotifPrefs = {
@@ -55,26 +56,48 @@ function ToggleSwitch({ enabled, onChange, disabled }: { enabled: boolean; onCha
   )
 }
 
-export function ProfileClient({ userId, userEmail, initialUsername, avatarUrl, isDev }: ProfileClientProps) {
+export function ProfileClient({ userId, userEmail, initialUsername, avatarUrl, isDev, isGuest }: ProfileClientProps) {
   const router = useRouter()
 
   // ── Username ──────────────────────────────────────────────────────────────
   const [username, setUsername]       = useState(initialUsername)
-  const [saving,   setSaving]         = useState(false)
-  const [saveStatus, setSaveStatus]   = useState<'idle' | 'success' | 'error'>('idle')
+  const [saving,     setSaving]     = useState(false)
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error' | 'taken'>('idle')
 
   async function handleSaveUsername() {
     const trimmed = username.trim()
     if (!trimmed || trimmed === initialUsername || saving) return
+    if (trimmed.length < 3) { setSaveStatus('error'); return }
+
     setSaving(true)
     setSaveStatus('idle')
     try {
       const supabase = createClient()
+
+      // Pre-check: case-insensitive uniqueness check before hitting the DB constraint
+      const { data: existing } = await supabase
+        .from('profiles')
+        .select('id')
+        .ilike('username', trimmed)
+        .neq('id', userId)
+        .maybeSingle()
+
+      if (existing) {
+        setSaveStatus('taken')
+        return
+      }
+
       const { error } = await supabase
         .from('profiles')
         .update({ username: trimmed })
         .eq('id', userId)
-      if (error) throw error
+
+      // Catch unique constraint violation (race condition fallback, code 23505)
+      if (error) {
+        if (error.code === '23505') { setSaveStatus('taken'); return }
+        throw error
+      }
+
       setSaveStatus('success')
       setTimeout(() => setSaveStatus('idle'), 2000)
     } catch {
@@ -210,36 +233,59 @@ export function ProfileClient({ userId, userEmail, initialUsername, avatarUrl, i
         {/* ── Username ── */}
         <section>
           <p className="font-pixel text-[9px] text-[#bf5fff] tracking-widest mb-3">USERNAME</p>
-          <div className="flex gap-2">
-            <input
-              value={username}
-              onChange={(e) => { setUsername(e.target.value); setSaveStatus('idle') }}
-              onKeyDown={(e) => { if (e.key === 'Enter') handleSaveUsername() }}
-              maxLength={20}
-              placeholder="your username"
-              className="flex-1 bg-[#080514] border-2 border-[#2a1545] focus:border-[#bf5fff] focus:outline-none px-3 py-3 text-white text-sm font-sans placeholder:text-[#3a2555] transition-colors"
-              style={{ fontSize: 16 }}
-            />
-            <motion.button
-              onClick={handleSaveUsername}
-              disabled={!isDirty || saving}
-              whileTap={{ scale: 0.96 }}
-              className="px-4 font-pixel text-[9px] transition-colors disabled:opacity-40"
-              style={{
-                background:  isDirty ? '#bf5fff' : 'rgba(191,95,255,0.1)',
-                color:       isDirty ? '#0a0612' : '#6b4f8f',
-                border:      '2px solid',
-                borderColor: isDirty ? '#bf5fff' : '#2a1545',
-              }}
-            >
-              {saving ? '...' : 'SAVE'}
-            </motion.button>
-          </div>
-          {saveStatus === 'success' && (
-            <p className="font-pixel text-[8px] text-[#66bb6a] mt-2">✓ SAVED</p>
-          )}
-          {saveStatus === 'error' && (
-            <p className="font-pixel text-[8px] text-[#ff4444] mt-2">FAILED — TRY AGAIN</p>
+          {isGuest ? (
+            // Guests cannot change their username until they log in with Google
+            <div>
+              <div
+                className="w-full bg-[#080514] border-2 border-[#2a1545] px-3 py-3 opacity-50 cursor-not-allowed select-none"
+              >
+                <span className="text-white text-sm font-sans">{initialUsername}</span>
+              </div>
+              <p className="font-pixel text-[7px] text-[#6b4f8f] mt-2 leading-relaxed">
+                SIGN IN WITH GOOGLE TO UPDATE YOUR USERNAME
+              </p>
+            </div>
+          ) : (
+            <div>
+              <div className="flex gap-2">
+                <input
+                  value={username}
+                  onChange={(e) => { setUsername(e.target.value); setSaveStatus('idle') }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleSaveUsername() }}
+                  minLength={3}
+                  maxLength={20}
+                  placeholder="your username"
+                  className="flex-1 bg-[#080514] border-2 border-[#2a1545] focus:border-[#bf5fff] focus:outline-none px-3 py-3 text-white text-sm font-sans placeholder:text-[#3a2555] transition-colors"
+                  style={{
+                    fontSize:    16,
+                    borderColor: saveStatus === 'taken' ? '#ff4444' : undefined,
+                  }}
+                />
+                <motion.button
+                  onClick={handleSaveUsername}
+                  disabled={!isDirty || saving}
+                  whileTap={{ scale: 0.96 }}
+                  className="px-4 font-pixel text-[9px] transition-colors disabled:opacity-40"
+                  style={{
+                    background:  isDirty ? '#bf5fff' : 'rgba(191,95,255,0.1)',
+                    color:       isDirty ? '#0a0612' : '#6b4f8f',
+                    border:      '2px solid',
+                    borderColor: isDirty ? '#bf5fff' : '#2a1545',
+                  }}
+                >
+                  {saving ? '...' : 'SAVE'}
+                </motion.button>
+              </div>
+              {saveStatus === 'success' && (
+                <p className="font-pixel text-[8px] text-[#66bb6a] mt-2">✓ SAVED</p>
+              )}
+              {saveStatus === 'taken' && (
+                <p className="font-pixel text-[8px] text-[#ff4444] mt-2">USERNAME TAKEN — PICK ANOTHER</p>
+              )}
+              {saveStatus === 'error' && (
+                <p className="font-pixel text-[8px] text-[#ff4444] mt-2">FAILED — TRY AGAIN</p>
+              )}
+            </div>
           )}
         </section>
 

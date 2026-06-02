@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { signInWithGoogle, signInAsGuest } from '@/lib/supabase/auth'
+import { createClient } from '@/lib/supabase/client'
 
 export function LoginForm() {
   const router = useRouter()
@@ -34,6 +35,20 @@ export function LoginForm() {
     setError(null)
     setGuestLoading(true)
     try {
+      // Check if username is already taken (case-insensitive)
+      const supabase = createClient()
+      const { data: existing } = await supabase
+        .from('profiles')
+        .select('id')
+        .ilike('username', trimmed)
+        .maybeSingle()
+
+      if (existing) {
+        setError('That warrior name is already taken. Choose another.')
+        setGuestLoading(false)
+        return
+      }
+
       await signInAsGuest(trimmed)
       router.push('/onboarding')
     } catch (e) {
