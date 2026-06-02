@@ -1,6 +1,13 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import webpush from 'npm:web-push'
 
+// Set once at module load, not per-request
+webpush.setVapidDetails(
+  Deno.env.get('VAPID_SUBJECT')!,
+  Deno.env.get('NEXT_PUBLIC_VAPID_PUBLIC_KEY')!,
+  Deno.env.get('VAPID_PRIVATE_KEY')!,
+)
+
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin':  '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -86,12 +93,6 @@ Deno.serve(async (req: Request) => {
       )
     }
 
-    webpush.setVapidDetails(
-      Deno.env.get('VAPID_SUBJECT')!,
-      Deno.env.get('NEXT_PUBLIC_VAPID_PUBLIC_KEY')!,
-      Deno.env.get('VAPID_PRIVATE_KEY')!,
-    )
-
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
@@ -133,7 +134,10 @@ Deno.serve(async (req: Request) => {
         await webpush.sendNotification(
           { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
           JSON.stringify(notifPayload),
-          { TTL: 86400 }, // 1 day — keeps the message queued if the device is offline
+          {
+            TTL:     86400, // 1 day — keeps the message queued if the device is offline
+            urgency: 'high', // maps to apns-priority:10 — deliver immediately on iOS
+          },
         )
         results.push({ endpoint: sub.endpoint, status: 'sent' })
       } catch (err: unknown) {
