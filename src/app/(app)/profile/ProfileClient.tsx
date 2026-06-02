@@ -12,8 +12,10 @@ import type { PermissionState } from '@/lib/notifications'
 
 interface ProfileClientProps {
   userId:          string
+  userEmail:       string
   initialUsername: string
   avatarUrl:       string | null
+  isDev:           boolean
 }
 
 type NotifPrefs = {
@@ -53,7 +55,7 @@ function ToggleSwitch({ enabled, onChange, disabled }: { enabled: boolean; onCha
   )
 }
 
-export function ProfileClient({ userId, initialUsername, avatarUrl }: ProfileClientProps) {
+export function ProfileClient({ userId, userEmail, initialUsername, avatarUrl, isDev }: ProfileClientProps) {
   const router = useRouter()
 
   // ── Username ──────────────────────────────────────────────────────────────
@@ -311,7 +313,116 @@ export function ProfileClient({ userId, initialUsername, avatarUrl }: ProfileCli
             {loggingOut ? '...' : 'LOG OUT'}
           </button>
         </section>
+
+        {/* ── Dev (only rendered server-side for the dev account) ── */}
+        {isDev && <DevSection userId={userId} userEmail={userEmail} />}
       </div>
     </div>
+  )
+}
+
+// ─── Dev section ──────────────────────────────────────────────────────────────
+
+function DevSection({ userId, userEmail }: { userId: string; userEmail: string }) {
+  const [copiedId,    setCopiedId]    = useState(false)
+  const [copiedEmail, setCopiedEmail] = useState(false)
+  const [flagsCleared, setFlagsCleared] = useState(false)
+
+  function copyToClipboard(text: string, setCopied: (v: boolean) => void) {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }).catch(() => {})
+  }
+
+  function clearLocalFlags() {
+    const keys = [
+      'nexus_first_message',
+      'nexus_install_prompted',
+      'nexus_crew_created',
+      'nexus_notif_prompted',
+      'nexus_notif_state',
+    ]
+    keys.forEach((k) => localStorage.removeItem(k))
+    setFlagsCleared(true)
+    setTimeout(() => setFlagsCleared(false), 2000)
+  }
+
+  return (
+    <section>
+      {/* Header */}
+      <div className="flex items-center gap-2 mb-3">
+        <p className="font-pixel text-[9px] text-[#ffd700] tracking-widest">DEV</p>
+        <span
+          className="font-pixel text-[7px] text-[#0a0612] px-1.5 py-0.5"
+          style={{ background: '#ffd700' }}
+        >
+          INTERNAL
+        </span>
+      </div>
+
+      <div className="border border-[#ffd700]/20 divide-y divide-[#1a1a2e]" style={{ background: 'rgba(255,215,0,0.03)' }}>
+        {/* User ID */}
+        <div className="px-4 py-3">
+          <p className="font-pixel text-[7px] text-[#6b4f8f] mb-1.5">USER ID</p>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 font-sans text-[11px] text-[#ffd700] truncate select-all">
+              {userId}
+            </code>
+            <button
+              onClick={() => copyToClipboard(userId, setCopiedId)}
+              className="flex-shrink-0 font-pixel text-[7px] px-2 py-1 border transition-colors"
+              style={{
+                color:       copiedId ? '#66bb6a' : '#ffd700',
+                borderColor: copiedId ? 'rgba(102,187,106,0.4)' : 'rgba(255,215,0,0.3)',
+                background:  copiedId ? 'rgba(102,187,106,0.08)' : 'rgba(255,215,0,0.06)',
+              }}
+            >
+              {copiedId ? '✓' : 'COPY'}
+            </button>
+          </div>
+        </div>
+
+        {/* Email */}
+        <div className="px-4 py-3">
+          <p className="font-pixel text-[7px] text-[#6b4f8f] mb-1.5">EMAIL</p>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 font-sans text-[11px] text-[#ffd700] truncate select-all">
+              {userEmail}
+            </code>
+            <button
+              onClick={() => copyToClipboard(userEmail, setCopiedEmail)}
+              className="flex-shrink-0 font-pixel text-[7px] px-2 py-1 border transition-colors"
+              style={{
+                color:       copiedEmail ? '#66bb6a' : '#ffd700',
+                borderColor: copiedEmail ? 'rgba(102,187,106,0.4)' : 'rgba(255,215,0,0.3)',
+                background:  copiedEmail ? 'rgba(102,187,106,0.08)' : 'rgba(255,215,0,0.06)',
+              }}
+            >
+              {copiedEmail ? '✓' : 'COPY'}
+            </button>
+          </div>
+        </div>
+
+        {/* Reset localStorage flags */}
+        <div className="px-4 py-3">
+          <p className="font-pixel text-[7px] text-[#6b4f8f] mb-1.5">LOCAL FLAGS</p>
+          <p className="font-pixel text-[7px] text-[#3d2660] mb-2 leading-relaxed">
+            Clears install prompt, notification prompt, and first-message flags — useful for retesting onboarding flows.
+          </p>
+          <button
+            onClick={clearLocalFlags}
+            className="w-full h-9 font-pixel text-[8px] border transition-colors"
+            style={{
+              color:       flagsCleared ? '#66bb6a' : '#ffd700',
+              borderColor: flagsCleared ? 'rgba(102,187,106,0.4)' : 'rgba(255,215,0,0.3)',
+              background:  flagsCleared ? 'rgba(102,187,106,0.08)' : 'rgba(255,215,0,0.06)',
+            }}
+          >
+            {flagsCleared ? '✓ CLEARED' : 'RESET FLAGS'}
+          </button>
+        </div>
+      </div>
+    </section>
   )
 }
