@@ -16,14 +16,14 @@ The longer a crew plays together the richer their shared world becomes.
 - Characters are pixel art in RotMG top-down style
 
 ## Tech Stack
-- Next.js 14 App Router
+- Next.js 16 App Router
 - TypeScript throughout
 - Tailwind CSS for styling
 - Supabase for Auth, Postgres, Realtime, Storage, Edge Functions
 - Framer Motion for animations
 - Zustand for client-side game state
 - date-fns for time-based game logic
-- next-pwa for PWA configuration
+- next-pwa v5 for PWA + service worker
 - Deployed on Vercel
 
 ## Project Structure
@@ -37,6 +37,13 @@ src/
       chat/[crewId]/page.tsx
       vault/[crewId]/page.tsx
       party/[crewId]/page.tsx
+      home/page.tsx
+      home/HomeClient.tsx
+      home/actions.ts
+      home/loading.tsx
+      profile/page.tsx
+      profile/ProfileClient.tsx
+      profile/loading.tsx
       onboarding/page.tsx
       onboarding/create/page.tsx
       onboarding/join/page.tsx
@@ -48,7 +55,12 @@ src/
     ui/
       Button.tsx
       Input.tsx
-      Modal.tsx
+      Avatar.tsx
+      GuestBanner.tsx
+      InstallPrompt.tsx
+      NotificationPrompt.tsx
+      PushRefresh.tsx
+      WelcomeDetector.tsx
     chat/
       MessageList.tsx
       MessageBubble.tsx
@@ -59,6 +71,7 @@ src/
       BossCard.tsx
       ArtifactCard.tsx
       BossPhaseAlert.tsx
+      DamageFloat.tsx
     pixel/
       SageMage.tsx
       (other character sprites)
@@ -71,19 +84,23 @@ src/
       xp.ts
       boss.ts
       artifacts.ts
-    utils/
-      index.ts
+    notifications.ts
+    sounds.ts
+    config.ts
   store/
     gameStore.ts
     chatStore.ts
   types/
     index.ts
+worker/
+  index.js  ← service worker push + notificationclick handlers (injected by next-pwa)
 
 ## Database Tables
 profiles
   - id uuid (references auth.users)
   - username text
   - avatar_class text
+  - avatar_url text nullable (synced from Google OAuth on every login)
   - created_at timestamp
 
 crews
@@ -100,6 +117,7 @@ crew_members
   - user_id uuid (references profiles)
   - class text
   - joined_at timestamp
+  - last_seen timestamp nullable (used as unread cursor)
 
 messages
   - id uuid
@@ -151,17 +169,33 @@ artifacts
   - asset_type text
   - metadata jsonb
 
+push_subscriptions
+  - id uuid
+  - user_id uuid
+  - crew_id uuid nullable
+  - endpoint text (UNIQUE)
+  - p256dh text
+  - auth text
+  - created_at timestamp
+
+notification_preferences
+  - user_id uuid primary key (references auth.users)
+  - notif_messages boolean default true
+  - notif_raids boolean default true
+  - notif_victory boolean default true
+  - updated_at timestamp
+
 ## XP Rules
 - Text message        = 10 XP
-- Voice note          = 25 XP
-- Image / GIF         = 20 XP
+- Voice note          = 25 XP (disabled in UI, wired for future)
+- Image / GIF         = 20 XP (disabled in UI, wired for future)
 - Reaction            = 5 XP
 - Daily Drop response = 50 XP
 - First message today = 20 XP bonus
 - Reply within 60sec  = 5 XP combo bonus
 
 ## Boss Rules
-- The Void spawns after 24hrs of crew silence
+- The Void spawns after crew crosses every 500 XP threshold
 - Boss fight window = 48 hours
 - Boss has 3 phases (100-60%, 60-30%, 30-0% HP)
 - Phase 3 = enrage, crew must hit frequency threshold
@@ -187,7 +221,7 @@ artifacts
 PHASE 1 — Prove The Loop
 Building in this exact order:
 1. ✅ Supabase client setup + TypeScript types
-2. Database schema + RLS policies
+2. ✅ Database schema + RLS policies
 3. ✅ Auth screens (Google OAuth + guest mode)
 4. ✅ Crew creation and join flow
 5. ✅ Group chat with Supabase Realtime
@@ -207,63 +241,80 @@ Building in this exact order:
 - Enable anonymous sign-ins: Supabase Dashboard → Authentication → Settings
 
 ## Completed Work
+
 ### Auth Flow (src/app/(auth)/ + src/app/auth/)
 - Root layout: Press Start 2P font, #0a0612 background, Nexus metadata
 - Auth layout: scanline overlay, purple ambient glow, floating pixel particles, Nexus logo, purple-bordered card
 - Login page: Google OAuth button + guest username form, no email/password
 - src/lib/supabase/auth.ts: signInWithGoogle, signInAsGuest, signOut, getUser, isGuest
 - src/app/auth/callback/route.ts: exchanges OAuth code, redirects to /home
-- src/app/(app)/layout.tsx: auth guard + GuestBanner client component
+- src/app/(app)/layout.tsx: auth guard + GuestBanner + InstallPrompt + NotificationPrompt + PushRefresh
 - src/components/ui/GuestBanner.tsx: shows GUEST badge + Save Progress + LOG OUT for anonymous users
 - src/types/index.ts: GuestUser + MessageWithProfile types added
 - src/components/ui/Button.tsx: primary/secondary/danger variants, pixel drop-shadow, loading dots
 - src/components/ui/Input.tsx: dark bg, purple focus ring, label + error, font-sans on input
 - tsconfig paths updated: @/* → ./src/*
-- App router moved to src/app/ (root app/ removed)
 
 ### Chat + XP (src/app/(app)/chat/ + src/components/chat/ + supabase/functions/)
-- src/app/(app)/chat/[crewId]/page.tsx: server component; parallel queries in 3 stages (auth+params → crew/members/messages/raid → profiles); single crew_members query serves both membership check and member list; accepts ?welcome=1 to trigger WelcomeDetector
-- src/app/(app)/chat/[crewId]/loading.tsx: pulsing skeleton shown instantly on tab tap (header + message bubbles + input + bottom nav)
-- src/components/chat/ChatHeader.tsx: crew name, LVL badge, member avatars, animated XP bar, boss HP bar, +XP float animations, user initial button → logout bottom sheet
+- src/app/(app)/chat/[crewId]/page.tsx: server component; parallel queries in 3 stages; accepts ?welcome=1 to trigger WelcomeDetector
+- src/app/(app)/chat/[crewId]/loading.tsx: pulsing skeleton shown instantly on tab tap
+- src/components/chat/ChatHeader.tsx: crew name, LVL badge, member avatars, animated XP bar, boss HP bar; +XP float anchored to the "0/500 XP" label — slides from below and fades out (y:6→y:-16, ease-out, 0.9s); user avatar button navigates to /profile
 - src/components/chat/MessageList.tsx: Realtime subscription on messages table, auto-scroll, date dividers, message grouping by sender
 - src/components/chat/MessageBubble.tsx: sent/received layout, element dots, system message variants (boss/xp/artifact), tap-to-react
-- src/components/chat/ChatInput.tsx: textarea (Enter to send, Shift+Enter newline), send/attach/mic buttons, calls award-xp edge function; ⚔ SPAWN BOSS dev button (visible when no active raid); sets nexus_first_message localStorage key on first send; fontSize 16px to prevent iOS auto-zoom; spawn-boss error handling: parses non-JSON responses as `Server error ${status}`, shows actual server error message instead of generic "Network error"
+- src/components/chat/ChatInput.tsx: textarea (Enter to send, Shift+Enter newline), send button only — voice and image upload buttons are DISABLED (wired for future); calls award-xp edge function with username included in body; ⚔ SPAWN BOSS dev button (visible when no active raid); fontSize 16px to prevent iOS auto-zoom
 - src/store/chatStore.ts: Zustand — messages, crewXP, crewLevel, xpFloats, activeRaid
 - src/lib/game/xp.ts: XP_VALUES, calculateXP, getElementType, getLevelFromXP, getXPProgress constants + helpers
-- supabase/functions/award-xp/index.ts: calculates base XP + first-today + combo bonuses, updates crews.total_xp, spawns The Void at 500 XP threshold
-- src/app/api/test/spawn-boss/route.ts: POST endpoint — verifies crew membership, creates active_raids row + BOSS_SPAWN system message using service role key; entire handler wrapped in try/catch so unhandled throws return JSON `{ error }` instead of HTML 500; auth error logged to server console
+- supabase/functions/award-xp/index.ts: calculates base XP + first-today + combo bonuses, updates crews.total_xp, spawns The Void at 500 XP threshold, fires message_received notifications to all other crew members (skips reactions)
+- src/app/api/test/spawn-boss/route.ts: POST endpoint — verifies crew membership, creates active_raids row + BOSS_SPAWN system message using service role key
 
 ### PWA + Notifications (fully wired)
 - public/manifest.json: name, icons, shortcuts (chat + vault), theme #0a0612, standalone portrait
-- public/icons/icon-192.png + icon-512.png: pixel N on dark bg, gold sword — generated via scripts/generate-icons.mjs (@napi-rs/canvas)
-- public/offline.html: zero-dependency standalone page, pixel N div logo, 30s auto-retry, redirects on navigator online event
+- public/icons/icon-192.png + icon-512.png: pixel N on dark bg, gold sword
+- public/offline.html: zero-dependency standalone page, 30s auto-retry
 - next.config.ts: next-pwa enabled in production only; CacheFirst static assets (30d), NetworkFirst API/Supabase/pages (10s timeout), offline fallback /offline.html, auth routes excluded from SW
-- src/lib/notifications.ts: isSupported (checks NEXT_PUBLIC_VAPID_PUBLIC_KEY), requestPermission, subscribeToPush (gets SW registration, calls pushManager.subscribe, saves endpoint/p256dh/auth to push_subscriptions via upsert on endpoint), getPermissionState, savePermissionState
-- src/components/ui/InstallPrompt.tsx: iOS Safari step-by-step + Android Chrome native prompt; shows 10s after nexus_first_message set, once per device (nexus_install_prompted key)
-- src/components/ui/NotificationPrompt.tsx: RAID ALERTS sheet; calls subscribeToPush() after permission granted; shows after nexus_crew_created set, throttled 24h (nexus_notif_prompted key); 3 states: visible → granted (auto-dismiss) / denied (settings instructions)
-- src/components/ui/WelcomeDetector.tsx: client component that sets nexus_crew_created in localStorage when ?welcome=1 param detected, then strips param from URL
-- supabase/migrations/20240101000001_push_subscriptions.sql: push_subscriptions table (user_id, crew_id nullable, endpoint, p256dh, auth) with RLS (select/insert/delete own rows)
-- supabase/migrations/20240101000003_push_notifications_fix.sql: makes crew_id nullable on push_subscriptions, adds UNIQUE index on endpoint, adds expiry_notif_sent to active_raids
-- supabase/functions/send-notification/index.ts: real web-push via npm:web-push — sets VAPID details from env, sends to all user subscriptions, deletes 410/404 expired endpoints
-- supabase/functions/award-xp/index.ts: on boss spawn, queries crew_members and fires send-notification (boss_spawned) for each member
-- supabase/functions/attack-boss/index.ts: on boss defeat, queries crew_members and fires send-notification (boss_defeated) for each member
-- supabase/functions/check-raid-expiry/index.ts: cron-triggered function; finds raids expiring within 2 hours where expiry_notif_sent=false, marks them sent, fires send-notification (raid_expiring) for all crew members
-- src/app/layout.tsx: Viewport export with viewportFit=cover, themeColor #0a0612; appleWebApp capable + black status bar; apple-touch-icon + manifest link
-- src/app/(app)/layout.tsx: renders InstallPrompt + NotificationPrompt alongside existing auth guard
-- Crew creation (onboarding/create/actions.ts): redirects to /chat/${crewId}?welcome=1 so WelcomeDetector fires on first load
+- worker/index.js: custom service worker code injected by next-pwa — handles `push` event (calls showNotification) and `notificationclick` event (focuses existing tab or opens new one at data.url). Without this file push messages are received but never shown.
+- src/lib/notifications.ts: isSupported, requestPermission, subscribeToPush (upserts to push_subscriptions on endpoint conflict), getPermissionState, savePermissionState
+- src/components/ui/PushRefresh.tsx: null-render client component in app layout — calls subscribeToPush() on every load if permission is granted, keeping the subscription row live after silent invalidation
+- src/components/ui/InstallPrompt.tsx: iOS Safari step-by-step + Android Chrome native prompt; shows 10s after first message, once per device
+- src/components/ui/NotificationPrompt.tsx: bottom sheet on crew creation; throttled 24h; 3 states: visible → granted (auto-dismiss) / denied (settings instructions)
+- src/components/ui/WelcomeDetector.tsx: sets nexus_crew_created in localStorage when ?welcome=1 detected
+- supabase/migrations/20240101000001_push_subscriptions.sql: push_subscriptions table with RLS
+- supabase/migrations/20240101000003_push_notifications_fix.sql: crew_id nullable, UNIQUE on endpoint, expiry_notif_sent on active_raids
+- supabase/migrations/20240102000001_notification_preferences.sql: notification_preferences table with RLS
+- supabase/functions/send-notification/index.ts: web-push via npm:web-push; supports types: message_received, boss_spawned, boss_defeated, raid_expiring, crew_silent; checks notification_preferences before sending — if the user's relevant preference is false, skips silently; deletes 410/404 expired endpoints
+- supabase/functions/attack-boss/index.ts: on boss defeat, fires send-notification (boss_defeated) for all crew members
+- supabase/functions/check-raid-expiry/index.ts: cron-triggered; finds raids expiring within 2h, fires send-notification (raid_expiring), marks expiry_notif_sent
+- Notification preference columns: notif_messages (message_received), notif_raids (boss_spawned/raid_expiring/crew_silent), notif_victory (boss_defeated)
 - VAPID env vars: NEXT_PUBLIC_VAPID_PUBLIC_KEY (client), VAPID_PRIVATE_KEY + VAPID_SUBJECT (Edge Function secrets only)
+- iOS push: only works in standalone PWA mode (iOS 16.4+, added to Home Screen); isSupported() returns false in Safari browser mode — this is correct
+- Dev mode: PWA/SW disabled in dev (disable: isDev); push notifications can only be tested against a production Vercel deployment
 
 ### Home Screen (src/app/(app)/home/)
-- src/app/(app)/home/page.tsx: server component; fetches user's crews with last message preview + unread counts + memberCount per crew (crew_members join with crew_id); profile cache for realtime sender resolution; parallel query stages
-- src/app/(app)/home/HomeClient.tsx: SwipeableCrewCard — swipe right-to-left (drag="x" 88px) reveals LEAVE button, spring snap on release; tap open card closes it, tap closed card navigates; LeaveConfirmSheet with crew-name, context-aware warning (last member → DELETE CREW), and error display; leaveCrewAction on confirm with optimistic list removal; per-crew Realtime subscriptions; create/user-menu/leave sheets via AnimatePresence
-- src/app/(app)/home/actions.ts: leaveCrewAction server action — if last member deletes crew (CASCADE), else redistributes user's MVP artifacts round-robin then deletes crew_members row; revalidates /home
+- src/app/(app)/home/page.tsx: server component; fetches crews with last message preview + unread counts + memberCount; parallel query stages
+- src/app/(app)/home/HomeClient.tsx: SwipeableCrewCard — swipe right-to-left (88px) reveals LEAVE button; single openCardId state in HomeClient ensures only one card is open at a time — starting a drag on any card immediately snaps all others closed; tap open card closes it, tap closed card navigates; LeaveConfirmSheet with context-aware warning (last member → DELETE CREW); per-crew Realtime subscriptions; user avatar button navigates to /profile
+- src/app/(app)/home/actions.ts: leaveCrewAction server action — if last member deletes crew (CASCADE), else redistributes MVP artifacts then deletes crew_members row; revalidates /home
 - src/app/(app)/home/loading.tsx: pulsing skeleton shown instantly on navigation
-- Unread count uses crew_members.last_seen as read cursor — messages after last_seen from other users = unread; ChatHeader updates last_seen every 60s; HomeClient updates it immediately on crew tap
-- Post-login flow: auth/callback → /home; onboarding page redirects existing crew members to /home
+- Unread count uses crew_members.last_seen as read cursor; ChatHeader updates it every 60s; HomeClient updates it immediately on crew tap
+- Post-login flow: auth/callback → /home
+
+### Profile Page (src/app/(app)/profile/)
+- src/app/(app)/profile/page.tsx: server component — fetches auth + profile (username, avatar_url), renders ProfileClient
+- src/app/(app)/profile/ProfileClient.tsx: client component with:
+  - Avatar display (Google photo or initials, 80px)
+  - Username input with inline SAVE button; optimistic update via Supabase client (.from('profiles').update); success/error feedback
+  - Notifications section: shows ENABLE button if permission not granted; if granted shows 3 individual sliding toggle switches (Messages, Raid Alerts, Victory) — prefs loaded from notification_preferences on mount, upserted on each toggle change
+  - LOG OUT button calls signOut() → /login
+  - Back navigation via router.back()
+- src/app/(app)/profile/loading.tsx: pulsing skeleton
+- Logout is now handled exclusively from the profile page — the old bottom sheets on ChatHeader and HomeClient have been removed
 
 ### Vault
 - src/app/(app)/vault/[crewId]/page.tsx: parallel queries (auth+params → membership/crew/artifacts simultaneously)
 - src/app/(app)/vault/[crewId]/loading.tsx: pulsing skeleton shown instantly on tab tap
+
+## Disabled Features (wired for future)
+- Voice notes: ChatInput voice button removed; XP_VALUES['voice'] = 25 still defined; element type 'lightning' still assigned server-side
+- Image upload: ChatInput attach button removed; upload logic, browser-image-compression, chat-images bucket all still exist and work; element type 'nature' still assigned server-side
 
 ## localStorage Keys
 - nexus_first_message: timestamp (ms) of user's first sent message — triggers InstallPrompt after 10s
@@ -299,7 +350,7 @@ Building in this exact order:
 - RLS must be enabled on every table from day one
 - Server component data fetching: always use Promise.all for independent queries; structure in stages: (1) auth.getUser() + params together, (2) all queries that only need userId/crewId together, (3) queries that depend on stage-2 results. Never await sequentially when queries are independent.
 - Add loading.tsx alongside every page.tsx that does server-side data fetching — shows instantly on navigation before server render completes
-- Logout: GuestBanner handles guest logout; ChatHeader user-initial button handles auth user logout; HomeClient has its own user-menu logout — all call signOut() from src/lib/supabase/auth then router.push('/login')
+- Logout: handled from /profile page only — ProfileClient calls signOut() then router.push('/login')
 
 ## Image Rules
 - All user-uploaded images MUST be compressed client-side with `browser-image-compression` before upload: `maxSizeMB: 0.5`, `maxWidthOrHeight: 1024`, `useWebWorker: true`, `fileType: 'image/webp'`
@@ -319,7 +370,6 @@ Building in this exact order:
 - XP color — gold #ffd700
 - Danger/boss — red #ff4444
 - Success/heal — green #66bb6a
-- Font stack — Press Start 2P for headings/game UI,
-  system-ui for body text and chat messages
+- Font stack — Press Start 2P for headings/game UI, system-ui for body text and chat messages
 - Framer Motion for all animations
 - Scanline overlay on game screens for RotMG feel
