@@ -3,11 +3,9 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X } from 'lucide-react'
 import { useChatStore, XP_PER_LEVEL } from '@/store/chatStore'
 import { getXPProgress } from '@/lib/game/xp'
 import { createClient } from '@/lib/supabase/client'
-import { signOut } from '@/lib/supabase/auth'
 import Image from 'next/image'
 import type { Crew, Profile, ActiveRaid } from '@/types'
 import { formatDistanceToNow } from 'date-fns'
@@ -129,73 +127,6 @@ function ShareModal({ crew, onClose }: { crew: Crew; onClose: () => void }) {
   )
 }
 
-// ─── UserMenu ─────────────────────────────────────────────────────────────────
-
-function UserMenu({ username, onClose }: { username: string; onClose: () => void }) {
-  const router  = useRouter()
-  const [loading, setLoading] = useState(false)
-
-  async function handleLogout() {
-    setLoading(true)
-    try {
-      await signOut()
-      router.push('/login')
-    } catch {
-      setLoading(false)
-    }
-  }
-
-  return (
-    <motion.div
-      className="fixed inset-0 z-50 flex items-end justify-center"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      onClick={onClose}
-    >
-      <div className="absolute inset-0 bg-black/60" />
-      <motion.div
-        initial={{ y: 80, opacity: 0 }}
-        animate={{ y: 0,  opacity: 1 }}
-        exit={{   y: 80, opacity: 0 }}
-        transition={{ type: 'spring', stiffness: 280, damping: 26 }}
-        className="relative w-full max-w-[480px] bg-[#0f0820] border-t border-[#2a1545] p-6"
-        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 24px)' }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-start justify-between mb-5">
-          <div>
-            <p className="font-pixel text-[8px] text-[#6b4f8f] mb-1">LOGGED IN AS</p>
-            <p className="font-pixel text-[11px] text-white">{username.toUpperCase()}</p>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center text-[#6b4f8f] hover:text-white"
-            aria-label="Close"
-          >
-            <X size={16} />
-          </button>
-        </div>
-
-        <button
-          onClick={handleLogout}
-          disabled={loading}
-          className="w-full h-12 font-pixel text-[9px] text-[#ff4444] border border-[#ff4444]/40 hover:border-[#ff4444] hover:bg-[#ff4444]/08 transition-colors disabled:opacity-50"
-        >
-          {loading ? '...' : 'LOG OUT'}
-        </button>
-
-        <button
-          onClick={onClose}
-          className="mt-3 w-full font-pixel text-[8px] text-[#3d2660] py-2 hover:text-[#6b4f8f] transition-colors"
-        >
-          CANCEL
-        </button>
-      </motion.div>
-    </motion.div>
-  )
-}
-
 // ─── ChatHeader ───────────────────────────────────────────────────────────────
 
 export function ChatHeader({
@@ -207,12 +138,12 @@ export function ChatHeader({
   crewId,
   memberLastSeen = {},
 }: ChatHeaderProps) {
+  const router = useRouter()
   const { crewXP, crewLevel, xpFloats, dismissXPFloat, setCrewXP, setActiveRaid, activeRaid } =
     useChatStore()
-  const [showShare, setShowShare]         = useState(false)
-  const [showUserMenu, setShowUserMenu]   = useState(false)
+  const [showShare, setShowShare] = useState(false)
 
-  const currentMember  = members.find((m) => m.id === currentUserId)
+  const currentMember   = members.find((m) => m.id === currentUserId)
   const currentUsername = currentMember?.username ?? ''
 
   useEffect(() => {
@@ -239,8 +170,7 @@ export function ChatHeader({
     return () => clearInterval(interval)
   }, [crewId, currentUserId])
 
-  const handleCloseShare    = useCallback(() => setShowShare(false), [])
-  const handleCloseUserMenu = useCallback(() => setShowUserMenu(false), [])
+  const handleCloseShare = useCallback(() => setShowShare(false), [])
 
   const xpProgress = getXPProgress(crewXP)
   const level      = crewLevel
@@ -278,7 +208,7 @@ export function ChatHeader({
               LVL {String(level).padStart(2, '0')}
             </span>
             <button
-              onClick={() => setShowUserMenu(true)}
+              onClick={() => router.push('/profile')}
               className="w-7 h-7 flex items-center justify-center font-pixel text-[9px] border border-[#2a1545] hover:border-[#6b4f8f] transition-colors flex-shrink-0 overflow-hidden relative"
               style={currentMember?.avatar_url ? undefined : { background: 'rgba(107,79,143,0.15)', color: '#6b4f8f' }}
               aria-label="Account menu"
@@ -400,12 +330,6 @@ export function ChatHeader({
         {showShare && <ShareModal crew={crew} onClose={handleCloseShare} />}
       </AnimatePresence>
 
-      {/* User / account menu */}
-      <AnimatePresence>
-        {showUserMenu && (
-          <UserMenu username={currentUsername} onClose={handleCloseUserMenu} />
-        )}
-      </AnimatePresence>
     </>
   )
 }

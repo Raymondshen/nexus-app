@@ -8,7 +8,6 @@ import { X, Plus } from 'lucide-react'
 import Image from 'next/image'
 import { formatDistanceToNow } from 'date-fns'
 import { createClient } from '@/lib/supabase/client'
-import { signOut } from '@/lib/supabase/auth'
 import { createCrewAction } from '@/app/(app)/onboarding/create/actions'
 import { leaveCrewAction } from './actions'
 import { Button } from '@/components/ui/Button'
@@ -38,79 +37,6 @@ function relativeTime(iso: string): string {
   } catch {
     return ''
   }
-}
-
-// ─── User menu ────────────────────────────────────────────────────────────────
-
-function UserMenuSheet({
-  username,
-  onClose,
-}: {
-  username: string
-  onClose:  () => void
-}) {
-  const router  = useRouter()
-  const [busy, setBusy] = useState(false)
-
-  async function handleLogout() {
-    setBusy(true)
-    try {
-      await signOut()
-      router.push('/login')
-    } catch {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <motion.div
-      className="fixed inset-0 z-50 flex items-end justify-center"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      onClick={onClose}
-    >
-      <div className="absolute inset-0 bg-black/60" />
-      <motion.div
-        initial={{ y: 80, opacity: 0 }}
-        animate={{ y: 0,  opacity: 1 }}
-        exit={{   y: 80, opacity: 0 }}
-        transition={{ type: 'spring', stiffness: 280, damping: 26 }}
-        className="relative w-full max-w-[480px] bg-[#0f0820] border-t border-[#2a1545] p-6"
-        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 24px)' }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-start justify-between mb-5">
-          <div>
-            <p className="font-pixel text-[8px] text-[#6b4f8f] mb-1">LOGGED IN AS</p>
-            <p className="font-pixel text-[11px] text-white">{username.toUpperCase()}</p>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center text-[#6b4f8f] hover:text-white"
-            aria-label="Close"
-          >
-            <X size={16} />
-          </button>
-        </div>
-
-        <button
-          onClick={handleLogout}
-          disabled={busy}
-          className="w-full h-12 font-pixel text-[9px] text-[#ff4444] border border-[#ff4444]/40 hover:border-[#ff4444] transition-colors disabled:opacity-50"
-        >
-          {busy ? '...' : 'LOG OUT'}
-        </button>
-
-        <button
-          onClick={onClose}
-          className="mt-3 w-full font-pixel text-[8px] text-[#3d2660] py-2 hover:text-[#6b4f8f] transition-colors"
-        >
-          CANCEL
-        </button>
-      </motion.div>
-    </motion.div>
-  )
 }
 
 // ─── Create crew sheet ────────────────────────────────────────────────────────
@@ -453,10 +379,9 @@ export function HomeClient({
 }: HomeClientProps) {
   const router = useRouter()
 
-  const [crews,        setCrews]        = useState<CrewSummary[]>(initialCrews)
-  const [showCreate,   setShowCreate]   = useState(false)
-  const [showUserMenu, setShowUserMenu] = useState(false)
-  const [leaveTarget,  setLeaveTarget]  = useState<CrewSummary | null>(null)
+  const [crews,       setCrews]       = useState<CrewSummary[]>(initialCrews)
+  const [showCreate,  setShowCreate]  = useState(false)
+  const [leaveTarget, setLeaveTarget] = useState<CrewSummary | null>(null)
   const [leaving,      setLeaving]      = useState(false)
   const [leaveError,   setLeaveError]   = useState<string | null>(null)
 
@@ -565,9 +490,8 @@ export function HomeClient({
     }
   }, [leaveTarget, leaving])
 
-  const handleCloseCreate   = useCallback(() => setShowCreate(false), [])
-  const handleCloseUserMenu = useCallback(() => setShowUserMenu(false), [])
-  const handleCloseLeave    = useCallback(() => {
+  const handleCloseCreate = useCallback(() => setShowCreate(false), [])
+  const handleCloseLeave  = useCallback(() => {
     if (!leaving) { setLeaveTarget(null); setLeaveError(null) }
   }, [leaving])
 
@@ -597,7 +521,7 @@ export function HomeClient({
             </button>
           )}
           <button
-            onClick={() => setShowUserMenu(true)}
+            onClick={() => router.push('/profile')}
             className="w-8 h-8 flex items-center justify-center font-pixel text-[9px] border border-[#2a1545] hover:border-[#6b4f8f] transition-colors relative overflow-hidden"
             style={avatarUrl ? undefined : { background: 'rgba(107,79,143,0.15)', color: '#6b4f8f' }}
             aria-label="Account"
@@ -654,9 +578,8 @@ export function HomeClient({
 
       {/* ── Modals ── */}
       <AnimatePresence>
-        {showCreate   && <CreateCrewSheet onClose={handleCloseCreate} />}
-        {showUserMenu && <UserMenuSheet username={username} onClose={handleCloseUserMenu} />}
-        {leaveTarget  && (
+        {showCreate  && <CreateCrewSheet onClose={handleCloseCreate} />}
+        {leaveTarget && (
           <LeaveConfirmSheet
             summary={leaveTarget}
             onConfirm={handleLeaveCrew}
