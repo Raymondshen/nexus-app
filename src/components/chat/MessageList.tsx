@@ -115,6 +115,7 @@ export function MessageList({
   // streaming errors, and retries cleanly on navigation.
   useEffect(() => {
     setHistoryLoaded(false)
+    setMessages([])
     let cancelled = false
 
     ;(async () => {

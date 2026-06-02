@@ -303,6 +303,7 @@ Shown instantly on navigation before server render completes.
 #### MessageList (src/components/chat/MessageList.tsx)
 - Fetches own message history client-side on mount (async IIFE, crewId dependency)
   — descending order + limit 50 + reverse = newest 50 in chronological order
+  — calls setMessages([]) before the fetch so stale messages from a previous crew don't bleed in
   — merges with any messages already in store (Realtime events that arrived during fetch)
   — shows inline skeleton while loading; campfire empty state when genuinely no messages
   — cancelled flag prevents stale state on rapid navigation
