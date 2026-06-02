@@ -111,6 +111,7 @@ export function ProfileClient({ userId, userEmail, initialUsername, avatarUrl, i
   const [notifSupported,  setNotifSupported]  = useState(false)
   const [notifPermission, setNotifPermission] = useState<PermissionState>('unsupported')
   const [enablingNotif,   setEnablingNotif]   = useState(false)
+  const [subError,        setSubError]        = useState(false)
   const [prefs,           setPrefs]           = useState<NotifPrefs>(DEFAULT_PREFS)
   const [prefsLoading,    setPrefsLoading]    = useState(false)
   const [savingPref,      setSavingPref]      = useState<keyof NotifPrefs | null>(null)
@@ -146,11 +147,13 @@ export function ProfileClient({ userId, userEmail, initialUsername, avatarUrl, i
 
   async function handleEnableNotifications() {
     setEnablingNotif(true)
+    setSubError(false)
     try {
       const state = await requestPermission()
       setNotifPermission(state)
       if (state === 'granted') {
-        await subscribeToPush()
+        const sub = await subscribeToPush()
+        if (!sub) setSubError(true)
         fetchPrefs()
       }
     } finally {
@@ -316,8 +319,13 @@ export function ProfileClient({ userId, userEmail, initialUsername, avatarUrl, i
                   disabled={enablingNotif}
                   className="w-full h-10 font-pixel text-[9px] text-[#00e5ff] border border-[#00e5ff]/40 hover:border-[#00e5ff] transition-colors disabled:opacity-50"
                 >
-                  {enablingNotif ? '...' : '⚔ ENABLE NOTIFICATIONS'}
+                  {enablingNotif ? '...' : subError ? '↺ RETRY' : '⚔ ENABLE NOTIFICATIONS'}
                 </button>
+                {subError && (
+                  <p className="font-pixel text-[7px] text-[#ff9944] mt-2 leading-relaxed">
+                    SUBSCRIPTION FAILED — ENSURE THIS APP IS ADDED TO YOUR HOME SCREEN, THEN RETRY
+                  </p>
+                )}
               </div>
             ) : (
               // Granted — show individual toggles

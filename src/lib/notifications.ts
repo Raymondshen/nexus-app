@@ -40,37 +40,53 @@ export async function requestPermission(): Promise<PermissionState> {
 export async function subscribeToPush(): Promise<PushSubscription | null> {
   if (!isSupported()) return null
 
-  try {
-    const registration = await navigator.serviceWorker.ready
-    const applicationServerKey = urlBase64ToUint8Array(
-      process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
-    )
+  // iOS is strict about timing — retry up to twice with a delay if the first
+  // attempt fails. This handles cases where the SW is still activating right
+  // after permission is granted.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    if (attempt > 0) await new Promise((r) => setTimeout(r, 1500))
 
-    const subscription = await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey,
-    })
+    try {
+      const registration = await navigator.serviceWorker.ready
 
-    const json     = subscription.toJSON()
-    const p256dh   = json.keys?.p256dh
-    const auth     = json.keys?.auth
-    const endpoint = subscription.endpoint
+      // Use an existing subscription when available (calling subscribe() on iOS
+      // when one already exists can throw in some versions).
+      let subscription = await registration.pushManager.getSubscription()
 
-    if (!p256dh || !auth) return null
+      if (!subscription) {
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly:   true,
+          applicationServerKey: urlBase64ToUint8Array(
+            process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
+          ),
+        })
+      }
 
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return null
+      const json   = subscription.toJSON()
+      const p256dh = json.keys?.p256dh
+      const auth   = json.keys?.auth
+      if (!p256dh || !auth) return null
 
-    await supabase
-      .from('push_subscriptions')
-      .upsert({ user_id: user.id, endpoint, p256dh, auth }, { onConflict: 'endpoint' })
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return null
 
-    return subscription
-  } catch (err) {
-    console.error('[notifications] subscribeToPush failed:', err)
-    return null
+      const { error } = await supabase
+        .from('push_subscriptions')
+        .upsert(
+          { user_id: user.id, endpoint: subscription.endpoint, p256dh, auth },
+          { onConflict: 'endpoint' },
+        )
+
+      if (error) throw error
+
+      return subscription
+    } catch (err) {
+      console.error(`[notifications] subscribeToPush attempt ${attempt + 1} failed:`, err)
+    }
   }
+
+  return null
 }
 
 export function getPermissionState(): PermissionState {

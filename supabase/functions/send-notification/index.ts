@@ -133,6 +133,7 @@ Deno.serve(async (req: Request) => {
         await webpush.sendNotification(
           { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
           JSON.stringify(notifPayload),
+          { TTL: 86400 }, // 1 day — keeps the message queued if the device is offline
         )
         results.push({ endpoint: sub.endpoint, status: 'sent' })
       } catch (err: unknown) {

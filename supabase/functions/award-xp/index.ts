@@ -194,24 +194,26 @@ Deno.serve(async (req: Request) => {
               .select('user_id')
               .eq('crew_id', crew_id)
 
-            for (const member of crewMembers ?? []) {
-              fetch(`${supabaseUrl}/functions/v1/send-notification`, {
-                method:  'POST',
-                headers: {
-                  'Content-Type':  'application/json',
-                  'Authorization': `Bearer ${serviceKey}`,
-                },
-                body: JSON.stringify({
-                  user_id: member.user_id,
-                  type:    'boss_spawned',
-                  payload: {
-                    boss_name: voidBoss.name ?? 'The Void',
-                    crew_name: crewBefore?.name ?? '',
-                    crew_id,
+            await Promise.allSettled(
+              (crewMembers ?? []).map((member) =>
+                fetch(`${supabaseUrl}/functions/v1/send-notification`, {
+                  method:  'POST',
+                  headers: {
+                    'Content-Type':  'application/json',
+                    'Authorization': `Bearer ${serviceKey}`,
                   },
-                }),
-              }).catch(() => {})
-            }
+                  body: JSON.stringify({
+                    user_id: member.user_id,
+                    type:    'boss_spawned',
+                    payload: {
+                      boss_name: voidBoss.name ?? 'The Void',
+                      crew_name: crewBefore?.name ?? '',
+                      crew_id,
+                    },
+                  }),
+                })
+              )
+            )
           }
         }
       }
@@ -228,25 +230,29 @@ Deno.serve(async (req: Request) => {
         .eq('crew_id', crew_id)
         .neq('user_id', user_id)
 
-      for (const member of otherMembers ?? []) {
-        fetch(`${supabaseUrl}/functions/v1/send-notification`, {
-          method:  'POST',
-          headers: {
-            'Content-Type':  'application/json',
-            'Authorization': `Bearer ${serviceKey}`,
-          },
-          body: JSON.stringify({
-            user_id: member.user_id,
-            type:    'message_received',
-            payload: {
-              sender_name:     username ?? 'Someone',
-              content_preview: (content ?? '').slice(0, 80),
-              crew_name:       crewBefore?.name ?? '',
-              crew_id,
+      // Await all notification fetches so the Edge Function runtime doesn't
+      // terminate before they complete (fire-and-forget is not reliable in Deno).
+      await Promise.allSettled(
+        (otherMembers ?? []).map((member) =>
+          fetch(`${supabaseUrl}/functions/v1/send-notification`, {
+            method:  'POST',
+            headers: {
+              'Content-Type':  'application/json',
+              'Authorization': `Bearer ${serviceKey}`,
             },
-          }),
-        }).catch(() => {})
-      }
+            body: JSON.stringify({
+              user_id: member.user_id,
+              type:    'message_received',
+              payload: {
+                sender_name:     username ?? 'Someone',
+                content_preview: (content ?? '').slice(0, 80),
+                crew_name:       crewBefore?.name ?? '',
+                crew_id,
+              },
+            }),
+          })
+        )
+      )
     }
 
     return new Response(

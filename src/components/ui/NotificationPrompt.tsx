@@ -9,7 +9,7 @@ const PROMPTED_KEY = 'nexus_notif_prompted'
 const CREW_KEY     = 'nexus_crew_created'
 const RETRY_MS     = 24 * 60 * 60 * 1000 // 24 hours
 
-type PromptState = 'hidden' | 'visible' | 'granted' | 'denied'
+type PromptState = 'hidden' | 'visible' | 'granted' | 'denied' | 'sub_failed'
 
 export function NotificationPrompt() {
   const [state, setState] = useState<PromptState>('hidden')
@@ -34,9 +34,15 @@ export function NotificationPrompt() {
   const handleEnable = useCallback(async () => {
     const result = await requestPermission()
     if (result === 'granted') {
-      await subscribeToPush()
-      setState('granted')
-      setTimeout(() => setState('hidden'), 2000)
+      const sub = await subscribeToPush()
+      if (sub) {
+        setState('granted')
+        setTimeout(() => setState('hidden'), 2000)
+      } else {
+        // Permission was granted by the OS but the push subscription failed.
+        // Keep the prompt visible so the user can retry.
+        setState('sub_failed')
+      }
     } else {
       setState('denied')
     }
@@ -60,7 +66,9 @@ export function NotificationPrompt() {
           className="fixed bottom-0 left-0 right-0 z-50 bg-[#0f0820] border-t-2 border-[#bf5fff]"
           style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 16px)' }}
         >
-          {state === 'visible' && <DefaultContent onEnable={handleEnable} onLater={handleLater} />}
+          {(state === 'visible' || state === 'sub_failed') && (
+            <DefaultContent onEnable={handleEnable} onLater={handleLater} subFailed={state === 'sub_failed'} />
+          )}
           {state === 'granted' && <GrantedContent />}
           {state === 'denied'  && <DeniedContent onClose={() => setState('hidden')} />}
         </motion.div>
@@ -69,7 +77,15 @@ export function NotificationPrompt() {
   )
 }
 
-function DefaultContent({ onEnable, onLater }: { onEnable: () => void; onLater: () => void }) {
+function DefaultContent({
+  onEnable,
+  onLater,
+  subFailed = false,
+}: {
+  onEnable:  () => void
+  onLater:   () => void
+  subFailed?: boolean
+}) {
   return (
     <div className="px-5 pt-5 pb-2">
       <div className="flex items-start justify-between mb-4">
@@ -88,10 +104,17 @@ function DefaultContent({ onEnable, onLater }: { onEnable: () => void; onLater: 
         </button>
       </div>
 
-      <p className="font-sans text-sm text-[#a78fc0] mb-5 leading-relaxed">
-        Get notified when a boss spawns.<br />
-        Never leave your crew hanging.
-      </p>
+      {subFailed ? (
+        <p className="font-sans text-sm text-[#ff9944] mb-5 leading-relaxed">
+          Setup failed. Make sure this app is added to your<br />
+          <strong className="text-white">Home Screen</strong>, then tap Enable again.
+        </p>
+      ) : (
+        <p className="font-sans text-sm text-[#a78fc0] mb-5 leading-relaxed">
+          Get notified when a boss spawns.<br />
+          Never leave your crew hanging.
+        </p>
+      )}
 
       <div className="flex gap-3">
         <button
