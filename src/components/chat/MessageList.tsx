@@ -115,15 +115,20 @@ export function MessageList({
   // streaming errors, and retries cleanly on navigation.
   useEffect(() => {
     setHistoryLoaded(false)
+    let cancelled = false
 
-    const supabase = createClient()
-    supabase
-      .from('messages')
-      .select('*')
-      .eq('crew_id', crewId)
-      .order('created_at', { ascending: false })
-      .limit(50)
-      .then(({ data }) => {
+    ;(async () => {
+      try {
+        const supabase = createClient()
+        const { data } = await supabase
+          .from('messages')
+          .select('*')
+          .eq('crew_id', crewId)
+          .order('created_at', { ascending: false })
+          .limit(50)
+
+        if (cancelled) return
+
         const rows = ((data ?? []) as Message[]).reverse()
         const fetched: MessageWithProfile[] = rows
           .filter((m) => typeof m.content === 'string')
@@ -134,8 +139,8 @@ export function MessageList({
             },
           }))
 
-        // Merge with any messages already in the store (e.g. optimistic sends or
-        // Realtime events that arrived before the fetch finished).
+        // Merge with any messages already in the store (Realtime events or
+        // optimistic sends that arrived while the fetch was in flight).
         const existing = useChatStore.getState().messages
         const fetchedIds = new Set(fetched.map((m) => m.id))
         const merged = [
@@ -144,9 +149,14 @@ export function MessageList({
         ].sort((a, b) => a.created_at.localeCompare(b.created_at))
 
         setMessages(merged)
-      })
-      .catch(() => {})
-      .finally(() => setHistoryLoaded(true))
+      } catch {
+        // Network error — Realtime subscription still delivers live messages
+      } finally {
+        if (!cancelled) setHistoryLoaded(true)
+      }
+    })()
+
+    return () => { cancelled = true }
   }, [crewId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Only auto-scroll when user is already near bottom
