@@ -10,7 +10,7 @@ import { MessageBubble } from './MessageBubble'
 import { LevelUpBanner } from '@/components/game/LevelUpBanner'
 import { parseBossSpawnRaidId } from '@/lib/game/boss'
 import { parseArtifactDropId, parseLevelUp } from '@/lib/game/artifacts'
-import type { MessageWithProfile, Profile, ActiveRaid } from '@/types'
+import type { MessageWithProfile, Message, Profile, ActiveRaid } from '@/types'
 
 const BossCard = dynamic(
   () => import('@/components/game/BossCard').then((m) => m.BossCard),
@@ -140,11 +140,19 @@ export function MessageList({
     const supabase = createClient()
     const channel  = supabase
       .channel(`messages:${crewId}`)
+      // Broadcast: instant delivery from sender → all connected clients.
+      // Works regardless of whether Realtime publication is enabled on the table.
+      .on('broadcast', { event: 'new_message' }, (payload) => {
+        const msg = payload.payload as MessageWithProfile
+        if (msg?.id) addMessage(msg)
+      })
+      // Postgres Changes: backup path once Realtime is enabled on the messages table.
+      // Catches any messages sent before this client connected (missed broadcasts).
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'messages', filter: `crew_id=eq.${crewId}` },
         (payload) => {
-          const raw = payload.new as Parameters<typeof addMessage>[0]
+          const raw = payload.new as Message
           addMessage({ ...raw, profile: resolveProfile(raw.user_id) } as MessageWithProfile)
         }
       )

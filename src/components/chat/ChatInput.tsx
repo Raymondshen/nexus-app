@@ -33,13 +33,26 @@ export function ChatInput({ crewId, userId, userProfile }: ChatInputProps) {
   const [spawning,    setSpawning]    = useState(false)
   const [spawnError,  setSpawnError]  = useState<string | null>(null)
 
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const rateRef     = useRef({ count: 0, resetAt: Date.now() + RATE_LIMIT_WINDOW })
+  const textareaRef      = useRef<HTMLTextAreaElement>(null)
+  const rateRef          = useRef({ count: 0, resetAt: Date.now() + RATE_LIMIT_WINDOW })
   const typingTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null)
   const typingChannelRef = useRef<RealtimeChannel | null>(null)
+  const msgChannelRef    = useRef<RealtimeChannel | null>(null)
 
   const { addMessage, addXP, activeRaid, damageFloats, addDamageFloat, dismissDamageFloat } = useChatStore()
   const inRaid = !!(activeRaid && !activeRaid.defeated_at)
+
+  // Message broadcast channel — used to push sent messages to all crew members instantly
+  useEffect(() => {
+    const supabase = createClient()
+    const ch = supabase.channel(`messages:${crewId}`)
+    ch.subscribe()
+    msgChannelRef.current = ch
+    return () => {
+      supabase.removeChannel(ch)
+      msgChannelRef.current = null
+    }
+  }, [crewId])
 
   // Typing presence channel
   useEffect(() => {
@@ -120,6 +133,15 @@ export function ChatInput({ crewId, userId, userProfile }: ChatInputProps) {
       }
       addMessage(newMessage)
       addXP(calculateXP('text'))
+
+      // Broadcast to all other crew members on this channel immediately.
+      // Recipients' MessageList receives this via the 'new_message' broadcast
+      // listener and calls addMessage (deduplication prevents doubles).
+      msgChannelRef.current?.send({
+        type:    'broadcast',
+        event:   'new_message',
+        payload: newMessage,
+      })
 
       // XP edge function (fire-and-forget)
       fetch(`${SUPABASE_URL}/functions/v1/award-xp`, {
