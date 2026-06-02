@@ -30,10 +30,10 @@ export class ErrorBoundary extends React.Component<Props, State> {
             Something broke.<br />Refresh to continue.
           </p>
           <button
-            onClick={() => this.setState({ hasError: false })}
+            onClick={() => window.location.reload()}
             className="font-pixel text-[8px] text-[#bf5fff] border border-[#bf5fff]/40 px-4 py-2"
           >
-            RETRY
+            RELOAD
           </button>
         </div>
       )

@@ -31,22 +31,30 @@ async function MessagesStream({
   memberProfiles: MemberProfileMap
   initialRaid:    ActiveRaid | null
 }) {
-  const supabase = await createClient()
-  const { data } = await supabase
-    .from("messages")
-    .select("*")
-    .eq("crew_id", crewId)
-    .order("created_at", { ascending: false }) // newest first
-    .limit(50)
+  // Never throw from here — a server component error inside Suspense cannot be
+  // retried from the client (the stream is already done). On any failure, render
+  // an empty MessageList; the Realtime subscription delivers live messages anyway.
+  let initialMessages: MessageWithProfile[] = []
 
-  // Reverse so they display oldest→newest in the list
-  const messageRows = ((data ?? []) as Message[]).reverse()
-  const initialMessages: MessageWithProfile[] = messageRows.map((m) => ({
-    ...m,
-    profile: memberProfiles[m.user_id] ?? {
-      id: m.user_id, username: "???", avatar_class: null, avatar_url: null,
-    },
-  }))
+  try {
+    const supabase = await createClient()
+    const { data } = await supabase
+      .from("messages")
+      .select("*")
+      .eq("crew_id", crewId)
+      .order("created_at", { ascending: false })
+      .limit(50)
+
+    // Reverse so they display oldest→newest in the list
+    initialMessages = ((data ?? []) as Message[]).reverse().map((m) => ({
+      ...m,
+      profile: memberProfiles[m.user_id] ?? {
+        id: m.user_id, username: "???", avatar_class: null, avatar_url: null,
+      },
+    }))
+  } catch {
+    // Network / auth error — fall through with empty history
+  }
 
   return (
     <MessageList

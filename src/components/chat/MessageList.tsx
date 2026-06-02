@@ -141,18 +141,19 @@ export function MessageList({
     const channel  = supabase
       .channel(`messages:${crewId}`)
       // Broadcast: instant delivery from sender → all connected clients.
-      // Works regardless of whether Realtime publication is enabled on the table.
       .on('broadcast', { event: 'new_message' }, (payload) => {
         const msg = payload.payload as MessageWithProfile
-        if (msg?.id) addMessage(msg)
+        // Validate shape before adding — a malformed broadcast causes the display
+        // loop to throw (content.startsWith is called without a null check).
+        if (msg?.id && typeof msg.content === 'string') addMessage(msg)
       })
-      // Postgres Changes: backup path once Realtime is enabled on the messages table.
-      // Catches any messages sent before this client connected (missed broadcasts).
+      // Postgres Changes: backup path (catches missed broadcasts / reconnects).
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'messages', filter: `crew_id=eq.${crewId}` },
         (payload) => {
           const raw = payload.new as Message
+          if (!raw?.id || typeof raw.content !== 'string') return
           addMessage({ ...raw, profile: resolveProfile(raw.user_id) } as MessageWithProfile)
         }
       )
@@ -175,6 +176,9 @@ export function MessageList({
   const renderedRaids = new Set<string>()
 
   for (const msg of messages) {
+    // Guard against malformed messages (e.g. broadcast with missing fields)
+    if (!msg.id || typeof msg.content !== 'string') continue
+
     const msgDate    = new Date(msg.created_at)
     const raidId     = parseBossSpawnRaidId(msg.content)
     const artifactId = parseArtifactDropId(msg.content)
