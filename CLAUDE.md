@@ -307,18 +307,20 @@ Shown instantly on navigation before server render completes.
   — merges with any messages already in store (Realtime events that arrived during fetch)
   — shows inline skeleton while loading; campfire empty state when genuinely no messages
   — cancelled flag prevents stale state on rapid navigation
-- Realtime: single channel `messages:{crewId}` subscribing to both:
+- Realtime: single channel `messages:{crewId}` subscribing to three events:
   1. Broadcast `new_message` events (instant delivery from sender)
   2. Postgres Changes INSERT (backup path for missed broadcasts / reconnects)
-- Both handlers validate `msg.content` is a string before calling addMessage (prevents TypeError crash)
+  3. Postgres Changes UPDATE — picks up `xp_awarded` and `element_type` written back by the award-xp edge function; calls `updateMessage` to patch the existing store entry in-place
+- Both INSERT handlers validate `msg.content` is a string before calling addMessage (prevents TypeError crash)
 - addMessage in chatStore deduplicates by id (no doubles from dual delivery path)
+- updateMessage in chatStore merges partial fields into an existing message by id
 - Auto-scroll only when user is within 120px of bottom
 - Display items: date dividers, BossCard (system BOSS_SPAWN:uuid), ArtifactDropRenderer (ARTIFACT_DROP:uuid), LevelUpBanner (LEVEL_UP:n), MessageBubble
 - Guards against malformed messages: skips any row where content is not a string
 
 #### ChatInput (src/components/chat/ChatInput.tsx)
 - textarea (Enter to send, Shift+Enter newline); fontSize 16px prevents iOS auto-zoom
-- Send flow: insert_message RPC → addMessage (optimistic) → broadcast on `messages:{crewId}` → award-xp edge function → attack-boss edge function (if raid active)
+- Send flow: insert_message RPC → addMessage (optimistic, xp_awarded null) → broadcast on `messages:{crewId}` → award-xp edge function (response parsed; updateMessage patches xp_awarded on the store entry) → attack-boss edge function (if raid active)
 - Maintains a dedicated broadcast channel ref (`msgChannelRef`) that joins `messages:{crewId}` on mount
 - Broadcast sends the full MessageWithProfile so receivers have sender name without a profile lookup
 - Typing presence on separate channel `typing:{crewId}` (Supabase Presence); indicator shown during active raid only
@@ -341,13 +343,19 @@ Updates crew_members.last_seen every 60s (online presence).
 #### Zustand store (src/store/chatStore.ts)
 messages, crewXP, crewLevel, xpFloats, activeRaid, damageFloats.
 addMessage deduplicates by id. setMessages replaces array (called by MessageList on history load).
+updateMessage merges a Partial<Message> patch into an existing message by id — used to write xp_awarded back after the edge function responds.
 
 #### XP lib (src/lib/game/xp.ts)
 XP_VALUES, calculateXP, getElementType, getLevelFromXP, getXPProgress constants + helpers.
 element_type logic is mirrored server-side in insert_message Postgres function and award-xp edge function.
 
 #### Edge functions
-- supabase/functions/award-xp/index.ts: calculates base XP + first-today + combo bonuses, updates crews.total_xp + messages.xp_awarded + messages.element_type, spawns The Void at 500 XP threshold, sends message_received push to other crew members. All notification fetches are awaited with Promise.allSettled (not fire-and-forget) so Deno runtime doesn't terminate before pushes complete.
+- supabase/functions/award-xp/index.ts: three-layer anti-spam system then XP award pipeline.
+  — Layer 1 (hard stop): 0 XP if same user's prior message in this crew was < 2000ms ago (messages table lookup).
+  — Layer 2 (hard stop): 0 XP if user sent ≥ 4 messages in this crew in the last 30s (messages table count).
+  — Layer 3 (multiplier): counts today's XP-eligible log rows in crew_xp_log; applies 1.0 / 0.5 / 0.1 multiplier at 30 / 60 message thresholds.
+  — After spam checks: calculates base XP + first-today + combo bonuses, applies Layer 3 multiplier, updates crews.total_xp + messages.xp_awarded + messages.element_type, spawns The Void at 500 XP threshold, sends message_received push to other crew members. Returns `xp_earned` (not xp_awarded) in response. All notification fetches are awaited with Promise.allSettled so Deno runtime doesn't terminate before pushes complete.
+  — MessageBubble shows `+N XP` badge above the bubble when message.xp_awarded > 0.
 - supabase/functions/attack-boss/index.ts: atomic HP decrement via damage_raid RPC; on defeat fires boss_defeated push for all crew members
 - supabase/functions/check-raid-expiry/index.ts: cron-triggered; finds raids expiring within 2h, fires raid_expiring push, marks expiry_notif_sent
 - src/app/api/test/spawn-boss/route.ts: POST endpoint — verifies crew membership, creates active_raids row + BOSS_SPAWN system message using service role key

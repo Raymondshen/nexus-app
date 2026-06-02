@@ -100,6 +100,13 @@ export function MessageBubble({ message, isOwn, showHeader }: MessageBubbleProps
           </span>
         )}
 
+        {/* XP earned badge — shown when server has confirmed a non-zero award */}
+        {(message.xp_awarded ?? 0) > 0 && (
+          <span className="font-pixel text-[7px] text-[#ffd700] px-1 leading-none">
+            +{message.xp_awarded} XP
+          </span>
+        )}
+
         <div className="relative group">
           <div
             className={`

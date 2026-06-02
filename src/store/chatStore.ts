@@ -18,6 +18,7 @@ interface ChatStore {
 
   setMessages:      (messages: Message[]) => void
   addMessage:       (message: Message) => void
+  updateMessage:    (id: string, patch: Partial<Message>) => void
   setCrewXP:        (xp: number) => void
   addXP:            (amount: number) => void
   setActiveRaid:    (raid: ActiveRaid | null) => void
@@ -43,6 +44,11 @@ export const useChatStore = create<ChatStore>((set) => ({
       if (s.messages.some((m) => m.id === message.id)) return {}
       return { messages: [...s.messages, message] }
     }),
+
+  updateMessage: (id, patch) =>
+    set((s) => ({
+      messages: s.messages.map((m) => (m.id === id ? { ...m, ...patch } : m)),
+    })),
 
   setCrewXP: (xp) =>
     set({ crewXP: xp, crewLevel: getLevelFromXP(xp) }),

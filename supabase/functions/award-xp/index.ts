@@ -1,3 +1,24 @@
+/**
+ * award-xp Edge Function
+ *
+ * Three-layer anti-spam system (all layers run server-side only):
+ *
+ * LAYER 1 — CONSECUTIVE COOLDOWN (hard stop)
+ *   If the same user's previous message in this crew was sent less than 2000ms
+ *   ago, this message earns 0 XP and deals 0 damage. Uses messages table.
+ *
+ * LAYER 2 — BURST WINDOW CAP (hard stop)
+ *   If the user has already sent 4 or more messages in this crew in the last
+ *   30 seconds, the 5th+ message earns 0 XP. Uses messages table.
+ *
+ * LAYER 3 — DAILY DIMINISHING RETURNS (multiplier, never a hard stop)
+ *   Counts XP-eligible messages sent today (UTC) via crew_xp_log:
+ *     Messages  1–30  → multiplier 1.0 (full XP)
+ *     Messages 31–60  → multiplier 0.5 (half XP)
+ *     Messages 61+    → multiplier 0.1 (floor XP)
+ *   The adjusted XP is still written to crew_xp_log and applied to the crew.
+ */
+
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const CORS_HEADERS = {
@@ -19,6 +40,13 @@ const XP_BONUS_COMBO        = 5
 const BOSS_XP_THRESHOLD     = 500
 const XP_PER_LEVEL          = 500
 
+// Anti-spam constants
+const COOLDOWN_MS           = 2_000   // Layer 1: min gap between messages
+const BURST_WINDOW_MS       = 30_000  // Layer 2: burst window
+const BURST_MAX_MESSAGES    = 4       // Layer 2: max messages before cap kicks in
+const DR_TIER1_LIMIT        = 30      // Layer 3: full XP up to this many messages/day
+const DR_TIER2_LIMIT        = 60      // Layer 3: half XP up to this many messages/day
+
 function getElementType(content: string, messageType: string): string {
   if (messageType === 'voice')    return 'lightning'
   if (messageType === 'image')    return 'nature'
@@ -31,6 +59,12 @@ function getElementType(content: string, messageType: string): string {
 
 function getLevelFromXP(xp: number): number {
   return Math.floor(xp / XP_PER_LEVEL) + 1
+}
+
+function getDailyMultiplier(countBeforeThisMessage: number): number {
+  if (countBeforeThisMessage < DR_TIER1_LIMIT) return 1.0
+  if (countBeforeThisMessage < DR_TIER2_LIMIT) return 0.5
+  return 0.1
 }
 
 Deno.serve(async (req: Request) => {
@@ -53,11 +87,52 @@ Deno.serve(async (req: Request) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     )
 
+    // ─── LAYER 1: CONSECUTIVE COOLDOWN ──────────────────────────────────────
+    // Find the most recent prior message from this user in this crew.
+    const { data: prevMessages } = await supabase
+      .from('messages')
+      .select('created_at')
+      .eq('crew_id', crew_id)
+      .eq('user_id', user_id)
+      .neq('id', message_id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+
+    const prevMessage = prevMessages?.[0]
+    if (prevMessage) {
+      const gapMs = Date.now() - new Date(prevMessage.created_at as string).getTime()
+      if (gapMs < COOLDOWN_MS) {
+        return new Response(
+          JSON.stringify({ xp_earned: 0 }),
+          { headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+        )
+      }
+    }
+
+    // ─── LAYER 2: BURST WINDOW CAP ──────────────────────────────────────────
+    // Count messages this user sent in this crew in the last 30 seconds.
+    const burstWindowStart = new Date(Date.now() - BURST_WINDOW_MS).toISOString()
+    const { count: burstCount } = await supabase
+      .from('messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('crew_id', crew_id)
+      .eq('user_id', user_id)
+      .neq('id', message_id)
+      .gte('created_at', burstWindowStart)
+
+    if ((burstCount ?? 0) >= BURST_MAX_MESSAGES) {
+      return new Response(
+        JSON.stringify({ xp_earned: 0 }),
+        { headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // ─── BASE XP + BONUSES ──────────────────────────────────────────────────
     let xpAwarded = XP_VALUES[message_type] ?? 0
 
     // First message today bonus
     const todayStart = new Date()
-    todayStart.setHours(0, 0, 0, 0)
+    todayStart.setUTCHours(0, 0, 0, 0)
 
     const { count: todayCount } = await supabase
       .from('messages')
@@ -84,9 +159,22 @@ Deno.serve(async (req: Request) => {
       xpAwarded += XP_BONUS_COMBO
     }
 
+    // ─── LAYER 3: DAILY DIMINISHING RETURNS ─────────────────────────────────
+    // Count how many XP-eligible log entries this user has in this crew today.
+    const { count: dailyXpCount } = await supabase
+      .from('crew_xp_log')
+      .select('id', { count: 'exact', head: true })
+      .eq('crew_id', crew_id)
+      .eq('user_id', user_id)
+      .gte('created_at', todayStart.toISOString())
+
+    const multiplier = getDailyMultiplier(dailyXpCount ?? 0)
+    xpAwarded = Math.floor(xpAwarded * multiplier)
+
+    // ─── WRITE XP ───────────────────────────────────────────────────────────
     if (xpAwarded === 0) {
       return new Response(
-        JSON.stringify({ xp_awarded: 0 }),
+        JSON.stringify({ xp_earned: 0 }),
         { headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
       )
     }
@@ -175,7 +263,6 @@ Deno.serve(async (req: Request) => {
             .single()
 
           if (newRaid) {
-            // BOSS_SPAWN: prefix is parsed by MessageList → renders BossCard
             await supabase.from('messages').insert({
               crew_id,
               user_id,
@@ -185,7 +272,6 @@ Deno.serve(async (req: Request) => {
               xp_awarded:   0,
             })
 
-            // Notify all crew members (fire-and-forget)
             const supabaseUrl = Deno.env.get('SUPABASE_URL')!
             const serviceKey  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
@@ -219,7 +305,7 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Notify other crew members of the new message (skip reactions — not worth a push)
+    // Notify other crew members of the new message (skip reactions)
     if (message_type !== 'reaction') {
       const supabaseUrl = Deno.env.get('SUPABASE_URL')!
       const serviceKey  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -230,8 +316,6 @@ Deno.serve(async (req: Request) => {
         .eq('crew_id', crew_id)
         .neq('user_id', user_id)
 
-      // Await all notification fetches so the Edge Function runtime doesn't
-      // terminate before they complete (fire-and-forget is not reliable in Deno).
       await Promise.allSettled(
         (otherMembers ?? []).map((member) =>
           fetch(`${supabaseUrl}/functions/v1/send-notification`, {
@@ -256,7 +340,7 @@ Deno.serve(async (req: Request) => {
     }
 
     return new Response(
-      JSON.stringify({ xp_awarded: xpAwarded, new_level: newLevel }),
+      JSON.stringify({ xp_earned: xpAwarded, new_level: newLevel }),
       { headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
     )
   } catch (err) {

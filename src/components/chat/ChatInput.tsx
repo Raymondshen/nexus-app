@@ -39,7 +39,7 @@ export function ChatInput({ crewId, userId, userProfile }: ChatInputProps) {
   const typingChannelRef = useRef<RealtimeChannel | null>(null)
   const msgChannelRef    = useRef<RealtimeChannel | null>(null)
 
-  const { addMessage, addXP, activeRaid, damageFloats, addDamageFloat, dismissDamageFloat } = useChatStore()
+  const { addMessage, updateMessage, addXP, activeRaid, damageFloats, addDamageFloat, dismissDamageFloat } = useChatStore()
   const inRaid = !!(activeRaid && !activeRaid.defeated_at)
 
   // Message broadcast channel — used to push sent messages to all crew members instantly
@@ -143,12 +143,20 @@ export function ChatInput({ crewId, userId, userProfile }: ChatInputProps) {
         payload: newMessage,
       })
 
-      // XP edge function (fire-and-forget)
+      // Award XP — patch the message in the store with the confirmed xp_earned.
+      const msgId = raw.id
       fetch(`${SUPABASE_URL}/functions/v1/award-xp`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
-        body: JSON.stringify({ message_id: raw.id, crew_id: crewId, user_id: userId, username: userProfile.username, message_type: 'text', content }),
-      }).catch(() => {})
+        body: JSON.stringify({ message_id: msgId, crew_id: crewId, user_id: userId, username: userProfile.username, message_type: 'text', content }),
+      })
+        .then((r) => r.json())
+        .then((data: { xp_earned?: number }) => {
+          if (typeof data.xp_earned === 'number' && data.xp_earned > 0) {
+            updateMessage(msgId, { xp_awarded: data.xp_earned })
+          }
+        })
+        .catch(() => {})
 
       // Attack boss if raid is active
       if (activeRaid && !activeRaid.defeated_at) {
@@ -180,7 +188,7 @@ export function ChatInput({ crewId, userId, userProfile }: ChatInputProps) {
       setSending(false)
       textareaRef.current?.focus()
     }
-  }, [text, sending, crewId, userId, userProfile, addMessage, addXP, activeRaid, addDamageFloat]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [text, sending, crewId, userId, userProfile, addMessage, updateMessage, addXP, activeRaid, addDamageFloat]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleSpawnBoss() {
     if (spawning || inRaid) return

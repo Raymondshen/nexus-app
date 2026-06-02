@@ -99,7 +99,7 @@ export function MessageList({
   memberProfiles,
   initialRaid,
 }: MessageListProps) {
-  const { messages, setMessages, addMessage } = useChatStore()
+  const { messages, setMessages, addMessage, updateMessage } = useChatStore()
   const [dismissedLevelUps, setDismissedLevelUps] = useState<Set<string>>(new Set())
   const [historyLoaded, setHistoryLoaded] = useState(false)
 
@@ -201,10 +201,20 @@ export function MessageList({
           addMessage({ ...raw, profile: resolveProfile(raw.user_id) } as MessageWithProfile)
         }
       )
+      // UPDATE: picks up xp_awarded written back by the award-xp edge function.
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'messages', filter: `crew_id=eq.${crewId}` },
+        (payload) => {
+          const raw = payload.new as Message
+          if (!raw?.id) return
+          updateMessage(raw.id, { xp_awarded: raw.xp_awarded, element_type: raw.element_type })
+        }
+      )
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
-  }, [crewId, addMessage, resolveProfile])
+  }, [crewId, addMessage, updateMessage, resolveProfile])
 
   // Show skeleton while the initial history fetch is in flight
   if (!historyLoaded) {
