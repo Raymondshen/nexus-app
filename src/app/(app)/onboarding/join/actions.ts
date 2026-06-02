@@ -1,6 +1,7 @@
 'use server'
 
 import { redirect } from 'next/navigation'
+import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 
 export async function joinCrewAction(
@@ -82,5 +83,6 @@ export async function joinCrewAction(
     xp_awarded:   0,
   })
 
+  revalidatePath('/home')
   redirect(`/chat/${crewId}`)
 }

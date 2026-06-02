@@ -1,6 +1,7 @@
 'use server'
 
 import { redirect } from 'next/navigation'
+import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 
 function generateInviteCode(): string {
@@ -29,6 +30,7 @@ export async function createCrewAction(
     })
 
     if (!error && crewId) {
+      revalidatePath('/home')
       redirect(`/chat/${crewId}?welcome=1`)
     }
 
