@@ -21,6 +21,7 @@ export interface Profile extends Record<string, unknown> {
   id: string
   username: string
   avatar_class: AvatarClass | null
+  avatar_url: string | null
   created_at: string
 }
 
@@ -110,7 +111,7 @@ export interface Artifact extends Record<string, unknown> {
 // ─── Derived / joined types ───────────────────────────────────────────────────
 
 export interface MessageWithProfile extends Message {
-  profile: Pick<Profile, 'id' | 'username' | 'avatar_class'>
+  profile: Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url'>
 }
 
 // ─── Supabase Database type ───────────────────────────────────────────────────
@@ -120,7 +121,7 @@ export type Database = {
     Tables: {
       profiles: {
         Row: Profile
-        Insert: Omit<Profile, 'created_at'> & { created_at?: string }
+        Insert: Omit<Profile, 'created_at' | 'avatar_url'> & { created_at?: string; avatar_url?: string | null }
         Update: Partial<Omit<Profile, 'id'>>
         Relationships: []
       }

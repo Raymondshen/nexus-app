@@ -10,6 +10,12 @@ export async function GET(request: NextRequest) {
     const supabase = await createClient()
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
+      // Sync Google avatar_url on every login so returning users stay up to date
+      const { data: { user } } = await supabase.auth.getUser()
+      const avatarUrl = user?.user_metadata?.avatar_url as string | undefined
+      if (user && avatarUrl) {
+        await supabase.from('profiles').update({ avatar_url: avatarUrl }).eq('id', user.id)
+      }
       return NextResponse.redirect(`${origin}/home`)
     }
   }

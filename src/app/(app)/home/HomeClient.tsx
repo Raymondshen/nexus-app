@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence, useMotionValue, animate } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
 import { X, Plus } from 'lucide-react'
+import Image from 'next/image'
 import { formatDistanceToNow } from 'date-fns'
 import { createClient } from '@/lib/supabase/client'
 import { signOut } from '@/lib/supabase/auth'
@@ -19,6 +20,7 @@ interface HomeClientProps {
   initialCrews:  CrewSummary[]
   userId:        string
   username:      string
+  avatarUrl:     string | null
   profileCache:  Record<string, string>
 }
 
@@ -446,6 +448,7 @@ export function HomeClient({
   initialCrews,
   userId,
   username,
+  avatarUrl,
   profileCache,
 }: HomeClientProps) {
   const router = useRouter()
@@ -595,11 +598,15 @@ export function HomeClient({
           )}
           <button
             onClick={() => setShowUserMenu(true)}
-            className="w-8 h-8 flex items-center justify-center font-pixel text-[9px] border border-[#2a1545] hover:border-[#6b4f8f] transition-colors"
-            style={{ background: 'rgba(107,79,143,0.15)', color: '#6b4f8f' }}
+            className="w-8 h-8 flex items-center justify-center font-pixel text-[9px] border border-[#2a1545] hover:border-[#6b4f8f] transition-colors relative overflow-hidden"
+            style={avatarUrl ? undefined : { background: 'rgba(107,79,143,0.15)', color: '#6b4f8f' }}
             aria-label="Account"
           >
-            {username[0]?.toUpperCase() ?? '?'}
+            {avatarUrl ? (
+              <Image src={avatarUrl} alt={username} fill sizes="32px" className="object-cover" />
+            ) : (
+              username[0]?.toUpperCase() ?? '?'
+            )}
           </button>
         </div>
       </div>

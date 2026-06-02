@@ -42,7 +42,7 @@ interface MessageListProps {
   crewName:        string
   currentUserId:   string
   initialMessages: MessageWithProfile[]
-  memberProfiles:  Record<string, Pick<Profile, 'id' | 'username' | 'avatar_class'>>
+  memberProfiles:  Record<string, Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url'>>
   initialRaid:     ActiveRaid | null
 }
 
@@ -131,8 +131,8 @@ export function MessageList({
   }
 
   const resolveProfile = useCallback(
-    (userId: string): Pick<Profile, 'id' | 'username' | 'avatar_class'> =>
-      profilesRef.current[userId] ?? { id: userId, username: '???', avatar_class: null },
+    (userId: string): Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url'> =>
+      profilesRef.current[userId] ?? { id: userId, username: '???', avatar_class: null, avatar_url: null },
     []
   )
 

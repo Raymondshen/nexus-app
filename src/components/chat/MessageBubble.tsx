@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
+import Image from 'next/image'
 import { format, isToday, isYesterday } from 'date-fns'
 import type { MessageWithProfile, ElementType } from '@/types'
 
@@ -66,7 +67,8 @@ export function MessageBubble({ message, isOwn, showHeader }: MessageBubbleProps
     return <SystemMessage message={message} />
   }
 
-  const initial = message.profile.username[0]?.toUpperCase() ?? '?'
+  const initial      = message.profile.username[0]?.toUpperCase() ?? '?'
+  const avatarUrl    = message.profile.avatar_url as string | null | undefined
   const elementColor = message.element_type ? ELEMENT_COLORS[message.element_type] : null
 
   return (
@@ -80,10 +82,14 @@ export function MessageBubble({ message, isOwn, showHeader }: MessageBubbleProps
       {/* Avatar — only shown for received messages */}
       {!isOwn && (
         <div
-          className="w-7 h-7 flex-shrink-0 flex items-center justify-center bg-[#2a1545] border border-[#3d2660] font-pixel text-[9px] text-[#bf5fff]"
+          className="w-7 h-7 flex-shrink-0 relative overflow-hidden bg-[#2a1545] border border-[#3d2660] font-pixel text-[9px] text-[#bf5fff] flex items-center justify-center"
           style={{ visibility: showHeader ? 'visible' : 'hidden' }}
         >
-          {initial}
+          {avatarUrl ? (
+            <Image src={avatarUrl} alt={message.profile.username} fill sizes="28px" className="object-cover" />
+          ) : (
+            initial
+          )}
         </div>
       )}
 
@@ -97,7 +103,8 @@ export function MessageBubble({ message, isOwn, showHeader }: MessageBubbleProps
         <div className="relative group">
           <div
             className={`
-              px-3 py-2 text-sm leading-relaxed font-sans text-white
+              text-sm leading-relaxed font-sans text-white
+              ${message.message_type === 'image' ? 'overflow-hidden' : 'px-3 py-2'}
               ${isOwn
                 ? 'bg-[#2d1b69] border border-[#4a2d9e]'
                 : 'bg-[#1a1a2e] border border-[#2a2a4a]'
@@ -105,15 +112,28 @@ export function MessageBubble({ message, isOwn, showHeader }: MessageBubbleProps
             `}
             onClick={() => setShowTime((v) => !v)}
           >
-            {message.content}
-
-            {/* Element dot */}
-            {elementColor && (
-              <span
-                className="inline-block w-1.5 h-1.5 rounded-full ml-2 align-middle flex-shrink-0"
-                style={{ backgroundColor: elementColor }}
-                title={message.element_type ? ELEMENT_LABELS[message.element_type] : ''}
-              />
+            {message.message_type === 'image' ? (
+              <div className="relative w-[220px] h-[165px]">
+                <Image
+                  src={message.content}
+                  alt="shared image"
+                  fill
+                  sizes="220px"
+                  className="object-cover"
+                />
+              </div>
+            ) : (
+              <>
+                {message.content}
+                {/* Element dot */}
+                {elementColor && (
+                  <span
+                    className="inline-block w-1.5 h-1.5 rounded-full ml-2 align-middle flex-shrink-0"
+                    style={{ backgroundColor: elementColor }}
+                    title={message.element_type ? ELEMENT_LABELS[message.element_type] : ''}
+                  />
+                )}
+              </>
             )}
           </div>
 

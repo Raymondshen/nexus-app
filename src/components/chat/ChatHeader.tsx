@@ -8,12 +8,13 @@ import { useChatStore, XP_PER_LEVEL } from '@/store/chatStore'
 import { getXPProgress } from '@/lib/game/xp'
 import { createClient } from '@/lib/supabase/client'
 import { signOut } from '@/lib/supabase/auth'
+import Image from 'next/image'
 import type { Crew, Profile, ActiveRaid } from '@/types'
 import { formatDistanceToNow } from 'date-fns'
 
 interface ChatHeaderProps {
   crew:          Crew
-  members:       Pick<Profile, 'id' | 'username' | 'avatar_class'>[]
+  members:       Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url'>[]
   initialXP:     number
   initialRaid:   ActiveRaid | null
   currentUserId: string
@@ -278,11 +279,15 @@ export function ChatHeader({
             </span>
             <button
               onClick={() => setShowUserMenu(true)}
-              className="w-7 h-7 flex items-center justify-center font-pixel text-[9px] border border-[#2a1545] hover:border-[#6b4f8f] transition-colors flex-shrink-0"
-              style={{ background: 'rgba(107,79,143,0.15)', color: '#6b4f8f' }}
+              className="w-7 h-7 flex items-center justify-center font-pixel text-[9px] border border-[#2a1545] hover:border-[#6b4f8f] transition-colors flex-shrink-0 overflow-hidden relative"
+              style={currentMember?.avatar_url ? undefined : { background: 'rgba(107,79,143,0.15)', color: '#6b4f8f' }}
               aria-label="Account menu"
             >
-              {currentUsername[0]?.toUpperCase() ?? '?'}
+              {currentMember?.avatar_url ? (
+                <Image src={currentMember.avatar_url as string} alt={currentUsername} fill sizes="28px" className="object-cover" />
+              ) : (
+                currentUsername[0]?.toUpperCase() ?? '?'
+              )}
             </button>
           </div>
         </div>
@@ -294,17 +299,27 @@ export function ChatHeader({
           </span>
           {members.slice(0, 8).map((m, i) => (
             <div key={m.id} className="relative">
-              <div
-                className="w-7 h-7 flex items-center justify-center border font-pixel text-[8px] flex-shrink-0"
-                style={{
-                  backgroundColor: AVATAR_COLORS[i % AVATAR_COLORS.length] + '22',
-                  borderColor:     AVATAR_COLORS[i % AVATAR_COLORS.length] + '80',
-                  color:           AVATAR_COLORS[i % AVATAR_COLORS.length],
-                }}
-                title={m.username}
-              >
-                {m.username[0]?.toUpperCase()}
-              </div>
+              {m.avatar_url ? (
+                <div
+                  className="w-7 h-7 relative overflow-hidden flex-shrink-0 border"
+                  style={{ borderColor: AVATAR_COLORS[i % AVATAR_COLORS.length] + '80' }}
+                  title={m.username}
+                >
+                  <Image src={m.avatar_url as string} alt={m.username} fill sizes="28px" className="object-cover" />
+                </div>
+              ) : (
+                <div
+                  className="w-7 h-7 flex items-center justify-center border font-pixel text-[8px] flex-shrink-0"
+                  style={{
+                    backgroundColor: AVATAR_COLORS[i % AVATAR_COLORS.length] + '22',
+                    borderColor:     AVATAR_COLORS[i % AVATAR_COLORS.length] + '80',
+                    color:           AVATAR_COLORS[i % AVATAR_COLORS.length],
+                  }}
+                  title={m.username}
+                >
+                  {m.username[0]?.toUpperCase()}
+                </div>
+              )}
               {/* Online presence dot */}
               <span
                 className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-[#0a0612]"

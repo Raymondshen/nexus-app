@@ -18,7 +18,7 @@ export default async function HomePage() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('username')
+    .select('username, avatar_url')
     .eq('id', user.id)
     .single()
 
@@ -38,6 +38,7 @@ export default async function HomePage() {
         initialCrews={[]}
         userId={user.id}
         username={profile?.username ?? ''}
+        avatarUrl={(profile as unknown as { avatar_url?: string | null })?.avatar_url ?? null}
         profileCache={{}}
       />
     )
@@ -124,6 +125,7 @@ export default async function HomePage() {
       initialCrews={summaries}
       userId={user.id}
       username={profile?.username ?? ''}
+      avatarUrl={(profile as unknown as { avatar_url?: string | null })?.avatar_url ?? null}
       profileCache={profileCache}
     />
   )

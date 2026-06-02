@@ -36,7 +36,7 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
   const [allMembersResult, crewResult, messagesResult, raidResult] = await Promise.all([
     supabase
       .from("crew_members")
-      .select("*, profile:profiles(id, username, avatar_class)")
+      .select("*, profile:profiles(id, username, avatar_class, avatar_url)")
       .eq("crew_id", crewId),
     supabase.from("crews").select("*").eq("id", crewId).single(),
     supabase
@@ -55,7 +55,7 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
   ]);
 
   type MemberWithProfile = CrewMember & {
-    profile: Pick<Profile, "id" | "username" | "avatar_class"> | null
+    profile: Pick<Profile, "id" | "username" | "avatar_class" | "avatar_url"> | null
   }
   const memberRows = (allMembersResult.data as unknown as MemberWithProfile[]) ?? [];
   const crew       = crewResult.data as Crew | null;
@@ -64,7 +64,7 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
   const isMember = memberRows.some((r) => r.user_id === user.id);
   if (!isMember || !crew) redirect("/home");
 
-  const memberProfiles: Record<string, Pick<Profile, "id" | "username" | "avatar_class">> =
+  const memberProfiles: Record<string, Pick<Profile, "id" | "username" | "avatar_class" | "avatar_url">> =
     Object.fromEntries(
       memberRows
         .filter((r) => r.profile)
@@ -81,7 +81,7 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
   const messageRows = (messagesResult.data ?? []) as Message[];
   const initialMessages: MessageWithProfile[] = messageRows.map((m) => ({
     ...m,
-    profile: memberProfiles[m.user_id] ?? { id: m.user_id, username: "???", avatar_class: null },
+    profile: memberProfiles[m.user_id] ?? { id: m.user_id, username: "???", avatar_class: null, avatar_url: null },
   }));
 
   const raidRow = raidResult.data as ActiveRaid | null;

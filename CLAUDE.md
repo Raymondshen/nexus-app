@@ -301,6 +301,16 @@ Building in this exact order:
 - Add loading.tsx alongside every page.tsx that does server-side data fetching — shows instantly on navigation before server render completes
 - Logout: GuestBanner handles guest logout; ChatHeader user-initial button handles auth user logout; HomeClient has its own user-menu logout — all call signOut() from src/lib/supabase/auth then router.push('/login')
 
+## Image Rules
+- All user-uploaded images MUST be compressed client-side with `browser-image-compression` before upload: `maxSizeMB: 0.5`, `maxWidthOrHeight: 1024`, `useWebWorker: true`, `fileType: 'image/webp'`
+- Upload to Supabase Storage with `cacheControl: '31536000'` (1-year header) to maximise CDN cache hit rate
+- All images displayed in the app MUST use `next/image` — never a raw `<img>` tag — so Vercel's image CDN handles resizing and caching
+- Remote image hostnames must be whitelisted in `next.config.ts` under `images.remotePatterns` before use
+- Profile pictures come from `profiles.avatar_url` (synced from Google OAuth metadata on every login); fall back to a styled initials box — never fetch the OAuth URL directly from the client
+- The `src/components/ui/Avatar.tsx` component handles the image-vs-initials decision; use it for all avatar display points
+- Chat images are stored in the `chat-images` Supabase Storage bucket (public, 5 MB limit, images only); path format: `{crewId}/{userId}/{timestamp}.webp`
+- Artifact images and any future game assets follow the same compress → upload → serve-via-next/image pipeline
+
 ## Design Language
 - Dark theme throughout — background #0a0612
 - Pixel aesthetic — chunky, high contrast
