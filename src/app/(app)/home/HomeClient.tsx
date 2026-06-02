@@ -323,15 +323,15 @@ function SwipeableCrewCard({
         style={{ x, width: `calc(100% + ${LEAVE_REVEAL}px)` }}
         onDragStart={() => { wasDragging.current = true; onOpen(summary.crew.id) }}
         onDragEnd={handleDragEnd}
-        whileTap={{ scale: open ? 1 : 0.98 }}
       >
         {/* Card — fills exactly the container width */}
-        <div
+        <motion.div
           className="flex-1 min-w-0 bg-[#0a0612] cursor-pointer"
           onClick={handleClick}
+          whileTap={{ scale: open ? 1 : 0.98 }}
         >
           <CrewCardContent summary={summary} />
-        </div>
+        </motion.div>
 
         {/* LEAVE button — 88 px, fully off-screen until swiped */}
         <button
