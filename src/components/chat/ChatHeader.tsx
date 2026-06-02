@@ -288,9 +288,27 @@ export function ChatHeader({
         {/* XP bar */}
         <div className="pb-0">
           <div className="flex items-center justify-between mb-1">
-            <span className="font-pixel text-[7px] text-[#3d2660]">
-              {crewXP % XP_PER_LEVEL} / {XP_PER_LEVEL} XP
-            </span>
+            <div className="relative inline-flex items-center">
+              <span className="font-pixel text-[7px] text-[#3d2660]">
+                {crewXP % XP_PER_LEVEL} / {XP_PER_LEVEL} XP
+              </span>
+              <AnimatePresence>
+                {xpFloats.map((f) => (
+                  <motion.span
+                    key={f.id}
+                    initial={{ opacity: 1, y: 6 }}
+                    animate={{ opacity: 0, y: -16 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.9, ease: 'easeOut' }}
+                    onAnimationComplete={() => dismissXPFloat(f.id)}
+                    className="pointer-events-none absolute left-0 top-0 font-pixel text-[8px] text-[#ffd700] whitespace-nowrap"
+                    style={{ textShadow: '0 0 8px rgba(255,215,0,0.8)' }}
+                  >
+                    +{f.amount} XP
+                  </motion.span>
+                ))}
+              </AnimatePresence>
+            </div>
             <span className="font-pixel text-[7px] text-[#3d2660]">NEXT BOSS</span>
           </div>
           <div className="h-1.5 bg-[#0f0820] border border-[#1a1a2e] mb-3">
@@ -305,24 +323,6 @@ export function ChatHeader({
             />
           </div>
         </div>
-
-        {/* Floating +XP notifications */}
-        <AnimatePresence>
-          {xpFloats.map((f) => (
-            <motion.div
-              key={f.id}
-              initial={{ opacity: 1, y: 0 }}
-              animate={{ opacity: 0, y: -24 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.9 }}
-              onAnimationComplete={() => dismissXPFloat(f.id)}
-              className="pointer-events-none absolute right-4 top-2 font-pixel text-[9px] text-[#ffd700]"
-              style={{ textShadow: '0 0 8px rgba(255,215,0,0.8)' }}
-            >
-              +{f.amount} XP
-            </motion.div>
-          ))}
-        </AnimatePresence>
       </div>
 
       {/* Share modal */}
