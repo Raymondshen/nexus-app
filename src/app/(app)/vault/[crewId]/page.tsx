@@ -11,12 +11,13 @@ interface VaultPageProps {
 export default async function VaultPage({ params }: VaultPageProps) {
   const supabase = await createClient()
 
-  // Stage 1 — auth + route params in parallel
-  const [{ data: { user } }, { crewId }] = await Promise.all([
-    supabase.auth.getUser(),
+  // Stage 1 — session (cookie-only, no network) + route params in parallel
+  const [{ data: { session } }, { crewId }] = await Promise.all([
+    supabase.auth.getSession(),
     params,
   ])
-  if (!user) redirect('/login')
+  if (!session) redirect('/login')
+  const user = session.user
 
   // Stage 2 — membership, crew data, and artifacts all in parallel (RLS enforces access)
   const [membershipResult, crewResult, artifactsResult] = await Promise.all([

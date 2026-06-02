@@ -23,13 +23,14 @@ interface ChatPageProps {
 export default async function ChatPage({ params, searchParams }: ChatPageProps) {
   const supabase = await createClient();
 
-  // Stage 1 — auth + route params in parallel
-  const [{ data: { user } }, { crewId }, { welcome }] = await Promise.all([
-    supabase.auth.getUser(),
+  // Stage 1 — session (cookie-only, no network) + route params in parallel
+  const [{ data: { session } }, { crewId }, { welcome }] = await Promise.all([
+    supabase.auth.getSession(),
     params,
     searchParams,
   ]);
-  if (!user) redirect("/login");
+  if (!session) redirect("/login");
+  const user = session.user;
 
   // Stage 2 — all crew data in parallel, profiles joined into crew_members
   // to eliminate the Stage 3 round-trip that previously depended on member IDs.

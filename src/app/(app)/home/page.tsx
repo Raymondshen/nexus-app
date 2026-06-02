@@ -13,20 +13,15 @@ export interface CrewSummary {
 
 export default async function HomePage() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) redirect('/login')
+  const user = session.user
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('username, avatar_url')
-    .eq('id', user.id)
-    .single()
-
-  const { data: memberRows, error: memberError } = await supabase
-    .from('crew_members')
-    .select('crew_id, last_seen, joined_at')
-    .eq('user_id', user.id)
-    .order('joined_at', { ascending: false })
+  // Profile and crew membership are independent — run in parallel
+  const [{ data: profile }, { data: memberRows, error: memberError }] = await Promise.all([
+    supabase.from('profiles').select('username, avatar_url').eq('id', user.id).single(),
+    supabase.from('crew_members').select('crew_id, last_seen, joined_at').eq('user_id', user.id).order('joined_at', { ascending: false }),
+  ])
 
   if (memberError) console.error('[home] crew_members query error:', memberError)
 
