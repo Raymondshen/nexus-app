@@ -38,12 +38,11 @@ const ArtifactDropRenderer = dynamic(
 )
 
 interface MessageListProps {
-  crewId:          string
-  crewName:        string
-  currentUserId:   string
-  initialMessages: MessageWithProfile[]
-  memberProfiles:  Record<string, Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url'>>
-  initialRaid:     ActiveRaid | null
+  crewId:         string
+  crewName:       string
+  currentUserId:  string
+  memberProfiles: Record<string, Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url'>>
+  initialRaid:    ActiveRaid | null
 }
 
 function dayLabel(date: Date): string {
@@ -97,12 +96,12 @@ export function MessageList({
   crewId,
   crewName,
   currentUserId,
-  initialMessages,
   memberProfiles,
   initialRaid,
 }: MessageListProps) {
   const { messages, setMessages, addMessage } = useChatStore()
   const [dismissedLevelUps, setDismissedLevelUps] = useState<Set<string>>(new Set())
+  const [historyLoaded, setHistoryLoaded] = useState(false)
 
   const scrollRef    = useRef<HTMLDivElement>(null)
   const bottomRef    = useRef<HTMLDivElement>(null)
@@ -112,9 +111,43 @@ export function MessageList({
   // Track whether user is near the bottom (within 120px)
   const isNearBottomRef = useRef(true)
 
+  // Fetch message history client-side so it always works regardless of server
+  // streaming errors, and retries cleanly on navigation.
   useEffect(() => {
-    setMessages(initialMessages)
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+    setHistoryLoaded(false)
+
+    const supabase = createClient()
+    supabase
+      .from('messages')
+      .select('*')
+      .eq('crew_id', crewId)
+      .order('created_at', { ascending: false })
+      .limit(50)
+      .then(({ data }) => {
+        const rows = ((data ?? []) as Message[]).reverse()
+        const fetched: MessageWithProfile[] = rows
+          .filter((m) => typeof m.content === 'string')
+          .map((m) => ({
+            ...m,
+            profile: profilesRef.current[m.user_id] ?? {
+              id: m.user_id, username: '???', avatar_class: null, avatar_url: null,
+            },
+          }))
+
+        // Merge with any messages already in the store (e.g. optimistic sends or
+        // Realtime events that arrived before the fetch finished).
+        const existing = useChatStore.getState().messages
+        const fetchedIds = new Set(fetched.map((m) => m.id))
+        const merged = [
+          ...fetched,
+          ...existing.filter((m) => !fetchedIds.has(m.id)),
+        ].sort((a, b) => a.created_at.localeCompare(b.created_at))
+
+        setMessages(merged)
+      })
+      .catch(() => {})
+      .finally(() => setHistoryLoaded(true))
+  }, [crewId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Only auto-scroll when user is already near bottom
   useEffect(() => {
@@ -161,6 +194,23 @@ export function MessageList({
 
     return () => { supabase.removeChannel(channel) }
   }, [crewId, addMessage, resolveProfile])
+
+  // Show skeleton while the initial history fetch is in flight
+  if (!historyLoaded) {
+    return (
+      <div className="flex-1 overflow-hidden px-4 pt-4 flex flex-col gap-3">
+        {[52, 35, 60, 45, 30, 55, 40].map((w, i) => (
+          <div key={i} className={`flex items-end gap-2 ${i % 3 === 0 ? 'flex-row-reverse' : ''}`}>
+            <div className="w-7 h-7 bg-[#1a1a2e] animate-pulse flex-shrink-0" />
+            <div
+              className="h-9 bg-[#1a1a2e] animate-pulse"
+              style={{ width: `${w}%`, maxWidth: 260, animationDelay: `${i * 60}ms` }}
+            />
+          </div>
+        ))}
+      </div>
+    )
+  }
 
   // Build display list
   type DisplayItem =

@@ -1,4 +1,3 @@
-import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ChatHeader } from "@/components/chat/ChatHeader";
@@ -7,82 +6,13 @@ import { ChatInput } from "@/components/chat/ChatInput";
 import { BottomNav } from "@/components/ui/BottomNav";
 import { WelcomeDetector } from "@/components/ui/WelcomeDetector";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
-import type { MessageWithProfile, Profile, Message, Crew, ActiveRaid } from "@/types";
+import type { Profile, Crew, ActiveRaid } from "@/types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type MemberProfile = Pick<Profile, "id" | "username" | "avatar_class" | "avatar_url">
 type MemberProfileMap = Record<string, MemberProfile>
 type MemberRow = { user_id: string; last_seen: string | null; profile: MemberProfile | null }
-
-// ─── Streamed messages ────────────────────────────────────────────────────────
-// Fetched after the header resolves so the UI is unblocked sooner.
-
-async function MessagesStream({
-  crewId,
-  crewName,
-  currentUserId,
-  memberProfiles,
-  initialRaid,
-}: {
-  crewId:         string
-  crewName:       string
-  currentUserId:  string
-  memberProfiles: MemberProfileMap
-  initialRaid:    ActiveRaid | null
-}) {
-  // Never throw from here — a server component error inside Suspense cannot be
-  // retried from the client (the stream is already done). On any failure, render
-  // an empty MessageList; the Realtime subscription delivers live messages anyway.
-  let initialMessages: MessageWithProfile[] = []
-
-  try {
-    const supabase = await createClient()
-    const { data } = await supabase
-      .from("messages")
-      .select("*")
-      .eq("crew_id", crewId)
-      .order("created_at", { ascending: false })
-      .limit(50)
-
-    // Reverse so they display oldest→newest in the list
-    initialMessages = ((data ?? []) as Message[]).reverse().map((m) => ({
-      ...m,
-      profile: memberProfiles[m.user_id] ?? {
-        id: m.user_id, username: "???", avatar_class: null, avatar_url: null,
-      },
-    }))
-  } catch {
-    // Network / auth error — fall through with empty history
-  }
-
-  return (
-    <MessageList
-      crewId={crewId}
-      crewName={crewName}
-      currentUserId={currentUserId}
-      initialMessages={initialMessages}
-      memberProfiles={memberProfiles}
-      initialRaid={initialRaid}
-    />
-  )
-}
-
-function MessageListSkeleton() {
-  return (
-    <div className="flex-1 overflow-hidden px-4 pt-4 flex flex-col gap-3">
-      {[52, 35, 60, 45, 30, 55, 40].map((w, i) => (
-        <div key={i} className={`flex items-end gap-2 ${i % 3 === 0 ? "flex-row-reverse" : ""}`}>
-          <div className="w-7 h-7 bg-[#1a1a2e] animate-pulse flex-shrink-0" />
-          <div
-            className="h-9 bg-[#1a1a2e] animate-pulse"
-            style={{ width: `${w}%`, maxWidth: 260, animationDelay: `${i * 60}ms` }}
-          />
-        </div>
-      ))}
-    </div>
-  )
-}
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -103,8 +33,8 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
   if (!session) redirect("/login");
   const user = session.user;
 
-  // Stage 2 — crew + members + raid only; messages are streamed separately so
-  // the header, input, and nav render without waiting for message history.
+  // Stage 2 — crew + members + raid; messages are fetched client-side by
+  // MessageList so the header, input, and nav render without blocking on history.
   const [allMembersResult, crewResult, raidResult] = await Promise.all([
     supabase
       .from("crew_members")
@@ -157,15 +87,13 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
       />
 
       <ErrorBoundary>
-        <Suspense fallback={<MessageListSkeleton />}>
-          <MessagesStream
-            crewId={crewId}
-            crewName={crew.name}
-            currentUserId={user.id}
-            memberProfiles={memberProfiles}
-            initialRaid={raidRow ?? null}
-          />
-        </Suspense>
+        <MessageList
+          crewId={crewId}
+          crewName={crew.name}
+          currentUserId={user.id}
+          memberProfiles={memberProfiles}
+          initialRaid={raidRow ?? null}
+        />
       </ErrorBoundary>
 
       <ErrorBoundary>
