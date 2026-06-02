@@ -1,9 +1,8 @@
 'use client'
 
 import { useState, useRef, useCallback, useEffect } from 'react'
-import { Send, Paperclip, Mic } from 'lucide-react'
+import { Send } from 'lucide-react'
 import type { RealtimeChannel } from '@supabase/supabase-js'
-import imageCompression from 'browser-image-compression'
 import { createClient } from '@/lib/supabase/client'
 import { getElementType, calculateXP } from '@/lib/game/xp'
 import { useChatStore } from '@/store/chatStore'
@@ -28,19 +27,14 @@ function sanitizeMessage(raw: string): string {
 
 export function ChatInput({ crewId, userId, userProfile }: ChatInputProps) {
   const [text,        setText]        = useState('')
-  const [sending,     setSending]     = useState(false)
-  const [micTooltip,  setMicTooltip]  = useState(false)
-  const [sendError,   setSendError]   = useState<string | null>(null)
+  const [sending,   setSending]   = useState(false)
+  const [sendError, setSendError] = useState<string | null>(null)
   const [typingUsers, setTypingUsers] = useState<string[]>([])
   const [spawning,    setSpawning]    = useState(false)
   const [spawnError,  setSpawnError]  = useState<string | null>(null)
 
-  const [uploading,    setUploading]    = useState(false)
-  const [uploadError,  setUploadError]  = useState<string | null>(null)
-
-  const textareaRef    = useRef<HTMLTextAreaElement>(null)
-  const fileInputRef   = useRef<HTMLInputElement>(null)
-  const rateRef        = useRef({ count: 0, resetAt: Date.now() + RATE_LIMIT_WINDOW })
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const rateRef     = useRef({ count: 0, resetAt: Date.now() + RATE_LIMIT_WINDOW })
   const typingTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null)
   const typingChannelRef = useRef<RealtimeChannel | null>(null)
 
@@ -166,66 +160,6 @@ export function ChatInput({ crewId, userId, userProfile }: ChatInputProps) {
     }
   }, [text, sending, crewId, userId, userProfile, addMessage, addXP, activeRaid, addDamageFloat]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function handleImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    e.target.value = ''
-
-    setUploading(true)
-    setUploadError(null)
-    try {
-      const compressed = await imageCompression(file, {
-        maxSizeMB:        0.5,
-        maxWidthOrHeight: 1024,
-        useWebWorker:     true,
-        fileType:         'image/webp',
-      })
-
-      const supabase = createClient()
-      const path = `${crewId}/${userId}/${Date.now()}.webp`
-      const { error: uploadErr } = await supabase.storage
-        .from('chat-images')
-        .upload(path, compressed, { contentType: 'image/webp', cacheControl: '31536000', upsert: false })
-
-      if (uploadErr) throw new Error(uploadErr.message)
-
-      const { data: { publicUrl } } = supabase.storage.from('chat-images').getPublicUrl(path)
-
-      const { data: raw, error: msgErr } = await supabase.rpc('insert_message', {
-        p_crew_id:      crewId,
-        p_content:      publicUrl,
-        p_message_type: 'image',
-      })
-      if (msgErr) throw msgErr
-
-      const newMessage: MessageWithProfile = {
-        id:           raw.id,
-        crew_id:      raw.crew_id,
-        user_id:      raw.user_id,
-        content:      raw.content,
-        message_type: raw.message_type,
-        element_type: raw.element_type,
-        xp_awarded:   raw.xp_awarded,
-        created_at:   raw.created_at,
-        profile:      userProfile,
-      }
-      addMessage(newMessage)
-      addXP(calculateXP('image'))
-
-      fetch(`${SUPABASE_URL}/functions/v1/award-xp`, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
-        body: JSON.stringify({ message_id: raw.id, crew_id: crewId, user_id: userId, message_type: 'image', content: publicUrl }),
-      }).catch(() => {})
-
-      haptic(10)
-    } catch (err) {
-      setUploadError(err instanceof Error ? err.message : 'Upload failed')
-    } finally {
-      setUploading(false)
-    }
-  }
-
   async function handleSpawnBoss() {
     if (spawning || inRaid) return
     setSpawning(true)
@@ -302,14 +236,6 @@ export function ChatInput({ crewId, userId, userProfile }: ChatInputProps) {
       {/* Damage floats */}
       <DamageFloat floats={damageFloats} onDismiss={dismissDamageFloat} />
 
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/jpeg,image/png,image/gif,image/webp"
-        className="hidden"
-        onChange={handleImageSelect}
-      />
-
       {sendError && (
         <button
           className="w-full font-pixel text-[7px] text-[#ff4444] mb-1 px-1 text-left"
@@ -317,12 +243,6 @@ export function ChatInput({ crewId, userId, userProfile }: ChatInputProps) {
         >
           ↺ {sendError}
         </button>
-      )}
-
-      {uploadError && (
-        <p className="w-full font-pixel text-[7px] text-[#ff4444] mb-1 px-1">
-          ✕ {uploadError}
-        </p>
       )}
 
       {/* Typing indicator (raid only) */}
@@ -368,16 +288,6 @@ export function ChatInput({ crewId, userId, userProfile }: ChatInputProps) {
       )}
 
       <div className="flex items-end gap-2">
-        <button
-          className="flex-shrink-0 flex items-center justify-center transition-colors mb-0.5 disabled:opacity-40"
-          style={{ minWidth: 44, minHeight: 44, color: uploading ? '#bf5fff' : '#3d2660' }}
-          aria-label="Attach image"
-          disabled={uploading}
-          onClick={() => fileInputRef.current?.click()}
-        >
-          <Paperclip size={16} />
-        </button>
-
         <textarea
           ref={textareaRef}
           value={text}
@@ -393,23 +303,6 @@ export function ChatInput({ crewId, userId, userProfile }: ChatInputProps) {
             borderColor: inRaid ? 'rgba(255,34,0,0.4)' : '#2a1545',
           }}
         />
-
-        <div className="relative flex-shrink-0 mb-0.5">
-          <button
-            className="flex items-center justify-center text-[#2a1545] cursor-not-allowed"
-            style={{ minWidth: 44, minHeight: 44 }}
-            aria-label="Voice note — coming soon"
-            onMouseEnter={() => setMicTooltip(true)}
-            onMouseLeave={() => setMicTooltip(false)}
-          >
-            <Mic size={16} />
-          </button>
-          {micTooltip && (
-            <div className="absolute bottom-full right-0 mb-1 whitespace-nowrap bg-[#1a0d2e] border border-[#2a1545] px-2 py-1">
-              <span className="font-pixel text-[7px] text-[#6b4f8f]">COMING SOON</span>
-            </div>
-          )}
-        </div>
 
         <button
           onClick={send}
