@@ -542,7 +542,12 @@ export function HomeClient({
     setLeaving(true)
     setLeaveError(null)
     try {
-      const result = await leaveCrewAction(leaveTarget.crew.id)
+      // Pass JWT so the server action can verify auth without the SSR cookie client
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token ?? ''
+
+      const result = await leaveCrewAction(leaveTarget.crew.id, token)
       if (result.error) {
         setLeaveError(result.error)
         return
@@ -550,6 +555,8 @@ export function HomeClient({
       // Optimistically remove the crew from the list
       setCrews((prev) => prev.filter((c) => c.crew.id !== leaveTarget.crew.id))
       setLeaveTarget(null)
+    } catch (err) {
+      setLeaveError(err instanceof Error ? err.message : 'Something went wrong')
     } finally {
       setLeaving(false)
     }

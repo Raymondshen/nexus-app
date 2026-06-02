@@ -1,20 +1,23 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
 
 export async function leaveCrewAction(
   crewId: string,
+  token:  string,
 ): Promise<{ error?: string; deleted?: boolean }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Not authenticated' }
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const serviceKey  = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!supabaseUrl || !serviceKey) {
+    return { error: 'Server misconfigured — missing Supabase env vars' }
+  }
 
-  const admin = createAdmin(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  )
+  const admin = createAdmin(supabaseUrl, serviceKey)
+
+  // Verify caller via JWT (same pattern as spawn-boss route)
+  const { data: { user }, error: authErr } = await admin.auth.getUser(token)
+  if (authErr || !user) return { error: 'Not authenticated' }
 
   // Count all members currently in the crew
   const { count, error: countErr } = await admin
@@ -32,7 +35,7 @@ export async function leaveCrewAction(
     return { deleted: true }
   }
 
-  // Multiple members remain — redistribute artifacts before leaving
+  // Multiple members remain — redistribute this user's MVP artifacts
   const { data: remaining } = await admin
     .from('crew_members')
     .select('user_id')
@@ -48,7 +51,6 @@ export async function leaveCrewAction(
       .eq('crew_id', crewId)
       .eq('mvp_user_id', user.id)
 
-    // Round-robin redistribution across remaining members
     for (let i = 0; i < (myArtifacts ?? []).length; i++) {
       await admin
         .from('artifacts')
