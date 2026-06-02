@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { GuestBanner } from '@/components/ui/GuestBanner'
 import { InstallPrompt } from '@/components/ui/InstallPrompt'
 import { NotificationPrompt } from '@/components/ui/NotificationPrompt'
+import { PushRefresh } from '@/components/ui/PushRefresh'
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const supabase = await createClient()
@@ -19,6 +20,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       {children}
       <InstallPrompt />
       <NotificationPrompt />
+      <PushRefresh />
     </div>
   )
 }
