@@ -23,7 +23,7 @@ self.addEventListener('push', (event) => {
   )
 })
 
-// Notification click — focus an existing tab or open a new one.
+// Notification click — focus/navigate an existing PWA window, or open a new one.
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
 
@@ -37,8 +37,19 @@ self.addEventListener('notificationclick', (event) => {
       .matchAll({ type: 'window', includeUncontrolled: true })
       .then((openWindows) => {
         for (const win of openWindows) {
-          if (win.url === targetUrl && 'focus' in win) {
-            return win.focus()
+          if (!('focus' in win)) continue
+
+          // Already on the right page — just bring it forward.
+          if (win.url === targetUrl) return win.focus()
+
+          // Background window at a different URL (e.g. /home while notification
+          // links to /chat/xyz). navigate() steers the existing PWA window to the
+          // target instead of opening a Safari tab. Available iOS Safari 17.4+;
+          // falls through to openWindow() on older versions.
+          if (typeof win.navigate === 'function') {
+            return win.navigate(targetUrl)
+              .then((w) => (w ?? win).focus())
+              .catch(() => clients.openWindow(targetUrl))
           }
         }
         return clients.openWindow(targetUrl)

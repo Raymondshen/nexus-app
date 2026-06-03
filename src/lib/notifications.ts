@@ -67,14 +67,18 @@ export async function subscribeToPush(): Promise<PushSubscription | null> {
       const auth   = json.keys?.auth
       if (!p256dh || !auth) return null
 
+      // getSession() reads from cookies — no network call, never fails due to connectivity.
+      // getUser() makes a network round-trip; on slow PWA launch it can time out and
+      // silently return null, leaving the subscription unregistered in the DB.
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return null
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.user) return null
+      const userId = session.user.id
 
       const { error } = await supabase
         .from('push_subscriptions')
         .upsert(
-          { user_id: user.id, endpoint: subscription.endpoint, p256dh, auth },
+          { user_id: userId, endpoint: subscription.endpoint, p256dh, auth },
           { onConflict: 'endpoint' },
         )
 
