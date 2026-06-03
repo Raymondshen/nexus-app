@@ -13,7 +13,7 @@ import { leaveCrewAction } from './actions'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import type { CrewSummary } from './page'
-import type { Message } from '@/types'
+import type { Message, MessageWithProfile } from '@/types'
 
 interface HomeClientProps {
   initialCrews:  CrewSummary[]
@@ -408,9 +408,60 @@ export function HomeClient({
     if (crewIds.length === 0) return
     const supabase = createClient()
 
+    // Tracks message IDs that have already updated the preview this session.
+    // Both the broadcast path (instant) and Postgres Changes path (fallback)
+    // can fire for the same message — the Set prevents double-counting unread.
+    const seenIds = new Set<string>()
+
+    function applyNewMessage(
+      crewId: string,
+      msg: { id: string; content: string; user_id: string; created_at: string; sender: string },
+    ) {
+      if (seenIds.has(msg.id)) return
+      seenIds.add(msg.id)
+
+      setCrews((prev) =>
+        prev
+          .map((cs) => {
+            if (cs.crew.id !== crewId) return cs
+            return {
+              ...cs,
+              lastMessage: {
+                content:    msg.content,
+                sender:     msg.sender,
+                created_at: msg.created_at,
+              },
+              unreadCount:
+                msg.user_id === userId
+                  ? cs.unreadCount
+                  : cs.unreadCount + 1,
+            }
+          })
+          .sort((a, b) =>
+            (b.lastMessage?.created_at ?? '').localeCompare(
+              a.lastMessage?.created_at ?? '',
+            ),
+          ),
+      )
+    }
+
+    // Use the same channel name as ChatInput so we receive instant broadcasts.
+    // Postgres Changes on the same channel fires as a backup for messages that
+    // arrive while the broadcast listener is not yet connected (reconnects, etc.).
     const channels = crewIds.map((crewId) =>
       supabase
-        .channel(`home:${crewId}`)
+        .channel(`messages:${crewId}`)
+        .on('broadcast', { event: 'new_message' }, (payload) => {
+          const msg = payload.payload as MessageWithProfile
+          if (!msg?.id || msg.message_type === 'system') return
+          applyNewMessage(crewId, {
+            id:         msg.id,
+            content:    msg.content,
+            user_id:    msg.user_id,
+            created_at: msg.created_at,
+            sender:     profileCacheRef.current[msg.user_id] ?? msg.profile?.username ?? '',
+          })
+        })
         .on(
           'postgres_changes',
           {
@@ -422,30 +473,13 @@ export function HomeClient({
           (payload) => {
             const msg = payload.new as Message
             if (msg.message_type === 'system') return
-
-            setCrews((prev) =>
-              prev
-                .map((cs) => {
-                  if (cs.crew.id !== crewId) return cs
-                  return {
-                    ...cs,
-                    lastMessage: {
-                      content:    msg.content,
-                      sender:     profileCacheRef.current[msg.user_id] ?? '',
-                      created_at: msg.created_at,
-                    },
-                    unreadCount:
-                      msg.user_id === userId
-                        ? cs.unreadCount
-                        : cs.unreadCount + 1,
-                  }
-                })
-                .sort((a, b) =>
-                  (b.lastMessage?.created_at ?? '').localeCompare(
-                    a.lastMessage?.created_at ?? '',
-                  ),
-                ),
-            )
+            applyNewMessage(crewId, {
+              id:         msg.id,
+              content:    msg.content,
+              user_id:    msg.user_id,
+              created_at: msg.created_at,
+              sender:     profileCacheRef.current[msg.user_id] ?? '',
+            })
           },
         )
         .subscribe(),
