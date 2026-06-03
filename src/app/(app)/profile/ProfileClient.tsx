@@ -470,36 +470,49 @@ function DevSection({ userId, userEmail }: { userId: string; userEmail: string }
 
   async function syncSubscription() {
     setSyncLoading(true)
-    setSyncResult('checking...')
-    const steps: string[] = []
-    try {
-      steps.push(`supported=${!!('PushManager' in window) && !!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY}`)
-      steps.push(`perm=${Notification.permission}`)
 
-      const reg      = await navigator.serviceWorker.ready
-      const existing = await reg.pushManager.getSubscription()
-      steps.push(`existing=${existing ? 'yes' : 'none'}`)
+    // Helper — updates the result box immediately at each step
+    const show = (msg: string) => setSyncResult(msg)
+
+    try {
+      show(`1/6 supported=${!!('PushManager' in window)} perm=${Notification.permission}`)
+
+      // Timeout wrapper so a hung SW doesn't block forever
+      const withTimeout = <T,>(p: Promise<T>, ms: number, label: string): Promise<T> =>
+        Promise.race([p, new Promise<never>((_, rej) => setTimeout(() => rej(new Error(`timeout:${label}`)), ms))])
+
+      const reg = await withTimeout(navigator.serviceWorker.ready, 5000, 'sw.ready')
+      show('2/6 sw=ready — getting existing sub...')
+
+      const existing = await withTimeout(reg.pushManager.getSubscription(), 5000, 'getSubscription')
+      show(`3/6 existing=${existing ? 'yes' : 'none'}`)
 
       let sub = existing
       if (!sub) {
+        show('4/6 subscribing...')
         const padding = '='.repeat((4 - (process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!.length % 4)) % 4)
         const base64  = (process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY! + padding).replace(/-/g, '+').replace(/_/g, '/')
         const raw     = window.atob(base64)
         const bytes   = new Uint8Array(new ArrayBuffer(raw.length))
         for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i)
-        sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: bytes })
-        steps.push('subscribed=new')
+        sub = await withTimeout(
+          reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: bytes }),
+          10000, 'subscribe',
+        )
+        show('4/6 new sub created')
+      } else {
+        show('4/6 using existing sub')
       }
 
       const supabase = createClient()
       const { data: { session } } = await supabase.auth.getSession()
-      steps.push(`uid=${session?.user?.id?.slice(0, 8) ?? 'null'}`)
-      if (!session?.user) { setSyncResult(steps.join(' | ')); return }
+      show(`5/6 uid=${session?.user?.id?.slice(0, 8) ?? 'NO SESSION'}`)
+      if (!session?.user) return
 
       const json   = sub.toJSON()
       const p256dh = json.keys?.p256dh
       const auth   = json.keys?.auth
-      if (!p256dh || !auth) { steps.push('keys=missing'); setSyncResult(steps.join(' | ')); return }
+      if (!p256dh || !auth) { show('5/6 keys=MISSING'); return }
 
       const { error } = await supabase
         .from('push_subscriptions')
@@ -507,10 +520,9 @@ function DevSection({ userId, userEmail }: { userId: string; userEmail: string }
           { user_id: session.user.id, endpoint: sub.endpoint, p256dh, auth },
           { onConflict: 'endpoint' },
         )
-      steps.push(error ? `upsert_err=${error.message}` : 'upsert=ok')
-      setSyncResult(steps.join(' | '))
+      show(error ? `6/6 upsert FAILED: ${error.message}` : '6/6 upsert=OK — done!')
     } catch (err) {
-      setSyncResult([...steps, `THROW: ${String(err).slice(0, 100)}`].join(' | '))
+      show(`STOPPED: ${String(err).slice(0, 120)}`)
     } finally {
       setSyncLoading(false)
     }
