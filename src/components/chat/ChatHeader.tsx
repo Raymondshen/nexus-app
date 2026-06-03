@@ -144,6 +144,11 @@ export function ChatHeader({
     useChatStore()
   const [showShare, setShowShare] = useState(false)
 
+  // Seed online state from server snapshot; presence channel updates it in real time.
+  const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(
+    () => new Set(members.filter((m) => isOnline(memberLastSeen[m.id])).map((m) => m.id))
+  )
+
   const currentMember   = members.find((m) => m.id === currentUserId)
   const currentUsername = currentMember?.username ?? ''
 
@@ -152,7 +157,29 @@ export function ChatHeader({
     setActiveRaid(initialRaid)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Update last_seen every 60s
+  // Supabase Presence — immediately reflects who is in the chat room right now.
+  // Each client tracks itself on subscribe; presenceState keys are user IDs.
+  useEffect(() => {
+    const supabase = createClient()
+    const channel  = supabase.channel(`online:${crewId}`, {
+      config: { presence: { key: currentUserId } },
+    })
+
+    channel
+      .on('presence', { event: 'sync' }, () => {
+        const state = channel.presenceState()
+        setOnlineUserIds(new Set(Object.keys(state)))
+      })
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await channel.track({ online: true })
+        }
+      })
+
+    return () => { supabase.removeChannel(channel) }
+  }, [crewId, currentUserId])
+
+  // Update last_seen every 60s so server-side initial load stays accurate.
   useEffect(() => {
     const supabase = createClient()
     const update = async () => {
@@ -277,11 +304,11 @@ export function ChatHeader({
                   {m.username[0]?.toUpperCase()}
                 </div>
               )}
-              {/* Online presence dot */}
+              {/* Online presence dot — driven by Supabase Presence, seeded from last_seen */}
               <span
                 className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-[#0a0612]"
                 style={{
-                  background: isOnline(memberLastSeen[m.id]) ? '#66bb6a' : '#3d2660',
+                  background: onlineUserIds.has(m.id) ? '#66bb6a' : '#3d2660',
                 }}
               />
             </div>
