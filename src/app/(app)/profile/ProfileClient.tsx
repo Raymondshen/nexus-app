@@ -481,8 +481,14 @@ function DevSection({ userId, userEmail }: { userId: string; userEmail: string }
       const withTimeout = <T,>(p: Promise<T>, ms: number, label: string): Promise<T> =>
         Promise.race([p, new Promise<never>((_, rej) => setTimeout(() => rej(new Error(`timeout:${label}`)), ms))])
 
-      const reg = await withTimeout(navigator.serviceWorker.ready, 5000, 'sw.ready')
-      show('2/6 sw=ready — getting existing sub...')
+      // getRegistrations() returns immediately — unlike .ready which hangs forever if no active SW
+      const regs = await navigator.serviceWorker.getRegistrations()
+      const reg  = regs[0]
+      const swState = reg
+        ? `scope=${reg.scope} active=${reg.active?.state ?? 'none'} installing=${reg.installing?.state ?? 'none'} waiting=${reg.waiting?.state ?? 'none'}`
+        : 'NO_SW_REGISTERED'
+      show(`2/6 regs=${regs.length} ${swState}`)
+      if (!reg) return
 
       const existing = await withTimeout(reg.pushManager.getSubscription(), 5000, 'getSubscription')
       show(`3/6 existing=${existing ? 'yes' : 'none'}`)
