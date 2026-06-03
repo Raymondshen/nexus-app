@@ -25,11 +25,14 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
+  // getSession() reads the JWT from cookies — no network roundtrip.
+  // getUser() hits the Supabase Auth server on every request (+100–300 ms per nav).
+  // The actual per-page auth gates use getSession() too, so this is consistent.
+  const { data: { session } } = await supabase.auth.getSession()
 
   const { pathname } = request.nextUrl
 
-  if (!user && PROTECTED.some((prefix) => pathname.startsWith(prefix))) {
+  if (!session && PROTECTED.some((prefix) => pathname.startsWith(prefix))) {
     const loginUrl = request.nextUrl.clone()
     loginUrl.pathname = '/login'
     return NextResponse.redirect(loginUrl)
