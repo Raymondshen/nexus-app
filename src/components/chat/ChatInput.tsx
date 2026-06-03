@@ -32,6 +32,7 @@ export function ChatInput({ crewId, userId, userProfile }: ChatInputProps) {
   const [typingUsers, setTypingUsers] = useState<string[]>([])
   const [spawning,    setSpawning]    = useState(false)
   const [spawnError,  setSpawnError]  = useState<string | null>(null)
+  const [devMode,     setDevMode]     = useState(false)
 
   const textareaRef      = useRef<HTMLTextAreaElement>(null)
   const rateRef          = useRef({ count: 0, resetAt: Date.now() + RATE_LIMIT_WINDOW })
@@ -41,6 +42,11 @@ export function ChatInput({ crewId, userId, userProfile }: ChatInputProps) {
 
   const { addMessage, updateMessage, addXP, activeRaid, damageFloats, addDamageFloat, dismissDamageFloat } = useChatStore()
   const inRaid = !!(activeRaid && !activeRaid.defeated_at)
+
+  // Read dev mode flag once on mount
+  useEffect(() => {
+    setDevMode(localStorage.getItem('nexus_dev_mode') === '1')
+  }, [])
 
   // Message broadcast channel — used to push sent messages to all crew members instantly
   useEffect(() => {
@@ -302,8 +308,8 @@ export function ChatInput({ crewId, userId, userProfile }: ChatInputProps) {
         </div>
       )}
 
-      {/* Dev: spawn boss button — visible when no raid is active */}
-      {!inRaid && (
+      {/* Dev: spawn boss button — only visible when dev mode is enabled and no raid is active */}
+      {devMode && !inRaid && (
         <div className="flex items-center gap-2 mb-1 px-1">
           <button
             onClick={handleSpawnBoss}

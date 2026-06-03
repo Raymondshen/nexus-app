@@ -383,6 +383,18 @@ function DevSection({ userId, userEmail }: { userId: string; userEmail: string }
   const [copiedId,    setCopiedId]    = useState(false)
   const [copiedEmail, setCopiedEmail] = useState(false)
   const [flagsCleared, setFlagsCleared] = useState(false)
+  const [devMode, setDevMode] = useState(false)
+
+  useEffect(() => {
+    setDevMode(localStorage.getItem('nexus_dev_mode') === '1')
+  }, [])
+
+  function toggleDevMode() {
+    const next = !devMode
+    setDevMode(next)
+    if (next) localStorage.setItem('nexus_dev_mode', '1')
+    else localStorage.removeItem('nexus_dev_mode')
+  }
 
   function copyToClipboard(text: string, setCopied: (v: boolean) => void) {
     navigator.clipboard.writeText(text).then(() => {
@@ -418,6 +430,17 @@ function DevSection({ userId, userEmail }: { userId: string; userEmail: string }
       </div>
 
       <div className="border border-[#ffd700]/20 divide-y divide-[#1a1a2e]" style={{ background: 'rgba(255,215,0,0.03)' }}>
+        {/* Spawn boss mode */}
+        <div className="px-4 py-3 flex items-center justify-between gap-4">
+          <div className="min-w-0">
+            <p className="font-pixel text-[7px] text-[#6b4f8f] mb-1">SPAWN BOSS MODE</p>
+            <p className="font-pixel text-[7px] text-[#3d2660] leading-relaxed">
+              Shows boss spawn button in chat for testing
+            </p>
+          </div>
+          <ToggleSwitch enabled={devMode} onChange={toggleDevMode} />
+        </div>
+
         {/* User ID */}
         <div className="px-4 py-3">
           <p className="font-pixel text-[7px] text-[#6b4f8f] mb-1.5">USER ID</p>
