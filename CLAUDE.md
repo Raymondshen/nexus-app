@@ -1,532 +1,198 @@
 # Nexus — Project Context
 
 ## What Is Nexus
-Nexus is a group messaging app where the group chat is an RPG.
-Texting your friends is how you fight. Every message earns XP.
-Boss fights drop into the chat and must be defeated collectively.
-Winning earns artifacts that live permanently in the Memory Vault.
-The longer a crew plays together the richer their shared world becomes.
-
-## Core Concept
-- Messaging = combat actions
-- Group XP accumulates from chat activity
-- Boss fights trigger at XP thresholds or behavior patterns
-- Artifacts drop on boss defeat and live in the Memory Vault
-- Chat UI visually evolves as the crew levels up
-- Characters are pixel art in RotMG top-down style
+Group messaging app where the chat is an RPG. Every message earns XP, boss fights drop into chat at XP thresholds, and victories mint artifacts stored in the Memory Vault. Characters are pixel art in RotMG top-down style.
 
 ## Tech Stack
-- Next.js 16 App Router
-- TypeScript throughout
-- Tailwind CSS for styling
-- Supabase for Auth, Postgres, Realtime, Storage, Edge Functions
-- Framer Motion for animations
-- Zustand for client-side game state
-- date-fns for time-based game logic
-- next-pwa v5 for PWA + service worker
-- Deployed on Vercel
+- Next.js 16 App Router + TypeScript
+- Tailwind CSS, Framer Motion, Zustand
+- Supabase: Auth, Postgres, Realtime, Storage, Edge Functions
+- next-pwa v5 (service worker); deployed on Vercel
 
-## Project Structure
-src/
-  app/
-    (auth)/
-      login/page.tsx
-      signup/page.tsx
-      layout.tsx
-    (app)/
-      chat/[crewId]/page.tsx
-      chat/[crewId]/loading.tsx
-      vault/[crewId]/page.tsx
-      vault/[crewId]/loading.tsx
-      party/[crewId]/page.tsx
-      home/page.tsx
-      home/HomeClient.tsx
-      home/actions.ts
-      home/loading.tsx
-      profile/page.tsx
-      profile/ProfileClient.tsx
-      profile/actions.ts
-      profile/loading.tsx
-      onboarding/page.tsx
-      onboarding/create/page.tsx
-      onboarding/create/actions.ts
-      onboarding/join/page.tsx
-      onboarding/join/actions.ts
-      layout.tsx
-    api/
-    layout.tsx
-    page.tsx
-  components/
-    ui/
-      Button.tsx
-      Input.tsx
-      Avatar.tsx
-      BottomNav.tsx
-      GuestBanner.tsx
-      InstallPrompt.tsx
-      NotificationPrompt.tsx
-      PushRefresh.tsx
-      WelcomeDetector.tsx
-      ErrorBoundary.tsx
-    chat/
-      MessageList.tsx
-      MessageBubble.tsx
-      ChatInput.tsx
-      ChatHeader.tsx
-    game/
-      XPBar.tsx
-      BossCard.tsx
-      ArtifactCard.tsx
-      ArtifactDropRenderer.tsx
-      BossPhaseAlert.tsx
-      DamageFloat.tsx
-      LevelUpBanner.tsx
-      VaultClient.tsx
-    pixel/
-      SageMage.tsx
-      (other character sprites)
-  lib/
-    supabase/
-      client.ts
-      server.ts  ← createClient() (cookie-based, request-scoped) + createServiceClient() (service role, for unstable_cache)
-    game/
-      xp.ts
-      boss.ts
-      artifacts.ts
-    notifications.ts
-    sounds.ts
-    config.ts
-  store/
-    gameStore.ts
-    chatStore.ts
-  types/
-    index.ts
-  proxy.ts  ← Next.js 16 route proxy (auth guard); replaces middleware.ts
-worker/
-  index.js  ← service worker push + notificationclick handlers (injected by next-pwa)
+## Remaining Work (Phase 1)
+- [ ] Win state + artifact card drop
+- [ ] End-to-end audit
 
 ## Database Tables
-profiles
-  - id uuid (references auth.users)
-  - username text (unique, case-insensitive)
-  - avatar_class text
-  - avatar_url text nullable (synced from Google OAuth on every login)
-  - created_at timestamp
+```
+profiles       id, username (unique case-insensitive), avatar_class, avatar_url, created_at
+crews          id, name, invite_code (6 chars unique), level, total_xp, created_at
+crew_members   id, crew_id, user_id, class, joined_at, last_seen (unread cursor + presence)
+messages       id, crew_id, user_id, content, message_type, element_type, xp_awarded, created_at
+crew_xp_log    id, crew_id, user_id, xp_amount, source, created_at
+bosses         id, name, type (void|ghost|flood|scheduled), max_hp, weak_element, description
+active_raids   id, crew_id, boss_id, current_hp, max_hp, phase, started_at, expires_at, defeated_at, mvp_user_id, expiry_notif_sent
+artifacts      id, crew_id, name, rarity (common|rare|epic|legendary), source_boss_id, earned_at, mvp_user_id, asset_type, metadata
+push_subscriptions  id, user_id, crew_id (nullable), endpoint (UNIQUE), p256dh, auth, created_at
+notification_preferences  user_id (PK), notif_messages, notif_raids, notif_victory, updated_at
+```
 
-crews
-  - id uuid
-  - name text
-  - invite_code text (6 chars, unique)
-  - level integer default 1
-  - total_xp integer default 0
-  - created_at timestamp
+## Postgres Functions
+All are `SECURITY DEFINER`. All declared in `Database.Functions` in `src/types/index.ts`.
+- `create_crew(p_name, p_invite_code)` → uuid
+- `join_crew(p_invite_code)` → uuid
+- `leave_crew(p_crew_id)` → jsonb `{ok|deleted}`
+- `insert_message(p_crew_id, p_content, p_message_type)` → messages row (computes element_type server-side)
+- `damage_raid(p_raid_id, p_damage, p_user_id)` → `(current_hp, phase, defeated_at)`
+- `increment_crew_xp(p_crew_id, p_xp_delta)` → `(new_total_xp, new_level)`
+- `is_crew_member(p_crew_id)` → boolean (RLS helper)
 
-crew_members
-  - id uuid
-  - crew_id uuid (references crews)
-  - user_id uuid (references profiles)
-  - class text
-  - joined_at timestamp
-  - last_seen timestamp nullable (used as unread cursor + online presence)
+## Game Rules
 
-messages
-  - id uuid
-  - crew_id uuid (references crews)
-  - user_id uuid (references profiles)
-  - content text
-  - message_type text (text|voice|image|reaction|system)
-  - element_type text (fire|water|lightning|nature|shadow|arcane)
-  - xp_awarded integer
-  - created_at timestamp
+### XP Values
+| Action | XP |
+|---|---|
+| Text message | 10 |
+| Voice note | 25 (disabled in UI) |
+| Image / GIF | 20 (disabled in UI) |
+| Reaction | 5 |
+| Daily Drop response | 50 |
+| First message today bonus | +20 |
+| Reply within 60s combo | +5 |
 
-crew_xp_log
-  - id uuid
-  - crew_id uuid
-  - user_id uuid
-  - xp_amount integer
-  - source text
-  - created_at timestamp
+### Boss Rules
+- The Void spawns at every 500 XP threshold
+- Fight window = 48 hours; 3 phases (100–60%, 60–30%, 30–0%)
+- Phase 3 = enrage (frequency threshold required)
+- Defeat → artifact drops into chat
 
-bosses
-  - id uuid
-  - name text
-  - type text (void|ghost|flood|scheduled)
-  - max_hp integer
-  - weak_element text
-  - description text
+### Element System
+| Element | Trigger |
+|---|---|
+| fire | <20 chars |
+| water | >150 chars |
+| lightning | voice notes |
+| nature | images/GIFs |
+| shadow | reactions |
+| arcane | daily drop / system |
 
-active_raids
-  - id uuid
-  - crew_id uuid
-  - boss_id uuid
-  - current_hp integer
-  - max_hp integer
-  - phase integer default 1
-  - started_at timestamp
-  - expires_at timestamp
-  - defeated_at timestamp nullable
-  - mvp_user_id uuid nullable
-  - expiry_notif_sent boolean default false
-
-artifacts
-  - id uuid
-  - crew_id uuid
-  - name text
-  - rarity text (common|rare|epic|legendary)
-  - source_boss_id uuid
-  - earned_at timestamp
-  - mvp_user_id uuid
-  - asset_type text
-  - metadata jsonb
-
-push_subscriptions
-  - id uuid
-  - user_id uuid
-  - crew_id uuid nullable
-  - endpoint text (UNIQUE)
-  - p256dh text
-  - auth text
-  - created_at timestamp
-
-notification_preferences
-  - user_id uuid primary key (references auth.users)
-  - notif_messages boolean default true
-  - notif_raids boolean default true
-  - notif_victory boolean default true
-  - updated_at timestamp
-
-## Postgres Functions (supabase/migrations/)
-- create_crew(p_name, p_invite_code) → uuid
-- join_crew(p_invite_code) → uuid
-- insert_message(p_crew_id, p_content, p_message_type) → messages row
-  — computes element_type server-side matching client getElementType() logic
-- leave_crew(p_crew_id) → jsonb {ok|deleted}
-- damage_raid(p_raid_id, p_damage, p_user_id) → (current_hp, phase, defeated_at)
-- increment_crew_xp(p_crew_id, p_xp_delta) → (new_total_xp, new_level)
-- is_crew_member(p_crew_id) → boolean (helper used in RLS policies)
-
-All functions are SECURITY DEFINER. All are declared in Database.Functions in src/types/index.ts.
-
-## XP Rules
-- Text message        = 10 XP
-- Voice note          = 25 XP (disabled in UI, wired for future)
-- Image / GIF         = 20 XP (disabled in UI, wired for future)
-- Reaction            = 5 XP
-- Daily Drop response = 50 XP
-- First message today = 20 XP bonus
-- Reply within 60sec  = 5 XP combo bonus
-
-## Boss Rules
-- The Void spawns after crew crosses every 500 XP threshold
-- Boss fight window = 48 hours
-- Boss has 3 phases (100-60%, 60-30%, 30-0% HP)
-- Phase 3 = enrage, crew must hit frequency threshold
-- Defeating boss = artifact drops into chat
-
-## Element System
-- fire      = short rapid messages (under 20 chars)
-- water     = long messages (over 150 chars)
-- lightning = voice notes
-- nature    = images and GIFs
-- shadow    = reactions only
-- arcane    = daily drop responses / system messages
-
-## Character Classes
-- Berserker   = high attack, spam-based
-- Sage        = high arcane, long messages
-- Ghost       = assassin, silence-based crit
-- Hype Man    = healer, reaction-based
-- The Voice   = AoE mage, voice notes
-- Meme Lord   = trickster, image-based
-
-## Current Build Phase
-PHASE 1 — Prove The Loop
-Building in this exact order:
-1. ✅ Supabase client setup + TypeScript types
-2. ✅ Database schema + RLS policies
-3. ✅ Auth screens (Google OAuth + guest mode)
-4. ✅ Crew creation and join flow
-5. ✅ Group chat with Supabase Realtime
-6. ✅ XP system with animated bar
-7. ✅ The Void boss spawn + fight UI
-8. Win state + artifact card drop
-9. ✅ PWA configuration + push notifications (fully wired)
-10. End to end audit
+### Character Classes
+Berserker (spam), Sage (long messages), Ghost (silence crit), Hype Man (reactions), The Voice (voice), Meme Lord (images)
 
 ## Auth Strategy
-- Primary: Google OAuth via Supabase (`signInWithOAuth` → `/auth/callback`)
-- Secondary: Guest mode via Supabase anonymous sessions (`signInAnonymously`)
-- No email/password auth in this project
-- Guest data stored in localStorage (`guest_username`, `guest_data`)
-- Guest badge + Save Progress button shown in app header for guests
-- Save Progress triggers Google OAuth; guest session is abandoned on upgrade
-- Enable anonymous sign-ins: Supabase Dashboard → Authentication → Settings
+- Primary: Google OAuth (`signInWithOAuth` → `/auth/callback` → `/home`)
+- Secondary: Anonymous sessions (`signInAnonymously`); guest badge + Save Progress shown in header
+- Save Progress triggers Google OAuth; guest session abandoned on upgrade
+- No email/password auth
 
-## Routing — Next.js 16 Proxy Convention
-Next.js 16 uses `proxy.ts` instead of `middleware.ts` for route interception.
-- File: `src/proxy.ts` — exports `proxy()` function + `config.matcher`
-- Auth guard: unauthenticated requests to protected routes redirect to /login
-- Protected prefixes: /home, /chat, /vault, /party, /profile, /onboarding
-- Uses `getSession()` (cookie-only, no network) NOT `getUser()` for the auth check.
-  `getUser()` makes a server-side roundtrip to Supabase Auth on every request (+100–300ms per nav).
-  Per-page server components call `getSession()` too, so the proxy is consistent.
-- Build command in vercel.json: `next build --webpack` (next-pwa requires webpack;
-  Turbopack breaks it and generates an internal proxy.ts that conflicts with ours)
-- DO NOT add a `src/middleware.ts` — Next.js 16 errors if both exist
+## Routing — Next.js 16 Proxy
+- `src/proxy.ts` — exports `proxy()` + `config.matcher`; **DO NOT add `src/middleware.ts`** (Next.js 16 errors if both exist)
+- Protected prefixes: `/home`, `/chat`, `/vault`, `/party`, `/profile`, `/onboarding`
+- Uses `getSession()` (cookie-only) NOT `getUser()` — `getUser()` adds 100–300ms per nav
+- Build: `next build --webpack` in vercel.json — Turbopack breaks next-pwa and conflicts with proxy.ts
 
-## Completed Work
+## Architecture Notes
 
-### Auth Flow (src/app/(auth)/ + src/app/auth/)
-- Root layout: Press Start 2P font, #0a0612 background, Nexus metadata
-- Auth layout: scanline overlay, purple ambient glow, floating pixel particles, Nexus logo, purple-bordered card
-- Login page: Google OAuth button + guest username form, no email/password
-- src/lib/supabase/auth.ts: signInWithGoogle, signInAsGuest, signOut, getUser, isGuest
-- src/app/auth/callback/route.ts: exchanges OAuth code, redirects to /home
-- src/app/(app)/layout.tsx: auth guard + GuestBanner + InstallPrompt + NotificationPrompt + PushRefresh
-- src/components/ui/GuestBanner.tsx: shows GUEST badge + Save Progress + LOG OUT for anonymous users
-- src/types/index.ts: GuestUser + MessageWithProfile types added
-- src/components/ui/Button.tsx: primary/secondary/danger variants, pixel drop-shadow, loading dots
-- src/components/ui/Input.tsx: dark bg, purple focus ring, label + error, font-sans on input
-- tsconfig paths updated: @/* → ./src/*
+### Realtime Delivery (dual-path + dedup)
+- **Sender**: insert DB → broadcast on `messages:{crewId}` → instant display
+- **Receiver** (MessageList): Broadcast fires first (~50ms), Postgres Changes INSERT fires as backup
+- `addMessage` in chatStore deduplicates by id — both paths can fire for the same message
+- Postgres Changes requires `messages` + `active_raids` in `supabase_realtime` publication (migration `20240103000001`)
 
-### Chat + XP (src/app/(app)/chat/ + src/components/chat/ + supabase/functions/)
+### MessageList — stale-while-revalidate
+- sessionStorage key `nexus-msgs-{crewId}`: load cached → `setMessages` + `setHistoryLoaded` in same tick → React 18 batches both so skeleton never flashes on cache hit
+- Background Supabase fetch merges with any Realtime messages already in store; result saved back (capped 50)
+- `setMessages([])` before cache/fetch prevents stale messages from a previous crew bleeding in
 
-#### Chat page (src/app/(app)/chat/[crewId]/page.tsx)
-Server component; 2-stage parallel fetch:
-- Stage 1: getSession() + params (cookie-only, instant)
-- Stage 2 (all parallel):
-  - getCachedMemberProfiles(crewId) — unstable_cache (60s TTL, tag crew-members:{crewId}) via service client; returns user_id + profile join
-  - crews — NOT cached (total_xp changes on every message; initialXP must be fresh)
-  - active_raids — NOT cached (changes on boss spawn/defeat)
-  - crew_members.last_seen — NOT cached (changes every 60s; used for online presence dots)
-- Membership check uses the fresh last_seen rows (RLS returns empty for non-members); redirects to /home if not a member
-- Messages are NOT fetched server-side; MessageList fetches its own history client-side
-- Page renders header + input + nav immediately; message history appears once client fetch resolves
-- Cache invalidated by revalidateTag('crew-members:{crewId}', 'max') in joinCrewAction and leaveCrewAction
-- Accepts ?welcome=1 to trigger WelcomeDetector
+### ChatInput — send flow
+`insert_message` RPC → `addMessage` (optimistic) → broadcast on `messages:{crewId}` → `award-xp` edge function (patches `xp_awarded` back) → `attack-boss` edge function (if raid active)
 
-#### Chat loading (src/app/(app)/chat/[crewId]/loading.tsx)
-Pulsing skeleton matching the full chat layout (header + messages + input + bottom nav placeholder).
-Shown instantly on navigation before server render completes.
+### award-xp anti-spam
+1. Hard stop: 0 XP if prior message in crew <2000ms ago
+2. Hard stop: 0 XP if ≥4 messages in last 30s
+3. Multiplier: 1.0 / 0.5 / 0.1 at 30 / 60 daily message thresholds
 
-#### MessageList (src/components/chat/MessageList.tsx)
-- Fetches own message history client-side on mount (async IIFE, crewId dependency)
-  — stale-while-revalidate via sessionStorage key `nexus-msgs-{crewId}`:
-      1. Load cached messages synchronously → setMessages(cached) + setHistoryLoaded(true) in same effect tick
-      2. React 18 batches both updates so skeleton never flashes when cache exists
-      3. Fresh Supabase fetch runs in background → merges with Realtime messages already in store
-      4. Merged result saves back to sessionStorage (capped at 50 messages)
-  — descending order + limit 50 + reverse = newest 50 in chronological order
-  — calls setMessages([]) before cache/fetch so stale messages from a previous crew don't bleed in
-  — merges with any messages already in store (Realtime events that arrived during fetch)
-  — shows inline skeleton only on true cache miss; campfire empty state when genuinely no messages
-  — cancelled flag prevents stale state on rapid navigation
-- Realtime: single channel `messages:{crewId}` subscribing to three events:
-  1. Broadcast `new_message` events (instant delivery from sender)
-  2. Postgres Changes INSERT (backup path for missed broadcasts / reconnects)
-  3. Postgres Changes UPDATE — picks up `xp_awarded` and `element_type` written back by the award-xp edge function; calls `updateMessage` to patch the existing store entry in-place
-- Both INSERT handlers validate `msg.content` is a string before calling addMessage (prevents TypeError crash)
-- addMessage in chatStore deduplicates by id (no doubles from dual delivery path)
-- updateMessage in chatStore merges partial fields into an existing message by id
-- Auto-scroll only when user is within 120px of bottom
-- Display items: date dividers, BossCard (system BOSS_SPAWN:uuid), ArtifactDropRenderer (ARTIFACT_DROP:uuid), LevelUpBanner (LEVEL_UP:n), MessageBubble
-- Guards against malformed messages: skips any row where content is not a string
+### HomeClient — stale preview fix
+`router.refresh()` on every home mount forces a background server re-fetch. A `useEffect([initialCrews])` sync effect applies refreshed `initialCrews` prop into `crews` state (useState only runs once on mount).
 
-#### ChatInput (src/components/chat/ChatInput.tsx)
-- textarea (Enter to send, Shift+Enter newline); fontSize 16px prevents iOS auto-zoom
-- Send flow: insert_message RPC → addMessage (optimistic, xp_awarded null) → broadcast on `messages:{crewId}` → award-xp edge function (response parsed; updateMessage patches xp_awarded on the store entry) → attack-boss edge function (if raid active)
-- Maintains a dedicated broadcast channel ref (`msgChannelRef`) that joins `messages:{crewId}` on mount
-- Broadcast sends the full MessageWithProfile so receivers have sender name without a profile lookup
-- Typing presence on separate channel `typing:{crewId}` (Supabase Presence); indicator shown during active raid only
-- Rate limit: 30 messages / 60s (client-side guard)
-- ⚔ SPAWN BOSS dev button visible when no active raid
-- Voice and image upload buttons DISABLED (wired for future)
-
-#### ChatHeader (src/components/chat/ChatHeader.tsx)
-Crew name, LVL badge, member avatars with online dots (last_seen < 5min), animated XP bar,
-boss HP bar when raid active, share/invite modal, +XP float animation, user avatar → /profile.
-Updates crew_members.last_seen every 60s (online presence).
-
-#### Realtime delivery architecture
-- Sender path: insert DB → broadcast to `messages:{crewId}` channel → instant display for all connected clients
-- Receiver path (MessageList): Broadcast listener fires first (~50ms), Postgres Changes fires as backup
-- Postgres Changes requires `messages` and `active_raids` to be in the `supabase_realtime` publication
-  → see migration 20240103000001_realtime_and_insert_message.sql
-- addMessage deduplication handles both paths firing for the same message
-
-#### Zustand store (src/store/chatStore.ts)
-messages, crewXP, crewLevel, xpFloats, activeRaid, damageFloats.
-addMessage deduplicates by id. setMessages replaces array (called by MessageList on history load).
-updateMessage merges a Partial<Message> patch into an existing message by id — used to write xp_awarded back after the edge function responds.
-
-#### XP lib (src/lib/game/xp.ts)
-XP_VALUES, calculateXP, getElementType, getLevelFromXP, getXPProgress constants + helpers.
-element_type logic is mirrored server-side in insert_message Postgres function and award-xp edge function.
-
-#### Edge functions
-- supabase/functions/award-xp/index.ts: three-layer anti-spam system then XP award pipeline.
-  — Layer 1 (hard stop): 0 XP if same user's prior message in this crew was < 2000ms ago (messages table lookup).
-  — Layer 2 (hard stop): 0 XP if user sent ≥ 4 messages in this crew in the last 30s (messages table count).
-  — Layer 3 (multiplier): counts today's XP-eligible log rows in crew_xp_log; applies 1.0 / 0.5 / 0.1 multiplier at 30 / 60 message thresholds.
-  — After spam checks: calculates base XP + first-today + combo bonuses, applies Layer 3 multiplier, updates crews.total_xp + messages.xp_awarded + messages.element_type, spawns The Void at 500 XP threshold, sends message_received push to other crew members. Returns `xp_earned` (not xp_awarded) in response. All notification fetches are awaited with Promise.allSettled so Deno runtime doesn't terminate before pushes complete.
-  — MessageBubble shows `+N XP` badge above the bubble when message.xp_awarded > 0.
-- supabase/functions/attack-boss/index.ts: atomic HP decrement via damage_raid RPC; on defeat fires boss_defeated push for all crew members
-- supabase/functions/check-raid-expiry/index.ts: cron-triggered; finds raids expiring within 2h, fires raid_expiring push, marks expiry_notif_sent
-- src/app/api/test/spawn-boss/route.ts: POST endpoint — verifies crew membership, creates active_raids row + BOSS_SPAWN system message using service role key
-
-### PWA + Notifications (fully wired)
-- public/manifest.json: name, icons, shortcuts (chat + vault), theme #0a0612, standalone portrait
-- public/icons/icon-192.png + icon-512.png: pixel N on dark bg, gold sword
-- public/offline.html: zero-dependency standalone page, 30s auto-retry
-- next.config.ts: next-pwa enabled in production only; CacheFirst static assets (30d) + Google avatars (7d) + all Supabase Storage public paths (30d); NetworkFirst API/Supabase REST/pages (10s timeout); offline fallback /offline.html; auth routes excluded from SW
-- worker/index.js: custom service worker — handles `push` event (showNotification) and `notificationclick` (focus or open tab at data.url). Must exist; without it push messages are received but silently discarded.
-- src/lib/notifications.ts:
-  - isSupported(): checks Notification + serviceWorker + PushManager + VAPID key
-  - subscribeToPush(): calls getSubscription() first (safer on iOS than always calling subscribe()); retries once after 1.5s if first attempt fails; validates upsert to push_subscriptions; returns null on failure
-  - requestPermission(), getPermissionState(), savePermissionState()
-- src/components/ui/PushRefresh.tsx: null-render client component — re-runs subscribeToPush() on every app load when permission is granted, keeping the DB row live after silent invalidation
-- src/components/ui/InstallPrompt.tsx: iOS Safari step-by-step + Android Chrome native prompt; shows 10s after first message, once per device
-- src/components/ui/NotificationPrompt.tsx: bottom sheet on crew creation; throttled 24h; states: visible → granted (auto-dismiss) / denied (settings instructions) / sub_failed (subscription failed after OS permission granted — shows retry prompt with Home Screen hint)
-- src/app/(app)/profile/ProfileClient.tsx notifications section: ENABLE button checks subscribeToPush() return value; shows inline error + RETRY label if subscription fails
-- supabase/functions/send-notification/index.ts: web-push via npm:web-push; TTL: 86400; supports types: message_received, boss_spawned, boss_defeated, raid_expiring, crew_silent; checks notification_preferences before sending; deletes 410/404 expired endpoints
-- VAPID env vars: NEXT_PUBLIC_VAPID_PUBLIC_KEY (client), VAPID_PRIVATE_KEY + VAPID_SUBJECT (Edge Function secrets only)
-  — VAPID_SUBJECT MUST be a mailto: URI (e.g. mailto:you@example.com); bare email breaks iOS APNs
-- iOS push: only works in standalone PWA mode (iOS 16.4+, added to Home Screen)
-- Dev mode: PWA/SW disabled in dev; push notifications can only be tested against a production Vercel deployment
-
-### Home Screen (src/app/(app)/home/)
-- src/app/(app)/home/page.tsx: server component; parallel queries — profiles + crew_members together, then all crew/message/unread queries together; unread count queries use head:true (zero body egress)
-- src/app/(app)/home/HomeClient.tsx: SwipeableCrewCard — swipe right-to-left (88px) reveals LEAVE button; single openCardId ensures only one card open; tap open card closes it; LeaveConfirmSheet (last member → DELETE CREW); per-crew Realtime message preview subscriptions; Create Crew bottom sheet (calls createCrewAction server action)
-  — Realtime preview update strategy: joins `messages:{crewId}` channels (same channel ChatInput broadcasts on) and listens for both `new_message` broadcast events (instant) and Postgres Changes INSERT (fallback). A `seenIds` Set deduplicates both paths to prevent double-counting unread badges.
-  — Stale-preview fix: `router.refresh()` on every home mount forces a background server re-fetch so messages sent while the user was in the chat room appear in the preview immediately. A `useEffect([initialCrews])` sync effect applies the refreshed `initialCrews` prop into `crews` state (useState only runs once on mount).
-- src/app/(app)/home/actions.ts: leaveCrewAction — if last member deletes crew (CASCADE), else redistributes MVP artifacts then deletes crew_members row; revalidates /home + revalidateTag('crew-members:{crewId}', 'max')
-- src/app/(app)/onboarding/create/actions.ts: createCrewAction — calls create_crew RPC, redirects to /chat/{id}?welcome=1; calls revalidatePath('/home') before redirect so the new crew row appears on back-navigation
-- src/app/(app)/onboarding/join/actions.ts: joinCrewAction — calls join_crew RPC; calls revalidatePath('/home') + revalidateTag('crew-members:{crewId}', 'max') before redirect
-- src/app/(app)/home/loading.tsx: pulsing skeleton shown instantly on navigation
-- src/app/(app)/onboarding/loading.tsx: pulsing skeleton — shown during membership DB query; prevents blank screen before redirect
-- Unread count cursor: crew_members.last_seen; ChatHeader updates it every 60s; HomeClient updates immediately on crew tap
-- Post-login flow: auth/callback → /home
-
-### Profile Page (src/app/(app)/profile/)
-- src/app/(app)/profile/page.tsx: server component — profile row (username, avatar_url) fetched via unstable_cache (60s TTL, tag profile:{userId}) using service client; auth session stays uncached
-- src/app/(app)/profile/actions.ts: revalidateProfileAction — server action called by ProfileClient after a successful username save; busts profile:{userId} tag so next visit shows fresh username
-- src/app/(app)/profile/ProfileClient.tsx: client component with:
-  - Avatar display (Google photo or initials, 80px)
-  - Username input with inline SAVE button; case-insensitive uniqueness pre-check before DB write; error states: success / taken / error; calls revalidateProfileAction() on success
-  - Notifications section: ENABLE button → requestPermission() → subscribeToPush(); shows sub_failed error + RETRY if subscription fails; when granted shows 3 toggle switches (Messages / Raid Alerts / Victory) — prefs upserted on each change
-  - LOG OUT button → signOut() → router.push('/login')
-  - Back navigation via router.back()
-  - Dev section (shenraymonds@gmail.com only): userId copy, email copy, reset localStorage flags
-- src/app/(app)/profile/loading.tsx: pulsing skeleton
-- Logout handled exclusively from profile page
-
-### Vault
-- src/app/(app)/vault/[crewId]/page.tsx: membership check (fresh, cookie-based client) runs in parallel with getCachedVaultContent(crewId); crew name + artifacts cached via unstable_cache (300s TTL, tags vault:{crewId} + artifacts:{crewId}) using service client; artifacts are immutable after drop so 5-min staleness is acceptable
-- src/app/(app)/vault/[crewId]/loading.tsx: pulsing skeleton shown instantly on tab tap
-- src/components/game/VaultClient.tsx: grid + timeline view toggle; filter tabs (ALL/RELICS/GEAR/LEGENDARY); artifact detail modal with share-as-image (html-to-image); BottomNav included
-
-### ErrorBoundary (src/components/ui/ErrorBoundary.tsx)
-Class component wrapping client components where render errors are possible.
-RELOAD button calls window.location.reload() — setState reset was unreliable for server component stream errors and has been removed.
-
-## Migrations (supabase/migrations/) — run in Supabase SQL editor
-- 20240101000000_initial_schema.sql: tables, RLS, indexes, seed bosses
-- 20240101000001_push_subscriptions.sql: push_subscriptions table
-- 20240101000002_last_seen.sql: crew_members.last_seen, damage_raid fn, increment_crew_xp fn
-- 20240101000003_push_notifications_fix.sql: crew_id nullable, endpoint UNIQUE, expiry_notif_sent
-- 20240101000004_leave_crew_fn.sql: leave_crew fn
-- 20240101000005_avatar_url_and_storage.sql: profiles.avatar_url, storage bucket
-- 20240102000001_notification_preferences.sql: notification_preferences table
-- 20240102000002_username_unique_constraint.sql: username unique (case-insensitive via lower())
-- 20240103000001_realtime_and_insert_message.sql: ⚠ MUST BE APPLIED — enables supabase_realtime publication for messages and active_raids tables; creates insert_message Postgres function
-
-## Disabled Features (wired for future)
-- Voice notes: ChatInput voice button removed; XP_VALUES['voice'] = 25 still defined; element type 'lightning' still assigned server-side
-- Image upload: ChatInput attach button removed; upload logic, browser-image-compression, chat-images bucket all still exist and work; element type 'nature' still assigned server-side
+### PWA / Push Gotchas
+- `VAPID_SUBJECT` **must** be a `mailto:` URI — bare email breaks iOS APNs
+- iOS push only works in standalone PWA mode (iOS 16.4+, added to Home Screen)
+- PWA/SW disabled in dev; test push notifications against production Vercel deployment only
+- `subscribeToPush()` calls `getSubscription()` first (safer on iOS than always calling `subscribe()`); retries once after 1.5s
 
 ## Caching Architecture
 
-### Server-side (Next.js Data Cache via unstable_cache)
-All server caches use `createServiceClient()` (service role, no cookies) inside the cache function so the cache can be shared across users safely. Auth + membership is always verified outside the cache with the cookie-based client first.
+### Server (unstable_cache via createServiceClient)
+Always use `createServiceClient()` inside cache functions (service role, no cookies) — `createClient()` reads cookies and disables cross-request sharing. Verify auth + membership with cookie-based client **before** calling the cached function.
 
 | Cache | TTL | Tag | Invalidated by |
 |---|---|---|---|
-| Vault crew + artifacts | 300s | `vault:{crewId}`, `artifacts:{crewId}` | TTL (artifacts are immutable; chat shows artifact via Realtime immediately) |
+| Vault crew + artifacts | 300s | `vault:{crewId}`, `artifacts:{crewId}` | TTL only (artifacts immutable) |
 | Chat member profiles | 60s | `crew-members:{crewId}` | joinCrewAction, leaveCrewAction |
-| Profile (username, avatar_url) | 60s | `profile:{userId}` | revalidateProfileAction (called after username save) |
+| Profile (username, avatar_url) | 60s | `profile:{userId}` | revalidateProfileAction |
 
-**Next.js 16 note:** `revalidateTag(tag, 'max')` — second argument is required in Next.js 16 (deprecated without it). Use `'max'` for full invalidation across all cache tiers.
+**Never cache:** `crews.total_xp`, `crews.level`, `active_raids`, `crew_members.last_seen`, auth sessions
 
-**What is NOT cached (must stay fresh):**
-- `crews.total_xp` / `crews.level` — changes with every message; used as initialXP for XP bar
-- `active_raids` — changes on boss spawn/defeat
-- `crew_members.last_seen` — changes every 60s; used for online presence dots
-- Auth sessions — always request-scoped via `getSession()`
+**Next.js 16:** `revalidateTag(tag, 'max')` — second arg required; single-arg form is deprecated.
 
-### Client-side
-- **Message history** (`nexus-msgs-{crewId}` in sessionStorage): stale-while-revalidate in MessageList; last 50 messages shown instantly on re-entry, fresh fetch merges in background. React 18 batching prevents skeleton flash on cache hit.
-- **Service worker** (next.config.ts runtimeCaching): CacheFirst for all static assets + all Supabase Storage public paths (chat-images, artifacts, avatars); NetworkFirst for Supabase REST API calls and pages.
+### Client
+- Message history: `nexus-msgs-{crewId}` in sessionStorage (50 msg cap, stale-while-revalidate)
+- Service worker: CacheFirst static assets + Supabase Storage (30d); NetworkFirst API/pages (10s timeout)
 
 ## localStorage Keys
-- nexus_first_message: timestamp (ms) of user's first sent message — triggers InstallPrompt after 10s
-- nexus_install_prompted: '1' — set after install prompt dismissed or accepted, never shows again
-- nexus_crew_created: '1' — set by WelcomeDetector when ?welcome=1 detected — triggers NotificationPrompt
-- nexus_notif_prompted: timestamp (ms) — throttles NotificationPrompt to once per 24h
-- nexus_notif_state: 'granted' | 'denied' | 'pending' — cached permission state
+| Key | Value | Purpose |
+|---|---|---|
+| `nexus_first_message` | timestamp ms | triggers InstallPrompt after 10s |
+| `nexus_install_prompted` | `'1'` | never show install prompt again |
+| `nexus_crew_created` | `'1'` | triggers NotificationPrompt via WelcomeDetector |
+| `nexus_notif_prompted` | timestamp ms | throttles NotificationPrompt to 24h |
+| `nexus_notif_state` | `granted\|denied\|pending` | cached permission state |
+
+## Disabled Features (wired for future)
+- Voice notes: button removed; `XP_VALUES['voice']` + element type `lightning` still defined server-side
+- Image upload: button removed; upload logic, `browser-image-compression`, `chat-images` bucket still exist
+
+## Migrations (supabase/migrations/)
+- `20240101000000_initial_schema.sql` — tables, RLS, indexes, seed bosses
+- `20240101000001_push_subscriptions.sql` — push_subscriptions table
+- `20240101000002_last_seen.sql` — crew_members.last_seen, damage_raid fn, increment_crew_xp fn
+- `20240101000003_push_notifications_fix.sql` — crew_id nullable, endpoint UNIQUE, expiry_notif_sent
+- `20240101000004_leave_crew_fn.sql` — leave_crew fn
+- `20240101000005_avatar_url_and_storage.sql` — profiles.avatar_url, storage bucket
+- `20240102000001_notification_preferences.sql` — notification_preferences table
+- `20240102000002_username_unique_constraint.sql` — username unique via lower()
+- `20240103000001_realtime_and_insert_message.sql` — ⚠ MUST BE APPLIED: enables supabase_realtime publication for messages + active_raids; creates insert_message fn
 
 ## Supabase Type System Rules
-- All row interfaces MUST extend `Record<string, unknown>` (e.g. `interface Profile extends Record<string, unknown>`)
-  — Without this, `Database['public'] extends GenericSchema` evaluates to `never` inside the Supabase client's
-    conditional type machinery, causing every `.from()` query and `.rpc()` call to return `never`.
-- All table definitions in `Database` MUST include `Relationships: []` (required by `GenericTable` shape).
-- All Supabase RPC functions used in the app MUST be declared in `Database.Functions` with `Args` and `Returns`.
-- The `supabase/` directory MUST be excluded from `tsconfig.json` — Deno Edge Functions use `https://esm.sh/`
-  imports and the `Deno` global which are incompatible with the Next.js TypeScript compiler.
-- When adding a new `.rpc('fn_name', ...)` call, add `fn_name` to `Database.public.Functions` first.
-- Property access on types extending `Record<string, unknown>` resolves through the index signature (`unknown`), not the explicit property type. Use `as` casts when assigning to a narrower type (e.g. `row.last_seen as string | null`).
-- Supabase query builder returns `PromiseLike`, not a full `Promise` — do NOT chain `.catch()` or `.finally()` directly. Use `async/await` with try/catch/finally instead.
+- All row interfaces **must** extend `Record<string, unknown>` — without it, `Database['public'] extends GenericSchema` evaluates to `never` and every `.from()` / `.rpc()` returns `never`
+- All table definitions in `Database` must include `Relationships: []`
+- All RPC calls must be declared in `Database.public.Functions` with `Args` + `Returns` before use
+- `supabase/` directory must be excluded from `tsconfig.json` — Deno imports + globals incompatible with Next.js compiler
+- Property access on `Record<string, unknown>` types resolves to `unknown` — use `as` casts when assigning to narrower types (e.g. `row.last_seen as string | null`)
+- Supabase query builder returns `PromiseLike` not `Promise` — do NOT chain `.catch()` / `.finally()`; use `async/await` with try/catch
 
 ## Code Rules
-- Always use TypeScript with strict types
-- Server components by default
-- Use client components only when interactivity is needed
-- Mark client components with 'use client' at top
-- All game logic runs server-side in Supabase Edge Functions
-- Supabase Realtime for all live state updates
-- Mobile-first, optimized for 390px width (iPhone 14)
-- Press Start 2P font for all game UI elements
-- Never hardcode values that belong in constants
-- Never expose SUPABASE_SERVICE_ROLE_KEY to the client
-- Always handle loading and error states
-- Clean up Realtime subscriptions on component unmount; use a cancelled flag in async effects to prevent stale state updates
-- RLS must be enabled on every table from day one
-- Server component data fetching: always use Promise.all for independent queries; structure in stages: (1) auth.getSession() + params together, (2) all queries that only need userId/crewId together, (3) queries that depend on stage-2 results. Never await sequentially when queries are independent.
-- Add loading.tsx alongside every page.tsx that does server-side data fetching — shows instantly on navigation before server render completes
-- Logout: handled from /profile page only — ProfileClient calls signOut() then router.push('/login')
-- Server actions that create or join crews MUST call revalidatePath('/home') before redirect so the new crew row appears immediately on back-navigation
-- Edge Function notification fetches: always use Promise.allSettled() — fire-and-forget fetches may be terminated by the Deno runtime before completion
-- Server caching with unstable_cache: always use createServiceClient() (not createClient()) inside the cache function — createClient() reads cookies which disables cross-request caching. Always verify auth + membership with the cookie-based client BEFORE calling the cached function.
-- revalidateTag in Next.js 16 requires two arguments: revalidateTag(tag, 'max') — the single-arg form is deprecated and logs a warning
-- Do NOT cache: crews.total_xp (changes every message), active_raids (changes on boss events), crew_members.last_seen (presence data), auth sessions
+- TypeScript strict throughout; server components by default; `'use client'` only when interactivity needed
+- All game logic in Supabase Edge Functions; Realtime for all live state
+- Mobile-first, 390px (iPhone 14); Press Start 2P for all game UI
+- Never hardcode constants; never expose `SUPABASE_SERVICE_ROLE_KEY` client-side
+- Always handle loading + error states; add `loading.tsx` alongside every data-fetching `page.tsx`
+- Clean up Realtime subscriptions on unmount; use `cancelled` flag in async effects
+- RLS on every table from day one
+- Server data fetching: `Promise.all` for independent queries; stages — (1) `getSession()` + params, (2) queries needing userId/crewId, (3) queries depending on stage 2
+- Logout from `/profile` only — `signOut()` then `router.push('/login')`
+- Server actions creating/joining crews must call `revalidatePath('/home')` before redirect
+- Edge Function notification fetches: always `Promise.allSettled()` (Deno may terminate before fire-and-forget completes)
+- `unstable_cache`: always `createServiceClient()` inside the function; verify auth first with cookie client
 
 ## Image Rules
-- All user-uploaded images MUST be compressed client-side with `browser-image-compression` before upload: `maxSizeMB: 0.5`, `maxWidthOrHeight: 1024`, `useWebWorker: true`, `fileType: 'image/webp'`
-- Upload to Supabase Storage with `cacheControl: '31536000'` (1-year header) to maximise CDN cache hit rate
-- All images displayed in the app MUST use `next/image` — never a raw `<img>` tag — so Vercel's image CDN handles resizing and caching
-- Remote image hostnames must be whitelisted in `next.config.ts` under `images.remotePatterns` before use
-- Profile pictures come from `profiles.avatar_url` (synced from Google OAuth metadata on every login); fall back to a styled initials box — never fetch the OAuth URL directly from the client
-- The `src/components/ui/Avatar.tsx` component handles the image-vs-initials decision; use it for all avatar display points
-- Chat images are stored in the `chat-images` Supabase Storage bucket (public, 5 MB limit, images only); path format: `{crewId}/{userId}/{timestamp}.webp`
-- Artifact images and any future game assets follow the same compress → upload → serve-via-next/image pipeline
+- Compress client-side before upload: `browser-image-compression` with `maxSizeMB: 0.5`, `maxWidthOrHeight: 1024`, `useWebWorker: true`, `fileType: 'image/webp'`
+- Upload with `cacheControl: '31536000'` for CDN cache hit rate
+- Always `next/image` — never raw `<img>`; whitelist hostnames in `next.config.ts` under `images.remotePatterns`
+- Profile pictures from `profiles.avatar_url` (synced on every Google login); fall back to initials; use `Avatar.tsx` everywhere
+- Chat images: `chat-images` bucket, path `{crewId}/{userId}/{timestamp}.webp`
 
 ## Design Language
-- Dark theme throughout — background #0a0612
-- Pixel aesthetic — chunky, high contrast
-- Primary accent — purple #bf5fff
-- Secondary accent — cyan #00e5ff
-- XP color — gold #ffd700
-- Danger/boss — red #ff4444
-- Success/heal — green #66bb6a
-- Font stack — Press Start 2P for headings/game UI, system-ui for body text and chat messages
-- Framer Motion for all animations
-- Scanline overlay on game screens for RotMG feel
+| Token | Value |
+|---|---|
+| Background | `#0a0612` |
+| Primary accent | `#bf5fff` (purple) |
+| Secondary accent | `#00e5ff` (cyan) |
+| XP | `#ffd700` (gold) |
+| Danger/boss | `#ff4444` (red) |
+| Success/heal | `#66bb6a` (green) |
+| Headings/game UI | Press Start 2P |
+| Body/chat | system-ui |
+
+Framer Motion for all animations. Scanline overlay on game screens for RotMG feel.
