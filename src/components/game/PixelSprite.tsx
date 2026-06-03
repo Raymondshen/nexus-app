@@ -1,22 +1,18 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
-import Image from 'next/image'
+import { useState, useEffect, useRef } from 'react'
 import type { AvatarClass } from '@/types'
 
 export type SpriteDirection =
   | 'south' | 'south-east' | 'east' | 'north-east'
   | 'north' | 'north-west' | 'west' | 'south-west'
 
-// Clockwise walk cycle starting south (facing player)
 const WALK_CYCLE: SpriteDirection[] = [
   'south', 'south-east', 'east', 'north-east',
   'north', 'north-west', 'west', 'south-west',
 ]
 
-// Map each avatar class to its sprite folder name under /public/sprites/
-// Add an entry here as sprites are dropped into the project.
+// Add an entry here as sprite folders are dropped into public/sprites/{key}/
 const CLASS_TO_SPRITE: Partial<Record<AvatarClass | 'necromancer', string>> = {
   necromancer: 'necromancer',
   // berserker:   'berserker',
@@ -32,11 +28,23 @@ export function spriteIdFor(avatarClass: AvatarClass | string | null | undefined
   return CLASS_TO_SPRITE[avatarClass as AvatarClass] ?? null
 }
 
+// Inject the pixel-bob keyframe once per document
+const BOB_STYLE = `@keyframes pixel-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}`
+function useGlobalStyle(css: string) {
+  useEffect(() => {
+    if (document.getElementById('pixel-bob-style')) return
+    const el = document.createElement('style')
+    el.id  = 'pixel-bob-style'
+    el.textContent = css
+    document.head.appendChild(el)
+  }, [css])
+}
+
 interface PixelSpriteProps {
   spriteId: string
-  direction?: SpriteDirection  // pin to one direction; omit to let animate cycle
-  scale?: number               // display size = 24 × scale (default 4 → 96 px)
-  animate?: boolean            // bob up/down + cycle all 8 directions
+  direction?: SpriteDirection
+  scale?: number      // display size = 24 × scale (default 4 → 96 px)
+  animate?: boolean   // direction cycling + pixel-bob
   className?: string
 }
 
@@ -47,33 +55,41 @@ export function PixelSprite({
   animate = false,
   className = '',
 }: PixelSpriteProps) {
+  useGlobalStyle(BOB_STYLE)
+
   const NATIVE_PX = 24
   const displayPx = NATIVE_PX * scale
 
   const [dirIdx, setDirIdx] = useState(0)
-  const direction = pinned ?? (animate ? WALK_CYCLE[dirIdx] : 'south')
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
     if (!animate || pinned) return
-    const id = setInterval(() => setDirIdx(i => (i + 1) % WALK_CYCLE.length), 180)
-    return () => clearInterval(id)
+    intervalRef.current = setInterval(
+      () => setDirIdx(i => (i + 1) % WALK_CYCLE.length),
+      180,
+    )
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
   }, [animate, pinned])
 
+  const direction = pinned ?? (animate ? WALK_CYCLE[dirIdx] : 'south')
+
   return (
-    <motion.div
-      className={`relative flex-shrink-0 ${className}`}
-      style={{ width: displayPx, height: displayPx }}
-      animate={animate ? { y: [0, -3, 0] } : { y: 0 }}
-      transition={animate ? { duration: 0.45, repeat: Infinity, ease: 'easeInOut' } : {}}
-    >
-      <Image
-        src={`/sprites/${spriteId}/${direction}.png`}
-        alt={`${spriteId} facing ${direction}`}
-        width={displayPx}
-        height={displayPx}
-        unoptimized
-        style={{ imageRendering: 'pixelated', width: displayPx, height: displayPx }}
-      />
-    </motion.div>
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={`/sprites/${spriteId}/${direction}.png`}
+      alt={`${spriteId} ${direction}`}
+      width={displayPx}
+      height={displayPx}
+      className={className}
+      style={{
+        imageRendering: 'pixelated',
+        width:  displayPx,
+        height: displayPx,
+        flexShrink: 0,
+        animation: animate ? 'pixel-bob 0.45s ease-in-out infinite' : 'none',
+        display: 'block',
+      }}
+    />
   )
 }
