@@ -7,7 +7,8 @@ Group messaging app where the chat is an RPG. Every message earns XP, boss fight
 - Next.js 16 App Router + TypeScript
 - Tailwind CSS, Framer Motion, Zustand
 - Supabase: Auth, Postgres, Realtime, Storage, Edge Functions
-- next-pwa v5 (service worker); deployed on Vercel
+- next-pwa v5 (generates workbox SW at build time — **do not use for push**; see sw-push.js below)
+- Deployed on Vercel
 
 ## Remaining Work (Phase 1)
 - [ ] Win state + artifact card drop
@@ -15,7 +16,7 @@ Group messaging app where the chat is an RPG. Every message earns XP, boss fight
 
 ## Database Tables
 ```
-profiles       id, username (unique case-insensitive), avatar_class, avatar_url, created_at
+profiles       id, username (unique case-insensitive), avatar_class, avatar_url, is_dev, created_at
 crews          id, name, invite_code (6 chars unique), level, total_xp, created_at
 crew_members   id, crew_id, user_id, class, joined_at, last_seen (unread cursor + presence)
 messages       id, crew_id, user_id, content, message_type, element_type, xp_awarded, created_at
@@ -75,6 +76,11 @@ Berserker (spam), Sage (long messages), Ghost (silence crit), Hype Man (reaction
 - Save Progress triggers Google OAuth; guest session abandoned on upgrade
 - No email/password auth
 
+## Dev Mode
+- Controlled by `profiles.is_dev` boolean (default false) — **not hardcoded emails**
+- To grant dev mode: `UPDATE profiles SET is_dev = true WHERE id IN (SELECT id FROM auth.users WHERE email = '...')`
+- Dev section in `/profile` shows: spawn boss toggle, user ID, push diagnostics
+
 ## Routing — Next.js 16 Proxy
 - `src/proxy.ts` — exports `proxy()` + `config.matcher`; **DO NOT add `src/middleware.ts`** (Next.js 16 errors if both exist)
 - Protected prefixes: `/home`, `/chat`, `/vault`, `/party`, `/profile`, `/onboarding`
@@ -89,13 +95,24 @@ Berserker (spam), Sage (long messages), Ghost (silence crit), Hype Man (reaction
 - `addMessage` in chatStore deduplicates by id — both paths can fire for the same message
 - Postgres Changes requires `messages` + `active_raids` in `supabase_realtime` publication (migration `20240103000001`)
 
+### XP Sync — real-time for all crew members
+- `award-xp` edge function returns `new_total_xp` in response
+- Sender: calls `setCrewXP(data.new_total_xp)` then broadcasts `xp_update` on `messages:{crewId}` channel
+- Receivers: `receiveXP(earned, newTotal)` action in chatStore sets absolute XP + spawns XP float
+- Both paths deduplicate by `sender_id` — sender gets `setCrewXP`, others get `receiveXP`
+
+### Online Presence
+- Supabase Presence on `online:{crewId}` channel in ChatHeader
+- Initial state seeded from `memberLastSeen` server snapshot; real-time updates via `presenceState()` sync events
+- 60s DB `last_seen` update kept for server-side initial state accuracy
+
 ### MessageList — stale-while-revalidate
 - sessionStorage key `nexus-msgs-{crewId}`: load cached → `setMessages` + `setHistoryLoaded` in same tick → React 18 batches both so skeleton never flashes on cache hit
 - Background Supabase fetch merges with any Realtime messages already in store; result saved back (capped 50)
 - `setMessages([])` before cache/fetch prevents stale messages from a previous crew bleeding in
 
 ### ChatInput — send flow
-`insert_message` RPC → `addMessage` (optimistic) → broadcast on `messages:{crewId}` → `award-xp` edge function (patches `xp_awarded` back) → `attack-boss` edge function (if raid active)
+`insert_message` RPC → `addMessage` (optimistic) → broadcast on `messages:{crewId}` → `award-xp` edge function (patches `xp_awarded` back + broadcasts `xp_update`) → `attack-boss` edge function (if raid active)
 
 ### award-xp anti-spam
 1. Hard stop: 0 XP if prior message in crew <2000ms ago
@@ -105,11 +122,28 @@ Berserker (spam), Sage (long messages), Ghost (silence crit), Hype Man (reaction
 ### HomeClient — stale preview fix
 `router.refresh()` on every home mount forces a background server re-fetch. A `useEffect([initialCrews])` sync effect applies refreshed `initialCrews` prop into `crews` state (useState only runs once on mount).
 
-### PWA / Push Gotchas
+### PWA / Push Architecture
+- **Service worker**: `public/sw-push.js` — handwritten, zero dependencies, committed to git
+  - next-pwa's generated `sw.js` uses multi-arg `importScripts()` which silently kills installation on iOS Safari
+  - `sw-push.js` handles only `push` + `notificationclick` events; no workbox precaching
+  - Registered by `SWRegister` component (root layout) and `subscribeToPush()` in notifications.ts
+- **Registration**: `SWRegister` (`src/components/ui/SWRegister.tsx`) — production-only, runs once in root layout
+- **Subscription storage**: `push_subscriptions` table; use delete→insert NOT upsert (unique index may not exist in all envs)
+- **Badge**: `BadgeClear` component clears app icon badge on focus/visibilitychange; SW sets it on push receive
+- **Preferences**: `notification_preferences` table; `send-notification` edge function checks before sending
 - `VAPID_SUBJECT` **must** be a `mailto:` URI — bare email breaks iOS APNs
 - iOS push only works in standalone PWA mode (iOS 16.4+, added to Home Screen)
 - PWA/SW disabled in dev; test push notifications against production Vercel deployment only
-- `subscribeToPush()` calls `getSubscription()` first (safer on iOS than always calling `subscribe()`); retries once after 1.5s
+- `subscribeToPush()` uses `getSession()` (not `getUser()`) — cookie-only, never fails due to network
+- VAPID env vars must be set in **Supabase Edge Function secrets** (separate from Vercel env vars)
+
+### Pixel Sprites
+- Component: `src/components/game/PixelSprite.tsx`
+- Sprites: `public/sprites/{spriteId}/{direction}.png` — 8 directions: south, south-east, east, north-east, north, north-west, west, south-west
+- Each sprite is 24×24px native; rendered with `image-rendering: pixelated` and CSS keyframe bob animation
+- `CLASS_TO_SPRITE` map in PixelSprite.tsx links `AvatarClass` → sprite folder; uncomment entries as sprites are added
+- Currently available: `necromancer`
+- **Do NOT use `next/image` for sprites** — use plain `<img>` with `imageRendering: pixelated`; next/image has iOS PWA rendering quirks for pixel art
 
 ## Caching Architecture
 
@@ -128,7 +162,7 @@ Always use `createServiceClient()` inside cache functions (service role, no cook
 
 ### Client
 - Message history: `nexus-msgs-{crewId}` in sessionStorage (50 msg cap, stale-while-revalidate)
-- Service worker: CacheFirst static assets + Supabase Storage (30d); NetworkFirst API/pages (10s timeout)
+- Service worker: `sw-push.js` handles push/notificationclick only (no caching routes)
 
 ## localStorage Keys
 | Key | Value | Purpose |
@@ -147,12 +181,25 @@ Always use `createServiceClient()` inside cache functions (service role, no cook
 - `20240101000000_initial_schema.sql` — tables, RLS, indexes, seed bosses
 - `20240101000001_push_subscriptions.sql` — push_subscriptions table
 - `20240101000002_last_seen.sql` — crew_members.last_seen, damage_raid fn, increment_crew_xp fn
-- `20240101000003_push_notifications_fix.sql` — crew_id nullable, endpoint UNIQUE, expiry_notif_sent
+- `20240101000003_push_notifications_fix.sql` — crew_id nullable, endpoint UNIQUE, expiry_notif_sent ⚠ apply manually if not present
 - `20240101000004_leave_crew_fn.sql` — leave_crew fn
 - `20240101000005_avatar_url_and_storage.sql` — profiles.avatar_url, storage bucket
 - `20240102000001_notification_preferences.sql` — notification_preferences table
 - `20240102000002_username_unique_constraint.sql` — username unique via lower()
 - `20240103000001_realtime_and_insert_message.sql` — ⚠ MUST BE APPLIED: enables supabase_realtime publication for messages + active_raids; creates insert_message fn
+- `20240103000002_push_subscriptions_update_rls.sql` — UPDATE policy on push_subscriptions (needed for upsert)
+
+### Manual SQL applied directly (no migration file)
+```sql
+-- profiles.is_dev — dev mode flag
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS is_dev boolean NOT NULL DEFAULT false;
+
+-- push_subscriptions endpoint unique index (from migration 3 if not applied)
+CREATE UNIQUE INDEX IF NOT EXISTS push_subscriptions_endpoint_key ON push_subscriptions (endpoint);
+
+-- push_subscriptions crew_id nullable (from migration 3 if not applied)
+ALTER TABLE push_subscriptions ALTER COLUMN crew_id DROP NOT NULL;
+```
 
 ## Supabase Type System Rules
 - All row interfaces **must** extend `Record<string, unknown>` — without it, `Database['public'] extends GenericSchema` evaluates to `never` and every `.from()` / `.rpc()` returns `never`
@@ -180,6 +227,7 @@ Always use `createServiceClient()` inside cache functions (service role, no cook
 - Compress client-side before upload: `browser-image-compression` with `maxSizeMB: 0.5`, `maxWidthOrHeight: 1024`, `useWebWorker: true`, `fileType: 'image/webp'`
 - Upload with `cacheControl: '31536000'` for CDN cache hit rate
 - Always `next/image` — never raw `<img>`; whitelist hostnames in `next.config.ts` under `images.remotePatterns`
+- **Exception**: pixel art sprites in `PixelSprite.tsx` use plain `<img>` with `imageRendering: pixelated` — next/image interferes with pixel-perfect rendering on iOS PWA
 - Profile pictures from `profiles.avatar_url` (synced on every Google login); fall back to initials; use `Avatar.tsx` everywhere
 - Chat images: `chat-images` bucket, path `{crewId}/{userId}/{timestamp}.webp`
 
