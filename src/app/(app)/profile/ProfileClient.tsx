@@ -379,11 +379,23 @@ export function ProfileClient({ userId, userEmail, initialUsername, avatarUrl, i
 
 // ─── Dev section ──────────────────────────────────────────────────────────────
 
+type PushStatus = {
+  sw_subscription: 'none' | 'apns' | 'fcm' | 'unknown'
+  subs_in_db: number
+  endpoints: { id: string; endpoint_preview: string; is_apns: boolean; created_at: string }[]
+  error?: string
+}
+
 function DevSection({ userId, userEmail }: { userId: string; userEmail: string }) {
   const [copiedId,    setCopiedId]    = useState(false)
   const [copiedEmail, setCopiedEmail] = useState(false)
   const [flagsCleared, setFlagsCleared] = useState(false)
   const [devMode, setDevMode] = useState(false)
+
+  const [pushStatus,  setPushStatus]  = useState<PushStatus | null>(null)
+  const [pushLoading, setPushLoading] = useState(false)
+  const [testResult,  setTestResult]  = useState<string | null>(null)
+  const [syncResult,  setSyncResult]  = useState<string | null>(null)
 
   useEffect(() => {
     setDevMode(localStorage.getItem('nexus_dev_mode') === '1')
@@ -414,6 +426,76 @@ function DevSection({ userId, userEmail }: { userId: string; userEmail: string }
     keys.forEach((k) => localStorage.removeItem(k))
     setFlagsCleared(true)
     setTimeout(() => setFlagsCleared(false), 2000)
+  }
+
+  async function getAuthToken(): Promise<string | null> {
+    const supabase = createClient()
+    const { data: { session } } = await supabase.auth.getSession()
+    return session?.access_token ?? null
+  }
+
+  async function checkPushStatus() {
+    setPushLoading(true)
+    setPushStatus(null)
+    try {
+      // Client-side SW subscription check
+      let swSub: 'none' | 'apns' | 'fcm' | 'unknown' = 'none'
+      if ('serviceWorker' in navigator && 'PushManager' in window) {
+        const reg = await navigator.serviceWorker.ready
+        const sub = await reg.pushManager.getSubscription()
+        if (sub) {
+          const ep = sub.endpoint
+          swSub = ep.includes('web.push.apple.com') ? 'apns'
+                : ep.includes('fcm.googleapis.com') ? 'fcm'
+                : 'unknown'
+        }
+      }
+
+      // Server-side DB check
+      const token = await getAuthToken()
+      if (!token) { setPushStatus({ sw_subscription: swSub, subs_in_db: 0, endpoints: [], error: 'No session' }); return }
+
+      const res = await fetch('/api/test/push', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const data = await res.json()
+      setPushStatus({ sw_subscription: swSub, ...data })
+    } catch (err) {
+      setPushStatus({ sw_subscription: 'none', subs_in_db: 0, endpoints: [], error: String(err) })
+    } finally {
+      setPushLoading(false)
+    }
+  }
+
+  async function syncSubscription() {
+    setSyncResult(null)
+    try {
+      const sub = await subscribeToPush()
+      setSyncResult(sub ? `✓ Synced — ${sub.endpoint.slice(0, 40)}...` : '✗ subscribeToPush returned null')
+    } catch (err) {
+      setSyncResult(`✗ ${String(err)}`)
+    }
+  }
+
+  async function sendTestNotification() {
+    setTestResult(null)
+    try {
+      const token = await getAuthToken()
+      if (!token) { setTestResult('✗ No session'); return }
+      const res  = await fetch('/api/test/push', { method: 'POST', headers: { Authorization: `Bearer ${token}` } })
+      const data = await res.json()
+      if (data.result?.status === 'no_subscriptions') {
+        setTestResult('✗ No subscriptions in DB — tap SYNC first')
+      } else if (data.result?.status === 'preference_disabled') {
+        setTestResult('✗ Message notifications disabled in preferences')
+      } else if (data.result?.results?.some((r: { status: string }) => r.status === 'sent')) {
+        setTestResult('✓ Sent — check your notification tray')
+      } else {
+        setTestResult(`Result: ${JSON.stringify(data.result)}`)
+      }
+    } catch (err) {
+      setTestResult(`✗ ${String(err)}`)
+    }
   }
 
   return (
@@ -481,6 +563,49 @@ function DevSection({ userId, userEmail }: { userId: string; userEmail: string }
               {copiedEmail ? '✓' : 'COPY'}
             </button>
           </div>
+        </div>
+
+        {/* Push diagnostics */}
+        <div className="px-4 py-3">
+          <p className="font-pixel text-[7px] text-[#6b4f8f] mb-2">PUSH DIAGNOSTICS</p>
+          <div className="flex gap-2 mb-2">
+            <button
+              onClick={checkPushStatus}
+              disabled={pushLoading}
+              className="flex-1 h-8 font-pixel text-[7px] border transition-colors disabled:opacity-50"
+              style={{ color: '#ffd700', borderColor: 'rgba(255,215,0,0.3)', background: 'rgba(255,215,0,0.06)' }}
+            >
+              {pushLoading ? '...' : 'CHECK STATUS'}
+            </button>
+            <button
+              onClick={syncSubscription}
+              className="flex-1 h-8 font-pixel text-[7px] border transition-colors"
+              style={{ color: '#00e5ff', borderColor: 'rgba(0,229,255,0.3)', background: 'rgba(0,229,255,0.06)' }}
+            >
+              SYNC SUB
+            </button>
+            <button
+              onClick={sendTestNotification}
+              className="flex-1 h-8 font-pixel text-[7px] border transition-colors"
+              style={{ color: '#bf5fff', borderColor: 'rgba(191,95,255,0.3)', background: 'rgba(191,95,255,0.06)' }}
+            >
+              SEND TEST
+            </button>
+          </div>
+          {pushStatus && (
+            <div className="font-sans text-[10px] text-[#ffd700] space-y-0.5 bg-black/30 p-2">
+              <p>SW sub: <span className="text-white">{pushStatus.sw_subscription}</span></p>
+              <p>DB subs: <span className="text-white">{pushStatus.subs_in_db}</span></p>
+              {pushStatus.endpoints.map((ep) => (
+                <p key={ep.id} className="truncate text-[#6b4f8f]">
+                  {ep.is_apns ? '🍎' : '🤖'} {ep.endpoint_preview}
+                </p>
+              ))}
+              {pushStatus.error && <p className="text-[#ff4444]">{pushStatus.error}</p>}
+            </div>
+          )}
+          {syncResult  && <p className="font-sans text-[10px] text-[#00e5ff] mt-1">{syncResult}</p>}
+          {testResult  && <p className="font-sans text-[10px] text-[#bf5fff] mt-1">{testResult}</p>}
         </div>
 
         {/* Reset localStorage flags */}
