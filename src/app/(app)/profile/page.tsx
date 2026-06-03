@@ -3,7 +3,6 @@ import { unstable_cache } from 'next/cache'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { ProfileClient } from './ProfileClient'
 
-const DEV_EMAIL = 'shenraymonds@gmail.com'
 
 function getCachedProfile(userId: string) {
   return unstable_cache(
@@ -11,10 +10,10 @@ function getCachedProfile(userId: string) {
       const supabase = createServiceClient()
       const { data } = await supabase
         .from('profiles')
-        .select('username, avatar_url, avatar_class')
+        .select('username, avatar_url, avatar_class, is_dev')
         .eq('id', userId)
         .single()
-      return data as { username: string; avatar_url: string | null; avatar_class: string | null } | null
+      return data as { username: string; avatar_url: string | null; avatar_class: string | null; is_dev: boolean } | null
     },
     [`profile:${userId}`],
     { tags: [`profile:${userId}`], revalidate: 60 }
@@ -36,7 +35,7 @@ export default async function ProfilePage() {
       initialUsername={profile?.username ?? ''}
       avatarUrl={profile?.avatar_url ?? null}
       avatarClass={profile?.avatar_class ?? null}
-      isDev={user.email === DEV_EMAIL}
+      isDev={profile?.is_dev === true}
       isGuest={user.is_anonymous === true}
     />
   )
