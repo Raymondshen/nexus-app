@@ -401,6 +401,19 @@ export function HomeClient({
   const profileCacheRef = useRef<Record<string, string>>(profileCache)
   useEffect(() => { profileCacheRef.current = profileCache }, [profileCache])
 
+  // Sync server-refreshed data into local state. router.refresh() re-fetches
+  // the server component in the background; when initialCrews updates as a
+  // result this effect applies it without losing the current scroll position.
+  useEffect(() => { setCrews(initialCrews) }, [initialCrews])
+
+  // Force a fresh server render on every home mount so that messages sent
+  // while the user was in the chat room show up in previews immediately.
+  // Without this, Next.js serves a router-cached version (30s TTL) and
+  // useState(initialCrews) would display stale previews.
+  useEffect(() => {
+    router.refresh()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   const crewIds = crews.map((c) => c.crew.id)
 
   // ── Realtime: live message previews + unread counts ──────────────────────
