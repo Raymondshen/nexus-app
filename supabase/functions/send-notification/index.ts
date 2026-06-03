@@ -1,12 +1,15 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import webpush from 'npm:web-push'
 
-// Set once at module load, not per-request
-webpush.setVapidDetails(
-  Deno.env.get('VAPID_SUBJECT')!,
-  Deno.env.get('NEXT_PUBLIC_VAPID_PUBLIC_KEY')!,
-  Deno.env.get('VAPID_PRIVATE_KEY')!,
-)
+const VAPID_SUBJECT    = Deno.env.get('VAPID_SUBJECT')
+const VAPID_PUBLIC_KEY = Deno.env.get('NEXT_PUBLIC_VAPID_PUBLIC_KEY')
+const VAPID_PRIVATE_KEY = Deno.env.get('VAPID_PRIVATE_KEY')
+
+const VAPID_MISSING = !VAPID_SUBJECT || !VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY
+
+if (!VAPID_MISSING) {
+  webpush.setVapidDetails(VAPID_SUBJECT!, VAPID_PUBLIC_KEY!, VAPID_PRIVATE_KEY!)
+}
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin':  '*',
@@ -80,6 +83,18 @@ function buildPayload(type: NotificationType, data: Record<string, unknown>) {
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: CORS_HEADERS })
+  }
+
+  if (VAPID_MISSING) {
+    const missing = [
+      !VAPID_SUBJECT     && 'VAPID_SUBJECT',
+      !VAPID_PUBLIC_KEY  && 'NEXT_PUBLIC_VAPID_PUBLIC_KEY',
+      !VAPID_PRIVATE_KEY && 'VAPID_PRIVATE_KEY',
+    ].filter(Boolean).join(', ')
+    return new Response(
+      JSON.stringify({ error: `VAPID env vars not set: ${missing}` }),
+      { status: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } },
+    )
   }
 
   try {
