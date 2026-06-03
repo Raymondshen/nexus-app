@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useChatStore, XP_PER_LEVEL } from '@/store/chatStore'
 import { getXPProgress } from '@/lib/game/xp'
@@ -187,16 +188,42 @@ export function ChatHeader({
           style={{ background: 'linear-gradient(90deg, transparent, rgba(191,95,255,0.4), transparent)' }}
         />
 
-        {/* Row 1: crew name + share + level badge */}
+        {/* Row 1: back chevron + crew name | vault + share + level + avatar */}
         <div className="flex items-center justify-between mb-2">
-          <h1 className="font-pixel text-[11px] text-white truncate mr-2">
-            {crew.name}
-          </h1>
-          <div className="flex items-center gap-2 flex-shrink-0">
+          {/* Left: back + name */}
+          <div className="flex items-center gap-1 min-w-0 flex-1">
+            <button
+              onClick={() => router.back()}
+              aria-label="Back"
+              className="flex-shrink-0 flex items-center justify-center"
+              style={{ minWidth: 36, minHeight: 44 }}
+            >
+              {/* pixel left chevron */}
+              <svg width="8" height="12" viewBox="0 0 8 12" fill="#bf5fff" aria-hidden="true">
+                <rect x="4" y="0" width="4" height="4" />
+                <rect x="0" y="4" width="4" height="4" />
+                <rect x="4" y="8" width="4" height="4" />
+              </svg>
+            </button>
+            <h1 className="font-pixel text-[11px] text-white truncate">
+              {crew.name}
+            </h1>
+          </div>
+
+          {/* Right: vault + share + level + avatar */}
+          <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
+            <Link
+              href={`/vault/${crewId}`}
+              aria-label="View vault"
+              className="flex items-center justify-center text-[#3d2660] hover:text-[#6b4f8f] transition-colors"
+              style={{ minWidth: 36, minHeight: 44, fontSize: 16 }}
+            >
+              🏛
+            </Link>
             <button
               onClick={() => setShowShare(true)}
-              className="font-pixel text-[8px] text-[#3d2660] hover:text-[#6b4f8f] transition-colors px-1 py-1"
-              style={{ minWidth: 44, minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              className="flex items-center justify-center text-[#3d2660] hover:text-[#6b4f8f] transition-colors"
+              style={{ minWidth: 36, minHeight: 44, fontSize: 14 }}
               aria-label="Share crew invite code"
             >
               🔗

@@ -261,7 +261,8 @@ export function ChatInput({ crewId, userId, userProfile }: ChatInputProps) {
 
   return (
     <div
-      className="border-t border-[#1a1a2e] bg-[#080514] px-3 py-2 relative flex-shrink-0"
+      className="border-t border-[#1a1a2e] bg-[#080514] px-3 pt-2 relative flex-shrink-0"
+      style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 8px)' }}
     >
       {/* Damage floats */}
       <DamageFloat floats={damageFloats} onDismiss={dismissDamageFloat} />

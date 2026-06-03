@@ -4,7 +4,6 @@ import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { ChatHeader } from "@/components/chat/ChatHeader";
 import { MessageList } from "@/components/chat/MessageList";
 import { ChatInput } from "@/components/chat/ChatInput";
-import { BottomNav } from "@/components/ui/BottomNav";
 import { WelcomeDetector } from "@/components/ui/WelcomeDetector";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import type { Profile, Crew, ActiveRaid } from "@/types";
@@ -143,7 +142,6 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
         />
       </ErrorBoundary>
 
-      <BottomNav crewId={crewId} />
     </div>
   );
 }
