@@ -6,9 +6,13 @@ import type { Database } from '@/types'
 // Service-role client — bypasses RLS; safe inside unstable_cache (no cookies/headers).
 // Always verify auth + membership with the cookie-based client before using this.
 export function createServiceClient() {
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!serviceKey) {
+    throw new Error('[Nexus] SUPABASE_SERVICE_ROLE_KEY is not set. Add it to your Vercel environment variables.')
+  }
   return createSupabaseClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    serviceKey,
     { auth: { persistSession: false } }
   )
 }
