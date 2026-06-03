@@ -45,6 +45,7 @@ src/
       home/loading.tsx
       profile/page.tsx
       profile/ProfileClient.tsx
+      profile/actions.ts
       profile/loading.tsx
       onboarding/page.tsx
       onboarding/create/page.tsx
@@ -87,7 +88,7 @@ src/
   lib/
     supabase/
       client.ts
-      server.ts
+      server.ts  ← createClient() (cookie-based, request-scoped) + createServiceClient() (service role, for unstable_cache)
     game/
       xp.ts
       boss.ts
@@ -293,10 +294,15 @@ Next.js 16 uses `proxy.ts` instead of `middleware.ts` for route interception.
 #### Chat page (src/app/(app)/chat/[crewId]/page.tsx)
 Server component; 2-stage parallel fetch:
 - Stage 1: getSession() + params (cookie-only, instant)
-- Stage 2: crew_members (user_id + last_seen + profiles join), crews, active_raids — all parallel
+- Stage 2 (all parallel):
+  - getCachedMemberProfiles(crewId) — unstable_cache (60s TTL, tag crew-members:{crewId}) via service client; returns user_id + profile join
+  - crews — NOT cached (total_xp changes on every message; initialXP must be fresh)
+  - active_raids — NOT cached (changes on boss spawn/defeat)
+  - crew_members.last_seen — NOT cached (changes every 60s; used for online presence dots)
+- Membership check uses the fresh last_seen rows (RLS returns empty for non-members); redirects to /home if not a member
 - Messages are NOT fetched server-side; MessageList fetches its own history client-side
 - Page renders header + input + nav immediately; message history appears once client fetch resolves
-- Membership check via RLS on crew_members; redirects to /home if not a member
+- Cache invalidated by revalidateTag('crew-members:{crewId}', 'max') in joinCrewAction and leaveCrewAction
 - Accepts ?welcome=1 to trigger WelcomeDetector
 
 #### Chat loading (src/app/(app)/chat/[crewId]/loading.tsx)
@@ -305,10 +311,15 @@ Shown instantly on navigation before server render completes.
 
 #### MessageList (src/components/chat/MessageList.tsx)
 - Fetches own message history client-side on mount (async IIFE, crewId dependency)
+  — stale-while-revalidate via sessionStorage key `nexus-msgs-{crewId}`:
+      1. Load cached messages synchronously → setMessages(cached) + setHistoryLoaded(true) in same effect tick
+      2. React 18 batches both updates so skeleton never flashes when cache exists
+      3. Fresh Supabase fetch runs in background → merges with Realtime messages already in store
+      4. Merged result saves back to sessionStorage (capped at 50 messages)
   — descending order + limit 50 + reverse = newest 50 in chronological order
-  — calls setMessages([]) before the fetch so stale messages from a previous crew don't bleed in
+  — calls setMessages([]) before cache/fetch so stale messages from a previous crew don't bleed in
   — merges with any messages already in store (Realtime events that arrived during fetch)
-  — shows inline skeleton while loading; campfire empty state when genuinely no messages
+  — shows inline skeleton only on true cache miss; campfire empty state when genuinely no messages
   — cancelled flag prevents stale state on rapid navigation
 - Realtime: single channel `messages:{crewId}` subscribing to three events:
   1. Broadcast `new_message` events (instant delivery from sender)
@@ -367,7 +378,7 @@ element_type logic is mirrored server-side in insert_message Postgres function a
 - public/manifest.json: name, icons, shortcuts (chat + vault), theme #0a0612, standalone portrait
 - public/icons/icon-192.png + icon-512.png: pixel N on dark bg, gold sword
 - public/offline.html: zero-dependency standalone page, 30s auto-retry
-- next.config.ts: next-pwa enabled in production only; CacheFirst static assets (30d), NetworkFirst API/Supabase/pages (10s timeout), offline fallback /offline.html, auth routes excluded from SW
+- next.config.ts: next-pwa enabled in production only; CacheFirst static assets (30d) + Google avatars (7d) + all Supabase Storage public paths (30d); NetworkFirst API/Supabase REST/pages (10s timeout); offline fallback /offline.html; auth routes excluded from SW
 - worker/index.js: custom service worker — handles `push` event (showNotification) and `notificationclick` (focus or open tab at data.url). Must exist; without it push messages are received but silently discarded.
 - src/lib/notifications.ts:
   - isSupported(): checks Notification + serviceWorker + PushManager + VAPID key
@@ -388,19 +399,20 @@ element_type logic is mirrored server-side in insert_message Postgres function a
 - src/app/(app)/home/HomeClient.tsx: SwipeableCrewCard — swipe right-to-left (88px) reveals LEAVE button; single openCardId ensures only one card open; tap open card closes it; LeaveConfirmSheet (last member → DELETE CREW); per-crew Realtime message preview subscriptions; Create Crew bottom sheet (calls createCrewAction server action)
   — Realtime preview update strategy: joins `messages:{crewId}` channels (same channel ChatInput broadcasts on) and listens for both `new_message` broadcast events (instant) and Postgres Changes INSERT (fallback). A `seenIds` Set deduplicates both paths to prevent double-counting unread badges.
   — Stale-preview fix: `router.refresh()` on every home mount forces a background server re-fetch so messages sent while the user was in the chat room appear in the preview immediately. A `useEffect([initialCrews])` sync effect applies the refreshed `initialCrews` prop into `crews` state (useState only runs once on mount).
-- src/app/(app)/home/actions.ts: leaveCrewAction — if last member deletes crew (CASCADE), else redistributes MVP artifacts then deletes crew_members row; revalidates /home
+- src/app/(app)/home/actions.ts: leaveCrewAction — if last member deletes crew (CASCADE), else redistributes MVP artifacts then deletes crew_members row; revalidates /home + revalidateTag('crew-members:{crewId}', 'max')
 - src/app/(app)/onboarding/create/actions.ts: createCrewAction — calls create_crew RPC, redirects to /chat/{id}?welcome=1; calls revalidatePath('/home') before redirect so the new crew row appears on back-navigation
-- src/app/(app)/onboarding/join/actions.ts: joinCrewAction — calls join_crew RPC; calls revalidatePath('/home') before redirect
+- src/app/(app)/onboarding/join/actions.ts: joinCrewAction — calls join_crew RPC; calls revalidatePath('/home') + revalidateTag('crew-members:{crewId}', 'max') before redirect
 - src/app/(app)/home/loading.tsx: pulsing skeleton shown instantly on navigation
 - src/app/(app)/onboarding/loading.tsx: pulsing skeleton — shown during membership DB query; prevents blank screen before redirect
 - Unread count cursor: crew_members.last_seen; ChatHeader updates it every 60s; HomeClient updates immediately on crew tap
 - Post-login flow: auth/callback → /home
 
 ### Profile Page (src/app/(app)/profile/)
-- src/app/(app)/profile/page.tsx: server component — fetches auth + profile (username, avatar_url, isDev flag)
+- src/app/(app)/profile/page.tsx: server component — profile row (username, avatar_url) fetched via unstable_cache (60s TTL, tag profile:{userId}) using service client; auth session stays uncached
+- src/app/(app)/profile/actions.ts: revalidateProfileAction — server action called by ProfileClient after a successful username save; busts profile:{userId} tag so next visit shows fresh username
 - src/app/(app)/profile/ProfileClient.tsx: client component with:
   - Avatar display (Google photo or initials, 80px)
-  - Username input with inline SAVE button; case-insensitive uniqueness pre-check before DB write; error states: success / taken / error
+  - Username input with inline SAVE button; case-insensitive uniqueness pre-check before DB write; error states: success / taken / error; calls revalidateProfileAction() on success
   - Notifications section: ENABLE button → requestPermission() → subscribeToPush(); shows sub_failed error + RETRY if subscription fails; when granted shows 3 toggle switches (Messages / Raid Alerts / Victory) — prefs upserted on each change
   - LOG OUT button → signOut() → router.push('/login')
   - Back navigation via router.back()
@@ -409,7 +421,7 @@ element_type logic is mirrored server-side in insert_message Postgres function a
 - Logout handled exclusively from profile page
 
 ### Vault
-- src/app/(app)/vault/[crewId]/page.tsx: parallel queries (auth+params → membership/crew/artifacts simultaneously)
+- src/app/(app)/vault/[crewId]/page.tsx: membership check (fresh, cookie-based client) runs in parallel with getCachedVaultContent(crewId); crew name + artifacts cached via unstable_cache (300s TTL, tags vault:{crewId} + artifacts:{crewId}) using service client; artifacts are immutable after drop so 5-min staleness is acceptable
 - src/app/(app)/vault/[crewId]/loading.tsx: pulsing skeleton shown instantly on tab tap
 - src/components/game/VaultClient.tsx: grid + timeline view toggle; filter tabs (ALL/RELICS/GEAR/LEGENDARY); artifact detail modal with share-as-image (html-to-image); BottomNav included
 
@@ -431,6 +443,29 @@ RELOAD button calls window.location.reload() — setState reset was unreliable f
 ## Disabled Features (wired for future)
 - Voice notes: ChatInput voice button removed; XP_VALUES['voice'] = 25 still defined; element type 'lightning' still assigned server-side
 - Image upload: ChatInput attach button removed; upload logic, browser-image-compression, chat-images bucket all still exist and work; element type 'nature' still assigned server-side
+
+## Caching Architecture
+
+### Server-side (Next.js Data Cache via unstable_cache)
+All server caches use `createServiceClient()` (service role, no cookies) inside the cache function so the cache can be shared across users safely. Auth + membership is always verified outside the cache with the cookie-based client first.
+
+| Cache | TTL | Tag | Invalidated by |
+|---|---|---|---|
+| Vault crew + artifacts | 300s | `vault:{crewId}`, `artifacts:{crewId}` | TTL (artifacts are immutable; chat shows artifact via Realtime immediately) |
+| Chat member profiles | 60s | `crew-members:{crewId}` | joinCrewAction, leaveCrewAction |
+| Profile (username, avatar_url) | 60s | `profile:{userId}` | revalidateProfileAction (called after username save) |
+
+**Next.js 16 note:** `revalidateTag(tag, 'max')` — second argument is required in Next.js 16 (deprecated without it). Use `'max'` for full invalidation across all cache tiers.
+
+**What is NOT cached (must stay fresh):**
+- `crews.total_xp` / `crews.level` — changes with every message; used as initialXP for XP bar
+- `active_raids` — changes on boss spawn/defeat
+- `crew_members.last_seen` — changes every 60s; used for online presence dots
+- Auth sessions — always request-scoped via `getSession()`
+
+### Client-side
+- **Message history** (`nexus-msgs-{crewId}` in sessionStorage): stale-while-revalidate in MessageList; last 50 messages shown instantly on re-entry, fresh fetch merges in background. React 18 batching prevents skeleton flash on cache hit.
+- **Service worker** (next.config.ts runtimeCaching): CacheFirst for all static assets + all Supabase Storage public paths (chat-images, artifacts, avatars); NetworkFirst for Supabase REST API calls and pages.
 
 ## localStorage Keys
 - nexus_first_message: timestamp (ms) of user's first sent message — triggers InstallPrompt after 10s
@@ -470,6 +505,9 @@ RELOAD button calls window.location.reload() — setState reset was unreliable f
 - Logout: handled from /profile page only — ProfileClient calls signOut() then router.push('/login')
 - Server actions that create or join crews MUST call revalidatePath('/home') before redirect so the new crew row appears immediately on back-navigation
 - Edge Function notification fetches: always use Promise.allSettled() — fire-and-forget fetches may be terminated by the Deno runtime before completion
+- Server caching with unstable_cache: always use createServiceClient() (not createClient()) inside the cache function — createClient() reads cookies which disables cross-request caching. Always verify auth + membership with the cookie-based client BEFORE calling the cached function.
+- revalidateTag in Next.js 16 requires two arguments: revalidateTag(tag, 'max') — the single-arg form is deprecated and logs a warning
+- Do NOT cache: crews.total_xp (changes every message), active_raids (changes on boss events), crew_members.last_seen (presence data), auth sessions
 
 ## Image Rules
 - All user-uploaded images MUST be compressed client-side with `browser-image-compression` before upload: `maxSizeMB: 0.5`, `maxWidthOrHeight: 1024`, `useWebWorker: true`, `fileType: 'image/webp'`

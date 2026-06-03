@@ -113,9 +113,29 @@ export function MessageList({
 
   // Fetch message history client-side so it always works regardless of server
   // streaming errors, and retries cleanly on navigation.
+  // Stale-while-revalidate: load from sessionStorage instantly, then background-
+  // fetch fresh data and merge. React 18 batches the synchronous state updates
+  // inside this effect so cache hits never cause a skeleton flash.
   useEffect(() => {
     setHistoryLoaded(false)
     setMessages([])
+    const cacheKey = `nexus-msgs-${crewId}`
+
+    // Synchronous cache load — React 18 batches this with the resets above,
+    // so we get a single render with messages visible (no skeleton flash).
+    try {
+      const raw = sessionStorage.getItem(cacheKey)
+      if (raw) {
+        const parsed = JSON.parse(raw) as MessageWithProfile[]
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setMessages(parsed)
+          setHistoryLoaded(true)
+        }
+      }
+    } catch {
+      // sessionStorage unavailable or JSON malformed — proceed to network fetch
+    }
+
     let cancelled = false
 
     ;(async () => {
@@ -150,6 +170,13 @@ export function MessageList({
         ].sort((a, b) => a.created_at.localeCompare(b.created_at))
 
         setMessages(merged)
+
+        // Persist the latest 50 messages for instant display on re-entry.
+        try {
+          sessionStorage.setItem(cacheKey, JSON.stringify(merged.slice(-50)))
+        } catch {
+          // Storage quota exceeded — skip silently
+        }
       } catch {
         // Network error — Realtime subscription still delivers live messages
       } finally {

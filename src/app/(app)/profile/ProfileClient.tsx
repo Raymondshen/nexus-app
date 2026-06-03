@@ -9,6 +9,7 @@ import { createClient } from '@/lib/supabase/client'
 import { signOut } from '@/lib/supabase/auth'
 import { isSupported, getPermissionState, requestPermission, subscribeToPush } from '@/lib/notifications'
 import type { PermissionState } from '@/lib/notifications'
+import { revalidateProfileAction } from './actions'
 
 interface ProfileClientProps {
   userId:          string
@@ -100,6 +101,7 @@ export function ProfileClient({ userId, userEmail, initialUsername, avatarUrl, i
 
       setSaveStatus('success')
       setTimeout(() => setSaveStatus('idle'), 2000)
+      revalidateProfileAction()
     } catch {
       setSaveStatus('error')
     } finally {

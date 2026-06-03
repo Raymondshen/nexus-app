@@ -1,6 +1,6 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
 import { createClient } from '@supabase/supabase-js'
 import type { Database } from '@/types'
 
@@ -23,6 +23,7 @@ export async function leaveCrewAction(
   if (error) return { error: error.message }
 
   revalidatePath('/home')
+  revalidateTag(`crew-members:${crewId}`, 'max')
   const result = (data ?? {}) as { deleted?: boolean; ok?: boolean }
   return result.deleted ? { deleted: true } : {}
 }

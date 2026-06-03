@@ -64,6 +64,15 @@ const pwaConfig = {
         expiration: { maxEntries: 500, maxAgeSeconds: 30 * 24 * 60 * 60 },
       },
     },
+    // Supabase Storage (all other public buckets — artifacts, avatars, etc.): CacheFirst, 30 days
+    {
+      urlPattern: /^https:\/\/.*\.supabase\.co\/storage\/v1\/object\/public\/.*/i,
+      handler: 'CacheFirst',
+      options: {
+        cacheName: 'nexus-storage',
+        expiration: { maxEntries: 300, maxAgeSeconds: 30 * 24 * 60 * 60 },
+      },
+    },
     // API routes: NetworkFirst, 10s timeout
     {
       urlPattern: /^https?:\/\/[^/]+\/api\/.*/i,
