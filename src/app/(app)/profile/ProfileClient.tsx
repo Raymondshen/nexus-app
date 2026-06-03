@@ -469,11 +469,71 @@ function DevSection({ userId, userEmail }: { userId: string; userEmail: string }
 
   async function syncSubscription() {
     setSyncResult(null)
+    const steps: string[] = []
     try {
-      const sub = await subscribeToPush()
-      setSyncResult(sub ? `✓ Synced — ${sub.endpoint.slice(0, 40)}...` : '✗ subscribeToPush returned null')
+      // Step 1: supported?
+      const supported = typeof window !== 'undefined' && 'Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window && !!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+      steps.push(`supported=${supported}`)
+      if (!supported) { setSyncResult(steps.join(' | ')); return }
+
+      // Step 2: permission?
+      steps.push(`perm=${Notification.permission}`)
+      if (Notification.permission !== 'granted') { setSyncResult(steps.join(' | ')); return }
+
+      // Step 3: SW ready?
+      const reg = await navigator.serviceWorker.ready
+      steps.push('sw=ready')
+
+      // Step 4: existing subscription?
+      const existing = await reg.pushManager.getSubscription()
+      steps.push(`existing=${existing ? existing.endpoint.slice(-20) : 'none'}`)
+
+      // Step 5: subscribe
+      let sub = existing
+      if (!sub) {
+        try {
+          const padding = '='.repeat((4 - (process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!.length % 4)) % 4)
+          const base64  = (process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY! + padding).replace(/-/g, '+').replace(/_/g, '/')
+          const raw     = window.atob(base64)
+          const bytes   = new Uint8Array(new ArrayBuffer(raw.length))
+          for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i)
+          sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: bytes })
+          steps.push('subscribed=new')
+        } catch (subErr) {
+          steps.push(`subscribe_err=${String(subErr).slice(0, 60)}`)
+          setSyncResult(steps.join(' | '))
+          return
+        }
+      }
+
+      // Step 6: session?
+      const { createClient } = await import('@/lib/supabase/client')
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      steps.push(`session=${session?.user?.id?.slice(0, 8) ?? 'null'}`)
+      if (!session?.user) { setSyncResult(steps.join(' | ')); return }
+
+      // Step 7: upsert
+      const json   = sub.toJSON()
+      const p256dh = json.keys?.p256dh
+      const auth   = json.keys?.auth
+      if (!p256dh || !auth) { steps.push('keys=missing'); setSyncResult(steps.join(' | ')); return }
+
+      const { error } = await supabase
+        .from('push_subscriptions')
+        .upsert(
+          { user_id: session.user.id, endpoint: sub.endpoint, p256dh, auth },
+          { onConflict: 'endpoint' },
+        )
+      if (error) {
+        steps.push(`upsert_err=${error.message}`)
+      } else {
+        steps.push('upsert=ok')
+      }
+      setSyncResult(steps.join(' | '))
     } catch (err) {
-      setSyncResult(`✗ ${String(err)}`)
+      steps.push(`err=${String(err).slice(0, 80)}`)
+      setSyncResult(steps.join(' | '))
     }
   }
 
