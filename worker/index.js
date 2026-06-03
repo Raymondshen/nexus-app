@@ -19,6 +19,11 @@ self.addEventListener('push', (event) => {
       // tag collapses duplicate alerts for the same URL instead of stacking them
       tag:      (data.data && data.data.url) || 'nexus',
       renotify: true,
+    }).then(() => {
+      // Increment the home-screen icon badge so the user sees unread activity
+      // even without opening the notification tray. Badge API is supported on
+      // iOS 16.4+ PWAs and Chrome/Edge desktop. Optional-chain guards older envs.
+      self.navigator.setAppBadge?.()
     })
   )
 })
@@ -53,6 +58,10 @@ self.addEventListener('notificationclick', (event) => {
           }
         }
         return clients.openWindow(targetUrl)
+      })
+      .then(() => {
+        // Clear the badge once the user has acknowledged the notification.
+        self.navigator.clearAppBadge?.()
       })
   )
 })
