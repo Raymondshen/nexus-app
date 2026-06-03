@@ -4,6 +4,7 @@ import { useState, useRef } from 'react'
 import Image from 'next/image'
 import { format, isToday, isYesterday } from 'date-fns'
 import type { MessageWithProfile, ElementType } from '@/types'
+import { PixelSprite, spriteIdFor } from '@/components/game/PixelSprite'
 
 const ELEMENT_COLORS: Record<ElementType, string> = {
   fire:      '#ff4444',
@@ -69,6 +70,7 @@ export function MessageBubble({ message, isOwn, showHeader }: MessageBubbleProps
 
   const initial      = message.profile.username[0]?.toUpperCase() ?? '?'
   const avatarUrl    = message.profile.avatar_url as string | null | undefined
+  const spriteId     = spriteIdFor(message.profile.avatar_class)
   const elementColor = message.element_type ? ELEMENT_COLORS[message.element_type] : null
 
   return (
@@ -82,13 +84,17 @@ export function MessageBubble({ message, isOwn, showHeader }: MessageBubbleProps
       {/* Avatar — only shown for received messages */}
       {!isOwn && (
         <div
-          className="w-7 h-7 flex-shrink-0 relative overflow-hidden bg-[#2a1545] border border-[#3d2660] font-pixel text-[9px] text-[#bf5fff] flex items-center justify-center"
-          style={{ visibility: showHeader ? 'visible' : 'hidden' }}
+          className="flex-shrink-0 flex items-center justify-center bg-[#2a1545] border border-[#3d2660]"
+          style={{ width: spriteId ? 24 : 28, height: spriteId ? 24 : 28, visibility: showHeader ? 'visible' : 'hidden' }}
         >
-          {avatarUrl ? (
-            <Image src={avatarUrl} alt={message.profile.username} fill sizes="28px" className="object-cover" />
+          {spriteId ? (
+            <PixelSprite spriteId={spriteId} scale={1} direction="south" />
+          ) : avatarUrl ? (
+            <div className="relative w-7 h-7 overflow-hidden">
+              <Image src={avatarUrl} alt={message.profile.username} fill sizes="28px" className="object-cover" />
+            </div>
           ) : (
-            initial
+            <span className="font-pixel text-[9px] text-[#bf5fff]">{initial}</span>
           )}
         </div>
       )}

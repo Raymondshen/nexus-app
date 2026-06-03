@@ -10,12 +10,14 @@ import { signOut } from '@/lib/supabase/auth'
 import { isSupported, getPermissionState, requestPermission, subscribeToPush } from '@/lib/notifications'
 import type { PermissionState } from '@/lib/notifications'
 import { revalidateProfileAction } from './actions'
+import { PixelSprite, spriteIdFor } from '@/components/game/PixelSprite'
 
 interface ProfileClientProps {
   userId:          string
   userEmail:       string
   initialUsername: string
   avatarUrl:       string | null
+  avatarClass:     string | null
   isDev:           boolean
   isGuest:         boolean
 }
@@ -57,7 +59,7 @@ function ToggleSwitch({ enabled, onChange, disabled }: { enabled: boolean; onCha
   )
 }
 
-export function ProfileClient({ userId, userEmail, initialUsername, avatarUrl, isDev, isGuest }: ProfileClientProps) {
+export function ProfileClient({ userId, userEmail, initialUsername, avatarUrl, avatarClass, isDev, isGuest }: ProfileClientProps) {
   const router = useRouter()
 
   // ── Username ──────────────────────────────────────────────────────────────
@@ -234,6 +236,25 @@ export function ProfileClient({ userId, userEmail, initialUsername, avatarUrl, i
             {avatarUrl ? 'SYNCED FROM GOOGLE' : 'NO AVATAR'}
           </p>
         </div>
+
+        {/* ── Character sprite ── */}
+        {(() => {
+          const spriteId = spriteIdFor(avatarClass) ?? 'necromancer'
+          return (
+            <section className="flex flex-col items-center gap-4">
+              <p className="font-pixel text-[9px] text-[#bf5fff] tracking-widest self-start">CHARACTER</p>
+              <div
+                className="w-full flex flex-col items-center gap-4 py-6 border border-[#2a1545]"
+                style={{ background: 'radial-gradient(ellipse 80% 60% at 50% 50%, rgba(191,95,255,0.07) 0%, transparent 70%)' }}
+              >
+                <PixelSprite spriteId={spriteId} scale={6} animate />
+                <p className="font-pixel text-[8px] text-[#6b4f8f] tracking-widest uppercase">
+                  {avatarClass ?? spriteId}
+                </p>
+              </div>
+            </section>
+          )
+        })()}
 
         {/* ── Username ── */}
         <section>
