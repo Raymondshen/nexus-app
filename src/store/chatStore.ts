@@ -21,6 +21,7 @@ interface ChatStore {
   updateMessage:    (id: string, patch: Partial<Message>) => void
   setCrewXP:        (xp: number) => void
   addXP:            (amount: number) => void
+  receiveXP:        (earned: number, newTotal: number) => void
   setActiveRaid:    (raid: ActiveRaid | null) => void
   dismissXPFloat:   (id: number) => void
   addDamageFloat:   (damage: number, elementType: ElementType | null) => void
@@ -63,6 +64,14 @@ export const useChatStore = create<ChatStore>((set) => ({
         xpFloats:  [...s.xpFloats, { id: floatId, amount }],
       }
     }),
+
+  // Sets the authoritative XP total and shows a float — use for remote XP events.
+  receiveXP: (earned, newTotal) =>
+    set((s) => ({
+      crewXP:    newTotal,
+      crewLevel: getLevelFromXP(newTotal),
+      xpFloats:  [...s.xpFloats, { id: ++floatCounter, amount: earned }],
+    })),
 
   setActiveRaid: (raid) => set({ activeRaid: raid }),
 

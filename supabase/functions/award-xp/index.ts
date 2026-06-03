@@ -340,7 +340,7 @@ Deno.serve(async (req: Request) => {
     }
 
     return new Response(
-      JSON.stringify({ xp_earned: xpAwarded, new_level: newLevel }),
+      JSON.stringify({ xp_earned: xpAwarded, new_level: newLevel, new_total_xp: newXP }),
       { headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
     )
   } catch (err) {

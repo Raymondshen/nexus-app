@@ -99,7 +99,7 @@ export function MessageList({
   memberProfiles,
   initialRaid,
 }: MessageListProps) {
-  const { messages, setMessages, addMessage, updateMessage } = useChatStore()
+  const { messages, setMessages, addMessage, updateMessage, setCrewXP, receiveXP } = useChatStore()
   const [dismissedLevelUps, setDismissedLevelUps] = useState<Set<string>>(new Set())
   const [historyLoaded, setHistoryLoaded] = useState(false)
 
@@ -218,6 +218,20 @@ export function MessageList({
         // loop to throw (content.startsWith is called without a null check).
         if (msg?.id && typeof msg.content === 'string') addMessage(msg)
       })
+      // XP sync: sender broadcasts authoritative total after award-xp resolves.
+      // Receivers show the float + snap to correct total; sender just corrects drift.
+      .on('broadcast', { event: 'xp_update' }, (payload) => {
+        const { xp_earned, new_total_xp, sender_id } =
+          payload.payload as { xp_earned: number; new_total_xp: number; sender_id: string }
+        if (typeof new_total_xp !== 'number') return
+        if (sender_id === currentUserId) {
+          setCrewXP(new_total_xp)
+        } else if (xp_earned > 0) {
+          receiveXP(xp_earned, new_total_xp)
+        } else {
+          setCrewXP(new_total_xp)
+        }
+      })
       // Postgres Changes: backup path (catches missed broadcasts / reconnects).
       .on(
         'postgres_changes',
@@ -241,7 +255,7 @@ export function MessageList({
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
-  }, [crewId, addMessage, updateMessage, resolveProfile])
+  }, [crewId, currentUserId, addMessage, updateMessage, resolveProfile, setCrewXP, receiveXP])
 
   // Show skeleton while the initial history fetch is in flight
   if (!historyLoaded) {

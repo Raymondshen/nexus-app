@@ -40,7 +40,7 @@ export function ChatInput({ crewId, userId, userProfile }: ChatInputProps) {
   const typingChannelRef = useRef<RealtimeChannel | null>(null)
   const msgChannelRef    = useRef<RealtimeChannel | null>(null)
 
-  const { addMessage, updateMessage, addXP, activeRaid, damageFloats, addDamageFloat, dismissDamageFloat } = useChatStore()
+  const { addMessage, updateMessage, addXP, setCrewXP, activeRaid, damageFloats, addDamageFloat, dismissDamageFloat } = useChatStore()
   const inRaid = !!(activeRaid && !activeRaid.defeated_at)
 
   // Read dev mode flag once on mount
@@ -157,9 +157,22 @@ export function ChatInput({ crewId, userId, userProfile }: ChatInputProps) {
         body: JSON.stringify({ message_id: msgId, crew_id: crewId, user_id: userId, username: userProfile.username, message_type: 'text', content }),
       })
         .then((r) => r.json())
-        .then((data: { xp_earned?: number }) => {
+        .then((data: { xp_earned?: number; new_total_xp?: number }) => {
           if (typeof data.xp_earned === 'number' && data.xp_earned > 0) {
             updateMessage(msgId, { xp_awarded: data.xp_earned })
+          }
+          // Correct any optimistic XP drift and notify other crew members.
+          if (typeof data.new_total_xp === 'number') {
+            setCrewXP(data.new_total_xp)
+            msgChannelRef.current?.send({
+              type:    'broadcast',
+              event:   'xp_update',
+              payload: {
+                xp_earned:   data.xp_earned ?? 0,
+                new_total_xp: data.new_total_xp,
+                sender_id:   userId,
+              },
+            })
           }
         })
         .catch(() => {})
