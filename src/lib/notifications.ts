@@ -47,6 +47,12 @@ export async function subscribeToPush(): Promise<PushSubscription | null> {
     if (attempt > 0) await new Promise((r) => setTimeout(r, 1500))
 
     try {
+      // Ensure sw-push.js is registered (next-pwa's generated sw.js fails on iOS
+      // due to multi-arg importScripts; sw-push.js is a minimal dependency-free SW)
+      const regs = await navigator.serviceWorker.getRegistrations()
+      if (regs.length === 0) {
+        await navigator.serviceWorker.register('/sw-push.js', { scope: '/' })
+      }
       const registration = await navigator.serviceWorker.ready
 
       // Use an existing subscription when available (calling subscribe() on iOS

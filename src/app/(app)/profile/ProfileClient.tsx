@@ -507,9 +507,9 @@ function DevSection({ userId, userEmail }: { userId: string; userEmail: string }
 
       // If nothing is registered yet, try to register now and wait up to 8s for it to activate
       if (regs.length === 0) {
-        show('2/6 regs=0 — attempting register /sw.js...')
+        show('2/6 regs=0 — attempting register /sw-push.js...')
         try {
-          await navigator.serviceWorker.register('/sw.js', { scope: '/' })
+          await navigator.serviceWorker.register('/sw-push.js', { scope: '/' })
           // Wait for the SW to activate (up to 8s)
           await withTimeout(navigator.serviceWorker.ready, 8000, 'sw.activate')
           regs = await navigator.serviceWorker.getRegistrations()

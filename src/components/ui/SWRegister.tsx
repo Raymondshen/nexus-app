@@ -11,7 +11,7 @@ export function SWRegister() {
     if (!('serviceWorker' in navigator)) return
 
     navigator.serviceWorker
-      .register('/sw.js', { scope: '/' })
+      .register('/sw-push.js', { scope: '/' })
       .catch((err) => console.error('[SW] registration failed:', err))
   }, [])
 
