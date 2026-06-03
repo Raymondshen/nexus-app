@@ -483,15 +483,27 @@ function DevSection({ userId, userEmail }: { userId: string; userEmail: string }
       const token = await getAuthToken()
       if (!token) { setTestResult('✗ No session'); return }
       const res  = await fetch('/api/test/push', { method: 'POST', headers: { Authorization: `Bearer ${token}` } })
-      const data = await res.json()
-      if (data.result?.status === 'no_subscriptions') {
-        setTestResult('✗ No subscriptions in DB — tap SYNC first')
-      } else if (data.result?.status === 'preference_disabled') {
-        setTestResult('✗ Message notifications disabled in preferences')
-      } else if (data.result?.results?.some((r: { status: string }) => r.status === 'sent')) {
+      const data = await res.json() as {
+        error?: string
+        fn_status?: number
+        fn_ok?: boolean
+        result?: unknown
+      }
+
+      // Route-level error (env vars missing, auth failed, etc.)
+      if (data.error) { setTestResult(`✗ Route: ${data.error}`); return }
+
+      // send-notification response
+      const result = data.result as Record<string, unknown> | undefined
+      if (result?.status === 'no_subscriptions') {
+        setTestResult('✗ No subscriptions in DB — tap SYNC SUB first')
+      } else if (result?.status === 'preference_disabled') {
+        setTestResult('✗ Message notifications disabled in your preferences')
+      } else if (Array.isArray(result?.results) && (result.results as {status:string}[]).some(r => r.status === 'sent')) {
         setTestResult('✓ Sent — check your notification tray')
       } else {
-        setTestResult(`Result: ${JSON.stringify(data.result)}`)
+        // Show everything for diagnosis
+        setTestResult(`fn_status=${data.fn_status} | ${JSON.stringify(result ?? data)}`)
       }
     } catch (err) {
       setTestResult(`✗ ${String(err)}`)

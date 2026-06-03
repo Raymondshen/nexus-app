@@ -7,7 +7,7 @@ export async function GET(request: NextRequest) {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
     const serviceKey  = process.env.SUPABASE_SERVICE_ROLE_KEY
     if (!supabaseUrl || !serviceKey) {
-      return NextResponse.json({ error: 'Server misconfigured' }, { status: 500 })
+      return NextResponse.json({ error: 'SUPABASE_SERVICE_ROLE_KEY not set on server' }, { status: 500 })
     }
 
     const token = request.headers.get('Authorization')?.replace('Bearer ', '')
@@ -23,15 +23,15 @@ export async function GET(request: NextRequest) {
       .eq('user_id', user.id)
 
     return NextResponse.json({
-      user_id:       user.id,
-      subs_in_db:    subs?.length ?? 0,
-      endpoints:     (subs ?? []).map((s) => ({
-        id:         s.id,
-        // Show enough to identify the push service (apns vs fcm) without leaking full URL
+      user_id:    user.id,
+      subs_in_db: subs?.length ?? 0,
+      endpoints:  (subs ?? []).map((s) => ({
+        id:               s.id,
         endpoint_preview: String(s.endpoint).slice(0, 60) + '...',
-        is_apns:    String(s.endpoint).includes('web.push.apple.com'),
-        created_at: s.created_at,
+        is_apns:          String(s.endpoint).includes('web.push.apple.com'),
+        created_at:       s.created_at,
       })),
+      vapid_configured: !!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
       subs_error: subsErr?.message ?? null,
     })
   } catch (err) {
@@ -41,40 +41,42 @@ export async function GET(request: NextRequest) {
 
 // POST — send a test notification to the calling user
 export async function POST(request: NextRequest) {
-  try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const serviceKey  = process.env.SUPABASE_SERVICE_ROLE_KEY
-    if (!supabaseUrl || !serviceKey) {
-      return NextResponse.json({ error: 'Server misconfigured' }, { status: 500 })
-    }
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const serviceKey  = process.env.SUPABASE_SERVICE_ROLE_KEY
 
+  if (!supabaseUrl) return NextResponse.json({ error: 'NEXT_PUBLIC_SUPABASE_URL not set' }, { status: 500 })
+  if (!serviceKey)  return NextResponse.json({ error: 'SUPABASE_SERVICE_ROLE_KEY not set on server' }, { status: 500 })
+
+  try {
     const token = request.headers.get('Authorization')?.replace('Bearer ', '')
     if (!token) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
 
     const admin = createClient(supabaseUrl, serviceKey)
     const { data: { user }, error: authErr } = await admin.auth.getUser(token)
-    if (authErr || !user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+    if (authErr || !user) return NextResponse.json({ error: `Auth failed: ${authErr?.message}` }, { status: 401 })
 
-    const res = await fetch(`${supabaseUrl}/functions/v1/send-notification`, {
-      method:  'POST',
-      headers: {
-        'Content-Type':  'application/json',
-        'Authorization': `Bearer ${serviceKey}`,
-      },
-      body: JSON.stringify({
-        user_id: user.id,
-        type:    'message_received',
-        payload: {
-          sender_name:     'Test',
-          content_preview: '🔔 Push notifications are working!',
-          crew_name:       'Nexus Dev',
-          crew_id:         'test',
-        },
-      }),
-    })
+    const fnUrl = `${supabaseUrl}/functions/v1/send-notification`
+    let res: Response
+    let rawText: string
+    try {
+      res = await fetch(fnUrl, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${serviceKey}` },
+        body: JSON.stringify({
+          user_id: user.id,
+          type:    'message_received',
+          payload: { sender_name: 'Test', content_preview: '🔔 Push is working!', crew_name: 'Dev', crew_id: 'test' },
+        }),
+      })
+      rawText = await res.text()
+    } catch (fetchErr) {
+      return NextResponse.json({ error: `fetch to send-notification failed: ${String(fetchErr)}` }, { status: 500 })
+    }
 
-    const result = await res.json()
-    return NextResponse.json({ ok: res.ok, status: res.status, result })
+    let result: unknown = rawText
+    try { result = JSON.parse(rawText) } catch { /* keep as raw text */ }
+
+    return NextResponse.json({ fn_status: res.status, fn_ok: res.ok, result })
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 })
   }
