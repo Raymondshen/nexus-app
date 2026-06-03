@@ -394,6 +394,7 @@ function DevSection({ userId, userEmail }: { userId: string; userEmail: string }
 
   const [pushStatus,  setPushStatus]  = useState<PushStatus | null>(null)
   const [pushLoading, setPushLoading] = useState(false)
+  const [syncLoading, setSyncLoading] = useState(false)
   const [testResult,  setTestResult]  = useState<string | null>(null)
   const [syncResult,  setSyncResult]  = useState<string | null>(null)
 
@@ -468,52 +469,33 @@ function DevSection({ userId, userEmail }: { userId: string; userEmail: string }
   }
 
   async function syncSubscription() {
-    setSyncResult(null)
+    setSyncLoading(true)
+    setSyncResult('checking...')
     const steps: string[] = []
     try {
-      // Step 1: supported?
-      const supported = typeof window !== 'undefined' && 'Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window && !!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
-      steps.push(`supported=${supported}`)
-      if (!supported) { setSyncResult(steps.join(' | ')); return }
-
-      // Step 2: permission?
+      steps.push(`supported=${!!('PushManager' in window) && !!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY}`)
       steps.push(`perm=${Notification.permission}`)
-      if (Notification.permission !== 'granted') { setSyncResult(steps.join(' | ')); return }
 
-      // Step 3: SW ready?
-      const reg = await navigator.serviceWorker.ready
-      steps.push('sw=ready')
-
-      // Step 4: existing subscription?
+      const reg      = await navigator.serviceWorker.ready
       const existing = await reg.pushManager.getSubscription()
-      steps.push(`existing=${existing ? existing.endpoint.slice(-20) : 'none'}`)
+      steps.push(`existing=${existing ? 'yes' : 'none'}`)
 
-      // Step 5: subscribe
       let sub = existing
       if (!sub) {
-        try {
-          const padding = '='.repeat((4 - (process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!.length % 4)) % 4)
-          const base64  = (process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY! + padding).replace(/-/g, '+').replace(/_/g, '/')
-          const raw     = window.atob(base64)
-          const bytes   = new Uint8Array(new ArrayBuffer(raw.length))
-          for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i)
-          sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: bytes })
-          steps.push('subscribed=new')
-        } catch (subErr) {
-          steps.push(`subscribe_err=${String(subErr).slice(0, 60)}`)
-          setSyncResult(steps.join(' | '))
-          return
-        }
+        const padding = '='.repeat((4 - (process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!.length % 4)) % 4)
+        const base64  = (process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY! + padding).replace(/-/g, '+').replace(/_/g, '/')
+        const raw     = window.atob(base64)
+        const bytes   = new Uint8Array(new ArrayBuffer(raw.length))
+        for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i)
+        sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: bytes })
+        steps.push('subscribed=new')
       }
 
-      // Step 6: session?
-      const { createClient } = await import('@/lib/supabase/client')
       const supabase = createClient()
       const { data: { session } } = await supabase.auth.getSession()
-      steps.push(`session=${session?.user?.id?.slice(0, 8) ?? 'null'}`)
+      steps.push(`uid=${session?.user?.id?.slice(0, 8) ?? 'null'}`)
       if (!session?.user) { setSyncResult(steps.join(' | ')); return }
 
-      // Step 7: upsert
       const json   = sub.toJSON()
       const p256dh = json.keys?.p256dh
       const auth   = json.keys?.auth
@@ -525,15 +507,12 @@ function DevSection({ userId, userEmail }: { userId: string; userEmail: string }
           { user_id: session.user.id, endpoint: sub.endpoint, p256dh, auth },
           { onConflict: 'endpoint' },
         )
-      if (error) {
-        steps.push(`upsert_err=${error.message}`)
-      } else {
-        steps.push('upsert=ok')
-      }
+      steps.push(error ? `upsert_err=${error.message}` : 'upsert=ok')
       setSyncResult(steps.join(' | '))
     } catch (err) {
-      steps.push(`err=${String(err).slice(0, 80)}`)
-      setSyncResult(steps.join(' | '))
+      setSyncResult([...steps, `THROW: ${String(err).slice(0, 100)}`].join(' | '))
+    } finally {
+      setSyncLoading(false)
     }
   }
 
@@ -651,10 +630,11 @@ function DevSection({ userId, userEmail }: { userId: string; userEmail: string }
             </button>
             <button
               onClick={syncSubscription}
-              className="flex-1 h-8 font-pixel text-[7px] border transition-colors"
+              disabled={syncLoading}
+              className="flex-1 h-8 font-pixel text-[7px] border transition-colors disabled:opacity-50"
               style={{ color: '#00e5ff', borderColor: 'rgba(0,229,255,0.3)', background: 'rgba(0,229,255,0.06)' }}
             >
-              SYNC SUB
+              {syncLoading ? '...' : 'SYNC SUB'}
             </button>
             <button
               onClick={sendTestNotification}
@@ -676,8 +656,8 @@ function DevSection({ userId, userEmail }: { userId: string; userEmail: string }
               {pushStatus.error && <p className="text-[#ff4444]">{pushStatus.error}</p>}
             </div>
           )}
-          {syncResult  && <p className="font-sans text-[10px] text-[#00e5ff] mt-1">{syncResult}</p>}
-          {testResult  && <p className="font-sans text-[10px] text-[#bf5fff] mt-1">{testResult}</p>}
+          {syncResult  && <p className="font-sans text-[11px] text-[#00e5ff] mt-2 break-all leading-relaxed bg-black/30 p-2">{syncResult}</p>}
+          {testResult  && <p className="font-sans text-[11px] text-[#bf5fff] mt-2 break-all leading-relaxed bg-black/30 p-2">{testResult}</p>}
         </div>
 
         {/* Reset localStorage flags */}
