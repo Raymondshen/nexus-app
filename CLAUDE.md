@@ -266,6 +266,9 @@ Next.js 16 uses `proxy.ts` instead of `middleware.ts` for route interception.
 - File: `src/proxy.ts` — exports `proxy()` function + `config.matcher`
 - Auth guard: unauthenticated requests to protected routes redirect to /login
 - Protected prefixes: /home, /chat, /vault, /party, /profile, /onboarding
+- Uses `getSession()` (cookie-only, no network) NOT `getUser()` for the auth check.
+  `getUser()` makes a server-side roundtrip to Supabase Auth on every request (+100–300ms per nav).
+  Per-page server components call `getSession()` too, so the proxy is consistent.
 - Build command in vercel.json: `next build --webpack` (next-pwa requires webpack;
   Turbopack breaks it and generates an internal proxy.ts that conflicts with ours)
 - DO NOT add a `src/middleware.ts` — Next.js 16 errors if both exist
@@ -383,10 +386,13 @@ element_type logic is mirrored server-side in insert_message Postgres function a
 ### Home Screen (src/app/(app)/home/)
 - src/app/(app)/home/page.tsx: server component; parallel queries — profiles + crew_members together, then all crew/message/unread queries together; unread count queries use head:true (zero body egress)
 - src/app/(app)/home/HomeClient.tsx: SwipeableCrewCard — swipe right-to-left (88px) reveals LEAVE button; single openCardId ensures only one card open; tap open card closes it; LeaveConfirmSheet (last member → DELETE CREW); per-crew Realtime message preview subscriptions; Create Crew bottom sheet (calls createCrewAction server action)
+  — Realtime preview update strategy: joins `messages:{crewId}` channels (same channel ChatInput broadcasts on) and listens for both `new_message` broadcast events (instant) and Postgres Changes INSERT (fallback). A `seenIds` Set deduplicates both paths to prevent double-counting unread badges.
+  — Stale-preview fix: `router.refresh()` on every home mount forces a background server re-fetch so messages sent while the user was in the chat room appear in the preview immediately. A `useEffect([initialCrews])` sync effect applies the refreshed `initialCrews` prop into `crews` state (useState only runs once on mount).
 - src/app/(app)/home/actions.ts: leaveCrewAction — if last member deletes crew (CASCADE), else redistributes MVP artifacts then deletes crew_members row; revalidates /home
 - src/app/(app)/onboarding/create/actions.ts: createCrewAction — calls create_crew RPC, redirects to /chat/{id}?welcome=1; calls revalidatePath('/home') before redirect so the new crew row appears on back-navigation
 - src/app/(app)/onboarding/join/actions.ts: joinCrewAction — calls join_crew RPC; calls revalidatePath('/home') before redirect
 - src/app/(app)/home/loading.tsx: pulsing skeleton shown instantly on navigation
+- src/app/(app)/onboarding/loading.tsx: pulsing skeleton — shown during membership DB query; prevents blank screen before redirect
 - Unread count cursor: crew_members.last_seen; ChatHeader updates it every 60s; HomeClient updates immediately on crew tap
 - Post-login flow: auth/callback → /home
 
