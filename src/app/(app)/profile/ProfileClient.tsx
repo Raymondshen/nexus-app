@@ -556,13 +556,15 @@ function DevSection({ userId, userEmail }: { userId: string; userEmail: string }
       const auth   = json.keys?.auth
       if (!p256dh || !auth) { show('5/6 keys=MISSING'); return }
 
+      await supabase
+        .from('push_subscriptions')
+        .delete()
+        .match({ endpoint: sub.endpoint, user_id: session.user.id })
+
       const { error } = await supabase
         .from('push_subscriptions')
-        .upsert(
-          { user_id: session.user.id, endpoint: sub.endpoint, p256dh, auth },
-          { onConflict: 'endpoint' },
-        )
-      show(error ? `6/6 upsert FAILED: ${error.message}` : '6/6 upsert=OK — done!')
+        .insert({ user_id: session.user.id, endpoint: sub.endpoint, p256dh, auth })
+      show(error ? `6/6 insert FAILED: ${error.message}` : '6/6 insert=OK — done!')
     } catch (err) {
       show(`STOPPED: ${String(err).slice(0, 120)}`)
     } finally {

@@ -81,12 +81,16 @@ export async function subscribeToPush(): Promise<PushSubscription | null> {
       if (!session?.user) return null
       const userId = session.user.id
 
+      // Delete→insert instead of upsert: avoids relying on the unique index
+      // existing in the DB (ON CONFLICT fails if the index isn't there yet).
+      await supabase
+        .from('push_subscriptions')
+        .delete()
+        .match({ endpoint: subscription.endpoint, user_id: userId })
+
       const { error } = await supabase
         .from('push_subscriptions')
-        .upsert(
-          { user_id: userId, endpoint: subscription.endpoint, p256dh, auth },
-          { onConflict: 'endpoint' },
-        )
+        .insert({ user_id: userId, endpoint: subscription.endpoint, p256dh, auth })
 
       if (error) throw error
 
