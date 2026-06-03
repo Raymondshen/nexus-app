@@ -502,12 +502,27 @@ function DevSection({ userId, userEmail }: { userId: string; userEmail: string }
       const withTimeout = <T,>(p: Promise<T>, ms: number, label: string): Promise<T> =>
         Promise.race([p, new Promise<never>((_, rej) => setTimeout(() => rej(new Error(`timeout:${label}`)), ms))])
 
-      // getRegistrations() returns immediately — unlike .ready which hangs forever if no active SW
-      const regs = await navigator.serviceWorker.getRegistrations()
+      // getRegistrations() returns immediately
+      let regs = await navigator.serviceWorker.getRegistrations()
+
+      // If nothing is registered yet, try to register now and wait up to 8s for it to activate
+      if (regs.length === 0) {
+        show('2/6 regs=0 — attempting register /sw.js...')
+        try {
+          await navigator.serviceWorker.register('/sw.js', { scope: '/' })
+          // Wait for the SW to activate (up to 8s)
+          await withTimeout(navigator.serviceWorker.ready, 8000, 'sw.activate')
+          regs = await navigator.serviceWorker.getRegistrations()
+        } catch (regErr) {
+          show(`2/6 register FAILED: ${String(regErr).slice(0, 120)}`)
+          return
+        }
+      }
+
       const reg  = regs[0]
       const swState = reg
         ? `scope=${reg.scope} active=${reg.active?.state ?? 'none'} installing=${reg.installing?.state ?? 'none'} waiting=${reg.waiting?.state ?? 'none'}`
-        : 'NO_SW_REGISTERED'
+        : 'STILL_NONE'
       show(`2/6 regs=${regs.length} ${swState}`)
       if (!reg) return
 
