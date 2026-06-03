@@ -246,7 +246,7 @@ export function MessageList({
   // Show skeleton while the initial history fetch is in flight
   if (!historyLoaded) {
     return (
-      <div className="flex-1 overflow-hidden px-4 pt-4 flex flex-col gap-3">
+      <div className="flex-1 min-h-0 overflow-hidden px-4 pt-4 flex flex-col gap-3">
         {[52, 35, 60, 45, 30, 55, 40].map((w, i) => (
           <div key={i} className={`flex items-end gap-2 ${i % 3 === 0 ? 'flex-row-reverse' : ''}`}>
             <div className="w-7 h-7 bg-[#1a1a2e] animate-pulse flex-shrink-0" />
@@ -309,7 +309,7 @@ export function MessageList({
     <div
       ref={scrollRef}
       onScroll={handleScroll}
-      className="flex-1 overflow-y-auto px-3 py-4 flex flex-col gap-2 nexus-scroll"
+      className="flex-1 min-h-0 overflow-y-auto px-3 py-4 flex flex-col gap-2 nexus-scroll"
       style={{
         backgroundImage: 'radial-gradient(circle, rgba(191,95,255,0.03) 1px, transparent 1px)',
         backgroundSize:  '24px 24px',
