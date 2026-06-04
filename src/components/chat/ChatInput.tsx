@@ -257,7 +257,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatI
             return (
               <div
                 key={m.id}
-                className="flex-shrink-0 w-8 h-8 rounded-full overflow-hidden border border-border bg-surface flex items-center justify-center"
+                className="flex-shrink-0 w-6 h-6 overflow-hidden bg-surface flex items-center justify-center"
                 title={m.username}
               >
                 {url ? (
@@ -376,7 +376,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatI
           className="flex-shrink-0 flex items-center justify-center w-4 h-4 text-muted hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           aria-label="Send message"
         >
-          <i className="hn hn-share" style={{ fontSize: 14 }} aria-hidden="true" />
+          <i className="hn hn-arrow-circle-up" style={{ fontSize: 16 }} aria-hidden="true" />
         </button>
       </div>
     </div>
