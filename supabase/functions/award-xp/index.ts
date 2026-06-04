@@ -266,9 +266,6 @@ Deno.serve(async (req: Request) => {
               xp_awarded:   0,
             })
 
-            const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-            const anonKey     = Deno.env.get('SUPABASE_ANON_KEY')!
-
             const { data: crewMembers } = await supabase
               .from('crew_members')
               .select('user_id')
@@ -276,13 +273,8 @@ Deno.serve(async (req: Request) => {
 
             await Promise.allSettled(
               (crewMembers ?? []).map((member) =>
-                fetch(`${supabaseUrl}/functions/v1/send-notification`, {
-                  method:  'POST',
-                  headers: {
-                    'Content-Type':  'application/json',
-                    'Authorization': `Bearer ${anonKey}`,
-                  },
-                  body: JSON.stringify({
+                supabase.functions.invoke('send-notification', {
+                  body: {
                     user_id: member.user_id,
                     type:    'boss_spawned',
                     payload: {
@@ -290,7 +282,7 @@ Deno.serve(async (req: Request) => {
                       crew_name: crewBefore?.name ?? '',
                       crew_id,
                     },
-                  }),
+                  },
                 })
               )
             )
@@ -302,9 +294,6 @@ Deno.serve(async (req: Request) => {
     // Notify other crew members of the new message (skip reactions)
     let notifResults: { uid: string; http: number; result: string }[] = []
     if (message_type !== 'reaction') {
-      const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-      const anonKey     = Deno.env.get('SUPABASE_ANON_KEY')!
-
       const { data: otherMembers } = await supabase
         .from('crew_members')
         .select('user_id')
@@ -315,13 +304,8 @@ Deno.serve(async (req: Request) => {
 
       const settled = await Promise.allSettled(
         (otherMembers ?? []).map(async (member) => {
-          const res = await fetch(`${supabaseUrl}/functions/v1/send-notification`, {
-            method:  'POST',
-            headers: {
-              'Content-Type':  'application/json',
-              'Authorization': `Bearer ${anonKey}`,
-            },
-            body: JSON.stringify({
+          const { data: notifData, error: notifError } = await supabase.functions.invoke('send-notification', {
+            body: {
               user_id: member.user_id,
               type:    'message_received',
               payload: {
@@ -330,18 +314,18 @@ Deno.serve(async (req: Request) => {
                 crew_name:       crewBefore?.name ?? '',
                 crew_id,
               },
-            }),
+            },
           })
-          const body = await res.text()
-          console.log(`[award-xp] send-notification uid=${member.user_id.slice(0, 8)} status=${res.status} body=${body.slice(0, 200)}`)
-          return { uid: member.user_id.slice(0, 8), http: res.status, result: body.slice(0, 120) }
+          const result = notifError ? `error:${notifError.message}` : JSON.stringify(notifData).slice(0, 120)
+          console.log(`[award-xp] send-notification uid=${member.user_id.slice(0, 8)} result=${result}`)
+          return { uid: member.user_id.slice(0, 8), http: notifError ? 0 : 200, result }
         })
       )
 
       notifResults = settled.map((r, i) =>
         r.status === 'fulfilled'
           ? r.value
-          : { uid: ((otherMembers ?? [])[i]?.user_id ?? '?').slice(0, 8), http: 0, result: `fetch_error:${String(r.reason).slice(0, 60)}` }
+          : { uid: ((otherMembers ?? [])[i]?.user_id ?? '?').slice(0, 8), http: 0, result: `invoke_error:${String(r.reason).slice(0, 60)}` }
       )
     }
 
