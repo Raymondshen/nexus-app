@@ -418,9 +418,20 @@ function DevSection({ userId, userEmail }: { userId: string; userEmail: string }
   const [syncLoading, setSyncLoading] = useState(false)
   const [testResult,  setTestResult]  = useState<string | null>(null)
   const [syncResult,  setSyncResult]  = useState<string | null>(null)
+  const [lastSwPush,  setLastSwPush]  = useState<number | null>(null)
 
   useEffect(() => {
     setDevMode(localStorage.getItem('nexus_dev_mode') === '1')
+  }, [])
+
+  // Listen for push-received messages posted by sw-push.js when a push event fires
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return
+    function onSwMessage(ev: MessageEvent) {
+      if (ev.data?.type === 'nexus-push-received') setLastSwPush(ev.data.ts as number)
+    }
+    navigator.serviceWorker.addEventListener('message', onSwMessage)
+    return () => navigator.serviceWorker.removeEventListener('message', onSwMessage)
   }, [])
 
   function toggleDevMode() {
@@ -714,6 +725,14 @@ function DevSection({ userId, userEmail }: { userId: string; userEmail: string }
           )}
           {syncResult  && <p className="font-sans text-[11px] text-[#00e5ff] mt-2 break-all leading-relaxed bg-black/30 p-2">{syncResult}</p>}
           {testResult  && <p className="font-sans text-[11px] text-[#bf5fff] mt-2 break-all leading-relaxed bg-black/30 p-2">{testResult}</p>}
+          <p className="font-sans text-[10px] text-[#ffd700] mt-2">
+            SW push event:{' '}
+            <span className="text-white">
+              {lastSwPush
+                ? `fired at ${new Date(lastSwPush).toLocaleTimeString()}`
+                : 'not yet received (keep this page open, send a test)'}
+            </span>
+          </p>
         </div>
 
         {/* Reset localStorage flags */}

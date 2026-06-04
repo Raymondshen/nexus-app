@@ -47,6 +47,10 @@ self.addEventListener('push', (event) => {
       if (typeof navigator !== 'undefined' && navigator.setAppBadge) {
         navigator.setAppBadge().catch(() => {})
       }
+      // Notify any open clients so dev diagnostics can confirm the push fired
+      return self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((openClients) => {
+        openClients.forEach((c) => c.postMessage({ type: 'nexus-push-received', ts: Date.now(), title }))
+      })
     }).catch((err) => {
       console.error('[sw-push] notification display failed entirely:', err)
     })
