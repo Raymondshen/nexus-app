@@ -17,12 +17,13 @@ function getCachedVaultContent(crewId: string) {
     async () => {
       const supabase = createServiceClient()
       const [crewResult, artifactsResult] = await Promise.all([
-        supabase.from('crews').select('*').eq('id', crewId).single(),
+        supabase.from('crews').select('id, name, created_at').eq('id', crewId).single(),
         supabase
           .from('artifacts')
           .select('*')
           .eq('crew_id', crewId)
-          .order('earned_at', { ascending: false }),
+          .order('earned_at', { ascending: false })
+          .limit(50),
       ])
       return {
         crew:      crewResult.data as Crew | null,

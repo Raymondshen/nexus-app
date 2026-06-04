@@ -48,28 +48,17 @@ export function ChatInput({ crewId, userId, userProfile }: ChatInputProps) {
     setDevMode(localStorage.getItem('nexus_dev_mode') === '1')
   }, [])
 
-  // Message broadcast channel — used to push sent messages to all crew members instantly
+  // Single channel for both message broadcasting and typing presence.
+  // Merging the two eliminates one Supabase subscription per chat session.
   useEffect(() => {
     const supabase = createClient()
-    const ch = supabase.channel(`messages:${crewId}`)
-    ch.subscribe()
-    msgChannelRef.current = ch
-    return () => {
-      supabase.removeChannel(ch)
-      msgChannelRef.current = null
-    }
-  }, [crewId])
-
-  // Typing presence channel
-  useEffect(() => {
-    const supabase = createClient()
-    const channel  = supabase.channel(`typing:${crewId}`, {
+    const ch = supabase.channel(`messages:${crewId}`, {
       config: { presence: { key: userId } },
     })
 
-    channel
+    ch
       .on('presence', { event: 'sync' }, () => {
-        const state = channel.presenceState<{ username: string; typing: boolean }>()
+        const state = ch.presenceState<{ username: string; typing: boolean }>()
         const others = Object.entries(state)
           .filter(([key]) => key !== userId)
           .flatMap(([, presences]) => presences)
@@ -79,8 +68,13 @@ export function ChatInput({ crewId, userId, userProfile }: ChatInputProps) {
       })
       .subscribe()
 
-    typingChannelRef.current = channel
-    return () => { supabase.removeChannel(channel) }
+    msgChannelRef.current    = ch
+    typingChannelRef.current = ch
+    return () => {
+      supabase.removeChannel(ch)
+      msgChannelRef.current    = null
+      typingChannelRef.current = null
+    }
   }, [crewId, userId])
 
   function broadcastTyping(isTyping: boolean) {
@@ -140,13 +134,21 @@ export function ChatInput({ crewId, userId, userProfile }: ChatInputProps) {
       addMessage(newMessage)
       addXP(calculateXP('text'))
 
-      // Broadcast to all other crew members on this channel immediately.
-      // Recipients' MessageList receives this via the 'new_message' broadcast
-      // listener and calls addMessage (deduplication prevents doubles).
+      // Broadcast core message fields only — profile is resolved from memberProfiles
+      // on the receiver side, cutting ~150 bytes of egress per broadcast per recipient.
       msgChannelRef.current?.send({
         type:    'broadcast',
         event:   'new_message',
-        payload: newMessage,
+        payload: {
+          id:           newMessage.id,
+          crew_id:      newMessage.crew_id,
+          user_id:      newMessage.user_id,
+          content:      newMessage.content,
+          message_type: newMessage.message_type,
+          element_type: newMessage.element_type,
+          xp_awarded:   newMessage.xp_awarded,
+          created_at:   newMessage.created_at,
+        },
       })
 
       // Award XP — patch the message in the store with the confirmed xp_earned.

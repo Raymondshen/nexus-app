@@ -212,11 +212,16 @@ export function MessageList({
     const channel  = supabase
       .channel(`messages:${crewId}`)
       // Broadcast: instant delivery from sender → all connected clients.
+      // Payload is Message only (no profile) — resolve from profilesRef to save egress.
       .on('broadcast', { event: 'new_message' }, (payload) => {
-        const msg = payload.payload as MessageWithProfile
-        // Validate shape before adding — a malformed broadcast causes the display
-        // loop to throw (content.startsWith is called without a null check).
-        if (msg?.id && typeof msg.content === 'string') addMessage(msg)
+        const msg = payload.payload as Message
+        if (!msg?.id || typeof msg.content !== 'string') return
+        addMessage({
+          ...msg,
+          profile: profilesRef.current[msg.user_id] ?? {
+            id: msg.user_id, username: '???', avatar_class: null, avatar_url: null,
+          },
+        })
       })
       // XP sync: sender broadcasts authoritative total after award-xp resolves.
       // Receivers show the float + snap to correct total; sender just corrects drift.

@@ -114,7 +114,7 @@ export function BossCard({ raidId, crewId, initialRaid }: BossCardProps) {
     const supabase = createClient()
     supabase
       .from('active_raids')
-      .select('*')
+      .select('id, crew_id, boss_id, current_hp, max_hp, phase, started_at, expires_at, defeated_at, mvp_user_id, expiry_notif_sent')
       .eq('id', raidId)
       .single()
       .then(({ data }) => {

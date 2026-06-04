@@ -33,7 +33,7 @@ export function ArtifactDropRenderer({ artifactId, crewName }: ArtifactDropRende
     const supabase = createClient()
     supabase
       .from('artifacts')
-      .select('*')
+      .select('id, crew_id, name, rarity, source_boss_id, earned_at, mvp_user_id, asset_type, metadata')
       .eq('id', artifactId)
       .single()
       .then(({ data }) => {
