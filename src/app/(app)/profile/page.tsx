@@ -10,10 +10,10 @@ function getCachedProfile(userId: string) {
       const supabase = createServiceClient()
       const { data } = await supabase
         .from('profiles')
-        .select('username, avatar_url, avatar_class, is_dev')
+        .select('username, avatar_url, avatar_class, is_dev, created_at')
         .eq('id', userId)
         .single()
-      return data as { username: string; avatar_url: string | null; avatar_class: string | null; is_dev: boolean } | null
+      return data as { username: string; avatar_url: string | null; avatar_class: string | null; is_dev: boolean; created_at: string } | null
     },
     [`profile:${userId}`],
     { tags: [`profile:${userId}`], revalidate: 60 }
@@ -26,7 +26,24 @@ export default async function ProfilePage() {
   if (!session) redirect('/login')
   const user = session.user
 
-  const profile = await getCachedProfile(user.id)
+  const [profile, messagesResult, crewsResult] = await Promise.all([
+    getCachedProfile(user.id),
+    supabase
+      .from('messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .neq('message_type', 'system'),
+    supabase
+      .from('crew_members')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id),
+  ])
+
+  const memberSinceYear = profile?.created_at
+    ? new Date(profile.created_at).getFullYear().toString()
+    : ''
+  const totalMessages = messagesResult.count ?? 0
+  const groupChats    = crewsResult.count ?? 0
 
   return (
     <ProfileClient
@@ -37,6 +54,9 @@ export default async function ProfilePage() {
       avatarClass={profile?.avatar_class ?? null}
       isDev={profile?.is_dev === true}
       isGuest={user.is_anonymous === true}
+      memberSinceYear={memberSinceYear}
+      totalMessages={totalMessages}
+      groupChats={groupChats}
     />
   )
 }
