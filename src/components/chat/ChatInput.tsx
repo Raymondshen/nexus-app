@@ -51,8 +51,10 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatI
     crewXP, crewLevel, xpFloats, dismissXPFloat,
   } = useChatStore()
 
-  const profilesRef = useRef(memberProfiles)
-  profilesRef.current = memberProfiles
+  const profilesRef     = useRef(memberProfiles)
+  profilesRef.current   = memberProfiles
+  const userProfileRef  = useRef(userProfile)
+  userProfileRef.current = userProfile
   const inRaid = !!(activeRaid && !activeRaid.defeated_at)
 
   const xpProgress  = getXPProgress(crewXP)
@@ -107,7 +109,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatI
       })
       .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
-          await ch.track({ username: userProfile.username, typing: false })
+          await ch.track({ username: userProfileRef.current.username, typing: false })
         }
       })
 
@@ -121,7 +123,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatI
   }, [crewId, userId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function broadcastTyping(isTyping: boolean) {
-    typingChannelRef.current?.track({ username: userProfile.username, typing: isTyping })
+    typingChannelRef.current?.track({ username: userProfileRef.current.username, typing: isTyping })
   }
 
   const send = useCallback(async () => {

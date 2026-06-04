@@ -110,18 +110,22 @@ Berserker (spam), Sage (long messages), Ghost (silence crit), Hype Man (reaction
 - Both paths deduplicate by `sender_id` — sender gets `setCrewXP`, others get `receiveXP`
 
 ### Online Presence
-- **Two channels**: ChatHeader maintains `online:{crewId}` (seeds initial state from `memberLastSeen` server snapshot, updates `last_seen` in DB every 60s). ChatInput maintains presence on the shared `messages:{crewId}` channel.
-- **ChatInput presence** is the authoritative source for the member avatar online dots in the input area:
-  - `ch.track({ username, typing: false })` is called in the `.subscribe()` callback (status === `'SUBSCRIBED'`) so every user enters the presence state as soon as the chat opens — **not** only when they type
-  - `join` and `leave` presence events update `onlineUserIds` state immediately for instant dot changes
-  - `sync` event reconciles the full state (handles reconnects and missed events)
-  - `onlineUserIds` is seeded with the current user's own ID on mount (optimistic)
+- **Single presence channel**: ChatInput's `messages:{crewId}` channel is the sole presence channel. ChatHeader has NO presence channel — having two concurrent presence channels from the same Supabase singleton client causes interference and breaks dot display.
+- `ch.track({ username, typing: false })` is called in the `.subscribe()` callback (status === `'SUBSCRIBED'`) so every user enters presence state as soon as the chat opens — **not** only when they type. Uses `userProfileRef.current.username` (ref, not closure) to guarantee the current username is used.
+- `join` and `leave` presence events update `onlineUserIds` immediately; `sync` reconciles full state on reconnect
+- `onlineUserIds` is seeded with the current user's own ID on mount (optimistic)
 - Green dot `#66bb6a` (2×2, `rounded-full`, `border-[1.5px] border-black`) positioned at `-bottom-0.5 -right-0.5` on the 24×24 avatar wrapper
+- ChatHeader still updates `last_seen` in DB every 60s (for unread count cursors) — this is separate from Realtime presence
 
 ### MessageList — stale-while-revalidate
 - sessionStorage key `nexus-msgs-{crewId}`: load cached → `setMessages` + `setHistoryLoaded` in same tick → React 18 batches both so skeleton never flashes on cache hit
 - Background Supabase fetch merges with any Realtime messages already in store; result saved back (capped 50)
 - `setMessages([])` before cache/fetch prevents stale messages from a previous crew bleeding in
+
+### MessageList — message grouping
+Consecutive messages from the same user within 60 seconds are visually grouped (no repeated avatar/header). `showHeader = false` for continuation messages.
+- `lastUserId` + `lastMsgTime` tracked in the display-list loop; both reset to null/0 on day dividers, boss cards, artifacts, level-up banners, and system messages — these all break grouping so the next regular message shows a fresh header
+- **Spacing**: first in group → `pt-2 pb-0` (8px top); continuation → `pt-1 pb-0` (4px top, Figma `gap-[4px]`). Between-group gap = 8px; within-group gap = 4px — clear visual hierarchy without a grouped-bubble refactor
 
 ### ChatInput — send flow
 `insert_message` RPC → `addMessage` (optimistic) → broadcast slim payload on `messages:{crewId}` → `award-xp` edge function (patches `xp_awarded` back + broadcasts `xp_update`) → `attack-boss` edge function (if raid active)
@@ -147,8 +151,8 @@ Berserker (spam), Sage (long messages), Ghost (silence crit), Hype Man (reaction
 ### Home Page — profile banner stats
 `home/page.tsx` fetches `totalMessages` (count of non-system messages by the user across all crews) in the same `Promise.all` as profile + crew membership. Displayed in `ProfileBanner` as `"{N} group chats · {N} msg"` (formatted with `toLocaleString()`). Edit icon uses `hn hn-pencil` (16px) from the pixel icon library.
 
-### ChatHeader — avatars
-Both the member avatar list (Row 2) and the profile button (top-right) use `profiles.avatar_url` with an initials fallback. Class sprite PNGs are **not** used in the header — sprite display is limited to game/onboarding screens.
+### ChatHeader — props
+`ChatHeader` accepts only `{ crew, initialXP, initialRaid, currentUserId, crewId }`. It has **no** `members` or `memberLastSeen` props — member avatars live in ChatInput, not the header. Do not add a second presence channel here (see Online Presence note above).
 
 ### PWA / Push Architecture
 - **Service worker**: `public/sw-push.js` — handwritten, zero dependencies, committed to git

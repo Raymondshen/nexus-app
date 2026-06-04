@@ -63,7 +63,7 @@ export function MessageBubble({ message, isOwn, showHeader }: MessageBubbleProps
 
   return (
     <div
-      className="flex gap-2 items-start py-2 w-full"
+      className={`flex gap-2 items-start w-full ${showHeader ? 'pt-2 pb-0' : 'pt-1 pb-0'}`}
       onContextMenu={(e) => { e.preventDefault(); setShowReactions(true) }}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}

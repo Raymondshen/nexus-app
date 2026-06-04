@@ -6,24 +6,15 @@ import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useChatStore } from '@/store/chatStore'
 import { createClient } from '@/lib/supabase/client'
-import type { Crew, Profile, ActiveRaid } from '@/types'
+import type { Crew, ActiveRaid } from '@/types'
 import { formatDistanceToNow } from 'date-fns'
 
 interface ChatHeaderProps {
   crew:          Crew
-  members:       Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url'>[]
   initialXP:     number
   initialRaid:   ActiveRaid | null
   currentUserId: string
   crewId:        string
-  memberLastSeen?: Record<string, string | null>
-}
-
-const FIVE_MINUTES_MS = 5 * 60 * 1000
-
-function isOnline(lastSeen: string | null | undefined): boolean {
-  if (!lastSeen) return false
-  return Date.now() - new Date(lastSeen).getTime() < FIVE_MINUTES_MS
 }
 
 // ─── Share modal ─────────────────────────────────────────────────────────────
@@ -127,47 +118,19 @@ function ShareModal({ crew, onClose }: { crew: Crew; onClose: () => void }) {
 
 export function ChatHeader({
   crew,
-  members,
   initialXP,
   initialRaid,
   currentUserId,
   crewId,
-  memberLastSeen = {},
 }: ChatHeaderProps) {
   const router = useRouter()
   const { setCrewXP, setActiveRaid, activeRaid } = useChatStore()
   const [showShare, setShowShare] = useState(false)
 
-  // Seed online state from server snapshot; presence channel updates it in real time.
-  const [, setOnlineUserIds] = useState<Set<string>>(
-    () => new Set(members.filter((m) => isOnline(memberLastSeen[m.id])).map((m) => m.id))
-  )
-
   useEffect(() => {
     setCrewXP(initialXP)
     setActiveRaid(initialRaid)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Supabase Presence — tracks who is in the chat room right now.
-  useEffect(() => {
-    const supabase = createClient()
-    const channel  = supabase.channel(`online:${crewId}`, {
-      config: { presence: { key: currentUserId } },
-    })
-
-    channel
-      .on('presence', { event: 'sync' }, () => {
-        const state = channel.presenceState()
-        setOnlineUserIds(new Set(Object.keys(state)))
-      })
-      .subscribe(async (status) => {
-        if (status === 'SUBSCRIBED') {
-          await channel.track({ online: true })
-        }
-      })
-
-    return () => { supabase.removeChannel(channel) }
-  }, [crewId, currentUserId])
 
   // Update last_seen every 60s for accurate server-side initial state.
   useEffect(() => {

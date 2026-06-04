@@ -266,8 +266,9 @@ export function MessageList({
     | { kind: 'message';  message: MessageWithProfile; isOwn: boolean; showHeader: boolean }
 
   const items: DisplayItem[] = []
-  let lastDate:   Date | null   = null
-  let lastUserId: string | null = null
+  let lastDate:    Date | null   = null
+  let lastUserId:  string | null = null
+  let lastMsgTime: number        = 0
   const renderedRaids = new Set<string>()
 
   for (const msg of messages) {
@@ -275,13 +276,15 @@ export function MessageList({
     if (!msg.id || typeof msg.content !== 'string') continue
 
     const msgDate    = new Date(msg.created_at)
+    const msgTime    = msgDate.getTime()
     const raidId     = parseBossSpawnRaidId(msg.content)
     const artifactId = parseArtifactDropId(msg.content)
     const level      = parseLevelUp(msg.content)
 
     if (!lastDate || !isSameDay(lastDate, msgDate)) {
       items.push({ kind: 'divider', label: dayLabel(msgDate), key: `divider-${msg.id}` })
-      lastUserId = null
+      lastUserId  = null
+      lastMsgTime = 0
     }
 
     if (raidId && !renderedRaids.has(raidId)) {
@@ -289,17 +292,32 @@ export function MessageList({
       // Pass initialRaid if it matches; BossCard will self-fetch otherwise
       const raid = initialRaid?.id === raidId ? initialRaid : null
       items.push({ kind: 'boss', raidId, key: `boss-${raidId}`, raid })
+      lastUserId  = null
+      lastMsgTime = 0
     } else if (artifactId) {
       items.push({ kind: 'artifact', artifactId, key: `artifact-${msg.id}` })
+      lastUserId  = null
+      lastMsgTime = 0
     } else if (level !== null) {
       items.push({ kind: 'level_up', level, msgId: msg.id, key: `levelup-${msg.id}` })
+      lastUserId  = null
+      lastMsgTime = 0
     } else if (!raidId) {
-      const showHeader = msg.message_type !== 'system' && msg.user_id !== lastUserId
-      items.push({ kind: 'message', message: msg as MessageWithProfile, isOwn: msg.user_id === currentUserId, showHeader })
+      if (msg.message_type === 'system') {
+        items.push({ kind: 'message', message: msg as MessageWithProfile, isOwn: false, showHeader: false })
+        lastUserId  = null
+        lastMsgTime = 0
+      } else {
+        const sameUser     = msg.user_id === lastUserId
+        const withinMinute = sameUser && (msgTime - lastMsgTime) < 60_000
+        const showHeader   = !withinMinute
+        items.push({ kind: 'message', message: msg as MessageWithProfile, isOwn: msg.user_id === currentUserId, showHeader })
+        lastUserId  = msg.user_id
+        lastMsgTime = msgTime
+      }
     }
 
-    lastDate   = msgDate
-    lastUserId = msg.user_id
+    lastDate = msgDate
   }
 
   return (

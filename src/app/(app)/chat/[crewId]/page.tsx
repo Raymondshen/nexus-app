@@ -53,9 +53,9 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
   if (!session) redirect("/login");
   const user = session.user;
 
-  // Stage 2 — cached member profiles + fresh crew/raid/last_seen in parallel.
+  // Stage 2 — cached member profiles + fresh crew/raid in parallel.
   // crew (total_xp) and active_raids stay uncached — they change with every message.
-  // last_seen is fetched fresh for accurate online-presence dots.
+  // crew_members fetched fresh for membership check (RLS returns empty for non-members).
   const [cachedProfiles, crewResult, raidResult, lastSeenResult] = await Promise.all([
     getCachedMemberProfiles(crewId),
     supabase.from("crews").select("*").eq("id", crewId).single(),
@@ -99,14 +99,6 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
     }
   }
 
-  // Build last_seen map from fresh data
-  const memberLastSeen: Record<string, string | null> = {};
-  for (const row of lastSeenRows) {
-    memberLastSeen[row.user_id] = row.last_seen;
-  }
-
-  const profiles = cachedProfiles.filter((r) => r.profile).map((r) => r.profile!);
-
   return (
     <div
       className="flex flex-col bg-black"
@@ -126,12 +118,10 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
 
       <ChatHeader
         crew={crew}
-        members={profiles}
         initialXP={crew.total_xp}
         initialRaid={raidRow ?? null}
         currentUserId={user.id}
         crewId={crewId}
-        memberLastSeen={memberLastSeen}
       />
 
       <ErrorBoundary>
