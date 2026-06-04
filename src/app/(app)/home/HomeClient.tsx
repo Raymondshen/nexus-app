@@ -98,17 +98,16 @@ function ProfileBanner({
         </button>
       </div>
 
-      {/* AFK XP bar — coming soon */}
-      <div className="flex items-center gap-3">
-        <div className="flex-1 flex flex-col gap-2">
+      {/* AFK XP bar */}
+      <div className="flex items-stretch gap-2">
+        <div className="flex-1 flex flex-col gap-2 justify-center">
           <span className="font-silkscreen text-[8px] text-primary">
-            AFK EXP ACCUMULATED · COMING SOON
+            AFK EXP ACCUMULATED · 100 / 100 XP
           </span>
-          <div className="h-1 w-full bg-border" />
+          <div className="h-1 w-full bg-purple" />
         </div>
         <button
-          disabled
-          className="bg-purple/40 px-4 py-2 font-pixel text-[8px] text-primary/40 cursor-not-allowed whitespace-nowrap"
+          className="bg-purple px-4 py-2 font-pixel text-[8px] text-primary whitespace-nowrap"
         >
           CLAIM
         </button>
@@ -278,8 +277,8 @@ function CrewCardContent({ summary }: { summary: CrewSummary }) {
   const avatarColor = CREW_AVATAR_COLORS[colorIndex]
 
   return (
-    <div className="w-full text-left flex items-center gap-4 py-1">
-      {/* Crew avatar */}
+    <div className="w-full text-left flex items-center gap-4">
+      {/* Crew avatar — 52×52px matching Figma */}
       <div
         className="flex-shrink-0 w-[52px] h-[52px] flex items-center justify-center font-pixel text-[11px]"
         style={{
@@ -291,8 +290,8 @@ function CrewCardContent({ summary }: { summary: CrewSummary }) {
         {crew.name[0]?.toUpperCase()}
       </div>
 
-      {/* Content */}
-      <div className="flex-1 min-w-0 flex flex-col gap-2">
+      {/* Content — vertically centered to match avatar height */}
+      <div className="flex-1 min-w-0 flex flex-col gap-2 justify-center">
         {/* XP / level */}
         <span className="font-silkscreen text-[8px] text-tertiary whitespace-nowrap">
           {xpInLevel}/{XP_PER_LEVEL} XP · Group Lv. {crew.level}
@@ -300,21 +299,21 @@ function CrewCardContent({ summary }: { summary: CrewSummary }) {
         </span>
 
         <div className="flex flex-col gap-1">
-          {/* Crew name + timestamp */}
+          {/* Crew name + timestamp — 16px row height */}
           <div className="flex items-center gap-2">
-            <span className="font-body font-bold text-[16px] text-white truncate flex-1 min-w-0">
+            <span className="font-body font-bold text-[16px] leading-none text-white truncate flex-1 min-w-0">
               {crew.name}
             </span>
             {lastMessage && (
-              <span className="font-body font-light text-[12px] text-muted flex-shrink-0 whitespace-nowrap">
+              <span className="font-body font-light text-[12px] leading-none text-muted flex-shrink-0 whitespace-nowrap">
                 {relativeTime(lastMessage.created_at)}
               </span>
             )}
           </div>
 
-          {/* Last message preview */}
+          {/* Last message preview — 14px */}
           <p
-            className="font-body font-normal text-[14px] truncate"
+            className="font-body font-normal text-[14px] leading-none truncate"
             style={{ color: hasUnread ? 'var(--color-primary)' : 'var(--color-muted)' }}
           >
             {lastMessage
@@ -578,25 +577,27 @@ export function HomeClient({
 
       {/* ── Header ── */}
       <div
-        className="flex items-center justify-between px-4 border-b border-border flex-shrink-0 h-14"
+        className="border-b border-border px-4 pb-4 flex-shrink-0"
         style={{ paddingTop: 'max(env(safe-area-inset-top), 0px)' }}
       >
-        <h1 className="font-pixel text-[18px] text-primary">NEXUS</h1>
+        <div className="flex items-center justify-between h-10">
+          <h1 className="font-pixel text-[18px] text-primary">NEXUS</h1>
 
-        <div className="flex items-center gap-5">
-          <button
-            aria-label="Notifications"
-            className="text-primary hover:text-purple transition-colors"
-          >
-            <Bell size={24} />
-          </button>
-          <button
-            onClick={() => setShowCreate(true)}
-            aria-label="Create crew"
-            className="text-primary hover:text-purple transition-colors"
-          >
-            <Plus size={24} />
-          </button>
+          <div className="flex items-center gap-5">
+            <button
+              aria-label="Notifications"
+              className="text-primary hover:text-purple transition-colors"
+            >
+              <Bell size={24} />
+            </button>
+            <button
+              onClick={() => setShowCreate(true)}
+              aria-label="Create crew"
+              className="text-primary hover:text-purple transition-colors"
+            >
+              <Plus size={24} />
+            </button>
+          </div>
         </div>
       </div>
 
