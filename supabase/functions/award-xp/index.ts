@@ -300,7 +300,7 @@ Deno.serve(async (req: Request) => {
     }
 
     // Notify other crew members of the new message (skip reactions)
-    let notifResults: { user_id: string; status: string }[] = []
+    let notifResults: { uid: string; http: number; result: string }[] = []
     if (message_type !== 'reaction') {
       const supabaseUrl = Deno.env.get('SUPABASE_URL')!
       const serviceKey  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -333,15 +333,15 @@ Deno.serve(async (req: Request) => {
             }),
           })
           const body = await res.text()
-          console.log(`[award-xp] send-notification uid=${member.user_id.slice(0, 8)} status=${res.status} body=${body.slice(0, 120)}`)
-          return { user_id: member.user_id, status: res.status.toString() }
+          console.log(`[award-xp] send-notification uid=${member.user_id.slice(0, 8)} status=${res.status} body=${body.slice(0, 200)}`)
+          return { uid: member.user_id.slice(0, 8), http: res.status, result: body.slice(0, 120) }
         })
       )
 
       notifResults = settled.map((r, i) =>
         r.status === 'fulfilled'
           ? r.value
-          : { user_id: (otherMembers ?? [])[i]?.user_id ?? '?', status: `error:${String(r.reason).slice(0, 60)}` }
+          : { uid: ((otherMembers ?? [])[i]?.user_id ?? '?').slice(0, 8), http: 0, result: `fetch_error:${String(r.reason).slice(0, 60)}` }
       )
     }
 
