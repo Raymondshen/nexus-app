@@ -12,21 +12,43 @@ self.addEventListener('activate', (event) => {
 })
 
 self.addEventListener('push', (event) => {
-  if (!event.data) return
+  let title = 'Nexus'
+  let body  = ''
+  let notifData = {}
 
-  let data
-  try { data = event.data.json() } catch { return }
+  if (event.data) {
+    try {
+      const parsed = event.data.json()
+      title     = parsed.title || 'Nexus'
+      body      = parsed.body  || ''
+      notifData = parsed.data  || {}
+    } catch {
+      // malformed JSON — still show a generic notification below
+    }
+  }
+
+  // iOS does not support `badge` in showNotification options and may reject calls
+  // that include unknown options in strict mode. Use the minimal set that iOS
+  // documents as supported for Web Push: title (1st arg), body, icon, data, tag.
+  const show = self.registration.showNotification(title, {
+    body,
+    icon:  '/icons/icon-192.png',
+    data:  notifData,
+    tag:   (notifData && notifData.url) || 'nexus',
+  }).catch((err) => {
+    // Full options rejected — try absolute bare minimum
+    console.error('[sw-push] showNotification failed, retrying minimal:', err)
+    return self.registration.showNotification(title, { body })
+  })
 
   event.waitUntil(
-    self.registration.showNotification(data.title || 'Nexus', {
-      body:     data.body  || '',
-      icon:     data.icon  || '/icons/icon-192.png',
-      badge:    data.badge || '/icons/icon-192.png',
-      data:     data.data  || {},
-      tag:      (data.data && data.data.url) || 'nexus',
-      renotify: true,
-    }).then(() => {
-      self.navigator.setAppBadge?.()
+    show.then(() => {
+      // navigator (not self.navigator) is the correct SW global
+      if (typeof navigator !== 'undefined' && navigator.setAppBadge) {
+        navigator.setAppBadge().catch(() => {})
+      }
+    }).catch((err) => {
+      console.error('[sw-push] notification display failed entirely:', err)
     })
   )
 })
@@ -55,7 +77,9 @@ self.addEventListener('notificationclick', (event) => {
         return clients.openWindow(targetUrl)
       })
       .then(() => {
-        self.navigator.clearAppBadge?.()
+        if (typeof navigator !== 'undefined' && navigator.clearAppBadge) {
+          navigator.clearAppBadge().catch(() => {})
+        }
       })
   )
 })
