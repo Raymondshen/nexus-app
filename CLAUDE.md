@@ -93,6 +93,7 @@ Berserker (spam), Sage (long messages), Ghost (silence crit), Hype Man (reaction
 - **Sender**: insert DB → broadcast on `messages:{crewId}` → instant display
 - **Receiver** (MessageList): Broadcast fires first (~50ms), Postgres Changes INSERT fires as backup
 - `addMessage` in chatStore deduplicates by id — both paths can fire for the same message
+- **Broadcast payload is slim** — only core `Message` fields (`id, crew_id, user_id, content, message_type, element_type, xp_awarded, created_at`); no profile. MessageList resolves the sender profile from its `profilesRef` (populated from server-fetched `memberProfiles`).
 - Postgres Changes requires `messages` + `active_raids` in `supabase_realtime` publication (migration `20240103000001`)
 
 ### XP Sync — real-time for all crew members
@@ -112,14 +113,16 @@ Berserker (spam), Sage (long messages), Ghost (silence crit), Hype Man (reaction
 - `setMessages([])` before cache/fetch prevents stale messages from a previous crew bleeding in
 
 ### ChatInput — send flow
-`insert_message` RPC → `addMessage` (optimistic) → broadcast on `messages:{crewId}` → `award-xp` edge function (patches `xp_awarded` back + broadcasts `xp_update`) → `attack-boss` edge function (if raid active)
+`insert_message` RPC → `addMessage` (optimistic) → broadcast slim payload on `messages:{crewId}` → `award-xp` edge function (patches `xp_awarded` back + broadcasts `xp_update`) → `attack-boss` edge function (if raid active)
 
-### award-xp anti-spam
-1. Hard stop: 0 XP if prior message in crew <2000ms ago
-2. Hard stop: 0 XP if ≥4 messages in last 30s
-3. Multiplier: 1.0 / 0.5 / 0.1 at 30 / 60 daily message thresholds
+- **Single channel**: `messages:{crewId}` is configured with presence and handles both message broadcasting and typing presence. There is no separate `typing:{crewId}` channel.
 
-Spam checks gate XP only — **notifications always fire** regardless of spam filter. Implemented via `xpBlocked` flag; do NOT use early returns before the notification block or crew members won't be notified. Response includes `notif_count` + `notif_results` for debugging (logged by ChatInput as `[award-xp] ...`).
+### award-xp — query batching + anti-spam
+- **Batch 1** (always, parallel): previous message gap + burst window count + crew name/XP — 3 queries in one `Promise.all`
+- **Batch 2** (only when not spam-blocked, parallel): today's message count + combo count + daily XP log count — 3 queries in one `Promise.all`
+- Anti-spam layers: (1) hard stop if prior message <2000ms ago, (2) hard stop if ≥4 messages in last 30s, (3) multiplier 1.0 / 0.5 / 0.1 at 30 / 60 daily message thresholds
+- Spam checks gate XP only — **notifications always fire** regardless. Implemented via `xpBlocked` flag; do NOT use early returns before the notification block.
+- Notifications use a **single batch fetch** to `send-notification` per event (one call for all recipients, not a per-member loop). Response includes `notif_count` + `notif_results` logged by ChatInput as `[award-xp] ...`.
 
 ### HomeClient — stale preview fix
 `router.refresh()` on every home mount forces a background server re-fetch. A `useEffect([initialCrews])` sync effect applies refreshed `initialCrews` prop into `crews` state (useState only runs once on mount).
@@ -139,16 +142,17 @@ Spam checks gate XP only — **notifications always fire** regardless of spam fi
 - **`message_received` notification format**: title = `"Name from Group Name"`, body = content preview or `"sent"` if empty
 - `VAPID_SUBJECT` **must** be a `mailto:` URI — bare email breaks iOS APNs
 - iOS push only works in standalone PWA mode (iOS 16.4+, added to Home Screen)
-- **iOS foreground suppression**: iOS does NOT show push banners when the PWA window is active. The realtime unread indicator is not a push notification. Always test push with the PWA completely closed (swiped away from app switcher).
+- **iOS foreground suppression**: iOS does NOT show push banners when the PWA window is active. Always test push with the PWA completely closed (swiped away from app switcher).
 - PWA/SW disabled in dev; test push notifications against production Vercel deployment only
 - `subscribeToPush()` uses `getSession()` (not `getUser()`) — cookie-only, never fails due to network
 - VAPID env vars must be set in **Supabase Edge Function secrets** (separate from Vercel env vars)
 - **Edge function deployment**: `git push` to Vercel does NOT deploy Supabase Edge Functions. Must run manually: `supabase functions deploy <name> --project-ref tlveyeisjbythssmocth`. Deploy both `award-xp` and `send-notification` after any changes.
-- **Inter-function calls — JWT auth**: `send-notification` is deployed with `--no-verify-jwt` (Supabase gateway skips JWT check). `award-xp` calls it via raw `fetch()` with **no Authorization header** — do NOT use `supabase.functions.invoke()` or pass `SUPABASE_SERVICE_ROLE_KEY` / `SUPABASE_ANON_KEY` as Bearer tokens (both return 401 UNAUTHORIZED_INVALID_JWT_FORMAT when used as raw JWT strings). Pattern:
+- **Inter-function calls — JWT auth**: `send-notification` is deployed with `--no-verify-jwt`. `award-xp` calls it via raw `fetch()` with **no Authorization header** — do NOT use `supabase.functions.invoke()` or pass `SUPABASE_SERVICE_ROLE_KEY` / `SUPABASE_ANON_KEY` as Bearer tokens (both return 401 UNAUTHORIZED_INVALID_JWT_FORMAT). Pattern:
   ```ts
   const fnUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/send-notification`
   fetch(fnUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({...}) })
   ```
+- **Batch notifications**: `send-notification` accepts either `user_id: string` (single, backward compat) or `user_ids: string[]` (batch). Batch mode fetches all preferences and subscriptions in two `.in()` queries, then iterates per user. `award-xp` always uses the batch form.
 
 ### Pixel Sprites
 - Component: `src/components/game/PixelSprite.tsx`
@@ -165,7 +169,9 @@ Always use `createServiceClient()` inside cache functions (service role, no cook
 
 | Cache | TTL | Tag | Invalidated by |
 |---|---|---|---|
-| Vault crew + artifacts | 300s | `vault:{crewId}`, `artifacts:{crewId}` | TTL only (artifacts immutable) |
+| Home member profiles + counts | 60s | `crew-members:{crewId}` (all crews) | joinCrewAction, leaveCrewAction |
+| Home last message preview | 30s | TTL only | TTL only |
+| Vault crew (name, created_at) + artifacts | 300s | `vault:{crewId}`, `artifacts:{crewId}` | TTL only |
 | Chat member profiles | 60s | `crew-members:{crewId}` | joinCrewAction, leaveCrewAction |
 | Profile (username, avatar_url) | 60s | `profile:{userId}` | revalidateProfileAction |
 
@@ -251,7 +257,7 @@ UPDATE profiles SET is_dev = true WHERE id IN (
 - Server data fetching: `Promise.all` for independent queries; stages — (1) `getSession()` + params, (2) queries needing userId/crewId, (3) queries depending on stage 2
 - Logout from `/profile` only — `signOut()` then `router.push('/login')`
 - Server actions creating/joining crews must call `revalidatePath('/home')` before redirect
-- Edge Function notification fetches: always `Promise.allSettled()` (Deno may terminate before fire-and-forget completes)
+- Edge Function notifications: use a **single batch fetch** to `send-notification` with `user_ids[]` — never loop per member
 - `unstable_cache`: always `createServiceClient()` inside the function; verify auth first with cookie client
 
 ## Image Rules
