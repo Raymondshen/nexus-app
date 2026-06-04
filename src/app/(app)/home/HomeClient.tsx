@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback, useActionState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence, useMotionValue, animate } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
-import { X, Plus, Bell, Pencil } from 'lucide-react'
+import { X, Plus, Bell } from 'lucide-react'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { createCrewAction } from '@/app/(app)/onboarding/create/actions'
@@ -21,6 +21,7 @@ interface HomeClientProps {
   avatarUrl:     string | null
   memberSince:   string
   profileCache:  Record<string, string>
+  totalMessages: number
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -50,12 +51,14 @@ function ProfileBanner({
   avatarUrl,
   memberSince,
   crewCount,
+  totalMessages,
   onEditProfile,
 }: {
-  username:     string
-  avatarUrl:    string | null
-  memberSince:  string
-  crewCount:    number
+  username:      string
+  avatarUrl:     string | null
+  memberSince:   string
+  crewCount:     number
+  totalMessages: number
   onEditProfile: () => void
 }) {
   return (
@@ -84,7 +87,7 @@ function ProfileBanner({
             {username}
           </span>
           <span className="font-silkscreen text-[8px] text-secondary">
-            {crewCount} group chat{crewCount !== 1 ? 's' : ''}
+            {crewCount} group chat{crewCount !== 1 ? 's' : ''} · {totalMessages.toLocaleString()} msg
           </span>
         </div>
 
@@ -94,7 +97,7 @@ function ProfileBanner({
           className="self-start text-tertiary hover:text-primary transition-colors"
           aria-label="Edit profile"
         >
-          <Pencil size={16} />
+          <i className="hn hn-pencil" style={{ fontSize: 16 }} aria-hidden="true" />
         </button>
       </div>
 
@@ -447,6 +450,7 @@ export function HomeClient({
   avatarUrl,
   memberSince,
   profileCache,
+  totalMessages,
 }: HomeClientProps) {
   const router = useRouter()
 
@@ -610,6 +614,7 @@ export function HomeClient({
           avatarUrl={avatarUrl}
           memberSince={memberSince}
           crewCount={crews.length}
+          totalMessages={totalMessages}
           onEditProfile={() => router.push('/profile')}
         />
 

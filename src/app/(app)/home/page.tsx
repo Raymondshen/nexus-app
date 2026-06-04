@@ -58,10 +58,15 @@ export default async function HomePage() {
   if (!session) redirect('/login')
   const user = session.user
 
-  // Profile and crew membership are independent — run in parallel
-  const [{ data: profile }, { data: memberRows, error: memberError }] = await Promise.all([
+  // Profile, crew membership, and total messages are independent — run in parallel
+  const [
+    { data: profile },
+    { data: memberRows, error: memberError },
+    { count: totalMessages },
+  ] = await Promise.all([
     supabase.from('profiles').select('username, avatar_url, birthday, created_at').eq('id', user.id).single(),
     supabase.from('crew_members').select('crew_id, last_seen, joined_at').eq('user_id', user.id).order('joined_at', { ascending: false }),
+    supabase.from('messages').select('id', { count: 'exact', head: true }).eq('user_id', user.id).neq('message_type', 'system'),
   ])
 
   if (memberError) console.error('[home] crew_members query error:', memberError)
@@ -84,6 +89,7 @@ export default async function HomePage() {
         avatarUrl={(profile as unknown as { avatar_url?: string | null })?.avatar_url ?? null}
         memberSince={memberSince}
         profileCache={{}}
+        totalMessages={totalMessages ?? 0}
       />
     )
   }
@@ -162,6 +168,7 @@ export default async function HomePage() {
       avatarUrl={(profile as unknown as { avatar_url?: string | null })?.avatar_url ?? null}
       memberSince={memberSince}
       profileCache={profileCache}
+      totalMessages={totalMessages ?? 0}
     />
   )
 }
