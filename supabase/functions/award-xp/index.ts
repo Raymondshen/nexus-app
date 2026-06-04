@@ -267,7 +267,7 @@ Deno.serve(async (req: Request) => {
             })
 
             const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-            const serviceKey  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+            const anonKey     = Deno.env.get('SUPABASE_ANON_KEY')!
 
             const { data: crewMembers } = await supabase
               .from('crew_members')
@@ -280,7 +280,7 @@ Deno.serve(async (req: Request) => {
                   method:  'POST',
                   headers: {
                     'Content-Type':  'application/json',
-                    'Authorization': `Bearer ${serviceKey}`,
+                    'Authorization': `Bearer ${anonKey}`,
                   },
                   body: JSON.stringify({
                     user_id: member.user_id,
@@ -303,7 +303,7 @@ Deno.serve(async (req: Request) => {
     let notifResults: { uid: string; http: number; result: string }[] = []
     if (message_type !== 'reaction') {
       const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-      const serviceKey  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+      const anonKey     = Deno.env.get('SUPABASE_ANON_KEY')!
 
       const { data: otherMembers } = await supabase
         .from('crew_members')
@@ -319,7 +319,7 @@ Deno.serve(async (req: Request) => {
             method:  'POST',
             headers: {
               'Content-Type':  'application/json',
-              'Authorization': `Bearer ${serviceKey}`,
+              'Authorization': `Bearer ${anonKey}`,
             },
             body: JSON.stringify({
               user_id: member.user_id,
