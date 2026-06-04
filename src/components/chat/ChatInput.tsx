@@ -38,6 +38,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatI
   const [spawning,      setSpawning]      = useState(false)
   const [spawnError,    setSpawnError]    = useState<string | null>(null)
   const [devMode,       setDevMode]       = useState(false)
+  const [lastXpEarned,  setLastXpEarned]  = useState(0)
 
   const textareaRef      = useRef<HTMLTextAreaElement>(null)
   const rateRef          = useRef({ count: 0, resetAt: Date.now() + RATE_LIMIT_WINDOW })
@@ -64,6 +65,11 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatI
   useEffect(() => {
     setDevMode(localStorage.getItem('nexus_dev_mode') === '1')
   }, [])
+
+  useEffect(() => {
+    const last = xpFloats[xpFloats.length - 1]
+    if (last) setLastXpEarned(last.amount)
+  }, [xpFloats])
 
   useEffect(() => {
     const supabase = createClient()
@@ -293,46 +299,48 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatI
         </div>
 
         {/* XP indicator — fixed h-6 (24px), flex-col gap-2 (8px), centered */}
-        <div className="relative h-6">
-          {/* XP floats — fade in rising from bottom, fade out continuing upward */}
-          <AnimatePresence>
-            {xpFloats.map((f) => (
-              <motion.span
-                key={f.id}
-                initial={{ opacity: 0, y: 0 }}
-                animate={{ opacity: [0, 1, 1, 0], y: [0, -12, -26, -42] }}
-                transition={{ duration: 1.4, ease: 'easeOut', times: [0, 0.15, 0.65, 1] }}
-                onAnimationComplete={() => dismissXPFloat(f.id)}
-                className="pointer-events-none absolute bottom-0 left-0 font-pixel text-[8px] text-[#ffd700] whitespace-nowrap z-10"
-                style={{ textShadow: '0 0 8px rgba(255,215,0,0.8)' }}
-              >
-                +{f.amount} XP
-              </motion.span>
-            ))}
-          </AnimatePresence>
-
-          <div className="flex flex-col gap-2 h-full items-center justify-center w-full">
-            {/* Level · XP · Members ··· Next Boss */}
-            <div className="flex items-center gap-2 w-full font-silkscreen text-tertiary">
-              {/* Left: "Level N · X / 500XP · N Members" — text-[0px] trick keeps container height tight */}
-              <p className="flex-1 min-w-0 leading-[0] text-[0px]">
-                <span className="text-[8px] leading-none text-purple">Level {crewLevel}</span>
-                <span className="text-[8px] leading-none">
-                  {` · ${crewXP % XP_PER_LEVEL} / ${XP_PER_LEVEL}XP · ${memberCount} Member${memberCount !== 1 ? 's' : ''}`}
+        <div className="h-6 flex flex-col gap-2 items-center justify-center w-full">
+          {/* Level · XP · Members · +XP ··· Next Boss */}
+          <div className="flex items-center gap-2 w-full font-silkscreen text-tertiary">
+            {/* Left: "Level N · X / 500XP · N Members · +XP" */}
+            <p className="flex-1 min-w-0 leading-[0] text-[0px]">
+              <span className="text-[8px] leading-none text-purple">Level {crewLevel}</span>
+              <span className="text-[8px] leading-none">
+                {` · ${crewXP % XP_PER_LEVEL} / ${XP_PER_LEVEL}XP · ${memberCount} Member${memberCount !== 1 ? 's' : ''}`}
+              </span>
+              {lastXpEarned > 0 && (
+                <span className="relative inline-block">
+                  <span className="text-[8px] leading-none text-[#f59e0b]">{` · +${lastXpEarned} XP`}</span>
+                  {/* XP floats — rise from the inline +XP label position */}
+                  <AnimatePresence>
+                    {xpFloats.map((f) => (
+                      <motion.span
+                        key={f.id}
+                        initial={{ opacity: 0, y: 0 }}
+                        animate={{ opacity: [0, 1, 1, 0], y: [0, -12, -26, -42] }}
+                        transition={{ duration: 1.4, ease: 'easeOut', times: [0, 0.15, 0.65, 1] }}
+                        onAnimationComplete={() => dismissXPFloat(f.id)}
+                        className="pointer-events-none absolute bottom-0 left-0 font-pixel text-[8px] text-[#ffd700] whitespace-nowrap z-10"
+                        style={{ textShadow: '0 0 8px rgba(255,215,0,0.8)' }}
+                      >
+                        +{f.amount} XP
+                      </motion.span>
+                    ))}
+                  </AnimatePresence>
                 </span>
-              </p>
-              {/* Right: "Next Boss" */}
-              <p className="text-[8px] leading-none whitespace-nowrap text-tertiary">Next Boss</p>
-            </div>
+              )}
+            </p>
+            {/* Right: "Next Boss" */}
+            <p className="text-[8px] leading-none whitespace-nowrap text-tertiary">Next Boss</p>
+          </div>
 
-            {/* Progress bar — 4px, surface bg, purple fill */}
-            <div className="bg-surface h-1 overflow-hidden w-full relative">
-              <motion.div
-                className="absolute left-0 top-0 h-full bg-purple"
-                animate={{ width: `${xpProgress}%` }}
-                transition={{ type: 'spring', stiffness: 120, damping: 20 }}
-              />
-            </div>
+          {/* Progress bar — 4px, surface bg, purple fill */}
+          <div className="bg-surface h-1 overflow-hidden w-full relative">
+            <motion.div
+              className="absolute left-0 top-0 h-full bg-purple"
+              animate={{ width: `${xpProgress}%` }}
+              transition={{ type: 'spring', stiffness: 120, damping: 20 }}
+            />
           </div>
         </div>
       </div>

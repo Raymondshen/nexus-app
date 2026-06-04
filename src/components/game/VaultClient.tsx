@@ -5,7 +5,6 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { format, formatDistanceToNow } from 'date-fns'
 import { toPng } from 'html-to-image'
 import { ArtifactCard } from './ArtifactCard'
-import { BottomNav } from '@/components/ui/BottomNav'
 import type { Artifact, ArtifactRarity } from '@/types'
 import type { ArtifactMeta } from '@/lib/game/artifacts'
 
@@ -312,8 +311,6 @@ export function VaultClient({ crewId, crewName, crewCreatedAt, artifacts }: Vaul
           </div>
         )}
       </div>
-
-      <BottomNav crewId={crewId} />
 
       {/* Detail modal */}
       <AnimatePresence>

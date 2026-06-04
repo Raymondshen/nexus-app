@@ -125,7 +125,8 @@ Berserker (spam), Sage (long messages), Ghost (silence crit), Hype Man (reaction
 ### MessageList — message grouping
 Consecutive messages from the same user within 60 seconds are visually grouped (no repeated avatar/header). `showHeader = false` for continuation messages.
 - `lastUserId` + `lastMsgTime` tracked in the display-list loop; both reset to null/0 on day dividers, boss cards, artifacts, level-up banners, and system messages — these all break grouping so the next regular message shows a fresh header
-- **Spacing**: first in group → `pt-2 pb-0` (8px top); continuation → `pt-1 pb-0` (4px top, Figma `gap-[4px]`). Between-group gap = 8px; within-group gap = 4px — clear visual hierarchy without a grouped-bubble refactor
+- **Spacing**: first in group → `pt-[var(--space-5)] pb-0` (16px, `--space-5` from globals.css); continuation → `pt-[var(--space-2)] pb-0` (4px, `--space-2`). Between-group gap = 16px; within-group gap = 4px.
+- **Avatar**: only rendered for `showHeader = true` (first in group). Continuation messages (`showHeader = false`) skip the avatar element entirely and use `pl-10` (40px = 32px avatar + 8px gap) on the content div to keep text aligned.
 
 ### ChatInput — send flow
 `insert_message` RPC → `addMessage` (optimistic) → broadcast slim payload on `messages:{crewId}` → `award-xp` edge function (patches `xp_awarded` back + broadcasts `xp_update`) → `attack-boss` edge function (if raid active)
@@ -133,7 +134,7 @@ Consecutive messages from the same user within 60 seconds are visually grouped (
 - **Single channel**: `messages:{crewId}` is configured with presence and handles message broadcasting, typing presence, and online presence. There is no separate `typing:{crewId}` channel.
 - **Send icon**: `hn hn-arrow-circle-up` (16px); `text-primary` when textarea has text, `text-muted` when empty.
 - **Member avatars**: 24×24px squares (`w-6 h-6`, no `rounded-full`, no border) — matches Figma `size-[24px]`. Online dot shown via `onlineUserIds` from `messages:{crewId}` presence state.
-- **XP floats**: animate bottom-to-top from the XP bar with fade-in then fade-out — `opacity: [0,1,1,0]`, `y: [0,-12,-26,-42]`, `times: [0, 0.15, 0.65, 1]` over 1.4s. Text shows `+{amount} XP` in gold `#ffd700`.
+- **XP floats**: animate bottom-to-top with fade-in then fade-out — `opacity: [0,1,1,0]`, `y: [0,-12,-26,-42]`, `times: [0, 0.15, 0.65, 1]` over 1.4s. Text shows `+{amount} XP` in gold `#ffd700`. Float anchors inline at the `· +{N} XP` label in the stats text row (after "Members ·"), not from the outer container edge. A `lastXpEarned` state persists the last earned amount so the static amber label stays visible between floats (matches Figma node 42:304).
 
 ### award-xp — query batching + anti-spam
 - **Batch 1** (always, parallel): previous message gap + burst window count + crew name/XP — 3 queries in one `Promise.all`
@@ -153,6 +154,9 @@ Consecutive messages from the same user within 60 seconds are visually grouped (
 
 ### ChatHeader — props
 `ChatHeader` accepts only `{ crew, initialXP, initialRaid, currentUserId, crewId }`. It has **no** `members` or `memberLastSeen` props — member avatars live in ChatInput, not the header. Do not add a second presence channel here (see Online Presence note above).
+
+### Vault Page — navigation
+`VaultClient` has **no** `BottomNav`. Users return to the chat room via swipe-back / browser back — no nav bar needed.
 
 ### PWA / Push Architecture
 - **Service worker**: `public/sw-push.js` — handwritten, zero dependencies, committed to git

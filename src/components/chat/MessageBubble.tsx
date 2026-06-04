@@ -63,30 +63,29 @@ export function MessageBubble({ message, isOwn, showHeader }: MessageBubbleProps
 
   return (
     <div
-      className={`flex gap-2 items-start w-full ${showHeader ? 'pt-2 pb-0' : 'pt-1 pb-0'}`}
+      className={`flex gap-2 items-start w-full ${showHeader ? 'pt-[var(--space-5)] pb-0' : 'pt-[var(--space-2)] pb-0'}`}
       onContextMenu={(e) => { e.preventDefault(); setShowReactions(true) }}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
       onTouchMove={handleTouchEnd}
     >
-      {/* Avatar — 32×32 white square, no border, matches Figma paper-0 placeholder */}
-      <div
-        className="flex-shrink-0 w-8 h-8 bg-white flex items-center justify-center overflow-hidden"
-        style={{ visibility: showHeader ? 'visible' : 'hidden' }}
-      >
-        {spriteId ? (
-          <PixelSprite spriteId={spriteId} scale={1.33} direction="south" />
-        ) : avatarUrl ? (
-          <div className="relative w-full h-full">
-            <Image src={avatarUrl} alt={message.profile.username} fill sizes="32px" className="object-cover" />
-          </div>
-        ) : (
-          <span className="font-pixel text-[8px] text-purple">{initial}</span>
-        )}
-      </div>
+      {/* Avatar — only rendered for the first message in a group */}
+      {showHeader && (
+        <div className="flex-shrink-0 w-8 h-8 bg-white flex items-center justify-center overflow-hidden">
+          {spriteId ? (
+            <PixelSprite spriteId={spriteId} scale={1.33} direction="south" />
+          ) : avatarUrl ? (
+            <div className="relative w-full h-full">
+              <Image src={avatarUrl} alt={message.profile.username} fill sizes="32px" className="object-cover" />
+            </div>
+          ) : (
+            <span className="font-pixel text-[8px] text-purple">{initial}</span>
+          )}
+        </div>
+      )}
 
-      {/* Message content — gap-0 between header row and message text */}
-      <div className="flex-1 min-w-0 flex flex-col gap-0">
+      {/* Message content — pl-10 (32px avatar + 8px gap) aligns continuation text */}
+      <div className={`flex-1 min-w-0 flex flex-col gap-0 ${!showHeader ? 'pl-10' : ''}`}>
 
         {/* Header row: [username · class · xp] [timestamp] */}
         {showHeader && (
