@@ -153,6 +153,7 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
               id: user.id, username: "???", avatar_class: null, avatar_url: null,
             }
           }
+          memberProfiles={memberProfiles}
         />
       </ErrorBoundary>
 

@@ -207,37 +207,15 @@ export function MessageList({
     []
   )
 
+  // Postgres-change fallback only — broadcasts are handled by ChatInput on the
+  // shared messages:{crewId} channel (presence + broadcasts in one subscription).
+  // Using a different topic here avoids the duplicate-channel / presence-after-
+  // subscribe crash that occurs when two components share the singleton client.
   useEffect(() => {
     const supabase = createClient()
     const channel  = supabase
-      .channel(`messages:${crewId}`)
-      // Broadcast: instant delivery from sender → all connected clients.
-      // Payload is Message only (no profile) — resolve from profilesRef to save egress.
-      .on('broadcast', { event: 'new_message' }, (payload) => {
-        const msg = payload.payload as Message
-        if (!msg?.id || typeof msg.content !== 'string') return
-        addMessage({
-          ...msg,
-          profile: profilesRef.current[msg.user_id] ?? {
-            id: msg.user_id, username: '???', avatar_class: null, avatar_url: null,
-          },
-        })
-      })
-      // XP sync: sender broadcasts authoritative total after award-xp resolves.
-      // Receivers show the float + snap to correct total; sender just corrects drift.
-      .on('broadcast', { event: 'xp_update' }, (payload) => {
-        const { xp_earned, new_total_xp, sender_id } =
-          payload.payload as { xp_earned: number; new_total_xp: number; sender_id: string }
-        if (typeof new_total_xp !== 'number') return
-        if (sender_id === currentUserId) {
-          setCrewXP(new_total_xp)
-        } else if (xp_earned > 0) {
-          receiveXP(xp_earned, new_total_xp)
-        } else {
-          setCrewXP(new_total_xp)
-        }
-      })
-      // Postgres Changes: backup path (catches missed broadcasts / reconnects).
+      .channel(`db:messages:${crewId}`)
+      // INSERT: catches missed broadcasts and reconnect gaps.
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'messages', filter: `crew_id=eq.${crewId}` },
@@ -260,7 +238,7 @@ export function MessageList({
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
-  }, [crewId, currentUserId, addMessage, updateMessage, resolveProfile, setCrewXP, receiveXP])
+  }, [crewId, addMessage, updateMessage, resolveProfile])
 
   // Show skeleton while the initial history fetch is in flight
   if (!historyLoaded) {

@@ -8,6 +8,7 @@ import { useChatStore, XP_PER_LEVEL } from '@/store/chatStore'
 import { getXPProgress } from '@/lib/game/xp'
 import { createClient } from '@/lib/supabase/client'
 import Image from 'next/image'
+import { spriteIdFor } from '@/components/game/PixelSprite'
 import type { Crew, Profile, ActiveRaid } from '@/types'
 import { formatDistanceToNow } from 'date-fns'
 
@@ -151,6 +152,7 @@ export function ChatHeader({
 
   const currentMember   = members.find((m) => m.id === currentUserId)
   const currentUsername = currentMember?.username ?? ''
+  const currentSpriteId = currentMember?.avatar_class ? spriteIdFor(currentMember.avatar_class) : null
 
   useEffect(() => {
     setCrewXP(initialXP)
@@ -264,10 +266,13 @@ export function ChatHeader({
             <button
               onClick={() => router.push('/profile')}
               className="w-7 h-7 flex items-center justify-center font-pixel text-[9px] border border-[#2a1545] hover:border-[#6b4f8f] transition-colors flex-shrink-0 overflow-hidden relative"
-              style={currentMember?.avatar_url ? undefined : { background: 'rgba(107,79,143,0.15)', color: '#6b4f8f' }}
+              style={currentSpriteId || currentMember?.avatar_url ? undefined : { background: 'rgba(107,79,143,0.15)', color: '#6b4f8f' }}
               aria-label="Account menu"
             >
-              {currentMember?.avatar_url ? (
+              {currentSpriteId ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={`/sprites/${currentSpriteId}/south.png`} alt={currentUsername} style={{ imageRendering: 'pixelated', width: '100%', height: '100%', display: 'block' }} />
+              ) : currentMember?.avatar_url ? (
                 <Image src={currentMember.avatar_url as string} alt={currentUsername} fill sizes="28px" className="object-cover" />
               ) : (
                 currentUsername[0]?.toUpperCase() ?? '?'
@@ -281,38 +286,48 @@ export function ChatHeader({
           <span className="font-pixel text-[7px] text-[#3d2660] mr-1">
             {members.length} WARRIOR{members.length !== 1 ? 'S' : ''}
           </span>
-          {members.slice(0, 8).map((m, i) => (
-            <div key={m.id} className="relative">
-              {m.avatar_url ? (
-                <div
-                  className="w-7 h-7 relative overflow-hidden flex-shrink-0 border"
-                  style={{ borderColor: AVATAR_COLORS[i % AVATAR_COLORS.length] + '80' }}
-                  title={m.username}
-                >
-                  <Image src={m.avatar_url as string} alt={m.username} fill sizes="28px" className="object-cover" />
-                </div>
-              ) : (
-                <div
-                  className="w-7 h-7 flex items-center justify-center border font-pixel text-[8px] flex-shrink-0"
-                  style={{
-                    backgroundColor: AVATAR_COLORS[i % AVATAR_COLORS.length] + '22',
-                    borderColor:     AVATAR_COLORS[i % AVATAR_COLORS.length] + '80',
-                    color:           AVATAR_COLORS[i % AVATAR_COLORS.length],
-                  }}
-                  title={m.username}
-                >
-                  {m.username[0]?.toUpperCase()}
-                </div>
-              )}
-              {/* Online presence dot — driven by Supabase Presence, seeded from last_seen */}
-              <span
-                className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-[#0a0612]"
-                style={{
-                  background: onlineUserIds.has(m.id) ? '#66bb6a' : '#3d2660',
-                }}
-              />
-            </div>
-          ))}
+          {members.slice(0, 8).map((m, i) => {
+            const spriteId = m.avatar_class ? spriteIdFor(m.avatar_class) : null
+            return (
+              <div key={m.id} className="relative">
+                {spriteId ? (
+                  <div
+                    className="w-7 h-7 flex-shrink-0 border"
+                    style={{ borderColor: AVATAR_COLORS[i % AVATAR_COLORS.length] + '80' }}
+                    title={m.username}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={`/sprites/${spriteId}/south.png`} alt={m.username} style={{ imageRendering: 'pixelated', width: '100%', height: '100%', display: 'block' }} />
+                  </div>
+                ) : m.avatar_url ? (
+                  <div
+                    className="w-7 h-7 relative overflow-hidden flex-shrink-0 border"
+                    style={{ borderColor: AVATAR_COLORS[i % AVATAR_COLORS.length] + '80' }}
+                    title={m.username}
+                  >
+                    <Image src={m.avatar_url as string} alt={m.username} fill sizes="28px" className="object-cover" />
+                  </div>
+                ) : (
+                  <div
+                    className="w-7 h-7 flex items-center justify-center border font-pixel text-[8px] flex-shrink-0"
+                    style={{
+                      backgroundColor: AVATAR_COLORS[i % AVATAR_COLORS.length] + '22',
+                      borderColor:     AVATAR_COLORS[i % AVATAR_COLORS.length] + '80',
+                      color:           AVATAR_COLORS[i % AVATAR_COLORS.length],
+                    }}
+                    title={m.username}
+                  >
+                    {m.username[0]?.toUpperCase()}
+                  </div>
+                )}
+                {/* Online presence dot — driven by Supabase Presence, seeded from last_seen */}
+                <span
+                  className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-[#0a0612]"
+                  style={{ background: onlineUserIds.has(m.id) ? '#66bb6a' : '#3d2660' }}
+                />
+              </div>
+            )
+          })}
           {members.length > 8 && (
             <span className="font-pixel text-[7px] text-[#3d2660]">+{members.length - 8}</span>
           )}

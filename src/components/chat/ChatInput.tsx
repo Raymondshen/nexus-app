@@ -9,23 +9,26 @@ import { useChatStore } from '@/store/chatStore'
 import { DamageFloat } from '@/components/game/DamageFloat'
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/config'
 import { haptic } from '@/lib/sounds'
-import type { MessageWithProfile, Profile } from '@/types'
+import type { Message, MessageWithProfile, Profile } from '@/types'
 
 const MAX_MESSAGE_LENGTH = 2000
 const RATE_LIMIT_MAX     = 30
 const RATE_LIMIT_WINDOW  = 60_000 // 1 minute
 
+type MemberProfile = Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url'>
+
 interface ChatInputProps {
-  crewId:      string
-  userId:      string
-  userProfile: Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url'>
+  crewId:         string
+  userId:         string
+  userProfile:    MemberProfile
+  memberProfiles: Record<string, MemberProfile>
 }
 
 function sanitizeMessage(raw: string): string {
   return raw.replace(/<[^>]*>/g, '').trim().slice(0, MAX_MESSAGE_LENGTH)
 }
 
-export function ChatInput({ crewId, userId, userProfile }: ChatInputProps) {
+export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatInputProps) {
   const [text,        setText]        = useState('')
   const [sending,   setSending]   = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
@@ -40,7 +43,11 @@ export function ChatInput({ crewId, userId, userProfile }: ChatInputProps) {
   const typingChannelRef = useRef<RealtimeChannel | null>(null)
   const msgChannelRef    = useRef<RealtimeChannel | null>(null)
 
-  const { addMessage, updateMessage, addXP, setCrewXP, activeRaid, damageFloats, addDamageFloat, dismissDamageFloat } = useChatStore()
+  const { addMessage, updateMessage, addXP, setCrewXP, receiveXP, activeRaid, damageFloats, addDamageFloat, dismissDamageFloat } = useChatStore()
+
+  // Keep a ref so broadcast handlers always see the latest member profiles
+  const profilesRef = useRef(memberProfiles)
+  profilesRef.current = memberProfiles
   const inRaid = !!(activeRaid && !activeRaid.defeated_at)
 
   // Read dev mode flag once on mount
@@ -48,13 +55,20 @@ export function ChatInput({ crewId, userId, userProfile }: ChatInputProps) {
     setDevMode(localStorage.getItem('nexus_dev_mode') === '1')
   }, [])
 
-  // Single channel for both message broadcasting and typing presence.
-  // Merging the two eliminates one Supabase subscription per chat session.
+  // Single channel for presence, broadcast reception, and broadcast sending.
+  // MessageList uses a separate channel name (db:messages:{crewId}) for
+  // Postgres-change fallback only — keeping one subscription to this topic
+  // avoids the "cannot add presence callbacks after subscribe" error that
+  // occurs when two components share the same singleton Supabase client and
+  // both call .channel('messages:{crewId}').
   useEffect(() => {
     const supabase = createClient()
     const ch = supabase.channel(`messages:${crewId}`, {
       config: { presence: { key: userId } },
     })
+
+    const fallbackProfile = (uid: string): MemberProfile =>
+      profilesRef.current[uid] ?? { id: uid, username: '???', avatar_class: null, avatar_url: null }
 
     ch
       .on('presence', { event: 'sync' }, () => {
@@ -66,6 +80,23 @@ export function ChatInput({ crewId, userId, userProfile }: ChatInputProps) {
           .map((p) => p.username)
         setTypingUsers(others)
       })
+      .on('broadcast', { event: 'new_message' }, (payload) => {
+        const msg = payload.payload as Message
+        if (!msg?.id || typeof msg.content !== 'string') return
+        addMessage({ ...msg, profile: fallbackProfile(msg.user_id) })
+      })
+      .on('broadcast', { event: 'xp_update' }, (payload) => {
+        const { xp_earned, new_total_xp, sender_id } =
+          payload.payload as { xp_earned: number; new_total_xp: number; sender_id: string }
+        if (typeof new_total_xp !== 'number') return
+        if (sender_id === userId) {
+          setCrewXP(new_total_xp)
+        } else if (xp_earned > 0) {
+          receiveXP(xp_earned, new_total_xp)
+        } else {
+          setCrewXP(new_total_xp)
+        }
+      })
       .subscribe()
 
     msgChannelRef.current    = ch
@@ -75,7 +106,7 @@ export function ChatInput({ crewId, userId, userProfile }: ChatInputProps) {
       msgChannelRef.current    = null
       typingChannelRef.current = null
     }
-  }, [crewId, userId])
+  }, [crewId, userId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function broadcastTyping(isTyping: boolean) {
     typingChannelRef.current?.track({ username: userProfile.username, typing: isTyping })

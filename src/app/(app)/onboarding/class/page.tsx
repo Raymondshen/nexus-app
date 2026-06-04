@@ -14,5 +14,16 @@ export default async function ClassSelectPage({
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) redirect('/login')
 
+  // If the user already picked a class, skip selection and go straight to the crew
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('avatar_class')
+    .eq('id', session.user.id)
+    .single()
+
+  if (profile?.avatar_class) {
+    redirect(`/chat/${crewId}${welcome === '1' ? '?welcome=1' : ''}`)
+  }
+
   return <ClassSelectClient crewId={crewId} welcome={welcome === '1'} />
 }
