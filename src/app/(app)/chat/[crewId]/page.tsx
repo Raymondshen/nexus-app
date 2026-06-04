@@ -85,9 +85,18 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
     cachedProfiles.filter((r) => r.profile).map((r) => [r.user_id, r.profile!])
   );
 
-  // Prompt once for class selection — redirect any member without a class set
+  // Prompt once for class selection.
+  // Cached profiles may lag just after selectClassAction fires, so fall back to a
+  // fresh query on cache miss to avoid a redirect loop.
   if (!memberProfiles[user.id]?.avatar_class) {
-    redirect(`/onboarding/class?crew=${crewId}`);
+    const { data: freshProfile } = await supabase
+      .from('profiles')
+      .select('avatar_class')
+      .eq('id', user.id)
+      .single()
+    if (!freshProfile?.avatar_class) {
+      redirect(`/onboarding/class?crew=${crewId}`)
+    }
   }
 
   // Build last_seen map from fresh data
