@@ -266,6 +266,8 @@ Deno.serve(async (req: Request) => {
               xp_awarded:   0,
             })
 
+            const fnUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/send-notification`
+
             const { data: crewMembers } = await supabase
               .from('crew_members')
               .select('user_id')
@@ -273,8 +275,10 @@ Deno.serve(async (req: Request) => {
 
             await Promise.allSettled(
               (crewMembers ?? []).map((member) =>
-                supabase.functions.invoke('send-notification', {
-                  body: {
+                fetch(fnUrl, {
+                  method:  'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
                     user_id: member.user_id,
                     type:    'boss_spawned',
                     payload: {
@@ -282,7 +286,7 @@ Deno.serve(async (req: Request) => {
                       crew_name: crewBefore?.name ?? '',
                       crew_id,
                     },
-                  },
+                  }),
                 })
               )
             )
@@ -302,10 +306,14 @@ Deno.serve(async (req: Request) => {
 
       console.log(`[award-xp] notifying ${otherMembers?.length ?? 0} members for message ${message_id}`)
 
+      const fnUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/send-notification`
+
       const settled = await Promise.allSettled(
         (otherMembers ?? []).map(async (member) => {
-          const { data: notifData, error: notifError } = await supabase.functions.invoke('send-notification', {
-            body: {
+          const res = await fetch(fnUrl, {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
               user_id: member.user_id,
               type:    'message_received',
               payload: {
@@ -314,18 +322,19 @@ Deno.serve(async (req: Request) => {
                 crew_name:       crewBefore?.name ?? '',
                 crew_id,
               },
-            },
+            }),
           })
-          const result = notifError ? `error:${notifError.message}` : JSON.stringify(notifData).slice(0, 120)
-          console.log(`[award-xp] send-notification uid=${member.user_id.slice(0, 8)} result=${result}`)
-          return { uid: member.user_id.slice(0, 8), http: notifError ? 0 : 200, result }
+          const text = await res.text()
+          const result = text.slice(0, 120)
+          console.log(`[award-xp] send-notification uid=${member.user_id.slice(0, 8)} http=${res.status} result=${result}`)
+          return { uid: member.user_id.slice(0, 8), http: res.status, result }
         })
       )
 
       notifResults = settled.map((r, i) =>
         r.status === 'fulfilled'
           ? r.value
-          : { uid: ((otherMembers ?? [])[i]?.user_id ?? '?').slice(0, 8), http: 0, result: `invoke_error:${String(r.reason).slice(0, 60)}` }
+          : { uid: ((otherMembers ?? [])[i]?.user_id ?? '?').slice(0, 8), http: 0, result: `fetch_error:${String(r.reason).slice(0, 60)}` }
       )
     }
 
