@@ -212,13 +212,7 @@ export function ChatHeader({
               className="flex-shrink-0 flex items-center justify-center"
               style={{ width: 24, height: 40 }}
             >
-              <svg width="7" height="12" viewBox="0 0 7 12" fill="#a855f7" aria-hidden="true">
-                <rect x="0" y="0" width="3" height="3" />
-                <rect x="3" y="3" width="3" height="3" />
-                <rect x="0" y="6" width="3" height="3" />
-                <rect x="3" y="3" width="3" height="3" />
-                <rect x="0" y="9" width="3" height="3" />
-              </svg>
+              <i className="hn hn-angle-right" style={{ fontSize: 14, color: '#a855f7' }} aria-hidden="true" />
             </button>
           </div>
 
@@ -230,13 +224,7 @@ export function ChatHeader({
               className="flex items-center justify-center text-primary hover:text-purple transition-colors"
               style={{ width: 24, height: 40 }}
             >
-              {/* Pixel user-plus icon */}
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                <rect x="3" y="0" width="6" height="4" />
-                <rect x="0" y="6" width="10" height="6" />
-                <rect x="14" y="4" width="2" height="10" />
-                <rect x="11" y="8" width="9" height="2" />
-              </svg>
+              <i className="hn hn-user-plus" style={{ fontSize: 18 }} aria-hidden="true" />
             </button>
             <Link
               href={`/vault/${crewId}`}
@@ -244,17 +232,7 @@ export function ChatHeader({
               className="flex items-center justify-center text-primary hover:text-purple transition-colors"
               style={{ width: 24, height: 40 }}
             >
-              {/* Pixel vault / castle icon */}
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                <rect x="0"  y="0" width="4" height="5" />
-                <rect x="8"  y="0" width="4" height="5" />
-                <rect x="16" y="0" width="4" height="5" />
-                <rect x="0"  y="5" width="20" height="3" />
-                <rect x="0"  y="8" width="6"  height="12" />
-                <rect x="14" y="8" width="6"  height="12" />
-                <rect x="6"  y="8" width="8"  height="3" />
-                <rect x="6"  y="16" width="8" height="4" />
-              </svg>
+              <i className="hn hn-bank" style={{ fontSize: 18 }} aria-hidden="true" />
             </Link>
           </div>
         </div>

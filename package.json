@@ -10,6 +10,7 @@
     "generate-icons": "node scripts/generate-icons.mjs"
   },
   "dependencies": {
+    "@hackernoon/pixel-icon-library": "^1.1.0",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.106.2",
     "@types/canvas-confetti": "^1.9.0",

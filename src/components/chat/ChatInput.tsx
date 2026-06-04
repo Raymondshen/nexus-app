@@ -376,16 +376,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatI
           className="flex-shrink-0 flex items-center justify-center w-4 h-4 text-muted hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           aria-label="Send message"
         >
-          {/* Pixel send icon — right-pointing triangle ▶ */}
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true">
-            <rect x="0" y="0" width="2" height="2" />
-            <rect x="0" y="2" width="4" height="2" />
-            <rect x="0" y="4" width="6" height="2" />
-            <rect x="0" y="6" width="8" height="2" />
-            <rect x="0" y="8" width="6" height="2" />
-            <rect x="0" y="10" width="4" height="2" />
-            <rect x="0" y="12" width="2" height="2" />
-          </svg>
+          <i className="hn hn-share" style={{ fontSize: 14 }} aria-hidden="true" />
         </button>
       </div>
     </div>
