@@ -119,6 +119,8 @@ Berserker (spam), Sage (long messages), Ghost (silence crit), Hype Man (reaction
 2. Hard stop: 0 XP if ≥4 messages in last 30s
 3. Multiplier: 1.0 / 0.5 / 0.1 at 30 / 60 daily message thresholds
 
+Spam checks gate XP only — **notifications always fire** regardless of spam filter. Implemented via `xpBlocked` flag; do NOT use early returns before the notification block or crew members won't be notified. Response includes `notif_count` + `notif_results` for debugging (logged by ChatInput as `[award-xp] ...`).
+
 ### HomeClient — stale preview fix
 `router.refresh()` on every home mount forces a background server re-fetch. A `useEffect([initialCrews])` sync effect applies refreshed `initialCrews` prop into `crews` state (useState only runs once on mount).
 
@@ -127,15 +129,20 @@ Berserker (spam), Sage (long messages), Ghost (silence crit), Hype Man (reaction
   - next-pwa's generated `sw.js` uses multi-arg `importScripts()` which silently kills installation on iOS Safari
   - `sw-push.js` handles only `push` + `notificationclick` events; no workbox precaching
   - Registered by `SWRegister` component (root layout) and `subscribeToPush()` in notifications.ts
+  - On push receive, posts `{type:'nexus-push-received', ts}` to all open clients — ProfileClient DevSection listens for this to confirm the SW handler fired
+  - Uses bare `navigator.setAppBadge` (not `self.navigator`) and strips `badge` option from `showNotification` (iOS doesn't support it; can cause silent rejection)
+  - Fallback: if full `showNotification` options are rejected, retries with minimal `{body}` only
 - **Registration**: `SWRegister` (`src/components/ui/SWRegister.tsx`) — production-only, runs once in root layout
 - **Subscription storage**: `push_subscriptions` table; use delete→insert NOT upsert (unique index may not exist in all envs)
 - **Badge**: `BadgeClear` component clears app icon badge on focus/visibilitychange; SW sets it on push receive
 - **Preferences**: `notification_preferences` table; `send-notification` edge function checks before sending
 - `VAPID_SUBJECT` **must** be a `mailto:` URI — bare email breaks iOS APNs
 - iOS push only works in standalone PWA mode (iOS 16.4+, added to Home Screen)
+- **iOS foreground suppression**: iOS does NOT show push banners when the PWA window is active. The realtime unread indicator is not a push notification. Always test push with the PWA completely closed (swiped away from app switcher).
 - PWA/SW disabled in dev; test push notifications against production Vercel deployment only
 - `subscribeToPush()` uses `getSession()` (not `getUser()`) — cookie-only, never fails due to network
 - VAPID env vars must be set in **Supabase Edge Function secrets** (separate from Vercel env vars)
+- **Edge function deployment**: `git push` to Vercel does NOT deploy Supabase Edge Functions. Must run manually: `supabase functions deploy <name> --project-ref tlveyeisjbythssmocth`. Deploy both `award-xp` and `send-notification` after any changes.
 
 ### Pixel Sprites
 - Component: `src/components/game/PixelSprite.tsx`
@@ -199,6 +206,24 @@ CREATE UNIQUE INDEX IF NOT EXISTS push_subscriptions_endpoint_key ON push_subscr
 
 -- push_subscriptions crew_id nullable (from migration 3 if not applied)
 ALTER TABLE push_subscriptions ALTER COLUMN crew_id DROP NOT NULL;
+
+-- notification_preferences table (migration 20240102000001 — apply if table missing)
+create table if not exists notification_preferences (
+  user_id        uuid primary key references auth.users(id) on delete cascade,
+  notif_messages boolean not null default true,
+  notif_raids    boolean not null default true,
+  notif_victory  boolean not null default true,
+  updated_at     timestamptz not null default now()
+);
+alter table notification_preferences enable row level security;
+create policy "Users manage own notification preferences"
+  on notification_preferences for all
+  using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- Dev mode + Riley access
+UPDATE profiles SET is_dev = true WHERE id IN (
+  SELECT id FROM auth.users WHERE email IN ('shenraymonds@gmail.com', 'legaspi.riley@gmail.com')
+);
 ```
 
 ## Supabase Type System Rules
