@@ -9,6 +9,75 @@ import { createClient } from '@/lib/supabase/client'
 import type { Crew, ActiveRaid } from '@/types'
 import { formatDistanceToNow } from 'date-fns'
 
+// ─── NotifSheet ───────────────────────────────────────────────────────────────
+
+function NotifSheet({
+  crew,
+  userId,
+  muted,
+  onToggle,
+  onClose,
+}: {
+  crew:     Crew
+  userId:   string
+  muted:    boolean
+  onToggle: () => void
+  onClose:  () => void
+}) {
+  return (
+    <motion.div
+      className="fixed inset-0 z-50 flex items-end justify-center"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+    >
+      <div className="absolute inset-0 bg-black/60" />
+      <motion.div
+        initial={{ y: 80, opacity: 0 }}
+        animate={{ y: 0,  opacity: 1 }}
+        exit={{   y: 80, opacity: 0 }}
+        transition={{ type: 'spring', stiffness: 280, damping: 26 }}
+        className="relative w-full max-w-[480px] bg-[#0f0820] border-t border-[#2a1545] p-6"
+        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 24px)' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <p className="font-pixel text-[8px] text-[#6b4f8f] mb-1">{crew.name.toUpperCase()}</p>
+        <h2 className="font-pixel text-[11px] text-white mb-5">NOTIFICATIONS</h2>
+
+        {/* Messages toggle row */}
+        <div className="flex items-center justify-between py-3 border-b border-[#2a1545]">
+          <div>
+            <p className="font-body font-medium text-[14px] text-primary">Messages</p>
+            <p className="font-pixel text-[7px] text-[#6b4f8f] mt-0.5">
+              {muted ? 'Notifications off for this crew' : 'Notified when messages arrive'}
+            </p>
+          </div>
+          <button
+            onClick={onToggle}
+            aria-label={muted ? 'Enable notifications' : 'Mute notifications'}
+            className="relative w-[40px] h-[24px] flex-shrink-0 transition-colors"
+            style={{ background: muted ? '#27272a' : '#a855f7' }}
+          >
+            <motion.span
+              className="absolute top-[4px] w-4 h-4 bg-white pointer-events-none"
+              animate={{ left: muted ? 4 : 20 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+            />
+          </button>
+        </div>
+
+        <button
+          onClick={onClose}
+          className="mt-4 w-full font-pixel text-[8px] text-[#3d2660] py-2 hover:text-[#6b4f8f] transition-colors"
+        >
+          CLOSE
+        </button>
+      </motion.div>
+    </motion.div>
+  )
+}
+
 interface ChatHeaderProps {
   crew:          Crew
   initialXP:     number
@@ -125,7 +194,9 @@ export function ChatHeader({
 }: ChatHeaderProps) {
   const router = useRouter()
   const { setCrewXP, setActiveRaid, activeRaid } = useChatStore()
-  const [showShare, setShowShare] = useState(false)
+  const [showShare,  setShowShare]  = useState(false)
+  const [showNotif,  setShowNotif]  = useState(false)
+  const [notifMuted, setNotifMuted] = useState(false)
 
   useEffect(() => {
     setCrewXP(initialXP)
@@ -151,7 +222,36 @@ export function ChatHeader({
     return () => clearInterval(interval)
   }, [crewId, currentUserId])
 
+  // Load per-crew notification mute state on mount
+  useEffect(() => {
+    const supabase = createClient()
+    supabase
+      .from('crew_notification_mutes')
+      .select('crew_id')
+      .eq('user_id', currentUserId)
+      .eq('crew_id', crewId)
+      .maybeSingle()
+      .then(({ data }) => setNotifMuted(data !== null))
+  }, [currentUserId, crewId])
+
+  const handleToggleNotif = useCallback(async () => {
+    const supabase = createClient()
+    if (notifMuted) {
+      await supabase
+        .from('crew_notification_mutes')
+        .delete()
+        .eq('user_id', currentUserId)
+        .eq('crew_id', crewId)
+    } else {
+      await supabase
+        .from('crew_notification_mutes')
+        .insert({ user_id: currentUserId, crew_id: crewId })
+    }
+    setNotifMuted((m) => !m)
+  }, [notifMuted, currentUserId, crewId])
+
   const handleCloseShare = useCallback(() => setShowShare(false), [])
+  const handleCloseNotif = useCallback(() => setShowNotif(false), [])
 
   return (
     <>
@@ -179,8 +279,20 @@ export function ChatHeader({
             </button>
           </div>
 
-          {/* Right: user-plus + vault, gap-4 (16px) — Figma node 11:96 */}
+          {/* Right: bell + user-plus + vault, gap-4 (16px) — Figma node 42:261 */}
           <div className="flex items-center gap-4 flex-shrink-0">
+            <button
+              onClick={() => setShowNotif(true)}
+              aria-label={notifMuted ? 'Notifications muted' : 'Notification settings'}
+              className="flex items-center justify-center transition-colors"
+              style={{ width: 24, height: 40, color: notifMuted ? '#71717a' : 'var(--color-primary)' }}
+            >
+              <i
+                className={`hn ${notifMuted ? 'hn-bell-mute' : 'hn-bell'}`}
+                style={{ fontSize: 18 }}
+                aria-hidden="true"
+              />
+            </button>
             <button
               onClick={() => setShowShare(true)}
               aria-label="Invite members"
@@ -222,6 +334,15 @@ export function ChatHeader({
 
       <AnimatePresence>
         {showShare && <ShareModal crew={crew} onClose={handleCloseShare} />}
+        {showNotif && (
+          <NotifSheet
+            crew={crew}
+            userId={currentUserId}
+            muted={notifMuted}
+            onToggle={handleToggleNotif}
+            onClose={handleCloseNotif}
+          />
+        )}
       </AnimatePresence>
     </>
   )

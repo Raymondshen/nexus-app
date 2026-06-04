@@ -22,20 +22,20 @@ export async function selectClassAction(
   if (!SELECTABLE_CLASSES.includes(selectedClass)) return { error: 'Select a class to continue.' }
   if (!crewId) redirect('/home')
 
-  // profiles.avatar_class is required — return error if it fails
-  const { error: profileErr } = await supabase
-    .from('profiles')
-    .update({ avatar_class: selectedClass })
-    .eq('id', user.id)
-
-  if (profileErr) return { error: profileErr.message }
-
-  // crew_members.class is best-effort — don't block the redirect if it fails
-  await supabase
+  // crew_members.class is the per-crew source of truth — required
+  const { error: memberErr } = await supabase
     .from('crew_members')
     .update({ class: selectedClass })
     .eq('crew_id', crewId)
     .eq('user_id', user.id)
+
+  if (memberErr) return { error: memberErr.message }
+
+  // profiles.avatar_class kept in sync for profile page display (best-effort)
+  await supabase
+    .from('profiles')
+    .update({ avatar_class: selectedClass })
+    .eq('id', user.id)
 
   revalidateTag(`profile:${user.id}`, 'max')
   revalidateTag(`crew-members:${crewId}`, 'max')

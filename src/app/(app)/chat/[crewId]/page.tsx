@@ -6,18 +6,19 @@ import { MessageList } from "@/components/chat/MessageList";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { WelcomeDetector } from "@/components/ui/WelcomeDetector";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
-import type { Profile, Crew, ActiveRaid } from "@/types";
+import type { Profile, Crew, ActiveRaid, AvatarClass } from "@/types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type MemberProfile = Pick<Profile, "id" | "username" | "avatar_class" | "avatar_url">
 type MemberProfileMap = Record<string, MemberProfile>
-type MemberRow = { user_id: string; last_seen: string | null; profile: MemberProfile | null }
+// class is the crew-specific class; last_seen is fetched fresh (not cached)
+type MemberRow = { user_id: string; last_seen: string | null; class: AvatarClass | null }
 
 // ─── Cache ────────────────────────────────────────────────────────────────────
 
 // Member profiles (username, avatar) change rarely — cache for 60 s.
-// last_seen is excluded from the cache since it's fetched fresh below.
+// avatar_class comes from crew_members.class (per-crew) not profiles.avatar_class (global).
 // Invalidated by revalidateTag('crew-members:{crewId}') on join/leave.
 function getCachedMemberProfiles(crewId: string) {
   return unstable_cache(
@@ -25,9 +26,19 @@ function getCachedMemberProfiles(crewId: string) {
       const supabase = createServiceClient()
       const { data } = await supabase
         .from("crew_members")
-        .select("user_id, profile:profiles(id, username, avatar_class, avatar_url)")
+        .select("user_id, class, profile:profiles(id, username, avatar_url)")
         .eq("crew_id", crewId)
-      return (data ?? []) as unknown as { user_id: string; profile: MemberProfile | null }[]
+      // Expose crew_members.class as avatar_class so the rest of the app stays typed
+      type RawRow = { user_id: string; class: string | null; profile: Omit<MemberProfile, 'avatar_class'> | null }
+      return (data ?? []).map((r) => {
+        const row = r as unknown as RawRow
+        return {
+          user_id: row.user_id,
+          profile: row.profile
+            ? { ...row.profile, avatar_class: row.class as AvatarClass | null }
+            : null,
+        }
+      }) as { user_id: string; profile: MemberProfile | null }[]
     },
     [`chat-member-profiles:${crewId}`],
     { tags: [`crew-members:${crewId}`], revalidate: 60 }
@@ -68,15 +79,15 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
       .maybeSingle(),
     supabase
       .from("crew_members")
-      .select("user_id, last_seen")
+      .select("user_id, last_seen, class")
       .eq("crew_id", crewId),
   ]);
 
   const crew    = crewResult.data as Crew | null;
   const raidRow = raidResult.data as ActiveRaid | null;
 
-  // Membership check — use fresh last_seen rows (RLS returns empty for non-members)
-  const lastSeenRows = (lastSeenResult.data ?? []) as { user_id: string; last_seen: string | null }[]
+  // Membership check — fresh query (RLS returns empty for non-members)
+  const lastSeenRows = (lastSeenResult.data ?? []) as MemberRow[]
   const isMember = lastSeenRows.some((r) => r.user_id === user.id);
   if (!isMember || !crew) redirect("/home");
 
@@ -85,18 +96,11 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
     cachedProfiles.filter((r) => r.profile).map((r) => [r.user_id, r.profile!])
   );
 
-  // Prompt once for class selection.
-  // Cached profiles may lag just after selectClassAction fires, so fall back to a
-  // fresh query on cache miss to avoid a redirect loop.
-  if (!memberProfiles[user.id]?.avatar_class) {
-    const { data: freshProfile } = await supabase
-      .from('profiles')
-      .select('avatar_class')
-      .eq('id', user.id)
-      .single()
-    if (!freshProfile?.avatar_class) {
-      redirect(`/onboarding/class?crew=${crewId}`)
-    }
+  // Per-crew class check — uses crew_members.class so each crew has its own class selection.
+  // lastSeenResult is always fresh (not cached) so no redirect-loop risk.
+  const currentMemberRow = lastSeenRows.find((r) => r.user_id === user.id)
+  if (!currentMemberRow?.class) {
+    redirect(`/onboarding/class?crew=${crewId}`)
   }
 
   return (

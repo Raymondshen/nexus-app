@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import Image from 'next/image'
 import { format } from 'date-fns'
 import { useChatStore } from '@/store/chatStore'
+import { spriteIdFor } from '@/components/game/PixelSprite'
 import type { MessageWithProfile, AvatarClass } from '@/types'
 
 const CLASS_NAMES: Record<AvatarClass, string> = {
@@ -84,6 +85,7 @@ export function MessageBubble({ message, isOwn, showHeader, xpOverride }: Messag
   const initial   = message.profile.username[0]?.toUpperCase() ?? '?'
   const avatarUrl = message.profile.avatar_url as string | null | undefined
   const className = message.profile.avatar_class ? CLASS_NAMES[message.profile.avatar_class] : null
+  const spriteId  = spriteIdFor(message.profile.avatar_class)
   const isOnline  = onlineUserIds.has(message.user_id)
   // "9:30pm" — lowercase, no space
   const timeStr   = format(new Date(message.created_at), 'h:mma').toLowerCase()
@@ -133,25 +135,41 @@ export function MessageBubble({ message, isOwn, showHeader, xpOverride }: Messag
                 {message.profile.username}
               </span>
 
-              {className && (
+              {(spriteId || className) && (
                 <>
-                  {/* 2×2 purple dot separator — square, not rounded */}
+                  {/* 2×2 purple dot separator */}
                   <span className="w-[2px] h-[2px] bg-purple shrink-0" />
-                  <span
-                    className="font-body font-normal text-[10px] tracking-[0.1px] shrink-0 leading-normal whitespace-nowrap"
-                    style={{ color: 'var(--color-paper-150)', fontVariationSettings: '"opsz" 14' }}
-                  >
-                    {className}
-                  </span>
+                  {/* 16×16 pixel sprite — transparent background, south direction */}
+                  {spriteId && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={`/sprites/${spriteId}/south.png`}
+                      alt=""
+                      width={16}
+                      height={16}
+                      style={{ imageRendering: 'pixelated', flexShrink: 0 }}
+                    />
+                  )}
+                  {className && (
+                    <span
+                      className="font-body font-normal text-[10px] tracking-[0.1px] shrink-0 leading-normal whitespace-nowrap"
+                      style={{ color: 'var(--color-paper-150)', fontVariationSettings: '"opsz" 14' }}
+                    >
+                      {className}
+                    </span>
+                  )}
                 </>
               )}
 
               {displayXP > 0 && (
-                <p className="font-silkscreen tracking-[0.1px] whitespace-nowrap leading-[0] text-[0px] shrink-0">
-                  <span className="text-[8px] leading-none" style={{ color: '#f59e0b' }}>
-                    +{displayXP} XP
-                  </span>
-                </p>
+                <>
+                  <span className="w-[2px] h-[2px] bg-purple shrink-0" />
+                  <p className="font-silkscreen tracking-[0.1px] whitespace-nowrap leading-[0] text-[0px] shrink-0">
+                    <span className="text-[8px] leading-none" style={{ color: '#f59e0b' }}>
+                      +{displayXP} XP
+                    </span>
+                  </p>
+                </>
               )}
             </div>
 

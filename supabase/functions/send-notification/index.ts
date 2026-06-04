@@ -137,11 +137,30 @@ Deno.serve(async (req: Request) => {
       )
     }
 
+    // Per-crew mute check — only for message_received; other types (raids, victory) are not crew-mutable
+    let finalIds = enabledIds
+    if (type === 'message_received' && payload?.crew_id) {
+      const { data: mutedRows } = await supabase
+        .from('crew_notification_mutes')
+        .select('user_id')
+        .in('user_id', enabledIds)
+        .eq('crew_id', payload.crew_id as string)
+      const crewMutedSet = new Set((mutedRows ?? []).map((r: Record<string, string>) => r.user_id))
+      finalIds = enabledIds.filter((uid) => !crewMutedSet.has(uid))
+    }
+
+    if (finalIds.length === 0) {
+      return new Response(
+        JSON.stringify({ status: 'crew_notifications_muted', results: [] }),
+        { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } },
+      )
+    }
+
     // Batch: fetch all push subscriptions for enabled users in one query
     const { data: allSubs } = await supabase
       .from('push_subscriptions')
       .select('id, user_id, endpoint, p256dh, auth')
-      .in('user_id', enabledIds)
+      .in('user_id', finalIds)
 
     // Group subscriptions by user_id
     const subsByUser = new Map<string, { id: string; user_id: string; endpoint: string; p256dh: string; auth: string }[]>()
@@ -154,7 +173,7 @@ Deno.serve(async (req: Request) => {
     const notifPayload = buildPayload(type as NotificationType, payload ?? {})
     const results: { user_id: string; endpoint: string; status: string }[] = []
 
-    for (const uid of enabledIds) {
+    for (const uid of finalIds) {
       const subs = subsByUser.get(uid)
       if (!subs || subs.length === 0) {
         results.push({ user_id: uid, endpoint: '', status: 'no_subscriptions' })
