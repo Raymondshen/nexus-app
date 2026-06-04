@@ -2,45 +2,33 @@
 
 import { useState, useRef } from 'react'
 import Image from 'next/image'
-import { format, isToday, isYesterday } from 'date-fns'
-import type { MessageWithProfile, ElementType } from '@/types'
+import { format } from 'date-fns'
+import type { MessageWithProfile, AvatarClass } from '@/types'
 import { PixelSprite, spriteIdFor } from '@/components/game/PixelSprite'
 
-const ELEMENT_COLORS: Record<ElementType, string> = {
-  fire:      '#ff4444',
-  water:     '#00e5ff',
-  lightning: '#ffd700',
-  nature:    '#66bb6a',
-  shadow:    '#bf5fff',
-  arcane:    '#00e5ff',
-}
-
-const ELEMENT_LABELS: Record<ElementType, string> = {
-  fire:      'FIRE',
-  water:     'WATER',
-  lightning: 'LIGHTNING',
-  nature:    'NATURE',
-  shadow:    'SHADOW',
-  arcane:    'ARCANE',
+const CLASS_NAMES: Record<AvatarClass, string> = {
+  berserker: 'Berserker',
+  sage:      'Sage',
+  ghost:     'Ghost',
+  hype_man:  'Hype Man',
+  the_voice: 'The Voice',
+  meme_lord: 'Meme Lord',
+  mage:      'Mage',
+  warrior:   'Warrior',
+  rogue:     'Rogue',
+  healer:    'Healer',
+  archer:    'Archer',
 }
 
 const REACTIONS = ['⚔️', '🔥', '💀', '✨']
 
-function formatTimestamp(date: Date): string {
-  const timeStr = format(date, 'h:mm a')
-  if (isToday(date))     return `Today at ${timeStr}`
-  if (isYesterday(date)) return `Yesterday at ${timeStr}`
-  return `${format(date, 'EEE')} at ${timeStr}`
-}
-
 interface MessageBubbleProps {
-  message: MessageWithProfile
-  isOwn: boolean
+  message:    MessageWithProfile
+  isOwn:      boolean
   showHeader: boolean
 }
 
 export function MessageBubble({ message, isOwn, showHeader }: MessageBubbleProps) {
-  const [showTime,      setShowTime]      = useState(false)
   const [showReactions, setShowReactions] = useState(false)
   const [copied,        setCopied]        = useState(false)
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -48,7 +36,6 @@ export function MessageBubble({ message, isOwn, showHeader }: MessageBubbleProps
   function handleTouchStart() {
     longPressTimer.current = setTimeout(() => setShowReactions(true), 500)
   }
-
   function handleTouchEnd() {
     if (longPressTimer.current) clearTimeout(longPressTimer.current)
   }
@@ -58,9 +45,7 @@ export function MessageBubble({ message, isOwn, showHeader }: MessageBubbleProps
       await navigator.clipboard.writeText(message.content)
       setCopied(true)
       setTimeout(() => setCopied(false), 1500)
-    } catch {
-      // Clipboard unavailable
-    }
+    } catch { /* clipboard unavailable */ }
     setShowReactions(false)
   }
 
@@ -68,122 +53,120 @@ export function MessageBubble({ message, isOwn, showHeader }: MessageBubbleProps
     return <SystemMessage message={message} />
   }
 
-  const initial      = message.profile.username[0]?.toUpperCase() ?? '?'
-  const avatarUrl    = message.profile.avatar_url as string | null | undefined
-  const spriteId     = spriteIdFor(message.profile.avatar_class)
-  const elementColor = message.element_type ? ELEMENT_COLORS[message.element_type] : null
+  const initial   = message.profile.username[0]?.toUpperCase() ?? '?'
+  const avatarUrl = message.profile.avatar_url as string | null | undefined
+  const spriteId  = spriteIdFor(message.profile.avatar_class)
+  const className = message.profile.avatar_class ? CLASS_NAMES[message.profile.avatar_class] : null
+  const xpEarned  = message.xp_awarded ?? 0
+  // "9:30pm" — lowercase, no space
+  const timeStr   = format(new Date(message.created_at), 'h:mma').toLowerCase()
 
   return (
     <div
-      className={`flex items-end gap-2 ${isOwn ? 'flex-row-reverse' : 'flex-row'}`}
+      className="flex gap-2 items-start py-2 w-full"
       onContextMenu={(e) => { e.preventDefault(); setShowReactions(true) }}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
       onTouchMove={handleTouchEnd}
     >
-      {/* Avatar — only shown for received messages */}
-      {!isOwn && (
-        <div
-          className="flex-shrink-0 flex items-center justify-center bg-[#2a1545] border border-[#3d2660]"
-          style={{ width: spriteId ? 24 : 28, height: spriteId ? 24 : 28, visibility: showHeader ? 'visible' : 'hidden' }}
-        >
-          {spriteId ? (
-            <PixelSprite spriteId={spriteId} scale={1} direction="south" />
-          ) : avatarUrl ? (
-            <div className="relative w-7 h-7 overflow-hidden">
-              <Image src={avatarUrl} alt={message.profile.username} fill sizes="28px" className="object-cover" />
-            </div>
-          ) : (
-            <span className="font-pixel text-[9px] text-[#bf5fff]">{initial}</span>
-          )}
-        </div>
-      )}
-
-      <div className={`flex flex-col gap-1 max-w-[72%] ${isOwn ? 'items-end' : 'items-start'}`}>
-        {showHeader && !isOwn && (
-          <span className="font-pixel text-[8px] text-[#6b4f8f] px-1">
-            {message.profile.username}
-          </span>
-        )}
-
-        {/* XP earned badge — shown when server has confirmed a non-zero award */}
-        {(message.xp_awarded ?? 0) > 0 && (
-          <span className="font-pixel text-[7px] text-[#ffd700] px-1 leading-none">
-            +{message.xp_awarded} XP
-          </span>
-        )}
-
-        <div className="relative group">
-          <div
-            className={`
-              text-sm leading-relaxed font-sans text-white
-              ${message.message_type === 'image' ? 'overflow-hidden' : 'px-3 py-2'}
-              ${isOwn
-                ? 'bg-[#2d1b69] border border-[#4a2d9e]'
-                : 'bg-[#1a1a2e] border border-[#2a2a4a]'
-              }
-            `}
-            onClick={() => setShowTime((v) => !v)}
-          >
-            {message.message_type === 'image' ? (
-              <div className="relative w-[220px] h-[165px]">
-                <Image
-                  src={message.content}
-                  alt="shared image"
-                  fill
-                  sizes="220px"
-                  className="object-cover"
-                />
-              </div>
-            ) : (
-              <>
-                {message.content}
-                {/* Element dot */}
-                {elementColor && (
-                  <span
-                    className="inline-block w-1.5 h-1.5 rounded-full ml-2 align-middle flex-shrink-0"
-                    style={{ backgroundColor: elementColor }}
-                    title={message.element_type ? ELEMENT_LABELS[message.element_type] : ''}
-                  />
-                )}
-              </>
-            )}
+      {/* Avatar — 32×32 white square, no border, matches Figma paper-0 placeholder */}
+      <div
+        className="flex-shrink-0 w-8 h-8 bg-white flex items-center justify-center overflow-hidden"
+        style={{ visibility: showHeader ? 'visible' : 'hidden' }}
+      >
+        {spriteId ? (
+          <PixelSprite spriteId={spriteId} scale={1.33} direction="south" />
+        ) : avatarUrl ? (
+          <div className="relative w-full h-full">
+            <Image src={avatarUrl} alt={message.profile.username} fill sizes="32px" className="object-cover" />
           </div>
+        ) : (
+          <span className="font-pixel text-[8px] text-purple">{initial}</span>
+        )}
+      </div>
 
-          {/* Timestamp on tap */}
-          {showTime && (
-            <div className={`absolute -bottom-5 ${isOwn ? 'right-0' : 'left-0'} whitespace-nowrap`}>
-              <span className="font-pixel text-[7px] text-[#3d2660]">
-                {formatTimestamp(new Date(message.created_at))}
-              </span>
-            </div>
-          )}
-        </div>
+      {/* Message content — gap-0 between header row and message text */}
+      <div className="flex-1 min-w-0 flex flex-col gap-0">
 
-        {/* Reaction + copy picker */}
-        {showReactions && (
-          <div className="flex gap-1 bg-[#0f0820] border border-[#2a1545] px-2 py-1">
-            {REACTIONS.map((r) => (
-              <button
-                key={r}
-                className="text-base hover:scale-110 transition-transform"
-                onClick={() => setShowReactions(false)}
+        {/* Header row: [username · class · xp] [timestamp] */}
+        {showHeader && (
+          <div className="flex items-center justify-between w-full">
+
+            {/* Left meta: username + separators + class + xp */}
+            <div className="flex items-center gap-1 flex-1 min-w-0">
+              {/* Username */}
+              <span
+                className={`font-body font-medium text-[12px] tracking-[0.1px] shrink-0 leading-normal whitespace-nowrap ${
+                  isOwn ? 'text-purple' : 'text-primary'
+                }`}
+                style={{ fontVariationSettings: '"opsz" 14' }}
               >
+                {message.profile.username}
+              </span>
+
+              {className && (
+                <>
+                  {/* 2×2 purple dot separator — square, not rounded */}
+                  <span className="w-[2px] h-[2px] bg-purple shrink-0" />
+                  <span
+                    className="font-body font-normal text-[10px] tracking-[0.1px] shrink-0 leading-normal whitespace-nowrap"
+                    style={{ color: 'var(--color-paper-150)', fontVariationSettings: '"opsz" 14' }}
+                  >
+                    {className}
+                  </span>
+                </>
+              )}
+
+              {xpEarned > 0 && (
+                <>
+                  <span className="w-[2px] h-[2px] bg-purple shrink-0" />
+                  {/* leading-[0] on paragraph collapses its own line-height;
+                      spans use leading-none for their own height */}
+                  <p className="font-silkscreen tracking-[0.1px] whitespace-nowrap leading-[0] text-[0px] shrink-0">
+                    <span className="text-[8px] leading-none" style={{ color: '#f59e0b' }}>
+                      +{xpEarned} XP
+                    </span>
+                  </p>
+                </>
+              )}
+            </div>
+
+            {/* Timestamp — right-aligned, DM Sans Regular 8px paper-200 */}
+            <span
+              className="font-body font-normal text-[8px] tracking-[0.2px] shrink-0 leading-normal whitespace-nowrap ml-1"
+              style={{ color: 'var(--color-paper-200)', fontVariationSettings: '"opsz" 14' }}
+            >
+              {timeStr}
+            </span>
+          </div>
+        )}
+
+        {/* Message text — DM Sans Regular 14px white */}
+        {message.message_type === 'image' ? (
+          <div className="relative w-[220px] h-[165px] mt-1">
+            <Image src={message.content} alt="shared image" fill sizes="220px" className="object-cover" />
+          </div>
+        ) : (
+          <p
+            className="font-body font-normal text-[14px] text-white leading-normal w-full"
+            style={{ fontVariationSettings: '"opsz" 14' }}
+          >
+            {message.content}
+          </p>
+        )}
+
+        {/* Long-press reaction/copy picker */}
+        {showReactions && (
+          <div className="flex gap-1 bg-surface border border-border px-2 py-1 mt-1">
+            {REACTIONS.map((r) => (
+              <button key={r} className="text-base hover:scale-110 transition-transform" onClick={() => setShowReactions(false)}>
                 {r}
               </button>
             ))}
-            <button
-              className="font-pixel text-[7px] text-[#3d2660] hover:text-[#00e5ff] ml-1 px-1 transition-colors"
-              onClick={handleCopy}
-            >
+            <button className="font-pixel text-[7px] text-tertiary hover:text-[#00e5ff] ml-1 px-1 transition-colors" onClick={handleCopy}>
               {copied ? '✓' : 'COPY'}
             </button>
-            <button
-              className="font-pixel text-[8px] text-[#3d2660] ml-1"
-              onClick={() => setShowReactions(false)}
-            >
-              ✕
-            </button>
+            <button className="font-pixel text-[8px] text-tertiary ml-1" onClick={() => setShowReactions(false)}>✕</button>
           </div>
         )}
       </div>
@@ -193,27 +176,15 @@ export function MessageBubble({ message, isOwn, showHeader }: MessageBubbleProps
 
 function SystemMessage({ message }: { message: MessageWithProfile }) {
   const content = message.content
-
-  let bg = 'bg-[#1a1a2e] border-[#2a2a4a]'
+  let bg   = 'bg-surface border-border'
   let icon = '⚙️'
-
-  if (content.includes('VOID') || content.includes('BOSS') || content.includes('boss')) {
-    bg = 'bg-[#2d0a0a] border-[#ff4444]/40'
-    icon = '💀'
-  } else if (content.includes('XP') || content.includes('xp')) {
-    bg = 'bg-[#1a1400] border-[#ffd700]/40'
-    icon = '⭐'
-  } else if (content.includes('artifact') || content.includes('ARTIFACT')) {
-    bg = 'bg-[#1a0d2e] border-[#bf5fff]/40'
-    icon = '💎'
-  }
-
+  if (content.includes('VOID') || content.includes('BOSS') || content.includes('boss')) { bg = 'bg-[#2d0a0a] border-[#ff4444]/40'; icon = '💀' }
+  else if (content.includes('XP') || content.includes('xp'))                            { bg = 'bg-[#1a1400] border-[#ffd700]/40'; icon = '⭐' }
+  else if (content.includes('artifact') || content.includes('ARTIFACT'))                { bg = 'bg-[#1a0d2e] border-[#bf5fff]/40'; icon = '💎' }
   return (
     <div className="flex justify-center my-2">
       <div className={`border px-4 py-2 max-w-[85%] text-center ${bg}`}>
-        <p className="font-pixel text-[9px] text-[#9b8ab0] leading-relaxed">
-          {icon} {content}
-        </p>
+        <p className="font-pixel text-[9px] text-tertiary leading-relaxed">{icon} {content}</p>
       </div>
     </div>
   )

@@ -306,11 +306,7 @@ export function MessageList({
     <div
       ref={scrollRef}
       onScroll={handleScroll}
-      className="flex-1 min-h-0 overflow-y-auto px-3 py-4 flex flex-col gap-2 nexus-scroll"
-      style={{
-        backgroundImage: 'radial-gradient(circle, rgba(191,95,255,0.03) 1px, transparent 1px)',
-        backgroundSize:  '24px 24px',
-      }}
+      className="flex-1 min-h-0 overflow-y-auto px-4 py-4 flex flex-col nexus-scroll"
     >
       {messages.length === 0 && (
         <div className="flex-1 flex flex-col items-center justify-center gap-4 opacity-60">

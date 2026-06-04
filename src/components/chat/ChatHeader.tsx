@@ -4,11 +4,9 @@ import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useChatStore, XP_PER_LEVEL } from '@/store/chatStore'
-import { getXPProgress } from '@/lib/game/xp'
+import { UserPlus, Building2 } from 'lucide-react'
+import { useChatStore } from '@/store/chatStore'
 import { createClient } from '@/lib/supabase/client'
-import Image from 'next/image'
-import { spriteIdFor } from '@/components/game/PixelSprite'
 import type { Crew, Profile, ActiveRaid } from '@/types'
 import { formatDistanceToNow } from 'date-fns'
 
@@ -21,8 +19,6 @@ interface ChatHeaderProps {
   crewId:        string
   memberLastSeen?: Record<string, string | null>
 }
-
-const AVATAR_COLORS = ['#bf5fff', '#00e5ff', '#ffd700', '#ff4444', '#66bb6a', '#ff9800']
 
 const FIVE_MINUTES_MS = 5 * 60 * 1000
 
@@ -79,7 +75,6 @@ function ShareModal({ crew, onClose }: { crew: Crew; onClose: () => void }) {
         <p className="font-pixel text-[8px] text-[#6b4f8f] mb-1">{crew.name.toUpperCase()}</p>
         <h2 className="font-pixel text-[11px] text-white mb-4">INVITE YOUR CREW</h2>
 
-        {/* Invite code display */}
         <div
           className="flex items-center justify-center mb-4 py-4 border border-[#2a1545]"
           style={{ background: 'rgba(191,95,255,0.06)', letterSpacing: '0.5em' }}
@@ -141,26 +136,20 @@ export function ChatHeader({
   memberLastSeen = {},
 }: ChatHeaderProps) {
   const router = useRouter()
-  const { crewXP, crewLevel, xpFloats, dismissXPFloat, setCrewXP, setActiveRaid, activeRaid } =
-    useChatStore()
+  const { setCrewXP, setActiveRaid, activeRaid } = useChatStore()
   const [showShare, setShowShare] = useState(false)
 
   // Seed online state from server snapshot; presence channel updates it in real time.
-  const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(
+  const [, setOnlineUserIds] = useState<Set<string>>(
     () => new Set(members.filter((m) => isOnline(memberLastSeen[m.id])).map((m) => m.id))
   )
-
-  const currentMember   = members.find((m) => m.id === currentUserId)
-  const currentUsername = currentMember?.username ?? ''
-  const currentSpriteId = currentMember?.avatar_class ? spriteIdFor(currentMember.avatar_class) : null
 
   useEffect(() => {
     setCrewXP(initialXP)
     setActiveRaid(initialRaid)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Supabase Presence — immediately reflects who is in the chat room right now.
-  // Each client tracks itself on subscribe; presenceState keys are user IDs.
+  // Supabase Presence — tracks who is in the chat room right now.
   useEffect(() => {
     const supabase = createClient()
     const channel  = supabase.channel(`online:${crewId}`, {
@@ -181,7 +170,7 @@ export function ChatHeader({
     return () => { supabase.removeChannel(channel) }
   }, [crewId, currentUserId])
 
-  // Update last_seen every 60s so server-side initial load stays accurate.
+  // Update last_seen every 60s for accurate server-side initial state.
   useEffect(() => {
     const supabase = createClient()
     const update = async () => {
@@ -202,140 +191,62 @@ export function ChatHeader({
 
   const handleCloseShare = useCallback(() => setShowShare(false), [])
 
-  const xpProgress = getXPProgress(crewXP)
-  const level      = crewLevel
-
   return (
     <>
       <div
-        className="bg-[#0a0612] border-b border-[#1a1a2e] px-4 pb-0 relative overflow-hidden flex-shrink-0"
+        className="bg-black border-b border-border px-4 pb-4 relative flex-shrink-0"
         style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}
       >
-        {/* Subtle top glow */}
-        <div
-          className="pointer-events-none absolute inset-x-0 top-0 h-[1px]"
-          style={{ background: 'linear-gradient(90deg, transparent, rgba(191,95,255,0.4), transparent)' }}
-        />
+        {/* Heading row — h-10 (40px), matches Figma "heading" node */}
+        <div className="flex items-center justify-between h-10">
 
-        {/* Row 1: back chevron + crew name | vault + share + level + avatar */}
-        <div className="flex items-center justify-between mb-2">
-          {/* Left: back + name */}
+          {/* Left: crew name + chevron-right, gap-1 (4px) — Figma node 11:114 */}
           <div className="flex items-center gap-1 min-w-0 flex-1">
+            {/* Crew name — Press Start 2P, 18px, #fafafa */}
+            <h1 className="font-pixel text-[18px] text-primary truncate leading-none">
+              {crew.name.toUpperCase()}
+            </h1>
+            {/* Chevron-right pixel icon — 24px hitbox, purple tint */}
             <button
               onClick={() => router.back()}
               aria-label="Back"
               className="flex-shrink-0 flex items-center justify-center"
-              style={{ minWidth: 36, minHeight: 44 }}
+              style={{ width: 24, height: 40 }}
             >
-              {/* pixel left chevron */}
-              <svg width="8" height="12" viewBox="0 0 8 12" fill="#bf5fff" aria-hidden="true">
-                <rect x="4" y="0" width="4" height="4" />
-                <rect x="0" y="4" width="4" height="4" />
-                <rect x="4" y="8" width="4" height="4" />
+              <svg width="7" height="12" viewBox="0 0 7 12" fill="#a855f7" aria-hidden="true">
+                <rect x="0" y="0" width="3" height="3" />
+                <rect x="3" y="3" width="3" height="3" />
+                <rect x="0" y="6" width="3" height="3" />
+                <rect x="3" y="3" width="3" height="3" />
+                <rect x="0" y="9" width="3" height="3" />
               </svg>
             </button>
-            <h1 className="font-pixel text-[11px] text-white truncate">
-              {crew.name}
-            </h1>
           </div>
 
-          {/* Right: vault + share + level + avatar */}
-          <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
+          {/* Right: user-plus + vault, gap-4 (16px) — Figma node 11:96 */}
+          <div className="flex items-center gap-4 flex-shrink-0">
+            <button
+              onClick={() => setShowShare(true)}
+              aria-label="Invite members"
+              className="flex items-center justify-center text-primary hover:text-purple transition-colors"
+              style={{ width: 24, height: 40 }}
+            >
+              <UserPlus size={20} strokeWidth={1.5} />
+            </button>
             <Link
               href={`/vault/${crewId}`}
               aria-label="View vault"
-              className="flex items-center justify-center text-[#3d2660] hover:text-[#6b4f8f] transition-colors"
-              style={{ minWidth: 36, minHeight: 44, fontSize: 16 }}
+              className="flex items-center justify-center text-primary hover:text-purple transition-colors"
+              style={{ width: 24, height: 40 }}
             >
-              🏛
+              <Building2 size={20} strokeWidth={1.5} />
             </Link>
-            <button
-              onClick={() => setShowShare(true)}
-              className="flex items-center justify-center text-[#3d2660] hover:text-[#6b4f8f] transition-colors"
-              style={{ minWidth: 36, minHeight: 44, fontSize: 14 }}
-              aria-label="Share crew invite code"
-            >
-              🔗
-            </button>
-            <span
-              className="font-pixel text-[8px] text-[#bf5fff] border border-[#bf5fff]/50 px-2 py-0.5"
-              style={{ textShadow: '0 0 8px rgba(191,95,255,0.6)' }}
-            >
-              LVL {String(level).padStart(2, '0')}
-            </span>
-            <button
-              onClick={() => router.push('/profile')}
-              className="w-7 h-7 flex items-center justify-center font-pixel text-[9px] border border-[#2a1545] hover:border-[#6b4f8f] transition-colors flex-shrink-0 overflow-hidden relative"
-              style={currentSpriteId || currentMember?.avatar_url ? undefined : { background: 'rgba(107,79,143,0.15)', color: '#6b4f8f' }}
-              aria-label="Account menu"
-            >
-              {currentSpriteId ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={`/sprites/${currentSpriteId}/south.png`} alt={currentUsername} style={{ imageRendering: 'pixelated', width: '100%', height: '100%', display: 'block' }} />
-              ) : currentMember?.avatar_url ? (
-                <Image src={currentMember.avatar_url as string} alt={currentUsername} fill sizes="28px" className="object-cover" />
-              ) : (
-                currentUsername[0]?.toUpperCase() ?? '?'
-              )}
-            </button>
           </div>
-        </div>
-
-        {/* Row 2: member avatars with online dots + warrior count */}
-        <div className="flex items-center gap-1.5 mb-2">
-          <span className="font-pixel text-[7px] text-[#3d2660] mr-1">
-            {members.length} WARRIOR{members.length !== 1 ? 'S' : ''}
-          </span>
-          {members.slice(0, 8).map((m, i) => {
-            const spriteId = m.avatar_class ? spriteIdFor(m.avatar_class) : null
-            return (
-              <div key={m.id} className="relative">
-                {spriteId ? (
-                  <div
-                    className="w-7 h-7 flex-shrink-0 border"
-                    style={{ borderColor: AVATAR_COLORS[i % AVATAR_COLORS.length] + '80' }}
-                    title={m.username}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={`/sprites/${spriteId}/south.png`} alt={m.username} style={{ imageRendering: 'pixelated', width: '100%', height: '100%', display: 'block' }} />
-                  </div>
-                ) : m.avatar_url ? (
-                  <div
-                    className="w-7 h-7 relative overflow-hidden flex-shrink-0 border"
-                    style={{ borderColor: AVATAR_COLORS[i % AVATAR_COLORS.length] + '80' }}
-                    title={m.username}
-                  >
-                    <Image src={m.avatar_url as string} alt={m.username} fill sizes="28px" className="object-cover" />
-                  </div>
-                ) : (
-                  <div
-                    className="w-7 h-7 flex items-center justify-center border font-pixel text-[8px] flex-shrink-0"
-                    style={{
-                      backgroundColor: AVATAR_COLORS[i % AVATAR_COLORS.length] + '22',
-                      borderColor:     AVATAR_COLORS[i % AVATAR_COLORS.length] + '80',
-                      color:           AVATAR_COLORS[i % AVATAR_COLORS.length],
-                    }}
-                    title={m.username}
-                  >
-                    {m.username[0]?.toUpperCase()}
-                  </div>
-                )}
-                {/* Online presence dot — driven by Supabase Presence, seeded from last_seen */}
-                <span
-                  className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-[#0a0612]"
-                  style={{ background: onlineUserIds.has(m.id) ? '#66bb6a' : '#3d2660' }}
-                />
-              </div>
-            )
-          })}
-          {members.length > 8 && (
-            <span className="font-pixel text-[7px] text-[#3d2660]">+{members.length - 8}</span>
-          )}
         </div>
 
         {/* Boss countdown if raid is active */}
         {activeRaid && !activeRaid.defeated_at && (
-          <div className="flex items-center gap-2 mb-2 bg-[#2d0a0a] border border-[#ff4444]/40 px-2 py-1">
+          <div className="flex items-center gap-2 mt-2 bg-[#2d0a0a] border border-[#ff4444]/40 px-2 py-1">
             <span className="font-pixel text-[8px] text-[#ff4444]">💀 BOSS ACTIVE</span>
             <span className="font-pixel text-[7px] text-[#ff4444]/70">
               {formatDistanceToNow(new Date(activeRaid.expires_at), { addSuffix: true }).toUpperCase()}
@@ -344,61 +255,18 @@ export function ChatHeader({
               <div className="h-1 w-16 bg-[#1a0000] border border-[#ff4444]/20">
                 <div
                   className="h-full bg-[#ff4444] transition-all duration-500"
-                  style={{
-                    width: `${Math.round((activeRaid.current_hp / activeRaid.max_hp) * 100)}%`,
-                  }}
+                  style={{ width: `${Math.round((activeRaid.current_hp / activeRaid.max_hp) * 100)}%` }}
                 />
               </div>
               <span className="font-pixel text-[7px] text-[#ff4444]/70">HP</span>
             </div>
           </div>
         )}
-
-        {/* XP bar */}
-        <div className="pb-0">
-          <div className="flex items-center justify-between mb-1">
-            <div className="relative inline-flex items-center">
-              <span className="font-pixel text-[7px] text-[#3d2660]">
-                {crewXP % XP_PER_LEVEL} / {XP_PER_LEVEL} XP
-              </span>
-              <AnimatePresence>
-                {xpFloats.map((f) => (
-                  <motion.span
-                    key={f.id}
-                    initial={{ opacity: 1, y: 6 }}
-                    animate={{ opacity: 0, y: -16 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.9, ease: 'easeOut' }}
-                    onAnimationComplete={() => dismissXPFloat(f.id)}
-                    className="pointer-events-none absolute left-0 top-0 font-pixel text-[8px] text-[#ffd700] whitespace-nowrap"
-                    style={{ textShadow: '0 0 8px rgba(255,215,0,0.8)' }}
-                  >
-                    +{f.amount} XP
-                  </motion.span>
-                ))}
-              </AnimatePresence>
-            </div>
-            <span className="font-pixel text-[7px] text-[#3d2660]">NEXT BOSS</span>
-          </div>
-          <div className="h-1.5 bg-[#0f0820] border border-[#1a1a2e] mb-3">
-            <motion.div
-              className="h-full"
-              style={{
-                background: 'linear-gradient(90deg, #7b2dbd, #bf5fff)',
-                boxShadow:  '0 0 6px rgba(191,95,255,0.6)',
-              }}
-              animate={{ width: `${xpProgress}%` }}
-              transition={{ type: 'spring', stiffness: 120, damping: 20 }}
-            />
-          </div>
-        </div>
       </div>
 
-      {/* Share modal */}
       <AnimatePresence>
         {showShare && <ShareModal crew={crew} onClose={handleCloseShare} />}
       </AnimatePresence>
-
     </>
   )
 }

@@ -2,9 +2,11 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { Send } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import Image from 'next/image'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/client'
-import { getElementType, calculateXP } from '@/lib/game/xp'
+import { getElementType, calculateXP, getXPProgress, XP_PER_LEVEL } from '@/lib/game/xp'
 import { useChatStore } from '@/store/chatStore'
 import { DamageFloat } from '@/components/game/DamageFloat'
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/config'
@@ -13,7 +15,7 @@ import type { Message, MessageWithProfile, Profile } from '@/types'
 
 const MAX_MESSAGE_LENGTH = 2000
 const RATE_LIMIT_MAX     = 30
-const RATE_LIMIT_WINDOW  = 60_000 // 1 minute
+const RATE_LIMIT_WINDOW  = 60_000
 
 type MemberProfile = Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url'>
 
@@ -30,8 +32,8 @@ function sanitizeMessage(raw: string): string {
 
 export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatInputProps) {
   const [text,        setText]        = useState('')
-  const [sending,   setSending]   = useState(false)
-  const [sendError, setSendError] = useState<string | null>(null)
+  const [sending,     setSending]     = useState(false)
+  const [sendError,   setSendError]   = useState<string | null>(null)
   const [typingUsers, setTypingUsers] = useState<string[]>([])
   const [spawning,    setSpawning]    = useState(false)
   const [spawnError,  setSpawnError]  = useState<string | null>(null)
@@ -43,30 +45,29 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatI
   const typingChannelRef = useRef<RealtimeChannel | null>(null)
   const msgChannelRef    = useRef<RealtimeChannel | null>(null)
 
-  const { addMessage, updateMessage, addXP, setCrewXP, receiveXP, activeRaid, damageFloats, addDamageFloat, dismissDamageFloat } = useChatStore()
+  const {
+    addMessage, updateMessage, addXP, setCrewXP, receiveXP,
+    activeRaid, damageFloats, addDamageFloat, dismissDamageFloat,
+    crewXP, crewLevel, xpFloats, dismissXPFloat,
+  } = useChatStore()
 
-  // Keep a ref so broadcast handlers always see the latest member profiles
   const profilesRef = useRef(memberProfiles)
   profilesRef.current = memberProfiles
   const inRaid = !!(activeRaid && !activeRaid.defeated_at)
 
-  // Read dev mode flag once on mount
+  const xpProgress  = getXPProgress(crewXP)
+  const memberCount = Object.keys(memberProfiles).length
+  const members     = Object.values(memberProfiles)
+
   useEffect(() => {
     setDevMode(localStorage.getItem('nexus_dev_mode') === '1')
   }, [])
 
-  // Single channel for presence, broadcast reception, and broadcast sending.
-  // MessageList uses a separate channel name (db:messages:{crewId}) for
-  // Postgres-change fallback only — keeping one subscription to this topic
-  // avoids the "cannot add presence callbacks after subscribe" error that
-  // occurs when two components share the same singleton Supabase client and
-  // both call .channel('messages:{crewId}').
   useEffect(() => {
     const supabase = createClient()
     const ch = supabase.channel(`messages:${crewId}`, {
       config: { presence: { key: userId } },
     })
-
     const fallbackProfile = (uid: string): MemberProfile =>
       profilesRef.current[uid] ?? { id: uid, username: '???', avatar_class: null, avatar_url: null }
 
@@ -89,13 +90,9 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatI
         const { xp_earned, new_total_xp, sender_id } =
           payload.payload as { xp_earned: number; new_total_xp: number; sender_id: string }
         if (typeof new_total_xp !== 'number') return
-        if (sender_id === userId) {
-          setCrewXP(new_total_xp)
-        } else if (xp_earned > 0) {
-          receiveXP(xp_earned, new_total_xp)
-        } else {
-          setCrewXP(new_total_xp)
-        }
+        if (sender_id === userId)      setCrewXP(new_total_xp)
+        else if (xp_earned > 0)        receiveXP(xp_earned, new_total_xp)
+        else                           setCrewXP(new_total_xp)
       })
       .subscribe()
 
@@ -116,20 +113,12 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatI
     const content = sanitizeMessage(text)
     if (!content || sending) return
 
-    // Rate limit check
     const now = Date.now()
-    if (now >= rateRef.current.resetAt) {
-      rateRef.current = { count: 0, resetAt: now + RATE_LIMIT_WINDOW }
-    }
+    if (now >= rateRef.current.resetAt) rateRef.current = { count: 0, resetAt: now + RATE_LIMIT_WINDOW }
     rateRef.current.count++
-    if (rateRef.current.count > RATE_LIMIT_MAX) {
-      setSendError('Slow down, warrior.')
-      return
-    }
+    if (rateRef.current.count > RATE_LIMIT_MAX) { setSendError('Slow down, warrior.'); return }
 
-    if (!localStorage.getItem('nexus_first_message')) {
-      localStorage.setItem('nexus_first_message', String(Date.now()))
-    }
+    if (!localStorage.getItem('nexus_first_message')) localStorage.setItem('nexus_first_message', String(Date.now()))
 
     setSending(true)
     setSendError(null)
@@ -137,103 +126,64 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatI
     broadcastTyping(false)
     if (typingTimerRef.current) clearTimeout(typingTimerRef.current)
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
-
     haptic(10)
 
     try {
       const supabase    = createClient()
       const elementType = getElementType(content, 'text')
-
       const { data: raw, error } = await supabase.rpc('insert_message', {
-        p_crew_id:      crewId,
-        p_content:      content,
-        p_message_type: 'text',
+        p_crew_id: crewId, p_content: content, p_message_type: 'text',
       })
       if (error) throw error
 
       const newMessage: MessageWithProfile = {
-        id:           raw.id,
-        crew_id:      raw.crew_id,
-        user_id:      raw.user_id,
-        content:      raw.content,
-        message_type: raw.message_type,
-        element_type: raw.element_type,
-        xp_awarded:   raw.xp_awarded,
-        created_at:   raw.created_at,
-        profile:      userProfile,
+        id: raw.id, crew_id: raw.crew_id, user_id: raw.user_id, content: raw.content,
+        message_type: raw.message_type, element_type: raw.element_type,
+        xp_awarded: raw.xp_awarded, created_at: raw.created_at, profile: userProfile,
       }
       addMessage(newMessage)
       addXP(calculateXP('text'))
 
-      // Broadcast core message fields only — profile is resolved from memberProfiles
-      // on the receiver side, cutting ~150 bytes of egress per broadcast per recipient.
       msgChannelRef.current?.send({
-        type:    'broadcast',
-        event:   'new_message',
+        type: 'broadcast', event: 'new_message',
         payload: {
-          id:           newMessage.id,
-          crew_id:      newMessage.crew_id,
-          user_id:      newMessage.user_id,
-          content:      newMessage.content,
-          message_type: newMessage.message_type,
-          element_type: newMessage.element_type,
-          xp_awarded:   newMessage.xp_awarded,
-          created_at:   newMessage.created_at,
+          id: newMessage.id, crew_id: newMessage.crew_id, user_id: newMessage.user_id,
+          content: newMessage.content, message_type: newMessage.message_type,
+          element_type: newMessage.element_type, xp_awarded: newMessage.xp_awarded,
+          created_at: newMessage.created_at,
         },
       })
 
-      // Award XP — patch the message in the store with the confirmed xp_earned.
       const msgId = raw.id
       fetch(`${SUPABASE_URL}/functions/v1/award-xp`, {
-        method:  'POST',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
         body: JSON.stringify({ message_id: msgId, crew_id: crewId, user_id: userId, username: userProfile.username, message_type: 'text', content }),
       })
         .then((r) => r.json())
         .then((data: { xp_earned?: number; new_total_xp?: number; notif_count?: number; notif_results?: unknown[] }) => {
           console.log('[award-xp]', data)
-          if (typeof data.xp_earned === 'number' && data.xp_earned > 0) {
-            updateMessage(msgId, { xp_awarded: data.xp_earned })
-          }
-          // Correct any optimistic XP drift and notify other crew members.
+          if (typeof data.xp_earned === 'number' && data.xp_earned > 0) updateMessage(msgId, { xp_awarded: data.xp_earned })
           if (typeof data.new_total_xp === 'number') {
             setCrewXP(data.new_total_xp)
             msgChannelRef.current?.send({
-              type:    'broadcast',
-              event:   'xp_update',
-              payload: {
-                xp_earned:   data.xp_earned ?? 0,
-                new_total_xp: data.new_total_xp,
-                sender_id:   userId,
-              },
+              type: 'broadcast', event: 'xp_update',
+              payload: { xp_earned: data.xp_earned ?? 0, new_total_xp: data.new_total_xp, sender_id: userId },
             })
           }
         })
         .catch(() => {})
 
-      // Attack boss if raid is active
       if (activeRaid && !activeRaid.defeated_at) {
         fetch(`${SUPABASE_URL}/functions/v1/attack-boss`, {
-          method:  'POST',
+          method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
-          body: JSON.stringify({
-            crew_id:      crewId,
-            user_id:      userId,
-            message_type: 'text',
-            element_type: elementType,
-            content,
-          }),
+          body: JSON.stringify({ crew_id: crewId, user_id: userId, message_type: 'text', element_type: elementType, content }),
         })
           .then((r) => r.json())
-          .then((data) => {
-            if (data.damage) {
-              addDamageFloat(data.damage, elementType)
-              haptic([10, 50, 10])
-            }
-          })
+          .then((data) => { if (data.damage) { addDamageFloat(data.damage, elementType); haptic([10, 50, 10]) } })
           .catch(() => {})
       }
-
     } catch (err) {
       setText(content)
       setSendError(err instanceof Error ? err.message : 'Failed to send. Tap to retry.')
@@ -245,41 +195,25 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatI
 
   async function handleSpawnBoss() {
     if (spawning || inRaid) return
-    setSpawning(true)
-    setSpawnError(null)
+    setSpawning(true); setSpawnError(null)
     try {
       const supabase = createClient()
       const { data: { session } } = await supabase.auth.getSession()
-      const token = session?.access_token ?? ''
-
       const res = await fetch('/api/test/spawn-boss', {
-        method:  'POST',
-        headers: {
-          'Content-Type':  'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token ?? ''}` },
         body: JSON.stringify({ crew_id: crewId }),
       })
-      let data: { error?: string; ok?: boolean } = {}
-      try {
-        data = await res.json()
-      } catch {
-        setSpawnError(`Server error ${res.status}`)
-        return
-      }
+      let data: { error?: string } = {}
+      try { data = await res.json() } catch { setSpawnError(`Server error ${res.status}`); return }
       if (!res.ok) setSpawnError(data.error ?? `Error ${res.status}`)
     } catch (err) {
       setSpawnError(err instanceof Error ? err.message : 'Network error')
-    } finally {
-      setSpawning(false)
-    }
+    } finally { setSpawning(false) }
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      send()
-    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() }
   }
 
   function handleInput(e: React.ChangeEvent<HTMLTextAreaElement>) {
@@ -288,15 +222,11 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatI
     const el = e.target
     el.style.height = 'auto'
     el.style.height = Math.min(el.scrollHeight, 120) + 'px'
-
-    // Broadcast typing (debounced stop after 3s)
     if (val.trim()) {
       broadcastTyping(true)
       if (typingTimerRef.current) clearTimeout(typingTimerRef.current)
       typingTimerRef.current = setTimeout(() => broadcastTyping(false), 3000)
-    } else {
-      broadcastTyping(false)
-    }
+    } else { broadcastTyping(false) }
   }
 
   function handleBlur() {
@@ -308,56 +238,112 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatI
     ? `${typingUsers[0]} is typing...`
     : typingUsers.length === 2
       ? `${typingUsers[0]} and ${typingUsers[1]} are typing...`
-      : typingUsers.length > 2
-        ? 'Several warriors are typing...'
-        : null
+      : typingUsers.length > 2 ? 'Several warriors are typing...' : null
 
   return (
     <div
-      className="border-t border-[#1a1a2e] bg-[#080514] px-3 pt-2 relative flex-shrink-0"
-      style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 8px)' }}
+      className="bg-black border-t border-border px-4 pt-4 flex-shrink-0 relative"
+      style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 32px)' }}
     >
-      {/* Damage floats */}
       <DamageFloat floats={damageFloats} onDismiss={dismissDamageFloat} />
 
+      {/* ── Content: member avatars + XP bar (matches Figma "content" section) ── */}
+      <div className="flex flex-col gap-4 mb-4">
+
+        {/* User list — gap-3 (12px), circular avatars 32×32 */}
+        <div className="flex items-center gap-3">
+          {members.slice(0, 8).map((m) => {
+            const url     = m.avatar_url as string | null | undefined
+            const initial = m.username[0]?.toUpperCase() ?? '?'
+            return (
+              <div
+                key={m.id}
+                className="flex-shrink-0 w-8 h-8 rounded-full overflow-hidden border border-border bg-surface flex items-center justify-center"
+                title={m.username}
+              >
+                {url ? (
+                  <div className="relative w-full h-full">
+                    <Image src={url} alt={m.username} fill sizes="32px" className="object-cover" />
+                  </div>
+                ) : (
+                  <span className="font-pixel text-[8px] text-purple">{initial}</span>
+                )}
+              </div>
+            )
+          })}
+        </div>
+
+        {/* XP indicator — fixed h-6 (24px), flex-col gap-2 (8px), centered */}
+        <div className="relative">
+          {/* XP floats animate upward from above the bar */}
+          <AnimatePresence>
+            {xpFloats.map((f) => (
+              <motion.span
+                key={f.id}
+                initial={{ opacity: 1, y: 0 }}
+                animate={{ opacity: 0, y: -20 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.9, ease: 'easeOut' }}
+                onAnimationComplete={() => dismissXPFloat(f.id)}
+                className="pointer-events-none absolute left-0 top-0 font-pixel text-[8px] text-[#ffd700] whitespace-nowrap z-10"
+                style={{ textShadow: '0 0 8px rgba(255,215,0,0.8)' }}
+              />
+            ))}
+          </AnimatePresence>
+
+          <div className="flex flex-col gap-2 h-6 items-center justify-center w-full">
+            {/* Level · XP · Members ··· Next Boss */}
+            <div className="flex items-center gap-2 w-full font-silkscreen text-tertiary">
+              {/* Left: "Level N · X / 500XP · N Members" — text-[0px] trick keeps container height tight */}
+              <p className="flex-1 min-w-0 leading-[0] text-[0px]">
+                <span className="text-[8px] leading-none text-purple">Level {crewLevel}</span>
+                <span className="text-[8px] leading-none">
+                  {` · ${crewXP % XP_PER_LEVEL} / ${XP_PER_LEVEL}XP · ${memberCount} Member${memberCount !== 1 ? 's' : ''}`}
+                </span>
+              </p>
+              {/* Right: "Next Boss" */}
+              <p className="text-[8px] leading-none whitespace-nowrap text-tertiary">Next Boss</p>
+            </div>
+
+            {/* Progress bar — 4px, surface bg, purple fill */}
+            <div className="bg-surface h-1 overflow-hidden w-full relative">
+              <motion.div
+                className="absolute left-0 top-0 h-full bg-purple"
+                animate={{ width: `${xpProgress}%` }}
+                transition={{ type: 'spring', stiffness: 120, damping: 20 }}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Dynamic status indicators (not in Figma, functional-only) ── */}
       {sendError && (
-        <button
-          className="w-full font-pixel text-[7px] text-[#ff4444] mb-1 px-1 text-left"
-          onClick={send}
-        >
+        <button className="w-full font-pixel text-[7px] text-[#ff4444] mb-2 text-left" onClick={send}>
           ↺ {sendError}
         </button>
       )}
 
-      {/* Typing indicator (raid only) */}
       {inRaid && typingLabel && (
-        <div className="flex items-center gap-1 mb-1 px-1">
+        <div className="flex items-center gap-1 mb-2">
           <span className="flex gap-0.5">
             {[0, 1, 2].map((i) => (
-              <span
-                key={i}
-                className="inline-block w-1 h-1 rounded-full bg-[#bf5fff] animate-bounce"
-                style={{ animationDelay: `${i * 150}ms` }}
-              />
+              <span key={i} className="inline-block w-1 h-1 rounded-full bg-purple animate-bounce" style={{ animationDelay: `${i * 150}ms` }} />
             ))}
           </span>
-          <span className="font-pixel text-[7px] text-[#6b4f8f]">{typingLabel}</span>
+          <span className="font-pixel text-[7px] text-tertiary">{typingLabel}</span>
         </div>
       )}
 
-      {/* Active raid indicator */}
       {inRaid && !typingLabel && (
-        <div className="flex items-center gap-1 mb-1 px-1">
+        <div className="flex items-center gap-1 mb-2">
           <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#ff2200] animate-pulse" />
-          <span className="font-pixel text-[7px] text-[#ff4444]">
-            ⚔ RAID ACTIVE — every message deals damage
-          </span>
+          <span className="font-pixel text-[7px] text-[#ff4444]">⚔ RAID ACTIVE — every message deals damage</span>
         </div>
       )}
 
-      {/* Dev: spawn boss button — only visible when dev mode is enabled and no raid is active */}
       {devMode && !inRaid && (
-        <div className="flex items-center gap-2 mb-1 px-1">
+        <div className="flex items-center gap-2 mb-2">
           <button
             onClick={handleSpawnBoss}
             disabled={spawning}
@@ -365,13 +351,15 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatI
           >
             {spawning ? 'SPAWNING...' : '⚔ SPAWN BOSS'}
           </button>
-          {spawnError && (
-            <span className="font-pixel text-[7px] text-[#ff4444]/60">{spawnError}</span>
-          )}
+          {spawnError && <span className="font-pixel text-[7px] text-[#ff4444]/60">{spawnError}</span>}
         </div>
       )}
 
-      <div className="flex items-end gap-2">
+      {/* ── Input box — fixed h-12 (48px), border, px-4 py-3 ── */}
+      <div
+        className="border border-border h-12 flex items-center px-4 gap-3 overflow-hidden"
+        style={{ borderColor: inRaid ? 'rgba(255,34,0,0.4)' : undefined }}
+      >
         <textarea
           ref={textareaRef}
           value={text}
@@ -380,27 +368,16 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatI
           onBlur={handleBlur}
           placeholder={inRaid ? 'Attack The Void...' : 'Send a message...'}
           rows={1}
-          className="flex-1 bg-[#0f0820] border text-white font-sans placeholder:text-[#3a2555] px-3 py-2 resize-none focus:outline-none transition-colors leading-relaxed"
-          style={{
-            fontSize:    16,
-            maxHeight:   120,
-            borderColor: inRaid ? 'rgba(255,34,0,0.4)' : '#2a1545',
-          }}
+          className="flex-1 bg-transparent text-white font-body text-[14px] placeholder:text-muted resize-none focus:outline-none leading-normal py-3"
+          style={{ maxHeight: 120, fontVariationSettings: '"opsz" 14' }}
         />
-
         <button
           onClick={send}
           disabled={!text.trim() || sending}
-          className="flex-shrink-0 flex items-center justify-center text-[#0a0612] hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-all mb-0.5 active:translate-y-[1px]"
-          style={{
-            minWidth:  44,
-            minHeight: 44,
-            background: inRaid ? '#ff2200' : '#bf5fff',
-            boxShadow:  inRaid ? '2px 2px 0px #880000' : '2px 2px 0px #7b2fa8',
-          }}
+          className="flex-shrink-0 flex items-center justify-center w-4 h-4 text-muted hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           aria-label="Send message"
         >
-          <Send size={14} />
+          <Send size={16} />
         </button>
       </div>
     </div>

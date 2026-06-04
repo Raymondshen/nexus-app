@@ -14,6 +14,8 @@
   --color-border:    #27272a;
   --color-surface:   #111111;
   --color-purple:    #a855f7;
+  --color-paper-150: #b3b3b3;
+  --color-paper-200: #9a9a9a;
 
   /* Spacing */
   --space-1:  0px;
@@ -49,6 +51,8 @@
   --color-border:    #27272a;
   --color-surface:   #111111;
   --color-purple:    #a855f7;
+  --color-paper-150: #b3b3b3;
+  --color-paper-200: #9a9a9a;
 }
 
 *,

@@ -109,7 +109,7 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
 
   return (
     <div
-      className="flex flex-col bg-[#0a0612]"
+      className="flex flex-col bg-black"
       style={{
         position: 'fixed',
         top: 0,
