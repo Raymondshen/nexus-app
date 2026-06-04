@@ -2,7 +2,7 @@
 
 import { useState, useActionState } from 'react'
 import { motion } from 'framer-motion'
-import { PixelSprite, spriteIdFor } from '@/components/game/PixelSprite'
+import { PixelSprite, spriteInfoFor } from '@/components/game/PixelSprite'
 import { Button } from '@/components/ui/Button'
 import { selectClassAction } from './actions'
 import type { AvatarClass } from '@/types'
@@ -24,7 +24,7 @@ function ClassCard({
   selected: AvatarClass | null
   onSelect: (id: AvatarClass) => void
 }) {
-  const spriteId   = spriteIdFor(cls.id)
+  const spriteInfo = spriteInfoFor(cls.id)
   const isSelected = selected === cls.id
 
   return (
@@ -40,10 +40,11 @@ function ClassCard({
         boxShadow:   isSelected ? `0 0 20px ${cls.color}33` : 'none',
       }}
     >
-      <div className="h-[96px] flex items-center justify-center">
-        {spriteId ? (
+      <div className="h-[128px] flex items-center justify-center">
+        {spriteInfo ? (
           <PixelSprite
-            spriteId={spriteId}
+            spriteId={spriteInfo.id}
+            nativePx={spriteInfo.nativePx}
             scale={4}
             animate={isSelected}
             direction={isSelected ? undefined : 'south'}

@@ -13,24 +13,32 @@ const WALK_CYCLE: SpriteDirection[] = [
 ]
 
 // Add an entry here as sprite folders are dropped into public/sprites/{key}/
-const CLASS_TO_SPRITE: Partial<Record<AvatarClass | 'necromancer', string>> = {
-  necromancer: 'necromancer',
-  mage:        'mage',
-  warrior:     'warrior',
-  rogue:       'rogue',
-  healer:      'healer',
-  archer:      'archer',
-  // berserker:   'berserker',
-  // sage:        'sage',
-  // ghost:       'ghost',
-  // hype_man:    'hype_man',
-  // the_voice:   'the_voice',
-  // meme_lord:   'meme_lord',
+// nativePx = the sprite sheet's actual pixel dimensions (determines integer scale)
+const CLASS_TO_SPRITE: Partial<Record<AvatarClass | 'necromancer', { folder: string; nativePx: number }>> = {
+  necromancer: { folder: 'necromancer', nativePx: 24 },
+  mage:        { folder: 'mage',        nativePx: 28 },
+  warrior:     { folder: 'warrior',     nativePx: 28 },
+  rogue:       { folder: 'rogue',       nativePx: 28 },
+  healer:      { folder: 'healer',      nativePx: 28 },
+  archer:      { folder: 'archer',      nativePx: 32 },
+  // berserker:   { folder: 'berserker', nativePx: 24 },
+  // sage:        { folder: 'sage',      nativePx: 24 },
+  // ghost:       { folder: 'ghost',     nativePx: 24 },
+  // hype_man:    { folder: 'hype_man',  nativePx: 24 },
+  // the_voice:   { folder: 'the_voice', nativePx: 24 },
+  // meme_lord:   { folder: 'meme_lord', nativePx: 24 },
 }
 
 export function spriteIdFor(avatarClass: AvatarClass | string | null | undefined): string | null {
   if (!avatarClass) return null
-  return CLASS_TO_SPRITE[avatarClass as AvatarClass] ?? null
+  return CLASS_TO_SPRITE[avatarClass as AvatarClass]?.folder ?? null
+}
+
+export function spriteInfoFor(avatarClass: AvatarClass | string | null | undefined): { id: string; nativePx: number } | null {
+  if (!avatarClass) return null
+  const entry = CLASS_TO_SPRITE[avatarClass as AvatarClass]
+  if (!entry) return null
+  return { id: entry.folder, nativePx: entry.nativePx }
 }
 
 // Inject the pixel-bob keyframe once per document
@@ -46,15 +54,17 @@ function useGlobalStyle(css: string) {
 }
 
 interface PixelSpriteProps {
-  spriteId: string
+  spriteId:  string
+  nativePx?: number       // native sprite size; use spriteInfoFor() to get the correct value
   direction?: SpriteDirection
-  scale?: number      // display size = 24 × scale (default 4 → 96 px)
-  animate?: boolean   // direction cycling + pixel-bob
+  scale?: number          // display size = nativePx × scale (default 4)
+  animate?: boolean       // direction cycling + pixel-bob
   className?: string
 }
 
 export function PixelSprite({
   spriteId,
+  nativePx = 24,
   direction: pinned,
   scale = 4,
   animate = false,
@@ -62,8 +72,7 @@ export function PixelSprite({
 }: PixelSpriteProps) {
   useGlobalStyle(BOB_STYLE)
 
-  const NATIVE_PX = 24
-  const displayPx = NATIVE_PX * scale
+  const displayPx = nativePx * scale
 
   const [dirIdx, setDirIdx] = useState(0)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
