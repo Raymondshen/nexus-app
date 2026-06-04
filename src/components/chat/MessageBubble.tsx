@@ -123,11 +123,11 @@ export function MessageBubble({ message, isOwn, showHeader, xpOverride }: Messag
         {showHeader && (
           <div className="flex items-center justify-between w-full">
 
-            {/* Left meta: username + separators + class + xp */}
+            {/* Left meta: username · sprite · class · xp */}
             <div className="flex items-center gap-1 flex-1 min-w-0">
-              {/* Username */}
+              {/* Username — DM Sans Medium 12px, leading: normal */}
               <span
-                className={`font-body font-medium text-[12px] tracking-[0.1px] shrink-0 leading-normal whitespace-nowrap ${
+                className={`font-body font-medium text-[12px] tracking-[0.1px] shrink-0 leading-[normal] whitespace-nowrap ${
                   isOwn ? 'text-purple' : 'text-primary'
                 }`}
                 style={{ fontVariationSettings: '"opsz" 14' }}
@@ -139,20 +139,21 @@ export function MessageBubble({ message, isOwn, showHeader, xpOverride }: Messag
                 <>
                   {/* 2×2 purple dot separator */}
                   <span className="w-[2px] h-[2px] bg-purple shrink-0" />
-                  {/* 16×16 pixel sprite — transparent background, south direction */}
+                  {/* 20×20 pixel sprite — matches Figma node 42:498 size-[20px] */}
                   {spriteId && (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={`/sprites/${spriteId}/south.png`}
                       alt=""
-                      width={16}
-                      height={16}
+                      width={20}
+                      height={20}
                       style={{ imageRendering: 'pixelated', flexShrink: 0 }}
                     />
                   )}
+                  {/* Class name — DM Sans Regular 10px, leading: normal */}
                   {className && (
                     <span
-                      className="font-body font-normal text-[10px] tracking-[0.1px] shrink-0 leading-normal whitespace-nowrap"
+                      className="font-body font-normal text-[10px] tracking-[0.1px] shrink-0 leading-[normal] whitespace-nowrap"
                       style={{ color: 'var(--color-paper-150)', fontVariationSettings: '"opsz" 14' }}
                     >
                       {className}
@@ -164,8 +165,9 @@ export function MessageBubble({ message, isOwn, showHeader, xpOverride }: Messag
               {displayXP > 0 && (
                 <>
                   <span className="w-[2px] h-[2px] bg-purple shrink-0" />
+                  {/* Outer leading-[0] collapses the block; inner spans use leading-[normal] */}
                   <p className="font-silkscreen tracking-[0.1px] whitespace-nowrap leading-[0] text-[0px] shrink-0">
-                    <span className="text-[8px] leading-none" style={{ color: '#f59e0b' }}>
+                    <span className="text-[8px] leading-[normal]" style={{ color: '#f59e0b' }}>
                       +{displayXP} XP
                     </span>
                   </p>
@@ -173,9 +175,9 @@ export function MessageBubble({ message, isOwn, showHeader, xpOverride }: Messag
               )}
             </div>
 
-            {/* Timestamp — right-aligned, DM Sans Regular 8px paper-200 */}
+            {/* Timestamp — DM Sans Regular 8px paper-200, leading: normal */}
             <span
-              className="font-body font-normal text-[8px] tracking-[0.2px] shrink-0 leading-normal whitespace-nowrap ml-1"
+              className="font-body font-normal text-[8px] tracking-[0.2px] shrink-0 leading-[normal] whitespace-nowrap ml-1"
               style={{ color: 'var(--color-paper-200)', fontVariationSettings: '"opsz" 14' }}
             >
               {timeStr}
@@ -190,7 +192,7 @@ export function MessageBubble({ message, isOwn, showHeader, xpOverride }: Messag
           </div>
         ) : (
           <p
-            className="font-body font-normal text-[14px] text-white leading-normal w-full"
+            className="font-body font-normal text-[14px] text-white leading-[normal] w-full"
             style={{ fontVariationSettings: '"opsz" 14' }}
           >
             {message.content}
