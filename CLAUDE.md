@@ -143,6 +143,11 @@ Spam checks gate XP only — **notifications always fire** regardless of spam fi
 - `subscribeToPush()` uses `getSession()` (not `getUser()`) — cookie-only, never fails due to network
 - VAPID env vars must be set in **Supabase Edge Function secrets** (separate from Vercel env vars)
 - **Edge function deployment**: `git push` to Vercel does NOT deploy Supabase Edge Functions. Must run manually: `supabase functions deploy <name> --project-ref tlveyeisjbythssmocth`. Deploy both `award-xp` and `send-notification` after any changes.
+- **Inter-function calls — JWT auth**: `send-notification` is deployed with `--no-verify-jwt` (Supabase gateway skips JWT check). `award-xp` calls it via raw `fetch()` with **no Authorization header** — do NOT use `supabase.functions.invoke()` or pass `SUPABASE_SERVICE_ROLE_KEY` / `SUPABASE_ANON_KEY` as Bearer tokens (both return 401 UNAUTHORIZED_INVALID_JWT_FORMAT when used as raw JWT strings). Pattern:
+  ```ts
+  const fnUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/send-notification`
+  fetch(fnUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({...}) })
+  ```
 
 ### Pixel Sprites
 - Component: `src/components/game/PixelSprite.tsx`
