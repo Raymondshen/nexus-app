@@ -85,6 +85,11 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
     cachedProfiles.filter((r) => r.profile).map((r) => [r.user_id, r.profile!])
   );
 
+  // Prompt once for class selection — redirect any member without a class set
+  if (!memberProfiles[user.id]?.avatar_class) {
+    redirect(`/onboarding/class?crew=${crewId}`);
+  }
+
   // Build last_seen map from fresh data
   const memberLastSeen: Record<string, string | null> = {};
   for (const row of lastSeenRows) {
