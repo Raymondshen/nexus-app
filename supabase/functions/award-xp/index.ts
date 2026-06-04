@@ -89,6 +89,8 @@ Deno.serve(async (req: Request) => {
 
     // ─── LAYER 1: CONSECUTIVE COOLDOWN ──────────────────────────────────────
     // Find the most recent prior message from this user in this crew.
+    let xpBlocked = false
+
     const { data: prevMessages } = await supabase
       .from('messages')
       .select('created_at')
@@ -101,12 +103,7 @@ Deno.serve(async (req: Request) => {
     const prevMessage = prevMessages?.[0]
     if (prevMessage) {
       const gapMs = Date.now() - new Date(prevMessage.created_at as string).getTime()
-      if (gapMs < COOLDOWN_MS) {
-        return new Response(
-          JSON.stringify({ xp_earned: 0 }),
-          { headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
-        )
-      }
+      if (gapMs < COOLDOWN_MS) xpBlocked = true
     }
 
     // ─── LAYER 2: BURST WINDOW CAP ──────────────────────────────────────────
@@ -120,110 +117,107 @@ Deno.serve(async (req: Request) => {
       .neq('id', message_id)
       .gte('created_at', burstWindowStart)
 
-    if ((burstCount ?? 0) >= BURST_MAX_MESSAGES) {
-      return new Response(
-        JSON.stringify({ xp_earned: 0 }),
-        { headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
-      )
-    }
+    if ((burstCount ?? 0) >= BURST_MAX_MESSAGES) xpBlocked = true
 
     // ─── BASE XP + BONUSES ──────────────────────────────────────────────────
-    let xpAwarded = XP_VALUES[message_type] ?? 0
+    // Spam-blocked messages earn 0 XP but still trigger crew notifications.
+    let xpAwarded = 0
+    let newXP     = 0
+    let newLevel  = 1
 
-    // First message today bonus
-    const todayStart = new Date()
-    todayStart.setUTCHours(0, 0, 0, 0)
-
-    const { count: todayCount } = await supabase
-      .from('messages')
-      .select('id', { count: 'exact', head: true })
-      .eq('crew_id', crew_id)
-      .eq('user_id', user_id)
-      .gte('created_at', todayStart.toISOString())
-      .neq('id', message_id)
-
-    if (todayCount === 0) {
-      xpAwarded += XP_BONUS_FIRST_TODAY
-    }
-
-    // Combo bonus (reply within 60s of someone else)
-    const sixtySecondsAgo = new Date(Date.now() - 60_000).toISOString()
-    const { count: recentCount } = await supabase
-      .from('messages')
-      .select('id', { count: 'exact', head: true })
-      .eq('crew_id', crew_id)
-      .neq('user_id', user_id)
-      .gte('created_at', sixtySecondsAgo)
-
-    if ((recentCount ?? 0) > 0) {
-      xpAwarded += XP_BONUS_COMBO
-    }
-
-    // ─── LAYER 3: DAILY DIMINISHING RETURNS ─────────────────────────────────
-    // Count how many XP-eligible log entries this user has in this crew today.
-    const { count: dailyXpCount } = await supabase
-      .from('crew_xp_log')
-      .select('id', { count: 'exact', head: true })
-      .eq('crew_id', crew_id)
-      .eq('user_id', user_id)
-      .gte('created_at', todayStart.toISOString())
-
-    const multiplier = getDailyMultiplier(dailyXpCount ?? 0)
-    xpAwarded = Math.floor(xpAwarded * multiplier)
-
-    // ─── WRITE XP ───────────────────────────────────────────────────────────
-    if (xpAwarded === 0) {
-      return new Response(
-        JSON.stringify({ xp_earned: 0 }),
-        { headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    // Log XP
-    await supabase.from('crew_xp_log').insert({
-      crew_id,
-      user_id,
-      xp_amount: xpAwarded,
-      source:    message_type,
-    })
-
-    // Read current crew XP + level
+    // Read crew name up-front — needed for both XP path and notification path.
     const { data: crewBefore } = await supabase
       .from('crews')
       .select('total_xp, level, name')
       .eq('id', crew_id)
       .single()
 
-    const oldXP    = crewBefore?.total_xp ?? 0
-    const newXP    = oldXP + xpAwarded
-    const oldLevel = getLevelFromXP(oldXP)
-    const newLevel = getLevelFromXP(newXP)
+    if (!xpBlocked) {
+      xpAwarded = XP_VALUES[message_type] ?? 0
 
-    // Update crew total_xp and level
-    await supabase
-      .from('crews')
-      .update({ total_xp: newXP, level: newLevel })
-      .eq('id', crew_id)
+      // First message today bonus
+      const todayStart = new Date()
+      todayStart.setUTCHours(0, 0, 0, 0)
 
-    // Update message xp_awarded + element_type
-    await supabase
-      .from('messages')
-      .update({
-        xp_awarded:   xpAwarded,
-        element_type: getElementType(content ?? '', message_type),
-      })
-      .eq('id', message_id)
+      const { count: todayCount } = await supabase
+        .from('messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('crew_id', crew_id)
+        .eq('user_id', user_id)
+        .gte('created_at', todayStart.toISOString())
+        .neq('id', message_id)
 
-    // Level up notification
-    if (newLevel > oldLevel) {
-      await supabase.from('messages').insert({
+      if (todayCount === 0) {
+        xpAwarded += XP_BONUS_FIRST_TODAY
+      }
+
+      // Combo bonus (reply within 60s of someone else)
+      const sixtySecondsAgo = new Date(Date.now() - 60_000).toISOString()
+      const { count: recentCount } = await supabase
+        .from('messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('crew_id', crew_id)
+        .neq('user_id', user_id)
+        .gte('created_at', sixtySecondsAgo)
+
+      if ((recentCount ?? 0) > 0) {
+        xpAwarded += XP_BONUS_COMBO
+      }
+
+      // ─── LAYER 3: DAILY DIMINISHING RETURNS ───────────────────────────────
+      const { count: dailyXpCount } = await supabase
+        .from('crew_xp_log')
+        .select('id', { count: 'exact', head: true })
+        .eq('crew_id', crew_id)
+        .eq('user_id', user_id)
+        .gte('created_at', todayStart.toISOString())
+
+      const multiplier = getDailyMultiplier(dailyXpCount ?? 0)
+      xpAwarded = Math.floor(xpAwarded * multiplier)
+    }
+
+    // ─── WRITE XP ───────────────────────────────────────────────────────────
+    const oldXP = crewBefore?.total_xp ?? 0
+
+    if (xpAwarded > 0) {
+      // Log XP
+      await supabase.from('crew_xp_log').insert({
         crew_id,
         user_id,
-        content:      `LEVEL_UP:${newLevel}`,
-        message_type: 'system',
-        element_type: 'arcane',
-        xp_awarded:   0,
+        xp_amount: xpAwarded,
+        source:    message_type,
       })
+
+      newXP          = oldXP + xpAwarded
+      const oldLevel = getLevelFromXP(oldXP)
+      newLevel       = getLevelFromXP(newXP)
+
+      // Update crew total_xp and level
+      await supabase
+        .from('crews')
+        .update({ total_xp: newXP, level: newLevel })
+        .eq('id', crew_id)
+
+      // Update message xp_awarded + element_type
+      await supabase
+        .from('messages')
+        .update({
+          xp_awarded:   xpAwarded,
+          element_type: getElementType(content ?? '', message_type),
+        })
+        .eq('id', message_id)
+
+      // Level up notification
+      if (newLevel > oldLevel) {
+        await supabase.from('messages').insert({
+          crew_id,
+          user_id,
+          content:      `LEVEL_UP:${newLevel}`,
+          message_type: 'system',
+          element_type: 'arcane',
+          xp_awarded:   0,
+        })
+      }
     }
 
     // Boss spawn — check if XP crossed a threshold
