@@ -22,6 +22,7 @@ export interface Profile extends Record<string, unknown> {
   username: string
   avatar_class: AvatarClass | null
   avatar_url: string | null
+  birthday: string | null
   created_at: string
 }
 

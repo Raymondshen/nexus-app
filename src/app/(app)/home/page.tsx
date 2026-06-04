@@ -60,11 +60,15 @@ export default async function HomePage() {
 
   // Profile and crew membership are independent — run in parallel
   const [{ data: profile }, { data: memberRows, error: memberError }] = await Promise.all([
-    supabase.from('profiles').select('username, avatar_url').eq('id', user.id).single(),
+    supabase.from('profiles').select('username, avatar_url, birthday').eq('id', user.id).single(),
     supabase.from('crew_members').select('crew_id, last_seen, joined_at').eq('user_id', user.id).order('joined_at', { ascending: false }),
   ])
 
   if (memberError) console.error('[home] crew_members query error:', memberError)
+
+  // Prompt existing users who haven't set their birthday yet
+  const birthday = (profile as Record<string, unknown> | null)?.birthday as string | null | undefined
+  if (!birthday) redirect('/onboarding/birthday')
 
   const memberships = memberRows ?? []
 
