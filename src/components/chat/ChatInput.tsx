@@ -30,15 +30,13 @@ function sanitizeMessage(raw: string): string {
 }
 
 export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatInputProps) {
-  const [text,          setText]          = useState('')
-  const [sending,       setSending]       = useState(false)
-  const [sendError,     setSendError]     = useState<string | null>(null)
-  const [typingUsers,   setTypingUsers]   = useState<string[]>([])
-  const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(() => new Set([userId]))
-  const [spawning,      setSpawning]      = useState(false)
-  const [spawnError,    setSpawnError]    = useState<string | null>(null)
-  const [devMode,       setDevMode]       = useState(false)
-  const [lastXpEarned,  setLastXpEarned]  = useState(0)
+  const [text,        setText]        = useState('')
+  const [sending,     setSending]     = useState(false)
+  const [sendError,   setSendError]   = useState<string | null>(null)
+  const [typingUsers, setTypingUsers] = useState<string[]>([])
+  const [spawning,    setSpawning]    = useState(false)
+  const [spawnError,  setSpawnError]  = useState<string | null>(null)
+  const [devMode,     setDevMode]     = useState(false)
 
   const textareaRef      = useRef<HTMLTextAreaElement>(null)
   const rateRef          = useRef({ count: 0, resetAt: Date.now() + RATE_LIMIT_WINDOW })
@@ -50,6 +48,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatI
     addMessage, updateMessage, addXP, setCrewXP, receiveXP,
     activeRaid, damageFloats, addDamageFloat, dismissDamageFloat,
     crewXP, crewLevel, xpFloats, dismissXPFloat,
+    onlineUserIds, setOnlineUserIds,
   } = useChatStore()
 
   const profilesRef     = useRef(memberProfiles)
@@ -67,11 +66,9 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatI
   }, [])
 
   useEffect(() => {
-    const last = xpFloats[xpFloats.length - 1]
-    if (last) setLastXpEarned(last.amount)
-  }, [xpFloats])
+    // Seed own ID optimistically before channel connects
+    setOnlineUserIds(new Set([userId]))
 
-  useEffect(() => {
     const supabase = createClient()
     const ch = supabase.channel(`messages:${crewId}`, {
       config: { presence: { key: userId } },
@@ -91,14 +88,12 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatI
         setTypingUsers(others)
       })
       .on('presence', { event: 'join' }, ({ key }: { key: string }) => {
-        setOnlineUserIds((prev) => new Set([...prev, key]))
+        setOnlineUserIds(new Set([...useChatStore.getState().onlineUserIds, key]))
       })
       .on('presence', { event: 'leave' }, ({ key }: { key: string }) => {
-        setOnlineUserIds((prev) => {
-          const next = new Set(prev)
-          next.delete(key)
-          return next
-        })
+        const next = new Set(useChatStore.getState().onlineUserIds)
+        next.delete(key)
+        setOnlineUserIds(next)
       })
       .on('broadcast', { event: 'new_message' }, (payload) => {
         const msg = payload.payload as Message
@@ -302,33 +297,30 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatI
         <div className="h-6 flex flex-col gap-2 items-center justify-center w-full">
           {/* Level · XP · Members · +XP ··· Next Boss */}
           <div className="flex items-center gap-2 w-full font-silkscreen text-tertiary">
-            {/* Left: "Level N · X / 500XP · N Members · +XP" */}
+            {/* Left: "Level N · X / 500XP · N Members" + float anchor */}
             <p className="flex-1 min-w-0 leading-[0] text-[0px]">
               <span className="text-[8px] leading-none text-purple">Level {crewLevel}</span>
               <span className="text-[8px] leading-none">
-                {` · ${crewXP % XP_PER_LEVEL} / ${XP_PER_LEVEL}XP · ${memberCount} Member${memberCount !== 1 ? 's' : ''}`}
+                {` · ${crewXP % XP_PER_LEVEL} / ${XP_PER_LEVEL}XP · ${memberCount} Member${memberCount !== 1 ? 's' : ''} · `}
               </span>
-              {lastXpEarned > 0 && (
-                <span className="relative inline-block">
-                  <span className="text-[8px] leading-none text-[#f59e0b]">{` · +${lastXpEarned} XP`}</span>
-                  {/* XP floats — rise from the inline +XP label position */}
-                  <AnimatePresence>
-                    {xpFloats.map((f) => (
-                      <motion.span
-                        key={f.id}
-                        initial={{ opacity: 0, y: 0 }}
-                        animate={{ opacity: [0, 1, 1, 0], y: [0, -12, -26, -42] }}
-                        transition={{ duration: 1.4, ease: 'easeOut', times: [0, 0.15, 0.65, 1] }}
-                        onAnimationComplete={() => dismissXPFloat(f.id)}
-                        className="pointer-events-none absolute bottom-0 left-0 font-pixel text-[8px] text-[#ffd700] whitespace-nowrap z-10"
-                        style={{ textShadow: '0 0 8px rgba(255,215,0,0.8)' }}
-                      >
-                        +{f.amount} XP
-                      </motion.span>
-                    ))}
-                  </AnimatePresence>
-                </span>
-              )}
+              {/* Inline anchor for XP floats — no static label, animation only */}
+              <span className="relative inline-block">
+                <AnimatePresence>
+                  {xpFloats.map((f) => (
+                    <motion.span
+                      key={f.id}
+                      initial={{ opacity: 0, y: 0 }}
+                      animate={{ opacity: [0, 1, 1, 0], y: [0, -12, -26, -42] }}
+                      transition={{ duration: 1.4, ease: 'easeOut', times: [0, 0.15, 0.65, 1] }}
+                      onAnimationComplete={() => dismissXPFloat(f.id)}
+                      className="pointer-events-none absolute bottom-0 left-0 font-pixel text-[8px] text-[#ffd700] whitespace-nowrap z-10"
+                      style={{ textShadow: '0 0 8px rgba(255,215,0,0.8)' }}
+                    >
+                      +{f.amount} XP
+                    </motion.span>
+                  ))}
+                </AnimatePresence>
+              </span>
             </p>
             {/* Right: "Next Boss" */}
             <p className="text-[8px] leading-none whitespace-nowrap text-tertiary">Next Boss</p>

@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import Image from 'next/image'
 import { format } from 'date-fns'
+import { useChatStore } from '@/store/chatStore'
 import type { MessageWithProfile, AvatarClass } from '@/types'
-import { PixelSprite, spriteIdFor } from '@/components/game/PixelSprite'
 
 const CLASS_NAMES: Record<AvatarClass, string> = {
   berserker: 'Berserker',
@@ -23,15 +23,43 @@ const CLASS_NAMES: Record<AvatarClass, string> = {
 const REACTIONS = ['⚔️', '🔥', '💀', '✨']
 
 interface MessageBubbleProps {
-  message:    MessageWithProfile
-  isOwn:      boolean
-  showHeader: boolean
+  message:     MessageWithProfile
+  isOwn:       boolean
+  showHeader:  boolean
+  xpOverride?: number  // accumulated group XP for the group-leader bubble
 }
 
-export function MessageBubble({ message, isOwn, showHeader }: MessageBubbleProps) {
+export function MessageBubble({ message, isOwn, showHeader, xpOverride }: MessageBubbleProps) {
   const [showReactions, setShowReactions] = useState(false)
   const [copied,        setCopied]        = useState(false)
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const onlineUserIds = useChatStore((s) => s.onlineUserIds)
+
+  // XP to display — group-accumulated value when available
+  const xpTarget = xpOverride ?? message.xp_awarded ?? 0
+  const [displayXP, setDisplayXP] = useState(xpTarget)
+  const displayXPRef = useRef(xpTarget)
+
+  // Count-up animation when accumulated group XP increases
+  useEffect(() => {
+    const start = displayXPRef.current
+    const end   = xpTarget
+    if (start === end) return
+    const duration  = 500
+    const startTime = performance.now()
+    let raf: number
+    function step(now: number) {
+      const t = Math.min((now - startTime) / duration, 1)
+      const eased = 1 - Math.pow(1 - t, 3)
+      const val = Math.round(start + (end - start) * eased)
+      displayXPRef.current = val
+      setDisplayXP(val)
+      if (t < 1) raf = requestAnimationFrame(step)
+    }
+    raf = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(raf)
+  }, [xpTarget]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleTouchStart() {
     longPressTimer.current = setTimeout(() => setShowReactions(true), 500)
@@ -55,9 +83,8 @@ export function MessageBubble({ message, isOwn, showHeader }: MessageBubbleProps
 
   const initial   = message.profile.username[0]?.toUpperCase() ?? '?'
   const avatarUrl = message.profile.avatar_url as string | null | undefined
-  const spriteId  = spriteIdFor(message.profile.avatar_class)
   const className = message.profile.avatar_class ? CLASS_NAMES[message.profile.avatar_class] : null
-  const xpEarned  = message.xp_awarded ?? 0
+  const isOnline  = onlineUserIds.has(message.user_id)
   // "9:30pm" — lowercase, no space
   const timeStr   = format(new Date(message.created_at), 'h:mma').toLowerCase()
 
@@ -71,15 +98,18 @@ export function MessageBubble({ message, isOwn, showHeader }: MessageBubbleProps
     >
       {/* Avatar — only rendered for the first message in a group */}
       {showHeader && (
-        <div className="flex-shrink-0 w-8 h-8 bg-white flex items-center justify-center overflow-hidden">
-          {spriteId ? (
-            <PixelSprite spriteId={spriteId} scale={1.33} direction="south" />
-          ) : avatarUrl ? (
-            <div className="relative w-full h-full">
-              <Image src={avatarUrl} alt={message.profile.username} fill sizes="32px" className="object-cover" />
-            </div>
-          ) : (
-            <span className="font-pixel text-[8px] text-purple">{initial}</span>
+        <div className="relative flex-shrink-0">
+          <div className="w-8 h-8 bg-surface flex items-center justify-center overflow-hidden">
+            {avatarUrl ? (
+              <div className="relative w-full h-full">
+                <Image src={avatarUrl} alt={message.profile.username} fill sizes="32px" className="object-cover" />
+              </div>
+            ) : (
+              <span className="font-pixel text-[8px] text-purple">{initial}</span>
+            )}
+          </div>
+          {isOnline && (
+            <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#66bb6a] border-[1.5px] border-black" />
           )}
         </div>
       )}
@@ -116,10 +146,10 @@ export function MessageBubble({ message, isOwn, showHeader }: MessageBubbleProps
                 </>
               )}
 
-              {xpEarned > 0 && (
+              {displayXP > 0 && (
                 <p className="font-silkscreen tracking-[0.1px] whitespace-nowrap leading-[0] text-[0px] shrink-0">
                   <span className="text-[8px] leading-none" style={{ color: '#f59e0b' }}>
-                    +{xpEarned} XP
+                    +{displayXP} XP
                   </span>
                 </p>
               )}

@@ -9,34 +9,37 @@ export interface DamageFloatItem {
 }
 
 interface ChatStore {
-  messages:   Message[]
-  crewXP:     number
-  crewLevel:  number
-  xpFloats:   { id: number; amount: number }[]
-  activeRaid: ActiveRaid | null
-  damageFloats: DamageFloatItem[]
+  messages:      Message[]
+  crewXP:        number
+  crewLevel:     number
+  xpFloats:      { id: number; amount: number }[]
+  activeRaid:    ActiveRaid | null
+  damageFloats:  DamageFloatItem[]
+  onlineUserIds: Set<string>
 
-  setMessages:      (messages: Message[]) => void
-  addMessage:       (message: Message) => void
-  updateMessage:    (id: string, patch: Partial<Message>) => void
-  setCrewXP:        (xp: number) => void
-  addXP:            (amount: number) => void
-  receiveXP:        (earned: number, newTotal: number) => void
-  setActiveRaid:    (raid: ActiveRaid | null) => void
-  dismissXPFloat:   (id: number) => void
-  addDamageFloat:   (damage: number, elementType: ElementType | null) => void
-  dismissDamageFloat: (id: number) => void
+  setMessages:       (messages: Message[]) => void
+  addMessage:        (message: Message) => void
+  updateMessage:     (id: string, patch: Partial<Message>) => void
+  setCrewXP:         (xp: number) => void
+  addXP:             (amount: number) => void
+  receiveXP:         (earned: number, newTotal: number) => void
+  setActiveRaid:     (raid: ActiveRaid | null) => void
+  dismissXPFloat:    (id: number) => void
+  addDamageFloat:    (damage: number, elementType: ElementType | null) => void
+  dismissDamageFloat:(id: number) => void
+  setOnlineUserIds:  (ids: Set<string>) => void
 }
 
 let floatCounter = 0
 
 export const useChatStore = create<ChatStore>((set) => ({
-  messages:     [],
-  crewXP:       0,
-  crewLevel:    1,
-  xpFloats:     [],
-  activeRaid:   null,
-  damageFloats: [],
+  messages:      [],
+  crewXP:        0,
+  crewLevel:     1,
+  xpFloats:      [],
+  activeRaid:    null,
+  damageFloats:  [],
+  onlineUserIds: new Set<string>(),
 
   setMessages: (messages) => set({ messages }),
 
@@ -85,6 +88,8 @@ export const useChatStore = create<ChatStore>((set) => ({
 
   dismissDamageFloat: (id) =>
     set((s) => ({ damageFloats: s.damageFloats.filter((f) => f.id !== id) })),
+
+  setOnlineUserIds: (ids) => set({ onlineUserIds: ids }),
 }))
 
 export { XP_PER_LEVEL }

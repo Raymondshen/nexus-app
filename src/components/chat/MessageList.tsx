@@ -257,13 +257,65 @@ export function MessageList({
     )
   }
 
+  // Pre-pass: accumulate XP per group so the group-leader bubble shows the running total.
+  // Mirrors the grouping conditions in the main display-list loop below.
+  const groupXPMap = new Map<string, number>()
+  {
+    let preLastDate: Date | null = null
+    let preLastUserId: string | null = null
+    let preLastMsgTime = 0
+    let preGroupLeaderId: string | null = null
+    const preRenderedRaids = new Set<string>()
+
+    for (const msg of messages) {
+      if (!msg.id || typeof msg.content !== 'string') continue
+      const msgDate = new Date(msg.created_at)
+      const msgTime = msgDate.getTime()
+      const raidId     = parseBossSpawnRaidId(msg.content)
+      const artifactId = parseArtifactDropId(msg.content)
+      const level      = parseLevelUp(msg.content)
+
+      if (!preLastDate || !isSameDay(preLastDate, msgDate)) {
+        preLastUserId = null; preLastMsgTime = 0; preGroupLeaderId = null
+      }
+      preLastDate = msgDate
+
+      if (raidId && !preRenderedRaids.has(raidId)) {
+        preRenderedRaids.add(raidId)
+        preLastUserId = null; preLastMsgTime = 0; preGroupLeaderId = null
+        continue
+      }
+      if (artifactId || level !== null || raidId) {
+        preLastUserId = null; preLastMsgTime = 0; preGroupLeaderId = null
+        continue
+      }
+      if (msg.message_type === 'system') {
+        preLastUserId = null; preLastMsgTime = 0; preGroupLeaderId = null
+        continue
+      }
+
+      const sameUser     = msg.user_id === preLastUserId
+      const withinMinute = sameUser && (msgTime - preLastMsgTime) < 60_000
+
+      if (!withinMinute) {
+        preGroupLeaderId = msg.id
+        groupXPMap.set(msg.id, msg.xp_awarded ?? 0)
+      } else if (preGroupLeaderId) {
+        groupXPMap.set(preGroupLeaderId, (groupXPMap.get(preGroupLeaderId) ?? 0) + (msg.xp_awarded ?? 0))
+      }
+
+      preLastUserId  = msg.user_id
+      preLastMsgTime = msgTime
+    }
+  }
+
   // Build display list
   type DisplayItem =
     | { kind: 'divider';  label: string;      key: string }
     | { kind: 'boss';     raidId: string;     key: string; raid: ActiveRaid | null }
     | { kind: 'artifact'; artifactId: string; key: string }
     | { kind: 'level_up'; level: number; msgId: string; key: string }
-    | { kind: 'message';  message: MessageWithProfile; isOwn: boolean; showHeader: boolean }
+    | { kind: 'message';  message: MessageWithProfile; isOwn: boolean; showHeader: boolean; xpOverride?: number }
 
   const items: DisplayItem[] = []
   let lastDate:    Date | null   = null
@@ -311,7 +363,8 @@ export function MessageList({
         const sameUser     = msg.user_id === lastUserId
         const withinMinute = sameUser && (msgTime - lastMsgTime) < 60_000
         const showHeader   = !withinMinute
-        items.push({ kind: 'message', message: msg as MessageWithProfile, isOwn: msg.user_id === currentUserId, showHeader })
+        const xpOverride   = showHeader ? groupXPMap.get(msg.id) : undefined
+        items.push({ kind: 'message', message: msg as MessageWithProfile, isOwn: msg.user_id === currentUserId, showHeader, xpOverride })
         lastUserId  = msg.user_id
         lastMsgTime = msgTime
       }
@@ -385,6 +438,7 @@ export function MessageList({
             message={item.message}
             isOwn={item.isOwn}
             showHeader={item.showHeader}
+            xpOverride={item.xpOverride}
           />
         )
       })}
