@@ -157,7 +157,8 @@ export function ChatInput({ crewId, userId, userProfile }: ChatInputProps) {
         body: JSON.stringify({ message_id: msgId, crew_id: crewId, user_id: userId, username: userProfile.username, message_type: 'text', content }),
       })
         .then((r) => r.json())
-        .then((data: { xp_earned?: number; new_total_xp?: number }) => {
+        .then((data: { xp_earned?: number; new_total_xp?: number; notif_count?: number; notif_results?: unknown[] }) => {
+          console.log('[award-xp]', data)
           if (typeof data.xp_earned === 'number' && data.xp_earned > 0) {
             updateMessage(msgId, { xp_awarded: data.xp_earned })
           }

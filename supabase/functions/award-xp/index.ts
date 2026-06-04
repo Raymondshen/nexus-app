@@ -300,6 +300,7 @@ Deno.serve(async (req: Request) => {
     }
 
     // Notify other crew members of the new message (skip reactions)
+    let notifResults: { user_id: string; status: string }[] = []
     if (message_type !== 'reaction') {
       const supabaseUrl = Deno.env.get('SUPABASE_URL')!
       const serviceKey  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -310,9 +311,11 @@ Deno.serve(async (req: Request) => {
         .eq('crew_id', crew_id)
         .neq('user_id', user_id)
 
-      await Promise.allSettled(
-        (otherMembers ?? []).map((member) =>
-          fetch(`${supabaseUrl}/functions/v1/send-notification`, {
+      console.log(`[award-xp] notifying ${otherMembers?.length ?? 0} members for message ${message_id}`)
+
+      const settled = await Promise.allSettled(
+        (otherMembers ?? []).map(async (member) => {
+          const res = await fetch(`${supabaseUrl}/functions/v1/send-notification`, {
             method:  'POST',
             headers: {
               'Content-Type':  'application/json',
@@ -329,12 +332,21 @@ Deno.serve(async (req: Request) => {
               },
             }),
           })
-        )
+          const body = await res.text()
+          console.log(`[award-xp] send-notification uid=${member.user_id.slice(0, 8)} status=${res.status} body=${body.slice(0, 120)}`)
+          return { user_id: member.user_id, status: res.status.toString() }
+        })
+      )
+
+      notifResults = settled.map((r, i) =>
+        r.status === 'fulfilled'
+          ? r.value
+          : { user_id: (otherMembers ?? [])[i]?.user_id ?? '?', status: `error:${String(r.reason).slice(0, 60)}` }
       )
     }
 
     return new Response(
-      JSON.stringify({ xp_earned: xpAwarded, new_level: newLevel, new_total_xp: newXP }),
+      JSON.stringify({ xp_earned: xpAwarded, new_level: newLevel, new_total_xp: newXP, notif_count: notifResults.length, notif_results: notifResults }),
       { headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
     )
   } catch (err) {
