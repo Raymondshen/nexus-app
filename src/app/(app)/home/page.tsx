@@ -60,7 +60,7 @@ export default async function HomePage() {
 
   // Profile and crew membership are independent — run in parallel
   const [{ data: profile }, { data: memberRows, error: memberError }] = await Promise.all([
-    supabase.from('profiles').select('username, avatar_url, birthday').eq('id', user.id).single(),
+    supabase.from('profiles').select('username, avatar_url, birthday, created_at').eq('id', user.id).single(),
     supabase.from('crew_members').select('crew_id, last_seen, joined_at').eq('user_id', user.id).order('joined_at', { ascending: false }),
   ])
 
@@ -72,6 +72,9 @@ export default async function HomePage() {
 
   const memberships = memberRows ?? []
 
+  const createdAt   = (profile as Record<string, unknown> | null)?.created_at as string | null
+  const memberSince = createdAt ? new Date(createdAt).getFullYear().toString() : ''
+
   if (memberships.length === 0) {
     return (
       <HomeClient
@@ -79,6 +82,7 @@ export default async function HomePage() {
         userId={user.id}
         username={profile?.username ?? ''}
         avatarUrl={(profile as unknown as { avatar_url?: string | null })?.avatar_url ?? null}
+        memberSince={memberSince}
         profileCache={{}}
       />
     )
@@ -156,6 +160,7 @@ export default async function HomePage() {
       userId={user.id}
       username={profile?.username ?? ''}
       avatarUrl={(profile as unknown as { avatar_url?: string | null })?.avatar_url ?? null}
+      memberSince={memberSince}
       profileCache={profileCache}
     />
   )

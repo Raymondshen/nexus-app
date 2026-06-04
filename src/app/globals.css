@@ -1,7 +1,54 @@
 @import "tailwindcss";
 
+/* ─── Design tokens (sourced from Figma variables) ──────────────────────────
+   Variable names mirror the Figma file exactly so designers and devs share
+   a single source of truth. Update here when Figma variables change.
+   ────────────────────────────────────────────────────────────────────────── */
+:root {
+  /* Colors */
+  --color-paper:     #f6f6f6;
+  --color-primary:   #fafafa;
+  --color-secondary: #e4e4e7;
+  --color-tertiary:  #a1a1aa;
+  --color-muted:     #71717a;
+  --color-border:    #27272a;
+  --color-surface:   #111111;
+  --color-purple:    #a855f7;
+
+  /* Spacing */
+  --space-1:  0px;
+  --space-2:  4px;
+  --space-3:  8px;
+  --space-5:  16px;
+  --space-7:  24px;
+  --space-11: 40px;
+  --space-13: 48px;
+  --space-14: 52px;
+
+  /* Font sizes */
+  --text-mini: 8px;
+  --text-xs:   12px;
+  --text-sm:   14px;
+  --text-md:   16px;
+  --text-lg:   18px;
+}
+
 @theme {
-  --font-pixel: var(--font-press-start-2p);
+  /* Fonts */
+  --font-pixel:      var(--font-press-start-2p);
+  --font-body:       var(--font-dm-sans);
+  --font-silkscreen: var(--font-silk);
+
+  /* Semantic color utilities — mirrors :root vars so Tailwind generates
+     bg-surface, text-muted, border-border, etc. */
+  --color-paper:     #f6f6f6;
+  --color-primary:   #fafafa;
+  --color-secondary: #e4e4e7;
+  --color-tertiary:  #a1a1aa;
+  --color-muted:     #71717a;
+  --color-border:    #27272a;
+  --color-surface:   #111111;
+  --color-purple:    #a855f7;
 }
 
 *,

@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next'
-import { Press_Start_2P } from 'next/font/google'
+import { Press_Start_2P, DM_Sans, Silkscreen } from 'next/font/google'
 import { validateConfig } from '@/lib/config'
 import { SWRegister } from '@/components/ui/SWRegister'
 import './globals.css'
@@ -8,6 +8,19 @@ const pressStart2P = Press_Start_2P({
   weight: '400',
   subsets: ['latin'],
   variable: '--font-press-start-2p',
+  display: 'swap',
+})
+
+const dmSans = DM_Sans({
+  subsets: ['latin'],
+  variable: '--font-dm-sans',
+  display: 'swap',
+})
+
+const silkscreen = Silkscreen({
+  weight: ['400', '700'],
+  subsets: ['latin'],
+  variable: '--font-silk',
   display: 'swap',
 })
 
@@ -73,7 +86,7 @@ export default function RootLayout({
   validateConfig()
 
   return (
-    <html lang="en" className={pressStart2P.variable}>
+    <html lang="en" className={`${pressStart2P.variable} ${dmSans.variable} ${silkscreen.variable}`}>
       <body className="min-h-screen bg-[#0a0612] text-white antialiased">
         <SWRegister />
         {children}
