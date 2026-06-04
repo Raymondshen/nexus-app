@@ -136,6 +136,7 @@ Spam checks gate XP only — **notifications always fire** regardless of spam fi
 - **Subscription storage**: `push_subscriptions` table; use delete→insert NOT upsert (unique index may not exist in all envs)
 - **Badge**: `BadgeClear` component clears app icon badge on focus/visibilitychange; SW sets it on push receive
 - **Preferences**: `notification_preferences` table; `send-notification` edge function checks before sending
+- **`message_received` notification format**: title = `"Name from Group Name"`, body = content preview or `"sent"` if empty
 - `VAPID_SUBJECT` **must** be a `mailto:` URI — bare email breaks iOS APNs
 - iOS push only works in standalone PWA mode (iOS 16.4+, added to Home Screen)
 - **iOS foreground suppression**: iOS does NOT show push banners when the PWA window is active. The realtime unread indicator is not a push notification. Always test push with the PWA completely closed (swiped away from app switcher).

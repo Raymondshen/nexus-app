@@ -39,8 +39,8 @@ function buildPayload(type: NotificationType, data: Record<string, unknown>) {
   switch (type) {
     case 'message_received':
       return {
-        title: `${data.sender_name ?? 'Someone'}${crewTag}`,
-        body:  String(data.content_preview ?? ''),
+        title: `${data.sender_name ?? 'Someone'} from ${data.crew_name ?? 'your crew'}`,
+        body:  String(data.content_preview || 'sent'),
         icon:  '/icons/icon-192.png',
         badge: '/icons/icon-192.png',
         data:  { url: `/chat/${data.crew_id}` },
