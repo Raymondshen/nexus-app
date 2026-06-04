@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useRef, useCallback, useEffect } from 'react'
-import { Send } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Image from 'next/image'
 import type { RealtimeChannel } from '@supabase/supabase-js'
@@ -248,7 +247,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatI
       <DamageFloat floats={damageFloats} onDismiss={dismissDamageFloat} />
 
       {/* ── Content: member avatars + XP bar (matches Figma "content" section) ── */}
-      <div className="flex flex-col gap-4 mb-4">
+      <div className="flex flex-col gap-2 mb-4">
 
         {/* User list — gap-3 (12px), circular avatars 32×32 */}
         <div className="flex items-center gap-3">
@@ -377,7 +376,16 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatI
           className="flex-shrink-0 flex items-center justify-center w-4 h-4 text-muted hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           aria-label="Send message"
         >
-          <Send size={16} />
+          {/* Pixel send icon — right-pointing triangle ▶ */}
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true">
+            <rect x="0" y="0" width="2" height="2" />
+            <rect x="0" y="2" width="4" height="2" />
+            <rect x="0" y="4" width="6" height="2" />
+            <rect x="0" y="6" width="8" height="2" />
+            <rect x="0" y="8" width="6" height="2" />
+            <rect x="0" y="10" width="4" height="2" />
+            <rect x="0" y="12" width="2" height="2" />
+          </svg>
         </button>
       </div>
     </div>

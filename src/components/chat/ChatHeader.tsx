@@ -4,7 +4,6 @@ import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
-import { UserPlus, Building2 } from 'lucide-react'
 import { useChatStore } from '@/store/chatStore'
 import { createClient } from '@/lib/supabase/client'
 import type { Crew, Profile, ActiveRaid } from '@/types'
@@ -231,7 +230,13 @@ export function ChatHeader({
               className="flex items-center justify-center text-primary hover:text-purple transition-colors"
               style={{ width: 24, height: 40 }}
             >
-              <UserPlus size={20} strokeWidth={1.5} />
+              {/* Pixel user-plus icon */}
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <rect x="3" y="0" width="6" height="4" />
+                <rect x="0" y="6" width="10" height="6" />
+                <rect x="14" y="4" width="2" height="10" />
+                <rect x="11" y="8" width="9" height="2" />
+              </svg>
             </button>
             <Link
               href={`/vault/${crewId}`}
@@ -239,7 +244,17 @@ export function ChatHeader({
               className="flex items-center justify-center text-primary hover:text-purple transition-colors"
               style={{ width: 24, height: 40 }}
             >
-              <Building2 size={20} strokeWidth={1.5} />
+              {/* Pixel vault / castle icon */}
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <rect x="0"  y="0" width="4" height="5" />
+                <rect x="8"  y="0" width="4" height="5" />
+                <rect x="16" y="0" width="4" height="5" />
+                <rect x="0"  y="5" width="20" height="3" />
+                <rect x="0"  y="8" width="6"  height="12" />
+                <rect x="14" y="8" width="6"  height="12" />
+                <rect x="6"  y="8" width="8"  height="3" />
+                <rect x="6"  y="16" width="8" height="4" />
+              </svg>
             </Link>
           </div>
         </div>
