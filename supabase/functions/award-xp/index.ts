@@ -87,37 +87,49 @@ Deno.serve(async (req: Request) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     )
 
+    // ─── BATCH 1: spam checks + crew data (always, 3 queries in parallel) ────
+    const burstWindowStart = new Date(Date.now() - BURST_WINDOW_MS).toISOString()
+
+    const [prevMsgsResult, burstResult, crewResult] = await Promise.all([
+      // Layer 1: most recent prior message from this user in this crew
+      supabase
+        .from('messages')
+        .select('created_at')
+        .eq('crew_id', crew_id)
+        .eq('user_id', user_id)
+        .neq('id', message_id)
+        .order('created_at', { ascending: false })
+        .limit(1),
+
+      // Layer 2: burst count in last 30s
+      supabase
+        .from('messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('crew_id', crew_id)
+        .eq('user_id', user_id)
+        .neq('id', message_id)
+        .gte('created_at', burstWindowStart),
+
+      // Crew name + XP — needed for both XP path and notifications
+      supabase
+        .from('crews')
+        .select('total_xp, level, name')
+        .eq('id', crew_id)
+        .single(),
+    ])
+
     // ─── LAYER 1: CONSECUTIVE COOLDOWN ──────────────────────────────────────
-    // Find the most recent prior message from this user in this crew.
     let xpBlocked = false
-
-    const { data: prevMessages } = await supabase
-      .from('messages')
-      .select('created_at')
-      .eq('crew_id', crew_id)
-      .eq('user_id', user_id)
-      .neq('id', message_id)
-      .order('created_at', { ascending: false })
-      .limit(1)
-
-    const prevMessage = prevMessages?.[0]
+    const prevMessage = prevMsgsResult.data?.[0]
     if (prevMessage) {
       const gapMs = Date.now() - new Date(prevMessage.created_at as string).getTime()
       if (gapMs < COOLDOWN_MS) xpBlocked = true
     }
 
     // ─── LAYER 2: BURST WINDOW CAP ──────────────────────────────────────────
-    // Count messages this user sent in this crew in the last 30 seconds.
-    const burstWindowStart = new Date(Date.now() - BURST_WINDOW_MS).toISOString()
-    const { count: burstCount } = await supabase
-      .from('messages')
-      .select('id', { count: 'exact', head: true })
-      .eq('crew_id', crew_id)
-      .eq('user_id', user_id)
-      .neq('id', message_id)
-      .gte('created_at', burstWindowStart)
+    if ((burstResult.count ?? 0) >= BURST_MAX_MESSAGES) xpBlocked = true
 
-    if ((burstCount ?? 0) >= BURST_MAX_MESSAGES) xpBlocked = true
+    const crewBefore = crewResult.data
 
     // ─── BASE XP + BONUSES ──────────────────────────────────────────────────
     // Spam-blocked messages earn 0 XP but still trigger crew notifications.
@@ -125,54 +137,46 @@ Deno.serve(async (req: Request) => {
     let newXP     = 0
     let newLevel  = 1
 
-    // Read crew name up-front — needed for both XP path and notification path.
-    const { data: crewBefore } = await supabase
-      .from('crews')
-      .select('total_xp, level, name')
-      .eq('id', crew_id)
-      .single()
-
     if (!xpBlocked) {
       xpAwarded = XP_VALUES[message_type] ?? 0
 
-      // First message today bonus
       const todayStart = new Date()
       todayStart.setUTCHours(0, 0, 0, 0)
-
-      const { count: todayCount } = await supabase
-        .from('messages')
-        .select('id', { count: 'exact', head: true })
-        .eq('crew_id', crew_id)
-        .eq('user_id', user_id)
-        .gte('created_at', todayStart.toISOString())
-        .neq('id', message_id)
-
-      if (todayCount === 0) {
-        xpAwarded += XP_BONUS_FIRST_TODAY
-      }
-
-      // Combo bonus (reply within 60s of someone else)
+      const todayStartIso    = todayStart.toISOString()
       const sixtySecondsAgo = new Date(Date.now() - 60_000).toISOString()
-      const { count: recentCount } = await supabase
-        .from('messages')
-        .select('id', { count: 'exact', head: true })
-        .eq('crew_id', crew_id)
-        .neq('user_id', user_id)
-        .gte('created_at', sixtySecondsAgo)
 
-      if ((recentCount ?? 0) > 0) {
-        xpAwarded += XP_BONUS_COMBO
-      }
+      // ─── BATCH 2: bonus queries (3 in parallel, only when not spam-blocked) ─
+      const [todayResult, comboResult, drResult] = await Promise.all([
+        // First message today bonus
+        supabase
+          .from('messages')
+          .select('id', { count: 'exact', head: true })
+          .eq('crew_id', crew_id)
+          .eq('user_id', user_id)
+          .gte('created_at', todayStartIso)
+          .neq('id', message_id),
 
-      // ─── LAYER 3: DAILY DIMINISHING RETURNS ───────────────────────────────
-      const { count: dailyXpCount } = await supabase
-        .from('crew_xp_log')
-        .select('id', { count: 'exact', head: true })
-        .eq('crew_id', crew_id)
-        .eq('user_id', user_id)
-        .gte('created_at', todayStart.toISOString())
+        // Combo bonus (reply within 60s of someone else)
+        supabase
+          .from('messages')
+          .select('id', { count: 'exact', head: true })
+          .eq('crew_id', crew_id)
+          .neq('user_id', user_id)
+          .gte('created_at', sixtySecondsAgo),
 
-      const multiplier = getDailyMultiplier(dailyXpCount ?? 0)
+        // Layer 3: daily diminishing returns
+        supabase
+          .from('crew_xp_log')
+          .select('id', { count: 'exact', head: true })
+          .eq('crew_id', crew_id)
+          .eq('user_id', user_id)
+          .gte('created_at', todayStartIso),
+      ])
+
+      if (todayResult.count === 0) xpAwarded += XP_BONUS_FIRST_TODAY
+      if ((comboResult.count ?? 0) > 0) xpAwarded += XP_BONUS_COMBO
+
+      const multiplier = getDailyMultiplier(drResult.count ?? 0)
       xpAwarded = Math.floor(xpAwarded * multiplier)
     }
 
@@ -208,7 +212,7 @@ Deno.serve(async (req: Request) => {
         .eq('id', message_id)
 
       // Level up notification
-      if (newLevel > oldLevel) {
+      if (newLevel > getLevelFromXP(oldXP)) {
         await supabase.from('messages').insert({
           crew_id,
           user_id,
@@ -266,30 +270,26 @@ Deno.serve(async (req: Request) => {
               xp_awarded:   0,
             })
 
-            const fnUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/send-notification`
-
             const { data: crewMembers } = await supabase
               .from('crew_members')
               .select('user_id')
               .eq('crew_id', crew_id)
 
-            await Promise.allSettled(
-              (crewMembers ?? []).map((member) =>
-                fetch(fnUrl, {
-                  method:  'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    user_id: member.user_id,
-                    type:    'boss_spawned',
-                    payload: {
-                      boss_name: voidBoss.name ?? 'The Void',
-                      crew_name: crewBefore?.name ?? '',
-                      crew_id,
-                    },
-                  }),
-                })
-              )
-            )
+            // Single batch call — one HTTP request regardless of crew size
+            const fnUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/send-notification`
+            await fetch(fnUrl, {
+              method:  'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                user_ids: (crewMembers ?? []).map(m => m.user_id),
+                type:     'boss_spawned',
+                payload:  {
+                  boss_name: voidBoss.name ?? 'The Void',
+                  crew_name: crewBefore?.name ?? '',
+                  crew_id,
+                },
+              }),
+            }).catch(() => {})
           }
         }
       }
@@ -306,36 +306,29 @@ Deno.serve(async (req: Request) => {
 
       console.log(`[award-xp] notifying ${otherMembers?.length ?? 0} members for message ${message_id}`)
 
+      // Single batch call — one HTTP request regardless of crew size
       const fnUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/send-notification`
-
-      const settled = await Promise.allSettled(
-        (otherMembers ?? []).map(async (member) => {
-          const res = await fetch(fnUrl, {
-            method:  'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              user_id: member.user_id,
-              type:    'message_received',
-              payload: {
-                sender_name:     username ?? 'Someone',
-                content_preview: (content ?? '').slice(0, 80),
-                crew_name:       crewBefore?.name ?? '',
-                crew_id,
-              },
-            }),
-          })
-          const text = await res.text()
-          const result = text.slice(0, 120)
-          console.log(`[award-xp] send-notification uid=${member.user_id.slice(0, 8)} http=${res.status} result=${result}`)
-          return { uid: member.user_id.slice(0, 8), http: res.status, result }
-        })
-      )
-
-      notifResults = settled.map((r, i) =>
-        r.status === 'fulfilled'
-          ? r.value
-          : { uid: ((otherMembers ?? [])[i]?.user_id ?? '?').slice(0, 8), http: 0, result: `fetch_error:${String(r.reason).slice(0, 60)}` }
-      )
+      const notifRes = await fetch(fnUrl, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_ids:        (otherMembers ?? []).map(m => m.user_id),
+          type:            'message_received',
+          payload:         {
+            sender_name:     username ?? 'Someone',
+            content_preview: (content ?? '').slice(0, 80),
+            crew_name:       crewBefore?.name ?? '',
+            crew_id,
+          },
+        }),
+      })
+      const notifData = await notifRes.json().catch(() => ({ results: [] }))
+      notifResults = (notifData.results ?? []).map((r: { user_id?: string; status: string }) => ({
+        uid:    (r.user_id ?? '?').slice(0, 8),
+        http:   notifRes.status,
+        result: r.status,
+      }))
+      console.log(`[award-xp] batch notify: http=${notifRes.status} count=${notifResults.length}`)
     }
 
     return new Response(

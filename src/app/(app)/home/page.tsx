@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { unstable_cache } from 'next/cache'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { HomeClient } from './HomeClient'
 import type { Crew } from '@/types'
 
@@ -9,6 +10,46 @@ export interface CrewSummary {
   unreadCount: number
   lastSeen:    string | null
   memberCount: number
+}
+
+type MemberRow = { crew_id: string; user_id: string; profiles: { username: string } | null }
+type LastMessage = { content: string; created_at: string; profiles: { username: string } | null } | null
+
+// Cached: member usernames + counts for a set of crews (invalidated on join/leave via crew-members tags)
+function getCachedHomeMembers(crewIds: string[]) {
+  const sorted = [...crewIds].sort()
+  return unstable_cache(
+    async () => {
+      const supabase = createServiceClient()
+      const { data } = await supabase
+        .from('crew_members')
+        .select('crew_id, user_id, profiles(username)')
+        .in('crew_id', sorted)
+      return (data ?? []) as unknown as MemberRow[]
+    },
+    [`home-crew-members:${sorted.join(',')}`],
+    { tags: sorted.map(id => `crew-members:${id}`), revalidate: 60 }
+  )()
+}
+
+// Cached: last non-system message preview per crew (30s TTL — stale preview is acceptable)
+function getCachedCrewLastMessage(crewId: string) {
+  return unstable_cache(
+    async () => {
+      const supabase = createServiceClient()
+      const { data } = await supabase
+        .from('messages')
+        .select('content, created_at, profiles(username)')
+        .eq('crew_id', crewId)
+        .neq('message_type', 'system')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      return data as LastMessage
+    },
+    [`home-last-msg:${crewId}`],
+    { revalidate: 30 }
+  )()
 }
 
 export default async function HomePage() {
@@ -41,55 +82,45 @@ export default async function HomePage() {
 
   const crewIds = memberships.map((m) => m.crew_id)
 
-  // Fetch all crews, member profiles, last messages, and unread counts in parallel
-  const [crewsResult, profilesResult, ...perCrewResults] = await Promise.all([
+  // Crew XP/level is always fresh (changes with every message — never cache per CLAUDE.md).
+  // Member profiles and last message previews are served from cache.
+  // Unread counts are personalized (depend on last_seen) — always fresh, estimated to avoid full table scan.
+  const [crewsResult, cachedMembers, lastMessages, unreadResults] = await Promise.all([
     supabase.from('crews').select('id, name, level, total_xp, invite_code').in('id', crewIds),
-
-    supabase
-      .from('crew_members')
-      .select('crew_id, user_id, profiles(username)')
-      .in('crew_id', crewIds),
-
-    ...memberships.flatMap((m) => [
-      supabase
-        .from('messages')
-        .select('content, created_at, profiles(username)')
-        .eq('crew_id', m.crew_id)
-        .neq('message_type', 'system')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-
-      supabase
-        .from('messages')
-        .select('id', { count: 'exact', head: true })
-        .eq('crew_id', m.crew_id)
-        .neq('message_type', 'system')
-        .neq('user_id', user.id)
-        .gt('created_at', m.last_seen ?? m.joined_at),
-    ]),
+    getCachedHomeMembers(crewIds),
+    Promise.all(memberships.map((m) => getCachedCrewLastMessage(m.crew_id))),
+    Promise.all(
+      memberships.map((m) =>
+        supabase
+          .from('messages')
+          .select('id', { count: 'estimated', head: true })
+          .eq('crew_id', m.crew_id)
+          .neq('message_type', 'system')
+          .neq('user_id', user.id)
+          .gt('created_at', m.last_seen ?? m.joined_at),
+      )
+    ),
   ])
 
   const crewMap = new Map(
     (crewsResult.data ?? []).map((c) => [c.id, c as unknown as Crew]),
   )
 
-  // Build userId → username cache and memberCount per crew from all crew members
+  // Build userId → username cache and memberCount per crew from cached member rows
   const profileCache: Record<string, string> = {}
   const memberCountMap: Record<string, number> = {}
-  for (const row of profilesResult.data ?? []) {
-    const r = row as unknown as { crew_id: string; user_id: string; profiles: { username: string } | null }
-    const username = r.profiles?.username
-    if (username) profileCache[r.user_id] = username
-    memberCountMap[r.crew_id] = (memberCountMap[r.crew_id] ?? 0) + 1
+  for (const row of cachedMembers ?? []) {
+    const username = row.profiles?.username
+    if (username) profileCache[row.user_id] = username
+    memberCountMap[row.crew_id] = (memberCountMap[row.crew_id] ?? 0) + 1
   }
 
   const summaries: CrewSummary[] = memberships.flatMap((m, i) => {
     const crew = crewMap.get(m.crew_id)
     if (!crew) return []
 
-    const lastMsgData = (perCrewResults[i * 2] as { data: { content: string; created_at: string; profiles: unknown } | null }).data
-    const unreadData  = perCrewResults[i * 2 + 1] as { count: number | null }
+    const lastMsgData = lastMessages[i]
+    const unreadData  = unreadResults[i]
 
     const lastMessage = lastMsgData
       ? {

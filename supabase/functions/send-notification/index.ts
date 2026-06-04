@@ -19,12 +19,6 @@ const CORS_HEADERS = {
 
 type NotificationType = 'boss_spawned' | 'boss_defeated' | 'raid_expiring' | 'crew_silent' | 'message_received'
 
-interface NotificationPayload {
-  user_id: string
-  type:    NotificationType
-  payload: Record<string, unknown>
-}
-
 // Maps each notification type to its preference column in notification_preferences
 const PREF_COLUMN: Record<NotificationType, 'notif_messages' | 'notif_raids' | 'notif_victory'> = {
   message_received: 'notif_messages',
@@ -98,12 +92,20 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const body = await req.json() as NotificationPayload
-    const { user_id, type, payload } = body
+    const body = await req.json()
+    const { user_id, user_ids, type, payload } = body
 
-    if (!user_id || !type) {
+    // Support single user_id (backward compat from attack-boss, check-raid-expiry)
+    // and user_ids array (batch mode from award-xp)
+    const targetIds: string[] = Array.isArray(user_ids) && user_ids.length > 0
+      ? user_ids
+      : user_id
+        ? [user_id]
+        : []
+
+    if (targetIds.length === 0 || !type) {
       return new Response(
-        JSON.stringify({ error: 'user_id and type are required' }),
+        JSON.stringify({ error: 'user_id or user_ids and type are required' }),
         { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } },
       )
     }
@@ -113,56 +115,72 @@ Deno.serve(async (req: Request) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     )
 
-    // Check user's notification preferences — if the preference row exists and
-    // the relevant column is false, skip sending entirely.
-    const prefCol = PREF_COLUMN[type]
-    const { data: prefs } = await supabase
+    const prefCol = PREF_COLUMN[type as NotificationType]
+
+    // Batch: fetch preferences for all target users in one query
+    const { data: prefsRows } = await supabase
       .from('notification_preferences')
-      .select(prefCol)
-      .eq('user_id', user_id)
-      .maybeSingle()
+      .select(`user_id, ${prefCol}`)
+      .in('user_id', targetIds)
 
-    if (prefs && prefs[prefCol] === false) {
+    // Users with a row where the pref is explicitly false are opted out; missing row = opted in
+    const prefDisabledSet = new Set(
+      // deno-lint-ignore no-explicit-any
+      (prefsRows ?? []).filter((r: any) => r[prefCol] === false).map((r: any) => r.user_id as string)
+    )
+    const enabledIds = targetIds.filter(uid => !prefDisabledSet.has(uid))
+
+    if (enabledIds.length === 0) {
       return new Response(
-        JSON.stringify({ status: 'preference_disabled' }),
+        JSON.stringify({ status: 'all_preferences_disabled', results: [] }),
         { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } },
       )
     }
 
-    const { data: subs } = await supabase
+    // Batch: fetch all push subscriptions for enabled users in one query
+    const { data: allSubs } = await supabase
       .from('push_subscriptions')
-      .select('id, endpoint, p256dh, auth')
-      .eq('user_id', user_id)
+      .select('id, user_id, endpoint, p256dh, auth')
+      .in('user_id', enabledIds)
 
-    if (!subs || subs.length === 0) {
-      return new Response(
-        JSON.stringify({ status: 'no_subscriptions' }),
-        { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } },
-      )
+    // Group subscriptions by user_id
+    const subsByUser = new Map<string, { id: string; user_id: string; endpoint: string; p256dh: string; auth: string }[]>()
+    for (const sub of allSubs ?? []) {
+      const s = sub as { id: string; user_id: string; endpoint: string; p256dh: string; auth: string }
+      if (!subsByUser.has(s.user_id)) subsByUser.set(s.user_id, [])
+      subsByUser.get(s.user_id)!.push(s)
     }
 
-    const notifPayload = buildPayload(type, payload)
-    const results: { endpoint: string; status: string }[] = []
+    const notifPayload = buildPayload(type as NotificationType, payload ?? {})
+    const results: { user_id: string; endpoint: string; status: string }[] = []
 
-    for (const sub of subs) {
-      try {
-        await webpush.sendNotification(
-          { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-          JSON.stringify(notifPayload),
-          {
-            TTL:     86400, // 1 day — keeps the message queued if the device is offline
-            urgency: 'high', // maps to apns-priority:10 — deliver immediately on iOS
-          },
-        )
-        results.push({ endpoint: sub.endpoint, status: 'sent' })
-      } catch (err: unknown) {
-        const code = (err as { statusCode?: number })?.statusCode
-        if (code === 410 || code === 404) {
-          await supabase.from('push_subscriptions').delete().eq('id', sub.id)
-          results.push({ endpoint: sub.endpoint, status: 'expired_deleted' })
-        } else {
-          console.error('[send-notification] push failed:', err)
-          results.push({ endpoint: sub.endpoint, status: 'error' })
+    for (const uid of enabledIds) {
+      const subs = subsByUser.get(uid)
+      if (!subs || subs.length === 0) {
+        results.push({ user_id: uid, endpoint: '', status: 'no_subscriptions' })
+        continue
+      }
+
+      for (const sub of subs) {
+        try {
+          await webpush.sendNotification(
+            { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+            JSON.stringify(notifPayload),
+            {
+              TTL:     86400, // 1 day — keeps the message queued if the device is offline
+              urgency: 'high', // maps to apns-priority:10 — deliver immediately on iOS
+            },
+          )
+          results.push({ user_id: uid, endpoint: sub.endpoint, status: 'sent' })
+        } catch (err: unknown) {
+          const code = (err as { statusCode?: number })?.statusCode
+          if (code === 410 || code === 404) {
+            await supabase.from('push_subscriptions').delete().eq('id', sub.id)
+            results.push({ user_id: uid, endpoint: sub.endpoint, status: 'expired_deleted' })
+          } else {
+            console.error('[send-notification] push failed:', err)
+            results.push({ user_id: uid, endpoint: sub.endpoint, status: 'error' })
+          }
         }
       }
     }
