@@ -293,31 +293,40 @@ function CrewCardContent({ summary }: { summary: CrewSummary }) {
         {crew.name[0]?.toUpperCase()}
       </div>
 
-      {/* Content — vertically centered to match avatar height */}
-      <div className="flex-1 min-w-0 flex flex-col gap-2 justify-center">
+      {/* Content — leading-none on container matches Figma node 4:62 */}
+      <div className="flex-1 min-w-0 flex flex-col gap-2 justify-center leading-none">
         {/* XP / level */}
-        <span className="font-silkscreen text-[8px] text-tertiary whitespace-nowrap">
+        <span className="font-silkscreen text-[8px] text-tertiary whitespace-nowrap leading-none">
           {xpInLevel}/{XP_PER_LEVEL} XP · Group Lv. {crew.level}
           {hasUnread ? ` · +${unreadCount} new` : ''}
         </span>
 
         <div className="flex flex-col gap-1">
-          {/* Crew name + timestamp — 16px row height */}
-          <div className="flex items-center gap-2">
-            <span className="font-body font-bold text-[16px] leading-none text-white truncate flex-1 min-w-0">
+          {/* Crew name + timestamp */}
+          <div className="flex items-center gap-2 w-full">
+            <span
+              className="font-body font-bold text-[16px] leading-none text-white truncate flex-1 min-w-0"
+              style={{ fontVariationSettings: '"opsz" 14' }}
+            >
               {crew.name}
             </span>
             {lastMessage && (
-              <span className="font-body font-light text-[12px] leading-none text-muted flex-shrink-0 whitespace-nowrap">
+              <span
+                className="font-body font-light text-[12px] leading-none text-muted flex-shrink-0 whitespace-nowrap"
+                style={{ fontVariationSettings: '"opsz" 14' }}
+              >
                 {relativeTime(lastMessage.created_at)}
               </span>
             )}
           </div>
 
-          {/* Last message preview — 14px */}
+          {/* Last message preview */}
           <p
-            className="font-body font-normal text-[14px] leading-none truncate"
-            style={{ color: hasUnread ? 'var(--color-primary)' : 'var(--color-muted)' }}
+            className="font-body font-normal text-[14px] leading-none truncate w-full"
+            style={{
+              color: hasUnread ? 'var(--color-primary)' : 'var(--color-muted)',
+              fontVariationSettings: '"opsz" 14',
+            }}
           >
             {lastMessage
               ? lastMessage.sender
