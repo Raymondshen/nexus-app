@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import Image from 'next/image'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/client'
-import { getElementType, calculateXP, getXPProgress, XP_PER_LEVEL } from '@/lib/game/xp'
+import { getElementType, getXPProgress, XP_PER_LEVEL } from '@/lib/game/xp'
 import { useChatStore } from '@/store/chatStore'
 import { DamageFloat } from '@/components/game/DamageFloat'
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/config'
@@ -45,7 +45,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatI
   const msgChannelRef    = useRef<RealtimeChannel | null>(null)
 
   const {
-    addMessage, updateMessage, addXP, setCrewXP, receiveXP,
+    addMessage, updateMessage, setCrewXP, receiveXP,
     activeRaid, damageFloats, addDamageFloat, dismissDamageFloat,
     crewXP, crewLevel, xpFloats, dismissXPFloat,
     onlineUserIds, setOnlineUserIds,
@@ -160,7 +160,6 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatI
         xp_awarded: raw.xp_awarded, created_at: raw.created_at, profile: userProfile,
       }
       addMessage(newMessage)
-      addXP(calculateXP('text'))
 
       msgChannelRef.current?.send({
         type: 'broadcast', event: 'new_message',
@@ -183,7 +182,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatI
           console.log('[award-xp]', data)
           if (typeof data.xp_earned === 'number' && data.xp_earned > 0) updateMessage(msgId, { xp_awarded: data.xp_earned })
           if (typeof data.new_total_xp === 'number') {
-            setCrewXP(data.new_total_xp)
+            receiveXP(data.xp_earned ?? 0, data.new_total_xp)
             msgChannelRef.current?.send({
               type: 'broadcast', event: 'xp_update',
               payload: { xp_earned: data.xp_earned ?? 0, new_total_xp: data.new_total_xp, sender_id: userId },
@@ -209,7 +208,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatI
       setSending(false)
       textareaRef.current?.focus()
     }
-  }, [text, sending, crewId, userId, userProfile, addMessage, updateMessage, addXP, activeRaid, addDamageFloat]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [text, sending, crewId, userId, userProfile, addMessage, updateMessage, activeRaid, addDamageFloat]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleSpawnBoss() {
     if (spawning || inRaid) return
