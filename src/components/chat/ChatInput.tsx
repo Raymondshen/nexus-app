@@ -30,13 +30,14 @@ function sanitizeMessage(raw: string): string {
 }
 
 export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatInputProps) {
-  const [text,        setText]        = useState('')
-  const [sending,     setSending]     = useState(false)
-  const [sendError,   setSendError]   = useState<string | null>(null)
-  const [typingUsers, setTypingUsers] = useState<string[]>([])
-  const [spawning,    setSpawning]    = useState(false)
-  const [spawnError,  setSpawnError]  = useState<string | null>(null)
-  const [devMode,     setDevMode]     = useState(false)
+  const [text,          setText]          = useState('')
+  const [sending,       setSending]       = useState(false)
+  const [sendError,     setSendError]     = useState<string | null>(null)
+  const [typingUsers,   setTypingUsers]   = useState<string[]>([])
+  const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(new Set())
+  const [spawning,      setSpawning]      = useState(false)
+  const [spawnError,    setSpawnError]    = useState<string | null>(null)
+  const [devMode,       setDevMode]       = useState(false)
 
   const textareaRef      = useRef<HTMLTextAreaElement>(null)
   const rateRef          = useRef({ count: 0, resetAt: Date.now() + RATE_LIMIT_WINDOW })
@@ -73,6 +74,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatI
     ch
       .on('presence', { event: 'sync' }, () => {
         const state = ch.presenceState<{ username: string; typing: boolean }>()
+        setOnlineUserIds(new Set(Object.keys(state)))
         const others = Object.entries(state)
           .filter(([key]) => key !== userId)
           .flatMap(([, presences]) => presences)
@@ -254,18 +256,20 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatI
           {members.slice(0, 8).map((m) => {
             const url     = m.avatar_url as string | null | undefined
             const initial = m.username[0]?.toUpperCase() ?? '?'
+            const online  = onlineUserIds.has(m.id)
             return (
-              <div
-                key={m.id}
-                className="flex-shrink-0 w-6 h-6 overflow-hidden bg-surface flex items-center justify-center"
-                title={m.username}
-              >
-                {url ? (
-                  <div className="relative w-full h-full">
-                    <Image src={url} alt={m.username} fill sizes="32px" className="object-cover" />
-                  </div>
-                ) : (
-                  <span className="font-pixel text-[8px] text-purple">{initial}</span>
+              <div key={m.id} className="relative flex-shrink-0" title={m.username}>
+                <div className="w-6 h-6 overflow-hidden bg-surface flex items-center justify-center">
+                  {url ? (
+                    <div className="relative w-full h-full">
+                      <Image src={url} alt={m.username} fill sizes="24px" className="object-cover" />
+                    </div>
+                  ) : (
+                    <span className="font-pixel text-[8px] text-purple">{initial}</span>
+                  )}
+                </div>
+                {online && (
+                  <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#66bb6a] border-[1.5px] border-black" />
                 )}
               </div>
             )
@@ -273,24 +277,25 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatI
         </div>
 
         {/* XP indicator — fixed h-6 (24px), flex-col gap-2 (8px), centered */}
-        <div className="relative">
-          {/* XP floats animate upward from above the bar */}
+        <div className="relative h-6">
+          {/* XP floats — fade in rising from bottom, fade out continuing upward */}
           <AnimatePresence>
             {xpFloats.map((f) => (
               <motion.span
                 key={f.id}
-                initial={{ opacity: 1, y: 0 }}
-                animate={{ opacity: 0, y: -20 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.9, ease: 'easeOut' }}
+                initial={{ opacity: 0, y: 0 }}
+                animate={{ opacity: [0, 1, 1, 0], y: [0, -12, -26, -42] }}
+                transition={{ duration: 1.4, ease: 'easeOut', times: [0, 0.15, 0.65, 1] }}
                 onAnimationComplete={() => dismissXPFloat(f.id)}
-                className="pointer-events-none absolute left-0 top-0 font-pixel text-[8px] text-[#ffd700] whitespace-nowrap z-10"
+                className="pointer-events-none absolute bottom-0 left-0 font-pixel text-[8px] text-[#ffd700] whitespace-nowrap z-10"
                 style={{ textShadow: '0 0 8px rgba(255,215,0,0.8)' }}
-              />
+              >
+                +{f.amount} XP
+              </motion.span>
             ))}
           </AnimatePresence>
 
-          <div className="flex flex-col gap-2 h-6 items-center justify-center w-full">
+          <div className="flex flex-col gap-2 h-full items-center justify-center w-full">
             {/* Level · XP · Members ··· Next Boss */}
             <div className="flex items-center gap-2 w-full font-silkscreen text-tertiary">
               {/* Left: "Level N · X / 500XP · N Members" — text-[0px] trick keeps container height tight */}
@@ -373,7 +378,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatI
         <button
           onClick={send}
           disabled={!text.trim() || sending}
-          className="flex-shrink-0 flex items-center justify-center w-4 h-4 text-muted hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          className={`flex-shrink-0 flex items-center justify-center w-4 h-4 transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${text.trim() ? 'text-primary' : 'text-muted'}`}
           aria-label="Send message"
         >
           <i className="hn hn-arrow-circle-up" style={{ fontSize: 16 }} aria-hidden="true" />

@@ -118,16 +118,11 @@ export function MessageBubble({ message, isOwn, showHeader }: MessageBubbleProps
               )}
 
               {xpEarned > 0 && (
-                <>
-                  <span className="w-[2px] h-[2px] bg-purple shrink-0" />
-                  {/* leading-[0] on paragraph collapses its own line-height;
-                      spans use leading-none for their own height */}
-                  <p className="font-silkscreen tracking-[0.1px] whitespace-nowrap leading-[0] text-[0px] shrink-0">
-                    <span className="text-[8px] leading-none" style={{ color: '#f59e0b' }}>
-                      +{xpEarned} XP
-                    </span>
-                  </p>
-                </>
+                <p className="font-silkscreen tracking-[0.1px] whitespace-nowrap leading-[0] text-[0px] shrink-0">
+                  <span className="text-[8px] leading-none" style={{ color: '#f59e0b' }}>
+                    +{xpEarned} XP
+                  </span>
+                </p>
               )}
             </div>
 
