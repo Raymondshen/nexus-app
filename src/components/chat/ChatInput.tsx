@@ -34,7 +34,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatI
   const [sending,       setSending]       = useState(false)
   const [sendError,     setSendError]     = useState<string | null>(null)
   const [typingUsers,   setTypingUsers]   = useState<string[]>([])
-  const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(new Set())
+  const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(() => new Set([userId]))
   const [spawning,      setSpawning]      = useState(false)
   const [spawnError,    setSpawnError]    = useState<string | null>(null)
   const [devMode,       setDevMode]       = useState(false)
@@ -82,6 +82,16 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatI
           .map((p) => p.username)
         setTypingUsers(others)
       })
+      .on('presence', { event: 'join' }, ({ key }: { key: string }) => {
+        setOnlineUserIds((prev) => new Set([...prev, key]))
+      })
+      .on('presence', { event: 'leave' }, ({ key }: { key: string }) => {
+        setOnlineUserIds((prev) => {
+          const next = new Set(prev)
+          next.delete(key)
+          return next
+        })
+      })
       .on('broadcast', { event: 'new_message' }, (payload) => {
         const msg = payload.payload as Message
         if (!msg?.id || typeof msg.content !== 'string') return
@@ -95,7 +105,11 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatI
         else if (xp_earned > 0)        receiveXP(xp_earned, new_total_xp)
         else                           setCrewXP(new_total_xp)
       })
-      .subscribe()
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await ch.track({ username: userProfile.username, typing: false })
+        }
+      })
 
     msgChannelRef.current    = ch
     typingChannelRef.current = ch
