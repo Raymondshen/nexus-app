@@ -31,7 +31,7 @@ export async function createCrewAction(
 
     if (!error && crewId) {
       revalidatePath('/home')
-      redirect(`/chat/${crewId}?welcome=1`)
+      redirect(`/onboarding/class?crew=${crewId}&welcome=1`)
     }
 
     if (error && !error.message.includes('unique')) {

@@ -15,6 +15,11 @@ const WALK_CYCLE: SpriteDirection[] = [
 // Add an entry here as sprite folders are dropped into public/sprites/{key}/
 const CLASS_TO_SPRITE: Partial<Record<AvatarClass | 'necromancer', string>> = {
   necromancer: 'necromancer',
+  mage:        'mage',
+  warrior:     'warrior',
+  rogue:       'rogue',
+  healer:      'healer',
+  archer:      'archer',
   // berserker:   'berserker',
   // sage:        'sage',
   // ghost:       'ghost',

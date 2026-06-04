@@ -13,7 +13,7 @@ export type MessageType = 'text' | 'voice' | 'image' | 'reaction' | 'system'
 export type ElementType = 'fire' | 'water' | 'lightning' | 'nature' | 'shadow' | 'arcane'
 export type ArtifactRarity = 'common' | 'rare' | 'epic' | 'legendary'
 export type BossType = 'void' | 'ghost' | 'flood' | 'scheduled'
-export type AvatarClass = 'berserker' | 'sage' | 'ghost' | 'hype_man' | 'the_voice' | 'meme_lord'
+export type AvatarClass = 'berserker' | 'sage' | 'ghost' | 'hype_man' | 'the_voice' | 'meme_lord' | 'mage' | 'warrior' | 'rogue' | 'healer' | 'archer'
 
 // ─── Row types ────────────────────────────────────────────────────────────────
 

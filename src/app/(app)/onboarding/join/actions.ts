@@ -85,5 +85,5 @@ export async function joinCrewAction(
 
   revalidatePath('/home')
   revalidateTag(`crew-members:${crewId}`, 'max')
-  redirect(`/chat/${crewId}`)
+  redirect(`/onboarding/class?crew=${crewId}`)
 }
