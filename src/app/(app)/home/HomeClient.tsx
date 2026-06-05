@@ -598,7 +598,8 @@ export function HomeClient({
 
           <div className="flex items-center gap-5">
             <button
-              aria-label="Journal"
+              onClick={() => router.push('/friends')}
+              aria-label="Friends"
               className="text-primary hover:text-purple transition-colors"
             >
               <i className="hn hn-book" style={{ fontSize: 24 }} aria-hidden="true" />

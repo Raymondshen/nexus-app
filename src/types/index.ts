@@ -128,6 +128,23 @@ export interface MessageWithProfile extends Message {
   profile: Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url'>
 }
 
+export type FriendshipStatus = 'pending' | 'accepted'
+
+export interface Friendship extends Record<string, unknown> {
+  id: string
+  requester_id: string
+  addressee_id: string
+  status: FriendshipStatus
+  created_at: string
+}
+
+export interface FriendProfile {
+  id: string
+  username: string
+  avatar_url: string | null
+  avatar_class: AvatarClass | null
+}
+
 // ─── Supabase Database type ───────────────────────────────────────────────────
 
 export type Database = {
@@ -207,6 +224,12 @@ export type Database = {
         Row: CrewNotificationMute
         Insert: CrewNotificationMute
         Update: Partial<CrewNotificationMute>
+        Relationships: []
+      }
+      friendships: {
+        Row: Friendship
+        Insert: Omit<Friendship, 'id' | 'created_at'> & { id?: string; created_at?: string }
+        Update: Partial<Pick<Friendship, 'status'>>
         Relationships: []
       }
     }
