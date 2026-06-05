@@ -18,7 +18,8 @@ Group messaging app where the chat is an RPG. Every message earns XP, boss fight
 ## Database Tables
 ```
 profiles       id, username (unique case-insensitive), avatar_class, avatar_url, birthday (date), is_dev, created_at
-crews          id, name, invite_code (6 chars unique), level, total_xp, created_at
+crews          id, name, invite_code (6 chars unique), level, total_xp, created_at,
+               is_dm (bool default false), dm_partner_1 (uuid nullable), dm_partner_2 (uuid nullable)
 crew_members   id, crew_id, user_id, class, joined_at, last_seen (unread cursor + presence)
 messages       id, crew_id, user_id, content, message_type, element_type, xp_awarded, created_at
 crew_xp_log    id, crew_id, user_id, xp_amount, source, created_at
@@ -30,6 +31,13 @@ notification_preferences  user_id (PK), notif_messages, notif_raids, notif_victo
 friendships    id, requester_id, addressee_id, status (pending|accepted), created_at — UNIQUE(requester_id, addressee_id)
 ```
 
+### DM Channels
+DM channels are stored as `crews` rows with `is_dm = true`. They reuse the entire existing chat stack (messages, realtime, XP, boss raids, artifacts). Key invariants:
+- `dm_partner_1 < dm_partner_2` (UUID order) — enforced by `get_or_create_dm` to guarantee uniqueness
+- `invite_code` is set to a random 8-char string (prefix `dm`) — DMs are never joinable by code
+- Both partners are inserted into `crew_members` with class `berserker` at creation time — no class-selection onboarding step needed
+- DM crews are **filtered out** of the home Squads section; they appear only in the Friends section
+
 ## Postgres Functions
 All are `SECURITY DEFINER`. All declared in `Database.Functions` in `src/types/index.ts`.
 - `create_crew(p_name, p_invite_code)` → uuid
@@ -39,6 +47,7 @@ All are `SECURITY DEFINER`. All declared in `Database.Functions` in `src/types/i
 - `damage_raid(p_raid_id, p_damage, p_user_id)` → `(current_hp, phase, defeated_at)`
 - `increment_crew_xp(p_crew_id, p_xp_delta)` → `(new_total_xp, new_level)`
 - `is_crew_member(p_crew_id)` → boolean (RLS helper)
+- `get_or_create_dm(other_user_id)` → uuid — returns the DM crew id for this pair, creating it if needed; verifies an accepted friendship exists before creating
 
 ## Game Rules
 
@@ -92,7 +101,7 @@ Berserker (spam), Sage (long messages), Ghost (silence crit), Hype Man (reaction
 
 ## Routing — Next.js 16 Proxy
 - `src/proxy.ts` — exports `proxy()` + `config.matcher`; **DO NOT add `src/middleware.ts`** (Next.js 16 errors if both exist)
-- Protected prefixes: `/home`, `/chat`, `/vault`, `/party`, `/profile`, `/onboarding`, `/friends`
+- Protected prefixes: `/home`, `/chat`, `/vault`, `/party`, `/profile`, `/onboarding`, `/friends`, `/dm`
 - Uses `getSession()` (cookie-only) NOT `getUser()` — `getUser()` adds 100–300ms per nav
 - Build: `next build --webpack` in vercel.json — Turbopack breaks next-pwa and conflicts with proxy.ts
 
@@ -155,6 +164,22 @@ Consecutive messages from the same user within 60 seconds are visually grouped (
 ### Home Page — profile banner stats
 `home/page.tsx` fetches `totalMessages` (count of non-system messages by the user across all crews) in the same `Promise.all` as profile + crew membership. Displayed in `ProfileBanner` as `"{N} group chats · {N} msg"` (formatted with `toLocaleString()`). Edit icon uses `hn hn-pencil` (16px) from the pixel icon library.
 
+### Home Page — Squads + Friends sections
+The home body is split into two labeled sections below the profile banner:
+- **"Squads"** — crew list (group chats only — DM crews are filtered out). Label uses `font-body font-medium text-[14px] text-primary tracking-[0.2px]`. Empty state shows inline create/join prompt.
+- **"Friends"** — accepted 1:1 friends, rendered only when `friends.length > 0`. Same label style. Tapping a friend navigates to `/dm/[friendId]`. Uses `FriendCard` component inside `HomeClient.tsx`.
+
+Data fetching in `home/page.tsx`:
+- Stage 1 `Promise.all` fetches `friendships` (accepted only) alongside profile, crew_members, messages
+- Stage 2 crews SELECT includes `is_dm, dm_partner_1, dm_partner_2`; DM crews are split off into `dmCrewMap` (friendId → crewId) and `dmLastMsgMap` (friendId → last message) before building Squads summaries
+- `buildFriends(friendshipRows, profiles, userId, dmCrewMap, dmLastMsgMap)` resolves friend user IDs → `FriendSummary[]`; `dmCrewMap`/`dmLastMsgMap` default to empty Maps in the no-membership early-return path
+- Friend profiles fetched in Stage 2 `Promise.all` alongside crew data (parallel, no waterfall)
+- DM last messages come from the same `getCachedCrewLastMessage` calls already made for all memberships — no extra queries
+
+`FriendSummary` interface (`{ id, username, avatarUrl, dmChannelId, lastDMMessage }`) is exported from `HomeClient.tsx` and imported by `page.tsx`. `dmChannelId` is null until the first DM is opened; `lastDMMessage` shows the most recent DM content + timestamp in `FriendCard`.
+
+Header spacing: `pb-2` bottom padding, `paddingTop: max(env(safe-area-inset-top), 8px)`, icon gap `gap-4`.
+
 ### ChatHeader — props
 `ChatHeader` accepts only `{ crew, initialXP, initialRaid, currentUserId, crewId }`. It has **no** `members` or `memberLastSeen` props — member avatars live in ChatInput, not the header. Do not add a second presence channel here (see Online Presence note above).
 
@@ -163,12 +188,30 @@ Consecutive messages from the same user within 60 seconds are visually grouped (
 
 ### Friends Page — `/friends`
 - Opened via the book icon (`hn-book`) in the home header
+- Page title is **"COMPANIONS"** (Press Start 2P 18px) — not "FRIENDS"
 - Server component fetches accepted friendships + pending (incoming/outgoing) in parallel; resolves profiles for all involved user IDs in one `.in()` query
 - `FriendsClient` manages local state for optimistic mutations (send, accept, decline, remove, cancel)
-- Search: client-side Supabase query on `profiles` with `.ilike('username', '%q%')`, debounced 300ms, min 2 chars — works because `profiles` has `anyone can read` RLS policy
+- **Layout**: single scrollable column — no tabs. Sections stack vertically: search input → Requests (collapsible) → Friends
+- **Search input**: `h-[48px] border border-border px-4`, `font-body text-[14px]`, placeholder `"Search by @username"`. Shows "Results" section label + result rows while query ≥ 2 chars (debounced 300ms).
+- **Requests section**: only rendered when `incoming.length > 0 || outgoing.length > 0`. Collapsible via `requestsOpen` state; chevron (`hn-angle-right` 18px) animates rotate 0°→90° when open. AnimatePresence height transition on body.
+  - **Outgoing row**: avatar 40px, name (DM Sans SemiBold 16px primary), `"Sent Friend Request"` (Silkscreen 12px tertiary), CANCEL button: `border border-purple w-[88px] px-4 py-4 font-pixel text-[8px] text-purple`
+  - **Incoming row**: avatar 40px, name, `"Wants to be your friend"` subtitle, accept button `border border-[#22c55e] p-3` (hn-check 16px green) + decline button `border border-[#ef4444] p-3 w-[40px] h-[40px]` (hn-x 12px red)
+- **Friends section**: always rendered. Friend row: 40px avatar, name (DM Sans SemiBold 16px primary), `"est. {year}"` subtitle (Silkscreen 12px tertiary, year from `friendship.created_at`). Tapping the row navigates to `/dm/[friendId]`. Remove button (`hn-user-minus` 16px) on right — uses `e.stopPropagation()` so tapping it does not open the DM.
+- User + section rows use: `gap-4` between items, `tracking-[0.2px]` on text columns
 - Guest guard: `isGuest` prop (`user.is_anonymous === true`); ADD button disabled + Google sign-in banner shown; `sendFriendRequestAction` also blocks anonymous users server-side
 - **No BottomNav** — users go back via `router.back()`
-- Icons used: `hn-search` (search input), `hn-user-minus` (remove friend), `hn-angle-right` (back, same as ChatHeader)
+- Header: `pb-2`, `paddingTop: max(env(safe-area-inset-top), 8px)`, back icon (`hn-angle-left` 18px) + title `gap-2`
+
+### DM Page — `/dm/[friendId]`
+- Route: `src/app/(app)/dm/[friendId]/page.tsx`
+- Server component: verifies accepted friendship, calls `get_or_create_dm(friendId)` RPC to get/create the DM crew, then renders the full chat UI
+- Security: friendship check runs before the RPC — unauthenticated or non-friend access redirects to `/home`
+- `get_or_create_dm` is idempotent — safe to call on every page load; returns the existing crew id if one already exists
+- **Header**: `DMHeader` component (`src/components/chat/DMHeader.tsx`) — shows `hn-angle-left` back button, friend 32×32px avatar, friend username (Press Start 2P 14px), `"1:1 CHAT"` label (Silkscreen 8px muted). Boss countdown bar renders below if a raid is active (same style as ChatHeader).
+- **Chat UI**: reuses `MessageList` + `ChatInput` directly — same realtime, XP, boss raid, and artifact pipeline as group chats
+- `DMHeader` updates `crew_members.last_seen` every 60s (same as `ChatHeader`) for unread cursor accuracy
+- No class selection redirect — DM crew members are auto-assigned `berserker` at channel creation
+- No invite button, no vault link, no notification settings in the DM header (simplified)
 
 ### PWA / Push Architecture
 - **Service worker**: `public/sw-push.js` — handwritten, zero dependencies, committed to git
@@ -281,6 +324,38 @@ UPDATE profiles SET is_dev = true WHERE id IN (
   SELECT id FROM auth.users WHERE email IN ('shenraymonds@gmail.com', 'legaspi.riley@gmail.com')
 );
 
+-- DM channel support (applied 2026-06-04)
+ALTER TABLE crews ADD COLUMN IF NOT EXISTS is_dm boolean NOT NULL DEFAULT false;
+ALTER TABLE crews ADD COLUMN IF NOT EXISTS dm_partner_1 uuid REFERENCES auth.users(id);
+ALTER TABLE crews ADD COLUMN IF NOT EXISTS dm_partner_2 uuid REFERENCES auth.users(id);
+
+CREATE OR REPLACE FUNCTION get_or_create_dm(other_user_id uuid)
+RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
+  v_user_id uuid := auth.uid(); v_crew_id uuid; v_p1 uuid; v_p2 uuid;
+BEGIN
+  IF v_user_id IS NULL THEN RAISE EXCEPTION 'Not authenticated'; END IF;
+  IF v_user_id = other_user_id THEN RAISE EXCEPTION 'Cannot DM yourself'; END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM friendships WHERE status = 'accepted'
+    AND ((requester_id = v_user_id AND addressee_id = other_user_id)
+      OR (requester_id = other_user_id AND addressee_id = v_user_id))
+  ) THEN RAISE EXCEPTION 'Not friends'; END IF;
+  IF v_user_id < other_user_id THEN v_p1 := v_user_id; v_p2 := other_user_id;
+  ELSE v_p1 := other_user_id; v_p2 := v_user_id; END IF;
+  SELECT id INTO v_crew_id FROM crews
+    WHERE is_dm = true AND dm_partner_1 = v_p1 AND dm_partner_2 = v_p2 LIMIT 1;
+  IF v_crew_id IS NOT NULL THEN RETURN v_crew_id; END IF;
+  INSERT INTO crews (name, invite_code, is_dm, dm_partner_1, dm_partner_2, level, total_xp)
+  VALUES ('dm:'||v_p1::text||':'||v_p2::text,
+    'dm'||substr(md5(gen_random_uuid()::text),1,6), true, v_p1, v_p2, 1, 0)
+  RETURNING id INTO v_crew_id;
+  INSERT INTO crew_members (crew_id, user_id, class)
+  VALUES (v_crew_id, v_p1, 'berserker'), (v_crew_id, v_p2, 'berserker')
+  ON CONFLICT DO NOTHING;
+  RETURN v_crew_id;
+END; $$;
+
 -- friendships table (applied 2026-06-04)
 create table if not exists friendships (
   id           uuid primary key default gen_random_uuid(),
@@ -380,8 +455,13 @@ Note: next/font variable for Silkscreen is `--font-silk` (not `--font-silkscreen
   | Home header — friends | `hn-book` | 24px |
   | Home header — create crew | `hn-plus` | 24px |
   | Home profile banner — edit | `hn-pencil` | 16px |
-  | Friends — search | `hn-search` | 13px |
-  | Friends — remove | `hn-user-minus` | 16px |
+  | Friends — back chevron | `hn-angle-left` | 18px, color `var(--color-primary)` |
+  | Friends — search | `hn-search` | 16px, color `var(--color-muted)` |
+  | Friends — requests chevron | `hn-angle-right` | 18px, color `var(--color-muted)`, animated rotate 0°/90° |
+  | Friends — accept request | `hn-check` | 16px, color `#22c55e` |
+  | Friends — decline request | `hn-x` | 12px, color `#ef4444` |
+  | Friends — remove friend | `hn-user-minus` | 16px |
+  | DMHeader — back chevron | `hn-angle-left` | 18px, color `var(--color-primary)` |
 - **Do not use lucide-react** for chat or home UI icons — use this library instead. lucide-react is only used for `X` (close) in modals/sheets.
 
 Framer Motion for all animations. Scanline overlay on game screens for RotMG feel.
