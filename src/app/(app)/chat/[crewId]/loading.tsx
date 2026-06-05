@@ -1,64 +1,69 @@
 export default function ChatLoading() {
   return (
     <div
-      className="flex flex-col bg-[#0a0612]"
-      style={{ height: '100dvh', maxWidth: 480, margin: '0 auto', overflow: 'hidden' }}
+      className="flex flex-col bg-black"
+      style={{ position: 'fixed', top: 0, bottom: 0, left: 0, right: 0, maxWidth: 480, marginLeft: 'auto', marginRight: 'auto', overflow: 'hidden' }}
     >
-      {/* Header skeleton */}
+      {/* Header */}
       <div
-        className="px-4 pb-3 border-b border-[#1a1a2e] flex-shrink-0"
-        style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}
+        className="bg-black border-b border-border px-4 pb-2 flex-shrink-0"
+        style={{ paddingTop: 'max(env(safe-area-inset-top), 8px)' }}
       >
-        <div className="flex items-center justify-between mb-2">
-          <div className="h-3 w-28 bg-[#1a1a2e] animate-pulse" />
-          <div className="flex items-center gap-2">
-            <div className="h-3 w-8 bg-[#1a1a2e] animate-pulse" />
-            <div className="h-5 w-14 bg-[#1a1a2e] animate-pulse" />
+        <div className="flex items-center justify-between h-10">
+          {/* Left: back + crew name + chevron */}
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <div className="w-6 h-6 flex-shrink-0 bg-border animate-pulse" />
+            <div className="h-4 w-32 bg-border animate-pulse" />
+            <div className="w-4 h-4 flex-shrink-0 bg-border animate-pulse" />
+          </div>
+          {/* Right: bell + user-plus + vault */}
+          <div className="flex items-center gap-4 flex-shrink-0">
+            <div className="w-6 h-6 bg-border animate-pulse" />
+            <div className="w-6 h-6 bg-border animate-pulse" />
+            <div className="w-6 h-6 bg-border animate-pulse" />
           </div>
         </div>
-        <div className="flex items-center gap-1.5 mb-2">
-          {[0, 1, 2].map((i) => (
-            <div key={i} className="w-7 h-7 bg-[#1a1a2e] animate-pulse" />
-          ))}
-        </div>
-        <div className="h-1.5 w-full bg-[#1a1a2e] animate-pulse mb-3" />
       </div>
 
-      {/* Message skeletons */}
+      {/* Messages */}
       <div className="flex-1 overflow-hidden px-4 py-3 flex flex-col gap-3">
-        {[80, 55, 100, 65, 90, 45, 75].map((w, i) => (
+        {[72, 48, 90, 60, 80, 44, 66].map((w, i) => (
           <div
             key={i}
-            className={`flex items-end gap-2 ${i % 3 === 0 ? 'flex-row-reverse' : ''}`}
+            className={`flex items-end gap-2 ${i % 4 === 0 ? 'pl-10' : ''}`}
           >
-            <div className="w-7 h-7 rounded-none bg-[#1a1a2e] animate-pulse flex-shrink-0" />
+            {i % 4 !== 0 && (
+              <div className="w-8 h-8 flex-shrink-0 bg-border animate-pulse" />
+            )}
             <div
-              className="h-9 bg-[#1a1a2e] animate-pulse"
-              style={{ width: `${w}%`, maxWidth: 260, animationDelay: `${i * 80}ms` }}
+              className="h-8 bg-border animate-pulse"
+              style={{ width: `${w}%`, maxWidth: 260, animationDelay: `${i * 70}ms` }}
             />
           </div>
         ))}
       </div>
 
-      {/* Input skeleton */}
-      <div className="border-t border-[#1a1a2e] bg-[#080514] px-3 py-2 flex items-center gap-2 flex-shrink-0">
-        <div className="w-10 h-10 bg-[#1a1a2e] animate-pulse" />
-        <div className="flex-1 h-10 bg-[#1a1a2e] animate-pulse" />
-        <div className="w-10 h-10 bg-[#1a1a2e] animate-pulse" />
-        <div className="w-10 h-10 bg-[#1a1a2e] animate-pulse" />
-      </div>
-
-      {/* BottomNav skeleton */}
+      {/* Input */}
       <div
-        className="flex border-t border-[#1a1a2e] bg-[#080514] flex-shrink-0"
-        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+        className="bg-black border-t border-border px-4 pt-4 flex-shrink-0"
+        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 32px)' }}
       >
-        {[0, 1].map((i) => (
-          <div key={i} className="flex-1 flex flex-col items-center justify-center gap-1 py-3" style={{ minHeight: 56 }}>
-            <div className="w-5 h-5 bg-[#1a1a2e] animate-pulse" />
-            <div className="w-8 h-2 bg-[#1a1a2e] animate-pulse" />
-          </div>
-        ))}
+        {/* Member avatars row */}
+        <div className="flex items-center gap-3 mb-2">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="w-6 h-6 bg-border animate-pulse flex-shrink-0" />
+          ))}
+        </div>
+        {/* XP stats + progress bar */}
+        <div className="flex flex-col gap-2 mb-4">
+          <div className="h-2 w-48 bg-border animate-pulse" />
+          <div className="h-1 w-full bg-border animate-pulse" />
+        </div>
+        {/* Input box */}
+        <div className="border border-border h-12 flex items-center px-4 gap-3">
+          <div className="flex-1 h-4 bg-border animate-pulse" />
+          <div className="w-4 h-4 bg-border animate-pulse flex-shrink-0" />
+        </div>
       </div>
     </div>
   )

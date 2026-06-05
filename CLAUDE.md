@@ -187,6 +187,7 @@ Swipe left on a crew card to reveal the leave action (`LEAVE_REVEAL = 104px`). L
 - Padding: `px-3 py-2` (12px horizontal, 8px vertical), `h-full overflow-hidden`
 - Icon: `hn-logout` (16px, white) from the pixel icon library
 - Label: `"LEAVE"` in `font-silkscreen text-[16px] text-white whitespace-nowrap leading-none`
+- `CrewCardContent` outer div has `pr-2` (8px right padding) to create 8px gap between the timestamp and the revealed leave button edge
 
 ### ChatHeader — props and spacing
 `ChatHeader` accepts only `{ crew, initialXP, initialRaid, currentUserId, crewId }`. It has **no** `members` or `memberLastSeen` props — member avatars live in ChatInput, not the header. Do not add a second presence channel here (see Online Presence note above).
@@ -217,7 +218,7 @@ Header spacing: `px-4 pb-2` (16px horizontal, 8px bottom), `paddingTop: max(env(
 - Server component: verifies accepted friendship, calls `get_or_create_dm(friendId)` RPC to get/create the DM crew, then renders the full chat UI
 - Security: friendship check runs before the RPC — unauthenticated or non-friend access redirects to `/home`
 - `get_or_create_dm` is idempotent — safe to call on every page load; returns the existing crew id if one already exists
-- **Header**: `DMHeader` component (`src/components/chat/DMHeader.tsx`) — shows `hn-angle-left-solid` back button (24px, `var(--color-tertiary)`), friend 32×32px avatar, friend username (Press Start 2P 14px), `"1:1 CHAT"` label (Silkscreen 8px muted). Boss countdown bar renders below if a raid is active (same style as ChatHeader).
+- **Header**: `DMHeader` component (`src/components/chat/DMHeader.tsx`) — shows `hn-angle-left-solid` back button (24px, `var(--color-tertiary)`), friend 32×32px avatar, friend username (Press Start 2P 14px, `underline`), `"1:1 CHAT"` label (Silkscreen 8px muted). Boss countdown bar renders below if a raid is active (same style as ChatHeader).
 - **Chat UI**: reuses `MessageList` + `ChatInput` directly — same realtime, XP, boss raid, and artifact pipeline as group chats
 - `DMHeader` updates `crew_members.last_seen` every 60s (same as `ChatHeader`) for unread cursor accuracy
 - No class selection redirect — DM crew members are auto-assigned `berserker` at channel creation
@@ -401,6 +402,10 @@ create policy "friendships: either party can delete"
 - Mobile-first, 390px (iPhone 14); three font roles — `font-pixel` (Press Start 2P) for game UI/logos/level badges, `font-body` (DM Sans) for names/messages/timestamps, `font-silkscreen` (Silkscreen) for XP stats/labels
 - Never hardcode constants; never expose `SUPABASE_SERVICE_ROLE_KEY` client-side
 - Always handle loading + error states; add `loading.tsx` alongside every data-fetching `page.tsx`
+- **Loading skeleton conventions** — use `bg-border animate-pulse` blocks on `bg-black` (home/chat) background. Structure must mirror the real page layout precisely so there is no layout shift on hydration:
+  - `home/loading.tsx`: header (logo + 2 icons) → profile banner (48×48 avatar + text rows + AFK XP bar) → Squads label + 3 crew card rows (40×40 avatar, XP/level row, name+timestamp row, preview row, `pr-2`)
+  - `chat/[crewId]/loading.tsx`: header (back + crew name + chevron | 3 right icons) → message rows (avatar shown on group-start, `pl-10` offset on continuations) → input (member avatar row + XP stats/bar + h-12 input box). **No BottomNav.**
+  - `dm/[friendId]/loading.tsx`: header (back + 32×32 avatar + username + label) → message rows (all left-aligned, same grouping pattern) → input (2-avatar row + XP stats/bar + h-12 input box)
 - Clean up Realtime subscriptions on unmount; use `cancelled` flag in async effects
 - RLS on every table from day one
 - Server data fetching: `Promise.all` for independent queries; stages — (1) `getSession()` + params, (2) queries needing userId/crewId, (3) queries depending on stage 2
