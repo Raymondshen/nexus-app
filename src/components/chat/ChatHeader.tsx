@@ -519,7 +519,7 @@ export function ChatHeader({
               aria-label="View squad profile"
               className="flex items-center gap-1 min-w-0 text-left active:opacity-70 transition-opacity"
             >
-              <h1 className="font-pixel text-[18px] text-primary truncate leading-none underline">
+              <h1 className="font-pixel text-[18px] text-primary truncate leading-none" style={{ textDecoration: 'underline' }}>
                 {crew.name.toUpperCase()}
               </h1>
               <i
