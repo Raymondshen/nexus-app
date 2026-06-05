@@ -399,7 +399,7 @@ function FriendCard({ friend, onTap }: { friend: FriendSummary; onTap: () => voi
 
 // ─── Swipeable crew card ──────────────────────────────────────────────────────
 
-const LEAVE_REVEAL = 88
+const LEAVE_REVEAL = 104
 
 function SwipeableCrewCard({
   summary,
@@ -475,7 +475,7 @@ function SwipeableCrewCard({
           aria-label={`Leave ${summary.crew.name}`}
         >
           <i className="hn hn-logout flex-shrink-0" style={{ fontSize: 16, color: 'white' }} aria-hidden="true" />
-          <span className="font-silkscreen text-[8px] text-white whitespace-nowrap">LEAVE</span>
+          <span className="font-silkscreen text-[16px] text-white whitespace-nowrap leading-none">LEAVE</span>
         </button>
       </motion.div>
     </div>
