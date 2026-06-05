@@ -27,6 +27,7 @@ active_raids   id, crew_id, boss_id, current_hp, max_hp, phase, started_at, expi
 artifacts      id, crew_id, name, rarity (common|rare|epic|legendary), source_boss_id, earned_at, mvp_user_id, asset_type, metadata
 push_subscriptions  id, user_id, crew_id (nullable), endpoint (UNIQUE), p256dh, auth, created_at
 notification_preferences  user_id (PK), notif_messages, notif_raids, notif_victory, updated_at
+friendships    id, requester_id, addressee_id, status (pending|accepted), created_at — UNIQUE(requester_id, addressee_id)
 ```
 
 ## Postgres Functions
@@ -91,7 +92,7 @@ Berserker (spam), Sage (long messages), Ghost (silence crit), Hype Man (reaction
 
 ## Routing — Next.js 16 Proxy
 - `src/proxy.ts` — exports `proxy()` + `config.matcher`; **DO NOT add `src/middleware.ts`** (Next.js 16 errors if both exist)
-- Protected prefixes: `/home`, `/chat`, `/vault`, `/party`, `/profile`, `/onboarding`
+- Protected prefixes: `/home`, `/chat`, `/vault`, `/party`, `/profile`, `/onboarding`, `/friends`
 - Uses `getSession()` (cookie-only) NOT `getUser()` — `getUser()` adds 100–300ms per nav
 - Build: `next build --webpack` in vercel.json — Turbopack breaks next-pwa and conflicts with proxy.ts
 
@@ -159,6 +160,15 @@ Consecutive messages from the same user within 60 seconds are visually grouped (
 
 ### Vault Page — navigation
 `VaultClient` has **no** `BottomNav`. Users return to the chat room via swipe-back / browser back — no nav bar needed.
+
+### Friends Page — `/friends`
+- Opened via the book icon (`hn-book`) in the home header
+- Server component fetches accepted friendships + pending (incoming/outgoing) in parallel; resolves profiles for all involved user IDs in one `.in()` query
+- `FriendsClient` manages local state for optimistic mutations (send, accept, decline, remove, cancel)
+- Search: client-side Supabase query on `profiles` with `.ilike('username', '%q%')`, debounced 300ms, min 2 chars — works because `profiles` has `anyone can read` RLS policy
+- Guest guard: `isGuest` prop (`user.is_anonymous === true`); ADD button disabled + Google sign-in banner shown; `sendFriendRequestAction` also blocks anonymous users server-side
+- **No BottomNav** — users go back via `router.back()`
+- Icons used: `hn-search` (search input), `hn-user-minus` (remove friend), `hn-angle-right` (back, same as ChatHeader)
 
 ### PWA / Push Architecture
 - **Service worker**: `public/sw-push.js` — handwritten, zero dependencies, committed to git
@@ -270,6 +280,26 @@ create policy "Users manage own notification preferences"
 UPDATE profiles SET is_dev = true WHERE id IN (
   SELECT id FROM auth.users WHERE email IN ('shenraymonds@gmail.com', 'legaspi.riley@gmail.com')
 );
+
+-- friendships table (applied 2026-06-04)
+create table if not exists friendships (
+  id           uuid primary key default gen_random_uuid(),
+  requester_id uuid not null references auth.users(id) on delete cascade,
+  addressee_id uuid not null references auth.users(id) on delete cascade,
+  status       text not null default 'pending' check (status in ('pending', 'accepted')),
+  created_at   timestamptz not null default now(),
+  unique (requester_id, addressee_id),
+  check (requester_id <> addressee_id)
+);
+alter table friendships enable row level security;
+create policy "friendships: users see own"
+  on friendships for select using (auth.uid() = requester_id or auth.uid() = addressee_id);
+create policy "friendships: users can send requests"
+  on friendships for insert with check (auth.uid() = requester_id);
+create policy "friendships: addressee can accept"
+  on friendships for update using (auth.uid() = addressee_id) with check (auth.uid() = addressee_id);
+create policy "friendships: either party can delete"
+  on friendships for delete using (auth.uid() = requester_id or auth.uid() = addressee_id);
 ```
 
 ## Supabase Type System Rules
@@ -347,9 +377,11 @@ Note: next/font variable for Silkscreen is `--font-silk` (not `--font-silkscreen
   | ChatHeader — invite | `hn-user-plus` | 20px |
   | ChatHeader — vault | `hn-bank` | 20px |
   | ChatInput — send | `hn-arrow-circle-up` | 16px |
-  | Home header — journal | `hn-book` | 24px |
+  | Home header — friends | `hn-book` | 24px |
   | Home header — create crew | `hn-plus` | 24px |
   | Home profile banner — edit | `hn-pencil` | 16px |
+  | Friends — search | `hn-search` | 13px |
+  | Friends — remove | `hn-user-minus` | 16px |
 - **Do not use lucide-react** for chat or home UI icons — use this library instead. lucide-react is only used for `X` (close) in modals/sheets.
 
 Framer Motion for all animations. Scanline overlay on game screens for RotMG feel.
