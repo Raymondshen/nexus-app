@@ -1,6 +1,10 @@
 'use client'
 
-import { useEffect, useRef, useCallback, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useCallback, useState } from 'react'
+
+// Fires synchronously before the browser paints on the client; falls back to
+// useEffect on the server (SSR) where useLayoutEffect is not available.
+const useBrowserLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect
 import dynamic from 'next/dynamic'
 import { AnimatePresence } from 'framer-motion'
 import { format, isToday, isYesterday, isSameDay } from 'date-fns'
@@ -111,20 +115,13 @@ export function MessageList({
   // Track whether user is near the bottom (within 120px)
   const isNearBottomRef = useRef(true)
 
-  // Fetch message history client-side so it always works regardless of server
-  // streaming errors, and retries cleanly on navigation.
-  // Stale-while-revalidate: load from sessionStorage instantly, then background-
-  // fetch fresh data and merge. React 18 batches the synchronous state updates
-  // inside this effect so cache hits never cause a skeleton flash.
-  useEffect(() => {
+  // Pre-paint: reset state and load the sessionStorage cache synchronously.
+  // Runs before the browser paints so a cache hit means the skeleton is NEVER
+  // painted — the browser goes straight from loading.tsx to messages.
+  useBrowserLayoutEffect(() => {
     setHistoryLoaded(false)
     setMessages([])
     const cacheKey = `nexus-msgs-${crewId}`
-
-    // Synchronous cache load — React 18 batches this with the resets above,
-    // so we get a single render with messages visible (no skeleton flash).
-    // Accept empty arrays too: a new/empty crew should show the campfire state
-    // immediately on re-entry rather than going back through the skeleton.
     try {
       const raw = sessionStorage.getItem(cacheKey)
       if (raw) {
@@ -135,13 +132,18 @@ export function MessageList({
         }
       }
     } catch {
-      // sessionStorage unavailable or JSON malformed — proceed to network fetch
+      // sessionStorage unavailable or JSON malformed — fall through to network fetch
     }
+  }, [crewId]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Post-paint: background network fetch to hydrate / refresh from DB.
+  // The cache check above already resolved historyLoaded for cache hits, so
+  // this effect only needs to handle the fetch itself + the fallback timer.
+  useEffect(() => {
+    const cacheKey = `nexus-msgs-${crewId}`
     let cancelled = false
 
-    // Safety net: if the fetch hangs indefinitely (network stall, no response),
-    // exit the skeleton after 8 s so the UI is never permanently stuck.
+    // Safety net: if the fetch hangs indefinitely, exit the skeleton after 8 s.
     const fallbackTimer = setTimeout(() => {
       if (!cancelled) setHistoryLoaded(true)
     }, 8000)
@@ -179,7 +181,6 @@ export function MessageList({
 
         setMessages(merged)
 
-        // Persist the latest 50 messages for instant display on re-entry.
         try {
           sessionStorage.setItem(cacheKey, JSON.stringify(merged.slice(-50)))
         } catch {
