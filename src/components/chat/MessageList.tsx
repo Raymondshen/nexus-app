@@ -123,11 +123,13 @@ export function MessageList({
 
     // Synchronous cache load — React 18 batches this with the resets above,
     // so we get a single render with messages visible (no skeleton flash).
+    // Accept empty arrays too: a new/empty crew should show the campfire state
+    // immediately on re-entry rather than going back through the skeleton.
     try {
       const raw = sessionStorage.getItem(cacheKey)
       if (raw) {
         const parsed = JSON.parse(raw) as MessageWithProfile[]
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed)) {
           setMessages(parsed)
           setHistoryLoaded(true)
         }
@@ -137,6 +139,12 @@ export function MessageList({
     }
 
     let cancelled = false
+
+    // Safety net: if the fetch hangs indefinitely (network stall, no response),
+    // exit the skeleton after 8 s so the UI is never permanently stuck.
+    const fallbackTimer = setTimeout(() => {
+      if (!cancelled) setHistoryLoaded(true)
+    }, 8000)
 
     ;(async () => {
       try {
@@ -180,11 +188,15 @@ export function MessageList({
       } catch {
         // Network error — Realtime subscription still delivers live messages
       } finally {
+        clearTimeout(fallbackTimer)
         if (!cancelled) setHistoryLoaded(true)
       }
     })()
 
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+      clearTimeout(fallbackTimer)
+    }
   }, [crewId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Only auto-scroll when user is already near bottom

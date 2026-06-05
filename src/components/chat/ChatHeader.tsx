@@ -275,7 +275,7 @@ export function ChatHeader({
               className="flex-shrink-0 flex items-center justify-center"
               style={{ width: 24, height: 40 }}
             >
-              <i className="hn hn-angle-right" style={{ fontSize: 14, color: '#a855f7' }} aria-hidden="true" />
+              <i className="hn hn-angle-right" style={{ fontSize: 18, color: 'var(--color-primary)' }} aria-hidden="true" />
             </button>
           </div>
 
@@ -289,7 +289,7 @@ export function ChatHeader({
             >
               <i
                 className={`hn ${notifMuted ? 'hn-bell-mute' : 'hn-bell'}`}
-                style={{ fontSize: 18 }}
+                style={{ fontSize: 20 }}
                 aria-hidden="true"
               />
             </button>
@@ -299,7 +299,7 @@ export function ChatHeader({
               className="flex items-center justify-center text-primary hover:text-purple transition-colors"
               style={{ width: 24, height: 40 }}
             >
-              <i className="hn hn-user-plus" style={{ fontSize: 18 }} aria-hidden="true" />
+              <i className="hn hn-user-plus" style={{ fontSize: 20 }} aria-hidden="true" />
             </button>
             <Link
               href={`/vault/${crewId}`}
@@ -307,7 +307,7 @@ export function ChatHeader({
               className="flex items-center justify-center text-primary hover:text-purple transition-colors"
               style={{ width: 24, height: 40 }}
             >
-              <i className="hn hn-bank" style={{ fontSize: 18 }} aria-hidden="true" />
+              <i className="hn hn-bank" style={{ fontSize: 20 }} aria-hidden="true" />
             </Link>
           </div>
         </div>
