@@ -302,30 +302,27 @@ export function ChatHeader({
   return (
     <>
       <div
-        className="bg-black border-b border-border px-4 pb-4 relative flex-shrink-0"
-        style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}
+        className="bg-black border-b border-border px-4 pb-2 relative flex-shrink-0"
+        style={{ paddingTop: 'max(env(safe-area-inset-top), 8px)' }}
       >
-        {/* Heading row — h-10 (40px), matches Figma "heading" node */}
         <div className="flex items-center justify-between h-10">
 
-          {/* Left: crew name + chevron-right, gap-1 (4px) — Figma node 11:114 */}
+          {/* Left: crew name + chevron-right, gap-1 (4px) */}
           <div className="flex items-center gap-1 min-w-0 flex-1">
-            {/* Crew name — Press Start 2P, 18px, #fafafa */}
             <h1 className="font-pixel text-[18px] text-primary truncate leading-none">
               {crew.name.toUpperCase()}
             </h1>
-            {/* Chevron-right pixel icon — 24px hitbox, purple tint */}
             <button
               onClick={() => router.back()}
               aria-label="Back"
               className="flex-shrink-0 flex items-center justify-center"
               style={{ width: 24, height: 40 }}
             >
-              <i className="hn hn-angle-right" style={{ fontSize: 18, color: 'var(--color-primary)' }} aria-hidden="true" />
+              <i className="hn hn-angle-right" style={{ fontSize: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
             </button>
           </div>
 
-          {/* Right: bell + user-plus + vault, gap-4 (16px) — Figma node 42:261 */}
+          {/* Right: bell + user-plus + vault, gap-4 (16px) */}
           <div className="flex items-center gap-4 flex-shrink-0">
             <button
               onClick={() => setShowNotif(true)}
@@ -335,7 +332,7 @@ export function ChatHeader({
             >
               <i
                 className={`hn ${allMuted ? 'hn-bell-mute' : 'hn-bell'}`}
-                style={{ fontSize: 20 }}
+                style={{ fontSize: 24 }}
                 aria-hidden="true"
               />
             </button>
@@ -345,7 +342,7 @@ export function ChatHeader({
               className="flex items-center justify-center text-primary hover:text-purple transition-colors"
               style={{ width: 24, height: 40 }}
             >
-              <i className="hn hn-user-plus" style={{ fontSize: 20 }} aria-hidden="true" />
+              <i className="hn hn-user-plus" style={{ fontSize: 24 }} aria-hidden="true" />
             </button>
             <Link
               href={`/vault/${crewId}`}
@@ -353,7 +350,7 @@ export function ChatHeader({
               className="flex items-center justify-center text-primary hover:text-purple transition-colors"
               style={{ width: 24, height: 40 }}
             >
-              <i className="hn hn-bank" style={{ fontSize: 20 }} aria-hidden="true" />
+              <i className="hn hn-bank" style={{ fontSize: 24 }} aria-hidden="true" />
             </Link>
           </div>
         </div>

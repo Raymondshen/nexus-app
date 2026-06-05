@@ -188,8 +188,10 @@ Swipe left on a crew card to reveal the leave action (`LEAVE_REVEAL = 104px`). L
 - Icon: `hn-logout` (16px, white) from the pixel icon library
 - Label: `"LEAVE"` in `font-silkscreen text-[16px] text-white whitespace-nowrap leading-none`
 
-### ChatHeader — props
+### ChatHeader — props and spacing
 `ChatHeader` accepts only `{ crew, initialXP, initialRaid, currentUserId, crewId }`. It has **no** `members` or `memberLastSeen` props — member avatars live in ChatInput, not the header. Do not add a second presence channel here (see Online Presence note above).
+
+Header spacing: `px-4 pb-2` (16px horizontal, 8px bottom), `paddingTop: max(env(safe-area-inset-top), 8px)`, heading row `h-10`. Right icons all `fontSize: 24`; chevron-right also `fontSize: 24`.
 
 ### Vault Page — navigation
 `VaultClient` has **no** `BottomNav`. Users return to the chat room via swipe-back / browser back — no nav bar needed.
@@ -456,9 +458,9 @@ Note: next/font variable for Silkscreen is `--font-silk` (not `--font-silkscreen
 - **Icons in use**:
   | Location | Icon class | Size |
   |---|---|---|
-  | ChatHeader — back chevron | `hn-angle-right` | 18px, color `var(--color-primary)` |
-  | ChatHeader — invite | `hn-user-plus` | 20px |
-  | ChatHeader — vault | `hn-bank` | 20px |
+  | ChatHeader — back chevron | `hn-angle-right` | 24px, color `var(--color-primary)` |
+  | ChatHeader — invite | `hn-user-plus` | 24px |
+  | ChatHeader — vault | `hn-bank` | 24px |
   | ChatInput — send | `hn-arrow-circle-up` | 16px |
   | Home header — friends | `hn-book` | 24px |
   | Home header — create crew | `hn-plus` | 24px |
