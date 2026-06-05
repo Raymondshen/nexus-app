@@ -100,7 +100,21 @@ Berserker (spam), Sage (long messages), Ghost (silence crit), Hype Man (reaction
 ## Dev Mode
 - Controlled by `profiles.is_dev` boolean (default false) — **not hardcoded emails**
 - To grant dev mode: `UPDATE profiles SET is_dev = true WHERE id IN (SELECT id FROM auth.users WHERE email = '...')`
-- Dev section in `/profile` shows: spawn boss toggle, user ID, push diagnostics
+- Dev section in `/profile` shows: dev mode toggle (`nexus_dev_mode` in localStorage), spawn boss button, user ID, push diagnostics
+
+### Game Events — Dev-Only Gate
+All boss/game event features are disabled for regular users and only activate when **both** `profiles.is_dev = true` (server) and `nexus_dev_mode = '1'` in localStorage (client toggle):
+
+**Server-side (`award-xp`)**: Fetches sender's `is_dev` in Batch 1. Boss spawn (raid creation + `BOSS_SPAWN:` system message) and `LEVEL_UP:` message insertion only run when `isDevUser = true`.
+
+**Server-side (`check-void-spawn`)**: Auto-spawn loop is disabled (no-op). Manual trigger for a specific `crew_id` still works for the dev panel.
+
+**Client-side** — all gated by reading `localStorage.getItem('nexus_dev_mode') === '1'`:
+- `MessageList`: hides boss cards, artifact drops, level-up banners, and all system messages
+- `ChatHeader` / `DMHeader`: hides boss HP bar + countdown
+- `ChatInput`: hides DamageFloat, XP stats row (level / XP counter / progress bar / "Next Boss" label), and RAID ACTIVE indicator. Member avatars and online dots remain visible for all users.
+
+Member avatars in ChatInput are not gated — online presence is a chat feature, not a game feature.
 
 ## Routing — Next.js 16 Proxy
 - `src/proxy.ts` — exports `proxy()` + `config.matcher`; **DO NOT add `src/middleware.ts`** (Next.js 16 errors if both exist)
@@ -152,10 +166,11 @@ Consecutive messages from the same user within 60 seconds are visually grouped (
 - **XP floats**: animate bottom-to-top with fade-in then fade-out — `opacity: [0,1,1,0]`, `y: [0,-12,-26,-42]`, `times: [0, 0.15, 0.65, 1]` over 1.4s. Text shows `+{amount} XP` in gold `#ffd700`. Float anchors inline at the `· +{N} XP` label in the stats text row (after "Members ·"), not from the outer container edge. A `lastXpEarned` state persists the last earned amount so the static amber label stays visible between floats (matches Figma node 42:304).
 
 ### award-xp — query batching + anti-spam
-- **Batch 1** (always, parallel): previous message gap + burst window count + crew name/XP — 3 queries in one `Promise.all`
+- **Batch 1** (always, parallel): previous message gap + burst window count + crew name/XP + sender's `is_dev` flag — 4 queries in one `Promise.all`
 - **Batch 2** (only when not spam-blocked, parallel): today's message count + combo count + daily XP log count — 3 queries in one `Promise.all`
 - Anti-spam layers: (1) hard stop if prior message <2000ms ago, (2) hard stop if ≥4 messages in last 30s, (3) multiplier 1.0 / 0.5 / 0.1 at 30 / 60 daily message thresholds
 - Spam checks gate XP only — **notifications always fire** regardless. Implemented via `xpBlocked` flag; do NOT use early returns before the notification block.
+- **Boss spawn + LEVEL_UP message** only execute when sender's `isDevUser = true` (see Dev Mode above)
 - Notifications use a **single batch fetch** to `send-notification` per event (one call for all recipients, not a per-member loop). Response includes `notif_count` + `notif_results` logged by ChatInput as `[award-xp] ...`.
 
 ### HomeClient — stale preview fix
@@ -242,7 +257,7 @@ All "detail" pages (chat, DM, profile, friends, vault) slide in from the right o
 - Server component: verifies accepted friendship, calls `get_or_create_dm(friendId)` RPC to get/create the DM crew, then renders the full chat UI
 - Security: friendship check runs before the RPC — unauthenticated or non-friend access redirects to `/home`
 - `get_or_create_dm` is idempotent — safe to call on every page load; returns the existing crew id if one already exists
-- **Header**: `DMHeader` component (`src/components/chat/DMHeader.tsx`) — shows `hn-angle-left-solid` back button (24px, `var(--color-tertiary)`), friend 32×32px avatar, friend username (Press Start 2P 14px, `underline`), `"1:1 CHAT"` label (Silkscreen 8px muted). Boss countdown bar renders below if a raid is active (same style as ChatHeader).
+- **Header**: `DMHeader` component (`src/components/chat/DMHeader.tsx`) — shows `hn-angle-left-solid` back button (24px, `var(--color-tertiary)`), friend 32×32px avatar, friend username (Press Start 2P 14px, `underline`), `"1:1 CHAT"` label (Silkscreen 8px muted). Boss countdown bar renders below if a raid is active and `nexus_dev_mode` is on (same style as ChatHeader).
 - **Chat UI**: reuses `MessageList` + `ChatInput` directly — same realtime, XP, boss raid, and artifact pipeline as group chats
 - `DMHeader` updates `crew_members.last_seen` every 60s (same as `ChatHeader`) for unread cursor accuracy
 - No class selection redirect — DM crew members are auto-assigned `berserker` at channel creation
@@ -313,6 +328,7 @@ Always use `createServiceClient()` inside cache functions (service role, no cook
 | `nexus_crew_created` | `'1'` | triggers NotificationPrompt via WelcomeDetector |
 | `nexus_notif_prompted` | timestamp ms | throttles NotificationPrompt to 24h |
 | `nexus_notif_state` | `granted\|denied\|pending` | cached permission state |
+| `nexus_dev_mode` | `'1'` | enables game event UI (boss bars, XP stats, system messages) — only meaningful when `profiles.is_dev = true` |
 
 ## Disabled Features (wired for future)
 - Voice notes: button removed; `XP_VALUES['voice']` + element type `lightning` still defined server-side
