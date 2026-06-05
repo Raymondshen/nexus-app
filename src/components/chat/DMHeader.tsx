@@ -77,7 +77,7 @@ export function DMHeader({
         </div>
 
         <div className="flex-1 min-w-0 flex flex-col justify-center">
-          <h1 className="font-pixel text-[14px] text-primary truncate leading-none">
+          <h1 className="font-pixel text-[14px] text-primary truncate leading-none underline">
             {friendUsername.toUpperCase()}
           </h1>
           <span className="font-silkscreen text-[8px] text-muted leading-none mt-1">1:1 CHAT</span>

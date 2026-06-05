@@ -289,7 +289,7 @@ function CrewCardContent({ summary }: { summary: CrewSummary }) {
   const avatarColor = CREW_AVATAR_COLORS[colorIndex]
 
   return (
-    <div className="w-full text-left flex items-center gap-4">
+    <div className="w-full text-left flex items-center gap-4 pr-2">
       {/* Crew avatar — 40×40px per Figma node 50:465 */}
       <div
         className="flex-shrink-0 w-10 h-10 flex items-center justify-center font-pixel text-[10px]"
