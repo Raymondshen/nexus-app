@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback, useActionState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence, useMotionValue, animate } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
-import { X, Plus, Bell } from 'lucide-react'
+import { X } from 'lucide-react'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { createCrewAction } from '@/app/(app)/onboarding/create/actions'
@@ -596,21 +596,13 @@ export function HomeClient({
         <div className="flex items-center justify-between h-10">
           <h1 className="font-pixel text-[18px] text-primary">NEXUS</h1>
 
-          <div className="flex items-center gap-5">
-            <button
-              aria-label="Notifications"
-              className="text-primary hover:text-purple transition-colors"
-            >
-              <Bell size={24} />
-            </button>
-            <button
-              onClick={() => setShowCreate(true)}
-              aria-label="Create crew"
-              className="text-primary hover:text-purple transition-colors"
-            >
-              <Plus size={24} />
-            </button>
-          </div>
+          <button
+            onClick={() => setShowCreate(true)}
+            aria-label="Create crew"
+            className="text-primary hover:text-purple transition-colors"
+          >
+            <i className="hn hn-plus" style={{ fontSize: 24 }} aria-hidden="true" />
+          </button>
         </div>
       </div>
 
