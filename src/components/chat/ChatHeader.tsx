@@ -1,13 +1,207 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useChatStore } from '@/store/chatStore'
 import { createClient } from '@/lib/supabase/client'
-import type { Crew, ActiveRaid } from '@/types'
+import type { Crew, ActiveRaid, AvatarClass } from '@/types'
 import { formatDistanceToNow } from 'date-fns'
+import { PixelSprite, spriteInfoFor } from '@/components/game/PixelSprite'
+
+const CLASS_LABELS: Record<string, string> = {
+  berserker: 'Berserker',
+  sage:      'Sage',
+  ghost:     'Ghost',
+  hype_man:  'Hype Man',
+  the_voice: 'The Voice',
+  meme_lord: 'Meme Lord',
+  mage:      'Mage',
+  warrior:   'Warrior',
+  rogue:     'Rogue',
+  healer:    'Healer',
+  archer:    'Archer',
+}
+
+// ─── GroupProfileSheet ────────────────────────────────────────────────────────
+
+type MemberInfo = {
+  userId:      string
+  username:    string
+  avatarUrl:   string | null
+  avatarClass: AvatarClass | null
+  msgCount:    number
+}
+
+function MemberRow({ member, isCurrentUser }: { member: MemberInfo; isCurrentUser: boolean }) {
+  const spriteInfo = spriteInfoFor(member.avatarClass)
+  const initial    = member.username[0]?.toUpperCase() ?? '?'
+  const classLabel = member.avatarClass ? (CLASS_LABELS[member.avatarClass] ?? member.avatarClass) : 'Unknown'
+
+  return (
+    <div className="flex items-center gap-3 py-3 border-b border-border last:border-0">
+      {/* Animated sprite or placeholder */}
+      <div className="w-12 h-12 flex-shrink-0 flex items-center justify-center">
+        {spriteInfo ? (
+          <PixelSprite spriteId={spriteInfo.id} nativePx={spriteInfo.nativePx} scale={2} animate />
+        ) : (
+          <div className="w-10 h-10 bg-[#0f0820] border border-[#2a1545] flex items-center justify-center">
+            <span className="font-pixel text-[10px] text-purple">{initial}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Name + class + message count */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <p className="font-body font-bold text-[16px] text-primary truncate leading-none">{member.username}</p>
+          {isCurrentUser && (
+            <span className="font-silkscreen text-[6px] text-purple border border-purple px-1 py-[2px] flex-shrink-0 leading-none">YOU</span>
+          )}
+        </div>
+        <div className="flex items-center gap-1.5 mt-[5px]">
+          <span className="font-silkscreen text-[8px] text-purple leading-none">{classLabel.toUpperCase()}</span>
+          <span className="font-silkscreen text-[8px] text-muted leading-none">·</span>
+          <span className="font-silkscreen text-[8px] text-muted leading-none">{member.msgCount.toLocaleString()} MSG</span>
+        </div>
+      </div>
+
+      {/* Profile avatar */}
+      <div className="w-9 h-9 flex-shrink-0 relative overflow-hidden bg-border">
+        {member.avatarUrl ? (
+          <Image src={member.avatarUrl} alt={member.username} fill sizes="36px" className="object-cover" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center bg-[#111]">
+            <span className="font-pixel text-[10px] text-primary">{initial}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function GroupProfileSheet({
+  crew,
+  crewId,
+  currentUserId,
+  onClose,
+}: {
+  crew:          Crew
+  crewId:        string
+  currentUserId: string
+  onClose:       () => void
+}) {
+  const [members, setMembers] = useState<MemberInfo[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      const supabase = createClient()
+      const { data: memberRows } = await supabase
+        .from('crew_members')
+        .select('user_id, class, profiles(id, username, avatar_url)')
+        .eq('crew_id', crewId)
+
+      if (cancelled || !memberRows?.length) { setLoading(false); return }
+
+      type RawRow = { user_id: string; class: string | null; profiles: { username: string; avatar_url: string | null } | null }
+      const rows = memberRows as unknown as RawRow[]
+
+      const countResults = await Promise.all(
+        rows.map(r =>
+          supabase
+            .from('messages')
+            .select('id', { count: 'estimated', head: true })
+            .eq('crew_id', crewId)
+            .eq('user_id', r.user_id)
+            .neq('message_type', 'system')
+        )
+      )
+
+      if (cancelled) return
+
+      const infos: MemberInfo[] = rows.map((r, i) => ({
+        userId:      r.user_id,
+        username:    r.profiles?.username ?? 'Unknown',
+        avatarUrl:   r.profiles?.avatar_url ?? null,
+        avatarClass: r.class as AvatarClass | null,
+        msgCount:    countResults[i].count ?? 0,
+      }))
+
+      infos.sort((a, b) => {
+        if (a.userId === currentUserId) return -1
+        if (b.userId === currentUserId) return 1
+        return b.msgCount - a.msgCount
+      })
+
+      setMembers(infos)
+      setLoading(false)
+    }
+    load()
+    return () => { cancelled = true }
+  }, [crewId, currentUserId])
+
+  return (
+    <motion.div
+      className="fixed inset-0 z-50 flex items-end justify-center"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+    >
+      <div className="absolute inset-0 bg-black/60" />
+      <motion.div
+        initial={{ y: 80, opacity: 0 }}
+        animate={{ y: 0,  opacity: 1 }}
+        exit={{   y: 80, opacity: 0 }}
+        transition={{ type: 'spring', stiffness: 280, damping: 26 }}
+        className="relative w-full max-w-[480px] bg-[#0a0612] border-t border-[#2a1545]"
+        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 24px)' }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Sheet header */}
+        <div className="px-6 pt-6 pb-4 border-b border-border">
+          <p className="font-silkscreen text-[8px] text-muted leading-none mb-1">SQUAD</p>
+          <h2 className="font-pixel text-[14px] text-primary leading-none">{crew.name.toUpperCase()}</h2>
+          {!loading && (
+            <p className="font-silkscreen text-[8px] text-muted leading-none mt-2">
+              {members.length} {members.length === 1 ? 'MEMBER' : 'MEMBERS'}
+            </p>
+          )}
+        </div>
+
+        {/* Member list */}
+        <div className="px-4 overflow-y-auto" style={{ maxHeight: '55vh' }}>
+          {loading ? (
+            Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3 py-3 border-b border-border">
+                <div className="w-12 h-12 flex-shrink-0 bg-border animate-pulse" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 w-32 bg-border animate-pulse" />
+                  <div className="h-2 w-20 bg-border animate-pulse" />
+                </div>
+                <div className="w-9 h-9 flex-shrink-0 bg-border animate-pulse" />
+              </div>
+            ))
+          ) : (
+            members.map(m => (
+              <MemberRow key={m.userId} member={m} isCurrentUser={m.userId === currentUserId} />
+            ))
+          )}
+        </div>
+
+        <button
+          onClick={onClose}
+          className="mt-4 w-full font-pixel text-[8px] text-[#3d2660] py-2 hover:text-[#6b4f8f] transition-colors"
+        >
+          CLOSE
+        </button>
+      </motion.div>
+    </motion.div>
+  )
+}
 
 // ─── NotifSheet ───────────────────────────────────────────────────────────────
 
@@ -224,11 +418,11 @@ export function ChatHeader({
   currentUserId,
   crewId,
 }: ChatHeaderProps) {
-  const router = useRouter()
   const { setCrewXP, setActiveRaid, activeRaid } = useChatStore()
-  const [showShare,  setShowShare]  = useState(false)
-  const [showNotif,  setShowNotif]  = useState(false)
-  const [notifPrefs, setNotifPrefs] = useState<NotifPrefs>({ messages: true, raids: true, victory: true })
+  const [showProfile, setShowProfile] = useState(false)
+  const [showShare,   setShowShare]   = useState(false)
+  const [showNotif,   setShowNotif]   = useState(false)
+  const [notifPrefs,  setNotifPrefs]  = useState<NotifPrefs>({ messages: true, raids: true, victory: true })
 
   useEffect(() => {
     setCrewXP(initialXP)
@@ -294,8 +488,9 @@ export function ChatHeader({
       )
   }, [notifPrefs, currentUserId, crewId])
 
-  const handleCloseShare = useCallback(() => setShowShare(false), [])
-  const handleCloseNotif = useCallback(() => setShowNotif(false), [])
+  const handleCloseProfile = useCallback(() => setShowProfile(false), [])
+  const handleCloseShare   = useCallback(() => setShowShare(false), [])
+  const handleCloseNotif   = useCallback(() => setShowNotif(false), [])
 
   const allMuted = !notifPrefs.messages && !notifPrefs.raids && !notifPrefs.victory
 
@@ -307,20 +502,17 @@ export function ChatHeader({
       >
         <div className="flex items-center justify-between h-10">
 
-          {/* Left: crew name + chevron-right, gap-1 (4px) */}
-          <div className="flex items-center gap-1 min-w-0 flex-1">
+          {/* Left: crew name + chevron — tap opens group profile */}
+          <button
+            onClick={() => setShowProfile(true)}
+            aria-label="View squad profile"
+            className="flex items-center gap-1 min-w-0 flex-1 text-left active:opacity-70 transition-opacity"
+          >
             <h1 className="font-pixel text-[18px] text-primary truncate leading-none">
               {crew.name.toUpperCase()}
             </h1>
-            <button
-              onClick={() => router.back()}
-              aria-label="Back"
-              className="flex-shrink-0 flex items-center justify-center"
-              style={{ width: 24, height: 40 }}
-            >
-              <i className="hn hn-angle-right" style={{ fontSize: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
-            </button>
-          </div>
+            <i className="hn hn-angle-right flex-shrink-0" style={{ fontSize: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+          </button>
 
           {/* Right: bell + user-plus + vault, gap-4 (16px) */}
           <div className="flex items-center gap-4 flex-shrink-0">
@@ -376,6 +568,14 @@ export function ChatHeader({
       </div>
 
       <AnimatePresence>
+        {showProfile && (
+          <GroupProfileSheet
+            crew={crew}
+            crewId={crewId}
+            currentUserId={currentUserId}
+            onClose={handleCloseProfile}
+          />
+        )}
         {showShare && <ShareModal crew={crew} onClose={handleCloseShare} />}
         {showNotif && (
           <NotifSheet
