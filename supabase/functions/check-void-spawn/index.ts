@@ -38,41 +38,14 @@ Deno.serve(async (req: Request) => {
       return new Response(JSON.stringify({ error: 'Void boss not seeded' }), { status: 500, headers: JSON_HEADERS })
     }
 
-    const silenceCutoff  = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
     const spawned: string[] = []
 
     if (targetCrewId) {
-      // Single crew manual trigger
+      // Single crew manual trigger (dev panel use only)
       await spawnForCrew(supabase, targetCrewId, voidBoss, true)
       spawned.push(targetCrewId)
     } else {
-      // Find all crews with no messages in 24h and no active raid
-      const { data: crews } = await supabase
-        .from('crews')
-        .select('id')
-
-      for (const crew of crews ?? []) {
-        const { count: recentMessages } = await supabase
-          .from('messages')
-          .select('id', { count: 'exact', head: true })
-          .eq('crew_id', crew.id)
-          .gte('created_at', silenceCutoff)
-
-        if ((recentMessages ?? 0) > 0) continue
-
-        const { data: existingRaid } = await supabase
-          .from('active_raids')
-          .select('id')
-          .eq('crew_id', crew.id)
-          .is('defeated_at', null)
-          .gt('expires_at', new Date().toISOString())
-          .maybeSingle()
-
-        if (existingRaid) continue
-
-        await spawnForCrew(supabase, crew.id, voidBoss, false)
-        spawned.push(crew.id)
-      }
+      // Auto-spawn disabled — boss spawns are dev-only for now
     }
 
     return new Response(

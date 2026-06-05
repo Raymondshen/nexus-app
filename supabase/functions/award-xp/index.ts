@@ -90,7 +90,7 @@ Deno.serve(async (req: Request) => {
     // ─── BATCH 1: spam checks + crew data (always, 3 queries in parallel) ────
     const burstWindowStart = new Date(Date.now() - BURST_WINDOW_MS).toISOString()
 
-    const [prevMsgsResult, burstResult, crewResult] = await Promise.all([
+    const [prevMsgsResult, burstResult, crewResult, senderProfileResult] = await Promise.all([
       // Layer 1: most recent prior message from this user in this crew
       supabase
         .from('messages')
@@ -116,6 +116,13 @@ Deno.serve(async (req: Request) => {
         .select('total_xp, level, name')
         .eq('id', crew_id)
         .single(),
+
+      // Sender dev flag — boss spawns and game events are dev-only for now
+      supabase
+        .from('profiles')
+        .select('is_dev')
+        .eq('id', user_id)
+        .single(),
     ])
 
     // ─── LAYER 1: CONSECUTIVE COOLDOWN ──────────────────────────────────────
@@ -129,7 +136,8 @@ Deno.serve(async (req: Request) => {
     // ─── LAYER 2: BURST WINDOW CAP ──────────────────────────────────────────
     if ((burstResult.count ?? 0) >= BURST_MAX_MESSAGES) xpBlocked = true
 
-    const crewBefore = crewResult.data
+    const crewBefore  = crewResult.data
+    const isDevUser   = senderProfileResult.data?.is_dev === true
 
     // ─── BASE XP + BONUSES ──────────────────────────────────────────────────
     // Spam-blocked messages earn 0 XP but still trigger crew notifications.
@@ -211,8 +219,8 @@ Deno.serve(async (req: Request) => {
         })
         .eq('id', message_id)
 
-      // Level up notification
-      if (newLevel > getLevelFromXP(oldXP)) {
+      // Level up notification (dev-only while game events are gated)
+      if (newLevel > getLevelFromXP(oldXP) && isDevUser) {
         await supabase.from('messages').insert({
           crew_id,
           user_id,
@@ -224,11 +232,11 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Boss spawn — check if XP crossed a threshold
+    // Boss spawn — dev-only while game events are gated
     const oldThreshold = Math.floor(oldXP / BOSS_XP_THRESHOLD)
     const newThreshold = Math.floor(newXP  / BOSS_XP_THRESHOLD)
 
-    if (newThreshold > oldThreshold) {
+    if (newThreshold > oldThreshold && isDevUser) {
       const { data: existingRaid } = await supabase
         .from('active_raids')
         .select('id')

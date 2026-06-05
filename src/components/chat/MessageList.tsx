@@ -112,6 +112,10 @@ export function MessageList({
 
   const { messages, setMessages, addMessage, updateMessage, setCrewXP, receiveXP } = useChatStore()
   const [dismissedLevelUps, setDismissedLevelUps] = useState<Set<string>>(new Set())
+  const [devMode] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return localStorage.getItem('nexus_dev_mode') === '1'
+  })
   // Lazy initializer: read sessionStorage synchronously at first render so the
   // initial render is already in the "loaded" state for cache hits. This is
   // fundamentally more reliable than useLayoutEffect because it eliminates the
@@ -372,24 +376,34 @@ export function MessageList({
       lastMsgTime = 0
     }
 
-    if (raidId && !renderedRaids.has(raidId)) {
-      renderedRaids.add(raidId)
-      // Pass initialRaid if it matches; BossCard will self-fetch otherwise
-      const raid = initialRaid?.id === raidId ? initialRaid : null
-      items.push({ kind: 'boss', raidId, key: `boss-${raidId}`, raid })
-      lastUserId  = null
-      lastMsgTime = 0
+    if (raidId) {
+      if (!renderedRaids.has(raidId)) {
+        renderedRaids.add(raidId)
+        if (devMode) {
+          // Pass initialRaid if it matches; BossCard will self-fetch otherwise
+          const raid = initialRaid?.id === raidId ? initialRaid : null
+          items.push({ kind: 'boss', raidId, key: `boss-${raidId}`, raid })
+        }
+        lastUserId  = null
+        lastMsgTime = 0
+      }
     } else if (artifactId) {
-      items.push({ kind: 'artifact', artifactId, key: `artifact-${msg.id}` })
+      if (devMode) {
+        items.push({ kind: 'artifact', artifactId, key: `artifact-${msg.id}` })
+      }
       lastUserId  = null
       lastMsgTime = 0
     } else if (level !== null) {
-      items.push({ kind: 'level_up', level, msgId: msg.id, key: `levelup-${msg.id}` })
+      if (devMode) {
+        items.push({ kind: 'level_up', level, msgId: msg.id, key: `levelup-${msg.id}` })
+      }
       lastUserId  = null
       lastMsgTime = 0
-    } else if (!raidId) {
+    } else {
       if (msg.message_type === 'system') {
-        items.push({ kind: 'message', message: msg as MessageWithProfile, isOwn: false, showHeader: false })
+        if (devMode) {
+          items.push({ kind: 'message', message: msg as MessageWithProfile, isOwn: false, showHeader: false })
+        }
         lastUserId  = null
         lastMsgTime = 0
       } else {
