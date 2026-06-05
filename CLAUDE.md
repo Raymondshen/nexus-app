@@ -191,7 +191,7 @@ Swipe left on a crew card to reveal the leave action (`LEAVE_REVEAL = 104px`). L
 ### ChatHeader — props and spacing
 `ChatHeader` accepts only `{ crew, initialXP, initialRaid, currentUserId, crewId }`. It has **no** `members` or `memberLastSeen` props — member avatars live in ChatInput, not the header. Do not add a second presence channel here (see Online Presence note above).
 
-Header spacing: `px-4 pb-2` (16px horizontal, 8px bottom), `paddingTop: max(env(safe-area-inset-top), 8px)`, heading row `h-10`. Left side: `gap-2` (8px) between back button and crew name group. Crew name has `underline` decoration. Dropdown chevron is `hn-angle-right rotate(90deg)`. All icons `fontSize: 24`. Back arrows across all screens use `var(--color-tertiary)`.
+Header spacing: `px-4 pb-2` (16px horizontal, 8px bottom), `paddingTop: max(env(safe-area-inset-top), 8px)`, heading row `h-10`. Left side: `gap-2` (8px) between back button and crew name group. Crew name button has `gap-1` (4px) between the underlined name and the dropdown chevron. Crew name has `underline` decoration. Dropdown chevron is `hn-angle-right-solid rotate(90deg)`. All icons `fontSize: 24`. Back arrows across all screens use `var(--color-tertiary)` and the solid variant (`hn-angle-left-solid`).
 
 ### Vault Page — navigation
 `VaultClient` has **no** `BottomNav`. Users return to the chat room via swipe-back / browser back — no nav bar needed.
@@ -203,21 +203,21 @@ Header spacing: `px-4 pb-2` (16px horizontal, 8px bottom), `paddingTop: max(env(
 - `FriendsClient` manages local state for optimistic mutations (send, accept, decline, remove, cancel)
 - **Layout**: single scrollable column — no tabs. Sections stack vertically: search input → Requests (collapsible) → Friends
 - **Search input**: `h-[48px] border border-border px-4`, `font-body text-[14px]`, placeholder `"Search by @username"`. Shows "Results" section label + result rows while query ≥ 2 chars (debounced 300ms).
-- **Requests section**: only rendered when `incoming.length > 0 || outgoing.length > 0`. Collapsible via `requestsOpen` state; chevron (`hn-angle-right` 18px) animates rotate 0°→90° when open. AnimatePresence height transition on body.
+- **Requests section**: only rendered when `incoming.length > 0 || outgoing.length > 0`. Collapsible via `requestsOpen` state; chevron (`hn-angle-right-solid` 18px) animates rotate 0°→90° when open. AnimatePresence height transition on body.
   - **Outgoing row**: avatar 40px, name (DM Sans SemiBold 16px primary), `"Sent Friend Request"` (Silkscreen 12px tertiary), CANCEL button: `border border-purple w-[88px] px-4 py-4 font-pixel text-[8px] text-purple`
   - **Incoming row**: avatar 40px, name, `"Wants to be your friend"` subtitle, accept button `border border-[#22c55e] p-3` (hn-check 16px green) + decline button `border border-[#ef4444] p-3 w-[40px] h-[40px]` (hn-x 12px red)
 - **Friends section**: always rendered. Friend row: 40px avatar, name (DM Sans SemiBold 16px primary), `"est. {year}"` subtitle (Silkscreen 12px tertiary, year from `friendship.created_at`). Tapping the row navigates to `/dm/[friendId]`. Remove button (`hn-user-minus` 16px) on right — uses `e.stopPropagation()` so tapping it does not open the DM.
 - User + section rows use: `gap-4` between items, `tracking-[0.2px]` on text columns
 - Guest guard: `isGuest` prop (`user.is_anonymous === true`); ADD button disabled + Google sign-in banner shown; `sendFriendRequestAction` also blocks anonymous users server-side
 - **No BottomNav** — users go back via `router.back()`
-- Header: `pb-2`, `paddingTop: max(env(safe-area-inset-top), 8px)`, back icon (`hn-angle-left` 18px) + title `gap-2`
+- Header: `pb-2`, `paddingTop: max(env(safe-area-inset-top), 8px)`, back icon (`hn-angle-left-solid` 24px, color `var(--color-tertiary)`) + title `gap-2`
 
 ### DM Page — `/dm/[friendId]`
 - Route: `src/app/(app)/dm/[friendId]/page.tsx`
 - Server component: verifies accepted friendship, calls `get_or_create_dm(friendId)` RPC to get/create the DM crew, then renders the full chat UI
 - Security: friendship check runs before the RPC — unauthenticated or non-friend access redirects to `/home`
 - `get_or_create_dm` is idempotent — safe to call on every page load; returns the existing crew id if one already exists
-- **Header**: `DMHeader` component (`src/components/chat/DMHeader.tsx`) — shows `hn-angle-left` back button, friend 32×32px avatar, friend username (Press Start 2P 14px), `"1:1 CHAT"` label (Silkscreen 8px muted). Boss countdown bar renders below if a raid is active (same style as ChatHeader).
+- **Header**: `DMHeader` component (`src/components/chat/DMHeader.tsx`) — shows `hn-angle-left-solid` back button (24px, `var(--color-tertiary)`), friend 32×32px avatar, friend username (Press Start 2P 14px), `"1:1 CHAT"` label (Silkscreen 8px muted). Boss countdown bar renders below if a raid is active (same style as ChatHeader).
 - **Chat UI**: reuses `MessageList` + `ChatInput` directly — same realtime, XP, boss raid, and artifact pipeline as group chats
 - `DMHeader` updates `crew_members.last_seen` every 60s (same as `ChatHeader`) for unread cursor accuracy
 - No class selection redirect — DM crew members are auto-assigned `berserker` at channel creation
@@ -458,22 +458,23 @@ Note: next/font variable for Silkscreen is `--font-silk` (not `--font-silkscreen
 - **Icons in use**:
   | Location | Icon class | Size |
   |---|---|---|
-  | ChatHeader — back button | `hn-angle-left` | 24px, color `var(--color-tertiary)` — separate button left of crew name |
-  | ChatHeader — crew dropdown | `hn-angle-right` rotated 90° | 24px, color `var(--color-primary)` — inline after underlined crew name; tap opens GroupProfileSheet |
+  | ChatHeader — back button | `hn-angle-left-solid` | 24px, color `var(--color-tertiary)` — separate button left of crew name |
+  | ChatHeader — crew dropdown | `hn-angle-right-solid` rotated 90° | 24px, color `var(--color-primary)` — inline after underlined crew name, `gap-1` (4px) from name; tap opens GroupProfileSheet |
   | ChatHeader — notifications | `hn-bell` / `hn-bell-mute` | 24px |
   | ChatHeader — invite | `hn-user-plus` | 24px |
   | ChatHeader — vault | `hn-bank` | 24px |
   | ChatInput — send | `hn-arrow-circle-up` | 16px |
-  | Home header — friends | `hn-bookmark` | 24px |
+  | Home header — friends | `hn-book-bookmark` | 24px |
   | Home header — create crew | `hn-plus` | 24px |
   | Home profile banner — edit | `hn-pencil` | 16px |
-  | Friends — back chevron | `hn-angle-left` | 24px, color `var(--color-tertiary)` |
+  | Friends — back chevron | `hn-angle-left-solid` | 24px, color `var(--color-tertiary)` |
   | Friends — search | `hn-search` | 16px, color `var(--color-muted)` |
-  | Friends — requests chevron | `hn-angle-right` | 18px, color `var(--color-muted)`, animated rotate 0°/90° |
+  | Friends — requests chevron | `hn-angle-right-solid` | 18px, color `var(--color-muted)`, animated rotate 0°/90° |
   | Friends — accept request | `hn-check` | 16px, color `#22c55e` |
   | Friends — decline request | `hn-x` | 12px, color `#ef4444` |
   | Friends — remove friend | `hn-user-minus` | 16px |
-  | DMHeader — back chevron | `hn-angle-left` | 24px, color `var(--color-tertiary)` |
+  | DMHeader — back chevron | `hn-angle-left-solid` | 24px, color `var(--color-tertiary)` |
+  | Profile — back chevron | `hn-angle-left-solid` | 24px, color `var(--color-tertiary)` |
   | Home — crew card leave (swipe-reveal) | `hn-logout` | 16px, color `white` |
 - **Do not use lucide-react** for chat or home UI icons — use this library instead. lucide-react is only used for `X` (close) in modals/sheets.
 
