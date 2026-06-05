@@ -180,6 +180,14 @@ Data fetching in `home/page.tsx`:
 
 Header spacing: `pb-2` bottom padding, `paddingTop: max(env(safe-area-inset-top), 8px)`, icon gap `gap-4`.
 
+### Home Page — SwipeableCrewCard leave button
+Swipe left on a crew card to reveal the leave action (`LEAVE_REVEAL = 88px`). Leave button design (matches Figma node 50:516):
+- Background: `#ef4444`
+- Layout: `flex-row items-center justify-center gap-2` (icon beside text — **not** stacked)
+- Padding: `px-3 py-2` (12px horizontal, 8px vertical), `h-full overflow-hidden`
+- Icon: `hn-logout` (16px, white) from the pixel icon library
+- Label: `"LEAVE"` in `font-silkscreen text-[8px] text-white whitespace-nowrap`
+
 ### ChatHeader — props
 `ChatHeader` accepts only `{ crew, initialXP, initialRaid, currentUserId, crewId }`. It has **no** `members` or `memberLastSeen` props — member avatars live in ChatInput, not the header. Do not add a second presence channel here (see Online Presence note above).
 
@@ -462,6 +470,7 @@ Note: next/font variable for Silkscreen is `--font-silk` (not `--font-silkscreen
   | Friends — decline request | `hn-x` | 12px, color `#ef4444` |
   | Friends — remove friend | `hn-user-minus` | 16px |
   | DMHeader — back chevron | `hn-angle-left` | 18px, color `var(--color-primary)` |
+  | Home — crew card leave (swipe-reveal) | `hn-logout` | 16px, color `white` |
 - **Do not use lucide-react** for chat or home UI icons — use this library instead. lucide-react is only used for `X` (close) in modals/sheets.
 
 Framer Motion for all animations. Scanline overlay on game screens for RotMG feel.
