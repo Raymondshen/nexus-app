@@ -290,9 +290,9 @@ function CrewCardContent({ summary }: { summary: CrewSummary }) {
 
   return (
     <div className="w-full text-left flex items-center gap-4">
-      {/* Crew avatar — 52×52px matching Figma */}
+      {/* Crew avatar — 40×40px per Figma node 50:465 */}
       <div
-        className="flex-shrink-0 w-[52px] h-[52px] flex items-center justify-center font-pixel text-[11px]"
+        className="flex-shrink-0 w-10 h-10 flex items-center justify-center font-pixel text-[10px]"
         style={{
           background:  avatarColor + '22',
           border:      `1px solid ${avatarColor}60`,
@@ -362,36 +362,45 @@ function FriendCard({ friend, onTap }: { friend: FriendSummary; onTap: () => voi
       onClick={onTap}
       whileTap={{ scale: 0.98 }}
     >
+      {/* Avatar — 40×40px per Figma node 50:483 */}
       <div
-        className="flex-shrink-0 w-[52px] h-[52px] flex items-center justify-center font-pixel text-[11px] overflow-hidden"
+        className="flex-shrink-0 w-10 h-10 flex items-center justify-center font-pixel text-[10px] overflow-hidden"
         style={{ background: avatarColor + '22', border: `1px solid ${avatarColor}60`, color: avatarColor }}
       >
         {friend.avatarUrl ? (
-          <Image src={friend.avatarUrl} alt={friend.username} width={52} height={52} className="object-cover w-full h-full" />
+          <Image src={friend.avatarUrl} alt={friend.username} width={40} height={40} className="object-cover w-full h-full" />
         ) : (
           friend.username[0]?.toUpperCase()
         )}
       </div>
 
-      <div className="flex-1 min-w-0 flex flex-col gap-2 justify-center leading-none">
-        <span className="font-silkscreen text-[8px] text-tertiary whitespace-nowrap leading-none">
-          1:1 Chat
-          {friend.lastDMMessage && ` · ${relativeTime(friend.lastDMMessage.created_at)}`}
-        </span>
-        <div className="flex flex-col gap-1">
+      {/* Content — matches Figma node 50:484/485: name+timestamp row then preview */}
+      <div className="flex-1 min-w-0 flex flex-col gap-1 justify-center leading-none">
+        {/* Name + timestamp on same row */}
+        <div className="flex items-center gap-2 w-full">
           <span
-            className="font-body font-bold text-[16px] leading-none text-white truncate"
+            className="font-body font-bold text-[16px] leading-none text-white truncate flex-1 min-w-0"
             style={{ fontVariationSettings: '"opsz" 14' }}
           >
             {friend.username}
           </span>
-          <p
-            className="font-body font-normal text-[14px] leading-none truncate w-full text-muted"
-            style={{ fontVariationSettings: '"opsz" 14' }}
-          >
-            {truncate(preview, 44)}
-          </p>
+          {friend.lastDMMessage && (
+            <span
+              className="font-body font-light text-[12px] leading-none text-muted flex-shrink-0 whitespace-nowrap"
+              style={{ fontVariationSettings: '"opsz" 14' }}
+            >
+              {relativeTime(friend.lastDMMessage.created_at)}
+            </span>
+          )}
         </div>
+
+        {/* Message preview */}
+        <p
+          className="font-body font-normal text-[14px] leading-none truncate w-full text-muted"
+          style={{ fontVariationSettings: '"opsz" 14' }}
+        >
+          {truncate(preview, 44)}
+        </p>
       </div>
     </motion.div>
   )
@@ -468,7 +477,7 @@ function SwipeableCrewCard({
         </motion.div>
 
         <button
-          className="flex-shrink-0 flex flex-row items-center justify-center gap-2 bg-[#ef4444] px-3 py-2 h-full overflow-hidden"
+          className="flex-shrink-0 self-stretch flex flex-row items-center justify-center gap-2 bg-[#ef4444] px-3 overflow-hidden"
           style={{ width: LEAVE_REVEAL }}
           onClick={(e) => { e.stopPropagation(); snapTo(0, false); onLeaveRequest() }}
           tabIndex={open ? 0 : -1}
@@ -660,7 +669,7 @@ export function HomeClient({
               aria-label="Friends"
               className="text-primary hover:text-purple transition-colors"
             >
-              <i className="hn hn-book" style={{ fontSize: 24 }} aria-hidden="true" />
+              <i className="hn hn-bookmark" style={{ fontSize: 24 }} aria-hidden="true" />
             </button>
             <button
               onClick={() => setShowCreate(true)}

@@ -464,7 +464,7 @@ Note: next/font variable for Silkscreen is `--font-silk` (not `--font-silkscreen
   | ChatHeader — invite | `hn-user-plus` | 24px |
   | ChatHeader — vault | `hn-bank` | 24px |
   | ChatInput — send | `hn-arrow-circle-up` | 16px |
-  | Home header — friends | `hn-book` | 24px |
+  | Home header — friends | `hn-bookmark` | 24px |
   | Home header — create crew | `hn-plus` | 24px |
   | Home profile banner — edit | `hn-pencil` | 16px |
   | Friends — back chevron | `hn-angle-left` | 24px, color `var(--color-tertiary)` |
