@@ -82,6 +82,7 @@ Berserker (spam), Sage (long messages), Ghost (silence crit), Hype Man (reaction
 - **Existing users without birthday**: home page detects missing `birthday` and redirects to `/onboarding/birthday`
 - Birthday page (`/onboarding/birthday`): three-dropdown UI (month/day/year); validates real dates (rejects Feb 30, future dates); saves as `YYYY-MM-DD`; redirects to class selection (with `crew` param) or `/home`
 - `crewId` and `welcome` query params are forwarded through the birthday step so the user lands in the right crew after onboarding
+- **Per-crew class selection**: `chat/[crewId]/page.tsx` guards on `crew_members.class` (per-crew, can be null for new crews). `onboarding/class/page.tsx` skips selection using the same `crew_members.class` check — **NOT** `profiles.avatar_class` (global). Using the global field caused an infinite redirect loop for users who had a global class but joined a new crew. `profiles.avatar_class` is kept in sync by `selectClassAction` as a best-effort display value only.
 
 ## Dev Mode
 - Controlled by `profiles.is_dev` boolean (default false) — **not hardcoded emails**
@@ -121,6 +122,7 @@ Berserker (spam), Sage (long messages), Ghost (silence crit), Hype Man (reaction
 - sessionStorage key `nexus-msgs-{crewId}`: load cached → `setMessages` + `setHistoryLoaded` in same tick → React 18 batches both so skeleton never flashes on cache hit
 - Background Supabase fetch merges with any Realtime messages already in store; result saved back (capped 50)
 - `setMessages([])` before cache/fetch prevents stale messages from a previous crew bleeding in
+- Cache is written **even if the component unmounts** before the fetch completes (navigating away early) — the fetched rows are stored so the next visit gets a cache hit. Without this, rapidly tapping a crew and going back would permanently prevent the cache from being seeded.
 
 ### MessageList — message grouping
 Consecutive messages from the same user within 60 seconds are visually grouped (no repeated avatar/header). `showHeader = false` for continuation messages.
@@ -341,11 +343,13 @@ Note: next/font variable for Silkscreen is `--font-silk` (not `--font-silkscreen
 - **Icons in use**:
   | Location | Icon class | Size |
   |---|---|---|
-  | ChatHeader — back chevron | `hn-angle-right` | 14px, color `#a855f7` |
-  | ChatHeader — invite | `hn-user-plus` | 18px |
-  | ChatHeader — vault | `hn-bank` | 18px |
+  | ChatHeader — back chevron | `hn-angle-right` | 18px, color `var(--color-primary)` |
+  | ChatHeader — invite | `hn-user-plus` | 20px |
+  | ChatHeader — vault | `hn-bank` | 20px |
   | ChatInput — send | `hn-arrow-circle-up` | 16px |
+  | Home header — journal | `hn-book` | 24px |
+  | Home header — create crew | `hn-plus` | 24px |
   | Home profile banner — edit | `hn-pencil` | 16px |
-- **Do not use lucide-react** for chat or home UI icons — use this library instead. lucide-react is still used in modals/sheets (X, Plus, Bell).
+- **Do not use lucide-react** for chat or home UI icons — use this library instead. lucide-react is only used for `X` (close) in modals/sheets.
 
 Framer Motion for all animations. Scanline overlay on game screens for RotMG feel.
