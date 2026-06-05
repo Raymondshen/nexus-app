@@ -468,14 +468,14 @@ function SwipeableCrewCard({
         </motion.div>
 
         <button
-          className="flex-shrink-0 flex flex-col items-center justify-center gap-1 bg-[#ff4444]"
+          className="flex-shrink-0 flex flex-row items-center justify-center gap-2 bg-[#ef4444] px-3 py-2 h-full overflow-hidden"
           style={{ width: LEAVE_REVEAL }}
           onClick={(e) => { e.stopPropagation(); snapTo(0, false); onLeaveRequest() }}
           tabIndex={open ? 0 : -1}
           aria-label={`Leave ${summary.crew.name}`}
         >
-          <span style={{ fontSize: 16 }}>🚪</span>
-          <span className="font-pixel text-[7px] text-white">LEAVE</span>
+          <i className="hn hn-logout flex-shrink-0" style={{ fontSize: 16, color: 'white' }} aria-hidden="true" />
+          <span className="font-silkscreen text-[8px] text-white whitespace-nowrap">LEAVE</span>
         </button>
       </motion.div>
     </div>
