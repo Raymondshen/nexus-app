@@ -105,7 +105,17 @@ export function MessageList({
 }: MessageListProps) {
   const { messages, setMessages, addMessage, updateMessage, setCrewXP, receiveXP } = useChatStore()
   const [dismissedLevelUps, setDismissedLevelUps] = useState<Set<string>>(new Set())
-  const [historyLoaded, setHistoryLoaded] = useState(false)
+  // Lazy initializer: read sessionStorage synchronously at first render so the
+  // initial render is already in the "loaded" state for cache hits. This is
+  // fundamentally more reliable than useLayoutEffect because it eliminates the
+  // intermediate skeleton render entirely — no render cycle with historyLoaded=false.
+  const [historyLoaded, setHistoryLoaded] = useState(() => {
+    if (typeof window === 'undefined') return false
+    try {
+      const raw = sessionStorage.getItem(`nexus-msgs-${crewId}`)
+      return raw !== null && Array.isArray(JSON.parse(raw))
+    } catch { return false }
+  })
 
   const scrollRef    = useRef<HTMLDivElement>(null)
   const bottomRef    = useRef<HTMLDivElement>(null)
@@ -115,11 +125,11 @@ export function MessageList({
   // Track whether user is near the bottom (within 120px)
   const isNearBottomRef = useRef(true)
 
-  // Pre-paint: reset state and load the sessionStorage cache synchronously.
-  // Runs before the browser paints so a cache hit means the skeleton is NEVER
-  // painted — the browser goes straight from loading.tsx to messages.
+  // Pre-paint: clear any stale Zustand messages from a previous crew and populate
+  // from cache. historyLoaded is already correctly initialized by the lazy useState
+  // above, so we only need to set it here for the edge case where the cache entry
+  // disappears between the lazy init read and this effect.
   useBrowserLayoutEffect(() => {
-    setHistoryLoaded(false)
     setMessages([])
     const cacheKey = `nexus-msgs-${crewId}`
     try {
@@ -128,12 +138,11 @@ export function MessageList({
         const parsed = JSON.parse(raw) as MessageWithProfile[]
         if (Array.isArray(parsed)) {
           setMessages(parsed)
-          setHistoryLoaded(true)
+          return
         }
       }
-    } catch {
-      // sessionStorage unavailable or JSON malformed — fall through to network fetch
-    }
+    } catch { }
+    setHistoryLoaded(false)
   }, [crewId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Post-paint: background network fetch to hydrate / refresh from DB.
@@ -256,13 +265,13 @@ export function MessageList({
   // Show skeleton while the initial history fetch is in flight
   if (!historyLoaded) {
     return (
-      <div className="flex-1 min-h-0 overflow-hidden px-4 pt-4 flex flex-col gap-3">
-        {[52, 35, 60, 45, 30, 55, 40].map((w, i) => (
+      <div className="flex-1 min-h-0 overflow-hidden px-4 py-3 flex flex-col gap-3">
+        {[80, 55, 100, 65, 90, 45, 75].map((w, i) => (
           <div key={i} className={`flex items-end gap-2 ${i % 3 === 0 ? 'flex-row-reverse' : ''}`}>
             <div className="w-7 h-7 bg-[#1a1a2e] animate-pulse flex-shrink-0" />
             <div
               className="h-9 bg-[#1a1a2e] animate-pulse"
-              style={{ width: `${w}%`, maxWidth: 260, animationDelay: `${i * 60}ms` }}
+              style={{ width: `${w}%`, maxWidth: 260, animationDelay: `${i * 80}ms` }}
             />
           </div>
         ))}
