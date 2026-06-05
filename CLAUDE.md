@@ -191,7 +191,7 @@ Swipe left on a crew card to reveal the leave action (`LEAVE_REVEAL = 104px`). L
 ### ChatHeader — props and spacing
 `ChatHeader` accepts only `{ crew, initialXP, initialRaid, currentUserId, crewId }`. It has **no** `members` or `memberLastSeen` props — member avatars live in ChatInput, not the header. Do not add a second presence channel here (see Online Presence note above).
 
-Header spacing: `px-4 pb-2` (16px horizontal, 8px bottom), `paddingTop: max(env(safe-area-inset-top), 8px)`, heading row `h-10`. Right icons all `fontSize: 24`; chevron-right also `fontSize: 24`.
+Header spacing: `px-4 pb-2` (16px horizontal, 8px bottom), `paddingTop: max(env(safe-area-inset-top), 8px)`, heading row `h-10`. Left side: `gap-2` (8px) between back button and crew name group. Crew name has `underline` decoration. Dropdown chevron is `hn-angle-right rotate(90deg)`. All icons `fontSize: 24`. Back arrows across all screens use `var(--color-tertiary)`.
 
 ### Vault Page — navigation
 `VaultClient` has **no** `BottomNav`. Users return to the chat room via swipe-back / browser back — no nav bar needed.
@@ -458,20 +458,22 @@ Note: next/font variable for Silkscreen is `--font-silk` (not `--font-silkscreen
 - **Icons in use**:
   | Location | Icon class | Size |
   |---|---|---|
-  | ChatHeader — back chevron | `hn-angle-right` | 24px, color `var(--color-primary)` |
+  | ChatHeader — back button | `hn-angle-left` | 24px, color `var(--color-tertiary)` — separate button left of crew name |
+  | ChatHeader — crew dropdown | `hn-angle-right` rotated 90° | 24px, color `var(--color-primary)` — inline after underlined crew name; tap opens GroupProfileSheet |
+  | ChatHeader — notifications | `hn-bell` / `hn-bell-mute` | 24px |
   | ChatHeader — invite | `hn-user-plus` | 24px |
   | ChatHeader — vault | `hn-bank` | 24px |
   | ChatInput — send | `hn-arrow-circle-up` | 16px |
   | Home header — friends | `hn-book` | 24px |
   | Home header — create crew | `hn-plus` | 24px |
   | Home profile banner — edit | `hn-pencil` | 16px |
-  | Friends — back chevron | `hn-angle-left` | 18px, color `var(--color-primary)` |
+  | Friends — back chevron | `hn-angle-left` | 24px, color `var(--color-tertiary)` |
   | Friends — search | `hn-search` | 16px, color `var(--color-muted)` |
   | Friends — requests chevron | `hn-angle-right` | 18px, color `var(--color-muted)`, animated rotate 0°/90° |
   | Friends — accept request | `hn-check` | 16px, color `#22c55e` |
   | Friends — decline request | `hn-x` | 12px, color `#ef4444` |
   | Friends — remove friend | `hn-user-minus` | 16px |
-  | DMHeader — back chevron | `hn-angle-left` | 18px, color `var(--color-primary)` |
+  | DMHeader — back chevron | `hn-angle-left` | 24px, color `var(--color-tertiary)` |
   | Home — crew card leave (swipe-reveal) | `hn-logout` | 16px, color `white` |
 - **Do not use lucide-react** for chat or home UI icons — use this library instead. lucide-react is only used for `X` (close) in modals/sheets.
 

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -418,6 +419,7 @@ export function ChatHeader({
   currentUserId,
   crewId,
 }: ChatHeaderProps) {
+  const router = useRouter()
   const { setCrewXP, setActiveRaid, activeRaid } = useChatStore()
   const [showProfile, setShowProfile] = useState(false)
   const [showShare,   setShowShare]   = useState(false)
@@ -502,17 +504,32 @@ export function ChatHeader({
       >
         <div className="flex items-center justify-between h-10">
 
-          {/* Left: crew name + chevron — tap opens group profile */}
-          <button
-            onClick={() => setShowProfile(true)}
-            aria-label="View squad profile"
-            className="flex items-center gap-1 min-w-0 flex-1 text-left active:opacity-70 transition-opacity"
-          >
-            <h1 className="font-pixel text-[18px] text-primary truncate leading-none">
-              {crew.name.toUpperCase()}
-            </h1>
-            <i className="hn hn-angle-right flex-shrink-0" style={{ fontSize: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
-          </button>
+          {/* Left: back button + [underlined crew name + dropdown chevron] */}
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <button
+              onClick={() => router.back()}
+              aria-label="Back"
+              className="flex-shrink-0 flex items-center justify-center"
+              style={{ width: 24, height: 40 }}
+            >
+              <i className="hn hn-angle-left" style={{ fontSize: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
+            </button>
+
+            <button
+              onClick={() => setShowProfile(true)}
+              aria-label="View squad profile"
+              className="flex items-center gap-0 min-w-0 text-left active:opacity-70 transition-opacity"
+            >
+              <h1 className="font-pixel text-[18px] text-primary truncate leading-none underline">
+                {crew.name.toUpperCase()}
+              </h1>
+              <i
+                className="hn hn-angle-right flex-shrink-0"
+                style={{ fontSize: 24, color: 'var(--color-primary)', display: 'inline-block', transform: 'rotate(90deg)' }}
+                aria-hidden="true"
+              />
+            </button>
+          </div>
 
           {/* Right: bell + user-plus + vault, gap-4 (16px) */}
           <div className="flex items-center gap-4 flex-shrink-0">
