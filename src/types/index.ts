@@ -110,6 +110,15 @@ export interface CrewNotificationMute extends Record<string, unknown> {
   crew_id: string
 }
 
+export interface CrewNotificationPreferences extends Record<string, unknown> {
+  user_id:        string
+  crew_id:        string
+  notif_messages: boolean
+  notif_raids:    boolean
+  notif_victory:  boolean
+  updated_at:     string
+}
+
 export interface Artifact extends Record<string, unknown> {
   id: string
   crew_id: string
@@ -224,6 +233,12 @@ export type Database = {
         Row: CrewNotificationMute
         Insert: CrewNotificationMute
         Update: Partial<CrewNotificationMute>
+        Relationships: []
+      }
+      crew_notification_preferences: {
+        Row: CrewNotificationPreferences
+        Insert: Omit<CrewNotificationPreferences, 'updated_at'> & { updated_at?: string }
+        Update: Partial<Omit<CrewNotificationPreferences, 'user_id' | 'crew_id'>>
         Relationships: []
       }
       friendships: {

@@ -137,16 +137,21 @@ Deno.serve(async (req: Request) => {
       )
     }
 
-    // Per-crew mute check — only for message_received; other types (raids, victory) are not crew-mutable
+    // Per-crew preference check — applies to all notification types when crew_id is in the payload.
+    // Missing row = opted in (all true by default); explicit false = opted out.
     let finalIds = enabledIds
-    if (type === 'message_received' && payload?.crew_id) {
-      const { data: mutedRows } = await supabase
-        .from('crew_notification_mutes')
-        .select('user_id')
+    if (payload?.crew_id) {
+      const crewPrefCol = prefCol  // same column mapping as global prefs
+      const { data: crewPrefRows } = await supabase
+        .from('crew_notification_preferences')
+        .select(`user_id, ${crewPrefCol}`)
         .in('user_id', enabledIds)
         .eq('crew_id', payload.crew_id as string)
-      const crewMutedSet = new Set((mutedRows ?? []).map((r: Record<string, string>) => r.user_id))
-      finalIds = enabledIds.filter((uid) => !crewMutedSet.has(uid))
+      const crewDisabledSet = new Set(
+        // deno-lint-ignore no-explicit-any
+        (crewPrefRows ?? []).filter((r: any) => r[crewPrefCol] === false).map((r: any) => r.user_id as string)
+      )
+      finalIds = enabledIds.filter((uid) => !crewDisabledSet.has(uid))
     }
 
     if (finalIds.length === 0) {
