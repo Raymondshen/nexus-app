@@ -33,6 +33,9 @@ export interface Crew extends Record<string, unknown> {
   level: number
   total_xp: number
   created_at: string
+  is_dm?: boolean
+  dm_partner_1?: string | null
+  dm_partner_2?: string | null
 }
 
 export interface CrewMember extends Record<string, unknown> {
@@ -269,6 +272,10 @@ export type Database = {
       leave_crew: {
         Args: { p_crew_id: string }
         Returns: Record<string, unknown>
+      }
+      get_or_create_dm: {
+        Args: { other_user_id: string }
+        Returns: string
       }
     }
     Enums: Record<string, never>

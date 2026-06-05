@@ -2,7 +2,29 @@ import { redirect } from 'next/navigation'
 import { unstable_cache } from 'next/cache'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { HomeClient } from './HomeClient'
+import type { FriendSummary } from './HomeClient'
 import type { Crew } from '@/types'
+
+function buildFriends(
+  friendshipRows: Array<{ id: string; requester_id: string; addressee_id: string }>,
+  profiles: Array<{ id: string; username: string; avatar_url: string | null }>,
+  userId: string,
+  dmCrewMap:    Map<string, string> = new Map(),
+  dmLastMsgMap: Map<string, { content: string; created_at: string }> = new Map(),
+): FriendSummary[] {
+  const profileMap = new Map(profiles.map((p) => [p.id, p]))
+  return friendshipRows.map((f) => {
+    const friendId = f.requester_id === userId ? f.addressee_id : f.requester_id
+    const p = profileMap.get(friendId)
+    return {
+      id:            friendId,
+      username:      p?.username ?? 'Unknown',
+      avatarUrl:     p?.avatar_url ?? null,
+      dmChannelId:   dmCrewMap.get(friendId) ?? null,
+      lastDMMessage: dmLastMsgMap.get(friendId) ?? null,
+    }
+  })
+}
 
 export interface CrewSummary {
   crew:        Crew
@@ -58,15 +80,17 @@ export default async function HomePage() {
   if (!session) redirect('/login')
   const user = session.user
 
-  // Profile, crew membership, and total messages are independent — run in parallel
+  // Profile, crew membership, total messages, and friendships are independent — run in parallel
   const [
     { data: profile },
     { data: memberRows, error: memberError },
     { count: totalMessages },
+    { data: acceptedFriendships },
   ] = await Promise.all([
     supabase.from('profiles').select('username, avatar_url, birthday, created_at').eq('id', user.id).single(),
     supabase.from('crew_members').select('crew_id, last_seen, joined_at').eq('user_id', user.id).order('joined_at', { ascending: false }),
     supabase.from('messages').select('id', { count: 'exact', head: true }).eq('user_id', user.id).neq('message_type', 'system'),
+    supabase.from('friendships').select('id, requester_id, addressee_id').eq('status', 'accepted').or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`),
   ])
 
   if (memberError) console.error('[home] crew_members query error:', memberError)
@@ -80,7 +104,15 @@ export default async function HomePage() {
   const createdAt   = (profile as Record<string, unknown> | null)?.created_at as string | null
   const memberSince = createdAt ? new Date(createdAt).getFullYear().toString() : ''
 
+  const friendshipRows = (acceptedFriendships ?? []) as Array<{ id: string; requester_id: string; addressee_id: string }>
+  const friendUserIds  = friendshipRows.map((f) => f.requester_id === user.id ? f.addressee_id : f.requester_id)
+
   if (memberships.length === 0) {
+    const { data: friendProfiles } = friendUserIds.length > 0
+      ? await supabase.from('profiles').select('id, username, avatar_url').in('id', friendUserIds)
+      : { data: [] }
+    const friends = buildFriends(friendshipRows, (friendProfiles ?? []) as Array<{ id: string; username: string; avatar_url: string | null }>, user.id)
+    // No memberships means no DM channels yet — dmCrewMap defaults to empty Map
     return (
       <HomeClient
         initialCrews={[]}
@@ -90,6 +122,7 @@ export default async function HomePage() {
         memberSince={memberSince}
         profileCache={{}}
         totalMessages={totalMessages ?? 0}
+        friends={friends}
       />
     )
   }
@@ -99,8 +132,8 @@ export default async function HomePage() {
   // Crew XP/level is always fresh (changes with every message — never cache per CLAUDE.md).
   // Member profiles and last message previews are served from cache.
   // Unread counts are personalized (depend on last_seen) — always fresh, estimated to avoid full table scan.
-  const [crewsResult, cachedMembers, lastMessages, unreadResults] = await Promise.all([
-    supabase.from('crews').select('id, name, level, total_xp, invite_code').in('id', crewIds),
+  const [crewsResult, cachedMembers, lastMessages, unreadResults, friendProfilesResult] = await Promise.all([
+    supabase.from('crews').select('id, name, level, total_xp, invite_code, is_dm, dm_partner_1, dm_partner_2').in('id', crewIds),
     getCachedHomeMembers(crewIds),
     Promise.all(memberships.map((m) => getCachedCrewLastMessage(m.crew_id))),
     Promise.all(
@@ -114,10 +147,34 @@ export default async function HomePage() {
           .gt('created_at', m.last_seen ?? m.joined_at),
       )
     ),
+    friendUserIds.length > 0
+      ? supabase.from('profiles').select('id, username, avatar_url').in('id', friendUserIds)
+      : Promise.resolve({ data: [] }),
   ])
 
   const crewMap = new Map(
     (crewsResult.data ?? []).map((c) => [c.id, c as unknown as Crew]),
+  )
+
+  // Build DM channel maps: friendId → crewId, friendId → last message
+  const dmCrewMap    = new Map<string, string>()
+  const dmLastMsgMap = new Map<string, { content: string; created_at: string }>()
+  for (let i = 0; i < memberships.length; i++) {
+    const crew = crewMap.get(memberships[i].crew_id)
+    if (!crew?.is_dm) continue
+    const friendId = (crew.dm_partner_1 === user.id ? crew.dm_partner_2 : crew.dm_partner_1) as string | undefined
+    if (!friendId) continue
+    dmCrewMap.set(friendId, crew.id)
+    const lm = lastMessages[i]
+    if (lm) dmLastMsgMap.set(friendId, { content: lm.content, created_at: lm.created_at })
+  }
+
+  const friends = buildFriends(
+    friendshipRows,
+    (friendProfilesResult.data ?? []) as Array<{ id: string; username: string; avatar_url: string | null }>,
+    user.id,
+    dmCrewMap,
+    dmLastMsgMap,
   )
 
   // Build userId → username cache and memberCount per crew from cached member rows
@@ -131,7 +188,7 @@ export default async function HomePage() {
 
   const summaries: CrewSummary[] = memberships.flatMap((m, i) => {
     const crew = crewMap.get(m.crew_id)
-    if (!crew) return []
+    if (!crew || crew.is_dm) return []  // DM channels are shown in Friends section, not Squads
 
     const lastMsgData = lastMessages[i]
     const unreadData  = unreadResults[i]
@@ -169,6 +226,7 @@ export default async function HomePage() {
       memberSince={memberSince}
       profileCache={profileCache}
       totalMessages={totalMessages ?? 0}
+      friends={friends}
     />
   )
 }

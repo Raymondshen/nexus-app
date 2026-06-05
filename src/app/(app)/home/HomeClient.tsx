@@ -14,6 +14,14 @@ import { Input } from '@/components/ui/Input'
 import type { CrewSummary } from './page'
 import type { Message, MessageWithProfile } from '@/types'
 
+export interface FriendSummary {
+  id:            string
+  username:      string
+  avatarUrl:     string | null
+  dmChannelId:   string | null
+  lastDMMessage: { content: string; created_at: string } | null
+}
+
 interface HomeClientProps {
   initialCrews:  CrewSummary[]
   userId:        string
@@ -22,6 +30,7 @@ interface HomeClientProps {
   memberSince:   string
   profileCache:  Record<string, string>
   totalMessages: number
+  friends:       FriendSummary[]
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -340,6 +349,54 @@ function CrewCardContent({ summary }: { summary: CrewSummary }) {
   )
 }
 
+// ─── Friend card ─────────────────────────────────────────────────────────────
+
+function FriendCard({ friend, onTap }: { friend: FriendSummary; onTap: () => void }) {
+  const colorIndex  = friend.username.charCodeAt(0) % CREW_AVATAR_COLORS.length
+  const avatarColor = CREW_AVATAR_COLORS[colorIndex]
+  const preview     = friend.lastDMMessage?.content ?? 'Send a message'
+
+  return (
+    <motion.div
+      className="w-full flex items-center gap-4 cursor-pointer"
+      onClick={onTap}
+      whileTap={{ scale: 0.98 }}
+    >
+      <div
+        className="flex-shrink-0 w-[52px] h-[52px] flex items-center justify-center font-pixel text-[11px] overflow-hidden"
+        style={{ background: avatarColor + '22', border: `1px solid ${avatarColor}60`, color: avatarColor }}
+      >
+        {friend.avatarUrl ? (
+          <Image src={friend.avatarUrl} alt={friend.username} width={52} height={52} className="object-cover w-full h-full" />
+        ) : (
+          friend.username[0]?.toUpperCase()
+        )}
+      </div>
+
+      <div className="flex-1 min-w-0 flex flex-col gap-2 justify-center leading-none">
+        <span className="font-silkscreen text-[8px] text-tertiary whitespace-nowrap leading-none">
+          1:1 Chat
+          {friend.lastDMMessage && ` · ${relativeTime(friend.lastDMMessage.created_at)}`}
+        </span>
+        <div className="flex flex-col gap-1">
+          <span
+            className="font-body font-bold text-[16px] leading-none text-white truncate"
+            style={{ fontVariationSettings: '"opsz" 14' }}
+          >
+            {friend.username}
+          </span>
+          <p
+            className="font-body font-normal text-[14px] leading-none truncate w-full text-muted"
+            style={{ fontVariationSettings: '"opsz" 14' }}
+          >
+            {truncate(preview, 44)}
+          </p>
+        </div>
+      </div>
+    </motion.div>
+  )
+}
+
 // ─── Swipeable crew card ──────────────────────────────────────────────────────
 
 const LEAVE_REVEAL = 88
@@ -460,6 +517,7 @@ export function HomeClient({
   memberSince,
   profileCache,
   totalMessages,
+  friends,
 }: HomeClientProps) {
   const router = useRouter()
 
@@ -590,13 +648,13 @@ export function HomeClient({
 
       {/* ── Header ── */}
       <div
-        className="border-b border-border px-4 pb-4 flex-shrink-0"
-        style={{ paddingTop: 'max(env(safe-area-inset-top), 0px)' }}
+        className="border-b border-border px-4 pb-2 flex-shrink-0"
+        style={{ paddingTop: 'max(env(safe-area-inset-top), 8px)' }}
       >
         <div className="flex items-center justify-between h-10">
           <h1 className="font-pixel text-[18px] text-primary">NEXUS</h1>
 
-          <div className="flex items-center gap-5">
+          <div className="flex items-center gap-4">
             <button
               onClick={() => router.push('/friends')}
               aria-label="Friends"
@@ -628,12 +686,13 @@ export function HomeClient({
           onEditProfile={() => router.push('/profile')}
         />
 
-        {/* Crew list / empty state */}
-        {crews.length === 0 ? (
-          <EmptyState onCreate={() => setShowCreate(true)} />
-        ) : (
-          <div className="flex flex-col gap-6">
-            {crews.map((summary) => (
+        {/* Squads section */}
+        <div className="flex flex-col gap-4 w-full">
+          <p className="font-body font-medium text-[14px] text-primary tracking-[0.2px] leading-normal">Squads</p>
+          {crews.length === 0 ? (
+            <EmptyState onCreate={() => setShowCreate(true)} />
+          ) : (
+            crews.map((summary) => (
               <SwipeableCrewCard
                 key={summary.crew.id}
                 summary={summary}
@@ -641,6 +700,20 @@ export function HomeClient({
                 onLeaveRequest={() => { setLeaveTarget(summary); setLeaveError(null) }}
                 openCardId={openCardId}
                 onOpen={setOpenCardId}
+              />
+            ))
+          )}
+        </div>
+
+        {/* Friends section */}
+        {friends.length > 0 && (
+          <div className="flex flex-col gap-4 w-full">
+            <p className="font-body font-medium text-[14px] text-primary tracking-[0.2px] leading-normal">Friends</p>
+            {friends.map((friend) => (
+              <FriendCard
+                key={friend.id}
+                friend={friend}
+                onTap={() => router.push(`/dm/${friend.id}`)}
               />
             ))}
           </div>
