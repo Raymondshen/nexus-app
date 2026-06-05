@@ -596,13 +596,21 @@ export function HomeClient({
         <div className="flex items-center justify-between h-10">
           <h1 className="font-pixel text-[18px] text-primary">NEXUS</h1>
 
-          <button
-            onClick={() => setShowCreate(true)}
-            aria-label="Create crew"
-            className="text-primary hover:text-purple transition-colors"
-          >
-            <i className="hn hn-plus" style={{ fontSize: 24 }} aria-hidden="true" />
-          </button>
+          <div className="flex items-center gap-5">
+            <button
+              aria-label="Journal"
+              className="text-primary hover:text-purple transition-colors"
+            >
+              <i className="hn hn-book" style={{ fontSize: 24 }} aria-hidden="true" />
+            </button>
+            <button
+              onClick={() => setShowCreate(true)}
+              aria-label="Create crew"
+              className="text-primary hover:text-purple transition-colors"
+            >
+              <i className="hn hn-plus" style={{ fontSize: 24 }} aria-hidden="true" />
+            </button>
+          </div>
         </div>
       </div>
 
