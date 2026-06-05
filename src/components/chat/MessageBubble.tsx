@@ -24,13 +24,14 @@ const CLASS_NAMES: Record<AvatarClass, string> = {
 const REACTIONS = ['⚔️', '🔥', '💀', '✨']
 
 interface MessageBubbleProps {
-  message:     MessageWithProfile
-  isOwn:       boolean
-  showHeader:  boolean
-  xpOverride?: number  // accumulated group XP for the group-leader bubble
+  message:        MessageWithProfile
+  isOwn:          boolean
+  showHeader:     boolean
+  xpOverride?:    number  // accumulated group XP for the group-leader bubble
+  onAvatarTap?:   (userId: string) => void
 }
 
-export function MessageBubble({ message, isOwn, showHeader, xpOverride }: MessageBubbleProps) {
+export function MessageBubble({ message, isOwn, showHeader, xpOverride, onAvatarTap }: MessageBubbleProps) {
   const [showReactions, setShowReactions] = useState(false)
   const [copied,        setCopied]        = useState(false)
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -100,7 +101,11 @@ export function MessageBubble({ message, isOwn, showHeader, xpOverride }: Messag
     >
       {/* Avatar — only rendered for the first message in a group */}
       {showHeader && (
-        <div className="relative flex-shrink-0">
+        <div
+          className="relative flex-shrink-0"
+          onClick={onAvatarTap ? () => onAvatarTap(message.user_id) : undefined}
+          style={onAvatarTap ? { cursor: 'pointer' } : undefined}
+        >
           <div className="w-8 h-8 bg-surface flex items-center justify-center overflow-hidden">
             {avatarUrl ? (
               <div className="relative w-full h-full">
@@ -130,7 +135,8 @@ export function MessageBubble({ message, isOwn, showHeader, xpOverride }: Messag
                 className={`font-body font-medium text-[12px] tracking-[0.1px] shrink-0 leading-[normal] whitespace-nowrap ${
                   isOwn ? 'text-purple' : 'text-primary'
                 }`}
-                style={{ fontVariationSettings: '"opsz" 14' }}
+                style={{ fontVariationSettings: '"opsz" 14', cursor: onAvatarTap ? 'pointer' : undefined }}
+                onClick={onAvatarTap ? () => onAvatarTap(message.user_id) : undefined}
               >
                 {message.profile.username}
               </span>

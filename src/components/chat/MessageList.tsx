@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useLayoutEffect, useRef, useCallback, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useCallback, useState, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 
 // Fires synchronously before the browser paints on the client; falls back to
 // useEffect on the server (SSR) where useLayoutEffect is not available.
@@ -103,6 +104,12 @@ export function MessageList({
   memberProfiles,
   initialRaid,
 }: MessageListProps) {
+  const router = useRouter()
+  const onAvatarTap = useMemo(
+    () => (userId: string) => router.push(`/chat/${crewId}/member/${userId}`),
+    [crewId, router],
+  )
+
   const { messages, setMessages, addMessage, updateMessage, setCrewXP, receiveXP } = useChatStore()
   const [dismissedLevelUps, setDismissedLevelUps] = useState<Set<string>>(new Set())
   // Lazy initializer: read sessionStorage synchronously at first render so the
@@ -465,6 +472,7 @@ export function MessageList({
             isOwn={item.isOwn}
             showHeader={item.showHeader}
             xpOverride={item.xpOverride}
+            onAvatarTap={onAvatarTap}
           />
         )
       })}

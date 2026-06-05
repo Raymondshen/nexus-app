@@ -50,6 +50,7 @@ All are `SECURITY DEFINER`. All declared in `Database.Functions` in `src/types/i
 - `get_or_create_dm(other_user_id)` → uuid — returns the DM crew id for this pair, creating it if needed; verifies an accepted friendship exists before creating
 - `get_unread_counts(p_crew_ids, p_cutoffs)` → `TABLE(crew_id, unread_count)` — batch unread counts for multiple crews in one query; uses `auth.uid()` internally; replaces N parallel count queries on the home page
 - `get_crew_member_msg_counts(p_crew_id)` → `TABLE(user_id, msg_count)` — per-member message counts for a crew in one query; replaces N parallel count queries in `GroupProfileSheet`
+- `get_member_crew_stats(p_crew_id, p_user_id)` → `TABLE(msg_count, total_xp)` — message count + XP total for one member in one crew; used by the member profile page
 
 ## Game Rules
 
@@ -226,6 +227,16 @@ All "detail" pages (chat, DM, profile, friends, vault) slide in from the right o
 - **No BottomNav** — users go back via `useSlideBack()` (SlidePage context)
 - Header: `pb-2`, `paddingTop: max(env(safe-area-inset-top), 8px)`, back icon (`hn-angle-left-solid` 24px, color `var(--color-tertiary)`) + title `gap-2`
 
+### Member Profile Page — `/chat/[crewId]/member/[userId]`
+- Route: `src/app/(app)/chat/[crewId]/member/[userId]/page.tsx` + `MemberProfileClient.tsx`
+- Opened by tapping any avatar or username in `MessageBubble` — `onAvatarTap` callback passed from `MessageList` navigates to this route (works for own messages too)
+- **Security**: viewer must be a member of the crew; target must also be a crew member — both checked before any data is returned; non-members redirect to `/chat/{crewId}` or `/home`
+- **Data** (single parallel fetch): profile (username, avatar_url, birthday), target's crew-specific class, `get_member_crew_stats` RPC (msg count + total XP in one call), friendship status between viewer and target
+- **Displays**: animated PixelSprite (scale=4), 64×64 avatar, username, class label, message count, XP earned in crew, birthday (month + day, e.g. "JAN 15"), friend action button
+- **Friend states**: ADD COMPANION (none) → REQUEST SENT (pending_sent) → ACCEPT (pending_received) → COMPANIONS ✓ (accepted); guests see disabled button + sign-in hint
+- `isSelf` guard: shows "YOU" badge and hides friend button when viewing own profile
+- SlidePage wrapper for slide-in/out; `useSlideBack()` for back button
+
 ### DM Page — `/dm/[friendId]`
 - Route: `src/app/(app)/dm/[friendId]/page.tsx`
 - Server component: verifies accepted friendship, calls `get_or_create_dm(friendId)` RPC to get/create the DM crew, then renders the full chat UI
@@ -321,6 +332,7 @@ Always use `createServiceClient()` inside cache functions (service role, no cook
 - `20240103000003_birthday.sql` — adds `birthday date` column to profiles
 - `20240103000004_crew_notification_mutes.sql` — crew_notification_mutes + crew_notification_preferences tables
 - `20240103000005_batch_query_rpcs.sql` — `get_unread_counts` + `get_crew_member_msg_counts` RPCs
+- `20240103000006_member_crew_stats_rpc.sql` — `get_member_crew_stats` RPC
 
 ### Manual SQL applied directly (no migration file)
 ```sql

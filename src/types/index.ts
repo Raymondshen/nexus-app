@@ -285,6 +285,10 @@ export type Database = {
         Args: { p_crew_id: string }
         Returns: Array<{ user_id: string; msg_count: number }>
       }
+      get_member_crew_stats: {
+        Args: { p_crew_id: string; p_user_id: string }
+        Returns: Array<{ msg_count: number; total_xp: number }>
+      }
     }
     Enums: Record<string, never>
   }
