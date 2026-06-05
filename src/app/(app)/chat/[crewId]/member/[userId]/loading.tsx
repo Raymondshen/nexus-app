@@ -1,4 +1,4 @@
-import { DelayedSkeleton } from '@/components/ui/DelayedSkeleton'
+import DelayedSkeleton from '@/components/ui/DelayedSkeleton'
 
 export default function MemberProfileLoading() {
   return (
