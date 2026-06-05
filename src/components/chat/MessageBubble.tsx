@@ -124,7 +124,7 @@ export function MessageBubble({ message, isOwn, showHeader, xpOverride }: Messag
           <div className="flex items-center justify-between w-full">
 
             {/* Left meta: username · sprite · class · xp */}
-            <div className="flex items-center gap-1 flex-1 min-w-0">
+            <div className="flex items-start gap-1 flex-1 min-w-0">
               {/* Username — DM Sans Medium 12px, leading: normal */}
               <span
                 className={`font-body font-medium text-[12px] tracking-[0.1px] shrink-0 leading-[normal] whitespace-nowrap ${
@@ -137,8 +137,8 @@ export function MessageBubble({ message, isOwn, showHeader, xpOverride }: Messag
 
               {(spriteId || className) && (
                 <>
-                  {/* 2×2 purple dot separator */}
-                  <span className="w-[2px] h-[2px] bg-purple shrink-0" />
+                  {/* 2×2 purple dot separator — mt-[5px] optically centers it with 12px username text */}
+                  <span className="w-[2px] h-[2px] bg-purple shrink-0 mt-[5px]" />
                   {/* Sprite + class name grouped with gap-0 — Figma node 48:105 */}
                   <div className="flex items-center gap-0 shrink-0">
                     {/* Sprite: 24×24px layout slot, 36×36px render — Figma node 48:106 / 48:103 */}
@@ -170,7 +170,7 @@ export function MessageBubble({ message, isOwn, showHeader, xpOverride }: Messag
 
               {displayXP > 0 && (
                 <>
-                  <span className="w-[2px] h-[2px] bg-purple shrink-0" />
+                  <span className="w-[2px] h-[2px] bg-purple shrink-0 mt-[5px]" />
                   {/* Outer leading-[0] collapses the block; inner spans use leading-[normal] */}
                   <p className="font-silkscreen tracking-[0.1px] whitespace-nowrap leading-[0] text-[0px] shrink-0">
                     <span className="text-[8px] leading-[normal]" style={{ color: '#f59e0b' }}>
