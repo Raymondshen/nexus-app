@@ -512,7 +512,7 @@ export function ChatHeader({
               className="flex-shrink-0 flex items-center justify-center"
               style={{ width: 24, height: 40 }}
             >
-              <i className="hn hn-angle-left" style={{ fontSize: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
+              <i className="hn hn-angle-left-solid" style={{ fontSize: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
             </button>
 
             <button
@@ -524,7 +524,7 @@ export function ChatHeader({
                 {crew.name.toUpperCase()}
               </h1>
               <i
-                className="hn hn-angle-right flex-shrink-0"
+                className="hn hn-angle-right-solid flex-shrink-0"
                 style={{ fontSize: 24, color: 'var(--color-primary)', display: 'inline-block', transform: 'rotate(90deg)' }}
                 aria-hidden="true"
               />

@@ -252,7 +252,7 @@ export function ProfileClient({
             className="flex-shrink-0 flex items-center justify-center"
             style={{ width: 24, height: 40 }}
           >
-            <i className="hn hn-angle-left" style={{ fontSize: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
+            <i className="hn hn-angle-left-solid" style={{ fontSize: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
           </button>
           <h1 className="font-pixel text-[18px] text-primary leading-none">PROFILE</h1>
         </div>

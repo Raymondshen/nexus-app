@@ -197,7 +197,7 @@ export function FriendsClient({
               aria-label="Back"
               className="flex items-center justify-center flex-shrink-0 w-6 h-10"
             >
-              <i className="hn hn-angle-left" style={{ fontSize: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
+              <i className="hn hn-angle-left-solid" style={{ fontSize: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
             </button>
             <h1 className="font-pixel text-[18px] text-primary whitespace-nowrap">COMPANIONS</h1>
           </div>
@@ -315,7 +315,7 @@ export function FriendsClient({
                     aria-label={requestsOpen ? 'Collapse requests' : 'Expand requests'}
                   >
                     <motion.i
-                      className="hn hn-angle-right"
+                      className="hn hn-angle-right-solid"
                       style={{ fontSize: 18, color: 'var(--color-muted)', display: 'block' }}
                       animate={{ rotate: requestsOpen ? 90 : 0 }}
                       transition={{ duration: 0.18, ease: 'easeInOut' }}
