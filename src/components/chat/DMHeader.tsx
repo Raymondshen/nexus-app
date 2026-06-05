@@ -63,7 +63,7 @@ export function DMHeader({
           className="flex-shrink-0 flex items-center justify-center"
           style={{ width: 24, height: 40 }}
         >
-          <i className="hn hn-angle-right" style={{ fontSize: 18, color: 'var(--color-primary)' }} aria-hidden="true" />
+          <i className="hn hn-angle-left" style={{ fontSize: 18, color: 'var(--color-primary)' }} aria-hidden="true" />
         </button>
 
         <div className="flex-shrink-0 w-8 h-8 overflow-hidden relative bg-border">

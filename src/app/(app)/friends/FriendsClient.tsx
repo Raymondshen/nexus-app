@@ -197,7 +197,7 @@ export function FriendsClient({
               aria-label="Back"
               className="flex items-center justify-center flex-shrink-0 w-6 h-10"
             >
-              <i className="hn hn-angle-right" style={{ fontSize: 18, color: 'var(--color-primary)' }} aria-hidden="true" />
+              <i className="hn hn-angle-left" style={{ fontSize: 18, color: 'var(--color-primary)' }} aria-hidden="true" />
             </button>
             <h1 className="font-pixel text-[18px] text-primary whitespace-nowrap">COMPANIONS</h1>
           </div>
