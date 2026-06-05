@@ -17,15 +17,17 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-type NotificationType = 'boss_spawned' | 'boss_defeated' | 'raid_expiring' | 'crew_silent' | 'message_received'
+type NotificationType = 'boss_spawned' | 'boss_defeated' | 'raid_expiring' | 'crew_silent' | 'message_received' | 'friend_request'
 
-// Maps each notification type to its preference column in notification_preferences
-const PREF_COLUMN: Record<NotificationType, 'notif_messages' | 'notif_raids' | 'notif_victory'> = {
+// Maps each notification type to its preference column in notification_preferences.
+// null = always deliver (no preference gate).
+const PREF_COLUMN: Record<NotificationType, 'notif_messages' | 'notif_raids' | 'notif_victory' | null> = {
   message_received: 'notif_messages',
   boss_spawned:     'notif_raids',
   raid_expiring:    'notif_raids',
   crew_silent:      'notif_raids',
   boss_defeated:    'notif_victory',
+  friend_request:   null,
 }
 
 function buildPayload(type: NotificationType, data: Record<string, unknown>) {
@@ -70,6 +72,14 @@ function buildPayload(type: NotificationType, data: Record<string, unknown>) {
         icon:  '/icons/icon-192.png',
         badge: '/icons/icon-192.png',
         data:  { url: `/chat/${data.crew_id}` },
+      }
+    case 'friend_request':
+      return {
+        title: '⚔ COMPANION REQUEST',
+        body:  `${data.requester_name ?? 'Someone'} wants to be your companion.`,
+        icon:  '/icons/icon-192.png',
+        badge: '/icons/icon-192.png',
+        data:  { url: '/friends' },
       }
   }
 }
@@ -117,39 +127,42 @@ Deno.serve(async (req: Request) => {
 
     const prefCol = PREF_COLUMN[type as NotificationType]
 
-    // Batch: fetch preferences for all target users in one query
-    const { data: prefsRows } = await supabase
-      .from('notification_preferences')
-      .select(`user_id, ${prefCol}`)
-      .in('user_id', targetIds)
+    // null prefCol = always deliver (e.g. friend_request), skip preference gate entirely
+    let enabledIds = targetIds
+    if (prefCol !== null) {
+      // Batch: fetch preferences for all target users in one query
+      const { data: prefsRows } = await supabase
+        .from('notification_preferences')
+        .select(`user_id, ${prefCol}`)
+        .in('user_id', targetIds)
 
-    // Users with a row where the pref is explicitly false are opted out; missing row = opted in
-    const prefDisabledSet = new Set(
-      // deno-lint-ignore no-explicit-any
-      (prefsRows ?? []).filter((r: any) => r[prefCol] === false).map((r: any) => r.user_id as string)
-    )
-    const enabledIds = targetIds.filter(uid => !prefDisabledSet.has(uid))
-
-    if (enabledIds.length === 0) {
-      return new Response(
-        JSON.stringify({ status: 'all_preferences_disabled', results: [] }),
-        { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } },
+      // Users with a row where the pref is explicitly false are opted out; missing row = opted in
+      const prefDisabledSet = new Set(
+        // deno-lint-ignore no-explicit-any
+        (prefsRows ?? []).filter((r: any) => r[prefCol] === false).map((r: any) => r.user_id as string)
       )
+      enabledIds = targetIds.filter(uid => !prefDisabledSet.has(uid))
+
+      if (enabledIds.length === 0) {
+        return new Response(
+          JSON.stringify({ status: 'all_preferences_disabled', results: [] }),
+          { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } },
+        )
+      }
     }
 
-    // Per-crew preference check — applies to all notification types when crew_id is in the payload.
+    // Per-crew preference check — applies when crew_id is in the payload and type has a pref column.
     // Missing row = opted in (all true by default); explicit false = opted out.
     let finalIds = enabledIds
-    if (payload?.crew_id) {
-      const crewPrefCol = prefCol  // same column mapping as global prefs
+    if (prefCol !== null && payload?.crew_id) {
       const { data: crewPrefRows } = await supabase
         .from('crew_notification_preferences')
-        .select(`user_id, ${crewPrefCol}`)
+        .select(`user_id, ${prefCol}`)
         .in('user_id', enabledIds)
         .eq('crew_id', payload.crew_id as string)
       const crewDisabledSet = new Set(
         // deno-lint-ignore no-explicit-any
-        (crewPrefRows ?? []).filter((r: any) => r[crewPrefCol] === false).map((r: any) => r.user_id as string)
+        (crewPrefRows ?? []).filter((r: any) => r[prefCol] === false).map((r: any) => r.user_id as string)
       )
       finalIds = enabledIds.filter((uid) => !crewDisabledSet.has(uid))
     }
