@@ -167,8 +167,6 @@ export function MessageList({
           .order('created_at', { ascending: false })
           .limit(50)
 
-        if (cancelled) return
-
         const rows = ((data ?? []) as Message[]).reverse()
         const fetched: MessageWithProfile[] = rows
           .filter((m) => typeof m.content === 'string')
@@ -178,6 +176,12 @@ export function MessageList({
               id: m.user_id, username: '???', avatar_class: null, avatar_url: null,
             },
           }))
+
+        if (cancelled) {
+          // Component unmounted — still write the cache so the next visit is instant.
+          try { sessionStorage.setItem(cacheKey, JSON.stringify(fetched.slice(-50))) } catch {}
+          return
+        }
 
         // Merge with any messages already in the store (Realtime events or
         // optimistic sends that arrived while the fetch was in flight).
