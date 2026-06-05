@@ -87,7 +87,7 @@ function NotifRow({
 }) {
   return (
     <>
-      <div className="flex items-center gap-2 px-4 py-4">
+      <div className="flex items-center gap-2 px-4 py-3">
         <div className="flex-1 min-w-0 flex flex-col gap-0 leading-[0] tracking-[0.2px]">
           <p
             className="font-body font-medium text-[14px] text-secondary leading-normal"
@@ -242,10 +242,18 @@ export function ProfileClient({
     >
       {/* ── Header ── */}
       <div
-        className="px-4 pb-4 border-b border-border flex-shrink-0"
-        style={{ paddingTop: 'max(env(safe-area-inset-top), 16px)' }}
+        className="px-4 border-b border-border flex-shrink-0"
+        style={{ paddingTop: 'max(env(safe-area-inset-top), 8px)', paddingBottom: 8 }}
       >
-        <div className="flex items-center h-[40px]">
+        <div className="flex items-center h-[40px] gap-2">
+          <button
+            onClick={() => router.back()}
+            aria-label="Back"
+            className="flex-shrink-0 flex items-center justify-center"
+            style={{ width: 24, height: 40 }}
+          >
+            <i className="hn hn-angle-left" style={{ fontSize: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
+          </button>
           <h1 className="font-pixel text-[18px] text-primary leading-none">PROFILE</h1>
         </div>
       </div>
@@ -288,7 +296,7 @@ export function ProfileClient({
             <SectionLabel>Account</SectionLabel>
             <p
               className="font-body font-normal text-[12px] tracking-[0.2px] leading-normal"
-              style={{ color: 'var(--color-paper-200)', fontVariationSettings: '"opsz" 14' }}
+              style={{ color: '#9a9a9a', fontVariationSettings: '"opsz" 14' }}
             >
               {'Signed in with '}
               <span className="text-primary">{userEmail}</span>
@@ -342,9 +350,9 @@ export function ProfileClient({
                 <button
                   onClick={handleSaveUsername}
                   disabled={!isDirty || saving}
-                  className="bg-[rgba(168,85,247,0.12)] border border-[rgba(168,85,247,0.5)] h-12 px-4 flex items-center justify-center transition-colors disabled:opacity-40"
+                  className="bg-purple self-stretch px-4 flex items-center justify-center transition-opacity disabled:opacity-40"
                 >
-                  <span className="font-pixel text-[8px] text-muted leading-none whitespace-nowrap">
+                  <span className="font-pixel text-[8px] text-primary leading-none whitespace-nowrap">
                     {saving ? '...' : 'SAVE'}
                   </span>
                 </button>
@@ -365,7 +373,7 @@ export function ProfileClient({
         {/* Notifications */}
         <div className="flex flex-col gap-2">
           <SectionLabel>Notifications</SectionLabel>
-          <div className="bg-surface border border-[rgba(168,85,247,0.5)] overflow-hidden">
+          <div className="bg-surface border border-[rgba(168,85,247,0.5)] overflow-hidden py-4">
             {!notifSupported ? (
               <div className="px-4 py-4">
                 <p className="font-pixel text-[8px] text-muted leading-relaxed">NOT SUPPORTED ON THIS DEVICE</p>

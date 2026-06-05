@@ -669,7 +669,7 @@ export function HomeClient({
               aria-label="Friends"
               className="text-primary hover:text-purple transition-colors"
             >
-              <i className="hn hn-bookmark" style={{ fontSize: 24 }} aria-hidden="true" />
+              <i className="hn hn-book-bookmark" style={{ fontSize: 24 }} aria-hidden="true" />
             </button>
             <button
               onClick={() => setShowCreate(true)}
