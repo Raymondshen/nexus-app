@@ -112,9 +112,9 @@ All boss/game event features are disabled for regular users and only activate wh
 **Client-side** — all gated by reading `localStorage.getItem('nexus_dev_mode') === '1'`:
 - `MessageList`: hides boss cards, artifact drops, level-up banners, and all system messages
 - `ChatHeader` / `DMHeader`: hides boss HP bar + countdown
-- `ChatInput`: hides DamageFloat, XP stats row (level / XP counter / progress bar / "Next Boss" label), and RAID ACTIVE indicator. Member avatars and online dots remain visible for all users.
+- `ChatInput`: hides DamageFloat, "Next Boss" label, and RAID ACTIVE indicator. **XP stats row (level, XP counter, XP floats, progress bar) is visible to all users** — only the boss-specific parts are dev-only.
 
-Member avatars in ChatInput are not gated — online presence is a chat feature, not a game feature.
+Member avatars and online dots in ChatInput are not gated — those are chat features, not game features.
 
 ## Routing — Next.js 16 Proxy
 - `src/proxy.ts` — exports `proxy()` + `config.matcher`; **DO NOT add `src/middleware.ts`** (Next.js 16 errors if both exist)
