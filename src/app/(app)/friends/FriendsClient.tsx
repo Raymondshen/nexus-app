@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { motion, AnimatePresence } from 'framer-motion'
+import { SlidePage, useSlideBack } from '@/components/ui/SlidePage'
 import { createClient } from '@/lib/supabase/client'
 import { signInWithGoogle } from '@/lib/supabase/auth'
 import { sendFriendRequestAction, acceptFriendRequestAction, deleteFriendshipAction } from './actions'
@@ -57,6 +58,7 @@ export function FriendsClient({
   outgoingRequests: initialOutgoing,
 }: FriendsClientProps) {
   const router = useRouter()
+  const goBack = useSlideBack()
 
   const [friends,       setFriends]       = useState<FriendEntry[]>(initialFriends)
   const [incoming,      setIncoming]      = useState<FriendEntry[]>(initialIncoming)
@@ -183,7 +185,7 @@ export function FriendsClient({
   }, [])
 
   return (
-    <div className="min-h-screen bg-black flex flex-col">
+    <SlidePage className="min-h-screen bg-black flex flex-col">
 
       {/* ── Header ── */}
       <div
@@ -193,7 +195,7 @@ export function FriendsClient({
         <div className="flex items-center justify-between h-10">
           <div className="flex items-center gap-2">
             <button
-              onClick={() => router.back()}
+              onClick={goBack}
               aria-label="Back"
               className="flex items-center justify-center flex-shrink-0 w-6 h-10"
             >
@@ -458,6 +460,6 @@ export function FriendsClient({
           </>
         )}
       </div>
-    </div>
+    </SlidePage>
   )
 }

@@ -5,6 +5,7 @@ import { DMHeader } from '@/components/chat/DMHeader'
 import { MessageList } from '@/components/chat/MessageList'
 import { ChatInput } from '@/components/chat/ChatInput'
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
+import { SlidePage } from '@/components/ui/SlidePage'
 import type { Profile, ActiveRaid, AvatarClass } from '@/types'
 
 type MemberProfile = Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url'>
@@ -95,7 +96,7 @@ export default async function DMPage({ params }: DMPageProps) {
   )
 
   return (
-    <div
+    <SlidePage
       className="flex flex-col bg-black"
       style={{
         position:     'fixed',
@@ -140,6 +141,6 @@ export default async function DMPage({ params }: DMPageProps) {
           memberProfiles={memberProfiles}
         />
       </ErrorBoundary>
-    </div>
+    </SlidePage>
   )
 }

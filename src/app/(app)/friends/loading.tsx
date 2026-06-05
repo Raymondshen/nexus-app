@@ -1,5 +1,8 @@
+import DelayedSkeleton from '@/components/ui/DelayedSkeleton'
+
 export default function FriendsLoading() {
   return (
+    <DelayedSkeleton>
     <div className="min-h-screen bg-black flex flex-col">
       <div
         className="flex items-center gap-4 px-4 pb-4 border-b border-border"
@@ -33,5 +36,6 @@ export default function FriendsLoading() {
         ))}
       </div>
     </div>
+    </DelayedSkeleton>
   )
 }

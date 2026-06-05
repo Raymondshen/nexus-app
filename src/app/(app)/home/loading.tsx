@@ -1,5 +1,8 @@
+import DelayedSkeleton from '@/components/ui/DelayedSkeleton'
+
 export default function HomeLoading() {
   return (
+    <DelayedSkeleton>
     <div className="min-h-screen bg-black flex flex-col">
 
       {/* Header */}
@@ -66,5 +69,6 @@ export default function HomeLoading() {
         </div>
       </div>
     </div>
+    </DelayedSkeleton>
   )
 }

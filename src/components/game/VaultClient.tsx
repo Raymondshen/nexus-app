@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { SlidePage } from '@/components/ui/SlidePage'
 import { format, formatDistanceToNow } from 'date-fns'
 import { toPng } from 'html-to-image'
 import { ArtifactCard } from './ArtifactCard'
@@ -222,7 +223,7 @@ export function VaultClient({ crewId, crewName, crewCreatedAt, artifacts }: Vaul
   const TABS: FilterTab[] = ['ALL', 'RELICS', 'GEAR', 'LEGENDARY']
 
   return (
-    <div className="flex flex-col bg-[#0a0612]" style={{ height: '100dvh', maxWidth: 480, margin: '0 auto' }}>
+    <SlidePage className="flex flex-col bg-[#0a0612]" style={{ height: '100dvh', maxWidth: 480, margin: '0 auto' }}>
 
       {/* Header with safe area */}
       <div
@@ -318,6 +319,6 @@ export function VaultClient({ crewId, crewName, crewCreatedAt, artifacts }: Vaul
           <DetailModal artifact={selected} onClose={() => setSelected(null)} />
         )}
       </AnimatePresence>
-    </div>
+    </SlidePage>
   )
 }

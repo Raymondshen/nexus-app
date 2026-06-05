@@ -1,5 +1,8 @@
+import DelayedSkeleton from '@/components/ui/DelayedSkeleton'
+
 export default function VaultLoading() {
   return (
+    <DelayedSkeleton>
     <div
       className="flex flex-col bg-[#0a0612] min-h-screen"
       style={{ maxWidth: 480, margin: '0 auto' }}
@@ -47,5 +50,6 @@ export default function VaultLoading() {
         ))}
       </div>
     </div>
+    </DelayedSkeleton>
   )
 }

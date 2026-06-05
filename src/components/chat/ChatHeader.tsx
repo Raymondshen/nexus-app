@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import { useSlideBack } from '@/components/ui/SlidePage'
 import Link from 'next/link'
 import Image from 'next/image'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -420,6 +421,7 @@ export function ChatHeader({
   crewId,
 }: ChatHeaderProps) {
   const router = useRouter()
+  const goBack = useSlideBack()
   const { setCrewXP, setActiveRaid, activeRaid } = useChatStore()
   const [showProfile, setShowProfile] = useState(false)
   const [showShare,   setShowShare]   = useState(false)
@@ -507,7 +509,7 @@ export function ChatHeader({
           {/* Left: back button + [underlined crew name + dropdown chevron] */}
           <div className="flex items-center gap-2 flex-1 min-w-0">
             <button
-              onClick={() => router.back()}
+              onClick={goBack}
               aria-label="Back"
               className="flex-shrink-0 flex items-center justify-center"
               style={{ width: 24, height: 40 }}

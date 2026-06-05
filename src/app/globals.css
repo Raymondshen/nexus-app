@@ -66,6 +66,7 @@ html,
 body {
   height: 100%;
   overscroll-behavior: none;
+  overflow-x: hidden;
 }
 
 /* Scrollable containers */

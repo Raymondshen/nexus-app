@@ -6,6 +6,7 @@ import { MessageList } from "@/components/chat/MessageList";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { WelcomeDetector } from "@/components/ui/WelcomeDetector";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
+import { SlidePage } from "@/components/ui/SlidePage";
 import type { Profile, Crew, ActiveRaid, AvatarClass } from "@/types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -104,7 +105,7 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
   }
 
   return (
-    <div
+    <SlidePage
       className="flex flex-col bg-black"
       style={{
         position: 'fixed',
@@ -151,6 +152,6 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
         />
       </ErrorBoundary>
 
-    </div>
+    </SlidePage>
   );
 }

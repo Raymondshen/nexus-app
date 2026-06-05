@@ -1,5 +1,8 @@
+import DelayedSkeleton from '@/components/ui/DelayedSkeleton'
+
 export default function ChatLoading() {
   return (
+    <DelayedSkeleton>
     <div
       className="flex flex-col bg-black"
       style={{ position: 'fixed', top: 0, bottom: 0, left: 0, right: 0, maxWidth: 480, marginLeft: 'auto', marginRight: 'auto', overflow: 'hidden' }}
@@ -66,5 +69,6 @@ export default function ChatLoading() {
         </div>
       </div>
     </div>
+    </DelayedSkeleton>
   )
 }

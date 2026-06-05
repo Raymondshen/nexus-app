@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
+import { SlidePage, useSlideBack } from '@/components/ui/SlidePage'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { signOut } from '@/lib/supabase/auth'
@@ -120,6 +121,7 @@ export function ProfileClient({
   memberSinceYear, totalMessages, groupChats,
 }: ProfileClientProps) {
   const router = useRouter()
+  const goBack = useSlideBack()
 
   // ── Username ──────────────────────────────────────────────────────────────
   const [username,   setUsername]   = useState(initialUsername)
@@ -236,7 +238,7 @@ export function ProfileClient({
   ]
 
   return (
-    <div
+    <SlidePage
       className="bg-black flex flex-col"
       style={{ position: 'fixed', inset: 0, maxWidth: 480, marginLeft: 'auto', marginRight: 'auto', overflow: 'hidden' }}
     >
@@ -247,7 +249,7 @@ export function ProfileClient({
       >
         <div className="flex items-center h-[40px] gap-2">
           <button
-            onClick={() => router.back()}
+            onClick={goBack}
             aria-label="Back"
             className="flex-shrink-0 flex items-center justify-center"
             style={{ width: 24, height: 40 }}
@@ -427,7 +429,7 @@ export function ProfileClient({
 
         <div style={{ height: 'max(env(safe-area-inset-bottom), 16px)' }} />
       </div>
-    </div>
+    </SlidePage>
   )
 }
 

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useSlideBack } from '@/components/ui/SlidePage'
 import Image from 'next/image'
 import { useChatStore } from '@/store/chatStore'
 import { createClient } from '@/lib/supabase/client'
@@ -25,7 +25,7 @@ export function DMHeader({
   friendUsername,
   friendAvatarUrl,
 }: DMHeaderProps) {
-  const router = useRouter()
+  const goBack = useSlideBack()
   const { setCrewXP, setActiveRaid, activeRaid } = useChatStore()
 
   useEffect(() => {
@@ -58,7 +58,7 @@ export function DMHeader({
     >
       <div className="flex items-center h-10 gap-3">
         <button
-          onClick={() => router.back()}
+          onClick={goBack}
           aria-label="Back"
           className="flex-shrink-0 flex items-center justify-center"
           style={{ width: 24, height: 40 }}

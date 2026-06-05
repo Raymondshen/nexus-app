@@ -1,5 +1,8 @@
+import DelayedSkeleton from '@/components/ui/DelayedSkeleton'
+
 export default function OnboardingLoading() {
   return (
+    <DelayedSkeleton>
     <div className="min-h-screen bg-[#0a0612] flex flex-col items-center justify-center px-4">
       <div className="w-full max-w-[390px] flex flex-col items-center gap-8">
         {/* Logo placeholder */}
@@ -20,5 +23,6 @@ export default function OnboardingLoading() {
         </div>
       </div>
     </div>
+    </DelayedSkeleton>
   )
 }

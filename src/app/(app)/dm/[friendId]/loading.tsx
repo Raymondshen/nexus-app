@@ -1,5 +1,8 @@
+import DelayedSkeleton from '@/components/ui/DelayedSkeleton'
+
 export default function DMLoading() {
   return (
+    <DelayedSkeleton>
     <div
       className="flex flex-col bg-black"
       style={{ height: '100dvh', maxWidth: 480, margin: '0 auto', overflow: 'hidden' }}
@@ -60,5 +63,6 @@ export default function DMLoading() {
         </div>
       </div>
     </div>
+    </DelayedSkeleton>
   )
 }
