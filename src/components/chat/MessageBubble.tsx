@@ -139,8 +139,8 @@ export function MessageBubble({ message, isOwn, showHeader, xpOverride }: Messag
                 <>
                   {/* 2×2 purple dot separator — mt-[5px] optically centers it with 12px username text */}
                   <span className="w-[2px] h-[2px] bg-purple shrink-0 mt-[5px]" />
-                  {/* Sprite + class name grouped with gap-0 — Figma node 48:105 */}
-                  <div className="flex items-center gap-0 shrink-0">
+                  {/* Sprite + class name grouped with gap-0 — Figma node 48:105; mt-[-5px] centers the 24px sprite with 12px username */}
+                  <div className="flex items-center gap-0 shrink-0 mt-[-5px]">
                     {/* Sprite: 24×24px layout slot, 36×36px render — Figma node 48:106 / 48:103 */}
                     {spriteId && (
                       <div className="relative shrink-0 size-[24px]">
