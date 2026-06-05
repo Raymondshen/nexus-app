@@ -14,14 +14,18 @@ export default async function ClassSelectPage({
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) redirect('/login')
 
-  // If the user already picked a class, skip selection and go straight to the crew
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('avatar_class')
-    .eq('id', session.user.id)
-    .single()
+  // Skip selection if this crew already has a class — check crew_members.class (per-crew),
+  // not profiles.avatar_class (global). Using the global field caused an infinite redirect
+  // loop: chat page guards on crew_members.class, class page skipped on avatar_class,
+  // so users with a global class but a new crew would bounce back and forth forever.
+  const { data: memberRow } = await supabase
+    .from('crew_members')
+    .select('class')
+    .eq('crew_id', crewId)
+    .eq('user_id', session.user.id)
+    .maybeSingle()
 
-  if (profile?.avatar_class) {
+  if (memberRow?.class) {
     redirect(`/chat/${crewId}${welcome === '1' ? '?welcome=1' : ''}`)
   }
 
