@@ -194,8 +194,16 @@ Swipe left on a crew card to reveal the leave action (`LEAVE_REVEAL = 104px`). L
 
 Header spacing: `px-4 pb-2` (16px horizontal, 8px bottom), `paddingTop: max(env(safe-area-inset-top), 8px)`, heading row `h-10`. Left side: `gap-2` (8px) between back button and crew name group. Crew name button has `gap-1` (4px) between the underlined name and the dropdown chevron. Crew name has `underline` decoration. Dropdown chevron is `hn-angle-right-solid rotate(90deg)`. All icons `fontSize: 24`. Back arrows across all screens use `var(--color-tertiary)` and the solid variant (`hn-angle-left-solid`).
 
+### Page Transitions — SlidePage + useSlideBack
+All "detail" pages (chat, DM, profile, friends, vault) slide in from the right on mount and slide back out on close.
+
+- **`SlidePage`** (`src/components/ui/SlidePage.tsx`) — client component that wraps the page's outermost `motion.div`. Enter: spring `stiffness 380 / damping 36` (~280ms). Exit: ease-in tween `[0.32,0,0.67,0]` 280ms, then fires `router.back()` after 290ms. Guards against double-fire with `exiting` flag.
+- **`useSlideBack()`** — hook that returns the `goBack` callback from SlidePage context. Use this **instead of `router.back()`** in all back buttons on slide pages. Falls back to no-op if called outside a SlidePage (safe).
+- **Wired in**: `ChatHeader`, `DMHeader`, `ProfileClient`, `FriendsClient` all call `useSlideBack()`. `VaultClient` wraps in SlidePage for the entrance animation but has no explicit back button.
+- `html, body` has `overflow-x: hidden` in `globals.css` to prevent a horizontal scrollbar during the off-screen initial position.
+
 ### Vault Page — navigation
-`VaultClient` has **no** `BottomNav`. Users return to the chat room via swipe-back / browser back — no nav bar needed.
+`VaultClient` has **no** `BottomNav`. Users return via swipe-back / browser back — no nav bar needed.
 
 ### Friends Page — `/friends`
 - Opened via the book icon (`hn-book`) in the home header
@@ -210,7 +218,7 @@ Header spacing: `px-4 pb-2` (16px horizontal, 8px bottom), `paddingTop: max(env(
 - **Friends section**: always rendered. Friend row: 40px avatar, name (DM Sans SemiBold 16px primary), `"est. {year}"` subtitle (Silkscreen 12px tertiary, year from `friendship.created_at`). Tapping the row navigates to `/dm/[friendId]`. Remove button (`hn-user-minus` 16px) on right — uses `e.stopPropagation()` so tapping it does not open the DM.
 - User + section rows use: `gap-4` between items, `tracking-[0.2px]` on text columns
 - Guest guard: `isGuest` prop (`user.is_anonymous === true`); ADD button disabled + Google sign-in banner shown; `sendFriendRequestAction` also blocks anonymous users server-side
-- **No BottomNav** — users go back via `router.back()`
+- **No BottomNav** — users go back via `useSlideBack()` (SlidePage context)
 - Header: `pb-2`, `paddingTop: max(env(safe-area-inset-top), 8px)`, back icon (`hn-angle-left-solid` 24px, color `var(--color-tertiary)`) + title `gap-2`
 
 ### DM Page — `/dm/[friendId]`
@@ -311,26 +319,7 @@ Always use `createServiceClient()` inside cache functions (service role, no cook
 -- profiles.is_dev — dev mode flag
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS is_dev boolean NOT NULL DEFAULT false;
 
--- push_subscriptions endpoint unique index (from migration 3 if not applied)
-CREATE UNIQUE INDEX IF NOT EXISTS push_subscriptions_endpoint_key ON push_subscriptions (endpoint);
-
--- push_subscriptions crew_id nullable (from migration 3 if not applied)
-ALTER TABLE push_subscriptions ALTER COLUMN crew_id DROP NOT NULL;
-
--- notification_preferences table (migration 20240102000001 — apply if table missing)
-create table if not exists notification_preferences (
-  user_id        uuid primary key references auth.users(id) on delete cascade,
-  notif_messages boolean not null default true,
-  notif_raids    boolean not null default true,
-  notif_victory  boolean not null default true,
-  updated_at     timestamptz not null default now()
-);
-alter table notification_preferences enable row level security;
-create policy "Users manage own notification preferences"
-  on notification_preferences for all
-  using (auth.uid() = user_id) with check (auth.uid() = user_id);
-
--- Dev mode + Riley access
+-- Dev mode access
 UPDATE profiles SET is_dev = true WHERE id IN (
   SELECT id FROM auth.users WHERE email IN ('shenraymonds@gmail.com', 'legaspi.riley@gmail.com')
 );
@@ -402,7 +391,7 @@ create policy "friendships: either party can delete"
 - Mobile-first, 390px (iPhone 14); three font roles — `font-pixel` (Press Start 2P) for game UI/logos/level badges, `font-body` (DM Sans) for names/messages/timestamps, `font-silkscreen` (Silkscreen) for XP stats/labels
 - Never hardcode constants; never expose `SUPABASE_SERVICE_ROLE_KEY` client-side
 - Always handle loading + error states; add `loading.tsx` alongside every data-fetching `page.tsx`
-- **Loading skeleton conventions** — use `bg-border animate-pulse` blocks on `bg-black` (home/chat) background. Structure must mirror the real page layout precisely so there is no layout shift on hydration:
+- **Loading skeleton conventions** — wrap skeleton content in `<DelayedSkeleton>` (`src/components/ui/DelayedSkeleton.tsx`) so it only renders after 300ms; fast loads never flash. Use `bg-border animate-pulse` blocks on `bg-black` (home/chat) background. Structure must mirror the real page layout precisely:
   - `home/loading.tsx`: header (logo + 2 icons) → profile banner (48×48 avatar + text rows + AFK XP bar) → Squads label + 3 crew card rows (40×40 avatar, XP/level row, name+timestamp row, preview row, `pr-2`)
   - `chat/[crewId]/loading.tsx`: header (back + crew name + chevron | 3 right icons) → message rows (avatar shown on group-start, `pl-10` offset on continuations) → input (member avatar row + XP stats/bar + h-12 input box). **No BottomNav.**
   - `dm/[friendId]/loading.tsx`: header (back + 32×32 avatar + username + label) → message rows (all left-aligned, same grouping pattern) → input (2-avatar row + XP stats/bar + h-12 input box)
