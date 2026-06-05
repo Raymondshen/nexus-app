@@ -48,6 +48,8 @@ All are `SECURITY DEFINER`. All declared in `Database.Functions` in `src/types/i
 - `increment_crew_xp(p_crew_id, p_xp_delta)` → `(new_total_xp, new_level)`
 - `is_crew_member(p_crew_id)` → boolean (RLS helper)
 - `get_or_create_dm(other_user_id)` → uuid — returns the DM crew id for this pair, creating it if needed; verifies an accepted friendship exists before creating
+- `get_unread_counts(p_crew_ids, p_cutoffs)` → `TABLE(crew_id, unread_count)` — batch unread counts for multiple crews in one query; uses `auth.uid()` internally; replaces N parallel count queries on the home page
+- `get_crew_member_msg_counts(p_crew_id)` → `TABLE(user_id, msg_count)` — per-member message counts for a crew in one query; replaces N parallel count queries in `GroupProfileSheet`
 
 ## Game Rules
 
@@ -158,11 +160,14 @@ Consecutive messages from the same user within 60 seconds are visually grouped (
 ### HomeClient — stale preview fix
 `router.refresh()` on every home mount forces a background server re-fetch. A `useEffect([initialCrews])` sync effect applies refreshed `initialCrews` prop into `crews` state (useState only runs once on mount).
 
+### HomeClient — realtime channels (broadcast-only)
+Home page subscribes to one `messages:{crewId}` channel per crew for live preview updates. **Broadcast events only** — `postgres_changes` subscriptions were removed to eliminate a persistent server-side listener that fired on every INSERT across all of the user's crews. If a preview update is missed, `router.refresh()` on mount catches it.
+
 ### Home Page — birthday guard
-`home/page.tsx` selects `birthday` from profiles. If null, redirects to `/onboarding/birthday` before rendering the home screen. This handles existing users who registered before the birthday field was added.
+`home/page.tsx` reads `birthday` from the cached home profile. If null, redirects to `/onboarding/birthday` before rendering the home screen. This handles existing users who registered before the birthday field was added.
 
 ### Home Page — profile banner stats
-`home/page.tsx` fetches `totalMessages` (count of non-system messages by the user across all crews) in the same `Promise.all` as profile + crew membership. Displayed in `ProfileBanner` as `"{N} group chats · {N} msg"` (formatted with `toLocaleString()`). Edit icon uses `hn hn-pencil` (16px) from the pixel icon library.
+`home/page.tsx` fetches `totalMessages` (estimated count of non-system messages by the user) in the same `Promise.all` as crew membership. Uses `count: 'estimated'` — exact count forces a seq scan for a stat display that doesn't need precision. Displayed in `ProfileBanner` as `"{N} group chats · {N} msg"` (formatted with `toLocaleString()`). Edit icon uses `hn hn-pencil` (16px) from the pixel icon library.
 
 ### Home Page — Squads + Friends sections
 The home body is split into two labeled sections below the profile banner:
@@ -274,11 +279,12 @@ Always use `createServiceClient()` inside cache functions (service role, no cook
 
 | Cache | TTL | Tag | Invalidated by |
 |---|---|---|---|
+| Home profile (username, avatar_url, birthday, created_at) | 60s | `profile:{userId}` | saveBirthdayAction, revalidateProfileAction |
 | Home member profiles + counts | 60s | `crew-members:{crewId}` (all crews) | joinCrewAction, leaveCrewAction |
 | Home last message preview | 30s | TTL only | TTL only |
 | Vault crew (name, created_at) + artifacts | 300s | `vault:{crewId}`, `artifacts:{crewId}` | TTL only |
 | Chat member profiles | 60s | `crew-members:{crewId}` | joinCrewAction, leaveCrewAction |
-| Profile (username, avatar_url) | 60s | `profile:{userId}` | revalidateProfileAction |
+| Profile page (username, avatar_url, avatar_class, is_dev, created_at) | 60s | `profile:{userId}` | revalidateProfileAction |
 
 **Never cache:** `crews.total_xp`, `crews.level`, `active_raids`, `crew_members.last_seen`, auth sessions
 
@@ -313,6 +319,8 @@ Always use `createServiceClient()` inside cache functions (service role, no cook
 - `20240103000001_realtime_and_insert_message.sql` — ⚠ MUST BE APPLIED: enables supabase_realtime publication for messages + active_raids; creates insert_message fn
 - `20240103000002_push_subscriptions_update_rls.sql` — UPDATE policy on push_subscriptions (needed for upsert)
 - `20240103000003_birthday.sql` — adds `birthday date` column to profiles
+- `20240103000004_crew_notification_mutes.sql` — crew_notification_mutes + crew_notification_preferences tables
+- `20240103000005_batch_query_rpcs.sql` — `get_unread_counts` + `get_crew_member_msg_counts` RPCs
 
 ### Manual SQL applied directly (no migration file)
 ```sql

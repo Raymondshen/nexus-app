@@ -277,6 +277,14 @@ export type Database = {
         Args: { other_user_id: string }
         Returns: string
       }
+      get_unread_counts: {
+        Args: { p_crew_ids: string[]; p_cutoffs: string[] }
+        Returns: Array<{ crew_id: string; unread_count: number }>
+      }
+      get_crew_member_msg_counts: {
+        Args: { p_crew_id: string }
+        Returns: Array<{ user_id: string; msg_count: number }>
+      }
     }
     Enums: Record<string, never>
   }

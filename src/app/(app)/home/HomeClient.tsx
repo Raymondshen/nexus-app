@@ -591,21 +591,6 @@ export function HomeClient({
             sender:     profileCacheRef.current[msg.user_id] ?? msg.profile?.username ?? '',
           })
         })
-        .on(
-          'postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'messages', filter: `crew_id=eq.${crewId}` },
-          (payload) => {
-            const msg = payload.new as Message
-            if (msg.message_type === 'system') return
-            applyNewMessage(crewId, {
-              id:         msg.id,
-              content:    msg.content,
-              user_id:    msg.user_id,
-              created_at: msg.created_at,
-              sender:     profileCacheRef.current[msg.user_id] ?? '',
-            })
-          },
-        )
         .subscribe(),
     )
 

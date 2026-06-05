@@ -111,25 +111,17 @@ function GroupProfileSheet({
       type RawRow = { user_id: string; class: string | null; profiles: { username: string; avatar_url: string | null } | null }
       const rows = memberRows as unknown as RawRow[]
 
-      const countResults = await Promise.all(
-        rows.map(r =>
-          supabase
-            .from('messages')
-            .select('id', { count: 'estimated', head: true })
-            .eq('crew_id', crewId)
-            .eq('user_id', r.user_id)
-            .neq('message_type', 'system')
-        )
-      )
+      const { data: countData } = await supabase.rpc('get_crew_member_msg_counts', { p_crew_id: crewId })
+      const msgCountMap = new Map((countData ?? []).map(r => [r.user_id, Number(r.msg_count)]))
 
       if (cancelled) return
 
-      const infos: MemberInfo[] = rows.map((r, i) => ({
+      const infos: MemberInfo[] = rows.map((r) => ({
         userId:      r.user_id,
         username:    r.profiles?.username ?? 'Unknown',
         avatarUrl:   r.profiles?.avatar_url ?? null,
         avatarClass: r.class as AvatarClass | null,
-        msgCount:    countResults[i].count ?? 0,
+        msgCount:    msgCountMap.get(r.user_id) ?? 0,
       }))
 
       infos.sort((a, b) => {
