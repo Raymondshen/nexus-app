@@ -139,16 +139,19 @@ export function MessageBubble({ message, isOwn, showHeader, xpOverride }: Messag
                 <>
                   {/* 2×2 purple dot separator */}
                   <span className="w-[2px] h-[2px] bg-purple shrink-0" />
-                  {/* 20×20 pixel sprite — matches Figma node 42:498 size-[20px] */}
+                  {/* Sprite: 24×24px layout slot, 36×36px render — Figma node 48:106 / 48:103 */}
                   {spriteId && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={`/sprites/${spriteId}/south.png`}
-                      alt=""
-                      width={20}
-                      height={20}
-                      style={{ imageRendering: 'pixelated', flexShrink: 0 }}
-                    />
+                    <div className="relative shrink-0 size-[24px]">
+                      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 size-[36px]">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={`/sprites/${spriteId}/south.png`}
+                          alt=""
+                          className="absolute inset-0 size-full max-w-none pointer-events-none"
+                          style={{ imageRendering: 'pixelated' }}
+                        />
+                      </div>
+                    </div>
                   )}
                   {/* Class name — DM Sans Regular 10px, leading: normal */}
                   {className && (
