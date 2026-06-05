@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useSlideBack } from '@/components/ui/SlidePage'
 import Image from 'next/image'
 import { useChatStore } from '@/store/chatStore'
@@ -27,11 +27,16 @@ export function DMHeader({
 }: DMHeaderProps) {
   const goBack = useSlideBack()
   const { setCrewXP, setActiveRaid, activeRaid } = useChatStore()
+  const [devMode, setDevMode] = useState(false)
 
   useEffect(() => {
     setCrewXP(initialXP)
     setActiveRaid(initialRaid)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    setDevMode(localStorage.getItem('nexus_dev_mode') === '1')
+  }, [])
 
   useEffect(() => {
     const supabase = createClient()
@@ -84,7 +89,7 @@ export function DMHeader({
         </div>
       </div>
 
-      {activeRaid && !activeRaid.defeated_at && (
+      {devMode && activeRaid && !activeRaid.defeated_at && (
         <div className="flex items-center gap-2 mt-2 bg-[#2d0a0a] border border-[#ff4444]/40 px-2 py-1">
           <span className="font-pixel text-[8px] text-[#ff4444]">💀 BOSS ACTIVE</span>
           <span className="font-pixel text-[7px] text-[#ff4444]/70">

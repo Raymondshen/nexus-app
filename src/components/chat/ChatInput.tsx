@@ -262,7 +262,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatI
       className="bg-black border-t border-border px-4 pt-4 flex-shrink-0 relative"
       style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 32px)' }}
     >
-      <DamageFloat floats={damageFloats} onDismiss={dismissDamageFloat} />
+      {devMode && <DamageFloat floats={damageFloats} onDismiss={dismissDamageFloat} />}
 
       {/* ── Content: member avatars + XP bar (matches Figma "content" section) ── */}
       <div className="flex flex-col gap-2 mb-4">
@@ -292,48 +292,50 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatI
           })}
         </div>
 
-        {/* XP indicator — fixed h-6 (24px), flex-col gap-2 (8px), centered */}
-        <div className="h-6 flex flex-col gap-2 items-center justify-center w-full">
-          {/* Level · XP · Members · +XP ··· Next Boss */}
-          <div className="flex items-center gap-2 w-full font-silkscreen text-tertiary">
-            {/* Left: "Level N · X / 500XP · N Members" + float anchor */}
-            <p className="flex-1 min-w-0 leading-[0] text-[0px]">
-              <span className="text-[8px] leading-none text-purple">Level {crewLevel}</span>
-              <span className="text-[8px] leading-none">
-                {` · ${crewXP % XP_PER_LEVEL} / ${XP_PER_LEVEL}XP · ${memberCount} Member${memberCount !== 1 ? 's' : ''} · `}
-              </span>
-              {/* Inline anchor for XP floats — no static label, animation only */}
-              <span className="relative inline-block">
-                <AnimatePresence>
-                  {xpFloats.map((f) => (
-                    <motion.span
-                      key={f.id}
-                      initial={{ opacity: 0, y: 0 }}
-                      animate={{ opacity: [0, 1, 1, 0], y: [0, -12, -26, -42] }}
-                      transition={{ duration: 1.4, ease: 'easeOut', times: [0, 0.15, 0.65, 1] }}
-                      onAnimationComplete={() => dismissXPFloat(f.id)}
-                      className="pointer-events-none absolute bottom-0 left-0 font-pixel text-[8px] text-[#ffd700] whitespace-nowrap z-10"
-                      style={{ textShadow: '0 0 8px rgba(255,215,0,0.8)' }}
-                    >
-                      +{f.amount} XP
-                    </motion.span>
-                  ))}
-                </AnimatePresence>
-              </span>
-            </p>
-            {/* Right: "Next Boss" */}
-            <p className="text-[8px] leading-none whitespace-nowrap text-tertiary">Next Boss</p>
-          </div>
+        {/* XP indicator — dev mode only */}
+        {devMode && (
+          <div className="h-6 flex flex-col gap-2 items-center justify-center w-full">
+            {/* Level · XP · Members · +XP ··· Next Boss */}
+            <div className="flex items-center gap-2 w-full font-silkscreen text-tertiary">
+              {/* Left: "Level N · X / 500XP · N Members" + float anchor */}
+              <p className="flex-1 min-w-0 leading-[0] text-[0px]">
+                <span className="text-[8px] leading-none text-purple">Level {crewLevel}</span>
+                <span className="text-[8px] leading-none">
+                  {` · ${crewXP % XP_PER_LEVEL} / ${XP_PER_LEVEL}XP · ${memberCount} Member${memberCount !== 1 ? 's' : ''} · `}
+                </span>
+                {/* Inline anchor for XP floats — no static label, animation only */}
+                <span className="relative inline-block">
+                  <AnimatePresence>
+                    {xpFloats.map((f) => (
+                      <motion.span
+                        key={f.id}
+                        initial={{ opacity: 0, y: 0 }}
+                        animate={{ opacity: [0, 1, 1, 0], y: [0, -12, -26, -42] }}
+                        transition={{ duration: 1.4, ease: 'easeOut', times: [0, 0.15, 0.65, 1] }}
+                        onAnimationComplete={() => dismissXPFloat(f.id)}
+                        className="pointer-events-none absolute bottom-0 left-0 font-pixel text-[8px] text-[#ffd700] whitespace-nowrap z-10"
+                        style={{ textShadow: '0 0 8px rgba(255,215,0,0.8)' }}
+                      >
+                        +{f.amount} XP
+                      </motion.span>
+                    ))}
+                  </AnimatePresence>
+                </span>
+              </p>
+              {/* Right: "Next Boss" */}
+              <p className="text-[8px] leading-none whitespace-nowrap text-tertiary">Next Boss</p>
+            </div>
 
-          {/* Progress bar — 4px, surface bg, purple fill */}
-          <div className="bg-surface h-1 overflow-hidden w-full relative">
-            <motion.div
-              className="absolute left-0 top-0 h-full bg-purple"
-              animate={{ width: `${xpProgress}%` }}
-              transition={{ type: 'spring', stiffness: 120, damping: 20 }}
-            />
+            {/* Progress bar — 4px, surface bg, purple fill */}
+            <div className="bg-surface h-1 overflow-hidden w-full relative">
+              <motion.div
+                className="absolute left-0 top-0 h-full bg-purple"
+                animate={{ width: `${xpProgress}%` }}
+                transition={{ type: 'spring', stiffness: 120, damping: 20 }}
+              />
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* ── Dynamic status indicators (not in Figma, functional-only) ── */}
@@ -343,7 +345,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatI
         </button>
       )}
 
-      {inRaid && typingLabel && (
+      {devMode && inRaid && typingLabel && (
         <div className="flex items-center gap-1 mb-2">
           <span className="flex gap-0.5">
             {[0, 1, 2].map((i) => (
@@ -354,7 +356,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatI
         </div>
       )}
 
-      {inRaid && !typingLabel && (
+      {devMode && inRaid && !typingLabel && (
         <div className="flex items-center gap-1 mb-2">
           <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#ff2200] animate-pulse" />
           <span className="font-pixel text-[7px] text-[#ff4444]">⚔ RAID ACTIVE — every message deals damage</span>

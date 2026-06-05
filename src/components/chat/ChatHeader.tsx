@@ -419,6 +419,11 @@ export function ChatHeader({
   const [showShare,   setShowShare]   = useState(false)
   const [showNotif,   setShowNotif]   = useState(false)
   const [notifPrefs,  setNotifPrefs]  = useState<NotifPrefs>({ messages: true, raids: true, victory: true })
+  const [devMode,     setDevMode]     = useState(false)
+
+  useEffect(() => {
+    setDevMode(localStorage.getItem('nexus_dev_mode') === '1')
+  }, [])
 
   useEffect(() => {
     setCrewXP(initialXP)
@@ -558,8 +563,8 @@ export function ChatHeader({
           </div>
         </div>
 
-        {/* Boss countdown if raid is active */}
-        {activeRaid && !activeRaid.defeated_at && (
+        {/* Boss countdown if raid is active — dev mode only */}
+        {devMode && activeRaid && !activeRaid.defeated_at && (
           <div className="flex items-center gap-2 mt-2 bg-[#2d0a0a] border border-[#ff4444]/40 px-2 py-1">
             <span className="font-pixel text-[8px] text-[#ff4444]">💀 BOSS ACTIVE</span>
             <span className="font-pixel text-[7px] text-[#ff4444]/70">
