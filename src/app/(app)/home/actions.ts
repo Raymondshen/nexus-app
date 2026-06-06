@@ -3,7 +3,15 @@
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { createClient } from '@supabase/supabase-js'
 import { createClient as createSupabaseClient, createServiceClient } from '@/lib/supabase/server'
-import type { Database } from '@/types'
+import type { Database, AppInvite } from '@/types'
+
+export interface InviteCodeData {
+  id:               string
+  code:             string
+  used:             boolean
+  created_at:       string
+  used_by_username: string | null
+}
 
 // No ambiguous chars: no 0, O, I, 1
 const APP_INVITE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
@@ -82,6 +90,51 @@ export async function generateAppInviteAction(): Promise<
   }
 
   return { error: 'Could not generate a unique code. Try again.' }
+}
+
+export async function getInviteCodesAction(): Promise<
+  { codes: InviteCodeData[] } | { error: string }
+> {
+  const supabase = await createSupabaseClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  const service = createServiceClient()
+
+  const { data: rows, error } = await service
+    .from('app_invites')
+    .select('id, code, used, created_at, used_by')
+    .eq('inviter_id', user.id)
+    .order('created_at', { ascending: false })
+
+  if (error) return { error: error.message }
+
+  const inviteRows = (rows ?? []) as AppInvite[]
+
+  const usedByIds = inviteRows
+    .map(r => r.used_by)
+    .filter((id): id is string => id !== null)
+
+  const usernameMap: Record<string, string> = {}
+  if (usedByIds.length > 0) {
+    const { data: profiles } = await service
+      .from('profiles')
+      .select('id, username')
+      .in('id', usedByIds)
+    for (const p of (profiles ?? [])) {
+      usernameMap[p.id as string] = p.username as string
+    }
+  }
+
+  return {
+    codes: inviteRows.map(r => ({
+      id:               r.id,
+      code:             r.code,
+      used:             r.used,
+      created_at:       r.created_at,
+      used_by_username: r.used_by ? (usernameMap[r.used_by] ?? null) : null,
+    })),
+  }
 }
 
 export async function leaveCrewAction(

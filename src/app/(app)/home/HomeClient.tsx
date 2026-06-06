@@ -9,7 +9,8 @@ import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { createCrewAction } from '@/app/(app)/onboarding/create/actions'
 import { joinCrewAction }   from '@/app/(app)/onboarding/join/actions'
-import { leaveCrewAction, generateAppInviteAction } from './actions'
+import { leaveCrewAction } from './actions'
+import { InviteArsenal } from './InviteArsenal'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import type { CrewSummary } from './page'
@@ -133,52 +134,22 @@ function ProfileBanner({
 
 // ─── Home action sheet (Create / Join / Invite) ───────────────────────────────
 
-type SheetView = 'menu' | 'create' | 'join' | 'code'
+type SheetView = 'menu' | 'create' | 'join'
 
 function HomeActionSheet({
   onClose,
   coins,
-  onCoinsDeducted,
+  onOpenArsenal,
 }: {
-  onClose:         () => void
-  coins:           number
-  onCoinsDeducted: () => void
+  onClose:       () => void
+  coins:         number
+  onOpenArsenal: () => void
 }) {
-  const [view,          setView]          = useState<SheetView>('menu')
-  const [generatedCode, setGeneratedCode] = useState('')
-  const [inviteLoading, setInviteLoading] = useState(false)
-  const [inviteError,   setInviteError]   = useState<string | null>(null)
-  const [copied,        setCopied]        = useState(false)
+  const [view, setView] = useState<SheetView>('menu')
 
   const [createState, createAction, createPending] = useActionState(createCrewAction, null)
   const [joinState,   joinAction,   joinPending]   = useActionState(joinCrewAction,   null)
   const [joinCode, setJoinCode] = useState('')
-
-  const canAffordInvite = coins >= 25
-
-  async function handleInviteClick() {
-    if (!canAffordInvite || inviteLoading) return
-    setInviteLoading(true)
-    setInviteError(null)
-    try {
-      const result = await generateAppInviteAction()
-      if ('error' in result) {
-        setInviteError(result.error)
-      } else {
-        setGeneratedCode(result.code)
-        if (!result.existing) onCoinsDeducted()
-        setView('code')
-      }
-    } finally {
-      setInviteLoading(false)
-    }
-  }
-
-  async function handleCopyCode() {
-    await navigator.clipboard.writeText(generatedCode)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }
 
   function handleJoinCodeChange(e: React.ChangeEvent<HTMLInputElement>) {
     setJoinCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))
@@ -265,43 +236,6 @@ function HomeActionSheet({
       )
     }
 
-    if (view === 'code') {
-      return (
-        <div className="flex flex-col items-center gap-5">
-          <p className="font-pixel text-[9px] text-tertiary">YOUR INVITE CODE.</p>
-
-          <div
-            className="font-pixel text-[32px] tracking-[0.3em] select-all"
-            style={{ color: '#ffd700', letterSpacing: '0.35em' }}
-          >
-            {generatedCode}
-          </div>
-
-          <button
-            onClick={handleCopyCode}
-            className="w-full h-12 font-pixel text-[10px] border transition-colors"
-            style={{
-              borderColor: copied ? '#66bb6a' : 'rgba(255,215,0,0.4)',
-              color:       copied ? '#66bb6a' : '#ffd700',
-            }}
-          >
-            {copied ? 'COPIED.' : 'COPY CODE'}
-          </button>
-
-          <p className="font-pixel text-[8px] leading-relaxed text-center" style={{ color: 'rgba(255,255,255,0.4)' }}>
-            One use only. Share it wisely.
-          </p>
-
-          <button
-            onClick={onClose}
-            className="font-pixel text-[8px] text-muted hover:text-primary transition-colors py-2"
-          >
-            CLOSE
-          </button>
-        </div>
-      )
-    }
-
     // Menu view
     return (
       <div className="flex flex-col gap-2">
@@ -335,49 +269,22 @@ function HomeActionSheet({
 
         <div className="border-t border-border" />
 
-        {/* Invite a Friend */}
+        {/* Invite a Friend — always tappable; opens InviteArsenal */}
         <button
-          onClick={handleInviteClick}
-          disabled={!canAffordInvite || inviteLoading}
-          className="w-full text-left flex items-center gap-4 px-4 py-4 min-h-[56px] border-l-2 border-transparent active:border-purple transition-colors hover:bg-white/5 disabled:opacity-60 disabled:cursor-not-allowed"
+          onClick={onOpenArsenal}
+          className="w-full text-left flex items-center gap-4 px-4 py-4 min-h-[56px] border-l-2 border-transparent active:border-purple transition-colors hover:bg-white/5"
         >
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <p className="font-pixel text-[10px] text-primary">INVITE A FRIEND</p>
-              {inviteLoading && (
-                <span className="font-pixel text-[8px] text-muted">...</span>
-              )}
-            </div>
-            <div className="flex items-center gap-3 mt-1">
-              <span
-                className="font-pixel text-[8px]"
-                style={{ color: canAffordInvite ? '#ffd700' : 'var(--color-muted)' }}
-              >
-                {coins.toLocaleString()} COINS
-              </span>
-              <span className="font-pixel text-[8px] text-muted">·</span>
-              <span
-                className="font-pixel text-[8px]"
-                style={{ color: canAffordInvite ? '#ffd700' : 'var(--color-muted)' }}
-              >
-                COSTS 25
+            <p className="font-pixel text-[10px] text-primary">INVITE A FRIEND</p>
+            <div className="flex items-center gap-1 mt-1">
+              <i className="hn hn-coins" style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)' }} aria-hidden="true" />
+              <span className="font-body text-[12px]" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                {coins.toLocaleString()} coins available
               </span>
             </div>
           </div>
-          {canAffordInvite && (
-            <i className="hn hn-angle-right-solid flex-shrink-0" style={{ fontSize: 16, color: 'var(--color-muted)' }} aria-hidden="true" />
-          )}
+          <i className="hn hn-angle-right-solid flex-shrink-0" style={{ fontSize: 16, color: 'var(--color-muted)' }} aria-hidden="true" />
         </button>
-
-        {!canAffordInvite && (
-          <p className="font-pixel text-[8px] text-muted px-4 pb-2 leading-relaxed">
-            Keep fighting to earn more coins.
-          </p>
-        )}
-
-        {inviteError && (
-          <p className="font-pixel text-[8px] text-[#ff4444] px-4 pb-2 leading-relaxed">{inviteError}</p>
-        )}
       </div>
     )
   })()
@@ -400,15 +307,13 @@ function HomeActionSheet({
         style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 24px)' }}
         onClick={(e) => e.stopPropagation()}
       >
-        {view !== 'code' && (
-          <button
-            onClick={onClose}
-            className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center text-tertiary hover:text-primary"
-            aria-label="Close"
-          >
-            <X size={16} />
-          </button>
-        )}
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center text-tertiary hover:text-primary"
+          aria-label="Close"
+        >
+          <X size={16} />
+        </button>
         {sheetContent}
       </motion.div>
     </motion.div>
@@ -741,14 +646,15 @@ export function HomeClient({
 }: HomeClientProps) {
   const router = useRouter()
 
-  const [crews,        setCrews]        = useState<CrewSummary[]>(initialCrews)
-  const [showCreate,   setShowCreate]   = useState(false)
-  const [openCardId,   setOpenCardId]   = useState<string | null>(null)
-  const [leaveTarget,  setLeaveTarget]  = useState<CrewSummary | null>(null)
-  const [leaving,      setLeaving]      = useState(false)
-  const [leaveError,   setLeaveError]   = useState<string | null>(null)
-  const [coins,        setCoins]        = useState(() => Math.max(initialCoins, useChatStore.getState().userCoins))
-  const [showCoinTip,  setShowCoinTip]  = useState(false)
+  const [crews,             setCrews]             = useState<CrewSummary[]>(initialCrews)
+  const [showCreate,        setShowCreate]        = useState(false)
+  const [showInviteArsenal, setShowInviteArsenal] = useState(false)
+  const [openCardId,        setOpenCardId]        = useState<string | null>(null)
+  const [leaveTarget,       setLeaveTarget]       = useState<CrewSummary | null>(null)
+  const [leaving,           setLeaving]           = useState(false)
+  const [leaveError,        setLeaveError]        = useState<string | null>(null)
+  const [coins,             setCoins]             = useState(() => Math.max(initialCoins, useChatStore.getState().userCoins))
+  const [showCoinTip,       setShowCoinTip]       = useState(false)
 
   const profileCacheRef = useRef<Record<string, string>>(profileCache)
   useEffect(() => { profileCacheRef.current = profileCache }, [profileCache])
@@ -867,8 +773,13 @@ export function HomeClient({
     }
   }, [leaveTarget, leaving])
 
-  const handleCoinsDeducted = useCallback(() => setCoins(c => c - 25), [])
-  const handleCloseCreate = useCallback(() => setShowCreate(false), [])
+  const handleCoinsDeducted    = useCallback(() => setCoins(c => c - 25), [])
+  const handleCloseCreate      = useCallback(() => setShowCreate(false), [])
+  const handleCloseArsenal     = useCallback(() => setShowInviteArsenal(false), [])
+  const handleOpenArsenal      = useCallback(() => {
+    setShowCreate(false)
+    setShowInviteArsenal(true)
+  }, [])
   const handleCloseLeave  = useCallback(() => {
     if (!leaving) { setLeaveTarget(null); setLeaveError(null) }
   }, [leaving])
@@ -983,20 +894,31 @@ export function HomeClient({
 
       {/* ── Modals ── */}
       <AnimatePresence>
-        {showCreate  && (
+        {showCreate && (
           <HomeActionSheet
+            key="action-sheet"
             onClose={handleCloseCreate}
             coins={coins}
-            onCoinsDeducted={handleCoinsDeducted}
+            onOpenArsenal={handleOpenArsenal}
           />
         )}
         {leaveTarget && (
           <LeaveConfirmSheet
+            key="leave-sheet"
             summary={leaveTarget}
             onConfirm={handleLeaveCrew}
             onClose={handleCloseLeave}
             pending={leaving}
             leaveError={leaveError}
+          />
+        )}
+        {showInviteArsenal && (
+          <InviteArsenal
+            key="invite-arsenal"
+            userId={userId}
+            coins={coins}
+            onClose={handleCloseArsenal}
+            onCoinsDeducted={handleCoinsDeducted}
           />
         )}
       </AnimatePresence>

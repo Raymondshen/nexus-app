@@ -248,22 +248,40 @@ Data fetching in `home/page.tsx`:
 Header spacing: `pb-2` bottom padding, `paddingTop: max(env(safe-area-inset-top), 8px)`, icon gap `gap-4`.
 
 ### Home Page — HomeActionSheet (+ button)
-The `+` button in the home header opens `HomeActionSheet` (replaced the old single-purpose `CreateCrewSheet`). Three menu options:
-- **Create a Crew** — transitions to inline create form (same flow as before)
-- **Join a Crew** — transitions to inline join form (same flow as before)
-- **Invite a Friend** — shows user's live coin balance in `#ffd700` Press Start 2P + "25 coins" cost label; if coins ≥ 25: calls `generateAppInviteAction` → transitions to code display state; if coins < 25: row disabled with muted copy "Keep fighting to earn more coins."
+The `+` button opens `HomeActionSheet`. Three menu options (no coin gate on any row):
+- **Create a Crew** — transitions to inline create form
+- **Join a Crew** — transitions to inline join form
+- **Invite a Friend** — always tappable; shows `[hn-coins 10px] [N] coins available` sub-label in `rgba(255,255,255,0.4)` system-ui. Tapping dismisses the sheet and opens **InviteArsenal** full-screen modal.
 
-Code display state: large `font-pixel text-[32px] #ffd700 letterSpacing: '0.35em'` code, "Your invite code." label, copy button (→ "Copied." in `#66bb6a` for 2s), "One use only. Share it wisely." in `rgba(255,255,255,0.4)`, close button.
+Sheet design: `bg-[#0a0612]`, full-width rows min 44px, `border-l-2 border-transparent active:border-purple` on active row, dismisses on outside tap.
+
+### Home Page — InviteArsenal (full-screen modal)
+`src/app/(app)/home/InviteArsenal.tsx` — slides up from bottom (`z-[60]`, spring 320/32) over the home screen. Opened by tapping "Invite a Friend" in the action sheet; no coin gate on open.
+
+**Header**: back chevron (`hn-angle-left-solid` 24px tertiary) → closes modal. Title `INVITE ARSENAL` (Press Start 2P 14px). Subtitle `"Spend coins. Recruit warriors."` (system-ui 13px rgba(255,255,255,0.4)). Coin balance: `hn-coins` 16px + count (Press Start 2P 12px, `#ffd700`).
+
+**Forge button** (full-width, min-height 56px):
+- Label `FORGE INVITE CODE` (Press Start 2P 10px) + sub-label `25 coins` (system-ui 11px)
+- Active (coins ≥ 25): `#bf5fff` bg, white labels. On tap: calls `generateAppInviteAction` server-side. If existing unused code found (server returns `existing: true`): toast "Code already forged." in `#ffd700`, reload list. If new code generated: `onCoinsDeducted()`, toast "Code forged." in `#66bb6a`, reload list. If server returns insufficient-coins error: toast "Not enough coins." in `#ff4444`.
+- Disabled (coins < 25): `rgba(255,255,255,0.1)` bg, muted labels, not tappable. Below: "Keep fighting to earn more coins." in `rgba(255,255,255,0.4)` system-ui 12px.
+
+**Code list** (scrollable, newest first): all `app_invites` rows for current user via `getInviteCodesAction`.
+- **UNUSED card**: `rgba(255,255,255,0.05)` bg, `1px solid rgba(255,255,255,0.1)` border. Top row: code (Press Start 2P 13px `#ffffff`, letter-spaced) + UNUSED badge (`rgba(191,95,255,0.15)` bg, `#bf5fff` border/text). Bottom row: formatted date + Copy Code button (`transparent` bg, `#bf5fff` border/text; flips to "Copied!" `#66bb6a` for 2s).
+- **USED card**: `rgba(255,255,255,0.02)` bg, `1px solid rgba(255,255,255,0.05)` border. All text `rgba(255,255,255,0.4)`. Top row: code (Press Start 2P 13px muted) + USED badge (muted style). Bottom row: date + "Claimed by [username]" (no copy button).
+- **Empty state**: centered, `hn-coins` 32px dimmed, "No codes forged yet." (Press Start 2P 8px muted) + "Spend 25 coins to recruit a warrior." (system-ui 13px muted).
+- **Realtime**: subscribes to `postgres_changes` on `app_invites` filtered by `inviter_id=eq.{userId}` to update status live when a code is claimed. **Requires** `app_invites` in `supabase_realtime` publication (migration `20240103000010`).
 
 `generateAppInviteAction` (in `src/app/(app)/home/actions.ts`):
 - Checks for existing unused code first (returns it without deducting coins, `existing: true`)
 - Re-validates coin balance server-side before deducting
 - Generates 6-char code from `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (no ambiguous chars)
 - Up to 10 uniqueness retries; parallel insert + `increment_user_coins(-25)` + `coin_log` insert
-- Calls `revalidateTag(\`profile:${user.id}\`, 'max')` after deduction — without this, a racing `router.refresh()` returns the stale 60s cached `initialCoins` value and the `Math.max` sync effect in `HomeClient` overwrites the correctly deducted local balance
-- `HomeClient` calls `onCoinsDeducted()` (subtracts 25 locally) only when `!result.existing`
+- Calls `revalidateTag(\`profile:${user.id}\`, 'max')` after deduction
 
-Sheet design: `bg-[#0a0612]`, full-width rows min 44px, `border-l-2 border-transparent active:border-purple` on active row, dismisses on outside tap.
+`getInviteCodesAction` (in `src/app/(app)/home/actions.ts`):
+- Fetches all `app_invites` for current user (service client, ordered newest first)
+- Resolves `used_by` UUIDs → usernames in one `.in()` profiles query
+- Returns `InviteCodeData[]` (id, code, used, created_at, used_by_username)
 
 ### Home Page — SwipeableCrewCard leave button
 Swipe left on a crew card to reveal the leave action (`LEAVE_REVEAL = 104px`). Leave button design (matches Figma node 50:516):
