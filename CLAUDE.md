@@ -89,7 +89,7 @@ Coins are the invite currency. Earned by sending messages; spent (future) to inv
 - Anti-spam: coins only awarded when `xpBlocked = false` (same cooldown/burst gate as XP)
 - `ChatInput` calls `addUserCoins(coins_earned)` from store on award-xp response
 - **Displayed in two places**:
-  - **Home header only**: `hn-coins` icon (24px, gold `#ffd700`) + count left of the bookmark icon. Tap shows "25 COINS = 1 CREW INVITE" tooltip (2s). `HomeClient` seeds local `coins` state from `Math.max(initialCoins, chatStore.userCoins)` on mount so navigating back from chat never shows a stale cached value; realtime `postgres_changes` UPDATE on `profiles` keeps it live.
+  - **Home header only**: `hn-coins` icon (24px, gold `#ffd700`) + count left of the bookmark icon. Tap shows "25 COINS = 1 CREW INVITE" tooltip (2s). `HomeClient` seeds local `coins` state from `Math.max(initialCoins, chatStore.userCoins)` on mount so navigating back from chat never shows a stale cached value; realtime `postgres_changes` UPDATE on `profiles` keeps it live. **No `initialCoins` sync effect** — a previously present `useEffect([initialCoins])` that called `Math.max(prev, initialCoins)` was removed because it caused a flicker after deductions (stale server re-render snapped back to pre-deduction value, then realtime corrected). The `useState` initializer + Realtime subscription are the two correct sources of truth.
   - **Message bubble header**: `hn-coin` icon (8px) + `+N` count in gold after the XP span — `username · class · +XP XP · 🪙+N`. Count-up animation (500ms ease-out cubic RAF) identical to the XP counter. Coin = 1 per message when `xp_awarded > 0`; group leader accumulates total for all messages in the group via `groupCoinMap` pre-pass in `MessageList`.
 - `chatStore` holds `userCoins`, `setUserCoins`, `addUserCoins`; **not** shown in `ChatHeader` — coins are home-only at the global level
 - `profiles` table is in `supabase_realtime` publication — `HomeClient` subscribes to `postgres_changes` UPDATE on `profiles` for live coin balance (ChatHeader no longer subscribes)
@@ -328,8 +328,8 @@ All "detail" pages (chat, DM, profile, friends, vault) slide in from the right o
 - Route: `src/app/(app)/chat/[crewId]/member/[userId]/page.tsx` + `MemberProfileClient.tsx`
 - Opened by tapping any avatar or username in `MessageBubble` — `onAvatarTap` callback passed from `MessageList` navigates to this route (works for own messages too)
 - **Security**: viewer must be a member of the crew; target must also be a crew member — both checked before any data is returned; non-members redirect to `/chat/{crewId}` or `/home`
-- **Data** (single parallel fetch): profile (username, avatar_url, birthday), target's crew-specific class, `get_member_crew_stats` RPC (msg count + total XP in one call), friendship status between viewer and target
-- **Displays**: animated PixelSprite (scale=4), 64×64 avatar, username, class label, message count, XP earned in crew, birthday (month + day, e.g. "JAN 15"), friend action button
+- **Data** (single parallel fetch): profile (username, avatar_url, birthday), target's crew-specific class, `get_member_crew_stats` RPC (msg count + total XP in one call), friendship status between viewer and target, `inviterUsername` (service client query on `app_invites` where `used_by = userId` — service role needed because invitee cannot read their own row under RLS)
+- **Displays**: animated PixelSprite (scale=4), 64×64 avatar, username, class label, `RECRUITED BY [NAME]` (Silkscreen 8px `rgba(255,255,255,0.4)`, only when present), message count, XP earned in crew, birthday (month + day, e.g. "JAN 15"), friend action button
 - **Friend states**: ADD COMPANION (none) → REQUEST SENT (pending_sent) → ACCEPT (pending_received) → COMPANIONS ✓ (accepted); guests see disabled button + sign-in hint
 - `isSelf` guard: shows "YOU" badge and hides friend button when viewing own profile
 - SlidePage wrapper for slide-in/out; `useSlideBack()` for back button
@@ -394,6 +394,8 @@ Always use `createServiceClient()` inside cache functions (service role, no cook
 | Vault crew (name, created_at) + artifacts | 300s | `vault:{crewId}`, `artifacts:{crewId}` | TTL only |
 | Chat member profiles | 60s | `crew-members:{crewId}` | joinCrewAction, leaveCrewAction |
 | Profile page (username, avatar_url, avatar_class, is_dev, created_at) | 60s | `profile:{userId}` | revalidateProfileAction |
+
+`/profile` page also fetches `inviterUsername` in the same `Promise.all` (service client, `app_invites` where `used_by = userId`). Displayed as `"Recruited by [name]"` (Silkscreen 8px tertiary) below the group chats · msg stats line. Not cached — it's a one-time fact.
 
 **Never cache:** `crews.total_xp`, `crews.level`, `active_raids`, `crew_members.last_seen`, auth sessions
 
