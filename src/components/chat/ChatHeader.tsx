@@ -304,7 +304,6 @@ interface ChatHeaderProps {
   initialRaid:   ActiveRaid | null
   currentUserId: string
   crewId:        string
-  initialCoins:  number
 }
 
 // ─── Share modal ─────────────────────────────────────────────────────────────
@@ -412,17 +411,15 @@ export function ChatHeader({
   initialRaid,
   currentUserId,
   crewId,
-  initialCoins,
 }: ChatHeaderProps) {
   const router = useRouter()
   const goBack = useSlideBack()
-  const { setCrewXP, setActiveRaid, activeRaid, userCoins, setUserCoins } = useChatStore()
+  const { setCrewXP, setActiveRaid, activeRaid } = useChatStore()
   const [showProfile,  setShowProfile]  = useState(false)
   const [showShare,    setShowShare]    = useState(false)
   const [showNotif,    setShowNotif]    = useState(false)
   const [notifPrefs,   setNotifPrefs]   = useState<NotifPrefs>({ messages: true, raids: true, victory: true })
   const [devMode,      setDevMode]      = useState(false)
-  const [showCoinTip,  setShowCoinTip]  = useState(false)
 
   useEffect(() => {
     setDevMode(localStorage.getItem('nexus_dev_mode') === '1')
@@ -431,25 +428,7 @@ export function ChatHeader({
   useEffect(() => {
     setCrewXP(initialXP)
     setActiveRaid(initialRaid)
-    setUserCoins(initialCoins)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Realtime: keep coin count in sync with profiles table changes
-  useEffect(() => {
-    const supabase = createClient()
-    const ch = supabase
-      .channel(`profile-coins:${currentUserId}`)
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${currentUserId}` },
-        (payload) => {
-          const newCoins = (payload.new as { coins?: number }).coins
-          if (typeof newCoins === 'number') setUserCoins(newCoins)
-        },
-      )
-      .subscribe()
-    return () => { supabase.removeChannel(ch) }
-  }, [currentUserId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Update last_seen every 60s for accurate server-side initial state.
   useEffect(() => {
@@ -551,39 +530,8 @@ export function ChatHeader({
             </button>
           </div>
 
-          {/* Right: coins + bell + user-plus + vault */}
+          {/* Right: bell + user-plus + vault */}
           <div className="flex items-center gap-4 flex-shrink-0">
-            {/* Coin count — tap for tooltip */}
-            <div className="relative">
-              <button
-                onClick={() => {
-                  setShowCoinTip(true)
-                  setTimeout(() => setShowCoinTip(false), 2000)
-                }}
-                aria-label={`${userCoins} coins`}
-                className="flex items-center gap-1"
-                style={{ height: 40 }}
-              >
-                <i className="hn hn-coin-solid" style={{ fontSize: 24, color: '#ffd700' }} aria-hidden="true" />
-                <span className="font-silkscreen text-[10px] leading-none" style={{ color: '#ffd700' }}>
-                  {userCoins.toLocaleString()}
-                </span>
-              </button>
-              <AnimatePresence>
-                {showCoinTip && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -4 }}
-                    transition={{ duration: 0.15 }}
-                    className="absolute right-0 top-full mt-1 z-50 whitespace-nowrap font-silkscreen text-[8px] text-primary bg-surface border border-border px-2 py-1"
-                  >
-                    25 COINS = 1 CREW INVITE
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
             <button
               onClick={() => setShowNotif(true)}
               aria-label={allMuted ? 'Notifications muted' : 'Notification settings'}

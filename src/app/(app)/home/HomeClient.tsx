@@ -687,7 +687,7 @@ export function HomeClient({
                 className="flex items-center gap-1"
                 style={{ height: 40 }}
               >
-                <i className="hn hn-coin-solid" style={{ fontSize: 24, color: '#ffd700' }} aria-hidden="true" />
+                <i className="hn hn-coins" style={{ fontSize: 24, color: '#ffd700' }} aria-hidden="true" />
                 <span className="font-silkscreen text-[10px] leading-none" style={{ color: '#ffd700' }}>
                   {coins.toLocaleString()}
                 </span>

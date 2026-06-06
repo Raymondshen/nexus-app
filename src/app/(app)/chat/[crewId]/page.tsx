@@ -68,7 +68,7 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
   // Stage 2 — cached member profiles + fresh crew/raid in parallel.
   // crew (total_xp) and active_raids stay uncached — they change with every message.
   // crew_members fetched fresh for membership check (RLS returns empty for non-members).
-  const [cachedProfiles, crewResult, raidResult, lastSeenResult, coinsResult] = await Promise.all([
+  const [cachedProfiles, crewResult, raidResult, lastSeenResult] = await Promise.all([
     getCachedMemberProfiles(crewId),
     supabase.from("crews").select("id, name, invite_code, level, total_xp").eq("id", crewId).single(),
     supabase
@@ -82,7 +82,6 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
       .from("crew_members")
       .select("user_id, last_seen, class")
       .eq("crew_id", crewId),
-    supabase.from("profiles").select("coins").eq("id", user.id).single(),
   ]);
 
   const crew    = crewResult.data as Crew | null;
@@ -128,7 +127,6 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
         initialRaid={raidRow ?? null}
         currentUserId={user.id}
         crewId={crewId}
-        initialCoins={(coinsResult.data as { coins?: number } | null)?.coins ?? 0}
       />
 
       <ErrorBoundary>
