@@ -31,6 +31,7 @@ notification_preferences  user_id (PK), notif_messages, notif_raids, notif_victo
 friendships    id, requester_id, addressee_id, status (pending|accepted), created_at — UNIQUE(requester_id, addressee_id)
 coin_log       id, user_id, crew_id (nullable), coins, source, created_at
 app_invites    id, code (text unique), inviter_id (uuid → profiles), used (bool default false), used_by (uuid → profiles), used_at (timestamptz), created_at
+reserved_users id, email (text unique), username, class (text nullable), created_at, converted (bool default false)
 ```
 
 ### DM Channels
@@ -118,6 +119,38 @@ Berserker (spam), Sage (long messages), Ghost (silence crit), Hype Man (reaction
 - Secondary: Anonymous sessions (`signInAnonymously`); guest badge + Save Progress shown in header
 - Save Progress triggers Google OAuth; guest session abandoned on upgrade
 - No email/password auth
+
+### Invite-Only Gate — `/login`
+The login page is now invite-only with two paths. Guest mode and the open Google sign-in button are replaced by:
+
+**Invite Code Path** (`LoginForm.tsx` step machine: `landing → invite-oauth → invite-profile`):
+1. User clicks "I HAVE AN INVITE CODE" → Google OAuth via `signInWithGoogleForInvite()` which passes `?flow=invite` in `redirectTo`
+2. Auth callback detects `flow=invite`, redirects to `/login?flow=invite&step=2` instead of `/home`
+3. `checkReservedUserAction()` (server action, service client) checks `reserved_users` by the session user's email:
+   - **Match found**: pre-fills warrior name + class (read-only); user only enters their invite code
+   - **No match / session missing**: interactive warrior name input + `ClassCarousel` + invite code input
+4. `completeInviteFlowAction(code, username, cls)`: validates code in `app_invites` (service client, distinguishes invalid vs already-used), upserts `profiles.username` + `profiles.avatar_class`, marks invite `used=true/used_by/used_at`, returns success → client calls `router.push('/home')`
+5. Home page birthday guard kicks in → `/onboarding/birthday` → `/onboarding/welcome` → crew join/create
+
+**Reserve My Place Path** (`landing → reserve-email → reserve-class → reserve-name → reserve-done`):
+- No auth session created — purely a waitlist record in `reserved_users`
+- Validates Gmail-only (`@gmail.com` suffix), username length ≥ 3
+- Duplicate email check server-side before insert (idempotent error copy: "A warrior already guards this name.")
+- Confirmation screen with game-voice copy
+
+**`reserved_users` RLS**: anyone can insert (public waitlist); no select/update policies (service role only reads). Migration `20240103000011`.
+
+**`app_invites` validation**: uses `createServiceClient()` in `completeInviteFlowAction` to bypass the inviter-only RLS policy. Code lookup is case-insensitive (input `.toUpperCase()`). Race condition guard: `.eq('used', false)` on the update.
+
+**Error copy** (game voice):
+- Invalid code: "The Nexus does not recognize this code."
+- Already used: "This code has already been claimed."
+- Generic: "The rift destabilized. Try again."
+- Email already reserved: "A warrior already guards this name."
+
+**`ClassCarousel`** (inline in `LoginForm.tsx`): single-class-at-a-time view, ‹/› arrows + dot indicators, color-coded border per class. Same 5 classes as onboarding: mage, warrior, rogue, healer, archer.
+
+**`signInWithGoogleForInvite()`** in `src/lib/supabase/auth.ts`: same as `signInWithGoogle()` but passes `?flow=invite` in `redirectTo`.
 
 ## Onboarding Flow
 - **New users**: name → `/onboarding/birthday` → `/onboarding/class` → `/onboarding/welcome` → chat/crew
@@ -437,6 +470,7 @@ Always use `createServiceClient()` inside cache functions (service role, no cook
 - `20240103000007_coins.sql` — `profiles.coins`, `coin_log` table, `increment_user_coins` RPC, adds `profiles` to realtime publication
 - `20240103000008_signup_bonus_and_retroactive_coins.sql` — updates `handle_new_user` trigger to grant 50-coin signup bonus on account creation; one-time retroactive award for all existing users (50 signup + 1 per message sent); idempotent via `coin_log` source = `'signup_bonus'` guard
 - `20240103000009_app_invites.sql` — `app_invites` table + RLS (inviter reads own, inviter inserts own)
+- `20240103000011_reserved_users.sql` — `reserved_users` table (invite-only waitlist); RLS: public insert, service-role-only select/update
 
 ### Manual SQL applied directly (no migration file)
 ```sql
