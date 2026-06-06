@@ -124,7 +124,7 @@ Berserker (spam), Sage (long messages), Ghost (silence crit), Hype Man (reaction
 The login page is now invite-only with two paths. Guest mode and the open Google sign-in button are replaced by:
 
 **Invite Code Path** (`LoginForm.tsx` step machine: `landing → invite-oauth → invite-profile`):
-1. User clicks "I HAVE AN INVITE CODE" → Google OAuth via `signInWithGoogleForInvite()` which passes `?flow=invite` in `redirectTo`
+1. User clicks "I HAVE AN INVITE CODE" → Google OAuth via `signInWithGoogleForInvite()` (sets `nexus_auth_intent=invite` cookie before OAuth)
 2. Auth callback detects `flow=invite`, redirects to `/login?flow=invite&step=2` instead of `/home`
 3. `checkReservedUserAction()` (server action, service client) checks `reserved_users` by the session user's email:
    - **Match found**: pre-fills warrior name + class (read-only); user only enters their invite code
@@ -150,7 +150,9 @@ The login page is now invite-only with two paths. Guest mode and the open Google
 
 **`ClassCarousel`** (inline in `LoginForm.tsx`): single-class-at-a-time view, ‹/› arrows + dot indicators, color-coded border per class. Same 5 classes as onboarding: mage, warrior, rogue, healer, archer.
 
-**`signInWithGoogleForInvite()`** in `src/lib/supabase/auth.ts`: same as `signInWithGoogle()` but passes `?flow=invite` in `redirectTo`.
+**`signInWithGoogleForInvite()`** in `src/lib/supabase/auth.ts`: sets a `nexus_auth_intent=invite` cookie (SameSite=Lax, 5min TTL) then calls `signInWithOAuth` with the standard `redirectTo` (no query params). The cookie survives the Google cross-site redirect; the callback reads it and routes to `/login?flow=invite&step=2`, then clears the cookie. This avoids adding a second URL to the Supabase redirect allowlist.
+
+**Landing screen — third option (existing members)**: below the two main CTAs a divider labeled "ALREADY A MEMBER" precedes a muted "SIGN IN WITH GOOGLE" button that calls the standard `signInWithGoogle()` and routes to `/home`. Styled subordinately (dim border, muted text brightens on hover) so it does not compete with the invite/reserve CTAs.
 
 ## Onboarding Flow
 - **New users**: name → `/onboarding/birthday` → `/onboarding/class` → `/onboarding/welcome` → chat/crew
