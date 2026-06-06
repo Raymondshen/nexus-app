@@ -25,17 +25,18 @@ const CLASS_LABELS: Record<string, string> = {
 type FriendState = 'none' | 'pending_sent' | 'pending_received' | 'accepted'
 
 interface Props {
-  crewId:      string
-  userId:      string
-  viewerId:    string
-  isGuest:     boolean
-  username:    string
-  avatarUrl:   string | null
-  birthday:    string | null
-  avatarClass: AvatarClass | null
-  msgCount:    number
-  totalXP:     number
-  friendship:  { id: string; requester_id: string; addressee_id: string; status: string } | null
+  crewId:          string
+  userId:          string
+  viewerId:        string
+  isGuest:         boolean
+  username:        string
+  avatarUrl:       string | null
+  birthday:        string | null
+  avatarClass:     AvatarClass | null
+  msgCount:        number
+  totalXP:         number
+  friendship:      { id: string; requester_id: string; addressee_id: string; status: string } | null
+  inviterUsername: string | null
 }
 
 function deriveFriendState(
@@ -69,6 +70,7 @@ export function MemberProfileClient({
   msgCount,
   totalXP,
   friendship,
+  inviterUsername,
 }: Props) {
   const goBack = useSlideBack()
   const isSelf = userId === viewerId
@@ -157,7 +159,7 @@ export function MemberProfileClient({
             )}
           </div>
 
-          {/* Name + class */}
+          {/* Name + class + recruited-by */}
           <div className="mt-4 flex flex-col items-center gap-2">
             <div className="flex items-center gap-2">
               <h1 className="font-pixel text-[14px] text-primary leading-none">{username}</h1>
@@ -168,6 +170,11 @@ export function MemberProfileClient({
             {classLabel && (
               <span className="font-silkscreen text-[10px] text-purple leading-none tracking-[0.2px]">
                 {classLabel.toUpperCase()}
+              </span>
+            )}
+            {inviterUsername && (
+              <span className="font-silkscreen text-[8px] leading-none tracking-[0.2px]" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                RECRUITED BY {inviterUsername.toUpperCase()}
               </span>
             )}
           </div>

@@ -22,6 +22,7 @@ interface ProfileClientProps {
   memberSinceYear: string
   totalMessages:   number
   groupChats:      number
+  inviterUsername: string | null
 }
 
 type NotifPrefs = {
@@ -118,7 +119,7 @@ function NotifRow({
 
 export function ProfileClient({
   userId, userEmail, initialUsername, avatarUrl, avatarClass, isDev, isGuest,
-  memberSinceYear, totalMessages, groupChats,
+  memberSinceYear, totalMessages, groupChats, inviterUsername,
 }: ProfileClientProps) {
   const router = useRouter()
   const goBack = useSlideBack()
@@ -289,6 +290,11 @@ export function ProfileClient({
             <p className="font-silkscreen text-[8px] text-secondary leading-none">
               {groupChats} group chat{groupChats !== 1 ? 's' : ''} · {msgFormatted} msg
             </p>
+            {inviterUsername && (
+              <p className="font-silkscreen text-[8px] text-tertiary leading-none">
+                Recruited by {inviterUsername}
+              </p>
+            )}
           </div>
         </div>
 

@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { SlidePage } from '@/components/ui/SlidePage'
 import { MemberProfileClient } from './MemberProfileClient'
 import type { AvatarClass } from '@/types'
@@ -18,14 +18,32 @@ export default async function MemberProfilePage({ params }: Props) {
   if (!session) redirect('/login')
   const viewerId = session.user.id
 
+  async function fetchInviterUsername(targetUserId: string): Promise<string | null> {
+    const service = createServiceClient()
+    const { data: invite } = await service
+      .from('app_invites')
+      .select('inviter_id')
+      .eq('used_by', targetUserId)
+      .eq('used', true)
+      .maybeSingle()
+    if (!invite?.inviter_id) return null
+    const { data: prof } = await service
+      .from('profiles')
+      .select('username')
+      .eq('id', invite.inviter_id as string)
+      .single()
+    return (prof as { username?: string } | null)?.username ?? null
+  }
+
   // Security: verify viewer is in the crew + target is in the crew
-  // Fetch profile, class, stats, and friendship status in parallel
+  // Fetch profile, class, stats, friendship, and invite origin in parallel
   const [
     viewerMembership,
     profileResult,
     targetMembership,
     statsResult,
     friendshipResult,
+    inviterUsername,
   ] = await Promise.all([
     supabase
       .from('crew_members')
@@ -55,6 +73,7 @@ export default async function MemberProfilePage({ params }: Props) {
           )
           .maybeSingle()
       : Promise.resolve({ data: null }),
+    fetchInviterUsername(userId),
   ])
 
   // Must be a crew member viewing another crew member
@@ -94,6 +113,7 @@ export default async function MemberProfilePage({ params }: Props) {
         msgCount={Number(statsRow.msg_count)}
         totalXP={Number(statsRow.total_xp)}
         friendship={friendship}
+        inviterUsername={inviterUsername}
       />
     </SlidePage>
   )

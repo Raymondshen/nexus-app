@@ -661,11 +661,6 @@ export function HomeClient({
 
   useEffect(() => { setCrews(initialCrews) }, [initialCrews])
 
-  // When the server re-renders (router.refresh), take the higher of the two to avoid going backwards.
-  useEffect(() => {
-    setCoins(prev => Math.max(prev, initialCoins))
-  }, [initialCoins])
-
   useEffect(() => {
     router.refresh()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps

@@ -1,6 +1,23 @@
 import { redirect } from 'next/navigation'
 import { unstable_cache } from 'next/cache'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
+
+async function fetchInviterUsername(userId: string): Promise<string | null> {
+  const service = createServiceClient()
+  const { data: invite } = await service
+    .from('app_invites')
+    .select('inviter_id')
+    .eq('used_by', userId)
+    .eq('used', true)
+    .maybeSingle()
+  if (!invite?.inviter_id) return null
+  const { data: prof } = await service
+    .from('profiles')
+    .select('username')
+    .eq('id', invite.inviter_id as string)
+    .single()
+  return (prof as { username?: string } | null)?.username ?? null
+}
 import { ProfileClient } from './ProfileClient'
 
 
@@ -26,7 +43,7 @@ export default async function ProfilePage() {
   if (!session) redirect('/login')
   const user = session.user
 
-  const [profile, messagesResult, crewsResult] = await Promise.all([
+  const [profile, messagesResult, crewsResult, inviterUsername] = await Promise.all([
     getCachedProfile(user.id),
     supabase
       .from('messages')
@@ -37,6 +54,7 @@ export default async function ProfilePage() {
       .from('crew_members')
       .select('id', { count: 'estimated', head: true })
       .eq('user_id', user.id),
+    fetchInviterUsername(user.id),
   ])
 
   const memberSinceYear = profile?.created_at
@@ -57,6 +75,7 @@ export default async function ProfilePage() {
       memberSinceYear={memberSinceYear}
       totalMessages={totalMessages}
       groupChats={groupChats}
+      inviterUsername={inviterUsername}
     />
   )
 }
