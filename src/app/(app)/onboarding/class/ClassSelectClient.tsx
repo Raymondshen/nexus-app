@@ -70,9 +70,11 @@ function ClassCard({
 export default function ClassSelectClient({
   crewId,
   welcome,
+  invite,
 }: {
   crewId: string
   welcome: boolean
+  invite: string | null
 }) {
   const [selected, setSelected] = useState<AvatarClass | null>(null)
   const [state, action, isPending] = useActionState(selectClassAction, null)
@@ -121,6 +123,7 @@ export default function ClassSelectClient({
           <input type="hidden" name="class"   value={selected ?? ''} />
           <input type="hidden" name="crewId"  value={crewId} />
           <input type="hidden" name="welcome" value={welcome ? '1' : '0'} />
+          {invite && <input type="hidden" name="invite" value={invite} />}
           <Button
             type="submit"
             variant="primary"

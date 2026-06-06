@@ -150,6 +150,16 @@ export interface MessageWithProfile extends Message {
   profile: Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url'>
 }
 
+export interface AppInvite extends Record<string, unknown> {
+  id: string
+  code: string
+  inviter_id: string | null
+  used: boolean
+  used_by: string | null
+  used_at: string | null
+  created_at: string
+}
+
 export type FriendshipStatus = 'pending' | 'accepted'
 
 export interface Friendship extends Record<string, unknown> {
@@ -264,6 +274,12 @@ export type Database = {
         Row: Friendship
         Insert: Omit<Friendship, 'id' | 'created_at'> & { id?: string; created_at?: string }
         Update: Partial<Pick<Friendship, 'status'>>
+        Relationships: []
+      }
+      app_invites: {
+        Row: AppInvite
+        Insert: Omit<AppInvite, 'id' | 'created_at'> & { id?: string; created_at?: string }
+        Update: Partial<Omit<AppInvite, 'id'>>
         Relationships: []
       }
     }

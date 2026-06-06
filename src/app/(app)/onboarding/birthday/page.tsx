@@ -5,9 +5,9 @@ import BirthdayClient from './BirthdayClient'
 export default async function BirthdayPage({
   searchParams,
 }: {
-  searchParams: Promise<{ crew?: string; welcome?: string }>
+  searchParams: Promise<{ crew?: string; welcome?: string; invite?: string }>
 }) {
-  const { crew: crewId, welcome } = await searchParams
+  const { crew: crewId, welcome, invite } = await searchParams
 
   const supabase = await createClient()
   const { data: { session } } = await supabase.auth.getSession()
@@ -23,11 +23,12 @@ export default async function BirthdayPage({
 
   if (birthday) {
     if (crewId) {
-      redirect(`/onboarding/class?crew=${crewId}${welcome === '1' ? '&welcome=1' : ''}`)
+      const inviteParam = invite ? `&invite=${invite}` : ''
+      redirect(`/onboarding/class?crew=${crewId}${welcome === '1' ? '&welcome=1' : ''}${inviteParam}`)
     } else {
-      redirect('/home')
+      redirect('/onboarding/welcome')
     }
   }
 
-  return <BirthdayClient crewId={crewId ?? null} welcome={welcome === '1'} />
+  return <BirthdayClient crewId={crewId ?? null} welcome={welcome === '1'} invite={invite ?? null} />
 }

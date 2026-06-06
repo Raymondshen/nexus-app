@@ -50,9 +50,11 @@ function SelectField({
 export default function BirthdayClient({
   crewId,
   welcome,
+  invite,
 }: {
   crewId: string | null
   welcome: boolean
+  invite: string | null
 }) {
   const [month, setMonth] = useState('')
   const [day,   setDay]   = useState('')
@@ -114,6 +116,7 @@ export default function BirthdayClient({
         <form action={action} className="space-y-4">
           <input type="hidden" name="crewId"  value={crewId  ?? ''} />
           <input type="hidden" name="welcome" value={welcome ? '1' : '0'} />
+          {invite && <input type="hidden" name="invite" value={invite} />}
 
           <SelectField label="MONTH" name="month" value={month} onChange={handleMonthChange}>
             <option value="" disabled>Select month</option>

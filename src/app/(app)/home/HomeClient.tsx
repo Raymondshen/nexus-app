@@ -8,7 +8,8 @@ import { X } from 'lucide-react'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { createCrewAction } from '@/app/(app)/onboarding/create/actions'
-import { leaveCrewAction } from './actions'
+import { joinCrewAction }   from '@/app/(app)/onboarding/join/actions'
+import { leaveCrewAction, generateAppInviteAction } from './actions'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import type { CrewSummary } from './page'
@@ -130,10 +131,256 @@ function ProfileBanner({
   )
 }
 
-// ─── Create crew sheet ────────────────────────────────────────────────────────
+// ─── Home action sheet (Create / Join / Invite) ───────────────────────────────
 
-function CreateCrewSheet({ onClose }: { onClose: () => void }) {
-  const [state, action, isPending] = useActionState(createCrewAction, null)
+type SheetView = 'menu' | 'create' | 'join' | 'code'
+
+function HomeActionSheet({
+  onClose,
+  coins,
+  onCoinsDeducted,
+}: {
+  onClose:         () => void
+  coins:           number
+  onCoinsDeducted: () => void
+}) {
+  const [view,          setView]          = useState<SheetView>('menu')
+  const [generatedCode, setGeneratedCode] = useState('')
+  const [inviteLoading, setInviteLoading] = useState(false)
+  const [inviteError,   setInviteError]   = useState<string | null>(null)
+  const [copied,        setCopied]        = useState(false)
+
+  const [createState, createAction, createPending] = useActionState(createCrewAction, null)
+  const [joinState,   joinAction,   joinPending]   = useActionState(joinCrewAction,   null)
+  const [joinCode, setJoinCode] = useState('')
+
+  const canAffordInvite = coins >= 25
+
+  async function handleInviteClick() {
+    if (!canAffordInvite || inviteLoading) return
+    setInviteLoading(true)
+    setInviteError(null)
+    try {
+      const result = await generateAppInviteAction()
+      if ('error' in result) {
+        setInviteError(result.error)
+      } else {
+        setGeneratedCode(result.code)
+        if (!result.existing) onCoinsDeducted()
+        setView('code')
+      }
+    } finally {
+      setInviteLoading(false)
+    }
+  }
+
+  async function handleCopyCode() {
+    await navigator.clipboard.writeText(generatedCode)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  function handleJoinCodeChange(e: React.ChangeEvent<HTMLInputElement>) {
+    setJoinCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))
+  }
+
+  const sheetContent = (() => {
+    if (view === 'create') {
+      return (
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center gap-3 mb-1">
+            <button onClick={() => setView('menu')} className="text-muted hover:text-primary transition-colors">
+              <i className="hn hn-angle-left-solid" style={{ fontSize: 16 }} aria-hidden="true" />
+            </button>
+            <h2 className="font-pixel text-[11px] text-primary">CREATE A CREW</h2>
+          </div>
+
+          {createState?.error && (
+            <div className="bg-[#ff4444]/10 border border-[#ff4444]/50 px-3 py-2">
+              <p className="font-pixel text-[9px] text-[#ff4444] leading-relaxed">{createState.error}</p>
+            </div>
+          )}
+
+          <form action={createAction} className="flex flex-col gap-4">
+            <Input
+              name="crewName"
+              type="text"
+              label="CREW NAME"
+              placeholder="The Void Slayers"
+              required
+              minLength={2}
+              maxLength={30}
+              autoComplete="off"
+              autoFocus
+            />
+            <Button type="submit" variant="primary" loading={createPending} className="w-full">
+              FORGE THE CREW
+            </Button>
+          </form>
+        </div>
+      )
+    }
+
+    if (view === 'join') {
+      return (
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center gap-3 mb-1">
+            <button onClick={() => setView('menu')} className="text-muted hover:text-primary transition-colors">
+              <i className="hn hn-angle-left-solid" style={{ fontSize: 16 }} aria-hidden="true" />
+            </button>
+            <h2 className="font-pixel text-[11px] text-primary">JOIN A CREW</h2>
+          </div>
+
+          {joinState?.error && (
+            <div className="bg-[#ff4444]/10 border border-[#ff4444]/50 px-3 py-2">
+              <p className="font-pixel text-[9px] text-[#ff4444] leading-relaxed">{joinState.error}</p>
+            </div>
+          )}
+
+          <form action={joinAction} className="flex flex-col gap-4">
+            <div className="flex flex-col gap-[6px]">
+              <label className="font-pixel text-[9px] text-purple tracking-widest">INVITE CODE</label>
+              <input
+                value={joinCode}
+                onChange={handleJoinCodeChange}
+                placeholder="A3X9KP"
+                autoComplete="off"
+                autoFocus
+                className="w-full bg-black border border-border px-3 py-3 text-white font-pixel text-[16px] tracking-[0.4em] text-center placeholder:text-muted placeholder:tracking-[0.2em] focus:outline-none focus:border-purple"
+              />
+              <input type="hidden" name="inviteCode" value={joinCode} />
+              <p className="font-pixel text-[7px] text-muted">{joinCode.length}/6 characters</p>
+            </div>
+            <Button
+              type="submit"
+              variant="primary"
+              loading={joinPending}
+              disabled={joinCode.length !== 6}
+              className="w-full"
+            >
+              ENTER THE WAR
+            </Button>
+          </form>
+        </div>
+      )
+    }
+
+    if (view === 'code') {
+      return (
+        <div className="flex flex-col items-center gap-5">
+          <p className="font-pixel text-[9px] text-tertiary">YOUR INVITE CODE.</p>
+
+          <div
+            className="font-pixel text-[32px] tracking-[0.3em] select-all"
+            style={{ color: '#ffd700', letterSpacing: '0.35em' }}
+          >
+            {generatedCode}
+          </div>
+
+          <button
+            onClick={handleCopyCode}
+            className="w-full h-12 font-pixel text-[10px] border transition-colors"
+            style={{
+              borderColor: copied ? '#66bb6a' : 'rgba(255,215,0,0.4)',
+              color:       copied ? '#66bb6a' : '#ffd700',
+            }}
+          >
+            {copied ? 'COPIED.' : 'COPY CODE'}
+          </button>
+
+          <p className="font-pixel text-[8px] leading-relaxed text-center" style={{ color: 'rgba(255,255,255,0.4)' }}>
+            One use only. Share it wisely.
+          </p>
+
+          <button
+            onClick={onClose}
+            className="font-pixel text-[8px] text-muted hover:text-primary transition-colors py-2"
+          >
+            CLOSE
+          </button>
+        </div>
+      )
+    }
+
+    // Menu view
+    return (
+      <div className="flex flex-col gap-2">
+        <p className="font-pixel text-[8px] text-tertiary mb-2">WHAT DO YOU WANT TO DO?</p>
+
+        {/* Create a Crew */}
+        <button
+          onClick={() => setView('create')}
+          className="w-full text-left flex items-center gap-4 px-4 py-4 min-h-[56px] border-l-2 border-transparent active:border-purple transition-colors hover:bg-white/5"
+        >
+          <div className="flex-1 min-w-0">
+            <p className="font-pixel text-[10px] text-primary">CREATE A CREW</p>
+            <p className="font-pixel text-[8px] text-muted mt-1">Start a new war party</p>
+          </div>
+          <i className="hn hn-angle-right-solid flex-shrink-0" style={{ fontSize: 16, color: 'var(--color-muted)' }} aria-hidden="true" />
+        </button>
+
+        <div className="border-t border-border" />
+
+        {/* Join a Crew */}
+        <button
+          onClick={() => setView('join')}
+          className="w-full text-left flex items-center gap-4 px-4 py-4 min-h-[56px] border-l-2 border-transparent active:border-purple transition-colors hover:bg-white/5"
+        >
+          <div className="flex-1 min-w-0">
+            <p className="font-pixel text-[10px] text-primary">JOIN A CREW</p>
+            <p className="font-pixel text-[8px] text-muted mt-1">Enter an invite code</p>
+          </div>
+          <i className="hn hn-angle-right-solid flex-shrink-0" style={{ fontSize: 16, color: 'var(--color-muted)' }} aria-hidden="true" />
+        </button>
+
+        <div className="border-t border-border" />
+
+        {/* Invite a Friend */}
+        <button
+          onClick={handleInviteClick}
+          disabled={!canAffordInvite || inviteLoading}
+          className="w-full text-left flex items-center gap-4 px-4 py-4 min-h-[56px] border-l-2 border-transparent active:border-purple transition-colors hover:bg-white/5 disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <p className="font-pixel text-[10px] text-primary">INVITE A FRIEND</p>
+              {inviteLoading && (
+                <span className="font-pixel text-[8px] text-muted">...</span>
+              )}
+            </div>
+            <div className="flex items-center gap-3 mt-1">
+              <span
+                className="font-pixel text-[8px]"
+                style={{ color: canAffordInvite ? '#ffd700' : 'var(--color-muted)' }}
+              >
+                {coins.toLocaleString()} COINS
+              </span>
+              <span className="font-pixel text-[8px] text-muted">·</span>
+              <span
+                className="font-pixel text-[8px]"
+                style={{ color: canAffordInvite ? '#ffd700' : 'var(--color-muted)' }}
+              >
+                COSTS 25
+              </span>
+            </div>
+          </div>
+          {canAffordInvite && (
+            <i className="hn hn-angle-right-solid flex-shrink-0" style={{ fontSize: 16, color: 'var(--color-muted)' }} aria-hidden="true" />
+          )}
+        </button>
+
+        {!canAffordInvite && (
+          <p className="font-pixel text-[8px] text-muted px-4 pb-2 leading-relaxed">
+            Keep fighting to earn more coins.
+          </p>
+        )}
+
+        {inviteError && (
+          <p className="font-pixel text-[8px] text-[#ff4444] px-4 pb-2 leading-relaxed">{inviteError}</p>
+        )}
+      </div>
+    )
+  })()
 
   return (
     <motion.div
@@ -149,59 +396,20 @@ function CreateCrewSheet({ onClose }: { onClose: () => void }) {
         animate={{ y: 0,  opacity: 1 }}
         exit={{   y: 80, opacity: 0 }}
         transition={{ type: 'spring', stiffness: 280, damping: 26 }}
-        className="relative w-full max-w-[480px] bg-surface border-t border-border p-6"
+        className="relative w-full max-w-[480px] bg-[#0a0612] border-t border-border px-6 pt-5"
         style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 24px)' }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start justify-between mb-5">
-          <div>
-            <p className="font-pixel text-[8px] text-tertiary mb-1">NEW WAR PARTY</p>
-            <h2 className="font-pixel text-[11px] text-primary">CREATE A CREW</h2>
-          </div>
+        {view !== 'code' && (
           <button
             onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center text-tertiary hover:text-primary"
+            className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center text-tertiary hover:text-primary"
             aria-label="Close"
           >
             <X size={16} />
           </button>
-        </div>
-
-        {state?.error && (
-          <div className="bg-[#ff4444]/10 border border-[#ff4444]/50 px-3 py-2 mb-4">
-            <p className="font-pixel text-[9px] text-[#ff4444] leading-relaxed">{state.error}</p>
-          </div>
         )}
-
-        <form action={action} className="flex flex-col gap-4">
-          <Input
-            name="crewName"
-            type="text"
-            label="CREW NAME"
-            placeholder="The Void Slayers"
-            required
-            minLength={2}
-            maxLength={30}
-            autoComplete="off"
-            autoFocus
-          />
-          <Button type="submit" variant="primary" loading={isPending} className="w-full">
-            FORGE THE CREW
-          </Button>
-        </form>
-
-        <div className="flex items-center gap-3 mt-4">
-          <div className="flex-1 border-t border-border" />
-          <span className="font-pixel text-[8px] text-muted">── OR ──</span>
-          <div className="flex-1 border-t border-border" />
-        </div>
-
-        <a
-          href="/onboarding/join"
-          className="mt-4 w-full flex items-center justify-center h-12 font-pixel text-[9px] text-purple border border-purple/40 hover:border-purple transition-colors"
-        >
-          🔗 JOIN WITH CODE
-        </a>
+        {sheetContent}
       </motion.div>
     </motion.div>
   )
@@ -659,6 +867,7 @@ export function HomeClient({
     }
   }, [leaveTarget, leaving])
 
+  const handleCoinsDeducted = useCallback(() => setCoins(c => c - 25), [])
   const handleCloseCreate = useCallback(() => setShowCreate(false), [])
   const handleCloseLeave  = useCallback(() => {
     if (!leaving) { setLeaveTarget(null); setLeaveError(null) }
@@ -774,7 +983,13 @@ export function HomeClient({
 
       {/* ── Modals ── */}
       <AnimatePresence>
-        {showCreate  && <CreateCrewSheet onClose={handleCloseCreate} />}
+        {showCreate  && (
+          <HomeActionSheet
+            onClose={handleCloseCreate}
+            coins={coins}
+            onCoinsDeducted={handleCoinsDeducted}
+          />
+        )}
         {leaveTarget && (
           <LeaveConfirmSheet
             summary={leaveTarget}
