@@ -30,6 +30,7 @@ push_subscriptions  id, user_id, crew_id (nullable), endpoint (UNIQUE), p256dh, 
 notification_preferences  user_id (PK), notif_messages, notif_raids, notif_victory, updated_at
 friendships    id, requester_id, addressee_id, status (pending|accepted), created_at — UNIQUE(requester_id, addressee_id)
 coin_log       id, user_id, crew_id (nullable), coins, source, created_at
+app_invites    id, code (text unique), inviter_id (uuid → profiles), used (bool default false), used_by (uuid → profiles), used_at (timestamptz), created_at
 ```
 
 ### DM Channels
@@ -76,9 +77,13 @@ Coins are the invite currency. Earned by sending messages; spent (future) to inv
 | Voice note | 1 |
 | Image / GIF | 1 |
 | Reaction / system | 0 |
+| Generate invite code | −25 (`source='invite_generated'`) |
+| Invited user joins | +50 to new user (`source='seed'`) |
 
 - All message types (text, voice, image) earn exactly **1 coin** — flat rate regardless of type
 - New users receive a **50-coin signup bonus** awarded by the `handle_new_user` DB trigger at account creation; logged in `coin_log` with `source = 'signup_bonus'`
+- **Invite generation**: costs 25 coins; server re-validates balance before deducting — never trust client. If inviter already has an unused code, returns it without deducting. Code generation uses alphabet `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (no ambiguous chars: 0, O, I, 1). Up to 10 uniqueness retries before error.
+- **Seed coins**: new user who joins via invite gets 50 coins; idempotent — checked via `coin_log source='seed'` to prevent double award.
 - Stored in `profiles.coins` (integer, default 50 for new users); log in `coin_log`
 - Awarded in `award-xp` edge function via `increment_user_coins(user_id, amount)` RPC (atomic UPDATE)
 - Anti-spam: coins only awarded when `xpBlocked = false` (same cooldown/burst gate as XP)
@@ -115,11 +120,24 @@ Berserker (spam), Sage (long messages), Ghost (silence crit), Hype Man (reaction
 - No email/password auth
 
 ## Onboarding Flow
-- **New users**: name → `/onboarding/birthday` → `/onboarding/class` → chat
+- **New users**: name → `/onboarding/birthday` → `/onboarding/class` → `/onboarding/welcome` → chat/crew
 - **Existing users without birthday**: home page detects missing `birthday` and redirects to `/onboarding/birthday`
-- Birthday page (`/onboarding/birthday`): three-dropdown UI (month/day/year); validates real dates (rejects Feb 30, future dates); saves as `YYYY-MM-DD`; redirects to class selection (with `crew` param) or `/home`
-- `crewId` and `welcome` query params are forwarded through the birthday step so the user lands in the right crew after onboarding
+- Birthday page (`/onboarding/birthday`): three-dropdown UI (month/day/year); validates real dates (rejects Feb 30, future dates); saves as `YYYY-MM-DD`; redirects to class selection (with `crew` param) or `/onboarding/welcome` (no crew)
+- `crewId`, `welcome`, and `invite` query params are forwarded through the birthday → class steps so the user lands in the right crew after onboarding
 - **Per-crew class selection**: `chat/[crewId]/page.tsx` guards on `crew_members.class` (per-crew, can be null for new crews). `onboarding/class/page.tsx` skips selection using the same `crew_members.class` check — **NOT** `profiles.avatar_class` (global). Using the global field caused an infinite redirect loop for users who had a global class but joined a new crew. `profiles.avatar_class` is kept in sync by `selectClassAction` as a best-effort display value only.
+- **Welcome screen redirect**: `selectClassAction` with `welcome=1` redirects to `/onboarding/welcome?crew=${crewId}` ONLY when `crew_members` count for the user equals 1 (their first ever crew). Prevents redirect loop on subsequent crew joins.
+- **`invite` URL param threading**: threaded through birthday → class → welcome as a hidden form field + URL param. Known v1 limitation: unauthenticated users clicking an invite link lose the code through the OAuth flow (auth callback always goes to `/home`).
+
+### Welcome Screen — `/onboarding/welcome`
+- Server component reads `crew` and `invite` params
+- If valid unused invite code found: fetches inviter's username; if `crew` param present, marks invite used + awards 50 seed coins + sends `recruit_arrived` push to inviter (all in `Promise.all`, idempotent via `coin_log source='seed'` check)
+- Passes `inviterUsername` + `validInviteCode` (for no-crew path) to `WelcomeClient`
+- **Invited state**: heading "You're in the Nexus.", subtext "[inviter] recruited you. Now find your crew."
+- **Organic state**: heading "The Nexus is yours.", subtext "Build your crew. Start the fight."
+- If `crewId` present: single "ENTER THE NEXUS" button → `/chat/${crewId}?welcome=1`
+- If no `crewId`: "ENTER CREW CODE" (inline 6-char join form via `joinCrewFromWelcomeAction`) + "START YOUR OWN CREW" (→ `/onboarding/create`)
+- Join form passes `inviteCode` as hidden field so invite is processed even when user first lands without a crew
+- Key files: `src/app/(app)/onboarding/welcome/page.tsx`, `WelcomeClient.tsx`, `actions.ts`
 
 ## Dev Mode
 - Controlled by `profiles.is_dev` boolean (default false) — **not hardcoded emails**
@@ -229,6 +247,23 @@ Data fetching in `home/page.tsx`:
 
 Header spacing: `pb-2` bottom padding, `paddingTop: max(env(safe-area-inset-top), 8px)`, icon gap `gap-4`.
 
+### Home Page — HomeActionSheet (+ button)
+The `+` button in the home header opens `HomeActionSheet` (replaced the old single-purpose `CreateCrewSheet`). Three menu options:
+- **Create a Crew** — transitions to inline create form (same flow as before)
+- **Join a Crew** — transitions to inline join form (same flow as before)
+- **Invite a Friend** — shows user's live coin balance in `#ffd700` Press Start 2P + "25 coins" cost label; if coins ≥ 25: calls `generateAppInviteAction` → transitions to code display state; if coins < 25: row disabled with muted copy "Keep fighting to earn more coins."
+
+Code display state: large `font-pixel text-[32px] #ffd700 letterSpacing: '0.35em'` code, "Your invite code." label, copy button (→ "Copied." in `#66bb6a` for 2s), "One use only. Share it wisely." in `rgba(255,255,255,0.4)`, close button.
+
+`generateAppInviteAction` (in `src/app/(app)/home/actions.ts`):
+- Checks for existing unused code first (returns it without deducting coins, `existing: true`)
+- Re-validates coin balance server-side before deducting
+- Generates 6-char code from `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (no ambiguous chars)
+- Up to 10 uniqueness retries; parallel insert + `increment_user_coins(-25)` + `coin_log` insert
+- `HomeClient` calls `onCoinsDeducted()` (subtracts 25 locally) only when `!result.existing`
+
+Sheet design: `bg-[#0a0612]`, full-width rows min 44px, `border-l-2 border-transparent active:border-purple` on active row, dismisses on outside tap.
+
 ### Home Page — SwipeableCrewCard leave button
 Swipe left on a crew card to reveal the leave action (`LEAVE_REVEAL = 104px`). Leave button design (matches Figma node 50:516):
 - Background: `#ef4444`
@@ -304,6 +339,7 @@ All "detail" pages (chat, DM, profile, friends, vault) slide in from the right o
 - **Badge**: `BadgeClear` component clears app icon badge on focus/visibilitychange; SW sets it on push receive
 - **Preferences**: `notification_preferences` table; `send-notification` edge function checks before sending
 - **`message_received` notification format**: title = `"Name from Group Name"`, body = content preview or `"sent"` if empty
+- **`recruit_arrived` notification**: sent to inviter when a new user joins via their invite code. Title: "Your recruit arrived.", body: "[new_username] just entered the Nexus.", url: `/home`. No preference gate (`null` in `PREF_COLUMN` — always delivered).
 - `VAPID_SUBJECT` **must** be a `mailto:` URI — bare email breaks iOS APNs
 - iOS push only works in standalone PWA mode (iOS 16.4+, added to Home Screen)
 - **iOS foreground suppression**: iOS does NOT show push banners when the PWA window is active. Always test push with the PWA completely closed (swiped away from app switcher).
@@ -379,6 +415,7 @@ Always use `createServiceClient()` inside cache functions (service role, no cook
 - `20240103000006_member_crew_stats_rpc.sql` — `get_member_crew_stats` RPC
 - `20240103000007_coins.sql` — `profiles.coins`, `coin_log` table, `increment_user_coins` RPC, adds `profiles` to realtime publication
 - `20240103000008_signup_bonus_and_retroactive_coins.sql` — updates `handle_new_user` trigger to grant 50-coin signup bonus on account creation; one-time retroactive award for all existing users (50 signup + 1 per message sent); idempotent via `coin_log` source = `'signup_bonus'` guard
+- `20240103000009_app_invites.sql` — `app_invites` table + RLS (inviter reads own, inviter inserts own)
 
 ### Manual SQL applied directly (no migration file)
 ```sql
