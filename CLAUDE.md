@@ -213,7 +213,7 @@ Swipe left on a crew card to reveal the leave action (`LEAVE_REVEAL = 104px`). L
 ### ChatHeader — props and spacing
 `ChatHeader` accepts only `{ crew, initialXP, initialRaid, currentUserId, crewId }`. It has **no** `members` or `memberLastSeen` props — member avatars live in ChatInput, not the header. Do not add a second presence channel here (see Online Presence note above).
 
-Header spacing: `px-4 pb-2` (16px horizontal, 8px bottom), `paddingTop: max(env(safe-area-inset-top), 8px)`, heading row `h-10`. Left side: `gap-2` (8px) between back button and crew name group. Crew name button has `gap-1` (4px) between the underlined name and the dropdown chevron. Crew name has `underline` decoration. Dropdown chevron is `hn-angle-right-solid rotate(90deg)`. All icons `fontSize: 24`. Back arrows across all screens use `var(--color-tertiary)` and the solid variant (`hn-angle-left-solid`).
+Header spacing: `px-4 pb-2` (16px horizontal, 8px bottom), `paddingTop: max(env(safe-area-inset-top), 8px)`, heading row `h-10`. Left side: `gap-2` (8px) between back button and crew name group. Crew name button has `gap-1` (4px) between the underlined name and the dropdown chevron. Crew name uses `style={{ textDecoration: 'underline' }}` (inline style, **not** the Tailwind `underline` class) — iOS Safari strips `text-decoration` from class-applied styles on elements inside `<button>`; inline style bypasses this. Dropdown chevron is `hn-angle-right-solid rotate(90deg)`. All icons `fontSize: 24`. Back arrows across all screens use `var(--color-tertiary)` and the solid variant (`hn-angle-left-solid`).
 
 ### Page Transitions — SlidePage + useSlideBack
 All "detail" pages (chat, DM, profile, friends, vault) slide in from the right on mount and slide back out on close.
