@@ -339,7 +339,7 @@ All "detail" pages (chat, DM, profile, friends, vault) slide in from the right o
 - **Badge**: `BadgeClear` component clears app icon badge on focus/visibilitychange; SW sets it on push receive
 - **Preferences**: `notification_preferences` table; `send-notification` edge function checks before sending
 - **`message_received` notification format**: title = `"Name from Group Name"`, body = content preview or `"sent"` if empty
-- **`recruit_arrived` notification**: sent to inviter when a new user joins via their invite code. Title: "Your recruit arrived.", body: "[new_username] just entered the Nexus.", url: `/home`. No preference gate (`null` in `PREF_COLUMN` — always delivered).
+- **`recruit_arrived` notification**: sent to inviter when a new user joins via their invite code. Title: "Your recruit arrived.", body: "[new_username] just entered the Nexus.", url: `/home`. No preference gate (`null` in `PREF_COLUMN` — always delivered). **Deployed 2026-06-05.**
 - `VAPID_SUBJECT` **must** be a `mailto:` URI — bare email breaks iOS APNs
 - iOS push only works in standalone PWA mode (iOS 16.4+, added to Home Screen)
 - **iOS foreground suppression**: iOS does NOT show push banners when the PWA window is active. Always test push with the PWA completely closed (swiped away from app switcher).
