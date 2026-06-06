@@ -653,7 +653,13 @@ export function HomeClient({
   const [leaveTarget,       setLeaveTarget]       = useState<CrewSummary | null>(null)
   const [leaving,           setLeaving]           = useState(false)
   const [leaveError,        setLeaveError]        = useState<string | null>(null)
-  const [coins,             setCoins]             = useState(() => Math.max(initialCoins, useChatStore.getState().userCoins))
+  const [coins,             setCoins]             = useState(() => {
+    const store = useChatStore.getState()
+    const base = Math.max(initialCoins, store.userCoins)
+    // Seed the store with the absolute balance so addUserCoins in chat accumulates correctly
+    if (store.userCoins < base) store.setUserCoins(base)
+    return base
+  })
   const [showCoinTip,       setShowCoinTip]       = useState(false)
 
   const profileCacheRef = useRef<Record<string, string>>(profileCache)
@@ -675,7 +681,10 @@ export function HomeClient({
         { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${userId}` },
         (payload) => {
           const newCoins = (payload.new as { coins?: number }).coins
-          if (typeof newCoins === 'number') setCoins(newCoins)
+          if (typeof newCoins === 'number') {
+            setCoins(newCoins)
+            useChatStore.getState().setUserCoins(newCoins)
+          }
         },
       )
       .subscribe()
@@ -768,7 +777,11 @@ export function HomeClient({
     }
   }, [leaveTarget, leaving])
 
-  const handleCoinsDeducted    = useCallback(() => setCoins(c => c - 25), [])
+  const handleCoinsDeducted    = useCallback(() => setCoins(c => {
+    const next = c - 25
+    useChatStore.getState().setUserCoins(next)
+    return next
+  }), [])
   const handleCloseCreate      = useCallback(() => setShowCreate(false), [])
   const handleCloseArsenal     = useCallback(() => setShowInviteArsenal(false), [])
   const handleOpenArsenal      = useCallback(() => {
