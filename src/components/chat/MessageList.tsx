@@ -294,9 +294,11 @@ export function MessageList({
     )
   }
 
-  // Pre-pass: accumulate XP per group so the group-leader bubble shows the running total.
+  // Pre-pass: accumulate XP and coins per group so the group-leader bubble shows running totals.
+  // Coins = 1 per message when xp_awarded > 0 (spam-blocked messages earn neither XP nor coins).
   // Mirrors the grouping conditions in the main display-list loop below.
-  const groupXPMap = new Map<string, number>()
+  const groupXPMap   = new Map<string, number>()
+  const groupCoinMap = new Map<string, number>()
   {
     let preLastDate: Date | null = null
     let preLastUserId: string | null = null
@@ -333,12 +335,16 @@ export function MessageList({
 
       const sameUser     = msg.user_id === preLastUserId
       const withinMinute = sameUser && (msgTime - preLastMsgTime) < 60_000
+      const msgXP        = msg.xp_awarded ?? 0
+      const msgCoins     = msgXP > 0 ? 1 : 0
 
       if (!withinMinute) {
         preGroupLeaderId = msg.id
-        groupXPMap.set(msg.id, msg.xp_awarded ?? 0)
+        groupXPMap.set(msg.id, msgXP)
+        groupCoinMap.set(msg.id, msgCoins)
       } else if (preGroupLeaderId) {
-        groupXPMap.set(preGroupLeaderId, (groupXPMap.get(preGroupLeaderId) ?? 0) + (msg.xp_awarded ?? 0))
+        groupXPMap.set(preGroupLeaderId, (groupXPMap.get(preGroupLeaderId) ?? 0) + msgXP)
+        groupCoinMap.set(preGroupLeaderId, (groupCoinMap.get(preGroupLeaderId) ?? 0) + msgCoins)
       }
 
       preLastUserId  = msg.user_id
@@ -352,7 +358,7 @@ export function MessageList({
     | { kind: 'boss';     raidId: string;     key: string; raid: ActiveRaid | null }
     | { kind: 'artifact'; artifactId: string; key: string }
     | { kind: 'level_up'; level: number; msgId: string; key: string }
-    | { kind: 'message';  message: MessageWithProfile; isOwn: boolean; showHeader: boolean; xpOverride?: number }
+    | { kind: 'message';  message: MessageWithProfile; isOwn: boolean; showHeader: boolean; xpOverride?: number; coinOverride?: number }
 
   const items: DisplayItem[] = []
   let lastDate:    Date | null   = null
@@ -410,8 +416,9 @@ export function MessageList({
         const sameUser     = msg.user_id === lastUserId
         const withinMinute = sameUser && (msgTime - lastMsgTime) < 60_000
         const showHeader   = !withinMinute
-        const xpOverride   = showHeader ? groupXPMap.get(msg.id) : undefined
-        items.push({ kind: 'message', message: msg as MessageWithProfile, isOwn: msg.user_id === currentUserId, showHeader, xpOverride })
+        const xpOverride   = showHeader ? groupXPMap.get(msg.id)   : undefined
+        const coinOverride = showHeader ? groupCoinMap.get(msg.id) : undefined
+        items.push({ kind: 'message', message: msg as MessageWithProfile, isOwn: msg.user_id === currentUserId, showHeader, xpOverride, coinOverride })
         lastUserId  = msg.user_id
         lastMsgTime = msgTime
       }
@@ -486,6 +493,7 @@ export function MessageList({
             isOwn={item.isOwn}
             showHeader={item.showHeader}
             xpOverride={item.xpOverride}
+            coinOverride={item.coinOverride}
             onAvatarTap={onAvatarTap}
           />
         )

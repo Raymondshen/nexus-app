@@ -28,10 +28,11 @@ interface MessageBubbleProps {
   isOwn:          boolean
   showHeader:     boolean
   xpOverride?:    number  // accumulated group XP for the group-leader bubble
+  coinOverride?:  number  // accumulated group coins for the group-leader bubble
   onAvatarTap?:   (userId: string) => void
 }
 
-export function MessageBubble({ message, isOwn, showHeader, xpOverride, onAvatarTap }: MessageBubbleProps) {
+export function MessageBubble({ message, isOwn, showHeader, xpOverride, coinOverride, onAvatarTap }: MessageBubbleProps) {
   const [showReactions, setShowReactions] = useState(false)
   const [copied,        setCopied]        = useState(false)
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -62,6 +63,30 @@ export function MessageBubble({ message, isOwn, showHeader, xpOverride, onAvatar
     raf = requestAnimationFrame(step)
     return () => cancelAnimationFrame(raf)
   }, [xpTarget]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Coins to display — group-accumulated value when available
+  const coinTarget = coinOverride ?? ((message.xp_awarded ?? 0) > 0 ? 1 : 0)
+  const [displayCoins, setDisplayCoins] = useState(coinTarget)
+  const displayCoinsRef = useRef(coinTarget)
+
+  useEffect(() => {
+    const start = displayCoinsRef.current
+    const end   = coinTarget
+    if (start === end) return
+    const duration  = 500
+    const startTime = performance.now()
+    let raf: number
+    function step(now: number) {
+      const t = Math.min((now - startTime) / duration, 1)
+      const eased = 1 - Math.pow(1 - t, 3)
+      const val = Math.round(start + (end - start) * eased)
+      displayCoinsRef.current = val
+      setDisplayCoins(val)
+      if (t < 1) raf = requestAnimationFrame(step)
+    }
+    raf = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(raf)
+  }, [coinTarget]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleTouchStart() {
     longPressTimer.current = setTimeout(() => setShowReactions(true), 500)
@@ -181,6 +206,17 @@ export function MessageBubble({ message, isOwn, showHeader, xpOverride, onAvatar
                   <p className="font-silkscreen tracking-[0.1px] whitespace-nowrap leading-[0] text-[0px] shrink-0">
                     <span className="text-[8px] leading-[normal]" style={{ color: '#f59e0b' }}>
                       +{displayXP} XP
+                    </span>
+                  </p>
+                </>
+              )}
+
+              {displayCoins > 0 && (
+                <>
+                  <span className="w-[2px] h-[2px] bg-purple shrink-0 mt-[5px]" />
+                  <p className="font-silkscreen tracking-[0.1px] whitespace-nowrap leading-[0] text-[0px] shrink-0">
+                    <span className="text-[8px] leading-[normal]" style={{ color: '#ffd700' }}>
+                      <i className="hn hn-coin" style={{ fontSize: 8 }} aria-hidden="true" />+{displayCoins}
                     </span>
                   </p>
                 </>
