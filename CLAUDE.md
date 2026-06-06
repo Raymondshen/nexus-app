@@ -83,11 +83,11 @@ Coins are the invite currency. Earned by sending messages; spent (future) to inv
 - Awarded in `award-xp` edge function via `increment_user_coins(user_id, amount)` RPC (atomic UPDATE)
 - Anti-spam: coins only awarded when `xpBlocked = false` (same cooldown/burst gate as XP)
 - `ChatInput` calls `addUserCoins(coins_earned)` from store on award-xp response
-- `profiles` table is in `supabase_realtime` publication — both `ChatHeader` and `HomeClient` subscribe to `postgres_changes` UPDATE on `profiles` for live coin balance
-- Displayed: coin icon (`hn-coin-solid`, 24px, gold `#ffd700`) immediately left of bell (ChatHeader) and left of bookmark (HomeClient)
-- Tap tooltip: "25 COINS = 1 CREW INVITE" (2s auto-dismiss)
-- `chatStore` holds `userCoins`, `setUserCoins`, `addUserCoins`; initialized via `initialCoins` prop on `ChatHeader`
-- `HomeClient` seeds local `coins` state from `Math.max(initialCoins, chatStore.userCoins)` on mount so navigating back from chat never shows a stale cached value
+- **Displayed in two places**:
+  - **Home header only**: `hn-coins` icon (24px, gold `#ffd700`) + count left of the bookmark icon. Tap shows "25 COINS = 1 CREW INVITE" tooltip (2s). `HomeClient` seeds local `coins` state from `Math.max(initialCoins, chatStore.userCoins)` on mount so navigating back from chat never shows a stale cached value; realtime `postgres_changes` UPDATE on `profiles` keeps it live.
+  - **Message bubble header**: `hn-coin` icon (8px) + `+N` count in gold after the XP span — `username · class · +XP XP · 🪙+N`. Count-up animation (500ms ease-out cubic RAF) identical to the XP counter. Coin = 1 per message when `xp_awarded > 0`; group leader accumulates total for all messages in the group via `groupCoinMap` pre-pass in `MessageList`.
+- `chatStore` holds `userCoins`, `setUserCoins`, `addUserCoins`; **not** shown in `ChatHeader` — coins are home-only at the global level
+- `profiles` table is in `supabase_realtime` publication — `HomeClient` subscribes to `postgres_changes` UPDATE on `profiles` for live coin balance (ChatHeader no longer subscribes)
 
 ### Boss Rules
 - The Void spawns at every 500 XP threshold
@@ -180,6 +180,7 @@ Consecutive messages from the same user within 60 seconds are visually grouped (
 - `lastUserId` + `lastMsgTime` tracked in the display-list loop; both reset to null/0 on day dividers, boss cards, artifacts, level-up banners, and system messages — these all break grouping so the next regular message shows a fresh header
 - **Spacing**: first in group → `pt-[var(--space-5)] pb-0` (16px, `--space-5` from globals.css); continuation → `pt-[var(--space-2)] pb-0` (4px, `--space-2`). Between-group gap = 16px; within-group gap = 4px.
 - **Avatar**: only rendered for `showHeader = true` (first in group). Continuation messages (`showHeader = false`) skip the avatar element entirely and use `pl-10` (40px = 32px avatar + 8px gap) on the content div to keep text aligned.
+- **Pre-pass accumulation**: a single pre-pass loop builds both `groupXPMap` and `groupCoinMap` (Map<msgId, number>). The group-leader bubble receives `xpOverride` and `coinOverride` props; both count up via `requestAnimationFrame` in `MessageBubble` as new messages arrive. Coins = 1 per message when `xp_awarded > 0`, 0 when spam-blocked.
 
 ### ChatInput — send flow
 `insert_message` RPC → `addMessage` (optimistic) → broadcast slim payload on `messages:{crewId}` → `award-xp` edge function (patches `xp_awarded` back + broadcasts `xp_update`) → `attack-boss` edge function (if raid active)
@@ -238,7 +239,7 @@ Swipe left on a crew card to reveal the leave action (`LEAVE_REVEAL = 104px`). L
 - `CrewCardContent` outer div has `pr-2` (8px right padding) to create 8px gap between the timestamp and the revealed leave button edge
 
 ### ChatHeader — props and spacing
-`ChatHeader` accepts only `{ crew, initialXP, initialRaid, currentUserId, crewId }`. It has **no** `members` or `memberLastSeen` props — member avatars live in ChatInput, not the header. Do not add a second presence channel here (see Online Presence note above).
+`ChatHeader` accepts only `{ crew, initialXP, initialRaid, currentUserId, crewId }`. It has **no** `members`, `memberLastSeen`, or `initialCoins` props — member avatars live in ChatInput; coins are home-only. Do not add a second presence channel here (see Online Presence note above).
 
 Header spacing: `px-4 pb-2` (16px horizontal, 8px bottom), `paddingTop: max(env(safe-area-inset-top), 8px)`, heading row `h-10`. Left side: `gap-2` (8px) between back button and crew name group. Crew name button has `gap-1` (4px) between the underlined name and the dropdown chevron. Crew name uses `style={{ textDecoration: 'underline' }}` (inline style, **not** the Tailwind `underline` class) — iOS Safari strips `text-decoration` from class-applied styles on elements inside `<button>`; inline style bypasses this. Dropdown chevron is `hn-angle-right-solid rotate(90deg)`. All icons `fontSize: 24`. Back arrows across all screens use `var(--color-tertiary)` and the solid variant (`hn-angle-left-solid`).
 
