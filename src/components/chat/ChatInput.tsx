@@ -48,7 +48,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatI
     addMessage, updateMessage, setCrewXP, receiveXP,
     activeRaid, damageFloats, addDamageFloat, dismissDamageFloat,
     crewXP, crewLevel, xpFloats, dismissXPFloat,
-    onlineUserIds, setOnlineUserIds,
+    onlineUserIds, setOnlineUserIds, addUserCoins,
   } = useChatStore()
 
   const profilesRef     = useRef(memberProfiles)
@@ -178,7 +178,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatI
         body: JSON.stringify({ message_id: msgId, crew_id: crewId, user_id: userId, username: userProfile.username, message_type: 'text', content }),
       })
         .then((r) => r.json())
-        .then((data: { xp_earned?: number; new_total_xp?: number; notif_count?: number; notif_results?: unknown[] }) => {
+        .then((data: { xp_earned?: number; new_total_xp?: number; coins_earned?: number; notif_count?: number; notif_results?: unknown[] }) => {
           console.log('[award-xp]', data)
           if (typeof data.xp_earned === 'number' && data.xp_earned > 0) updateMessage(msgId, { xp_awarded: data.xp_earned })
           if (typeof data.new_total_xp === 'number') {
@@ -187,6 +187,9 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatI
               type: 'broadcast', event: 'xp_update',
               payload: { xp_earned: data.xp_earned ?? 0, new_total_xp: data.new_total_xp, sender_id: userId },
             })
+          }
+          if (typeof data.coins_earned === 'number' && data.coins_earned > 0) {
+            addUserCoins(data.coins_earned)
           }
         })
         .catch(() => {})

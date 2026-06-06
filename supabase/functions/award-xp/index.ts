@@ -35,6 +35,14 @@ const XP_VALUES: Record<string, number> = {
   system:    0,
 }
 
+const COIN_VALUES: Record<string, number> = {
+  text:     1,
+  voice:    3,
+  image:    2,
+  reaction: 0,
+  system:   0,
+}
+
 const XP_BONUS_FIRST_TODAY  = 20
 const XP_BONUS_COMBO        = 5
 const BOSS_XP_THRESHOLD     = 500
@@ -232,6 +240,21 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // ─── AWARD COINS ────────────────────────────────────────────────────────
+    // Coins are awarded for every non-spam message (xpBlocked does not gate coins).
+    const coinsEarned = !xpBlocked ? (COIN_VALUES[message_type] ?? 0) : 0
+    if (coinsEarned > 0) {
+      await Promise.all([
+        supabase.rpc('increment_user_coins', { p_user_id: user_id, p_amount: coinsEarned }),
+        supabase.from('coin_log').insert({
+          user_id,
+          crew_id,
+          coins:  coinsEarned,
+          source: message_type,
+        }),
+      ])
+    }
+
     // Boss spawn — dev-only while game events are gated
     const oldThreshold = Math.floor(oldXP / BOSS_XP_THRESHOLD)
     const newThreshold = Math.floor(newXP  / BOSS_XP_THRESHOLD)
@@ -340,7 +363,7 @@ Deno.serve(async (req: Request) => {
     }
 
     return new Response(
-      JSON.stringify({ xp_earned: xpAwarded, new_level: newLevel, new_total_xp: newXP, notif_count: notifResults.length, notif_results: notifResults }),
+      JSON.stringify({ xp_earned: xpAwarded, new_level: newLevel, new_total_xp: newXP, coins_earned: coinsEarned, notif_count: notifResults.length, notif_results: notifResults }),
       { headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
     )
   } catch (err) {

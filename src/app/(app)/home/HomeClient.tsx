@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import type { CrewSummary } from './page'
 import type { Message, MessageWithProfile } from '@/types'
+import { CoinIcon } from '@/components/game/CoinIcon'
 
 export interface FriendSummary {
   id:            string
@@ -31,6 +32,7 @@ interface HomeClientProps {
   profileCache:  Record<string, string>
   totalMessages: number
   friends:       FriendSummary[]
+  initialCoins:  number
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -527,15 +529,18 @@ export function HomeClient({
   profileCache,
   totalMessages,
   friends,
+  initialCoins,
 }: HomeClientProps) {
   const router = useRouter()
 
-  const [crews,       setCrews]       = useState<CrewSummary[]>(initialCrews)
-  const [showCreate,  setShowCreate]  = useState(false)
-  const [openCardId,  setOpenCardId]  = useState<string | null>(null)
-  const [leaveTarget, setLeaveTarget] = useState<CrewSummary | null>(null)
-  const [leaving,     setLeaving]     = useState(false)
-  const [leaveError,  setLeaveError]  = useState<string | null>(null)
+  const [crews,        setCrews]        = useState<CrewSummary[]>(initialCrews)
+  const [showCreate,   setShowCreate]   = useState(false)
+  const [openCardId,   setOpenCardId]   = useState<string | null>(null)
+  const [leaveTarget,  setLeaveTarget]  = useState<CrewSummary | null>(null)
+  const [leaving,      setLeaving]      = useState(false)
+  const [leaveError,   setLeaveError]   = useState<string | null>(null)
+  const [coins,        setCoins]        = useState(initialCoins)
+  const [showCoinTip,  setShowCoinTip]  = useState(false)
 
   const profileCacheRef = useRef<Record<string, string>>(profileCache)
   useEffect(() => { profileCacheRef.current = profileCache }, [profileCache])
@@ -545,6 +550,23 @@ export function HomeClient({
   useEffect(() => {
     router.refresh()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Realtime: live coin balance updates from profiles table
+  useEffect(() => {
+    const supabase = createClient()
+    const ch = supabase
+      .channel(`home-profile-coins:${userId}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${userId}` },
+        (payload) => {
+          const newCoins = (payload.new as { coins?: number }).coins
+          if (typeof newCoins === 'number') setCoins(newCoins)
+        },
+      )
+      .subscribe()
+    return () => { supabase.removeChannel(ch) }
+  }, [userId])
 
   const crewIds = crews.map((c) => c.crew.id)
 
@@ -649,6 +671,37 @@ export function HomeClient({
           <h1 className="font-pixel text-[18px] text-primary">NEXUS</h1>
 
           <div className="flex items-center gap-4">
+            {/* Coin balance — tap for tooltip */}
+            <div className="relative">
+              <button
+                onClick={() => {
+                  setShowCoinTip(true)
+                  setTimeout(() => setShowCoinTip(false), 2000)
+                }}
+                aria-label={`${coins} coins`}
+                className="flex items-center gap-1"
+                style={{ height: 40 }}
+              >
+                <CoinIcon size={16} />
+                <span className="font-silkscreen text-[10px] leading-none" style={{ color: '#ffd700' }}>
+                  {coins.toLocaleString()}
+                </span>
+              </button>
+              <AnimatePresence>
+                {showCoinTip && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute right-0 top-full mt-1 z-50 whitespace-nowrap font-silkscreen text-[8px] text-primary bg-surface border border-border px-2 py-1"
+                  >
+                    25 COINS = 1 CREW INVITE
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
             <button
               onClick={() => router.push('/friends')}
               aria-label="Friends"

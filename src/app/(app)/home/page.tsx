@@ -56,14 +56,14 @@ function getCachedHomeMembers(crewIds: string[]) {
 
 // Cached: profile fields needed on the home page (birthday for redirect, avatar/name for display).
 // Tagged profile:{userId} so saveBirthdayAction + revalidateProfileAction bust it on change.
-type HomeProfile = { username: string; avatar_url: string | null; birthday: string | null; created_at: string }
+type HomeProfile = { username: string; avatar_url: string | null; birthday: string | null; coins: number; created_at: string }
 function getCachedHomeProfile(userId: string) {
   return unstable_cache(
     async () => {
       const supabase = createServiceClient()
       const { data } = await supabase
         .from('profiles')
-        .select('username, avatar_url, birthday, created_at')
+        .select('username, avatar_url, birthday, coins, created_at')
         .eq('id', userId)
         .single()
       return data as HomeProfile | null
@@ -141,6 +141,7 @@ export default async function HomePage() {
         profileCache={{}}
         totalMessages={totalMessages ?? 0}
         friends={friends}
+        initialCoins={profile?.coins ?? 0}
       />
     )
   }
@@ -239,6 +240,7 @@ export default async function HomePage() {
       profileCache={profileCache}
       totalMessages={totalMessages ?? 0}
       friends={friends}
+      initialCoins={profile?.coins ?? 0}
     />
   )
 }

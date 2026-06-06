@@ -23,6 +23,16 @@ export interface Profile extends Record<string, unknown> {
   avatar_class: AvatarClass | null
   avatar_url: string | null
   birthday: string | null
+  coins: number
+  created_at: string
+}
+
+export interface CoinLog extends Record<string, unknown> {
+  id: string
+  user_id: string
+  crew_id: string | null
+  coins: number
+  source: string
   created_at: string
 }
 
@@ -164,8 +174,14 @@ export type Database = {
     Tables: {
       profiles: {
         Row: Profile
-        Insert: Omit<Profile, 'created_at' | 'avatar_url'> & { created_at?: string; avatar_url?: string | null }
+        Insert: Omit<Profile, 'created_at' | 'avatar_url' | 'coins'> & { created_at?: string; avatar_url?: string | null; coins?: number }
         Update: Partial<Omit<Profile, 'id'>>
+        Relationships: []
+      }
+      coin_log: {
+        Row: CoinLog
+        Insert: Omit<CoinLog, 'id' | 'created_at'> & { id?: string; created_at?: string }
+        Update: Partial<Omit<CoinLog, 'id'>>
         Relationships: []
       }
       crews: {
@@ -288,6 +304,10 @@ export type Database = {
       get_member_crew_stats: {
         Args: { p_crew_id: string; p_user_id: string }
         Returns: Array<{ msg_count: number; total_xp: number }>
+      }
+      increment_user_coins: {
+        Args: { p_user_id: string; p_amount: number }
+        Returns: void
       }
     }
     Enums: Record<string, never>

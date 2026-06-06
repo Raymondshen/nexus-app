@@ -17,7 +17,7 @@ Group messaging app where the chat is an RPG. Every message earns XP, boss fight
 
 ## Database Tables
 ```
-profiles       id, username (unique case-insensitive), avatar_class, avatar_url, birthday (date), is_dev, created_at
+profiles       id, username (unique case-insensitive), avatar_class, avatar_url, birthday (date), is_dev, coins (int default 0), created_at
 crews          id, name, invite_code (6 chars unique), level, total_xp, created_at,
                is_dm (bool default false), dm_partner_1 (uuid nullable), dm_partner_2 (uuid nullable)
 crew_members   id, crew_id, user_id, class, joined_at, last_seen (unread cursor + presence)
@@ -29,6 +29,7 @@ artifacts      id, crew_id, name, rarity (common|rare|epic|legendary), source_bo
 push_subscriptions  id, user_id, crew_id (nullable), endpoint (UNIQUE), p256dh, auth, created_at
 notification_preferences  user_id (PK), notif_messages, notif_raids, notif_victory, updated_at
 friendships    id, requester_id, addressee_id, status (pending|accepted), created_at — UNIQUE(requester_id, addressee_id)
+coin_log       id, user_id, crew_id (nullable), coins, source, created_at
 ```
 
 ### DM Channels
@@ -64,6 +65,26 @@ All are `SECURITY DEFINER`. All declared in `Database.Functions` in `src/types/i
 | Daily Drop response | 50 |
 | First message today bonus | +20 |
 | Reply within 60s combo | +5 |
+
+### Coin System
+Coins are the invite currency. Earned by sending messages; spent (future) to invite new members.
+
+| Action | Coins |
+|---|---|
+| Text message | 1 |
+| Voice note | 3 |
+| Image / GIF | 2 |
+| Reaction / system | 0 |
+
+- Stored in `profiles.coins` (integer, default 0); log in `coin_log`
+- Awarded in `award-xp` edge function via `increment_user_coins(user_id, amount)` RPC (atomic UPDATE)
+- Anti-spam: coins only awarded when `xpBlocked = false` (same cooldown/burst gate as XP)
+- `ChatInput` calls `addUserCoins(coins_earned)` from store on award-xp response
+- `profiles` table is in `supabase_realtime` publication — both `ChatHeader` and `HomeClient` subscribe to `postgres_changes` UPDATE on `profiles` for live coin balance
+- Displayed: coin icon + count immediately left of bell (ChatHeader) and left of bookmark (HomeClient)
+- `CoinIcon` component: `src/components/game/CoinIcon.tsx` — 16×16 SVG pixel art, gold `#ffd700`
+- Tap tooltip: "25 COINS = 1 CREW INVITE" (2s auto-dismiss)
+- `chatStore` holds `userCoins`, `setUserCoins`, `addUserCoins`; initialized via `initialCoins` prop on `ChatHeader`
 
 ### Boss Rules
 - The Void spawns at every 500 XP threshold
@@ -349,6 +370,7 @@ Always use `createServiceClient()` inside cache functions (service role, no cook
 - `20240103000004_crew_notification_mutes.sql` — crew_notification_mutes + crew_notification_preferences tables
 - `20240103000005_batch_query_rpcs.sql` — `get_unread_counts` + `get_crew_member_msg_counts` RPCs
 - `20240103000006_member_crew_stats_rpc.sql` — `get_member_crew_stats` RPC
+- `20240103000007_coins.sql` — `profiles.coins`, `coin_log` table, `increment_user_coins` RPC, adds `profiles` to realtime publication
 
 ### Manual SQL applied directly (no migration file)
 ```sql
