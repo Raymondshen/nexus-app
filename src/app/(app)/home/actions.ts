@@ -77,6 +77,7 @@ export async function generateAppInviteAction(): Promise<
       source:  'invite_generated',
     })
 
+    revalidateTag(`profile:${user.id}`, 'max')
     return { code, existing: false }
   }
 

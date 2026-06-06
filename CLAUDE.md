@@ -260,6 +260,7 @@ Code display state: large `font-pixel text-[32px] #ffd700 letterSpacing: '0.35em
 - Re-validates coin balance server-side before deducting
 - Generates 6-char code from `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (no ambiguous chars)
 - Up to 10 uniqueness retries; parallel insert + `increment_user_coins(-25)` + `coin_log` insert
+- Calls `revalidateTag(\`profile:${user.id}\`, 'max')` after deduction — without this, a racing `router.refresh()` returns the stale 60s cached `initialCoins` value and the `Math.max` sync effect in `HomeClient` overwrites the correctly deducted local balance
 - `HomeClient` calls `onCoinsDeducted()` (subtracts 25 locally) only when `!result.existing`
 
 Sheet design: `bg-[#0a0612]`, full-width rows min 44px, `border-l-2 border-transparent active:border-purple` on active row, dismisses on outside tap.
