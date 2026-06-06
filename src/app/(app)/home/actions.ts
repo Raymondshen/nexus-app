@@ -24,23 +24,13 @@ function generateInviteCode(): string {
 }
 
 export async function generateAppInviteAction(): Promise<
-  { code: string; existing: boolean } | { error: string }
+  { code: string } | { error: string }
 > {
   const supabase = await createSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Not authenticated' }
 
   const service = createServiceClient()
-
-  // Return existing unused code without deducting coins
-  const { data: existingRow } = await service
-    .from('app_invites')
-    .select('code')
-    .eq('inviter_id', user.id)
-    .eq('used', false)
-    .maybeSingle()
-
-  if (existingRow) return { code: existingRow.code, existing: true }
 
   // Re-validate coin balance server-side before deducting (never trust client)
   const { data: profile } = await supabase
@@ -86,7 +76,7 @@ export async function generateAppInviteAction(): Promise<
     })
 
     revalidateTag(`profile:${user.id}`, 'max')
-    return { code, existing: false }
+    return { code }
   }
 
   return { error: 'Could not generate a unique code. Try again.' }

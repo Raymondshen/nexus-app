@@ -54,9 +54,6 @@ export function InviteArsenal({ userId, coins, onClose, onCoinsDeducted }: Invit
       const result = await generateAppInviteAction()
       if ('error' in result) {
         showToast(result.error.includes('coins') ? 'Not enough coins.' : result.error, '#ff4444')
-      } else if (result.existing) {
-        showToast('Code already forged.', '#ffd700')
-        await loadCodes()
       } else {
         onCoinsDeducted()
         showToast('Code forged.', '#66bb6a')
