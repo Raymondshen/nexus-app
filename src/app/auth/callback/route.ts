@@ -5,7 +5,9 @@ import { createClient } from '@/lib/supabase/server'
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
-  const flow = searchParams.get('flow')
+  // Cookie set by signInWithGoogleForInvite() before OAuth; SameSite=Lax survives
+  // the cross-site redirect from Google back to this callback.
+  const intent = request.cookies.get('nexus_auth_intent')?.value
 
   if (code) {
     const supabase = await createClient()
@@ -17,10 +19,12 @@ export async function GET(request: NextRequest) {
       if (user && avatarUrl) {
         await supabase.from('profiles').update({ avatar_url: avatarUrl }).eq('id', user.id)
       }
-      if (flow === 'invite') {
-        return NextResponse.redirect(`${origin}/login?flow=invite&step=2`)
-      }
-      return NextResponse.redirect(`${origin}/home`)
+      const destination = intent === 'invite'
+        ? `${origin}/login?flow=invite&step=2`
+        : `${origin}/home`
+      const response = NextResponse.redirect(destination)
+      response.cookies.delete('nexus_auth_intent')
+      return response
     }
   }
 

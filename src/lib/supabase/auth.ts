@@ -14,10 +14,13 @@ export async function signInWithGoogle(): Promise<void> {
 
 export async function signInWithGoogleForInvite(): Promise<void> {
   const supabase = createClient()
+  // SameSite=Lax cookie survives the Google → /auth/callback cross-site redirect,
+  // so the callback can route to the invite step without a non-allowlisted redirectTo URL.
+  document.cookie = 'nexus_auth_intent=invite; path=/; SameSite=Lax; max-age=300'
   const { error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: `${window.location.origin}/auth/callback?flow=invite`,
+      redirectTo: `${window.location.origin}/auth/callback`,
     },
   })
   if (error) throw error
