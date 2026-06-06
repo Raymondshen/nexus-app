@@ -262,7 +262,7 @@ Sheet design: `bg-[#0a0612]`, full-width rows min 44px, `border-l-2 border-trans
 
 **Forge button** (full-width, min-height 56px):
 - Label `FORGE INVITE CODE` (Press Start 2P 10px) + sub-label `25 coins` (system-ui 11px)
-- Active (coins ≥ 25): `#bf5fff` bg, white labels. On tap: calls `generateAppInviteAction` server-side. If existing unused code found (server returns `existing: true`): toast "Code already forged." in `#ffd700`, reload list. If new code generated: `onCoinsDeducted()`, toast "Code forged." in `#66bb6a`, reload list. If server returns insufficient-coins error: toast "Not enough coins." in `#ff4444`.
+- Active (coins ≥ 25): `#bf5fff` bg, white labels. On tap: calls `generateAppInviteAction` server-side. On success: `onCoinsDeducted()` (immediate -25 in header), toast "Code forged." in `#66bb6a`, reload list. If server returns insufficient-coins error: toast "Not enough coins." in `#ff4444`. Users can forge as many codes as they have coins for — no per-user unused-code limit.
 - Disabled (coins < 25): `rgba(255,255,255,0.1)` bg, muted labels, not tappable. Below: "Keep fighting to earn more coins." in `rgba(255,255,255,0.4)` system-ui 12px.
 
 **Code list** (scrollable, newest first): all `app_invites` rows for current user via `getInviteCodesAction`.
@@ -272,7 +272,7 @@ Sheet design: `bg-[#0a0612]`, full-width rows min 44px, `border-l-2 border-trans
 - **Realtime**: subscribes to `postgres_changes` on `app_invites` filtered by `inviter_id=eq.{userId}` to update status live when a code is claimed. **Requires** `app_invites` in `supabase_realtime` publication (migration `20240103000010`).
 
 `generateAppInviteAction` (in `src/app/(app)/home/actions.ts`):
-- Checks for existing unused code first (returns it without deducting coins, `existing: true`)
+- Always generates a new code — no existing-unused-code check (users can forge multiple)
 - Re-validates coin balance server-side before deducting
 - Generates 6-char code from `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (no ambiguous chars)
 - Up to 10 uniqueness retries; parallel insert + `increment_user_coins(-25)` + `coin_log` insert
