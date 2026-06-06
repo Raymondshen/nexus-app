@@ -11,7 +11,6 @@ import { createClient } from '@/lib/supabase/client'
 import type { Crew, ActiveRaid, AvatarClass } from '@/types'
 import { formatDistanceToNow } from 'date-fns'
 import { PixelSprite, spriteInfoFor } from '@/components/game/PixelSprite'
-import { CoinIcon } from '@/components/game/CoinIcon'
 
 const CLASS_LABELS: Record<string, string> = {
   berserker: 'Berserker',
@@ -565,7 +564,7 @@ export function ChatHeader({
                 className="flex items-center gap-1"
                 style={{ height: 40 }}
               >
-                <CoinIcon size={16} />
+                <i className="hn hn-coin-solid" style={{ fontSize: 24, color: '#ffd700' }} aria-hidden="true" />
                 <span className="font-silkscreen text-[10px] leading-none" style={{ color: '#ffd700' }}>
                   {userCoins.toLocaleString()}
                 </span>

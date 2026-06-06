@@ -73,19 +73,21 @@ Coins are the invite currency. Earned by sending messages; spent (future) to inv
 | Action | Coins |
 |---|---|
 | Text message | 1 |
-| Voice note | 3 |
-| Image / GIF | 2 |
+| Voice note | 1 |
+| Image / GIF | 1 |
 | Reaction / system | 0 |
 
-- Stored in `profiles.coins` (integer, default 0); log in `coin_log`
+- All message types (text, voice, image) earn exactly **1 coin** — flat rate regardless of type
+- New users receive a **50-coin signup bonus** awarded by the `handle_new_user` DB trigger at account creation; logged in `coin_log` with `source = 'signup_bonus'`
+- Stored in `profiles.coins` (integer, default 50 for new users); log in `coin_log`
 - Awarded in `award-xp` edge function via `increment_user_coins(user_id, amount)` RPC (atomic UPDATE)
 - Anti-spam: coins only awarded when `xpBlocked = false` (same cooldown/burst gate as XP)
 - `ChatInput` calls `addUserCoins(coins_earned)` from store on award-xp response
 - `profiles` table is in `supabase_realtime` publication — both `ChatHeader` and `HomeClient` subscribe to `postgres_changes` UPDATE on `profiles` for live coin balance
-- Displayed: coin icon + count immediately left of bell (ChatHeader) and left of bookmark (HomeClient)
-- `CoinIcon` component: `src/components/game/CoinIcon.tsx` — 16×16 SVG pixel art, gold `#ffd700`
+- Displayed: coin icon (`hn-coin-solid`, 24px, gold `#ffd700`) immediately left of bell (ChatHeader) and left of bookmark (HomeClient)
 - Tap tooltip: "25 COINS = 1 CREW INVITE" (2s auto-dismiss)
 - `chatStore` holds `userCoins`, `setUserCoins`, `addUserCoins`; initialized via `initialCoins` prop on `ChatHeader`
+- `HomeClient` seeds local `coins` state from `Math.max(initialCoins, chatStore.userCoins)` on mount so navigating back from chat never shows a stale cached value
 
 ### Boss Rules
 - The Void spawns at every 500 XP threshold
@@ -375,6 +377,7 @@ Always use `createServiceClient()` inside cache functions (service role, no cook
 - `20240103000005_batch_query_rpcs.sql` — `get_unread_counts` + `get_crew_member_msg_counts` RPCs
 - `20240103000006_member_crew_stats_rpc.sql` — `get_member_crew_stats` RPC
 - `20240103000007_coins.sql` — `profiles.coins`, `coin_log` table, `increment_user_coins` RPC, adds `profiles` to realtime publication
+- `20240103000008_signup_bonus_and_retroactive_coins.sql` — updates `handle_new_user` trigger to grant 50-coin signup bonus on account creation; one-time retroactive award for all existing users (50 signup + 1 per message sent); idempotent via `coin_log` source = `'signup_bonus'` guard
 
 ### Manual SQL applied directly (no migration file)
 ```sql

@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import type { CrewSummary } from './page'
 import type { Message, MessageWithProfile } from '@/types'
-import { CoinIcon } from '@/components/game/CoinIcon'
+import { useChatStore } from '@/store/chatStore'
 
 export interface FriendSummary {
   id:            string
@@ -539,13 +539,18 @@ export function HomeClient({
   const [leaveTarget,  setLeaveTarget]  = useState<CrewSummary | null>(null)
   const [leaving,      setLeaving]      = useState(false)
   const [leaveError,   setLeaveError]   = useState<string | null>(null)
-  const [coins,        setCoins]        = useState(initialCoins)
+  const [coins,        setCoins]        = useState(() => Math.max(initialCoins, useChatStore.getState().userCoins))
   const [showCoinTip,  setShowCoinTip]  = useState(false)
 
   const profileCacheRef = useRef<Record<string, string>>(profileCache)
   useEffect(() => { profileCacheRef.current = profileCache }, [profileCache])
 
   useEffect(() => { setCrews(initialCrews) }, [initialCrews])
+
+  // When the server re-renders (router.refresh), take the higher of the two to avoid going backwards.
+  useEffect(() => {
+    setCoins(prev => Math.max(prev, initialCoins))
+  }, [initialCoins])
 
   useEffect(() => {
     router.refresh()
@@ -682,7 +687,7 @@ export function HomeClient({
                 className="flex items-center gap-1"
                 style={{ height: 40 }}
               >
-                <CoinIcon size={16} />
+                <i className="hn hn-coin-solid" style={{ fontSize: 24, color: '#ffd700' }} aria-hidden="true" />
                 <span className="font-silkscreen text-[10px] leading-none" style={{ color: '#ffd700' }}>
                   {coins.toLocaleString()}
                 </span>

@@ -37,8 +37,8 @@ const XP_VALUES: Record<string, number> = {
 
 const COIN_VALUES: Record<string, number> = {
   text:     1,
-  voice:    3,
-  image:    2,
+  voice:    1,
+  image:    1,
   reaction: 0,
   system:   0,
 }
