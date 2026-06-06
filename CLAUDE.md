@@ -52,6 +52,7 @@ All are `SECURITY DEFINER`. All declared in `Database.Functions` in `src/types/i
 - `get_unread_counts(p_crew_ids, p_cutoffs)` → `TABLE(crew_id, unread_count)` — batch unread counts for multiple crews in one query; uses `auth.uid()` internally; replaces N parallel count queries on the home page
 - `get_crew_member_msg_counts(p_crew_id)` → `TABLE(user_id, msg_count)` — per-member message counts for a crew in one query; replaces N parallel count queries in `GroupProfileSheet`
 - `get_member_crew_stats(p_crew_id, p_user_id)` → `TABLE(msg_count, total_xp)` — message count + XP total for one member in one crew; used by the member profile page
+- `increment_user_coins(p_user_id, p_amount)` → void — atomic `UPDATE profiles SET coins = coins + p_amount`; called by `award-xp` edge function
 
 ## Game Rules
 
@@ -191,14 +192,17 @@ Consecutive messages from the same user within 60 seconds are visually grouped (
 - **Batch 2** (only when not spam-blocked, parallel): today's message count + combo count + daily XP log count — 3 queries in one `Promise.all`
 - Anti-spam layers: (1) hard stop if prior message <2000ms ago, (2) hard stop if ≥4 messages in last 30s, (3) multiplier 1.0 / 0.5 / 0.1 at 30 / 60 daily message thresholds
 - Spam checks gate XP only — **notifications always fire** regardless. Implemented via `xpBlocked` flag; do NOT use early returns before the notification block.
+- **Coins**: awarded via `increment_user_coins` RPC + `coin_log` insert (parallel) when `!xpBlocked`. Response includes `coins_earned`; `ChatInput` calls `addUserCoins(coins_earned)` on receipt.
 - **Boss spawn + LEVEL_UP message** only execute when sender's `isDevUser = true` (see Dev Mode above)
 - Notifications use a **single batch fetch** to `send-notification` per event (one call for all recipients, not a per-member loop). Response includes `notif_count` + `notif_results` logged by ChatInput as `[award-xp] ...`.
 
 ### HomeClient — stale preview fix
 `router.refresh()` on every home mount forces a background server re-fetch. A `useEffect([initialCrews])` sync effect applies refreshed `initialCrews` prop into `crews` state (useState only runs once on mount).
 
-### HomeClient — realtime channels (broadcast-only)
-Home page subscribes to one `messages:{crewId}` channel per crew for live preview updates. **Broadcast events only** — `postgres_changes` subscriptions were removed to eliminate a persistent server-side listener that fired on every INSERT across all of the user's crews. If a preview update is missed, `router.refresh()` on mount catches it.
+### HomeClient — realtime channels
+Home page subscribes to one `messages:{crewId}` channel per crew for live preview updates. **Broadcast events only** for crew channels — `postgres_changes` subscriptions on `messages` were removed to eliminate a persistent server-side listener that fired on every INSERT across all of the user's crews. If a preview update is missed, `router.refresh()` on mount catches it.
+
+**Exception**: a single `postgres_changes` UPDATE subscription on `profiles` (channel `home-profile-coins:{userId}`) keeps the coin balance live. This is one subscription on the user's own profile row — not per-crew.
 
 ### Home Page — birthday guard
 `home/page.tsx` reads `birthday` from the cached home profile. If null, redirects to `/onboarding/birthday` before rendering the home screen. This handles existing users who registered before the birthday field was added.
@@ -326,7 +330,7 @@ Always use `createServiceClient()` inside cache functions (service role, no cook
 
 | Cache | TTL | Tag | Invalidated by |
 |---|---|---|---|
-| Home profile (username, avatar_url, birthday, created_at) | 60s | `profile:{userId}` | saveBirthdayAction, revalidateProfileAction |
+| Home profile (username, avatar_url, birthday, coins, created_at) | 60s | `profile:{userId}` | saveBirthdayAction, revalidateProfileAction |
 | Home member profiles + counts | 60s | `crew-members:{crewId}` (all crews) | joinCrewAction, leaveCrewAction |
 | Home last message preview | 30s | TTL only | TTL only |
 | Vault crew (name, created_at) + artifacts | 300s | `vault:{crewId}`, `artifacts:{crewId}` | TTL only |
