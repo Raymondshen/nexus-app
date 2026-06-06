@@ -6,6 +6,11 @@ export const metadata: Metadata = {
   description: 'Enter the Nexus.',
 }
 
-export default function LoginPage() {
-  return <LoginForm />
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ flow?: string; step?: string; error?: string }>
+}) {
+  const { flow, step } = await searchParams
+  return <LoginForm flow={flow} step={step} />
 }

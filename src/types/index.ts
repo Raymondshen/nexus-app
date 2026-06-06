@@ -150,6 +150,15 @@ export interface MessageWithProfile extends Message {
   profile: Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url'>
 }
 
+export interface ReservedUser extends Record<string, unknown> {
+  id: string
+  email: string
+  username: string
+  class: string | null
+  created_at: string
+  converted: boolean
+}
+
 export interface AppInvite extends Record<string, unknown> {
   id: string
   code: string
@@ -280,6 +289,12 @@ export type Database = {
         Row: AppInvite
         Insert: Omit<AppInvite, 'id' | 'created_at'> & { id?: string; created_at?: string }
         Update: Partial<Omit<AppInvite, 'id'>>
+        Relationships: []
+      }
+      reserved_users: {
+        Row: ReservedUser
+        Insert: Omit<ReservedUser, 'id' | 'created_at' | 'converted'> & { id?: string; created_at?: string; converted?: boolean }
+        Update: Partial<Omit<ReservedUser, 'id'>>
         Relationships: []
       }
     }

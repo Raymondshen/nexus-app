@@ -12,6 +12,17 @@ export async function signInWithGoogle(): Promise<void> {
   if (error) throw error
 }
 
+export async function signInWithGoogleForInvite(): Promise<void> {
+  const supabase = createClient()
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: `${window.location.origin}/auth/callback?flow=invite`,
+    },
+  })
+  if (error) throw error
+}
+
 export async function signInAsGuest(username: string): Promise<GuestUser> {
   const supabase = createClient()
   const { data, error } = await supabase.auth.signInAnonymously({
