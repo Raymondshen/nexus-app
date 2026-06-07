@@ -10,20 +10,26 @@ self.addEventListener('push', (event) => {
     return
   }
 
+  // iOS does not support `badge` in showNotification options and silently
+  // rejects the call in strict mode — strip it and use only the safe subset.
+  const show = self.registration.showNotification(data.title || 'Nexus', {
+    body:     data.body || '',
+    icon:     data.icon || '/icons/icon-192.png',
+    data:     data.data || {},
+    tag:      (data.data && data.data.url) || 'nexus',
+    renotify: true,
+  }).catch((err) => {
+    console.error('[worker] showNotification failed, retrying minimal:', err)
+    return self.registration.showNotification(data.title || 'Nexus', { body: data.body || '' })
+  })
+
   event.waitUntil(
-    self.registration.showNotification(data.title || 'Nexus', {
-      body:     data.body  || '',
-      icon:     data.icon  || '/icons/icon-192.png',
-      badge:    data.badge || '/icons/icon-192.png',
-      data:     data.data  || {},
-      // tag collapses duplicate alerts for the same URL instead of stacking them
-      tag:      (data.data && data.data.url) || 'nexus',
-      renotify: true,
-    }).then(() => {
-      // Increment the home-screen icon badge so the user sees unread activity
-      // even without opening the notification tray. Badge API is supported on
-      // iOS 16.4+ PWAs and Chrome/Edge desktop. Optional-chain guards older envs.
-      self.navigator.setAppBadge?.()
+    show.then(() => {
+      if (typeof navigator !== 'undefined' && navigator.setAppBadge) {
+        navigator.setAppBadge().catch(() => {})
+      }
+    }).catch((err) => {
+      console.error('[worker] notification display failed entirely:', err)
     })
   )
 })
@@ -44,13 +50,8 @@ self.addEventListener('notificationclick', (event) => {
         for (const win of openWindows) {
           if (!('focus' in win)) continue
 
-          // Already on the right page — just bring it forward.
           if (win.url === targetUrl) return win.focus()
 
-          // Background window at a different URL (e.g. /home while notification
-          // links to /chat/xyz). navigate() steers the existing PWA window to the
-          // target instead of opening a Safari tab. Available iOS Safari 17.4+;
-          // falls through to openWindow() on older versions.
           if (typeof win.navigate === 'function') {
             return win.navigate(targetUrl)
               .then((w) => (w ?? win).focus())
@@ -60,8 +61,21 @@ self.addEventListener('notificationclick', (event) => {
         return clients.openWindow(targetUrl)
       })
       .then(() => {
-        // Clear the badge once the user has acknowledged the notification.
-        self.navigator.clearAppBadge?.()
+        if (typeof navigator !== 'undefined' && navigator.clearAppBadge) {
+          navigator.clearAppBadge().catch(() => {})
+        }
+      })
+  )
+})
+
+// APNs device tokens rotate periodically on iOS. When the subscription changes,
+// message any open clients so they can re-save the new endpoint to the DB.
+self.addEventListener('pushsubscriptionchange', (event) => {
+  event.waitUntil(
+    self.clients
+      .matchAll({ type: 'window', includeUncontrolled: true })
+      .then((openClients) => {
+        openClients.forEach((c) => c.postMessage({ type: 'nexus-resubscribe' }))
       })
   )
 })

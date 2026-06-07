@@ -3,15 +3,26 @@
 import { useEffect } from 'react'
 import { isSupported, getPermissionState, subscribeToPush } from '@/lib/notifications'
 
-// Silently refreshes the push subscription on every app load when the user
-// has already granted notification permission. Subscriptions can be silently
-// invalidated by the browser or push service; re-subscribing is idempotent
-// and ensures the server always has a live endpoint.
 export function PushRefresh() {
   useEffect(() => {
-    if (isSupported() && getPermissionState() === 'granted') {
+    if (!isSupported()) return
+
+    if (getPermissionState() === 'granted') {
       subscribeToPush().catch(() => {})
     }
+
+    // Re-subscribe when the SW signals an APNs token rotation.
+    // pushsubscriptionchange fires in the SW; it messages open clients
+    // since the SW has no access to the user session for DB writes.
+    function handleMessage(event: MessageEvent) {
+      if (event.data?.type === 'nexus-resubscribe') {
+        subscribeToPush().catch(() => {})
+      }
+    }
+
+    navigator.serviceWorker.addEventListener('message', handleMessage)
+    return () => navigator.serviceWorker.removeEventListener('message', handleMessage)
   }, [])
+
   return null
 }

@@ -57,6 +57,18 @@ self.addEventListener('push', (event) => {
   )
 })
 
+// APNs device tokens rotate periodically on iOS. When the subscription changes,
+// message any open clients so they can re-save the new endpoint to the DB.
+self.addEventListener('pushsubscriptionchange', (event) => {
+  event.waitUntil(
+    self.clients
+      .matchAll({ type: 'window', includeUncontrolled: true })
+      .then((openClients) => {
+        openClients.forEach((c) => c.postMessage({ type: 'nexus-resubscribe' }))
+      })
+  )
+})
+
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
 
