@@ -441,13 +441,6 @@ export function ProfileClient({
 
 // ─── Dev section ──────────────────────────────────────────────────────────────
 
-type PushStatus = {
-  sw_subscription: 'none' | 'apns' | 'fcm' | 'unknown'
-  subs_in_db: number
-  endpoints: { id: string; endpoint_preview: string; is_apns: boolean; created_at: string }[]
-  error?: string
-}
-
 function DevSection({ userId, userEmail }: { userId: string; userEmail: string }) {
   const [copiedId,     setCopiedId]     = useState(false)
   const [copiedEmail,  setCopiedEmail]  = useState(false)
@@ -457,12 +450,6 @@ function DevSection({ userId, userEmail }: { userId: string; userEmail: string }
   const [infiniteCoins, setInfiniteCoins] = useState(false)
   const [actualCoins,  setActualCoins]  = useState<number | null>(null)
 
-  const [pushStatus,  setPushStatus]  = useState<PushStatus | null>(null)
-  const [pushLoading, setPushLoading] = useState(false)
-  const [syncLoading, setSyncLoading] = useState(false)
-  const [testResult,  setTestResult]  = useState<string | null>(null)
-  const [syncResult,  setSyncResult]  = useState<string | null>(null)
-  const [lastSwPush,  setLastSwPush]  = useState<number | null>(null)
 
   useEffect(() => {
     setDevMode(localStorage.getItem('nexus_dev_mode') === '1')
@@ -474,15 +461,6 @@ function DevSection({ userId, userEmail }: { userId: string; userEmail: string }
       if (data) setActualCoins((data as { coins: number }).coins)
     })
   }, [userId])
-
-  useEffect(() => {
-    if (!('serviceWorker' in navigator)) return
-    function onSwMessage(ev: MessageEvent) {
-      if (ev.data?.type === 'nexus-push-received') setLastSwPush(ev.data.ts as number)
-    }
-    navigator.serviceWorker.addEventListener('message', onSwMessage)
-    return () => navigator.serviceWorker.removeEventListener('message', onSwMessage)
-  }, [])
 
   function toggleDevMode() {
     const next = !devMode
@@ -496,6 +474,7 @@ function DevSection({ userId, userEmail }: { userId: string; userEmail: string }
     setShowPush(next)
     if (next) localStorage.setItem('nexus_push_diag', '1')
     else localStorage.removeItem('nexus_push_diag')
+    window.dispatchEvent(new CustomEvent('nexus-push-diag-change', { detail: { on: next } }))
   }
 
   function toggleInfiniteCoins() {
@@ -517,103 +496,6 @@ function DevSection({ userId, userEmail }: { userId: string; userEmail: string }
       .forEach((k) => localStorage.removeItem(k))
     setFlagsCleared(true)
     setTimeout(() => setFlagsCleared(false), 2000)
-  }
-
-  async function getAuthToken(): Promise<string | null> {
-    const supabase = createClient()
-    const { data: { session } } = await supabase.auth.getSession()
-    return session?.access_token ?? null
-  }
-
-  async function checkPushStatus() {
-    setPushLoading(true); setPushStatus(null)
-    try {
-      let swSub: 'none' | 'apns' | 'fcm' | 'unknown' = 'none'
-      if ('serviceWorker' in navigator && 'PushManager' in window) {
-        const reg = await navigator.serviceWorker.ready
-        const sub = await reg.pushManager.getSubscription()
-        if (sub) {
-          const ep = sub.endpoint
-          swSub = ep.includes('web.push.apple.com') ? 'apns' : ep.includes('fcm.googleapis.com') ? 'fcm' : 'unknown'
-        }
-      }
-      const token = await getAuthToken()
-      if (!token) { setPushStatus({ sw_subscription: swSub, subs_in_db: 0, endpoints: [], error: 'No session' }); return }
-      const res  = await fetch('/api/test/push', { headers: { Authorization: `Bearer ${token}` } })
-      const data = await res.json()
-      setPushStatus({ sw_subscription: swSub, ...data })
-    } catch (err) {
-      setPushStatus({ sw_subscription: 'none', subs_in_db: 0, endpoints: [], error: String(err) })
-    } finally {
-      setPushLoading(false)
-    }
-  }
-
-  async function syncSubscription() {
-    setSyncLoading(true)
-    const show = (msg: string) => setSyncResult(msg)
-    try {
-      show(`1/6 supported=${!!('PushManager' in window)} perm=${Notification.permission}`)
-      const withTimeout = <T,>(p: Promise<T>, ms: number, label: string): Promise<T> =>
-        Promise.race([p, new Promise<never>((_, rej) => setTimeout(() => rej(new Error(`timeout:${label}`)), ms))])
-      let regs = await navigator.serviceWorker.getRegistrations()
-      if (regs.length === 0) {
-        show('2/6 regs=0 — attempting register /sw-push.js...')
-        try {
-          await navigator.serviceWorker.register('/sw-push.js', { scope: '/' })
-          await withTimeout(navigator.serviceWorker.ready, 8000, 'sw.activate')
-          regs = await navigator.serviceWorker.getRegistrations()
-        } catch (regErr) { show(`2/6 register FAILED: ${String(regErr).slice(0, 120)}`); return }
-      }
-      const reg = regs[0]
-      show(`2/6 regs=${regs.length} scope=${reg?.scope ?? 'NONE'} active=${reg?.active?.state ?? 'none'}`)
-      if (!reg) return
-      const existing = await withTimeout(reg.pushManager.getSubscription(), 5000, 'getSubscription')
-      show(`3/6 existing=${existing ? 'yes' : 'none'}`)
-      let sub = existing
-      if (!sub) {
-        show('4/6 subscribing...')
-        const padding = '='.repeat((4 - (process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!.length % 4)) % 4)
-        const base64  = (process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY! + padding).replace(/-/g, '+').replace(/_/g, '/')
-        const raw = window.atob(base64)
-        const bytes = new Uint8Array(new ArrayBuffer(raw.length))
-        for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i)
-        sub = await withTimeout(reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: bytes }), 10000, 'subscribe')
-        show('4/6 new sub created')
-      } else { show('4/6 using existing sub') }
-      const supabase = createClient()
-      const { data: { session } } = await supabase.auth.getSession()
-      show(`5/6 uid=${session?.user?.id?.slice(0, 8) ?? 'NO SESSION'}`)
-      if (!session?.user) return
-      const json = sub.toJSON()
-      const p256dh = json.keys?.p256dh; const auth = json.keys?.auth
-      if (!p256dh || !auth) { show('5/6 keys=MISSING'); return }
-      await supabase.from('push_subscriptions').delete().match({ endpoint: sub.endpoint, user_id: session.user.id })
-      const { error } = await supabase.from('push_subscriptions').insert({ user_id: session.user.id, endpoint: sub.endpoint, p256dh, auth })
-      show(error ? `6/6 insert FAILED: ${error.message}` : '6/6 insert=OK — done!')
-    } catch (err) {
-      show(`STOPPED: ${String(err).slice(0, 120)}`)
-    } finally {
-      setSyncLoading(false)
-    }
-  }
-
-  async function sendTestNotification() {
-    setTestResult(null)
-    try {
-      const token = await getAuthToken()
-      if (!token) { setTestResult('✗ No session'); return }
-      const res  = await fetch('/api/test/push', { method: 'POST', headers: { Authorization: `Bearer ${token}` } })
-      const data = await res.json() as { error?: string; fn_status?: number; fn_ok?: boolean; result?: unknown }
-      if (data.error) { setTestResult(`✗ Route: ${data.error}`); return }
-      const result = data.result as Record<string, unknown> | undefined
-      if (result?.status === 'no_subscriptions') setTestResult('✗ No subscriptions in DB — tap SYNC SUB first')
-      else if (result?.status === 'preference_disabled') setTestResult('✗ Message notifications disabled')
-      else if (Array.isArray(result?.results) && (result.results as {status:string}[]).some(r => r.status === 'sent')) setTestResult('✓ Sent — check your notification tray')
-      else setTestResult(`fn_status=${data.fn_status} | ${JSON.stringify(result ?? data)}`)
-    } catch (err) {
-      setTestResult(`✗ ${String(err)}`)
-    }
   }
 
   const rowClass = 'flex items-center justify-between px-4 py-4 gap-4'
@@ -690,40 +572,6 @@ function DevSection({ userId, userEmail }: { userId: string; userEmail: string }
           </div>
         </div>
 
-        {/* Push diagnostics — only shown when toggle is on */}
-        {showPush && (
-          <div className="px-4 py-4 flex flex-col gap-2">
-            <div className="flex gap-2">
-              <button onClick={checkPushStatus} disabled={pushLoading} className="flex-1 h-9 font-pixel text-[7px] border transition-colors disabled:opacity-50"
-                style={{ color: '#ffd700', borderColor: 'rgba(255,215,0,0.3)', background: 'rgba(255,215,0,0.06)' }}>
-                {pushLoading ? '...' : 'CHECK'}
-              </button>
-              <button onClick={syncSubscription} disabled={syncLoading} className="flex-1 h-9 font-pixel text-[7px] border transition-colors disabled:opacity-50"
-                style={{ color: '#00e5ff', borderColor: 'rgba(0,229,255,0.3)', background: 'rgba(0,229,255,0.06)' }}>
-                {syncLoading ? '...' : 'SYNC SUB'}
-              </button>
-              <button onClick={sendTestNotification} className="flex-1 h-9 font-pixel text-[7px] border transition-colors"
-                style={{ color: '#a855f7', borderColor: 'rgba(168,85,247,0.3)', background: 'rgba(168,85,247,0.06)' }}>
-                SEND TEST
-              </button>
-            </div>
-            {pushStatus && (
-              <div className="font-sans text-[10px] text-[#ffd700] space-y-0.5 bg-black/30 p-2">
-                <p>SW sub: <span className="text-white">{pushStatus.sw_subscription}</span></p>
-                <p>DB subs: <span className="text-white">{pushStatus.subs_in_db}</span></p>
-                {pushStatus.endpoints.map((ep) => (
-                  <p key={ep.id} className="truncate text-tertiary">{ep.is_apns ? '🍎' : '🤖'} {ep.endpoint_preview}</p>
-                ))}
-                {pushStatus.error && <p className="text-[#ef4444]">{pushStatus.error}</p>}
-              </div>
-            )}
-            {syncResult && <p className="font-sans text-[11px] text-[#00e5ff] break-all leading-relaxed bg-black/30 p-2">{syncResult}</p>}
-            {testResult && <p className="font-sans text-[11px] text-purple break-all leading-relaxed bg-black/30 p-2">{testResult}</p>}
-            <p className="font-sans text-[10px] text-[#ffd700]">
-              SW push event: <span className="text-white">{lastSwPush ? `fired at ${new Date(lastSwPush).toLocaleTimeString()}` : 'not yet received'}</span>
-            </p>
-          </div>
-        )}
 
         {/* Reset flags */}
         <div className="px-4 py-4 flex flex-col gap-2">

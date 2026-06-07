@@ -45,7 +45,7 @@ function formatAge(isoStr: string): string {
 }
 
 export function PushDebugFAB() {
-  const [devMode,        setDevMode]        = useState(false)
+  const [showFab,        setShowFab]        = useState(false)
   const [open,           setOpen]           = useState(false)
   const [status,         setStatus]         = useState<Status | null>(null)
   const [checking,       setChecking]       = useState(false)
@@ -64,9 +64,14 @@ export function PushDebugFAB() {
     setLog([...logBuf.current])
   }, [])
 
-  // Read devMode from localStorage
+  // Read push-diag flag from localStorage + react to dev-section toggle
   useEffect(() => {
-    setDevMode(localStorage.getItem('nexus_dev_mode') === '1')
+    setShowFab(localStorage.getItem('nexus_push_diag') === '1')
+    function onFlagChange(e: Event) {
+      setShowFab((e as CustomEvent<{ on: boolean }>).detail.on)
+    }
+    window.addEventListener('nexus-push-diag-change', onFlagChange)
+    return () => window.removeEventListener('nexus-push-diag-change', onFlagChange)
   }, [])
 
   // Read persisted last-push timestamp from Cache API (written by SW even when app is closed)
@@ -179,13 +184,13 @@ export function PushDebugFAB() {
     }
   }, [])
 
-  // Auto-check once after devMode is confirmed — fixes grey dot on first load.
+  // Auto-check once after FAB becomes visible — fixes grey dot on first load.
   useEffect(() => {
-    if (devMode && !didCheck.current) {
+    if (showFab && !didCheck.current) {
       didCheck.current = true
       checkStatus()
     }
-  }, [devMode, checkStatus])
+  }, [showFab, checkStatus])
 
   // Re-check when panel opens if status hasn't been fetched yet.
   useEffect(() => {
@@ -392,7 +397,7 @@ export function PushDebugFAB() {
     }
   }
 
-  if (!devMode) return null
+  if (!showFab) return null
 
   const dot = status == null             ? '#71717a'
             : !status.inDB               ? '#ef4444'
