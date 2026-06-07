@@ -42,16 +42,23 @@ self.addEventListener('push', (event) => {
   })
 
   event.waitUntil(
-    show.then(() => {
-      // navigator (not self.navigator) is the correct SW global
+    show.then(function() {
+      var ts = Date.now()
+      // Persist to Cache API so the FAB can confirm push arrived even if app was closed
+      caches.open('nexus-push-log').then(function(cache) {
+        return cache.put('/push-log', new Response(JSON.stringify({ ts: ts, title: title }), {
+          headers: { 'Content-Type': 'application/json' }
+        }))
+      }).catch(function() {})
+
       if (typeof navigator !== 'undefined' && navigator.setAppBadge) {
-        navigator.setAppBadge().catch(() => {})
+        navigator.setAppBadge().catch(function() {})
       }
       // Notify any open clients so dev diagnostics can confirm the push fired
-      return self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((openClients) => {
-        openClients.forEach((c) => c.postMessage({ type: 'nexus-push-received', ts: Date.now(), title }))
+      return self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(openClients) {
+        openClients.forEach(function(c) { c.postMessage({ type: 'nexus-push-received', ts: ts, title: title }) })
       })
-    }).catch((err) => {
+    }).catch(function(err) {
       console.error('[sw-push] notification display failed entirely:', err)
     })
   )

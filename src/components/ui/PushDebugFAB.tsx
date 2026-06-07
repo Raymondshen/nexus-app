@@ -27,14 +27,15 @@ interface Status {
 }
 
 export function PushDebugFAB() {
-  const [devMode,      setDevMode]      = useState(false)
-  const [open,         setOpen]         = useState(false)
-  const [status,       setStatus]       = useState<Status | null>(null)
-  const [checking,     setChecking]     = useState(false)
-  const [resubLoading, setResubLoading] = useState(false)
-  const [testLoading,  setTestLoading]  = useState(false)
-  const [log,          setLog]          = useState<string[]>([])
-  const [lastPush,     setLastPush]     = useState<number | null>(null)
+  const [devMode,        setDevMode]        = useState(false)
+  const [open,           setOpen]           = useState(false)
+  const [status,         setStatus]         = useState<Status | null>(null)
+  const [checking,       setChecking]       = useState(false)
+  const [resubLoading,   setResubLoading]   = useState(false)
+  const [testLoading,    setTestLoading]    = useState(false)
+  const [log,            setLog]            = useState<string[]>([])
+  const [lastPush,       setLastPush]       = useState<number | null>(null)
+  const [lastPushCached, setLastPushCached] = useState<number | null>(null)
   const logBuf = useRef<string[]>([])
 
   const pushLog = useCallback((msg: string) => {
@@ -47,12 +48,24 @@ export function PushDebugFAB() {
     setDevMode(localStorage.getItem('nexus_dev_mode') === '1')
   }, [])
 
+  // Read persisted last-push timestamp from Cache API (written by SW even when app is closed)
+  useEffect(() => {
+    if (!('caches' in window)) return
+    caches.open('nexus-push-log')
+      .then((cache) => cache.match('/push-log'))
+      .then((res) => res?.json() as Promise<{ ts?: number } | undefined>)
+      .then((data) => { if (data?.ts) setLastPushCached(data.ts) })
+      .catch(() => {})
+  }, [])
+
   // Listen for SW messages so the log updates in real-time.
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return
     function onMsg(ev: MessageEvent) {
       if (ev.data?.type === 'nexus-push-received') {
-        setLastPush(ev.data.ts as number)
+        const ts = ev.data.ts as number
+        setLastPush(ts)
+        setLastPushCached(ts)
         pushLog(`✓ push fired — "${String(ev.data.title ?? '').slice(0, 40)}"`)
       }
       if (ev.data?.type === 'nexus-resubscribe') {
@@ -318,8 +331,8 @@ export function PushDebugFAB() {
                           ))}
                         </div>
                       )}
-                      {lastPush && (
-                        <StatusRow label="Last push" value={new Date(lastPush).toLocaleTimeString()} ok />
+                      {lastPushCached && (
+                        <StatusRow label="Last push" value={new Date(lastPushCached).toLocaleTimeString()} ok />
                       )}
                       {status.error && (
                         <p className="font-sans break-all" style={{ fontSize: 10, color: '#ef4444' }}>{status.error}</p>
