@@ -129,9 +129,11 @@ The login page is invite-only with two paths. Guest mode is removed.
 3. On valid code → `invite-oauth` step: shows "CODE ACCEPTED" + the verified code in a purple info box. Before triggering OAuth, client sets `nexus_invite_code=CODE` cookie (SameSite=Lax, 5min TTL) via `document.cookie`, then calls `signInWithGoogleForInvite()` which sets the `nexus_auth_intent=invite` cookie and triggers OAuth.
 4. Auth callback reads both cookies: routes to `/login?flow=invite&step=2&code=CODE`, clears both cookies.
 5. `invite-profile` step: `checkReservedUserAction()` checks `reserved_users` by session email:
-   - **Match found**: pre-fills warrior name + class (read-only)
-   - **No match / session missing**: interactive warrior name input + `ClassCarousel`
-   - No invite code input — code comes from the `?code=` URL param.
+   - **Match found with username + class**: auto-calls `completeInviteFlowAction` on mount (spinner stays up); redirects to `/home` silently — user never sees the form.
+   - **Match found, class missing**: shows pre-filled read-only username; falls through to manual submit.
+   - **No match**: warrior name input only — **no class selection**. Class defaults to `'mage'` and is set properly per-crew during onboarding.
+   - **No session**: bounces back to `invite-oauth` with an error.
+   - No invite code input in any case — code comes from the `?code=` URL param.
 6. `completeInviteFlowAction(code, username, cls)`: re-validates code in `app_invites` (final guard), upserts `profiles.username` + `profiles.avatar_class`, marks invite `used=true/used_by/used_at`, returns success → client calls `router.push('/home')`
 7. Home page birthday guard kicks in → `/onboarding/birthday` → `/onboarding/welcome` → crew join/create
 
