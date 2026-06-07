@@ -27,41 +27,41 @@ self.addEventListener('push', (event) => {
     }
   }
 
+  var ts = Date.now()
+
+  // Record push receipt immediately — before showNotification so diagnostics
+  // update even when iOS suppresses the banner (foreground) or rejects options.
+  var logPromise = caches.open('nexus-push-log').then(function(cache) {
+    return cache.put('/push-log', new Response(JSON.stringify({ ts: ts, title: title }), {
+      headers: { 'Content-Type': 'application/json' }
+    }))
+  }).catch(function() {})
+
+  var clientPromise = self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(openClients) {
+    openClients.forEach(function(c) { c.postMessage({ type: 'nexus-push-received', ts: ts, title: title }) })
+  })
+
+  if (typeof navigator !== 'undefined' && navigator.setAppBadge) {
+    navigator.setAppBadge().catch(function() {})
+  }
+
   // iOS does not support `badge` in showNotification options and may reject calls
   // that include unknown options in strict mode. Use the minimal set that iOS
   // documents as supported for Web Push: title (1st arg), body, icon, data, tag.
-  const show = self.registration.showNotification(title, {
+  var showPromise = self.registration.showNotification(title, {
     body,
     icon:  '/icons/icon-192.png',
     data:  notifData,
     tag:   (notifData && notifData.url) || 'nexus',
-  }).catch((err) => {
+  }).catch(function(err) {
     // Full options rejected — try absolute bare minimum
     console.error('[sw-push] showNotification failed, retrying minimal:', err)
-    return self.registration.showNotification(title, { body })
+    return self.registration.showNotification(title, { body }).catch(function(err2) {
+      console.error('[sw-push] notification display failed entirely:', err2)
+    })
   })
 
-  event.waitUntil(
-    show.then(function() {
-      var ts = Date.now()
-      // Persist to Cache API so the FAB can confirm push arrived even if app was closed
-      caches.open('nexus-push-log').then(function(cache) {
-        return cache.put('/push-log', new Response(JSON.stringify({ ts: ts, title: title }), {
-          headers: { 'Content-Type': 'application/json' }
-        }))
-      }).catch(function() {})
-
-      if (typeof navigator !== 'undefined' && navigator.setAppBadge) {
-        navigator.setAppBadge().catch(function() {})
-      }
-      // Notify any open clients so dev diagnostics can confirm the push fired
-      return self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(openClients) {
-        openClients.forEach(function(c) { c.postMessage({ type: 'nexus-push-received', ts: ts, title: title }) })
-      })
-    }).catch(function(err) {
-      console.error('[sw-push] notification display failed entirely:', err)
-    })
-  )
+  event.waitUntil(Promise.all([logPromise, clientPromise, showPromise]))
 })
 
 // APNs device tokens rotate periodically on iOS. Persist the new endpoint to
