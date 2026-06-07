@@ -12,18 +12,36 @@ interface MutedCrew {
   crew_name: string
 }
 
+interface SubRow {
+  endpoint_tail: string
+  is_apns:       boolean
+  created_at:    string
+}
+
 interface Status {
-  swScript:    string
-  swState:     string
-  subType:     SubType
-  endpoint:    string   // last 28 chars for display
-  fullEndpoint: string  // full URL for DB comparison
-  dbCount:     number
-  inDB:        boolean | null  // null = could not check
-  permission:  string
-  vapidOk:     boolean
-  mutedCrews:  MutedCrew[]
-  error?:      string
+  swScript:     string
+  swState:      string
+  subType:      SubType
+  endpoint:     string   // last 28 chars for display
+  fullEndpoint: string   // full URL for DB comparison
+  dbCount:      number
+  inDB:         boolean | null
+  permission:   string
+  vapidOk:      boolean
+  mutedCrews:   MutedCrew[]
+  dbSubs:       SubRow[]    // all rows from DB (newest first)
+  dbError:      string | null
+  error?:       string
+}
+
+function formatAge(isoStr: string): string {
+  const diffMs = Date.now() - new Date(isoStr).getTime()
+  const mins   = Math.floor(diffMs / 60_000)
+  if (mins < 2)    return 'just now'
+  if (mins < 60)   return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs  < 24)   return `${hrs}h ago`
+  return `${Math.floor(hrs / 24)}d ago`
 }
 
 export function PushDebugFAB() {
@@ -36,7 +54,8 @@ export function PushDebugFAB() {
   const [log,            setLog]            = useState<string[]>([])
   const [lastPush,       setLastPush]       = useState<number | null>(null)
   const [lastPushCached, setLastPushCached] = useState<number | null>(null)
-  const logBuf = useRef<string[]>([])
+  const logBuf    = useRef<string[]>([])
+  const didCheck  = useRef(false)
 
   const pushLog = useCallback((msg: string) => {
     const entry = new Date().toLocaleTimeString('en', { hour12: false }) + ' ' + msg
@@ -44,6 +63,7 @@ export function PushDebugFAB() {
     setLog([...logBuf.current])
   }, [])
 
+  // Read devMode from localStorage
   useEffect(() => {
     setDevMode(localStorage.getItem('nexus_dev_mode') === '1')
   }, [])
@@ -92,7 +112,7 @@ export function PushDebugFAB() {
             swState  = active.state
             const url = active.scriptURL
             swScript = url.includes('sw-push') ? 'sw-push.js'
-                     : url.includes('/sw.js')   ? 'sw.js (next-pwa)'
+                     : url.includes('/sw.js')   ? 'sw.js (next-pwa!)'
                      : url.split('/').pop() ?? url
           }
           try {
@@ -110,39 +130,47 @@ export function PushDebugFAB() {
 
       const supabase = createClient()
       const { data: { session } } = await supabase.auth.getSession()
-      let dbCount = -1
+      let dbCount  = -1
       let inDB: boolean | null = null
       let mutedCrews: MutedCrew[] = []
+      let dbSubs:    SubRow[]    = []
+      let dbError:   string | null = null
+
       if (session?.access_token) {
         try {
-          // Pass the current endpoint so the API can cross-check it against DB rows.
           const epParam = fullEndpoint ? `?ep=${encodeURIComponent(fullEndpoint)}` : ''
           const res  = await fetch(`/api/test/push${epParam}`, {
             headers: { Authorization: `Bearer ${session.access_token}` },
           })
-          const data = await res.json() as { subs_in_db?: number; has_current_endpoint?: boolean | null; muted_crews?: MutedCrew[] }
+          const data = await res.json() as {
+            subs_in_db?:          number
+            has_current_endpoint?: boolean | null
+            muted_crews?:         MutedCrew[]
+            endpoints?:           SubRow[]
+            subs_error?:          string | null
+          }
           dbCount    = data.subs_in_db ?? 0
           inDB       = data.has_current_endpoint ?? null
           mutedCrews = data.muted_crews ?? []
-        } catch { /* network failure */ }
+          dbSubs     = data.endpoints   ?? []
+          dbError    = data.subs_error  ?? null
+        } catch (e) { dbError = String(e).slice(0, 80) }
       }
 
       setStatus({
-        swScript,
-        swState,
-        subType,
+        swScript, swState, subType,
         endpoint:     fullEndpoint ? fullEndpoint.slice(-28) : '—',
         fullEndpoint,
-        dbCount,
-        inDB,
+        dbCount, inDB,
         permission:   'Notification' in window ? Notification.permission : 'unsupported',
         vapidOk:      !!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
-        mutedCrews,
+        mutedCrews, dbSubs, dbError,
       })
     } catch (err) {
       setStatus({
         swScript: '—', swState: '—', subType: 'none', endpoint: '—', fullEndpoint: '',
-        dbCount: -1, inDB: null, permission: '—', vapidOk: false, mutedCrews: [],
+        dbCount: -1, inDB: null, permission: '—', vapidOk: false,
+        mutedCrews: [], dbSubs: [], dbError: null,
         error: String(err).slice(0, 120),
       })
     } finally {
@@ -150,7 +178,15 @@ export function PushDebugFAB() {
     }
   }, [])
 
-  // Auto-check when panel opens for the first time.
+  // Auto-check once after devMode is confirmed — fixes grey dot on first load.
+  useEffect(() => {
+    if (devMode && !didCheck.current) {
+      didCheck.current = true
+      checkStatus()
+    }
+  }, [devMode, checkStatus])
+
+  // Re-check when panel opens if status hasn't been fetched yet.
   useEffect(() => {
     if (open && !status && !checking) checkStatus()
   }, [open, status, checking, checkStatus])
@@ -159,8 +195,6 @@ export function PushDebugFAB() {
     setResubLoading(true)
     pushLog('→ force resub: wiping DB + browser sub…')
     try {
-      // Step 1: delete ALL push_subscriptions for this user in the DB so stale
-      // endpoints from previous devices/sessions don't accumulate.
       const supabase = createClient()
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) { pushLog('✗ no session'); return }
@@ -173,7 +207,6 @@ export function PushDebugFAB() {
       if (delErr) pushLog(`  DB delete error: ${delErr.message}`)
       else pushLog(`  deleted ${count ?? '?'} DB row(s)`)
 
-      // Step 2: unsubscribe the browser-side push subscription.
       if ('serviceWorker' in navigator) {
         const reg = await navigator.serviceWorker.ready
         const existing = await reg.pushManager.getSubscription()
@@ -185,7 +218,6 @@ export function PushDebugFAB() {
         }
       }
 
-      // Step 3: create a fresh subscription and save it to DB.
       const sub = await subscribeToPush()
       if (sub) {
         pushLog(`✓ new endpoint saved: …${sub.endpoint.slice(-24)}`)
@@ -208,23 +240,56 @@ export function PushDebugFAB() {
       const supabase = createClient()
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) { pushLog('✗ no session'); return }
+
       const res  = await fetch('/api/test/push', {
         method:  'POST',
         headers: { Authorization: `Bearer ${session.access_token}` },
       })
       const data = await res.json() as {
-        result?: { results?: { status: string; endpoint: string }[]; status?: string }
-        error?: string
+        fn_status?: number
+        fn_ok?:     boolean
+        result?:    unknown
+        error?:     string
       }
-      if (data.error) { pushLog(`✗ route: ${data.error}`); return }
-      const results = data.result?.results ?? []
-      if (data.result?.status === 'no_subscriptions') {
+
+      // Route-level error (Vercel function crashed)
+      if (data.error) {
+        pushLog(`✗ route error: ${data.error}`)
+        return
+      }
+
+      // Always log the edge function HTTP status — 401 here means send-notification
+      // was redeployed without --no-verify-jwt and all push will be broken.
+      pushLog(`→ fn HTTP ${data.fn_status ?? '?'} fn_ok=${data.fn_ok ?? '?'}`)
+
+      const result = data.result as {
+        error?:   string
+        status?:  string
+        type?:    string
+        results?: { status: string; endpoint: string; user_id?: string }[]
+      } | string | null
+
+      if (typeof result === 'string') {
+        // Raw text response — edge function returned non-JSON (e.g. auth error page)
+        pushLog(`✗ fn raw: ${result.slice(0, 120)}`)
+        return
+      }
+
+      if (result?.error) {
+        pushLog(`✗ fn error: ${result.error}`)
+        return
+      }
+
+      if (result?.status === 'no_subscriptions') {
         pushLog('✗ no subscriptions in DB — tap FORCE RESUB first')
-      } else if (results.some(r => r.status === 'sent')) {
-        pushLog('✓ sent — check notification tray (close app first on iOS)')
+      } else if (result?.results?.some(r => r.status === 'sent')) {
+        pushLog('✓ fn sent — close PWA fully (swipe away) then wait ~5s')
+      } else if (result?.results?.some(r => r.status === 'expired_deleted')) {
+        pushLog('✗ endpoint expired (410) — tap FORCE RESUB')
       } else {
-        const summary = results.map(r => r.status).join(', ') || JSON.stringify(data.result).slice(0, 80)
-        pushLog(`? ${summary}`)
+        const summary = result?.results?.map(r => r.status).join(', ')
+          ?? JSON.stringify(result).slice(0, 100)
+        pushLog(`? fn result: ${summary}`)
       }
     } catch (err) {
       pushLog(`✗ ${String(err).slice(0, 80)}`)
@@ -235,9 +300,10 @@ export function PushDebugFAB() {
 
   if (!devMode) return null
 
-  const dot = status == null          ? '#71717a'
-            : status.subType === 'apns' ? '#66bb6a'
-            : status.dbCount  === 0     ? '#ef4444'
+  const dot = status == null             ? '#71717a'
+            : !status.inDB               ? '#ef4444'
+            : status.subType === 'apns'  ? '#66bb6a'
+            : status.dbCount  === 0      ? '#ef4444'
             : '#ffd700'
 
   return (
@@ -254,14 +320,15 @@ export function PushDebugFAB() {
         }}
       >
         <span style={{ width: 6, height: 6, borderRadius: '50%', background: dot, flexShrink: 0, display: 'block' }} />
-        <span className="font-pixel" style={{ fontSize: 7, color: '#a855f7', letterSpacing: 1 }}>PUSH</span>
+        <span className="font-pixel" style={{ fontSize: 7, color: '#a855f7', letterSpacing: 1 }}>
+          {checking ? '…' : 'PUSH'}
+        </span>
       </button>
 
       {/* Full panel */}
       <AnimatePresence>
         {open && (
           <>
-            {/* Backdrop */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -278,7 +345,7 @@ export function PushDebugFAB() {
               transition={{ type: 'spring', stiffness: 380, damping: 36 }}
               className="fixed inset-x-0 bottom-0 z-[80] flex flex-col"
               style={{
-                maxHeight:  '72vh',
+                maxHeight:  '80vh',
                 background: '#0a0612',
                 borderTop:  '1px solid rgba(168,85,247,0.5)',
               }}
@@ -311,14 +378,30 @@ export function PushDebugFAB() {
                 <div className="space-y-1.5">
                   {status ? (
                     <>
-                      <StatusRow label="SW"       value={`${status.swScript} · ${status.swState}`}   ok={status.swScript !== 'none'} />
-                      <StatusRow label="Sub"      value={status.subType}                              ok={status.subType === 'apns'} warn={status.subType === 'fcm' || status.subType === 'unknown'} />
-                      <StatusRow label="…endpoint" value={status.endpoint}                            ok={status.subType !== 'none'} mono />
-                      <StatusRow label="In DB"    value={status.inDB === true ? 'YES ✓' : status.inDB === false ? 'NO ✗ — tap FORCE RESUB' : '?'}
+                      <StatusRow label="SW"        value={`${status.swScript} · ${status.swState}`}   ok={status.swScript === 'sw-push.js'} warn={status.swScript.includes('next-pwa')} />
+                      <StatusRow label="Sub"       value={status.subType}                              ok={status.subType === 'apns'} warn={status.subType === 'fcm' || status.subType === 'unknown'} />
+                      <StatusRow label="…endpoint" value={status.endpoint}                             ok={status.subType !== 'none'} mono />
+                      <StatusRow label="In DB"     value={status.inDB === true ? 'YES ✓' : status.inDB === false ? 'NO ✗ — tap FORCE RESUB' : '?'}
                         ok={status.inDB === true} warn={status.inDB === null} />
-                      <StatusRow label="DB rows"  value={`${status.dbCount < 0 ? '?' : status.dbCount} endpoint${status.dbCount !== 1 ? 's' : ''}`} ok={status.dbCount === 1} warn={status.dbCount > 1 || status.dbCount < 0} />
-                      <StatusRow label="OS perm"  value={status.permission}                           ok={status.permission === 'granted'} />
-                      <StatusRow label="VAPID"    value={status.vapidOk ? 'configured' : 'MISSING!'} ok={status.vapidOk} />
+                      <StatusRow label="DB rows"   value={`${status.dbCount < 0 ? '?' : status.dbCount} endpoint${status.dbCount !== 1 ? 's' : ''}`} ok={status.dbCount === 1} warn={status.dbCount > 1 || status.dbCount < 0} />
+                      <StatusRow label="OS perm"   value={status.permission}                           ok={status.permission === 'granted'} />
+                      <StatusRow label="VAPID"     value={status.vapidOk ? 'key in env' : 'MISSING!'}  ok={status.vapidOk} />
+
+                      {/* Per-subscription age rows */}
+                      {status.dbSubs.map((sub, i) => (
+                        <StatusRow
+                          key={i}
+                          label={i === 0 ? 'Sub saved' : `Sub ${i + 1}`}
+                          value={`${formatAge(sub.created_at)} · …${sub.endpoint_tail} · ${sub.is_apns ? 'APNs' : 'FCM'}`}
+                          ok={sub.is_apns}
+                          mono
+                        />
+                      ))}
+
+                      {status.dbError && (
+                        <StatusRow label="DB err" value={status.dbError} ok={false} />
+                      )}
+
                       {status.mutedCrews.length > 0 && (
                         <div className="mt-1 space-y-0.5">
                           <span className="font-sans" style={{ fontSize: 10, color: '#ef4444' }}>
@@ -331,9 +414,15 @@ export function PushDebugFAB() {
                           ))}
                         </div>
                       )}
-                      {lastPushCached && (
-                        <StatusRow label="Last push" value={new Date(lastPushCached).toLocaleTimeString()} ok />
+
+                      {(lastPushCached || lastPush) && (
+                        <StatusRow
+                          label="Last push"
+                          value={new Date(lastPush ?? lastPushCached!).toLocaleTimeString()}
+                          ok
+                        />
                       )}
+
                       {status.error && (
                         <p className="font-sans break-all" style={{ fontSize: 10, color: '#ef4444' }}>{status.error}</p>
                       )}
@@ -366,8 +455,21 @@ export function PushDebugFAB() {
                 </div>
 
                 <p className="font-sans" style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)' }}>
-                  FORCE RESUB wipes all DB rows for your account, unsubscribes, then creates one clean endpoint. Use when &quot;In DB: NO&quot; or &quot;DB rows: 5&quot;. After SEND TEST, fully close the app (swipe away) to see the banner on iOS.
+                  FORCE RESUB wipes all DB rows, unsubscribes, creates a clean endpoint. Use when &quot;In DB: NO&quot; or DB rows &gt; 1. After SEND TEST, swipe the app away completely — iOS won&apos;t show banners while app is open.
                 </p>
+
+                {/* If fn HTTP 401 was logged, show the likely fix */}
+                {log.some(l => l.includes('fn HTTP 401')) && (
+                  <div className="p-2" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.4)' }}>
+                    <p className="font-pixel" style={{ fontSize: 7, color: '#ef4444' }}>EDGE FUNCTION AUTH ERROR</p>
+                    <p className="font-sans mt-1" style={{ fontSize: 10, color: '#ffd700' }}>
+                      send-notification was likely redeployed without --no-verify-jwt. Run:
+                    </p>
+                    <p className="font-sans mt-0.5 break-all" style={{ fontSize: 9, color: '#e4e4e7' }}>
+                      supabase functions deploy send-notification --project-ref tlveyeisjbythssmocth --no-verify-jwt
+                    </p>
+                  </div>
+                )}
 
                 {/* Live log */}
                 {log.length > 0 && (
@@ -404,7 +506,7 @@ function StatusRow({
   return (
     <div className="flex items-baseline gap-2">
       <span className="font-sans flex-shrink-0" style={{ fontSize: 10, color: '#71717a', minWidth: 56 }}>{label}</span>
-      <span className={mono ? 'font-sans' : 'font-sans'} style={{ fontSize: mono ? 10 : 11, color, wordBreak: 'break-all' }}>
+      <span className="font-sans" style={{ fontSize: mono ? 10 : 11, color, wordBreak: 'break-all' }}>
         {value}
       </span>
     </div>
