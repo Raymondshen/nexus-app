@@ -192,6 +192,14 @@ export function PushDebugFAB() {
     if (open && !status && !checking) checkStatus()
   }, [open, status, checking, checkStatus])
 
+  // Re-check whenever PushRefresh (or FORCE RESUB) finishes subscribing.
+  // This keeps the dot and panel accurate without polling.
+  useEffect(() => {
+    function onSubscribed() { checkStatus() }
+    window.addEventListener('nexus-push-subscribed', onSubscribed)
+    return () => window.removeEventListener('nexus-push-subscribed', onSubscribed)
+  }, [checkStatus])
+
   async function handleForceResub() {
     setResubLoading(true)
     pushLog('→ force resub: wiping DB + browser sub…')
