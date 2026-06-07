@@ -202,21 +202,47 @@ export function LoginForm({
   const [doneUsername, setDoneUsername]   = useState('')
   const [doneClass, setDoneClass]         = useState('')
 
-  // When reaching invite-profile, check if user has a reservation or a valid session
+  // When reaching invite-profile, check reservation then auto-complete if possible
   useEffect(() => {
     if (step !== 'invite-profile') return
+    let cancelled = false
     setLoadingReserved(true)
-    checkReservedUserAction().then(result => {
+
+    checkReservedUserAction().then(async result => {
+      if (cancelled) return
       setReservedData(result)
+
       if (result.found) {
         setUsername(result.data.username)
-        if (result.data.class) setSelectedClass(result.data.class as AvatarClass)
+        const cls = result.data.class as AvatarClass | null
+        if (cls) setSelectedClass(cls)
+
+        // Reserved user has username + class from the waitlist — skip the form
+        // and complete the invite flow automatically.
+        if (cls && code) {
+          try {
+            const completion = await completeInviteFlowAction(code, result.data.username, cls)
+            if (cancelled) return
+            if (completion.success) {
+              router.push('/home')
+              return  // leave spinner up during navigation
+            }
+            setError(completion.error ?? 'The rift destabilized. Try again.')
+          } catch {
+            if (!cancelled) setError('The rift destabilized. Try again.')
+          }
+        }
       } else if (!result.hasSession) {
-        setStep('invite-oauth')
-        setError('Sign in with Google first, then enter your invite code.')
+        if (!cancelled) {
+          setStep('invite-oauth')
+          setError('Sign in with Google first, then enter your invite code.')
+        }
       }
-      setLoadingReserved(false)
+
+      if (!cancelled) setLoadingReserved(false)
     })
+
+    return () => { cancelled = true }
   }, [step])
 
   async function handleValidateCode() {
