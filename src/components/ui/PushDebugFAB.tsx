@@ -8,14 +8,16 @@ import { subscribeToPush } from '@/lib/notifications'
 type SubType = 'apns' | 'fcm' | 'unknown' | 'none'
 
 interface Status {
-  swScript:   string
-  swState:    string
-  subType:    SubType
-  endpoint:   string
-  dbCount:    number
-  permission: string
-  vapidOk:    boolean
-  error?:     string
+  swScript:    string
+  swState:     string
+  subType:     SubType
+  endpoint:    string   // last 28 chars for display
+  fullEndpoint: string  // full URL for DB comparison
+  dbCount:     number
+  inDB:        boolean | null  // null = could not check
+  permission:  string
+  vapidOk:     boolean
+  error?:      string
 }
 
 export function PushDebugFAB() {
@@ -58,10 +60,10 @@ export function PushDebugFAB() {
   const checkStatus = useCallback(async () => {
     setChecking(true)
     try {
-      let swScript = 'none'
-      let swState  = 'none'
+      let swScript     = 'none'
+      let swState      = 'none'
       let subType: SubType = 'none'
-      let endpoint = ''
+      let fullEndpoint = ''
 
       if ('serviceWorker' in navigator) {
         const regs = await navigator.serviceWorker.getRegistrations()
@@ -78,10 +80,10 @@ export function PushDebugFAB() {
             const reg = await navigator.serviceWorker.ready
             const sub = await reg.pushManager.getSubscription()
             if (sub) {
-              endpoint = sub.endpoint
-              subType  = endpoint.includes('web.push.apple.com') ? 'apns'
-                       : endpoint.includes('fcm.googleapis.com')  ? 'fcm'
-                       : 'unknown'
+              fullEndpoint = sub.endpoint
+              subType      = fullEndpoint.includes('web.push.apple.com') ? 'apns'
+                           : fullEndpoint.includes('fcm.googleapis.com')  ? 'fcm'
+                           : 'unknown'
             }
           } catch { /* getSubscription can throw on some iOS versions */ }
         }
@@ -90,11 +92,17 @@ export function PushDebugFAB() {
       const supabase = createClient()
       const { data: { session } } = await supabase.auth.getSession()
       let dbCount = -1
+      let inDB: boolean | null = null
       if (session?.access_token) {
         try {
-          const res  = await fetch('/api/test/push', { headers: { Authorization: `Bearer ${session.access_token}` } })
-          const data = await res.json() as { subs_in_db?: number }
-          dbCount    = data.subs_in_db ?? 0
+          // Pass the current endpoint so the API can cross-check it against DB rows.
+          const epParam = fullEndpoint ? `?ep=${encodeURIComponent(fullEndpoint)}` : ''
+          const res  = await fetch(`/api/test/push${epParam}`, {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          })
+          const data = await res.json() as { subs_in_db?: number; has_current_endpoint?: boolean | null }
+          dbCount = data.subs_in_db ?? 0
+          inDB    = data.has_current_endpoint ?? null
         } catch { /* network failure */ }
       }
 
@@ -102,15 +110,17 @@ export function PushDebugFAB() {
         swScript,
         swState,
         subType,
-        endpoint: endpoint ? endpoint.slice(-28) : '—',
+        endpoint:     fullEndpoint ? fullEndpoint.slice(-28) : '—',
+        fullEndpoint,
         dbCount,
-        permission: 'Notification' in window ? Notification.permission : 'unsupported',
-        vapidOk:   !!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
+        inDB,
+        permission:   'Notification' in window ? Notification.permission : 'unsupported',
+        vapidOk:      !!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
       })
     } catch (err) {
       setStatus({
-        swScript: '—', swState: '—', subType: 'none', endpoint: '—',
-        dbCount: -1, permission: '—', vapidOk: false,
+        swScript: '—', swState: '—', subType: 'none', endpoint: '—', fullEndpoint: '',
+        dbCount: -1, inDB: null, permission: '—', vapidOk: false,
         error: String(err).slice(0, 120),
       })
     } finally {
@@ -125,25 +135,42 @@ export function PushDebugFAB() {
 
   async function handleForceResub() {
     setResubLoading(true)
-    pushLog('→ force resubscribing…')
+    pushLog('→ force resub: wiping DB + browser sub…')
     try {
+      // Step 1: delete ALL push_subscriptions for this user in the DB so stale
+      // endpoints from previous devices/sessions don't accumulate.
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) { pushLog('✗ no session'); return }
+
+      const { error: delErr, count } = await supabase
+        .from('push_subscriptions')
+        .delete({ count: 'exact' })
+        .eq('user_id', session.user.id)
+
+      if (delErr) pushLog(`  DB delete error: ${delErr.message}`)
+      else pushLog(`  deleted ${count ?? '?'} DB row(s)`)
+
+      // Step 2: unsubscribe the browser-side push subscription.
       if ('serviceWorker' in navigator) {
         const reg = await navigator.serviceWorker.ready
         const existing = await reg.pushManager.getSubscription()
         if (existing) {
           await existing.unsubscribe()
-          pushLog('  unsubscribed old endpoint')
+          pushLog('  browser sub unsubscribed')
         } else {
-          pushLog('  no existing sub found')
+          pushLog('  no browser sub to unsubscribe')
         }
       }
+
+      // Step 3: create a fresh subscription and save it to DB.
       const sub = await subscribeToPush()
       if (sub) {
-        const ep = sub.endpoint
-        pushLog(`✓ saved: …${ep.slice(-24)}`)
+        pushLog(`✓ new endpoint saved: …${sub.endpoint.slice(-24)}`)
       } else {
-        pushLog('✗ subscribeToPush returned null')
+        pushLog('✗ subscribeToPush returned null — check OS permission')
       }
+
       await checkStatus()
     } catch (err) {
       pushLog(`✗ ${String(err).slice(0, 80)}`)
@@ -262,12 +289,14 @@ export function PushDebugFAB() {
                 <div className="space-y-1.5">
                   {status ? (
                     <>
-                      <StatusRow label="SW"      value={`${status.swScript} · ${status.swState}`} ok={status.swScript !== 'none'} />
-                      <StatusRow label="Sub"     value={status.subType}                            ok={status.subType === 'apns'} warn={status.subType === 'fcm' || status.subType === 'unknown'} />
-                      <StatusRow label="…endpoint" value={status.endpoint}                         ok={status.subType !== 'none'} mono />
-                      <StatusRow label="DB"      value={`${status.dbCount < 0 ? '?' : status.dbCount} endpoint${status.dbCount !== 1 ? 's' : ''}`} ok={status.dbCount > 0} warn={status.dbCount < 0} />
-                      <StatusRow label="OS perm" value={status.permission}                         ok={status.permission === 'granted'} />
-                      <StatusRow label="VAPID"   value={status.vapidOk ? 'configured' : 'MISSING!'} ok={status.vapidOk} />
+                      <StatusRow label="SW"       value={`${status.swScript} · ${status.swState}`}   ok={status.swScript !== 'none'} />
+                      <StatusRow label="Sub"      value={status.subType}                              ok={status.subType === 'apns'} warn={status.subType === 'fcm' || status.subType === 'unknown'} />
+                      <StatusRow label="…endpoint" value={status.endpoint}                            ok={status.subType !== 'none'} mono />
+                      <StatusRow label="In DB"    value={status.inDB === true ? 'YES ✓' : status.inDB === false ? 'NO ✗ — tap FORCE RESUB' : '?'}
+                        ok={status.inDB === true} warn={status.inDB === null} />
+                      <StatusRow label="DB rows"  value={`${status.dbCount < 0 ? '?' : status.dbCount} endpoint${status.dbCount !== 1 ? 's' : ''}`} ok={status.dbCount === 1} warn={status.dbCount > 1 || status.dbCount < 0} />
+                      <StatusRow label="OS perm"  value={status.permission}                           ok={status.permission === 'granted'} />
+                      <StatusRow label="VAPID"    value={status.vapidOk ? 'configured' : 'MISSING!'} ok={status.vapidOk} />
                       {lastPush && (
                         <StatusRow label="Last push" value={new Date(lastPush).toLocaleTimeString()} ok />
                       )}
@@ -303,8 +332,7 @@ export function PushDebugFAB() {
                 </div>
 
                 <p className="font-sans" style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)' }}>
-                  FORCE RESUB unsubscribes then creates a fresh endpoint.
-                  After SEND TEST, fully close the app to see the banner on iOS.
+                  FORCE RESUB wipes all DB rows for your account, unsubscribes, then creates one clean endpoint. Use when &quot;In DB: NO&quot; or &quot;DB rows: 5&quot;. After SEND TEST, fully close the app (swipe away) to see the banner on iOS.
                 </p>
 
                 {/* Live log */}

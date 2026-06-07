@@ -22,12 +22,21 @@ export async function GET(request: NextRequest) {
       .select('id, endpoint, created_at')
       .eq('user_id', user.id)
 
+    // Optional: check if a specific endpoint is in the DB (passed by the debug FAB
+    // so it can show "current subscription in DB: yes/no").
+    const currentEp = request.nextUrl.searchParams.get('ep')
+    const hasCurrentEndpoint = currentEp
+      ? (subs ?? []).some((s) => String(s.endpoint) === currentEp)
+      : null
+
     return NextResponse.json({
       user_id:    user.id,
       subs_in_db: subs?.length ?? 0,
+      has_current_endpoint: hasCurrentEndpoint,
       endpoints:  (subs ?? []).map((s) => ({
         id:               s.id,
         endpoint_preview: String(s.endpoint).slice(0, 60) + '...',
+        endpoint_tail:    String(s.endpoint).slice(-20),
         is_apns:          String(s.endpoint).includes('web.push.apple.com'),
         created_at:       s.created_at,
       })),
