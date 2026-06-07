@@ -54,5 +54,5 @@ export async function selectClassAction(
     }
   }
 
-  redirect(`/chat/${crewId}${welcome ? '?welcome=1' : ''}`)
+  redirect(`/chat/${crewId}?welcome=1`)
 }

@@ -13,17 +13,21 @@ interface SlidePageProps {
   children: React.ReactNode
   className?: string
   style?: React.CSSProperties
+  backHref?: string
 }
 
-export function SlidePage({ children, className, style }: SlidePageProps) {
+export function SlidePage({ children, className, style, backHref }: SlidePageProps) {
   const router = useRouter()
   const [exiting, setExiting] = useState(false)
 
   const goBack = useCallback(() => {
     if (exiting) return
     setExiting(true)
-    setTimeout(() => router.back(), 290)
-  }, [router, exiting])
+    setTimeout(() => {
+      if (backHref) router.replace(backHref)
+      else router.back()
+    }, 290)
+  }, [router, exiting, backHref])
 
   return (
     <SlideBackContext.Provider value={goBack}>
