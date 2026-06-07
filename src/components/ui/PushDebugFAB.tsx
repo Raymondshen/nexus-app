@@ -7,6 +7,11 @@ import { subscribeToPush } from '@/lib/notifications'
 
 type SubType = 'apns' | 'fcm' | 'unknown' | 'none'
 
+interface MutedCrew {
+  crew_id:   string
+  crew_name: string
+}
+
 interface Status {
   swScript:    string
   swState:     string
@@ -17,6 +22,7 @@ interface Status {
   inDB:        boolean | null  // null = could not check
   permission:  string
   vapidOk:     boolean
+  mutedCrews:  MutedCrew[]
   error?:      string
 }
 
@@ -93,6 +99,7 @@ export function PushDebugFAB() {
       const { data: { session } } = await supabase.auth.getSession()
       let dbCount = -1
       let inDB: boolean | null = null
+      let mutedCrews: MutedCrew[] = []
       if (session?.access_token) {
         try {
           // Pass the current endpoint so the API can cross-check it against DB rows.
@@ -100,9 +107,10 @@ export function PushDebugFAB() {
           const res  = await fetch(`/api/test/push${epParam}`, {
             headers: { Authorization: `Bearer ${session.access_token}` },
           })
-          const data = await res.json() as { subs_in_db?: number; has_current_endpoint?: boolean | null }
-          dbCount = data.subs_in_db ?? 0
-          inDB    = data.has_current_endpoint ?? null
+          const data = await res.json() as { subs_in_db?: number; has_current_endpoint?: boolean | null; muted_crews?: MutedCrew[] }
+          dbCount    = data.subs_in_db ?? 0
+          inDB       = data.has_current_endpoint ?? null
+          mutedCrews = data.muted_crews ?? []
         } catch { /* network failure */ }
       }
 
@@ -116,11 +124,12 @@ export function PushDebugFAB() {
         inDB,
         permission:   'Notification' in window ? Notification.permission : 'unsupported',
         vapidOk:      !!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
+        mutedCrews,
       })
     } catch (err) {
       setStatus({
         swScript: '—', swState: '—', subType: 'none', endpoint: '—', fullEndpoint: '',
-        dbCount: -1, inDB: null, permission: '—', vapidOk: false,
+        dbCount: -1, inDB: null, permission: '—', vapidOk: false, mutedCrews: [],
         error: String(err).slice(0, 120),
       })
     } finally {
@@ -297,6 +306,18 @@ export function PushDebugFAB() {
                       <StatusRow label="DB rows"  value={`${status.dbCount < 0 ? '?' : status.dbCount} endpoint${status.dbCount !== 1 ? 's' : ''}`} ok={status.dbCount === 1} warn={status.dbCount > 1 || status.dbCount < 0} />
                       <StatusRow label="OS perm"  value={status.permission}                           ok={status.permission === 'granted'} />
                       <StatusRow label="VAPID"    value={status.vapidOk ? 'configured' : 'MISSING!'} ok={status.vapidOk} />
+                      {status.mutedCrews.length > 0 && (
+                        <div className="mt-1 space-y-0.5">
+                          <span className="font-sans" style={{ fontSize: 10, color: '#ef4444' }}>
+                            MSGS MUTED in {status.mutedCrews.length} crew{status.mutedCrews.length !== 1 ? 's' : ''} — tap bell in chat to fix:
+                          </span>
+                          {status.mutedCrews.map((c) => (
+                            <p key={c.crew_id} className="font-sans pl-2" style={{ fontSize: 10, color: '#ffd700' }}>
+                              · {c.crew_name}
+                            </p>
+                          ))}
+                        </div>
+                      )}
                       {lastPush && (
                         <StatusRow label="Last push" value={new Date(lastPush).toLocaleTimeString()} ok />
                       )}

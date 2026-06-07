@@ -29,6 +29,27 @@ export async function GET(request: NextRequest) {
       ? (subs ?? []).some((s) => String(s.endpoint) === currentEp)
       : null
 
+    // Fetch any crew-level notification prefs that have messages explicitly muted.
+    // This is the most common reason SEND TEST works but real messages don't.
+    const { data: mutedCrews } = await admin
+      .from('crew_notification_preferences')
+      .select('crew_id, notif_messages, notif_raids, notif_victory')
+      .eq('user_id', user.id)
+      .eq('notif_messages', false)
+
+    // Resolve crew names for the muted rows.
+    const mutedCrewIds = (mutedCrews ?? []).map((r) => (r as Record<string, unknown>).crew_id as string)
+    let crewNames: Record<string, string> = {}
+    if (mutedCrewIds.length > 0) {
+      const { data: crews } = await admin
+        .from('crews')
+        .select('id, name')
+        .in('id', mutedCrewIds)
+      ;(crews ?? []).forEach((c) => {
+        crewNames[(c as Record<string, unknown>).id as string] = (c as Record<string, unknown>).name as string
+      })
+    }
+
     return NextResponse.json({
       user_id:    user.id,
       subs_in_db: subs?.length ?? 0,
@@ -40,6 +61,13 @@ export async function GET(request: NextRequest) {
         is_apns:          String(s.endpoint).includes('web.push.apple.com'),
         created_at:       s.created_at,
       })),
+      muted_crews: (mutedCrews ?? []).map((r) => {
+        const row = r as Record<string, unknown>
+        return {
+          crew_id:   row.crew_id as string,
+          crew_name: crewNames[row.crew_id as string] ?? row.crew_id,
+        }
+      }),
       vapid_configured: !!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
       subs_error: subsErr?.message ?? null,
     })
