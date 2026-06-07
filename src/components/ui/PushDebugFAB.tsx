@@ -198,7 +198,7 @@ export function PushDebugFAB() {
         onClick={() => setOpen(o => !o)}
         className="fixed right-3 z-[70] flex items-center gap-1.5 px-2.5 py-1.5 select-none"
         style={{
-          bottom:       72,
+          bottom:       'calc(env(safe-area-inset-bottom, 0px) + 72px)',
           background:   'rgba(10,6,18,0.92)',
           border:       '1px solid rgba(168,85,247,0.5)',
           borderRadius: 4,
