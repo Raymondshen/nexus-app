@@ -554,20 +554,17 @@ export function LoginForm({
               )}
             </div>
           ) : (
-            /* Non-reserved user — interactive fields */
-            <div className="flex flex-col gap-4">
-              <Input
-                name="username"
-                type="text"
-                label="WARRIOR NAME"
-                placeholder="ShadowBlade99"
-                value={username}
-                onChange={e => setUsername(e.target.value.replace(/<[^>]*>/g, '').slice(0, 20))}
-                maxLength={20}
-                autoComplete="off"
-              />
-              <ClassCarousel selected={selectedClass} onChange={setSelectedClass} />
-            </div>
+            /* Non-reserved user — username only; class defaults to mage */
+            <Input
+              name="username"
+              type="text"
+              label="WARRIOR NAME"
+              placeholder="ShadowBlade99"
+              value={username}
+              onChange={e => setUsername(e.target.value.replace(/<[^>]*>/g, '').slice(0, 20))}
+              maxLength={20}
+              autoComplete="off"
+            />
           )}
 
           {!loadingReserved && code && (
