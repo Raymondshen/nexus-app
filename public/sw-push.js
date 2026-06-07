@@ -57,14 +57,38 @@ self.addEventListener('push', (event) => {
   )
 })
 
-// APNs device tokens rotate periodically on iOS. When the subscription changes,
-// message any open clients so they can re-save the new endpoint to the DB.
-self.addEventListener('pushsubscriptionchange', (event) => {
+// APNs device tokens rotate periodically on iOS. Persist the new endpoint to
+// the DB immediately (app may be closed when this fires).
+self.addEventListener('pushsubscriptionchange', function(event) {
+  var oldEndpoint = event.oldSubscription && event.oldSubscription.endpoint
+
   event.waitUntil(
-    self.clients
-      .matchAll({ type: 'window', includeUncontrolled: true })
-      .then((openClients) => {
-        openClients.forEach((c) => c.postMessage({ type: 'nexus-resubscribe' }))
+    Promise.resolve(event.newSubscription || self.registration.pushManager.getSubscription())
+      .then(function(newSub) {
+        var notifyClients = self.clients
+          .matchAll({ type: 'window', includeUncontrolled: true })
+          .then(function(cs) { cs.forEach(function(c) { c.postMessage({ type: 'nexus-resubscribe' }) }) })
+
+        if (!newSub) return notifyClients
+
+        var json   = newSub.toJSON()
+        var p256dh = json.keys && json.keys.p256dh
+        var auth   = json.keys && json.keys.auth
+        if (!p256dh || !auth) return notifyClients
+
+        return Promise.all([
+          fetch('/api/push/resubscribe', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ oldEndpoint: oldEndpoint, newEndpoint: newSub.endpoint, p256dh: p256dh, auth: auth }),
+          }).catch(function() {}),
+          notifyClients,
+        ])
+      })
+      .catch(function() {
+        return self.clients
+          .matchAll({ type: 'window', includeUncontrolled: true })
+          .then(function(cs) { cs.forEach(function(c) { c.postMessage({ type: 'nexus-resubscribe' }) }) })
       })
   )
 })

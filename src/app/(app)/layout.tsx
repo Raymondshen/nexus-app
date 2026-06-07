@@ -4,6 +4,7 @@ import { InstallPrompt } from '@/components/ui/InstallPrompt'
 import { NotificationPrompt } from '@/components/ui/NotificationPrompt'
 import { PushRefresh } from '@/components/ui/PushRefresh'
 import { BadgeClear } from '@/components/ui/BadgeClear'
+import { PushDebugFAB } from '@/components/ui/PushDebugFAB'
 
 // Auth protection is handled by middleware — no getUser() call needed here.
 export default function AppLayout({ children }: { children: ReactNode }) {
@@ -15,6 +16,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       <NotificationPrompt />
       <PushRefresh />
       <BadgeClear />
+      <PushDebugFAB />
     </div>
   )
 }

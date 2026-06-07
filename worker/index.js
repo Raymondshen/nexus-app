@@ -68,14 +68,42 @@ self.addEventListener('notificationclick', (event) => {
   )
 })
 
-// APNs device tokens rotate periodically on iOS. When the subscription changes,
-// message any open clients so they can re-save the new endpoint to the DB.
+// APNs device tokens rotate periodically on iOS. When the subscription endpoint
+// changes we need to persist the new endpoint to the DB immediately — we cannot
+// rely on open clients because the app may be fully closed.
 self.addEventListener('pushsubscriptionchange', (event) => {
+  const oldEndpoint = event.oldSubscription && event.oldSubscription.endpoint
+
   event.waitUntil(
-    self.clients
-      .matchAll({ type: 'window', includeUncontrolled: true })
-      .then((openClients) => {
-        openClients.forEach((c) => c.postMessage({ type: 'nexus-resubscribe' }))
+    // iOS provides event.newSubscription when it auto-renews the APNs token.
+    // Fall back to getSubscription() in case the browser already updated it.
+    Promise.resolve(event.newSubscription || self.registration.pushManager.getSubscription())
+      .then((newSub) => {
+        const notifyClients = self.clients
+          .matchAll({ type: 'window', includeUncontrolled: true })
+          .then((cs) => cs.forEach((c) => c.postMessage({ type: 'nexus-resubscribe' })))
+
+        if (!newSub) return notifyClients
+
+        const json   = newSub.toJSON()
+        const p256dh = json.keys && json.keys.p256dh
+        const auth   = json.keys && json.keys.auth
+        if (!p256dh || !auth) return notifyClients
+
+        return Promise.all([
+          // Persist new endpoint directly — works even when no window is open.
+          fetch('/api/push/resubscribe', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ oldEndpoint: oldEndpoint, newEndpoint: newSub.endpoint, p256dh: p256dh, auth: auth }),
+          }).catch(function() {}),
+          notifyClients,
+        ])
+      })
+      .catch(function() {
+        return self.clients
+          .matchAll({ type: 'window', includeUncontrolled: true })
+          .then(function(cs) { cs.forEach(function(c) { c.postMessage({ type: 'nexus-resubscribe' }) }) })
       })
   )
 })
