@@ -139,10 +139,12 @@ type SheetView = 'menu' | 'create' | 'join'
 function HomeActionSheet({
   onClose,
   coins,
+  infiniteCoins,
   onOpenArsenal,
 }: {
   onClose:       () => void
   coins:         number
+  infiniteCoins: boolean
   onOpenArsenal: () => void
 }) {
   const [view, setView] = useState<SheetView>('menu')
@@ -279,7 +281,7 @@ function HomeActionSheet({
             <div className="flex items-center gap-1 mt-1">
               <i className="hn hn-coins" style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)' }} aria-hidden="true" />
               <span className="font-body text-[12px]" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                {coins.toLocaleString()} coins available
+                {infiniteCoins ? '∞' : coins.toLocaleString()} coins available
               </span>
             </div>
           </div>
@@ -661,9 +663,20 @@ export function HomeClient({
     return base
   })
   const [showCoinTip,       setShowCoinTip]       = useState(false)
+  const [infiniteCoins,     setInfiniteCoins]     = useState(false)
 
   const profileCacheRef = useRef<Record<string, string>>(profileCache)
   useEffect(() => { profileCacheRef.current = profileCache }, [profileCache])
+
+  // Sync infinite coins flag from localStorage + listen for dev-section toggle
+  useEffect(() => {
+    setInfiniteCoins(localStorage.getItem('nexus_infinite_coins') === '1')
+    function onFlagChange(e: Event) {
+      setInfiniteCoins((e as CustomEvent<{ on: boolean }>).detail.on)
+    }
+    window.addEventListener('nexus-infinite-coins-change', onFlagChange)
+    return () => window.removeEventListener('nexus-infinite-coins-change', onFlagChange)
+  }, [])
 
   useEffect(() => { setCrews(initialCrews) }, [initialCrews])
 
@@ -811,13 +824,13 @@ export function HomeClient({
                   setShowCoinTip(true)
                   setTimeout(() => setShowCoinTip(false), 2000)
                 }}
-                aria-label={`${coins} coins`}
+                aria-label={`${infiniteCoins ? '∞' : coins} coins`}
                 className="flex items-center gap-1"
                 style={{ height: 40 }}
               >
                 <i className="hn hn-coins" style={{ fontSize: 24, color: '#ffd700' }} aria-hidden="true" />
                 <span className="font-silkscreen text-[10px] leading-none" style={{ color: '#ffd700' }}>
-                  {coins.toLocaleString()}
+                  {infiniteCoins ? '∞' : coins.toLocaleString()}
                 </span>
               </button>
               <AnimatePresence>
@@ -907,6 +920,7 @@ export function HomeClient({
             key="action-sheet"
             onClose={handleCloseCreate}
             coins={coins}
+            infiniteCoins={infiniteCoins}
             onOpenArsenal={handleOpenArsenal}
           />
         )}
@@ -925,6 +939,7 @@ export function HomeClient({
             key="invite-arsenal"
             userId={userId}
             coins={coins}
+            infiniteCoins={infiniteCoins}
             onClose={handleCloseArsenal}
             onCoinsDeducted={handleCoinsDeducted}
           />

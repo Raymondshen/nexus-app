@@ -453,6 +453,9 @@ function DevSection({ userId, userEmail }: { userId: string; userEmail: string }
   const [copiedEmail,  setCopiedEmail]  = useState(false)
   const [flagsCleared, setFlagsCleared] = useState(false)
   const [devMode,      setDevMode]      = useState(false)
+  const [showPush,     setShowPush]     = useState(false)
+  const [infiniteCoins, setInfiniteCoins] = useState(false)
+  const [actualCoins,  setActualCoins]  = useState<number | null>(null)
 
   const [pushStatus,  setPushStatus]  = useState<PushStatus | null>(null)
   const [pushLoading, setPushLoading] = useState(false)
@@ -463,7 +466,14 @@ function DevSection({ userId, userEmail }: { userId: string; userEmail: string }
 
   useEffect(() => {
     setDevMode(localStorage.getItem('nexus_dev_mode') === '1')
-  }, [])
+    setShowPush(localStorage.getItem('nexus_push_diag') === '1')
+    setInfiniteCoins(localStorage.getItem('nexus_infinite_coins') === '1')
+    // fetch actual coin balance
+    const supabase = createClient()
+    supabase.from('profiles').select('coins').eq('id', userId).maybeSingle().then(({ data }) => {
+      if (data) setActualCoins((data as { coins: number }).coins)
+    })
+  }, [userId])
 
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return
@@ -479,6 +489,21 @@ function DevSection({ userId, userEmail }: { userId: string; userEmail: string }
     setDevMode(next)
     if (next) localStorage.setItem('nexus_dev_mode', '1')
     else localStorage.removeItem('nexus_dev_mode')
+  }
+
+  function toggleShowPush() {
+    const next = !showPush
+    setShowPush(next)
+    if (next) localStorage.setItem('nexus_push_diag', '1')
+    else localStorage.removeItem('nexus_push_diag')
+  }
+
+  function toggleInfiniteCoins() {
+    const next = !infiniteCoins
+    setInfiniteCoins(next)
+    if (next) localStorage.setItem('nexus_infinite_coins', '1')
+    else localStorage.removeItem('nexus_infinite_coins')
+    window.dispatchEvent(new CustomEvent('nexus-infinite-coins-change', { detail: { on: next } }))
   }
 
   function copyToClipboard(text: string, setCopied: (v: boolean) => void) {
@@ -613,6 +638,28 @@ function DevSection({ userId, userEmail }: { userId: string; userEmail: string }
           <ToggleSwitch enabled={devMode} onChange={toggleDevMode} />
         </div>
 
+        {/* Push diagnostics toggle */}
+        <div className={rowClass}>
+          <div className="flex-1 min-w-0 flex flex-col gap-0 leading-[0] tracking-[0.2px]">
+            <p className="font-body font-medium text-[14px] text-secondary leading-normal" style={{ fontVariationSettings: '"opsz" 14' }}>Push Diagnostics</p>
+            <p className="font-body font-normal text-[12px] text-tertiary leading-normal" style={{ fontVariationSettings: '"opsz" 14' }}>Show push subscription tools below</p>
+          </div>
+          <ToggleSwitch enabled={showPush} onChange={toggleShowPush} />
+        </div>
+
+        {/* Infinite coins toggle */}
+        <div className={rowClass}>
+          <div className="flex-1 min-w-0 flex flex-col gap-0 leading-[0] tracking-[0.2px]">
+            <p className="font-body font-medium text-[14px] text-secondary leading-normal" style={{ fontVariationSettings: '"opsz" 14' }}>Infinite Coins</p>
+            <p className="font-body font-normal text-[12px] text-tertiary leading-normal" style={{ fontVariationSettings: '"opsz" 14' }}>
+              {infiniteCoins
+                ? 'Unlimited coins (testing only)'
+                : `Balance: ${actualCoins === null ? '...' : actualCoins.toLocaleString()} coins`}
+            </p>
+          </div>
+          <ToggleSwitch enabled={infiniteCoins} onChange={toggleInfiniteCoins} />
+        </div>
+
         {/* User ID */}
         <div className="px-4 py-4 flex flex-col gap-2">
           <p className="font-body font-medium text-[14px] text-secondary leading-normal tracking-[0.2px]" style={{ fontVariationSettings: '"opsz" 14' }}>User ID</p>
@@ -643,39 +690,40 @@ function DevSection({ userId, userEmail }: { userId: string; userEmail: string }
           </div>
         </div>
 
-        {/* Push diagnostics */}
-        <div className="px-4 py-4 flex flex-col gap-2">
-          <p className="font-body font-medium text-[14px] text-secondary leading-normal tracking-[0.2px]" style={{ fontVariationSettings: '"opsz" 14' }}>Push Diagnostics</p>
-          <div className="flex gap-2">
-            <button onClick={checkPushStatus} disabled={pushLoading} className="flex-1 h-9 font-pixel text-[7px] border transition-colors disabled:opacity-50"
-              style={{ color: '#ffd700', borderColor: 'rgba(255,215,0,0.3)', background: 'rgba(255,215,0,0.06)' }}>
-              {pushLoading ? '...' : 'CHECK'}
-            </button>
-            <button onClick={syncSubscription} disabled={syncLoading} className="flex-1 h-9 font-pixel text-[7px] border transition-colors disabled:opacity-50"
-              style={{ color: '#00e5ff', borderColor: 'rgba(0,229,255,0.3)', background: 'rgba(0,229,255,0.06)' }}>
-              {syncLoading ? '...' : 'SYNC SUB'}
-            </button>
-            <button onClick={sendTestNotification} className="flex-1 h-9 font-pixel text-[7px] border transition-colors"
-              style={{ color: '#a855f7', borderColor: 'rgba(168,85,247,0.3)', background: 'rgba(168,85,247,0.06)' }}>
-              SEND TEST
-            </button>
-          </div>
-          {pushStatus && (
-            <div className="font-sans text-[10px] text-[#ffd700] space-y-0.5 bg-black/30 p-2">
-              <p>SW sub: <span className="text-white">{pushStatus.sw_subscription}</span></p>
-              <p>DB subs: <span className="text-white">{pushStatus.subs_in_db}</span></p>
-              {pushStatus.endpoints.map((ep) => (
-                <p key={ep.id} className="truncate text-tertiary">{ep.is_apns ? '🍎' : '🤖'} {ep.endpoint_preview}</p>
-              ))}
-              {pushStatus.error && <p className="text-[#ef4444]">{pushStatus.error}</p>}
+        {/* Push diagnostics — only shown when toggle is on */}
+        {showPush && (
+          <div className="px-4 py-4 flex flex-col gap-2">
+            <div className="flex gap-2">
+              <button onClick={checkPushStatus} disabled={pushLoading} className="flex-1 h-9 font-pixel text-[7px] border transition-colors disabled:opacity-50"
+                style={{ color: '#ffd700', borderColor: 'rgba(255,215,0,0.3)', background: 'rgba(255,215,0,0.06)' }}>
+                {pushLoading ? '...' : 'CHECK'}
+              </button>
+              <button onClick={syncSubscription} disabled={syncLoading} className="flex-1 h-9 font-pixel text-[7px] border transition-colors disabled:opacity-50"
+                style={{ color: '#00e5ff', borderColor: 'rgba(0,229,255,0.3)', background: 'rgba(0,229,255,0.06)' }}>
+                {syncLoading ? '...' : 'SYNC SUB'}
+              </button>
+              <button onClick={sendTestNotification} className="flex-1 h-9 font-pixel text-[7px] border transition-colors"
+                style={{ color: '#a855f7', borderColor: 'rgba(168,85,247,0.3)', background: 'rgba(168,85,247,0.06)' }}>
+                SEND TEST
+              </button>
             </div>
-          )}
-          {syncResult && <p className="font-sans text-[11px] text-[#00e5ff] break-all leading-relaxed bg-black/30 p-2">{syncResult}</p>}
-          {testResult && <p className="font-sans text-[11px] text-purple break-all leading-relaxed bg-black/30 p-2">{testResult}</p>}
-          <p className="font-sans text-[10px] text-[#ffd700]">
-            SW push event: <span className="text-white">{lastSwPush ? `fired at ${new Date(lastSwPush).toLocaleTimeString()}` : 'not yet received'}</span>
-          </p>
-        </div>
+            {pushStatus && (
+              <div className="font-sans text-[10px] text-[#ffd700] space-y-0.5 bg-black/30 p-2">
+                <p>SW sub: <span className="text-white">{pushStatus.sw_subscription}</span></p>
+                <p>DB subs: <span className="text-white">{pushStatus.subs_in_db}</span></p>
+                {pushStatus.endpoints.map((ep) => (
+                  <p key={ep.id} className="truncate text-tertiary">{ep.is_apns ? '🍎' : '🤖'} {ep.endpoint_preview}</p>
+                ))}
+                {pushStatus.error && <p className="text-[#ef4444]">{pushStatus.error}</p>}
+              </div>
+            )}
+            {syncResult && <p className="font-sans text-[11px] text-[#00e5ff] break-all leading-relaxed bg-black/30 p-2">{syncResult}</p>}
+            {testResult && <p className="font-sans text-[11px] text-purple break-all leading-relaxed bg-black/30 p-2">{testResult}</p>}
+            <p className="font-sans text-[10px] text-[#ffd700]">
+              SW push event: <span className="text-white">{lastSwPush ? `fired at ${new Date(lastSwPush).toLocaleTimeString()}` : 'not yet received'}</span>
+            </p>
+          </div>
+        )}
 
         {/* Reset flags */}
         <div className="px-4 py-4 flex flex-col gap-2">

@@ -7,13 +7,14 @@ import { generateAppInviteAction, getInviteCodesAction } from './actions'
 import type { InviteCodeData } from './actions'
 
 interface InviteArsenalProps {
-  userId:          string
-  coins:           number
-  onClose:         () => void
-  onCoinsDeducted: () => void
+  userId:           string
+  coins:            number
+  infiniteCoins?:   boolean
+  onClose:          () => void
+  onCoinsDeducted:  () => void
 }
 
-export function InviteArsenal({ userId, coins, onClose, onCoinsDeducted }: InviteArsenalProps) {
+export function InviteArsenal({ userId, coins, infiniteCoins, onClose, onCoinsDeducted }: InviteArsenalProps) {
   const [codes,    setCodes]    = useState<InviteCodeData[]>([])
   const [loading,  setLoading]  = useState(true)
   const [forging,  setForging]  = useState(false)
@@ -48,7 +49,7 @@ export function InviteArsenal({ userId, coins, onClose, onCoinsDeducted }: Invit
   }, [userId, loadCodes])
 
   async function handleForge() {
-    if (coins < 25 || forging) return
+    if ((!infiniteCoins && coins < 25) || forging) return
     setForging(true)
     try {
       const result = await generateAppInviteAction()
@@ -70,7 +71,7 @@ export function InviteArsenal({ userId, coins, onClose, onCoinsDeducted }: Invit
     setTimeout(() => setCopiedId(null), 2000)
   }
 
-  const canAfford = coins >= 25
+  const canAfford = infiniteCoins || coins >= 25
 
   return (
     <motion.div
@@ -103,7 +104,7 @@ export function InviteArsenal({ userId, coins, onClose, onCoinsDeducted }: Invit
         <div className="flex items-center gap-2 mt-1">
           <i className="hn hn-coins" style={{ fontSize: 16, color: '#ffd700' }} aria-hidden="true" />
           <span className="font-pixel text-[12px]" style={{ color: '#ffd700' }}>
-            {coins.toLocaleString()}
+            {infiniteCoins ? '∞' : coins.toLocaleString()}
           </span>
         </div>
       </div>

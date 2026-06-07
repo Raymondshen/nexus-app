@@ -188,7 +188,11 @@ Styled subordinately (dim border, muted text brightens on hover) so it does not 
 ## Dev Mode
 - Controlled by `profiles.is_dev` boolean (default false) — **not hardcoded emails**
 - To grant dev mode: `UPDATE profiles SET is_dev = true WHERE id IN (SELECT id FROM auth.users WHERE email = '...')`
-- Dev section in `/profile` shows: dev mode toggle (`nexus_dev_mode` in localStorage), spawn boss button, user ID, push diagnostics
+- Dev section in `/profile` shows four toggle rows + utility rows:
+  - **Spawn Boss Mode** (`nexus_dev_mode`) — enables game event UI in chat
+  - **Push Diagnostics** (`nexus_push_diag`) — shows/hides CHECK / SYNC SUB / SEND TEST buttons and push status output; hidden by default to keep the section clean
+  - **Infinite Coins** (`nexus_infinite_coins`) — bypasses 25-coin gate for invite forging; home header and InviteArsenal show `∞` when on; sub-label shows live DB coin balance when off; dispatches `nexus-infinite-coins-change` CustomEvent so `HomeClient` reacts immediately without remount
+  - User ID (copy button), Email (copy button), Local Flags reset
 
 ### Game Events — Dev-Only Gate
 All boss/game event features are disabled for regular users and only activate when **both** `profiles.is_dev = true` (server) and `nexus_dev_mode = '1'` in localStorage (client toggle):
@@ -484,6 +488,8 @@ Always use `createServiceClient()` inside cache functions (service role, no cook
 | `nexus_notif_prompted` | timestamp ms | throttles NotificationPrompt to 24h |
 | `nexus_notif_state` | `granted\|denied\|pending` | cached permission state |
 | `nexus_dev_mode` | `'1'` | enables game event UI (boss bars, XP stats, system messages) — only meaningful when `profiles.is_dev = true` |
+| `nexus_push_diag` | `'1'` | shows push diagnostics block in dev section (CHECK / SYNC SUB / SEND TEST) |
+| `nexus_infinite_coins` | `'1'` | bypasses coin gate for invite forging; shows `∞` in home header and InviteArsenal; dev-only |
 
 ## Disabled Features (wired for future)
 - Voice notes: button removed; `XP_VALUES['voice']` + element type `lightning` still defined server-side
