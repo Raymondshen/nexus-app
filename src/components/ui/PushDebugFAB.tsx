@@ -50,6 +50,7 @@ export function PushDebugFAB() {
   const [status,         setStatus]         = useState<Status | null>(null)
   const [checking,       setChecking]       = useState(false)
   const [resubLoading,   setResubLoading]   = useState(false)
+  const [subLoading,     setSubLoading]     = useState(false)
   const [testLoading,    setTestLoading]    = useState(false)
   const [log,            setLog]            = useState<string[]>([])
   const [lastPush,       setLastPush]       = useState<number | null>(null)
@@ -230,6 +231,91 @@ export function PushDebugFAB() {
       pushLog(`✗ ${String(err).slice(0, 80)}`)
     } finally {
       setResubLoading(false)
+    }
+  }
+
+  // Verbose step-by-step subscribe — surfaces the exact error instead of swallowing it.
+  async function handleSubscribe() {
+    setSubLoading(true)
+    pushLog('→ SUBSCRIBE: starting…')
+    try {
+      // Step 1: session
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.user) { pushLog('✗ no session — cannot save to DB'); return }
+      pushLog(`  session uid: ${session.user.id.slice(0, 8)}…`)
+
+      // Step 2: service worker
+      const regs = await navigator.serviceWorker.getRegistrations()
+      pushLog(`  SW regs: ${regs.length} (scripts: ${regs.map(r => r.active?.scriptURL?.split('/').pop() ?? '?').join(', ')})`)
+      if (regs.length === 0) {
+        await navigator.serviceWorker.register('/sw-push.js', { scope: '/' })
+        pushLog('  registered sw-push.js')
+      }
+      const reg = await navigator.serviceWorker.ready
+      pushLog(`  SW ready: ${reg.active?.scriptURL?.split('/').pop() ?? '?'} state=${reg.active?.state}`)
+
+      // Step 3: existing subscription
+      let sub = await reg.pushManager.getSubscription()
+      if (sub) {
+        pushLog(`  existing sub: …${sub.endpoint.slice(-20)} type=${sub.endpoint.includes('apple.com') ? 'APNs' : 'FCM'}`)
+      } else {
+        pushLog('  no existing sub')
+      }
+
+      // Step 4: VAPID key
+      const vapidKeyRaw = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+      if (!vapidKeyRaw) { pushLog('✗ NEXT_PUBLIC_VAPID_PUBLIC_KEY missing'); return }
+      pushLog(`  VAPID key: …${vapidKeyRaw.slice(-10)}`)
+
+      // Step 5: if no existing sub, create one; else try fresh if existing failed before
+      if (!sub) {
+        pushLog('  calling pushManager.subscribe()…')
+        try {
+          const padding = '='.repeat((4 - vapidKeyRaw.length % 4) % 4)
+          const base64  = (vapidKeyRaw + padding).replace(/-/g, '+').replace(/_/g, '/')
+          const raw     = window.atob(base64)
+          const key     = new Uint8Array(raw.length)
+          for (let i = 0; i < raw.length; i++) key[i] = raw.charCodeAt(i)
+          sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key })
+          pushLog(`  new sub: …${sub.endpoint.slice(-20)}`)
+        } catch (subErr) {
+          pushLog(`✗ subscribe() threw: ${String(subErr).slice(0, 120)}`)
+          return
+        }
+      }
+
+      // Step 6: extract keys
+      const json   = sub.toJSON()
+      const p256dh = json.keys?.p256dh
+      const auth   = json.keys?.auth
+      if (!p256dh || !auth) { pushLog('✗ subscription has no keys (p256dh/auth)'); return }
+      pushLog(`  keys ok: p256dh=…${p256dh.slice(-8)} auth=…${auth.slice(-8)}`)
+
+      // Step 7: delete old row (idempotent)
+      const { error: delErr } = await supabase
+        .from('push_subscriptions')
+        .delete()
+        .match({ endpoint: sub.endpoint, user_id: session.user.id })
+      if (delErr) pushLog(`  delete err (non-fatal): ${delErr.message}`)
+      else pushLog('  old row deleted (or none existed)')
+
+      // Step 8: insert
+      const { error: insErr } = await supabase
+        .from('push_subscriptions')
+        .insert({ user_id: session.user.id, endpoint: sub.endpoint, p256dh, auth })
+      if (insErr) {
+        pushLog(`✗ INSERT FAILED: ${insErr.message} code=${insErr.code} hint=${insErr.hint ?? '—'}`)
+        pushLog('  ^ this is why pushes are not working — fix this error first')
+      } else {
+        pushLog(`✓ saved to DB! endpoint=…${sub.endpoint.slice(-20)}`)
+      }
+
+      await checkStatus()
+    } catch (err) {
+      pushLog(`✗ unexpected: ${String(err).slice(0, 120)}`)
+    } finally {
+      setSubLoading(false)
     }
   }
 
@@ -454,8 +540,18 @@ export function PushDebugFAB() {
                   </button>
                 </div>
 
+                {/* SUBSCRIBE button — verbose step-by-step, reveals the exact DB error */}
+                <button
+                  onClick={handleSubscribe}
+                  disabled={subLoading}
+                  className="w-full h-9 font-pixel border disabled:opacity-40"
+                  style={{ fontSize: 7, color: '#ffd700', borderColor: 'rgba(255,215,0,0.35)', background: 'rgba(255,215,0,0.06)' }}
+                >
+                  {subLoading ? '…' : 'SUBSCRIBE (VERBOSE)'}
+                </button>
+
                 <p className="font-sans" style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)' }}>
-                  FORCE RESUB wipes all DB rows, unsubscribes, creates a clean endpoint. Use when &quot;In DB: NO&quot; or DB rows &gt; 1. After SEND TEST, swipe the app away completely — iOS won&apos;t show banners while app is open.
+                  FORCE RESUB wipes DB + browser sub then re-subscribes. SUBSCRIBE (VERBOSE) runs each step with full error logging — use this first when &quot;In DB: NO&quot; to see exactly where it fails. After SEND TEST, swipe the app away completely.
                 </p>
 
                 {/* If fn HTTP 401 was logged, show the likely fix */}

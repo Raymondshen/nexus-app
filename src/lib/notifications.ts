@@ -37,70 +37,102 @@ export async function requestPermission(): Promise<PermissionState> {
   return 'denied'
 }
 
+/**
+ * Save the current push subscription to the DB. Called on every app mount
+ * (via PushRefresh) and after FORCE RESUB.
+ *
+ * Strategy:
+ * 1. Get existing browser subscription.
+ * 2. Try to upsert it into push_subscriptions.
+ * 3. If the insert fails for any reason (stale endpoint, constraint error, etc.)
+ *    unsubscribe the old one and create a completely fresh subscription, then
+ *    try the insert once more.
+ *
+ * This handles the most common iOS push failure mode: APNs silently expires
+ * the token and returns 410 on the next push attempt (deleting the DB row),
+ * but the browser doesn't fire pushsubscriptionchange, so the app is stuck
+ * holding an expired endpoint. The fresh-subscribe path below recovers from
+ * this without needing FORCE RESUB.
+ *
+ * Throws with a descriptive message if all attempts fail so callers can log it.
+ */
 export async function subscribeToPush(): Promise<PushSubscription | null> {
   if (!isSupported()) return null
 
-  // iOS is strict about timing — retry up to twice with a delay if the first
-  // attempt fails. This handles cases where the SW is still activating right
-  // after permission is granted.
-  for (let attempt = 0; attempt < 2; attempt++) {
-    if (attempt > 0) await new Promise((r) => setTimeout(r, 1500))
+  const supabase = createClient()
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session?.user) {
+    console.warn('[notifications] subscribeToPush: no session — skipping')
+    return null
+  }
+  const userId = session.user.id
 
+  // Ensure sw-push.js is registered.
+  const regs = await navigator.serviceWorker.getRegistrations()
+  if (regs.length === 0) {
+    await navigator.serviceWorker.register('/sw-push.js', { scope: '/' })
+  }
+  const registration = await navigator.serviceWorker.ready
+
+  const vapidKey = urlBase64ToUint8Array(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!)
+
+  async function trySave(sub: PushSubscription): Promise<PushSubscription | null> {
+    const json   = sub.toJSON()
+    const p256dh = json.keys?.p256dh
+    const auth   = json.keys?.auth
+    if (!p256dh || !auth) {
+      console.error('[notifications] subscription missing keys')
+      return null
+    }
+
+    // Delete any existing row for this exact endpoint (idempotent).
+    await supabase
+      .from('push_subscriptions')
+      .delete()
+      .match({ endpoint: sub.endpoint, user_id: userId })
+
+    const { error } = await supabase
+      .from('push_subscriptions')
+      .insert({ user_id: userId, endpoint: sub.endpoint, p256dh, auth })
+
+    if (error) throw new Error(`DB insert failed: ${error.message} (code=${error.code})`)
+
+    return sub
+  }
+
+  // Attempt 1: try with the existing subscription (avoids re-subscribing when not needed).
+  let sub: PushSubscription | null = null
+  try {
+    // iOS can throw when calling getSubscription() before SW is fully active —
+    // the ready promise above should prevent this, but wrap defensively.
+    sub = await registration.pushManager.getSubscription()
+  } catch { /* treat as no subscription */ }
+
+  if (sub) {
     try {
-      // Ensure sw-push.js is registered (next-pwa's generated sw.js fails on iOS
-      // due to multi-arg importScripts; sw-push.js is a minimal dependency-free SW)
-      const regs = await navigator.serviceWorker.getRegistrations()
-      if (regs.length === 0) {
-        await navigator.serviceWorker.register('/sw-push.js', { scope: '/' })
-      }
-      const registration = await navigator.serviceWorker.ready
-
-      // Use an existing subscription when available (calling subscribe() on iOS
-      // when one already exists can throw in some versions).
-      let subscription = await registration.pushManager.getSubscription()
-
-      if (!subscription) {
-        subscription = await registration.pushManager.subscribe({
-          userVisibleOnly:   true,
-          applicationServerKey: urlBase64ToUint8Array(
-            process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
-          ),
-        })
-      }
-
-      const json   = subscription.toJSON()
-      const p256dh = json.keys?.p256dh
-      const auth   = json.keys?.auth
-      if (!p256dh || !auth) return null
-
-      // getSession() reads from cookies — no network call, never fails due to connectivity.
-      // getUser() makes a network round-trip; on slow PWA launch it can time out and
-      // silently return null, leaving the subscription unregistered in the DB.
-      const supabase = createClient()
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.user) return null
-      const userId = session.user.id
-
-      // Delete→insert instead of upsert: avoids relying on the unique index
-      // existing in the DB (ON CONFLICT fails if the index isn't there yet).
-      await supabase
-        .from('push_subscriptions')
-        .delete()
-        .match({ endpoint: subscription.endpoint, user_id: userId })
-
-      const { error } = await supabase
-        .from('push_subscriptions')
-        .insert({ user_id: userId, endpoint: subscription.endpoint, p256dh, auth })
-
-      if (error) throw error
-
-      return subscription
+      return await trySave(sub)
     } catch (err) {
-      console.error(`[notifications] subscribeToPush attempt ${attempt + 1} failed:`, err)
+      // Insert failed — the existing endpoint is likely stale (APNs expired it,
+      // send-notification got 410 and deleted the DB row, but the browser still
+      // holds the old token). Unsubscribe and fall through to a fresh subscribe.
+      console.warn('[notifications] existing endpoint save failed, trying fresh subscribe:', err)
+      try { await sub.unsubscribe() } catch { /* ignore */ }
     }
   }
 
-  return null
+  // Attempt 2: fresh subscription (new APNs token).
+  // Note: iOS can throw if subscribe() is called while one already exists —
+  // the unsubscribe above should clear it, but we still wrap in try/catch.
+  try {
+    const freshSub = await registration.pushManager.subscribe({
+      userVisibleOnly:      true,
+      applicationServerKey: vapidKey,
+    })
+    return await trySave(freshSub)
+  } catch (err) {
+    console.error('[notifications] fresh subscribe failed:', err)
+    return null
+  }
 }
 
 export function getPermissionState(): PermissionState {
