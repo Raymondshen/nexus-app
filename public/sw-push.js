@@ -48,11 +48,17 @@ self.addEventListener('push', (event) => {
   // iOS does not support `badge` in showNotification options and may reject calls
   // that include unknown options in strict mode. Use the minimal set that iOS
   // documents as supported for Web Push: title (1st arg), body, icon, data, tag.
+  //
+  // IMPORTANT: tag must be unique per notification. Reusing the same tag (e.g.
+  // the crew URL) causes iOS to silently replace the existing notification in
+  // the Notification Center without playing a sound or showing a new banner —
+  // subsequent messages appear to never arrive. Appending the timestamp makes
+  // each push distinct so iOS always triggers a new alert.
   var showPromise = self.registration.showNotification(title, {
     body,
     icon:  '/icons/icon-192.png',
     data:  notifData,
-    tag:   (notifData && notifData.url) || 'nexus',
+    tag:   ((notifData && notifData.url) || 'nexus') + '-' + ts,
   }).catch(function(err) {
     // Full options rejected — try absolute bare minimum
     console.error('[sw-push] showNotification failed, retrying minimal:', err)
