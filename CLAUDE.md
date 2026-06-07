@@ -402,7 +402,9 @@ All "detail" pages (chat, DM, profile, friends, vault) slide in from the right o
   - Uses bare `navigator.setAppBadge` (not `self.navigator`) and strips `badge` option from `showNotification` (iOS doesn't support it; can cause silent rejection)
   - Fallback: if full `showNotification` options are rejected, retries with minimal `{body}` only
 - **Registration**: `SWRegister` (`src/components/ui/SWRegister.tsx`) — production-only, runs once in root layout
-- **Subscription storage**: `push_subscriptions` table; use delete→insert NOT upsert (unique index may not exist in all envs)
+- **Subscription storage**: `push_subscriptions` table (endpoint UNIQUE, crew_id nullable). `subscribeToPush()` does INSERT only — **no delete before insert**. Deleting first creates a zero-row window that races with the debug FAB's auto-check and risks data loss if the insert then fails. `23505` (unique_violation / row already exists) is treated as success.
+- **Subscription recovery**: if `INSERT` fails for a non-23505 reason (e.g. stale APNs token that was 410'd and the row deleted, but the browser still holds the old endpoint), `subscribeToPush()` automatically unsubscribes and creates a fresh APNs token. `PushRefresh` (app layout) calls `subscribeToPush()` on every mount so recovery is automatic on next app open.
+- **`nexus-push-subscribed` event**: `subscribeToPush()` dispatches this on `window` when it succeeds. `PushDebugFAB` listens and re-runs `checkStatus()` so the dot goes green without a manual REFRESH tap.
 - **Badge**: `BadgeClear` component clears app icon badge on focus/visibilitychange; SW sets it on push receive
 - **Preferences**: `notification_preferences` table; `send-notification` edge function checks before sending
 - **`message_received` notification format**: title = `"Name from Group Name"`, body = content preview or `"sent"` if empty
@@ -411,18 +413,35 @@ All "detail" pages (chat, DM, profile, friends, vault) slide in from the right o
 - iOS push only works in standalone PWA mode (iOS 16.4+, added to Home Screen)
 - **iOS foreground suppression**: iOS does NOT show push banners when the PWA window is active. Always test push with the PWA completely closed (swiped away from app switcher).
 - **iOS notification tag — CRITICAL**: The `tag` passed to `showNotification` must be **unique per notification** (we append `-{timestamp}`). If multiple pushes share the same tag and an earlier one is still unread in the Notification Center, iOS silently replaces it without playing a sound or showing a banner — subsequent messages appear to never arrive. Stacking notifications (unique tags) is the correct behavior for a chat app.
-- **iOS push debugging workflow**: (1) Check account A's console for `[award-xp]` log — `notif_results` shows `sent` or `expired_deleted` per user. (2) If `expired_deleted`, the APNs endpoint was 410'd; account B must tap FORCE RESUB in the push debug FAB. (3) If `sent` but notification not received, ensure account B's PWA is fully swiped away from the app switcher. (4) Open the push debug FAB after triggering a push — "Last push" timestamp updates even for foreground-suppressed pushes (Cache API is written before `showNotification`). (5) If "In DB: NO" after REFRESH, FORCE RESUB immediately.
-- **Subscription cleanup**: `send-notification` deletes the DB row on 410/404 from APNs. After deletion, no further pushes are sent until the user re-opens the PWA (which calls `subscribeToPush()` on mount). The `pushsubscriptionchange` SW event handles APNs token rotation automatically via `/api/push/resubscribe`.
+- **iOS push debugging workflow**: (1) Open push debug FAB → tap SUBSCRIBE (VERBOSE) — it logs every step including the exact DB insert error. (2) Check `fn HTTP` status from SEND TEST — **401 means `send-notification` was redeployed without `--no-verify-jwt`** (see deployment rules below). (3) If `expired_deleted`, the APNs endpoint was 410'd; tap FORCE RESUB. (4) Ensure PWA is fully swiped away before testing. (5) "Last push" timestamp in FAB updates even for foreground-suppressed pushes (Cache API written before `showNotification`).
+- **Subscription cleanup**: `send-notification` deletes the DB row on 410/404 from APNs. `PushRefresh` on the next app open calls `subscribeToPush()` which detects the missing row, unsubscribes the stale browser endpoint, and creates a fresh APNs token automatically.
 - PWA/SW disabled in dev; test push notifications against production Vercel deployment only
 - `subscribeToPush()` uses `getSession()` (not `getUser()`) — cookie-only, never fails due to network
 - VAPID env vars must be set in **Supabase Edge Function secrets** (separate from Vercel env vars)
-- **Edge function deployment**: `git push` to Vercel does NOT deploy Supabase Edge Functions. Must run manually: `supabase functions deploy <name> --project-ref tlveyeisjbythssmocth`. Deploy both `award-xp` and `send-notification` after any changes.
-- **Inter-function calls — JWT auth**: `send-notification` is deployed with `--no-verify-jwt`. `award-xp` calls it via raw `fetch()` with **no Authorization header** — do NOT use `supabase.functions.invoke()` or pass `SUPABASE_SERVICE_ROLE_KEY` / `SUPABASE_ANON_KEY` as Bearer tokens (both return 401 UNAUTHORIZED_INVALID_JWT_FORMAT). Pattern:
-  ```ts
-  const fnUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/send-notification`
-  fetch(fnUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({...}) })
-  ```
-- **Batch notifications**: `send-notification` accepts either `user_id: string` (single, backward compat) or `user_ids: string[]` (batch). Batch mode fetches all preferences and subscriptions in two `.in()` queries, then iterates per user. `award-xp` always uses the batch form.
+
+### Adding a new notification type — checklist
+1. Add the type to `NotificationType` union in `send-notification/index.ts`
+2. Add it to `PREF_COLUMN` map (`null` = always deliver, or map to a preferences column)
+3. Add a `case` to `buildPayload()` returning `{ title, body, icon, data: { url } }`
+4. Call `send-notification` from the trigger point (server action or edge function) using the pattern below
+5. **Deploy**: `supabase functions deploy send-notification --project-ref tlveyeisjbythssmocth --no-verify-jwt`
+   - The `--no-verify-jwt` flag is **mandatory every time** — omitting it redeploys with JWT verification on, which causes all calls from `award-xp` (no auth header) to return `401 UNAUTHORIZED_NO_AUTH_HEADER` and silently breaks all push notifications for every user.
+
+### Edge function deployment rules
+- **`git push` to Vercel does NOT deploy Supabase Edge Functions** — must run manually every time the function code changes.
+- **Always use `--no-verify-jwt` for `send-notification`**: `award-xp` calls it via raw `fetch()` with no Authorization header. Without this flag the function returns `401 UNAUTHORIZED_NO_AUTH_HEADER` and no pushes are delivered.
+- Deploy command: `supabase functions deploy send-notification --project-ref tlveyeisjbythssmocth --no-verify-jwt`
+- Deploy `award-xp` separately (no `--no-verify-jwt` needed — it is called by authenticated clients): `supabase functions deploy award-xp --project-ref tlveyeisjbythssmocth`
+
+### Inter-function call pattern (award-xp → send-notification)
+`send-notification` is deployed with `--no-verify-jwt`. Call it via raw `fetch()` with **no Authorization header** — do NOT use `supabase.functions.invoke()` or pass any Bearer token (both return 401):
+```ts
+const fnUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/send-notification`
+fetch(fnUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({...}) })
+```
+Server actions (Next.js) calling `send-notification` directly also use this same pattern with no auth header.
+
+- **Batch notifications**: `send-notification` accepts either `user_id: string` (single, backward compat) or `user_ids: string[]` (batch). Batch mode fetches all preferences and subscriptions in two `.in()` queries, then iterates per user. `award-xp` always uses the batch form. Server actions use single `user_id`.
 
 ### Pixel Sprites
 - Component: `src/components/game/PixelSprite.tsx`
