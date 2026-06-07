@@ -121,16 +121,21 @@ Berserker (spam), Sage (long messages), Ghost (silence crit), Hype Man (reaction
 - No email/password auth
 
 ### Invite-Only Gate — `/login`
-The login page is now invite-only with two paths. Guest mode and the open Google sign-in button are replaced by:
+The login page is invite-only with two paths. Guest mode is removed.
 
-**Invite Code Path** (`LoginForm.tsx` step machine: `landing → invite-oauth → invite-profile`):
-1. User clicks "I HAVE AN INVITE CODE" → Google OAuth via `signInWithGoogleForInvite()` (sets `nexus_auth_intent=invite` cookie before OAuth)
-2. Auth callback detects `flow=invite`, redirects to `/login?flow=invite&step=2` instead of `/home`
-3. `checkReservedUserAction()` (server action, service client) checks `reserved_users` by the session user's email:
-   - **Match found**: pre-fills warrior name + class (read-only); user only enters their invite code
-   - **No match / session missing**: interactive warrior name input + `ClassCarousel` + invite code input
-4. `completeInviteFlowAction(code, username, cls)`: validates code in `app_invites` (service client, distinguishes invalid vs already-used), upserts `profiles.username` + `profiles.avatar_class`, marks invite `used=true/used_by/used_at`, returns success → client calls `router.push('/home')`
-5. Home page birthday guard kicks in → `/onboarding/birthday` → `/onboarding/welcome` → crew join/create
+**Invite Code Path** (`LoginForm.tsx` step machine: `landing → invite-code → invite-oauth → invite-profile`):
+1. User clicks "I HAVE AN INVITE CODE" → `invite-code` step: enter code, click "VERIFY CODE"
+2. `validateInviteCodeAction(code)` (server action, service client) — checks `app_invites` for a valid unused code; returns error immediately if invalid or already claimed. Does **not** consume the code.
+3. On valid code → `invite-oauth` step: shows "CODE ACCEPTED" + the verified code in a purple info box. Before triggering OAuth, client sets `nexus_invite_code=CODE` cookie (SameSite=Lax, 5min TTL) via `document.cookie`, then calls `signInWithGoogleForInvite()` which sets the `nexus_auth_intent=invite` cookie and triggers OAuth.
+4. Auth callback reads both cookies: routes to `/login?flow=invite&step=2&code=CODE`, clears both cookies.
+5. `invite-profile` step: `checkReservedUserAction()` checks `reserved_users` by session email:
+   - **Match found**: pre-fills warrior name + class (read-only)
+   - **No match / session missing**: interactive warrior name input + `ClassCarousel`
+   - No invite code input — code comes from the `?code=` URL param.
+6. `completeInviteFlowAction(code, username, cls)`: re-validates code in `app_invites` (final guard), upserts `profiles.username` + `profiles.avatar_class`, marks invite `used=true/used_by/used_at`, returns success → client calls `router.push('/home')`
+7. Home page birthday guard kicks in → `/onboarding/birthday` → `/onboarding/welcome` → crew join/create
+
+**Cookie flow for invite code across OAuth**: `nexus_invite_code` is set client-side before OAuth, survives the Google cross-site redirect (SameSite=Lax), read by the callback, appended to the step-2 redirect URL as `?code=XXX`, then deleted. `nexus_auth_intent=invite` is set by `signInWithGoogleForInvite()` (same pattern). Both cookies are deleted together in the callback response.
 
 **Reserve My Place Path** (`landing → reserve-email → reserve-class → reserve-name → reserve-done`):
 - No auth session created — purely a waitlist record in `reserved_users`
@@ -140,19 +145,23 @@ The login page is now invite-only with two paths. Guest mode and the open Google
 
 **`reserved_users` RLS**: anyone can insert (public waitlist); no select/update policies (service role only reads). Migration `20240103000011`.
 
-**`app_invites` validation**: uses `createServiceClient()` in `completeInviteFlowAction` to bypass the inviter-only RLS policy. Code lookup is case-insensitive (input `.toUpperCase()`). Race condition guard: `.eq('used', false)` on the update.
+**`app_invites` validation**: uses `createServiceClient()` in both `validateInviteCodeAction` and `completeInviteFlowAction` to bypass the inviter-only RLS policy. Code lookup is case-insensitive (input `.toUpperCase()`). Race condition guard: `.eq('used', false)` on the update.
 
 **Error copy** (game voice):
 - Invalid code: "The Nexus does not recognize this code."
 - Already used: "This code has already been claimed."
 - Generic: "The rift destabilized. Try again."
 - Email already reserved: "A warrior already guards this name."
+- No existing account on sign-in: "No warrior found. The Nexus is invite only — ask an existing member for a code."
 
 **`ClassCarousel`** (inline in `LoginForm.tsx`): single-class-at-a-time view, ‹/› arrows + dot indicators, color-coded border per class. Same 5 classes as onboarding: mage, warrior, rogue, healer, archer.
 
-**`signInWithGoogleForInvite()`** in `src/lib/supabase/auth.ts`: sets a `nexus_auth_intent=invite` cookie (SameSite=Lax, 5min TTL) then calls `signInWithOAuth` with the standard `redirectTo` (no query params). The cookie survives the Google cross-site redirect; the callback reads it and routes to `/login?flow=invite&step=2`, then clears the cookie. This avoids adding a second URL to the Supabase redirect allowlist.
+**`signInWithGoogleForInvite()`** in `src/lib/supabase/auth.ts`: sets a `nexus_auth_intent=invite` cookie (SameSite=Lax, 5min TTL) then calls `signInWithOAuth` with the standard `redirectTo` (no query params). The cookie survives the Google cross-site redirect; the callback reads it and routes to the invite step, then clears it. This avoids adding a second URL to the Supabase redirect allowlist.
 
-**Landing screen — third option (existing members)**: below the two main CTAs a divider labeled "ALREADY A MEMBER" precedes a muted "SIGN IN WITH GOOGLE" button that calls the standard `signInWithGoogle()` and routes to `/home`. Styled subordinately (dim border, muted text brightens on hover) so it does not compete with the invite/reserve CTAs.
+**Landing screen — third option (existing members)**: below the two main CTAs a divider labeled "ALREADY A MEMBER" precedes a muted "SIGN IN WITH GOOGLE" button that calls the standard `signInWithGoogle()`. Auth callback checks `profiles.username` for the signed-in user:
+- Username set → `/home` (existing member)
+- No username → `/login?error=no_account` → red error on landing: "No warrior found. The Nexus is invite only — ask an existing member for a code."
+Styled subordinately (dim border, muted text brightens on hover) so it does not compete with the invite/reserve CTAs.
 
 ## Onboarding Flow
 - **New users**: name → `/onboarding/birthday` → `/onboarding/class` → `/onboarding/welcome` → chat/crew

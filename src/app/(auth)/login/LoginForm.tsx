@@ -5,8 +5,9 @@ import { useRouter } from 'next/navigation'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
-import { signInWithGoogle, signInWithGoogleForInvite } from '@/lib/supabase/auth'
+import { signInWithGoogleForInvite, signInWithGoogle } from '@/lib/supabase/auth'
 import {
+  validateInviteCodeAction,
   checkReservedUserAction,
   reservePlaceAction,
   completeInviteFlowAction,
@@ -24,8 +25,9 @@ const CLASSES: { id: AvatarClass; name: string; flavor: string; color: string }[
 
 type Step =
   | 'landing'
-  | 'invite-oauth'
-  | 'invite-profile'
+  | 'invite-code'    // enter & validate invite code first
+  | 'invite-oauth'   // google sign-in (after code validated)
+  | 'invite-profile' // username + class (after oauth)
   | 'reserve-email'
   | 'reserve-class'
   | 'reserve-name'
@@ -157,6 +159,14 @@ function ErrorBox({ message }: { message: string }) {
   )
 }
 
+function InfoBox({ message }: { message: string }) {
+  return (
+    <div className="bg-[#bf5fff]/10 border border-[#bf5fff]/30 px-3 py-2">
+      <p className="font-pixel text-[9px] text-[#bf5fff] leading-relaxed">{message}</p>
+    </div>
+  )
+}
+
 const variants = {
   enter:  { opacity: 0, y: 10 },
   center: { opacity: 1, y: 0  },
@@ -166,27 +176,31 @@ const variants = {
 export function LoginForm({
   flow,
   step: stepParam,
+  urlError,
+  code,
 }: {
   flow?: string
   step?: string
+  urlError?: string
+  code?: string
 }) {
   const router = useRouter()
 
   const [step, setStep] = useState<Step>(
     flow === 'invite' && stepParam === '2' ? 'invite-profile' : 'landing'
   )
-  const [email, setEmail]               = useState('')
-  const [username, setUsername]         = useState('')
+  const [email, setEmail]                 = useState('')
+  const [username, setUsername]           = useState('')
   const [selectedClass, setSelectedClass] = useState<AvatarClass>('mage')
-  const [inviteCode, setInviteCode]     = useState('')
-  const [error, setError]               = useState<string | null>(null)
-  const [loading, setLoading]           = useState(false)
+  const [inviteCode, setInviteCode]       = useState('')
+  const [error, setError]                 = useState<string | null>(null)
+  const [loading, setLoading]             = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
   const [signInLoading, setSignInLoading] = useState(false)
-  const [reservedData, setReservedData] = useState<CheckReservedResult | null>(null)
+  const [reservedData, setReservedData]   = useState<CheckReservedResult | null>(null)
   const [loadingReserved, setLoadingReserved] = useState(false)
-  const [doneUsername, setDoneUsername] = useState('')
-  const [doneClass, setDoneClass]       = useState('')
+  const [doneUsername, setDoneUsername]   = useState('')
+  const [doneClass, setDoneClass]         = useState('')
 
   // When reaching invite-profile, check if user has a reservation or a valid session
   useEffect(() => {
@@ -198,7 +212,6 @@ export function LoginForm({
         setUsername(result.data.username)
         if (result.data.class) setSelectedClass(result.data.class as AvatarClass)
       } else if (!result.hasSession) {
-        // No Supabase session — bounce back to OAuth step
         setStep('invite-oauth')
         setError('Sign in with Google first, then enter your invite code.')
       }
@@ -206,10 +219,29 @@ export function LoginForm({
     })
   }, [step])
 
+  async function handleValidateCode() {
+    setError(null)
+    setLoading(true)
+    try {
+      const result = await validateInviteCodeAction(inviteCode)
+      if (result.valid) {
+        setStep('invite-oauth')
+      } else {
+        setError(result.error ?? 'The Nexus does not recognize this code.')
+      }
+    } catch {
+      setError('The rift destabilized. Try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   async function handleInviteOAuth() {
     setError(null)
     setGoogleLoading(true)
     try {
+      // Persist the validated code across the OAuth redirect via a short-lived cookie
+      document.cookie = `nexus_invite_code=${encodeURIComponent(inviteCode)}; path=/; SameSite=Lax; max-age=300`
       await signInWithGoogleForInvite()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not connect to Google.')
@@ -218,10 +250,14 @@ export function LoginForm({
   }
 
   async function handleCompleteInvite() {
+    if (!code) {
+      setError('Session expired. Please start over.')
+      return
+    }
     setError(null)
     setLoading(true)
     try {
-      const result = await completeInviteFlowAction(inviteCode, username, selectedClass)
+      const result = await completeInviteFlowAction(code, username, selectedClass)
       if (result.success) {
         router.push('/home')
       } else {
@@ -266,11 +302,12 @@ export function LoginForm({
   function goBack() {
     setError(null)
     switch (step) {
-      case 'invite-oauth':    setStep('landing');        break
-      case 'invite-profile':  setStep('landing');        break
-      case 'reserve-email':   setStep('landing');        break
-      case 'reserve-class':   setStep('reserve-email');  break
-      case 'reserve-name':    setStep('reserve-class');  break
+      case 'invite-code':    setStep('landing');       break
+      case 'invite-oauth':   setStep('invite-code');   break
+      case 'invite-profile': setStep('landing');       break
+      case 'reserve-email':  setStep('landing');       break
+      case 'reserve-class':  setStep('reserve-email'); break
+      case 'reserve-name':   setStep('reserve-class'); break
       case 'reserve-done':
         setStep('landing')
         setEmail('')
@@ -301,11 +338,15 @@ export function LoginForm({
             </p>
           </div>
 
+          {urlError === 'no_account' && (
+            <ErrorBox message="No warrior found. The Nexus is invite only — ask an existing member for a code." />
+          )}
+
           <Button
             type="button"
             variant="primary"
             className="w-full"
-            onClick={() => { setError(null); setStep('invite-oauth') }}
+            onClick={() => { setError(null); setStep('invite-code') }}
           >
             I HAVE AN INVITE CODE
           </Button>
@@ -355,6 +396,50 @@ export function LoginForm({
         </motion.div>
       )}
 
+      {/* ── Invite — Code entry step ─────────────────────────────────────────── */}
+      {step === 'invite-code' && (
+        <motion.div
+          key="invite-code"
+          variants={variants}
+          initial="enter" animate="center" exit="exit"
+          transition={{ duration: 0.18 }}
+          className="flex flex-col gap-5"
+        >
+          <div className="text-center">
+            <h2 className="font-pixel text-[11px] text-white mb-2">ENTER YOUR CODE</h2>
+            <p className="font-pixel text-[8px] text-[#6b4f8f] leading-relaxed">
+              Got an invite? Enter it below to begin.
+            </p>
+          </div>
+
+          {error && <ErrorBox message={error} />}
+
+          <Input
+            name="inviteCode"
+            type="text"
+            label="INVITE CODE"
+            placeholder="ENTER CODE"
+            value={inviteCode}
+            onChange={e => setInviteCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10))}
+            autoComplete="off"
+            autoCapitalize="characters"
+          />
+
+          <Button
+            type="button"
+            variant="primary"
+            loading={loading}
+            disabled={loading || inviteCode.trim().length < 4}
+            className="w-full"
+            onClick={handleValidateCode}
+          >
+            VERIFY CODE
+          </Button>
+
+          <BackButton onClick={goBack} />
+        </motion.div>
+      )}
+
       {/* ── Invite — OAuth step ──────────────────────────────────────────────── */}
       {step === 'invite-oauth' && (
         <motion.div
@@ -365,11 +450,15 @@ export function LoginForm({
           className="flex flex-col gap-5"
         >
           <div className="text-center">
-            <h2 className="font-pixel text-[11px] text-white mb-2">CONNECT YOUR GMAIL</h2>
+            <h2 className="font-pixel text-[11px] text-white mb-2">CODE ACCEPTED</h2>
             <p className="font-pixel text-[8px] text-[#6b4f8f] leading-relaxed">
-              We&apos;ll verify your invite code after sign-in.
+              Sign in with Google to create your warrior.
             </p>
           </div>
+
+          {inviteCode && (
+            <InfoBox message={`Code ${inviteCode} verified. Now connect your Google account.`} />
+          )}
 
           {error && <ErrorBox message={error} />}
 
@@ -378,7 +467,7 @@ export function LoginForm({
         </motion.div>
       )}
 
-      {/* ── Invite — Profile + code step ────────────────────────────────────── */}
+      {/* ── Invite — Profile + class step ───────────────────────────────────── */}
       {step === 'invite-profile' && (
         <motion.div
           key="invite-profile"
@@ -388,10 +477,14 @@ export function LoginForm({
           className="flex flex-col gap-4"
         >
           <div className="text-center">
-            <h2 className="font-pixel text-[11px] text-white mb-1">ENTER THE NEXUS</h2>
+            <h2 className="font-pixel text-[11px] text-white mb-1">CREATE YOUR WARRIOR</h2>
           </div>
 
           {error && <ErrorBox message={error} />}
+
+          {!code && !loadingReserved && (
+            <ErrorBox message="Session expired. Please start over." />
+          )}
 
           {loadingReserved ? (
             <div className="py-6 flex justify-center">
@@ -451,24 +544,13 @@ export function LoginForm({
             </div>
           )}
 
-          {!loadingReserved && (
+          {!loadingReserved && code && (
             <>
-              <Input
-                name="inviteCode"
-                type="text"
-                label="INVITE CODE"
-                placeholder="ENTER CODE"
-                value={inviteCode}
-                onChange={e => setInviteCode(e.target.value.toUpperCase().slice(0, 10))}
-                autoComplete="off"
-                autoCapitalize="characters"
-              />
-
               <Button
                 type="button"
                 variant="primary"
                 loading={loading}
-                disabled={loading || !inviteCode.trim() || !username.trim()}
+                disabled={loading || !username.trim()}
                 className="w-full"
                 onClick={handleCompleteInvite}
               >
@@ -477,6 +559,10 @@ export function LoginForm({
 
               <BackButton onClick={goBack} />
             </>
+          )}
+
+          {!loadingReserved && !code && (
+            <BackButton onClick={goBack} />
           )}
         </motion.div>
       )}

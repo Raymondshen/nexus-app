@@ -8,6 +8,8 @@ export async function GET(request: NextRequest) {
   // Cookie set by signInWithGoogleForInvite() before OAuth; SameSite=Lax survives
   // the cross-site redirect from Google back to this callback.
   const intent = request.cookies.get('nexus_auth_intent')?.value
+  // Code was pre-validated before OAuth and stored as a cookie to survive the redirect
+  const inviteCode = request.cookies.get('nexus_invite_code')?.value
 
   if (code) {
     const supabase = await createClient()
@@ -19,11 +21,26 @@ export async function GET(request: NextRequest) {
       if (user && avatarUrl) {
         await supabase.from('profiles').update({ avatar_url: avatarUrl }).eq('id', user.id)
       }
-      const destination = intent === 'invite'
-        ? `${origin}/login?flow=invite&step=2`
-        : `${origin}/home`
+
+      let destination: string
+      if (intent === 'invite') {
+        // Carry the pre-validated invite code into the profile-setup step
+        const codeParam = inviteCode ? `&code=${encodeURIComponent(inviteCode)}` : ''
+        destination = `${origin}/login?flow=invite&step=2${codeParam}`
+      } else {
+        // "SIGN IN WITH GOOGLE" path: only admit users who already have a Nexus profile.
+        // New users with no username must get an invite from an existing member.
+        const { data: profile } = user
+          ? await supabase.from('profiles').select('username').eq('id', user.id).maybeSingle()
+          : { data: null }
+        destination = profile?.username
+          ? `${origin}/home`
+          : `${origin}/login?error=no_account`
+      }
+
       const response = NextResponse.redirect(destination)
       response.cookies.delete('nexus_auth_intent')
+      response.cookies.delete('nexus_invite_code')
       return response
     }
   }

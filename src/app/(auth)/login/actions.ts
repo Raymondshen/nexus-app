@@ -12,6 +12,24 @@ export type CheckReservedResult =
   | { found: false; hasSession: boolean }
   | { found: true; hasSession: true; data: ReservedUserData }
 
+export async function validateInviteCodeAction(
+  code: string
+): Promise<{ valid: boolean; error?: string }> {
+  const codeClean = code.trim().toUpperCase()
+  if (!codeClean) return { valid: false, error: 'Enter an invite code.' }
+
+  const service = createServiceClient()
+  const { data: inviteRow } = await service
+    .from('app_invites')
+    .select('id, used')
+    .eq('code', codeClean)
+    .maybeSingle()
+
+  if (!inviteRow) return { valid: false, error: 'The Nexus does not recognize this code.' }
+  if (inviteRow.used) return { valid: false, error: 'This code has already been claimed.' }
+  return { valid: true }
+}
+
 export async function checkReservedUserAction(): Promise<CheckReservedResult> {
   const supabase = await createClient()
   const { data: { session } } = await supabase.auth.getSession()
