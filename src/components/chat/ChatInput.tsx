@@ -333,7 +333,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatI
             <motion.div
               className="absolute left-0 top-0 h-full bg-purple"
               animate={{ width: `${xpProgress}%` }}
-              transition={{ type: 'spring', stiffness: 120, damping: 20 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 28 }}
             />
           </div>
         </div>

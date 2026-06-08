@@ -219,19 +219,19 @@ function NotifToggleRow({
   onToggle:    () => void
 }) {
   return (
-    <div className="flex items-center justify-between py-3">
-      <div className="flex-1 min-w-0 pr-4">
-        <p className="font-body font-medium text-[14px] text-primary leading-none">{label}</p>
-        <p className="font-pixel text-[7px] text-[#6b4f8f] mt-1 leading-relaxed">{description}</p>
+    <div className="flex items-center gap-2 px-4">
+      <div className="flex-1 min-w-0 flex flex-col tracking-[0.2px]">
+        <p className="font-body font-medium text-[14px] text-secondary leading-normal">{label}</p>
+        <p className="font-body text-[12px] text-tertiary leading-normal">{description}</p>
       </div>
       <button
         onClick={onToggle}
         aria-label={`${enabled ? 'Disable' : 'Enable'} ${label} notifications`}
-        className="relative w-[40px] h-[24px] flex-shrink-0 transition-colors"
+        className="relative w-[40px] h-[24px] flex-shrink-0 p-1 transition-colors"
         style={{ background: enabled ? '#a855f7' : '#27272a' }}
       >
         <motion.span
-          className="absolute top-[4px] w-4 h-4 bg-white pointer-events-none"
+          className="absolute top-1 w-4 h-4 bg-white pointer-events-none"
           animate={{ left: enabled ? 20 : 4 }}
           transition={{ type: 'spring', stiffness: 400, damping: 30 }}
         />
@@ -265,39 +265,49 @@ function NotifSheet({
         animate={{ y: 0,  opacity: 1 }}
         exit={{   y: 80, opacity: 0 }}
         transition={{ type: 'spring', stiffness: 280, damping: 26 }}
-        className="relative w-full max-w-[480px] bg-[#0f0820] border-t border-[#2a1545] p-6"
+        className="relative w-full max-w-[480px] bg-surface border-t border-border flex flex-col gap-6 p-4 overflow-hidden"
         style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 24px)' }}
         onClick={(e) => e.stopPropagation()}
       >
-        <p className="font-pixel text-[8px] text-[#6b4f8f] mb-1">{crew.name.toUpperCase()}</p>
-        <h2 className="font-pixel text-[11px] text-white mb-2">NOTIFICATIONS</h2>
+        {/* Header */}
+        <div className="flex flex-col gap-2">
+          <p className="font-pixel text-[8px] text-tertiary leading-none">{crew.name.toUpperCase()}</p>
+          <div className="flex flex-col gap-1">
+            <h2 className="font-body font-bold text-[18px] text-primary leading-none">Notifications</h2>
+            <p className="font-body text-[12px] text-secondary leading-normal">Control what pulls you back into the chat.</p>
+          </div>
+        </div>
 
-        <NotifToggleRow
-          label="Messages"
-          description="Notify me with new messages from this chat"
-          enabled={prefs.messages}
-          onToggle={() => onToggle('messages')}
-        />
-        <div className="border-t border-[#2a1545]" />
-        <NotifToggleRow
-          label="Raid Alerts"
-          description="Notify me when boss spawns and expires"
-          enabled={prefs.raids}
-          onToggle={() => onToggle('raids')}
-        />
-        <div className="border-t border-[#2a1545]" />
-        <NotifToggleRow
-          label="Victory"
-          description="Notify me when boss defeated & artifact drops"
-          enabled={prefs.victory}
-          onToggle={() => onToggle('victory')}
-        />
+        {/* Settings card — purple border */}
+        <div className="flex flex-col gap-4 py-4 border border-[rgba(168,85,247,0.5)] bg-surface overflow-hidden">
+          <NotifToggleRow
+            label="Messages"
+            description="Notify me with new messages from this chat"
+            enabled={prefs.messages}
+            onToggle={() => onToggle('messages')}
+          />
+          <div className="border-t border-border w-full" />
+          <NotifToggleRow
+            label="Raid Alerts"
+            description="Notify me when boss spawns and expires"
+            enabled={prefs.raids}
+            onToggle={() => onToggle('raids')}
+          />
+          <div className="border-t border-border w-full" />
+          <NotifToggleRow
+            label="Victory"
+            description="Notify me when boss defeated & artifact drops"
+            enabled={prefs.victory}
+            onToggle={() => onToggle('victory')}
+          />
+        </div>
 
+        {/* Close */}
         <button
           onClick={onClose}
-          className="mt-4 w-full font-pixel text-[8px] text-[#3d2660] py-2 hover:text-[#6b4f8f] transition-colors"
+          className="w-full font-silkscreen text-[16px] text-muted leading-none py-1 transition-colors active:text-tertiary"
         >
-          CLOSE
+          Close
         </button>
       </motion.div>
     </motion.div>

@@ -360,42 +360,47 @@ function LeaveConfirmSheet({
         animate={{ y: 0,  opacity: 1 }}
         exit={{   y: 80, opacity: 0 }}
         transition={{ type: 'spring', stiffness: 280, damping: 26 }}
-        className="relative w-full max-w-[480px] bg-surface border-t border-border p-6"
+        className="relative w-full max-w-[480px] bg-surface border-t border-border flex flex-col gap-6 p-4"
         style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 24px)' }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="mb-5">
-          <p className="font-pixel text-[8px] text-[#ff4444] mb-1">⚠ LEAVE CREW</p>
-          <h2 className="font-pixel text-[11px] text-primary truncate">
-            {summary.crew.name.toUpperCase()}
-          </h2>
+        {/* Header */}
+        <div className="flex flex-col gap-2">
+          <p className="font-pixel text-[8px] text-tertiary leading-none">
+            {isLast ? 'DELETE CREW' : 'LEAVE CREW'}
+          </p>
+          <div className="flex flex-col gap-1">
+            <h2 className="font-body font-bold text-[18px] text-primary leading-none">
+              {summary.crew.name}
+            </h2>
+            <p className="font-body text-[12px] text-secondary leading-normal">
+              {isLast
+                ? 'You are the last member. This will permanently delete the crew and all its history.'
+                : 'Your XP and artifact gains will be redistributed to the remaining members.'}
+            </p>
+          </div>
         </div>
 
-        <p className="font-pixel text-[8px] text-tertiary leading-relaxed">
-          {isLast
-            ? 'You are the last member. This will permanently delete the crew and all its history.'
-            : 'Your XP and artifact gains will be redistributed to the remaining members.'}
-        </p>
-
-        {leaveError && (
-          <p className="mt-3 font-pixel text-[8px] text-[#ff4444]">{leaveError}</p>
-        )}
-
-        <button
-          onClick={onConfirm}
-          disabled={pending}
-          className="mt-5 w-full h-12 font-pixel text-[9px] text-white bg-[#ff4444] active:opacity-80 transition-opacity disabled:opacity-50"
-        >
-          {pending ? '...' : isLast ? 'DELETE CREW' : 'LEAVE CREW'}
-        </button>
-
-        <button
-          onClick={onClose}
-          disabled={pending}
-          className="mt-3 w-full font-pixel text-[8px] text-muted py-2 hover:text-tertiary transition-colors disabled:opacity-50"
-        >
-          CANCEL
-        </button>
+        {/* Buttons */}
+        <div className="flex flex-col gap-2">
+          {leaveError && (
+            <p className="font-pixel text-[8px] text-[#ef4444]">{leaveError}</p>
+          )}
+          <button
+            onClick={onConfirm}
+            disabled={pending}
+            className="w-full h-[48px] font-pixel text-[8px] text-primary bg-[#ef4444] active:opacity-80 transition-opacity disabled:opacity-50"
+          >
+            {pending ? '...' : isLast ? 'DELETE CREW' : 'LEAVE CREW'}
+          </button>
+          <button
+            onClick={onClose}
+            disabled={pending}
+            className="w-full h-[48px] font-pixel text-[8px] text-tertiary transition-colors active:text-secondary disabled:opacity-50"
+          >
+            CANCEL
+          </button>
+        </div>
       </motion.div>
     </motion.div>
   )
@@ -821,24 +826,25 @@ export function HomeClient({
         style={{ paddingTop: 'max(env(safe-area-inset-top), 8px)' }}
       >
         <div className="flex items-center justify-between h-10">
-          <h1 className="font-pixel text-[18px] text-primary">NEXUS</h1>
+          <h1 className="font-pixel text-[18px] text-primary w-[140px]">NEXUS</h1>
 
           <div className="flex items-center gap-4">
             {/* Coin balance — tap for tooltip */}
-            <div className="relative">
+            <div className="relative self-stretch flex items-center">
               <button
                 onClick={() => {
                   setShowCoinTip(true)
                   setTimeout(() => setShowCoinTip(false), 2000)
                 }}
                 aria-label={`${infiniteCoins ? '∞' : coins} coins`}
-                className="flex items-center gap-1"
-                style={{ height: 40 }}
+                className="self-stretch flex items-center"
               >
-                <Coins style={{ width: 24, height: 24, color: '#ffd700' }} aria-hidden="true" />
-                <span className="font-silkscreen text-[10px] leading-none" style={{ color: '#ffd700' }}>
-                  {infiniteCoins ? '∞' : coins.toLocaleString()}
-                </span>
+                <div className="flex items-center gap-1 h-full bg-[rgba(245,158,11,0.25)] rounded-[4px] px-2">
+                  <Coins style={{ width: 24, height: 16, color: '#f59e0b' }} aria-hidden="true" />
+                  <span className="font-silkscreen text-[12px] leading-none w-[26px] pb-[2px]" style={{ color: '#f59e0b' }}>
+                    {infiniteCoins ? '∞' : coins.toLocaleString()}
+                  </span>
+                </div>
               </button>
               <AnimatePresence>
                 {showCoinTip && (

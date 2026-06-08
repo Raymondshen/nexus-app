@@ -90,7 +90,7 @@ Coins are the invite currency. Earned by sending messages; spent (future) to inv
 - Awarded in `award-xp` edge function via `increment_user_coins(user_id, amount)` RPC (atomic UPDATE)
 - Anti-spam: coins only awarded when `xpBlocked = false` (same cooldown/burst gate as XP)
 - `ChatInput` calls `addUserCoins(coins_earned)` from store on award-xp response
-- **Displayed in the home header only**: `Coins` component from `pixelarticons/react/Coins` (24px, gold `#ffd700`) + count left of the bookmark icon. Tap shows "25 COINS = 1 CREW INVITE" tooltip (2s). `HomeClient` seeds local `coins` state from `Math.max(initialCoins, chatStore.userCoins)` on mount. **Critical**: `chatStore.userCoins` must hold the absolute balance (not a delta from 0) — the `useState` initializer seeds the store with `initialCoins` whenever the store value is lower, so that subsequent `addUserCoins(1)` calls in chat accumulate from the correct base (e.g. 100 → 101, not 0 → 1). Without this seeding, `Math.max(initialCoins=100, storeCoins=5)` would always return 100 and ignore earned coins until realtime fires. Realtime `postgres_changes` UPDATE on `profiles` keeps the display live AND re-syncs the store value (`setUserCoins(newCoins)`). `handleCoinsDeducted` also syncs the store on spend (-25). **No `initialCoins` sync effect** — a previously present `useEffect([initialCoins])` was removed because stale server re-renders snapped back to pre-deduction values. The `useState` initializer + Realtime subscription are the two correct sources of truth.
+- **Displayed in the home header only**: amber pill badge — `bg-[rgba(245,158,11,0.25)] rounded-[4px] px-2` stretching the full `h-10` row height, containing `Coins` icon at **24×16px** (not square) + count in **Silkscreen 12px** `#f59e0b` (amber, not gold), `w-[26px] pb-[2px]`. Gap inside badge is `gap-1` (4px). The NEXUS logo has `w-[140px]`. Tap shows "25 COINS = 1 CREW INVITE" tooltip (2s). `HomeClient` seeds local `coins` state from `Math.max(initialCoins, chatStore.userCoins)` on mount. **Critical**: `chatStore.userCoins` must hold the absolute balance (not a delta from 0) — the `useState` initializer seeds the store with `initialCoins` whenever the store value is lower, so that subsequent `addUserCoins(1)` calls in chat accumulate from the correct base (e.g. 100 → 101, not 0 → 1). Without this seeding, `Math.max(initialCoins=100, storeCoins=5)` would always return 100 and ignore earned coins until realtime fires. Realtime `postgres_changes` UPDATE on `profiles` keeps the display live AND re-syncs the store value (`setUserCoins(newCoins)`). `handleCoinsDeducted` also syncs the store on spend (-25). **No `initialCoins` sync effect** — a previously present `useEffect([initialCoins])` was removed because stale server re-renders snapped back to pre-deduction values. The `useState` initializer + Realtime subscription are the two correct sources of truth.
   - Coins are **not** shown in the message bubble header — home header only.
 - `chatStore` holds `userCoins`, `setUserCoins`, `addUserCoins`; **not** shown in `ChatHeader` — coins are home-only at the global level
 - `profiles` table is in `supabase_realtime` publication — `HomeClient` subscribes to `postgres_changes` UPDATE on `profiles` for live coin balance (ChatHeader no longer subscribes)
@@ -259,6 +259,7 @@ Consecutive messages from the same user within 60 seconds are visually grouped (
 - **"Next Boss" label**: always visible (right side of XP stats row) — not gated by dev mode.
 - **Member avatars**: 24×24px squares (`w-6 h-6`, no `rounded-full`, no border) — matches Figma `size-[24px]`. Online dot shown via `onlineUserIds` from `messages:{crewId}` presence state.
 - **XP floats**: animate bottom-to-top with fade-in then fade-out — `opacity: [0,1,1,0]`, `y: [0,-12,-26,-42]`, `times: [0, 0.15, 0.65, 1]` over 1.4s. Text shows `+{amount} XP` in gold `#ffd700`. Float anchors inline at the `· +{N} XP` label in the stats text row (after "Members ·"), not from the outer container edge. A `lastXpEarned` state persists the last earned amount so the static amber label stays visible between floats (matches Figma node 42:304).
+- **XP progress bar spring**: `type: 'spring', stiffness: 300, damping: 28` — tuned so the bar starts moving visibly within the first frame, reaching the target in ~250ms. This matches the float's fade-in timing (~210ms to full opacity) so both animations feel simultaneous. Do **not** drop stiffness below ~280 — slow springs have near-zero initial velocity and appear to lag behind the float.
 
 ### award-xp — query batching + anti-spam
 - **Batch 1** (always, parallel): previous message gap + burst window count + crew name/XP + sender's `is_dev` flag — 4 queries in one `Promise.all`
@@ -343,6 +344,28 @@ Swipe left on a crew card to reveal the leave action (`LEAVE_REVEAL = 104px`). L
 - Icon: `Logout` from `pixelarticons/react/Logout` (16px, white)
 - Label: `"LEAVE"` in `font-silkscreen text-[16px] text-white whitespace-nowrap leading-none`
 - `CrewCardContent` outer div has `pr-2` (8px right padding) to create 8px gap between the timestamp and the revealed leave button edge
+
+### Home Page — LeaveConfirmSheet (bottom sheet)
+Triggered by tapping the swipe-reveal leave button on a crew card. Matches Figma node 56:145.
+- Container: `bg-surface border-t border-border flex flex-col gap-6 p-4`; `paddingBottom: max(env(safe-area-inset-bottom), 24px)`
+- **Header** (`flex flex-col gap-2`):
+  - Label: Press Start 2P 8px `text-tertiary` — `"LEAVE CREW"` (or `"DELETE CREW"` when last member)
+  - Title + desc (`flex flex-col gap-1`): crew name in DM Sans Bold 18px primary; description in DM Sans Regular 12px secondary
+  - Description copy: `"Your XP and artifact gains will be redistributed to the remaining members."` / `"You are the last member. This will permanently delete the crew and all its history."`
+- **Buttons** (`flex flex-col gap-2`):
+  - Confirm: `w-full h-[48px] bg-[#ef4444]`, Press Start 2P 8px `text-primary`; `"LEAVE CREW"` / `"DELETE CREW"` / `"..."` (pending)
+  - Cancel: `w-full h-[48px]`, Press Start 2P 8px `text-tertiary`; `"CANCEL"`
+
+### ChatHeader — NotifSheet (bottom sheet)
+Triggered by tapping the bell icon in `ChatHeader`. Matches Figma node 54:337.
+- Container: `bg-surface border-t border-border flex flex-col gap-6 p-4 overflow-hidden`; `paddingBottom: max(env(safe-area-inset-bottom), 24px)`
+- **Header** (`flex flex-col gap-2`):
+  - Crew label: Press Start 2P 8px `text-tertiary`
+  - Title + subtitle (`flex flex-col gap-1`): `"Notifications"` in DM Sans Bold 18px primary; `"Control what pulls you back into the chat."` in DM Sans Regular 12px secondary
+- **Settings card**: `flex flex-col gap-4 py-4 border border-[rgba(168,85,247,0.5)] bg-surface overflow-hidden` — purple 50%-opacity border
+  - Three `NotifToggleRow` rows (`px-4`): Messages / Raid Alerts / Victory; separated by `border-t border-border` dividers
+  - Each row: label DM Sans Medium 14px `text-secondary`, description DM Sans Regular 12px `text-tertiary`, toggle 40×24px (purple when on / `#27272a` off), knob `w-4 h-4` animates `left: 4 → 20` via spring `stiffness 400 / damping 30`
+- **Close button**: `w-full font-silkscreen text-[16px] text-muted` — `"Close"` (title-case, not all-caps)
 
 ### ChatHeader — props and spacing
 `ChatHeader` accepts only `{ crew, initialXP, initialRaid, currentUserId, crewId }`. It has **no** `members`, `memberLastSeen`, or `initialCoins` props — member avatars live in ChatInput; coins are home-only. Do not add a second presence channel here (see Online Presence note above).
@@ -680,7 +703,8 @@ Note: next/font variable for Silkscreen is `--font-silk` (not `--font-silkscreen
   | Home header — friends | `Bookmark` | `pixelarticons/react/Bookmark` | 24×24 |
   | Home header — add | `Plus` | `pixelarticons/react/Plus` | 24×24 |
   | Home profile banner — edit | `MagicEdit` | `pixelarticons/react/MagicEdit` | 16×16 |
-  | Home header / InviteArsenal — coins | `Coins` | `pixelarticons/react/Coins` | varies |
+  | Home header — coin badge | `Coins` | `pixelarticons/react/Coins` | **24×16** (amber pill badge) |
+  | InviteArsenal — coins | `Coins` | `pixelarticons/react/Coins` | 16px |
   | Home — crew card leave (swipe-reveal) | `Logout` | `pixelarticons/react/Logout` | 16×16, white |
   | Friends — back chevron | `ChevronLeft` | `pixelarticons/react/ChevronLeft` | 24×24, `color: var(--color-tertiary)` |
   | Friends — search | `Search` | `pixelarticons/react/Search` | 16×16, `color: var(--color-muted)` |
