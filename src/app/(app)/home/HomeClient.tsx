@@ -7,11 +7,11 @@ import type { PanInfo } from 'framer-motion'
 import { X } from 'lucide-react'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
-import { Coins } from 'pixelarticons/react/Coins'
+import { TokeCircle } from 'pixelarticons/react/TokeCircle'
 import { MagicEdit } from 'pixelarticons/react/MagicEdit'
 import { Logout } from 'pixelarticons/react/Logout'
-import { Bookmark } from 'pixelarticons/react/Bookmark'
-import { Plus } from 'pixelarticons/react/Plus'
+import { AvatarSquare } from 'pixelarticons/react/AvatarSquare'
+import { PlusBox } from 'pixelarticons/react/PlusBox'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { createCrewAction } from '@/app/(app)/onboarding/create/actions'
@@ -840,7 +840,7 @@ export function HomeClient({
                 className="self-stretch flex items-center"
               >
                 <div className="flex items-center gap-1 h-full bg-[rgba(245,158,11,0.25)] rounded-[4px] px-2">
-                  <Coins style={{ width: 24, height: 16, color: '#f59e0b' }} aria-hidden="true" />
+                  <TokeCircle style={{ width: 24, height: 16, color: '#f59e0b' }} aria-hidden="true" />
                   <span className="font-silkscreen text-[12px] leading-none w-[26px] pb-[2px]" style={{ color: '#f59e0b' }}>
                     {infiniteCoins ? '∞' : coins.toLocaleString()}
                   </span>
@@ -866,14 +866,14 @@ export function HomeClient({
               aria-label="Friends"
               className="text-primary hover:text-purple transition-colors"
             >
-              <Bookmark style={{ width: 24, height: 24 }} aria-hidden="true" />
+              <AvatarSquare style={{ width: 24, height: 24 }} aria-hidden="true" />
             </button>
             <button
               onClick={() => setShowCreate(true)}
               aria-label="Create crew"
               className="text-primary hover:text-purple transition-colors"
             >
-              <Plus style={{ width: 24, height: 24 }} aria-hidden="true" />
+              <PlusBox style={{ width: 24, height: 24 }} aria-hidden="true" />
             </button>
           </div>
         </div>
