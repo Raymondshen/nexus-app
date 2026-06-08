@@ -269,7 +269,7 @@ export function MessageList({
         (payload) => {
           const raw = payload.new as Message
           if (!raw?.id) return
-          updateMessage(raw.id, { xp_awarded: raw.xp_awarded, element_type: raw.element_type })
+          updateMessage(raw.id, { xp_awarded: raw.xp_awarded, element_type: raw.element_type, reactions: raw.reactions })
         }
       )
       .subscribe()
@@ -492,6 +492,7 @@ export function MessageList({
             message={item.message}
             isOwn={item.isOwn}
             showHeader={item.showHeader}
+            currentUserId={currentUserId}
             xpOverride={item.xpOverride}
             coinOverride={item.coinOverride}
             onAvatarTap={onAvatarTap}

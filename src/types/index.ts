@@ -65,6 +65,7 @@ export interface Message extends Record<string, unknown> {
   message_type: MessageType
   element_type: ElementType | null
   xp_awarded: number | null
+  reactions: Record<string, string[]>
   created_at: string
 }
 
@@ -339,6 +340,10 @@ export type Database = {
       increment_user_coins: {
         Args: { p_user_id: string; p_amount: number }
         Returns: void
+      }
+      toggle_reaction: {
+        Args: { p_message_id: string; p_emoji: string; p_user_id: string }
+        Returns: Record<string, string[]>
       }
     }
     Enums: Record<string, never>

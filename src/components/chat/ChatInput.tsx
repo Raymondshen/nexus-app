@@ -157,7 +157,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatI
       const newMessage: MessageWithProfile = {
         id: raw.id, crew_id: raw.crew_id, user_id: raw.user_id, content: raw.content,
         message_type: raw.message_type, element_type: raw.element_type,
-        xp_awarded: raw.xp_awarded, created_at: raw.created_at, profile: userProfile,
+        xp_awarded: raw.xp_awarded, reactions: {}, created_at: raw.created_at, profile: userProfile,
       }
       addMessage(newMessage)
 
