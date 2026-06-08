@@ -5,9 +5,7 @@ import Image from 'next/image'
 import { format } from 'date-fns'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useChatStore } from '@/store/chatStore'
-import { spriteIdFor } from '@/components/game/PixelSprite'
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/config'
-import { Coins } from 'pixelarticons/react/Coins'
 import type { MessageWithProfile, AvatarClass } from '@/types'
 
 const CLASS_NAMES: Record<AvatarClass, string> = {
@@ -124,7 +122,7 @@ export function MessageBubble({
 
   // ─── Coin count-up ──────────────────────────────────────────────────────────
   const coinTarget = coinOverride ?? ((message.xp_awarded ?? 0) > 0 ? 1 : 0)
-  const [displayCoins,  setDisplayCoins]  = useState(coinTarget)
+  const [_displayCoins, setDisplayCoins]  = useState(coinTarget)
   const displayCoinsRef = useRef(coinTarget)
 
   useEffect(() => {
@@ -225,7 +223,6 @@ export function MessageBubble({
   const initial   = message.profile.username[0]?.toUpperCase() ?? '?'
   const avatarUrl = message.profile.avatar_url as string | null | undefined
   const className = message.profile.avatar_class ? CLASS_NAMES[message.profile.avatar_class] : null
-  const spriteId  = spriteIdFor(message.profile.avatar_class)
   const isOnline  = onlineUserIds.has(message.user_id)
   const timeStr   = format(new Date(message.created_at), 'h:mma').toLowerCase()
 
@@ -236,7 +233,7 @@ export function MessageBubble({
 
   return (
     <div
-      className={`flex gap-2 items-start w-full ${showHeader ? 'pt-[var(--space-5)] pb-0' : 'pt-[var(--space-2)] pb-0'}`}
+      className={`flex gap-[8px] items-start w-full ${showHeader ? 'pt-[var(--space-5)] pb-0' : 'pt-[var(--space-2)] pb-0'}`}
       onContextMenu={(e) => { e.preventDefault(); setPickerOpen(true) }}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
@@ -271,8 +268,8 @@ export function MessageBubble({
         {showHeader && (
           <div className="flex items-center justify-between w-full">
 
-            {/* Left meta: username · sprite · class · xp */}
-            <div className="flex items-start gap-1 flex-1 min-w-0">
+            {/* Left meta: username · class · xp */}
+            <div className="flex items-center gap-[4px] flex-1 min-w-0">
               <span
                 className={`font-body font-medium text-[12px] tracking-[0.1px] shrink-0 leading-[normal] whitespace-nowrap ${
                   isOwn ? 'text-purple' : 'text-primary'
@@ -283,52 +280,24 @@ export function MessageBubble({
                 {message.profile.username}
               </span>
 
-              {(spriteId || className) && (
+              {className && (
                 <>
-                  <span className="w-[2px] h-[2px] bg-purple shrink-0 mt-[5px]" />
-                  <div className="flex items-center gap-0 shrink-0 mt-[-5px]">
-                    {spriteId && (
-                      <div className="relative shrink-0 size-[24px]">
-                        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 size-[36px]">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={`/sprites/${spriteId}/south.png`}
-                            alt=""
-                            className="absolute inset-0 size-full max-w-none pointer-events-none"
-                            style={{ imageRendering: 'pixelated' }}
-                          />
-                        </div>
-                      </div>
-                    )}
-                    {className && (
-                      <span
-                        className="font-body font-normal text-[10px] tracking-[0.1px] shrink-0 leading-[normal] whitespace-nowrap"
-                        style={{ color: 'var(--color-paper-150)', fontVariationSettings: '"opsz" 14' }}
-                      >
-                        {className}
-                      </span>
-                    )}
-                  </div>
+                  <span className="w-[2px] h-[2px] bg-purple shrink-0" />
+                  <span
+                    className="font-body font-normal text-[10px] tracking-[0.1px] shrink-0 leading-[normal] whitespace-nowrap"
+                    style={{ color: '#b3b3b3', fontVariationSettings: '"opsz" 14' }}
+                  >
+                    {className}
+                  </span>
                 </>
               )}
 
               {displayXP > 0 && (
                 <>
-                  <span className="w-[2px] h-[2px] bg-purple shrink-0 mt-[5px]" />
+                  <span className="w-[2px] h-[2px] bg-purple shrink-0" />
                   <p className="font-silkscreen tracking-[0.1px] whitespace-nowrap leading-[0] text-[0px] shrink-0">
                     <span className="text-[8px] leading-[normal]" style={{ color: '#f59e0b' }}>
                       +{displayXP} XP
-                    </span>
-                  </p>
-                </>
-              )}
-
-              {displayCoins > 0 && (
-                <>
-                  <span className="w-[2px] h-[2px] bg-purple shrink-0 mt-[5px]" />
-                  <p className="font-silkscreen tracking-[0.1px] whitespace-nowrap leading-[0] text-[0px] shrink-0">
-                    <span className="text-[8px] leading-[normal]" style={{ color: '#ffd700' }}>
-                      <Coins style={{ width: 8, height: 8 }} aria-hidden="true" />+{displayCoins}
                     </span>
                   </p>
                 </>

@@ -8,7 +8,7 @@ Group messaging app where the chat is an RPG. Every message earns XP, boss fight
 - Tailwind CSS, Framer Motion, Zustand
 - Supabase: Auth, Postgres, Realtime, Storage, Edge Functions
 - next-pwa v5 (generates workbox SW at build time — **do not use for push**; see sw-push.js below)
-- `@hackernoon/pixel-icon-library` — pixel art icon font; CSS imported in root layout; use `<i className="hn hn-[name]" style={{ fontSize: N }} />` (never lucide-react in chat/home UI)
+- `pixelarticons` — pixel art SVG icon React components; imported per-icon from `pixelarticons/react/[ComponentName]`; use `<ComponentName style={{ width: N, height: N, color: 'X' }} />` (never lucide-react in chat/home UI)
 - Deployed on Vercel
 
 ## Remaining Work (Phase 1)
@@ -90,9 +90,8 @@ Coins are the invite currency. Earned by sending messages; spent (future) to inv
 - Awarded in `award-xp` edge function via `increment_user_coins(user_id, amount)` RPC (atomic UPDATE)
 - Anti-spam: coins only awarded when `xpBlocked = false` (same cooldown/burst gate as XP)
 - `ChatInput` calls `addUserCoins(coins_earned)` from store on award-xp response
-- **Displayed in two places**:
-  - **Home header only**: `hn-coins` icon (24px, gold `#ffd700`) + count left of the bookmark icon. Tap shows "25 COINS = 1 CREW INVITE" tooltip (2s). `HomeClient` seeds local `coins` state from `Math.max(initialCoins, chatStore.userCoins)` on mount. **Critical**: `chatStore.userCoins` must hold the absolute balance (not a delta from 0) — the `useState` initializer seeds the store with `initialCoins` whenever the store value is lower, so that subsequent `addUserCoins(1)` calls in chat accumulate from the correct base (e.g. 100 → 101, not 0 → 1). Without this seeding, `Math.max(initialCoins=100, storeCoins=5)` would always return 100 and ignore earned coins until realtime fires. Realtime `postgres_changes` UPDATE on `profiles` keeps the display live AND re-syncs the store value (`setUserCoins(newCoins)`). `handleCoinsDeducted` also syncs the store on spend (-25). **No `initialCoins` sync effect** — a previously present `useEffect([initialCoins])` was removed because stale server re-renders snapped back to pre-deduction values. The `useState` initializer + Realtime subscription are the two correct sources of truth.
-  - **Message bubble header**: `hn-coin` icon (8px) + `+N` count in gold after the XP span — `username · class · +XP XP · 🪙+N`. Count-up animation (500ms ease-out cubic RAF) identical to the XP counter. Coin = 1 per message when `xp_awarded > 0`; group leader accumulates total for all messages in the group via `groupCoinMap` pre-pass in `MessageList`.
+- **Displayed in the home header only**: `Coins` component from `pixelarticons/react/Coins` (24px, gold `#ffd700`) + count left of the bookmark icon. Tap shows "25 COINS = 1 CREW INVITE" tooltip (2s). `HomeClient` seeds local `coins` state from `Math.max(initialCoins, chatStore.userCoins)` on mount. **Critical**: `chatStore.userCoins` must hold the absolute balance (not a delta from 0) — the `useState` initializer seeds the store with `initialCoins` whenever the store value is lower, so that subsequent `addUserCoins(1)` calls in chat accumulate from the correct base (e.g. 100 → 101, not 0 → 1). Without this seeding, `Math.max(initialCoins=100, storeCoins=5)` would always return 100 and ignore earned coins until realtime fires. Realtime `postgres_changes` UPDATE on `profiles` keeps the display live AND re-syncs the store value (`setUserCoins(newCoins)`). `handleCoinsDeducted` also syncs the store on spend (-25). **No `initialCoins` sync effect** — a previously present `useEffect([initialCoins])` was removed because stale server re-renders snapped back to pre-deduction values. The `useState` initializer + Realtime subscription are the two correct sources of truth.
+  - Coins are **not** shown in the message bubble header — home header only.
 - `chatStore` holds `userCoins`, `setUserCoins`, `addUserCoins`; **not** shown in `ChatHeader` — coins are home-only at the global level
 - `profiles` table is in `supabase_realtime` publication — `HomeClient` subscribes to `postgres_changes` UPDATE on `profiles` for live coin balance (ChatHeader no longer subscribes)
 
@@ -249,13 +248,15 @@ Consecutive messages from the same user within 60 seconds are visually grouped (
 - `lastUserId` + `lastMsgTime` tracked in the display-list loop; both reset to null/0 on day dividers, boss cards, artifacts, level-up banners, and system messages — these all break grouping so the next regular message shows a fresh header
 - **Spacing**: first in group → `pt-[var(--space-5)] pb-0` (16px, `--space-5` from globals.css); continuation → `pt-[var(--space-2)] pb-0` (4px, `--space-2`). Between-group gap = 16px; within-group gap = 4px.
 - **Avatar**: only rendered for `showHeader = true` (first in group). Continuation messages (`showHeader = false`) skip the avatar element entirely and use `pl-10` (40px = 32px avatar + 8px gap) on the content div to keep text aligned.
-- **Pre-pass accumulation**: a single pre-pass loop builds both `groupXPMap` and `groupCoinMap` (Map<msgId, number>). The group-leader bubble receives `xpOverride` and `coinOverride` props; both count up via `requestAnimationFrame` in `MessageBubble` as new messages arrive. Coins = 1 per message when `xp_awarded > 0`, 0 when spam-blocked.
+- **Pre-pass accumulation**: a single pre-pass loop builds both `groupXPMap` and `groupCoinMap` (Map<msgId, number>). The group-leader bubble receives `xpOverride` and `coinOverride` props; `xpOverride` counts up via `requestAnimationFrame` in `MessageBubble`. `coinOverride` state is maintained internally but not rendered — coin totals are home-only.
+- **Message bubble header format**: `username · [dot] · class · [dot] · +XP XP` — all items center-aligned with `gap-[4px]`. Purple 2×2px dot separators. Class label `#b3b3b3`, XP amber `#f59e0b`. No pixel sprite in the header; no coin display. Row `gap-[8px]` between avatar and content column.
 
 ### ChatInput — send flow
 `insert_message` RPC → `addMessage` (optimistic) → broadcast slim payload on `messages:{crewId}` → `award-xp` edge function (patches `xp_awarded` back + broadcasts `xp_update`) → `attack-boss` edge function (if raid active)
 
 - **Single channel**: `messages:{crewId}` is configured with presence and handles message broadcasting, typing presence, and online presence. There is no separate `typing:{crewId}` channel.
-- **Send icon**: `hn hn-arrow-circle-up` (16px); `text-primary` when textarea has text, `text-muted` when empty.
+- **Send icon**: `Send` from `pixelarticons/react/Send` (16px); `text-primary` when textarea has text, `text-muted` when empty.
+- **"Next Boss" label**: always visible (right side of XP stats row) — not gated by dev mode.
 - **Member avatars**: 24×24px squares (`w-6 h-6`, no `rounded-full`, no border) — matches Figma `size-[24px]`. Online dot shown via `onlineUserIds` from `messages:{crewId}` presence state.
 - **XP floats**: animate bottom-to-top with fade-in then fade-out — `opacity: [0,1,1,0]`, `y: [0,-12,-26,-42]`, `times: [0, 0.15, 0.65, 1]` over 1.4s. Text shows `+{amount} XP` in gold `#ffd700`. Float anchors inline at the `· +{N} XP` label in the stats text row (after "Members ·"), not from the outer container edge. A `lastXpEarned` state persists the last earned amount so the static amber label stays visible between floats (matches Figma node 42:304).
 
@@ -280,7 +281,7 @@ Home page subscribes to one `messages:{crewId}` channel per crew for live previe
 `home/page.tsx` reads `birthday` from the cached home profile. If null, redirects to `/onboarding/birthday` before rendering the home screen. This handles existing users who registered before the birthday field was added.
 
 ### Home Page — profile banner stats
-`home/page.tsx` fetches `totalMessages` (estimated count of non-system messages by the user) in the same `Promise.all` as crew membership. Uses `count: 'estimated'` — exact count forces a seq scan for a stat display that doesn't need precision. Displayed in `ProfileBanner` as `"{N} group chats · {N} msg"` (formatted with `toLocaleString()`). Edit icon uses `hn hn-pencil` (16px) from the pixel icon library.
+`home/page.tsx` fetches `totalMessages` (estimated count of non-system messages by the user) in the same `Promise.all` as crew membership. Uses `count: 'estimated'` — exact count forces a seq scan for a stat display that doesn't need precision. Displayed in `ProfileBanner` as `"{N} group chats · {N} msg"` (formatted with `toLocaleString()`). Edit icon uses `MagicEdit` from `pixelarticons/react/MagicEdit` (16px).
 
 ### Home Page — Squads + Friends sections
 The home body is split into two labeled sections below the profile banner:
@@ -302,14 +303,14 @@ Header spacing: `pb-2` bottom padding, `paddingTop: max(env(safe-area-inset-top)
 The `+` button opens `HomeActionSheet`. Three menu options (no coin gate on any row):
 - **Create a Crew** — transitions to inline create form
 - **Join a Crew** — transitions to inline join form
-- **Invite a Friend** — always tappable; shows `[hn-coins 10px] [N] coins available` sub-label in `rgba(255,255,255,0.4)` system-ui. Tapping dismisses the sheet and opens **InviteArsenal** full-screen modal.
+- **Invite a Friend** — always tappable; shows `[Coins 10px] [N] coins available` sub-label in `rgba(255,255,255,0.4)` system-ui. Tapping dismisses the sheet and opens **InviteArsenal** full-screen modal.
 
 Sheet design: `bg-[#0a0612]`, full-width rows min 44px, `border-l-2 border-transparent active:border-purple` on active row, dismisses on outside tap.
 
 ### Home Page — InviteArsenal (full-screen modal)
 `src/app/(app)/home/InviteArsenal.tsx` — slides up from bottom (`z-[60]`, spring 320/32) over the home screen. Opened by tapping "Invite a Friend" in the action sheet; no coin gate on open.
 
-**Header**: back chevron (`hn-angle-left-solid` 24px tertiary) → closes modal. Title `INVITE ARSENAL` (Press Start 2P 14px). Subtitle `"Spend coins. Recruit warriors."` (system-ui 13px rgba(255,255,255,0.4)). Coin balance: `hn-coins` 16px + count (Press Start 2P 12px, `#ffd700`).
+**Header**: back chevron (`ChevronLeft` from pixelarticons, 24px tertiary) → closes modal. Title `INVITE ARSENAL` (Press Start 2P 14px). Subtitle `"Spend coins. Recruit warriors."` (system-ui 13px rgba(255,255,255,0.4)). Coin balance: `Coins` from pixelarticons (16px) + count (Press Start 2P 12px, `#ffd700`).
 
 **Forge button** (full-width, min-height 56px):
 - Label `FORGE INVITE CODE` (Press Start 2P 10px) + sub-label `25 coins` (system-ui 11px)
@@ -319,7 +320,7 @@ Sheet design: `bg-[#0a0612]`, full-width rows min 44px, `border-l-2 border-trans
 **Code list** (scrollable, newest first): all `app_invites` rows for current user via `getInviteCodesAction`.
 - **UNUSED card**: `rgba(255,255,255,0.05)` bg, `1px solid rgba(255,255,255,0.1)` border. Top row: code (Press Start 2P 13px `#ffffff`, letter-spaced) + UNUSED badge (`rgba(191,95,255,0.15)` bg, `#bf5fff` border/text). Bottom row: formatted date + Copy Code button (`transparent` bg, `#bf5fff` border/text; flips to "Copied!" `#66bb6a` for 2s).
 - **USED card**: `rgba(255,255,255,0.02)` bg, `1px solid rgba(255,255,255,0.05)` border. All text `rgba(255,255,255,0.4)`. Top row: code (Press Start 2P 13px muted) + USED badge (muted style). Bottom row: date + "Claimed by [username]" (no copy button).
-- **Empty state**: centered, `hn-coins` 32px dimmed, "No codes forged yet." (Press Start 2P 8px muted) + "Spend 25 coins to recruit a warrior." (system-ui 13px muted).
+- **Empty state**: centered, `Coins` from pixelarticons (32px dimmed), "No codes forged yet." (Press Start 2P 8px muted) + "Spend 25 coins to recruit a warrior." (system-ui 13px muted).
 - **Realtime**: subscribes to `postgres_changes` on `app_invites` filtered by `inviter_id=eq.{userId}` to update status live when a code is claimed. **Requires** `app_invites` in `supabase_realtime` publication (migration `20240103000010`).
 
 `generateAppInviteAction` (in `src/app/(app)/home/actions.ts`):
@@ -339,14 +340,14 @@ Swipe left on a crew card to reveal the leave action (`LEAVE_REVEAL = 104px`). L
 - Background: `#ef4444`
 - Layout: `flex-row items-center justify-center gap-2` (icon beside text — **not** stacked)
 - Padding: `px-3 py-2` (12px horizontal, 8px vertical), `h-full overflow-hidden`
-- Icon: `hn-logout` (16px, white) from the pixel icon library
+- Icon: `Logout` from `pixelarticons/react/Logout` (16px, white)
 - Label: `"LEAVE"` in `font-silkscreen text-[16px] text-white whitespace-nowrap leading-none`
 - `CrewCardContent` outer div has `pr-2` (8px right padding) to create 8px gap between the timestamp and the revealed leave button edge
 
 ### ChatHeader — props and spacing
 `ChatHeader` accepts only `{ crew, initialXP, initialRaid, currentUserId, crewId }`. It has **no** `members`, `memberLastSeen`, or `initialCoins` props — member avatars live in ChatInput; coins are home-only. Do not add a second presence channel here (see Online Presence note above).
 
-Header spacing: `px-4 pb-2` (16px horizontal, 8px bottom), `paddingTop: max(env(safe-area-inset-top), 8px)`, heading row `h-10`. Left side: `gap-2` (8px) between back button and crew name group. Crew name button has `gap-1` (4px) between the underlined name and the dropdown chevron. Crew name uses `style={{ textDecoration: 'underline' }}` (inline style, **not** the Tailwind `underline` class) — iOS Safari strips `text-decoration` from class-applied styles on elements inside `<button>`; inline style bypasses this. Dropdown chevron is `hn-angle-right-solid rotate(90deg)`. All icons `fontSize: 24`. Back arrows across all screens use `var(--color-tertiary)` and the solid variant (`hn-angle-left-solid`).
+Header spacing: `px-4 pb-2` (16px horizontal, 8px bottom), `paddingTop: max(env(safe-area-inset-top), 8px)`, heading row `h-10`. Left side: `gap-2` (8px) between back button and crew name group. Crew name button has `gap-1` (4px) between the underlined name and the dropdown chevron. Crew name uses `style={{ textDecoration: 'underline' }}` (inline style, **not** the Tailwind `underline` class) — iOS Safari strips `text-decoration` from class-applied styles on elements inside `<button>`; inline style bypasses this. Dropdown chevron is `ChevronRight` from pixelarticons with `style={{ transform: 'rotate(90deg)' }}`. All icons `style={{ width: 24, height: 24 }}`. Back arrows across all screens use `ChevronLeft` from pixelarticons with `color: var(--color-tertiary)`.
 
 ### Page Transitions — SlidePage + useSlideBack
 All "detail" pages (chat, DM, profile, friends, vault) slide in from the right on mount and slide back out on close.
@@ -362,20 +363,20 @@ All "detail" pages (chat, DM, profile, friends, vault) slide in from the right o
 `VaultClient` has **no** `BottomNav`. Users return via swipe-back / browser back — no nav bar needed.
 
 ### Friends Page — `/friends`
-- Opened via the book icon (`hn-book`) in the home header
+- Opened via the `Bookmark` icon from `pixelarticons/react/Bookmark` in the home header
 - Page title is **"COMPANIONS"** (Press Start 2P 18px) — not "FRIENDS"
 - Server component fetches accepted friendships + pending (incoming/outgoing) in parallel; resolves profiles for all involved user IDs in one `.in()` query
 - `FriendsClient` manages local state for optimistic mutations (send, accept, decline, remove, cancel)
 - **Layout**: single scrollable column — no tabs. Sections stack vertically: search input → Requests (collapsible) → Friends
 - **Search input**: `h-[48px] border border-border px-4`, `font-body text-[14px]`, placeholder `"Search by @username"`. Shows "Results" section label + result rows while query ≥ 2 chars (debounced 300ms).
-- **Requests section**: only rendered when `incoming.length > 0 || outgoing.length > 0`. Collapsible via `requestsOpen` state; chevron (`hn-angle-right-solid` 18px) animates rotate 0°→90° when open. AnimatePresence height transition on body.
+- **Requests section**: only rendered when `incoming.length > 0 || outgoing.length > 0`. Collapsible via `requestsOpen` state; chevron (`ChevronRight` 18px from pixelarticons) animates rotate 0°→90° when open. AnimatePresence height transition on body.
   - **Outgoing row**: avatar 40px, name (DM Sans SemiBold 16px primary), `"Sent Friend Request"` (Silkscreen 12px tertiary), CANCEL button: `border border-purple w-[88px] px-4 py-4 font-pixel text-[8px] text-purple`
-  - **Incoming row**: avatar 40px, name, `"Wants to be your friend"` subtitle, accept button `border border-[#22c55e] p-3` (hn-check 16px green) + decline button `border border-[#ef4444] p-3 w-[40px] h-[40px]` (hn-x 12px red)
-- **Friends section**: always rendered. Friend row: 40px avatar, name (DM Sans SemiBold 16px primary), `"est. {year}"` subtitle (Silkscreen 12px tertiary, year from `friendship.created_at`). Tapping the row navigates to `/dm/[friendId]`. Remove button (`hn-user-minus` 16px) on right — uses `e.stopPropagation()` so tapping it does not open the DM.
+  - **Incoming row**: avatar 40px, name, `"Wants to be your friend"` subtitle, accept button `border border-[#22c55e] p-3` (`Check` 16px green from pixelarticons) + decline button `border border-[#ef4444] p-3 w-[40px] h-[40px]` (`Close` 12px red from pixelarticons)
+- **Friends section**: always rendered. Friend row: 40px avatar, name (DM Sans SemiBold 16px primary), `"est. {year}"` subtitle (Silkscreen 12px tertiary, year from `friendship.created_at`). Tapping the row navigates to `/dm/[friendId]`. Remove button (`UserMinus` 16px from pixelarticons) on right — uses `e.stopPropagation()` so tapping it does not open the DM.
 - User + section rows use: `gap-4` between items, `tracking-[0.2px]` on text columns
 - Guest guard: `isGuest` prop (`user.is_anonymous === true`); ADD button disabled + Google sign-in banner shown; `sendFriendRequestAction` also blocks anonymous users server-side
 - **No BottomNav** — users go back via `useSlideBack()` (SlidePage context)
-- Header: `pb-2`, `paddingTop: max(env(safe-area-inset-top), 8px)`, back icon (`hn-angle-left-solid` 24px, color `var(--color-tertiary)`) + title `gap-2`
+- Header: `pb-2`, `paddingTop: max(env(safe-area-inset-top), 8px)`, back icon (`ChevronLeft` from pixelarticons, 24px, `color: var(--color-tertiary)`) + title `gap-2`
 
 ### Member Profile Page — `/chat/[crewId]/member/[userId]`
 - Route: `src/app/(app)/chat/[crewId]/member/[userId]/page.tsx` + `MemberProfileClient.tsx`
@@ -392,7 +393,7 @@ All "detail" pages (chat, DM, profile, friends, vault) slide in from the right o
 - Server component: verifies accepted friendship, calls `get_or_create_dm(friendId)` RPC to get/create the DM crew, then renders the full chat UI
 - Security: friendship check runs before the RPC — unauthenticated or non-friend access redirects to `/home`
 - `get_or_create_dm` is idempotent — safe to call on every page load; returns the existing crew id if one already exists
-- **Header**: `DMHeader` component (`src/components/chat/DMHeader.tsx`) — shows `hn-angle-left-solid` back button (24px, `var(--color-tertiary)`), friend 32×32px avatar, friend username (Press Start 2P 14px, `underline`), `"1:1 CHAT"` label (Silkscreen 8px muted). Boss countdown bar renders below if a raid is active and `nexus_dev_mode` is on (same style as ChatHeader).
+- **Header**: `DMHeader` component (`src/components/chat/DMHeader.tsx`) — shows `ChevronLeft` from pixelarticons back button (24px, `var(--color-tertiary)`), friend 32×32px avatar, friend username (Press Start 2P 14px, `underline`), `"1:1 CHAT"` label (Silkscreen 8px muted). Boss countdown bar renders below if a raid is active and `nexus_dev_mode` is on (same style as ChatHeader).
 - **Chat UI**: reuses `MessageList` + `ChatInput` directly — same realtime, XP, boss raid, and artifact pipeline as group chats
 - `DMHeader` updates `crew_members.last_seen` every 60s (same as `ChatHeader`) for unread cursor accuracy
 - No class selection redirect — DM crew members are auto-assigned `berserker` at channel creation
@@ -663,30 +664,32 @@ Chat/game accent colors (used inline, not tokenized):
 
 Note: next/font variable for Silkscreen is `--font-silk` (not `--font-silkscreen`) to avoid a circular reference with the `@theme` entry `--font-silkscreen: var(--font-silk)`.
 
-### Icon Library — @hackernoon/pixel-icon-library
-- **Package**: `@hackernoon/pixel-icon-library`; CSS: `@hackernoon/pixel-icon-library/fonts/iconfont.css` imported in `src/app/layout.tsx`
-- **Usage**: `<i className="hn hn-[name]" style={{ fontSize: N }} aria-hidden="true" />`
+### Icon Library — pixelarticons
+- **Package**: `pixelarticons` — pixel art SVG React components on 24×24 grid; no CSS import needed
+- **Usage**: `import { ComponentName } from 'pixelarticons/react/ComponentName'` → `<ComponentName style={{ width: N, height: N, color: 'X' }} aria-hidden="true" />`; all icons use `fill: currentColor` so Tailwind `text-*` classes also work
+- **Named exports only**: `import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'` — do NOT use default imports
 - **Icons in use**:
-  | Location | Icon class | Size |
-  |---|---|---|
-  | ChatHeader — back button | `hn-angle-left-solid` | 24px, color `var(--color-tertiary)` — separate button left of crew name |
-  | ChatHeader — crew dropdown | `hn-angle-right-solid` rotated 90° | 24px, color `var(--color-primary)` — inline after underlined crew name, `gap-1` (4px) from name; tap opens GroupProfileSheet |
-  | ChatHeader — notifications | `hn-bell` / `hn-bell-mute` | 24px |
-  | ChatHeader — invite | `hn-user-plus` | 24px |
-  | ChatHeader — vault | `hn-bank` | 24px |
-  | ChatInput — send | `hn-arrow-circle-up` | 16px |
-  | Home header — friends | `hn-book-bookmark` | 24px |
-  | Home header — create crew | `hn-plus` | 24px |
-  | Home profile banner — edit | `hn-pencil` | 16px |
-  | Friends — back chevron | `hn-angle-left-solid` | 24px, color `var(--color-tertiary)` |
-  | Friends — search | `hn-search` | 16px, color `var(--color-muted)` |
-  | Friends — requests chevron | `hn-angle-right-solid` | 18px, color `var(--color-muted)`, animated rotate 0°/90° |
-  | Friends — accept request | `hn-check` | 16px, color `#22c55e` |
-  | Friends — decline request | `hn-x` | 12px, color `#ef4444` |
-  | Friends — remove friend | `hn-user-minus` | 16px |
-  | DMHeader — back chevron | `hn-angle-left-solid` | 24px, color `var(--color-tertiary)` |
-  | Profile — back chevron | `hn-angle-left-solid` | 24px, color `var(--color-tertiary)` |
-  | Home — crew card leave (swipe-reveal) | `hn-logout` | 16px, color `white` |
-- **Do not use lucide-react** for chat or home UI icons — use this library instead. lucide-react is only used for `X` (close) in modals/sheets.
+  | Location | Component | Import path | Size |
+  |---|---|---|---|
+  | ChatHeader — back button | `ChevronLeft` | `pixelarticons/react/ChevronLeft` | 24×24, `color: var(--color-tertiary)` |
+  | ChatHeader — crew dropdown | `ChevronRight` rotated 90° | `pixelarticons/react/ChevronRight` | 24×24, `color: var(--color-primary)` |
+  | ChatHeader — notifications | `Bell` / `BellOff` | `pixelarticons/react/Bell`, `BellOff` | 24×24 |
+  | ChatHeader — invite | `UserPlus` | `pixelarticons/react/UserPlus` | 24×24 |
+  | ChatHeader — vault | `Banknote` | `pixelarticons/react/Banknote` | 24×24 |
+  | ChatInput — send | `Send` | `pixelarticons/react/Send` | 16×16 |
+  | Home header — friends | `Bookmark` | `pixelarticons/react/Bookmark` | 24×24 |
+  | Home header — add | `Plus` | `pixelarticons/react/Plus` | 24×24 |
+  | Home profile banner — edit | `MagicEdit` | `pixelarticons/react/MagicEdit` | 16×16 |
+  | Home header / InviteArsenal — coins | `Coins` | `pixelarticons/react/Coins` | varies |
+  | Home — crew card leave (swipe-reveal) | `Logout` | `pixelarticons/react/Logout` | 16×16, white |
+  | Friends — back chevron | `ChevronLeft` | `pixelarticons/react/ChevronLeft` | 24×24, `color: var(--color-tertiary)` |
+  | Friends — search | `Search` | `pixelarticons/react/Search` | 16×16, `color: var(--color-muted)` |
+  | Friends — requests chevron | `ChevronRight` | `pixelarticons/react/ChevronRight` | 18×18, animated rotate 0°/90° |
+  | Friends — accept request | `Check` | `pixelarticons/react/Check` | 16×16, `color: #22c55e` |
+  | Friends — decline request | `Close` | `pixelarticons/react/Close` | 12×12, `color: #ef4444` |
+  | Friends — remove friend | `UserMinus` | `pixelarticons/react/UserMinus` | 16×16 |
+  | DMHeader — back chevron | `ChevronLeft` | `pixelarticons/react/ChevronLeft` | 24×24, `color: var(--color-tertiary)` |
+  | Profile — back chevron | `ChevronLeft` | `pixelarticons/react/ChevronLeft` | 24×24, `color: var(--color-tertiary)` |
+- **Do not use lucide-react** for chat or home UI icons — lucide-react is only used for `X` (close) in modals/sheets
 
 Framer Motion for all animations. Scanline overlay on game screens for RotMG feel.

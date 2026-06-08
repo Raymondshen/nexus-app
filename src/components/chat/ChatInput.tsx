@@ -304,7 +304,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatI
             <p className="flex-1 min-w-0 leading-[0] text-[0px]">
               <span className="text-[8px] leading-none text-purple">Level {crewLevel}</span>
               <span className="text-[8px] leading-none">
-                {` · ${crewXP % XP_PER_LEVEL} / ${XP_PER_LEVEL}XP · ${memberCount} Member${memberCount !== 1 ? 's' : ''} · `}
+                {` · ${crewXP % XP_PER_LEVEL} / ${XP_PER_LEVEL}XP · ${memberCount} Member${memberCount !== 1 ? 's' : ''}`}
               </span>
               {/* Inline anchor for XP floats — no static label, animation only */}
               <span className="relative inline-block">
@@ -325,8 +325,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatI
                 </AnimatePresence>
               </span>
             </p>
-            {/* "Next Boss" label — dev mode only */}
-            {devMode && <p className="text-[8px] leading-none whitespace-nowrap text-tertiary">Next Boss</p>}
+            <p className="text-[8px] leading-none whitespace-nowrap text-tertiary">Next Boss</p>
           </div>
 
           {/* Progress bar — 4px, surface bg, purple fill */}
