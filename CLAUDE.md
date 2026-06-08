@@ -675,7 +675,7 @@ Note: next/font variable for Silkscreen is `--font-silk` (not `--font-silkscreen
   | ChatHeader — crew dropdown | `ChevronRight` rotated 90° | `pixelarticons/react/ChevronRight` | 24×24, `color: var(--color-primary)` |
   | ChatHeader — notifications | `Bell` / `BellOff` | `pixelarticons/react/Bell`, `BellOff` | 24×24 |
   | ChatHeader — invite | `UserPlus` | `pixelarticons/react/UserPlus` | 24×24 |
-  | ChatHeader — vault | `Banknote` | `pixelarticons/react/Banknote` | 24×24 |
+  | ChatHeader — vault | `Notebook` | `pixelarticons/react/Notebook` | 24×24 |
   | ChatInput — send | `Send` | `pixelarticons/react/Send` | 16×16 |
   | Home header — friends | `Bookmark` | `pixelarticons/react/Bookmark` | 24×24 |
   | Home header — add | `Plus` | `pixelarticons/react/Plus` | 24×24 |

@@ -16,7 +16,7 @@ import { ChevronRight } from 'pixelarticons/react/ChevronRight'
 import { Bell } from 'pixelarticons/react/Bell'
 import { BellOff } from 'pixelarticons/react/BellOff'
 import { UserPlus } from 'pixelarticons/react/UserPlus'
-import { Banknote } from 'pixelarticons/react/Banknote'
+import { Notebook } from 'pixelarticons/react/Notebook'
 
 const CLASS_LABELS: Record<string, string> = {
   berserker: 'Berserker',
@@ -563,7 +563,7 @@ export function ChatHeader({
               className="flex items-center justify-center text-primary hover:text-purple transition-colors"
               style={{ width: 24, height: 40 }}
             >
-              <Banknote style={{ width: 24, height: 24 }} aria-hidden="true" />
+              <Notebook style={{ width: 24, height: 24 }} aria-hidden="true" />
             </Link>
           </div>
         </div>
