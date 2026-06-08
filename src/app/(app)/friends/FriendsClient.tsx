@@ -5,6 +5,12 @@ import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { motion, AnimatePresence } from 'framer-motion'
 import { SlidePage, useSlideBack } from '@/components/ui/SlidePage'
+import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
+import { ChevronRight } from 'pixelarticons/react/ChevronRight'
+import { Search } from 'pixelarticons/react/Search'
+import { Check } from 'pixelarticons/react/Check'
+import { Close } from 'pixelarticons/react/Close'
+import { UserMinus } from 'pixelarticons/react/UserMinus'
 import { createClient } from '@/lib/supabase/client'
 import { signInWithGoogle } from '@/lib/supabase/auth'
 import { sendFriendRequestAction, acceptFriendRequestAction, deleteFriendshipAction } from './actions'
@@ -199,7 +205,7 @@ export function FriendsClient({
               aria-label="Back"
               className="flex items-center justify-center flex-shrink-0 w-6 h-10"
             >
-              <i className="hn hn-angle-left-solid" style={{ fontSize: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
+              <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
             </button>
             <h1 className="font-pixel text-[18px] text-primary whitespace-nowrap">COMPANIONS</h1>
           </div>
@@ -229,7 +235,7 @@ export function FriendsClient({
 
         {/* Search input */}
         <div className="border border-border h-[48px] flex items-center gap-2 px-4">
-          <i className="hn hn-search flex-shrink-0" style={{ fontSize: 16, color: 'var(--color-muted)' }} aria-hidden="true" />
+          <Search className="flex-shrink-0" style={{ width: 16, height: 16, color: 'var(--color-muted)' }} aria-hidden="true" />
           <input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -281,7 +287,7 @@ export function FriendsClient({
                           onClick={() => handleAccept(incomingEntry)}
                           className="border border-[#22c55e] flex items-center justify-center p-3 flex-shrink-0 disabled:opacity-50"
                         >
-                          <i className="hn hn-check" style={{ fontSize: 16, color: '#22c55e' }} aria-hidden="true" />
+                          <Check style={{ width: 16, height: 16, color: '#22c55e' }} aria-hidden="true" />
                         </button>
                       )}
                       {rel === 'none' && (
@@ -316,13 +322,13 @@ export function FriendsClient({
                     style={{ width: 16, height: 24 }}
                     aria-label={requestsOpen ? 'Collapse requests' : 'Expand requests'}
                   >
-                    <motion.i
-                      className="hn hn-angle-right-solid"
-                      style={{ fontSize: 18, color: 'var(--color-muted)', display: 'block' }}
+                    <motion.div
+                      style={{ display: 'block', width: 18, height: 18 }}
                       animate={{ rotate: requestsOpen ? 90 : 0 }}
                       transition={{ duration: 0.18, ease: 'easeInOut' }}
-                      aria-hidden="true"
-                    />
+                    >
+                      <ChevronRight style={{ width: 18, height: 18, color: 'var(--color-muted)' }} aria-hidden="true" />
+                    </motion.div>
                   </button>
                 </div>
 
@@ -392,7 +398,7 @@ export function FriendsClient({
                                 className="border border-[#22c55e] flex items-center justify-center p-3 disabled:opacity-50"
                                 aria-label="Accept"
                               >
-                                <i className="hn hn-check" style={{ fontSize: 16, color: '#22c55e' }} aria-hidden="true" />
+                                <Check style={{ width: 16, height: 16, color: '#22c55e' }} aria-hidden="true" />
                               </button>
                               <button
                                 disabled={loading}
@@ -401,7 +407,7 @@ export function FriendsClient({
                                 style={{ width: 40, height: 40 }}
                                 aria-label="Decline"
                               >
-                                <i className="hn hn-x" style={{ fontSize: 12, color: '#ef4444' }} aria-hidden="true" />
+                                <Close style={{ width: 12, height: 12, color: '#ef4444' }} aria-hidden="true" />
                               </button>
                             </div>
                           </div>
@@ -450,7 +456,7 @@ export function FriendsClient({
                         aria-label="Remove friend"
                         className="text-muted hover:text-[#ef4444] transition-colors disabled:opacity-40 flex-shrink-0"
                       >
-                        <i className="hn hn-user-minus" style={{ fontSize: 16 }} aria-hidden="true" />
+                        <UserMinus style={{ width: 16, height: 16 }} aria-hidden="true" />
                       </button>
                     </div>
                   )

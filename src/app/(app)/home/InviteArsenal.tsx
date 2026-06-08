@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createClient } from '@/lib/supabase/client'
+import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
+import { Coins } from 'pixelarticons/react/Coins'
 import { generateAppInviteAction, getInviteCodesAction } from './actions'
 import type { InviteCodeData } from './actions'
 
@@ -92,7 +94,7 @@ export function InviteArsenal({ userId, coins, infiniteCoins, onClose, onCoinsDe
           className="self-start flex items-center justify-center min-h-[44px] text-tertiary hover:text-primary transition-colors"
           aria-label="Close"
         >
-          <i className="hn hn-angle-left-solid" style={{ fontSize: 24 }} aria-hidden="true" />
+          <ChevronLeft style={{ width: 24, height: 24 }} aria-hidden="true" />
         </button>
 
         <h1 className="font-pixel text-[14px] text-primary leading-tight">INVITE ARSENAL</h1>
@@ -102,7 +104,7 @@ export function InviteArsenal({ userId, coins, infiniteCoins, onClose, onCoinsDe
         </p>
 
         <div className="flex items-center gap-2 mt-1">
-          <i className="hn hn-coins" style={{ fontSize: 16, color: '#ffd700' }} aria-hidden="true" />
+          <Coins style={{ width: 16, height: 16, color: '#ffd700' }} aria-hidden="true" />
           <span className="font-pixel text-[12px]" style={{ color: '#ffd700' }}>
             {infiniteCoins ? '∞' : coins.toLocaleString()}
           </span>
@@ -152,9 +154,8 @@ export function InviteArsenal({ userId, coins, infiniteCoins, onClose, onCoinsDe
           </div>
         ) : codes.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center gap-3 py-16">
-            <i
-              className="hn hn-coins"
-              style={{ fontSize: 32, color: 'rgba(255,255,255,0.2)' }}
+            <Coins
+              style={{ width: 32, height: 32, color: 'rgba(255,255,255,0.2)' }}
               aria-hidden="true"
             />
             <p

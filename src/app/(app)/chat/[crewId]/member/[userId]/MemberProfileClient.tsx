@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Image from 'next/image'
 import { format, parseISO } from 'date-fns'
 import { useSlideBack } from '@/components/ui/SlidePage'
+import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { PixelSprite, spriteInfoFor } from '@/components/game/PixelSprite'
 import { sendFriendRequestAction, acceptFriendRequestAction } from '@/app/(app)/friends/actions'
 import type { AvatarClass } from '@/types'
@@ -117,7 +118,7 @@ export function MemberProfileClient({
         style={{ paddingTop: 'max(env(safe-area-inset-top), 8px)' }}
       >
         <button onClick={goBack} aria-label="Back" className="flex items-center">
-          <i className="hn hn-angle-left-solid" style={{ fontSize: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
+          <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
         </button>
         <span className="font-pixel text-[12px] text-primary leading-none">PROFILE</span>
       </div>

@@ -10,6 +10,7 @@ import { useChatStore } from '@/store/chatStore'
 import { DamageFloat } from '@/components/game/DamageFloat'
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/config'
 import { haptic } from '@/lib/sounds'
+import { Send } from 'pixelarticons/react/Send'
 import type { Message, MessageWithProfile, Profile } from '@/types'
 
 const MAX_MESSAGE_LENGTH = 2000
@@ -399,7 +400,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatI
           className={`flex-shrink-0 flex items-center justify-center w-4 h-4 transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${text.trim() ? 'text-primary' : 'text-muted'}`}
           aria-label="Send message"
         >
-          <i className="hn hn-arrow-circle-up" style={{ fontSize: 16 }} aria-hidden="true" />
+          <Send style={{ width: 16, height: 16 }} aria-hidden="true" />
         </button>
       </div>
     </div>

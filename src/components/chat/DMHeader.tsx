@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useSlideBack } from '@/components/ui/SlidePage'
+import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import Image from 'next/image'
 import { useChatStore } from '@/store/chatStore'
 import { createClient } from '@/lib/supabase/client'
@@ -68,7 +69,7 @@ export function DMHeader({
           className="flex-shrink-0 flex items-center justify-center"
           style={{ width: 24, height: 40 }}
         >
-          <i className="hn hn-angle-left-solid" style={{ fontSize: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
+          <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
         </button>
 
         <div className="flex-shrink-0 w-8 h-8 overflow-hidden relative bg-border">

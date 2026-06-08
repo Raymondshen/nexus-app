@@ -5,6 +5,13 @@ import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence, useMotionValue, animate } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
 import { X } from 'lucide-react'
+import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
+import { ChevronRight } from 'pixelarticons/react/ChevronRight'
+import { Coins } from 'pixelarticons/react/Coins'
+import { MagicEdit } from 'pixelarticons/react/MagicEdit'
+import { Logout } from 'pixelarticons/react/Logout'
+import { Bookmark } from 'pixelarticons/react/Bookmark'
+import { Plus } from 'pixelarticons/react/Plus'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { createCrewAction } from '@/app/(app)/onboarding/create/actions'
@@ -110,7 +117,7 @@ function ProfileBanner({
           className="self-start text-tertiary hover:text-primary transition-colors"
           aria-label="Edit profile"
         >
-          <i className="hn hn-pencil" style={{ fontSize: 16 }} aria-hidden="true" />
+          <MagicEdit style={{ width: 16, height: 16 }} aria-hidden="true" />
         </button>
       </div>
 
@@ -163,7 +170,7 @@ function HomeActionSheet({
         <div className="flex flex-col gap-4">
           <div className="flex items-center gap-3 mb-1">
             <button onClick={() => setView('menu')} className="text-muted hover:text-primary transition-colors">
-              <i className="hn hn-angle-left-solid" style={{ fontSize: 16 }} aria-hidden="true" />
+              <ChevronLeft style={{ width: 16, height: 16 }} aria-hidden="true" />
             </button>
             <h2 className="font-pixel text-[11px] text-primary">CREATE A CREW</h2>
           </div>
@@ -199,7 +206,7 @@ function HomeActionSheet({
         <div className="flex flex-col gap-4">
           <div className="flex items-center gap-3 mb-1">
             <button onClick={() => setView('menu')} className="text-muted hover:text-primary transition-colors">
-              <i className="hn hn-angle-left-solid" style={{ fontSize: 16 }} aria-hidden="true" />
+              <ChevronLeft style={{ width: 16, height: 16 }} aria-hidden="true" />
             </button>
             <h2 className="font-pixel text-[11px] text-primary">JOIN A CREW</h2>
           </div>
@@ -252,7 +259,7 @@ function HomeActionSheet({
             <p className="font-pixel text-[10px] text-primary">CREATE A CREW</p>
             <p className="font-pixel text-[8px] text-muted mt-1">Start a new war party</p>
           </div>
-          <i className="hn hn-angle-right-solid flex-shrink-0" style={{ fontSize: 16, color: 'var(--color-muted)' }} aria-hidden="true" />
+          <ChevronRight className="flex-shrink-0" style={{ width: 16, height: 16, color: 'var(--color-muted)' }} aria-hidden="true" />
         </button>
 
         <div className="border-t border-border" />
@@ -266,7 +273,7 @@ function HomeActionSheet({
             <p className="font-pixel text-[10px] text-primary">JOIN A CREW</p>
             <p className="font-pixel text-[8px] text-muted mt-1">Enter an invite code</p>
           </div>
-          <i className="hn hn-angle-right-solid flex-shrink-0" style={{ fontSize: 16, color: 'var(--color-muted)' }} aria-hidden="true" />
+          <ChevronRight className="flex-shrink-0" style={{ width: 16, height: 16, color: 'var(--color-muted)' }} aria-hidden="true" />
         </button>
 
         <div className="border-t border-border" />
@@ -279,13 +286,13 @@ function HomeActionSheet({
           <div className="flex-1 min-w-0">
             <p className="font-pixel text-[10px] text-primary">INVITE A FRIEND</p>
             <div className="flex items-center gap-1 mt-1">
-              <i className="hn hn-coins" style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)' }} aria-hidden="true" />
+              <Coins style={{ width: 10, height: 10, color: 'rgba(255,255,255,0.4)' }} aria-hidden="true" />
               <span className="font-body text-[12px]" style={{ color: 'rgba(255,255,255,0.4)' }}>
                 {infiniteCoins ? '∞' : coins.toLocaleString()} coins available
               </span>
             </div>
           </div>
-          <i className="hn hn-angle-right-solid flex-shrink-0" style={{ fontSize: 16, color: 'var(--color-muted)' }} aria-hidden="true" />
+          <ChevronRight className="flex-shrink-0" style={{ width: 16, height: 16, color: 'var(--color-muted)' }} aria-hidden="true" />
         </button>
       </div>
     )
@@ -600,7 +607,7 @@ function SwipeableCrewCard({
           tabIndex={open ? 0 : -1}
           aria-label={`Leave ${summary.crew.name}`}
         >
-          <i className="hn hn-logout flex-shrink-0" style={{ fontSize: 16, color: 'white' }} aria-hidden="true" />
+          <Logout className="flex-shrink-0" style={{ width: 16, height: 16, color: 'white' }} aria-hidden="true" />
           <span className="font-silkscreen text-[16px] text-white whitespace-nowrap leading-none">LEAVE</span>
         </button>
       </motion.div>
@@ -828,7 +835,7 @@ export function HomeClient({
                 className="flex items-center gap-1"
                 style={{ height: 40 }}
               >
-                <i className="hn hn-coins" style={{ fontSize: 24, color: '#ffd700' }} aria-hidden="true" />
+                <Coins style={{ width: 24, height: 24, color: '#ffd700' }} aria-hidden="true" />
                 <span className="font-silkscreen text-[10px] leading-none" style={{ color: '#ffd700' }}>
                   {infiniteCoins ? '∞' : coins.toLocaleString()}
                 </span>
@@ -853,14 +860,14 @@ export function HomeClient({
               aria-label="Friends"
               className="text-primary hover:text-purple transition-colors"
             >
-              <i className="hn hn-book-bookmark" style={{ fontSize: 24 }} aria-hidden="true" />
+              <Bookmark style={{ width: 24, height: 24 }} aria-hidden="true" />
             </button>
             <button
               onClick={() => setShowCreate(true)}
               aria-label="Create crew"
               className="text-primary hover:text-purple transition-colors"
             >
-              <i className="hn hn-plus" style={{ fontSize: 24 }} aria-hidden="true" />
+              <Plus style={{ width: 24, height: 24 }} aria-hidden="true" />
             </button>
           </div>
         </div>

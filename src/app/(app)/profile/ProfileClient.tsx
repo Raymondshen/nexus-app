@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { SlidePage, useSlideBack } from '@/components/ui/SlidePage'
+import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { signOut } from '@/lib/supabase/auth'
@@ -255,7 +256,7 @@ export function ProfileClient({
             className="flex-shrink-0 flex items-center justify-center"
             style={{ width: 24, height: 40 }}
           >
-            <i className="hn hn-angle-left-solid" style={{ fontSize: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
+            <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
           </button>
           <h1 className="font-pixel text-[18px] text-primary leading-none">PROFILE</h1>
         </div>

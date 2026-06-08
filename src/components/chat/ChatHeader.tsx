@@ -11,6 +11,12 @@ import { createClient } from '@/lib/supabase/client'
 import type { Crew, ActiveRaid, AvatarClass } from '@/types'
 import { formatDistanceToNow } from 'date-fns'
 import { PixelSprite, spriteInfoFor } from '@/components/game/PixelSprite'
+import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
+import { ChevronRight } from 'pixelarticons/react/ChevronRight'
+import { Bell } from 'pixelarticons/react/Bell'
+import { BellOff } from 'pixelarticons/react/BellOff'
+import { UserPlus } from 'pixelarticons/react/UserPlus'
+import { Banknote } from 'pixelarticons/react/Banknote'
 
 const CLASS_LABELS: Record<string, string> = {
   berserker: 'Berserker',
@@ -511,7 +517,7 @@ export function ChatHeader({
               className="flex-shrink-0 flex items-center justify-center"
               style={{ width: 24, height: 40 }}
             >
-              <i className="hn hn-angle-left-solid" style={{ fontSize: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
+              <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
             </button>
 
             <button
@@ -522,9 +528,9 @@ export function ChatHeader({
               <h1 className="font-pixel text-[18px] text-primary truncate leading-none" style={{ textDecoration: 'underline' }}>
                 {crew.name.toUpperCase()}
               </h1>
-              <i
-                className="hn hn-angle-right-solid flex-shrink-0"
-                style={{ fontSize: 24, color: 'var(--color-primary)', display: 'inline-block', transform: 'rotate(90deg)' }}
+              <ChevronRight
+                className="flex-shrink-0"
+                style={{ width: 24, height: 24, color: 'var(--color-primary)', display: 'inline-block', transform: 'rotate(90deg)' }}
                 aria-hidden="true"
               />
             </button>
@@ -538,11 +544,10 @@ export function ChatHeader({
               className="flex items-center justify-center transition-colors"
               style={{ width: 24, height: 40, color: allMuted ? '#71717a' : 'var(--color-primary)' }}
             >
-              <i
-                className={`hn ${allMuted ? 'hn-bell-mute' : 'hn-bell'}`}
-                style={{ fontSize: 24 }}
-                aria-hidden="true"
-              />
+              {allMuted
+                ? <BellOff style={{ width: 24, height: 24 }} aria-hidden="true" />
+                : <Bell style={{ width: 24, height: 24 }} aria-hidden="true" />
+              }
             </button>
             <button
               onClick={() => setShowShare(true)}
@@ -550,7 +555,7 @@ export function ChatHeader({
               className="flex items-center justify-center text-primary hover:text-purple transition-colors"
               style={{ width: 24, height: 40 }}
             >
-              <i className="hn hn-user-plus" style={{ fontSize: 24 }} aria-hidden="true" />
+              <UserPlus style={{ width: 24, height: 24 }} aria-hidden="true" />
             </button>
             <Link
               href={`/vault/${crewId}`}
@@ -558,7 +563,7 @@ export function ChatHeader({
               className="flex items-center justify-center text-primary hover:text-purple transition-colors"
               style={{ width: 24, height: 40 }}
             >
-              <i className="hn hn-bank" style={{ fontSize: 24 }} aria-hidden="true" />
+              <Banknote style={{ width: 24, height: 24 }} aria-hidden="true" />
             </Link>
           </div>
         </div>

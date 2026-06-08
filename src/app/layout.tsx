@@ -3,7 +3,6 @@ import { Press_Start_2P, DM_Sans, Silkscreen } from 'next/font/google'
 import { validateConfig } from '@/lib/config'
 import { SWRegister } from '@/components/ui/SWRegister'
 import './globals.css'
-import '@hackernoon/pixel-icon-library/fonts/iconfont.css'
 
 const pressStart2P = Press_Start_2P({
   weight: '400',

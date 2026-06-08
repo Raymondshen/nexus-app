@@ -4,6 +4,7 @@ import { useState, useActionState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { joinCrewFromWelcomeAction } from './actions'
+import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 
 export default function WelcomeClient({
   crewId,
@@ -114,7 +115,7 @@ export default function WelcomeClient({
                     onClick={() => { setShowJoin(false); setCrewCode('') }}
                     className="text-[#6b4f8f] hover:text-[#bf5fff] transition-colors"
                   >
-                    <i className="hn hn-angle-left-solid" style={{ fontSize: 16 }} aria-hidden="true" />
+                    <ChevronLeft style={{ width: 16, height: 16 }} aria-hidden="true" />
                   </button>
                   <span className="font-pixel text-[10px] text-white">ENTER CREW CODE</span>
                 </div>

@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useChatStore } from '@/store/chatStore'
 import { spriteIdFor } from '@/components/game/PixelSprite'
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/config'
+import { Coins } from 'pixelarticons/react/Coins'
 import type { MessageWithProfile, AvatarClass } from '@/types'
 
 const CLASS_NAMES: Record<AvatarClass, string> = {
@@ -327,7 +328,7 @@ export function MessageBubble({
                   <span className="w-[2px] h-[2px] bg-purple shrink-0 mt-[5px]" />
                   <p className="font-silkscreen tracking-[0.1px] whitespace-nowrap leading-[0] text-[0px] shrink-0">
                     <span className="text-[8px] leading-[normal]" style={{ color: '#ffd700' }}>
-                      <i className="hn hn-coin" style={{ fontSize: 8 }} aria-hidden="true" />+{displayCoins}
+                      <Coins style={{ width: 8, height: 8 }} aria-hidden="true" />+{displayCoins}
                     </span>
                   </p>
                 </>
