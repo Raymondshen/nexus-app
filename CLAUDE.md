@@ -21,7 +21,7 @@ profiles       id, username (unique case-insensitive), avatar_class, avatar_url,
 crews          id, name, invite_code (6 chars unique), level, total_xp, created_at,
                is_dm (bool default false), dm_partner_1 (uuid nullable), dm_partner_2 (uuid nullable)
 crew_members   id, crew_id, user_id, class, joined_at, last_seen (unread cursor + presence)
-messages       id, crew_id, user_id, content, message_type, element_type, xp_awarded, created_at
+messages       id, crew_id, user_id, content, message_type, element_type, xp_awarded, reactions (jsonb default '{}'), created_at
 crew_xp_log    id, crew_id, user_id, xp_amount, source, created_at
 bosses         id, name, type (void|ghost|flood|scheduled), max_hp, weak_element, description
 active_raids   id, crew_id, boss_id, current_hp, max_hp, phase, started_at, expires_at, defeated_at, mvp_user_id, expiry_notif_sent
@@ -55,6 +55,7 @@ All are `SECURITY DEFINER`. All declared in `Database.Functions` in `src/types/i
 - `get_crew_member_msg_counts(p_crew_id)` → `TABLE(user_id, msg_count)` — per-member message counts for a crew in one query; replaces N parallel count queries in `GroupProfileSheet`
 - `get_member_crew_stats(p_crew_id, p_user_id)` → `TABLE(msg_count, total_xp)` — message count + XP total for one member in one crew; used by the member profile page
 - `increment_user_coins(p_user_id, p_amount)` → void — atomic `UPDATE profiles SET coins = coins + p_amount`; called by `award-xp` edge function
+- `toggle_reaction(p_message_id, p_emoji, p_user_id)` → jsonb — row-locking atomic toggle: adds user to the emoji's array if absent, removes if present, deletes empty keys; returns full updated reactions object; called by `react-to-message` edge function
 
 ## Game Rules
 
@@ -436,6 +437,7 @@ All "detail" pages (chat, DM, profile, friends, vault) slide in from the right o
 - **Always use `--no-verify-jwt` for `send-notification`**: `award-xp` calls it via raw `fetch()` with no Authorization header. Without this flag the function returns `401 UNAUTHORIZED_NO_AUTH_HEADER` and no pushes are delivered.
 - Deploy command: `supabase functions deploy send-notification --project-ref tlveyeisjbythssmocth --no-verify-jwt`
 - Deploy `award-xp` separately (no `--no-verify-jwt` needed — it is called by authenticated clients): `supabase functions deploy award-xp --project-ref tlveyeisjbythssmocth`
+- Deploy `react-to-message` (no `--no-verify-jwt` needed — called by authenticated clients with anon key): `supabase functions deploy react-to-message --project-ref tlveyeisjbythssmocth`
 
 ### Inter-function call pattern (award-xp → send-notification)
 `send-notification` is deployed with `--no-verify-jwt`. Call it via raw `fetch()` with **no Authorization header** — do NOT use `supabase.functions.invoke()` or pass any Bearer token (both return 401):
@@ -446,6 +448,19 @@ fetch(fnUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, 
 Server actions (Next.js) calling `send-notification` directly also use this same pattern with no auth header.
 
 - **Batch notifications**: `send-notification` accepts either `user_id: string` (single, backward compat) or `user_ids: string[]` (batch). Batch mode fetches all preferences and subscriptions in two `.in()` queries, then iterates per user. `award-xp` always uses the batch form. Server actions use single `user_id`.
+
+### Reactions System
+- **Data model**: `messages.reactions` JSONB column — `{ emoji: [userId, userId, ...] }`. Empty arrays are pruned; the column defaults to `{}`.
+- **Quick-pick emojis**: `['🔥', '💧', '⚡', '🌿', '🌑', '🔮']` — map 1:1 to the six element types (fire, water, lightning, nature, shadow, arcane).
+- **Trigger**: long-press (500 ms) or right-click a message bubble → opens the reaction picker inline below the bubble. Scroll movement cancels the long-press intent (`onTouchMove` clears the timer). A 100 ms delay guards the outside-tap listener so the opening touch doesn't immediately re-close the picker.
+- **`+` button / native emoji keyboard**: tapping `+` calls `.focus()` on a hidden `<input>` positioned off-screen (`position: fixed; top: -9999px`). On mobile this surfaces the native emoji keyboard. `onInput` reads the first grapheme cluster via `Intl.Segmenter` (fallback: spread to first Unicode code point), then calls `handleReaction` and closes the picker.
+- **Optimistic update + rollback**: store is patched immediately via `updateMessage`; on edge function error the store is reverted to the pre-tap state.
+- **Edge function** (`react-to-message`): verifies crew membership, calls `toggle_reaction` RPC, returns `{ reactions, hype_man_heal, heal_amount }`. Called with the anon key from `MessageBubble` — no `--no-verify-jwt` needed.
+- **Realtime sync**: the existing postgres_changes `UPDATE` subscription in `MessageList` now also patches `reactions` so all crew members see changes converge without extra subscriptions.
+- **Reaction chips**: rendered below the bubble, sorted by count descending, zero-count chips hidden. Own active reaction highlighted `bg-[rgba(191,95,255,0.15)] border-[#bf5fff]` (chat purple). Tapping a chip toggles it.
+- **Hype Man passive** (`class = 'hype_man'`): when a Hype Man *adds* (not removes) a reaction, `react-to-message` awards 5 XP to the crew (`source = 'reaction_heal'` in `crew_xp_log`). The edge function returns `hype_man_heal: true, heal_amount: 5`; `MessageBubble` shows a `+5 HEAL` float in `#66bb6a` that animates upward from the chip row (same Framer Motion pattern as XP floats).
+- **Picker viewport safety**: picker container uses `max-width: calc(100vw - 2rem)` so it never clips at 390 px.
+- **`currentUserId` prop**: added to `MessageBubble` — required to determine active/inactive state of each chip and to build the toggle payload. Passed from `MessageList.currentUserId` prop.
 
 ### Pixel Sprites
 - Component: `src/components/game/PixelSprite.tsx`
@@ -514,6 +529,7 @@ Always use `createServiceClient()` inside cache functions (service role, no cook
 - `20240103000008_signup_bonus_and_retroactive_coins.sql` — updates `handle_new_user` trigger to grant 50-coin signup bonus on account creation; one-time retroactive award for all existing users (50 signup + 1 per message sent); idempotent via `coin_log` source = `'signup_bonus'` guard
 - `20240103000009_app_invites.sql` — `app_invites` table + RLS (inviter reads own, inviter inserts own)
 - `20240103000011_reserved_users.sql` — `reserved_users` table (invite-only waitlist); RLS: public insert, service-role-only select/update
+- `20240103000012_reactions.sql` — `messages.reactions` JSONB column (default `'{}'`) + `toggle_reaction` row-locking Postgres function
 
 ### Manual SQL applied directly (no migration file)
 ```sql
