@@ -226,9 +226,9 @@ Member avatars and online dots in ChatInput are not gated — those are chat fea
 
 ### XP Sync — real-time for all crew members
 - `award-xp` edge function returns `new_total_xp` in response
-- Sender: calls `setCrewXP(data.new_total_xp)` then broadcasts `xp_update` on `messages:{crewId}` channel
+- Sender: calls `addXP(10)` immediately on send (optimistic — float + bar advance, zero network delay), then `setCrewXP(data.new_total_xp)` on award-xp response (quiet authoritative sync, no second float). Broadcasts `xp_update` on `messages:{crewId}` channel.
 - Receivers: `receiveXP(earned, newTotal)` action in chatStore sets absolute XP + spawns XP float
-- Both paths deduplicate by `sender_id` — sender gets `setCrewXP`, others get `receiveXP`
+- Broadcast handler deduplicates by `sender_id` — sender gets `setCrewXP` (no float), others get `receiveXP`
 
 ### Online Presence
 - **Single presence channel**: ChatInput's `messages:{crewId}` channel is the sole presence channel. ChatHeader has NO presence channel — having two concurrent presence channels from the same Supabase singleton client causes interference and breaks dot display.
@@ -259,7 +259,7 @@ Consecutive messages from the same user within 60 seconds are visually grouped (
 - **Send icon**: `Send` from `pixelarticons/react/Send` (16px); `text-primary` when textarea has text, `text-muted` when empty.
 - **"Next Boss" label**: always visible (right side of XP stats row) — not gated by dev mode.
 - **Member avatars**: 24×24px squares (`w-6 h-6`, no `rounded-full`, no border) — matches Figma `size-[24px]`. Online dot shown via `onlineUserIds` from `messages:{crewId}` presence state.
-- **XP floats**: animate bottom-to-top with fade-in then fade-out — `opacity: [0,1,1,0]`, `y: [0,-12,-26,-42]`, `times: [0, 0.15, 0.65, 1]` over 1.4s. Text shows `+{amount} XP` in gold `#ffd700`. Float anchors inline at the `· +{N} XP` label in the stats text row (after "Members ·"), not from the outer container edge. A `lastXpEarned` state persists the last earned amount so the static amber label stays visible between floats (matches Figma node 42:304).
+- **XP floats**: animate bottom-to-top with fade-in then fade-out — `opacity: [0,1,1,0]`, `y: [0,-12,-26,-42]`, `times: [0, 0.15, 0.65, 1]` over 1.4s. Text shows `+{amount} XP` in gold `#ffd700`. Float anchors inline after the Members count text via a `relative inline-block` span — no static label, animation only.
 - **XP progress bar spring**: `type: 'spring', stiffness: 300, damping: 28` — tuned so the bar starts moving visibly within the first frame, reaching the target in ~250ms. This matches the float's fade-in timing (~210ms to full opacity) so both animations feel simultaneous. Do **not** drop stiffness below ~280 — slow springs have near-zero initial velocity and appear to lag behind the float.
 
 ### award-xp — query batching + anti-spam
@@ -478,15 +478,15 @@ Server actions (Next.js) calling `send-notification` directly also use this same
 ### Reactions System
 - **Data model**: `messages.reactions` JSONB column — `{ emoji: [userId, userId, ...] }`. Empty arrays are pruned; the column defaults to `{}`.
 - **Quick-pick emojis**: `['🔥', '💧', '⚡', '🌿', '🌑', '🔮']` — map 1:1 to the six element types (fire, water, lightning, nature, shadow, arcane).
-- **Trigger**: long-press (500 ms) or right-click a message bubble → opens the reaction picker inline below the bubble. Scroll movement cancels the long-press intent (`onTouchMove` clears the timer). A 100 ms delay guards the outside-tap listener so the opening touch doesn't immediately re-close the picker.
-- **`+` button / native emoji keyboard**: tapping `+` calls `.focus()` on a hidden `<input>` positioned off-screen (`position: fixed; top: -9999px`). On mobile this surfaces the native emoji keyboard. `onInput` reads the first grapheme cluster via `Intl.Segmenter` (fallback: spread to first Unicode code point), then calls `handleReaction` and closes the picker.
+- **Trigger**: long-press (1500 ms) or right-click a message bubble → opens a Discord-style bottom sheet via `createPortal` on `document.body`. `hasMoved` ref cancels the long press on scroll; backdrop tap closes the sheet.
+- **Sheet layout** (z-[80] sheet, z-[70] backdrop, spring 320/32 slide-up): emoji quick-pick row (6 `QUICK_REACTIONS` + 😊 opens native keyboard), `border-t border-border` divider, Copy Text action row (min-h-[52px]).
+- **Native emoji keyboard**: tapping 😊 focuses a hidden `<input>` (off-screen `position: fixed`). On mobile this surfaces the native emoji keyboard. `onInput` reads the first grapheme cluster via `Intl.Segmenter` (fallback: spread), then calls `handleReaction`.
 - **Optimistic update + rollback**: store is patched immediately via `updateMessage`; on edge function error the store is reverted to the pre-tap state.
 - **Edge function** (`react-to-message`): verifies crew membership, calls `toggle_reaction` RPC, returns `{ reactions, hype_man_heal, heal_amount }`. Called with the anon key from `MessageBubble` — no `--no-verify-jwt` needed.
-- **Realtime sync**: the existing postgres_changes `UPDATE` subscription in `MessageList` now also patches `reactions` so all crew members see changes converge without extra subscriptions.
+- **Realtime sync**: the Postgres changes `UPDATE` subscription in `MessageList` patches reactions on updates. Race-condition guard: if the DB update carries `reactions:{}` but local already has reactions (award-xp updates `xp_awarded` before `react-to-message` runs), local reactions are preserved until the react-to-message Postgres UPDATE arrives with the correct state.
 - **Reaction chips**: rendered below the bubble, sorted by count descending, zero-count chips hidden. Own active reaction highlighted `bg-[rgba(191,95,255,0.15)] border-[#bf5fff]` (chat purple). Tapping a chip toggles it.
-- **Hype Man passive** (`class = 'hype_man'`): when a Hype Man *adds* (not removes) a reaction, `react-to-message` awards 5 XP to the crew (`source = 'reaction_heal'` in `crew_xp_log`). The edge function returns `hype_man_heal: true, heal_amount: 5`; `MessageBubble` shows a `+5 HEAL` float in `#66bb6a` that animates upward from the chip row (same Framer Motion pattern as XP floats).
-- **Picker viewport safety**: picker container uses `max-width: calc(100vw - 2rem)` so it never clips at 390 px.
-- **`currentUserId` prop**: added to `MessageBubble` — required to determine active/inactive state of each chip and to build the toggle payload. Passed from `MessageList.currentUserId` prop.
+- **Hype Man passive** (`class = 'hype_man'`): when a Hype Man *adds* (not removes) a reaction, `react-to-message` awards 5 XP to the crew (`source = 'reaction_heal'` in `crew_xp_log`). The edge function returns `hype_man_heal: true, heal_amount: 5`; `MessageBubble` shows a `+5 HEAL` float in `#66bb6a` that animates upward from the chip row.
+- **`currentUserId` prop**: required on `MessageBubble` — determines active/inactive chip state and builds the toggle payload. Passed from `MessageList.currentUserId`.
 
 ### Pixel Sprites
 - Component: `src/components/game/PixelSprite.tsx`

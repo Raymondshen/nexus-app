@@ -269,7 +269,21 @@ export function MessageList({
         (payload) => {
           const raw = payload.new as Message
           if (!raw?.id) return
-          updateMessage(raw.id, { xp_awarded: raw.xp_awarded, element_type: raw.element_type, reactions: raw.reactions })
+
+          // Guard against award-xp race: that edge function patches xp_awarded on the
+          // message row BEFORE react-to-message runs, so its Postgres UPDATE event can
+          // carry reactions:{} and wipe an optimistic local reaction. Only apply the
+          // DB reactions value when it is non-empty OR when local is already empty.
+          const dbReactions  = (raw.reactions  ?? {}) as Record<string, string[]>
+          const localMsg     = useChatStore.getState().messages.find((m) => m.id === raw.id)
+          const localReactions = ((localMsg?.reactions ?? {}) as Record<string, string[]>)
+          const hasDbReactions    = Object.keys(dbReactions).length > 0
+          const hasLocalReactions = Object.keys(localReactions).length > 0
+
+          const patch: Partial<Message> = { xp_awarded: raw.xp_awarded, element_type: raw.element_type }
+          if (hasDbReactions || !hasLocalReactions) patch.reactions = dbReactions
+
+          updateMessage(raw.id, patch)
         }
       )
       .subscribe()

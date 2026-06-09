@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import Image from 'next/image'
 import { format } from 'date-fns'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -22,17 +23,15 @@ const CLASS_NAMES: Record<AvatarClass, string> = {
   archer:    'Archer',
 }
 
-// Six quick-pick emojis mapped to the element system
 const QUICK_REACTIONS = ['🔥', '💧', '⚡', '🌿', '🌑', '🔮'] as const
 
 type ReactResponse = {
-  reactions:      Record<string, string[]>
-  hype_man_heal:  boolean
-  heal_amount:    number
-  error?:         string
+  reactions:     Record<string, string[]>
+  hype_man_heal: boolean
+  heal_amount:   number
+  error?:        string
 }
 
-// Returns the first grapheme cluster — handles multi-codepoint emoji sequences.
 function getFirstGrapheme(str: string): string {
   if (!str) return ''
   try {
@@ -44,13 +43,13 @@ function getFirstGrapheme(str: string): string {
 }
 
 interface MessageBubbleProps {
-  message:        MessageWithProfile
-  isOwn:          boolean
-  showHeader:     boolean
-  currentUserId:  string
-  xpOverride?:    number
+  message:       MessageWithProfile
+  isOwn:         boolean
+  showHeader:    boolean
+  currentUserId: string
+  xpOverride?:   number
   coinOverride?:  number
-  onAvatarTap?:   (userId: string) => void
+  onAvatarTap?:  (userId: string) => void
 }
 
 export function MessageBubble({
@@ -62,43 +61,23 @@ export function MessageBubble({
   coinOverride,
   onAvatarTap,
 }: MessageBubbleProps) {
-  const [pickerOpen, setPickerOpen] = useState(false)
+  const [sheetOpen,  setSheetOpen]  = useState(false)
   const [copied,     setCopied]     = useState(false)
   const [healFloat,  setHealFloat]  = useState<{ id: number; amount: number } | null>(null)
+  const [mounted,    setMounted]    = useState(false)
 
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const pickerRef      = useRef<HTMLDivElement>(null)
+  const hasMoved       = useRef(false)
   const emojiInputRef  = useRef<HTMLInputElement>(null)
 
   const onlineUserIds = useChatStore((s) => s.onlineUserIds)
   const updateMessage = useChatStore((s) => s.updateMessage)
 
-  // Close picker when user taps outside it — delayed 100 ms so the same
-  // long-press that opened it doesn't immediately close it.
-  useEffect(() => {
-    if (!pickerOpen) return
-    let attached = false
-    function onOutside(e: MouseEvent | TouchEvent) {
-      if (!attached) return
-      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
-        setPickerOpen(false)
-      }
-    }
-    const t = setTimeout(() => {
-      attached = true
-      document.addEventListener('mousedown', onOutside)
-      document.addEventListener('touchstart', onOutside)
-    }, 100)
-    return () => {
-      clearTimeout(t)
-      document.removeEventListener('mousedown', onOutside)
-      document.removeEventListener('touchstart', onOutside)
-    }
-  }, [pickerOpen])
+  useEffect(() => { setMounted(true) }, [])
 
   // ─── XP count-up ────────────────────────────────────────────────────────────
-  const xpTarget = xpOverride ?? message.xp_awarded ?? 0
-  const [displayXP,  setDisplayXP]  = useState(xpTarget)
+  const xpTarget    = xpOverride ?? message.xp_awarded ?? 0
+  const [displayXP, setDisplayXP] = useState(xpTarget)
   const displayXPRef = useRef(xpTarget)
 
   useEffect(() => {
@@ -122,7 +101,7 @@ export function MessageBubble({
 
   // ─── Coin count-up ──────────────────────────────────────────────────────────
   const coinTarget = coinOverride ?? ((message.xp_awarded ?? 0) > 0 ? 1 : 0)
-  const [_displayCoins, setDisplayCoins]  = useState(coinTarget)
+  const [_displayCoins, setDisplayCoins] = useState(coinTarget)
   const displayCoinsRef = useRef(coinTarget)
 
   useEffect(() => {
@@ -144,12 +123,19 @@ export function MessageBubble({
     return () => cancelAnimationFrame(raf)
   }, [coinTarget]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ─── Long-press handlers ────────────────────────────────────────────────────
+  // ─── Long-press handlers (1500 ms, cancelled on scroll) ─────────────────────
   function handleTouchStart() {
-    longPressTimer.current = setTimeout(() => setPickerOpen(true), 500)
+    hasMoved.current = false
+    longPressTimer.current = setTimeout(() => {
+      if (!hasMoved.current) setSheetOpen(true)
+    }, 1500)
   }
   function handleTouchEnd() {
-    if (longPressTimer.current) clearTimeout(longPressTimer.current)
+    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null }
+  }
+  function handleTouchMove() {
+    hasMoved.current = true
+    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null }
   }
 
   // ─── Copy ───────────────────────────────────────────────────────────────────
@@ -157,14 +143,15 @@ export function MessageBubble({
     try {
       await navigator.clipboard.writeText(message.content)
       setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
-    } catch { /* clipboard unavailable */ }
-    setPickerOpen(false)
+      setTimeout(() => { setCopied(false); setSheetOpen(false) }, 800)
+    } catch {
+      setSheetOpen(false)
+    }
   }
 
   // ─── Reaction toggle (optimistic + rollback) ─────────────────────────────────
   const handleReaction = useCallback(async (emoji: string) => {
-    setPickerOpen(false)
+    setSheetOpen(false)
 
     const prev     = message.reactions ?? {}
     const users    = prev[emoji] ?? []
@@ -178,7 +165,6 @@ export function MessageBubble({
     if (nextUsers.length === 0) delete next[emoji]
     else next[emoji] = nextUsers
 
-    // Optimistic
     updateMessage(message.id, { reactions: next })
 
     try {
@@ -190,19 +176,17 @@ export function MessageBubble({
       const data = await res.json() as ReactResponse
       if (!res.ok) throw new Error(data.error ?? 'reaction failed')
 
-      // Confirm with server state
       updateMessage(message.id, { reactions: data.reactions })
 
       if (data.hype_man_heal && data.heal_amount > 0) {
         setHealFloat({ id: Date.now(), amount: data.heal_amount })
       }
     } catch {
-      // Rollback to pre-optimistic state
       updateMessage(message.id, { reactions: prev })
     }
   }, [message.id, message.crew_id, message.reactions, currentUserId, updateMessage])
 
-  // ─── Native emoji picker (hidden input) ─────────────────────────────────────
+  // ─── Native emoji keyboard (hidden input) ───────────────────────────────────
   function handlePickEmoji() {
     emojiInputRef.current?.focus()
   }
@@ -226,217 +210,240 @@ export function MessageBubble({
   const isOnline  = onlineUserIds.has(message.user_id)
   const timeStr   = format(new Date(message.created_at), 'h:mma').toLowerCase()
 
-  const reactions      = message.reactions ?? {}
+  const reactions       = message.reactions ?? {}
   const sortedReactions = Object.entries(reactions)
     .filter(([, users]) => users.length > 0)
     .sort(([, a], [, b]) => b.length - a.length)
 
   return (
-    <div
-      className={`flex gap-[8px] items-start w-full ${showHeader ? 'pt-[var(--space-5)] pb-0' : 'pt-[var(--space-2)] pb-0'}`}
-      onContextMenu={(e) => { e.preventDefault(); setPickerOpen(true) }}
-      onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
-      onTouchMove={handleTouchEnd}
-    >
-      {/* Avatar — only rendered for the first message in a group */}
-      {showHeader && (
-        <div
-          className="relative flex-shrink-0"
-          onClick={onAvatarTap ? () => onAvatarTap(message.user_id) : undefined}
-          style={onAvatarTap ? { cursor: 'pointer' } : undefined}
-        >
-          <div className="w-8 h-8 bg-surface flex items-center justify-center overflow-hidden">
-            {avatarUrl ? (
-              <div className="relative w-full h-full">
-                <Image src={avatarUrl} alt={message.profile.username} fill sizes="32px" className="object-cover" />
-              </div>
-            ) : (
-              <span className="font-pixel text-[8px] text-purple">{initial}</span>
-            )}
-          </div>
-          {isOnline && (
-            <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#66bb6a] border-[1.5px] border-black" />
-          )}
-        </div>
-      )}
-
-      {/* Message content — pl-10 (32px avatar + 8px gap) aligns continuation text */}
-      <div className={`flex-1 min-w-0 flex flex-col gap-0 ${!showHeader ? 'pl-10' : ''}`}>
-
-        {/* Header row: [username · class · xp] [timestamp] */}
+    <>
+      <div
+        className={`flex gap-[8px] items-start w-full ${showHeader ? 'pt-[var(--space-5)] pb-0' : 'pt-[var(--space-2)] pb-0'}`}
+        onContextMenu={(e) => { e.preventDefault(); setSheetOpen(true) }}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        onTouchMove={handleTouchMove}
+      >
+        {/* Avatar — only rendered for the first message in a group */}
         {showHeader && (
-          <div className="flex items-center justify-between w-full">
-
-            {/* Left meta: username · class · xp */}
-            <div className="flex items-center gap-[4px] flex-1 min-w-0">
-              <span
-                className={`font-body font-medium text-[12px] tracking-[0.1px] shrink-0 leading-[normal] whitespace-nowrap ${
-                  isOwn ? 'text-purple' : 'text-primary'
-                }`}
-                style={{ fontVariationSettings: '"opsz" 14', cursor: onAvatarTap ? 'pointer' : undefined }}
-                onClick={onAvatarTap ? () => onAvatarTap(message.user_id) : undefined}
-              >
-                {message.profile.username}
-              </span>
-
-              {className && (
-                <>
-                  <span className="w-[2px] h-[2px] bg-purple shrink-0" />
-                  <span
-                    className="font-body font-normal text-[10px] tracking-[0.1px] shrink-0 leading-[normal] whitespace-nowrap"
-                    style={{ color: '#b3b3b3', fontVariationSettings: '"opsz" 14' }}
-                  >
-                    {className}
-                  </span>
-                </>
-              )}
-
-              {displayXP > 0 && (
-                <>
-                  <span className="w-[2px] h-[2px] bg-purple shrink-0" />
-                  <p className="font-silkscreen tracking-[0.1px] whitespace-nowrap leading-[0] text-[0px] shrink-0">
-                    <span className="text-[8px] leading-[normal]" style={{ color: '#f59e0b' }}>
-                      +{displayXP} XP
-                    </span>
-                  </p>
-                </>
+          <div
+            className="relative flex-shrink-0"
+            onClick={onAvatarTap ? () => onAvatarTap(message.user_id) : undefined}
+            style={onAvatarTap ? { cursor: 'pointer' } : undefined}
+          >
+            <div className="w-8 h-8 bg-surface flex items-center justify-center overflow-hidden">
+              {avatarUrl ? (
+                <div className="relative w-full h-full">
+                  <Image src={avatarUrl} alt={message.profile.username} fill sizes="32px" className="object-cover" />
+                </div>
+              ) : (
+                <span className="font-pixel text-[8px] text-purple">{initial}</span>
               )}
             </div>
-
-            {/* Timestamp */}
-            <span
-              className="font-body font-normal text-[8px] tracking-[0.2px] shrink-0 leading-[normal] whitespace-nowrap ml-1"
-              style={{ color: 'var(--color-paper-200)', fontVariationSettings: '"opsz" 14' }}
-            >
-              {timeStr}
-            </span>
+            {isOnline && (
+              <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#66bb6a] border-[1.5px] border-black" />
+            )}
           </div>
         )}
 
-        {/* Message body */}
-        {message.message_type === 'image' ? (
-          <div className="relative w-[220px] h-[165px] mt-1">
-            <Image src={message.content} alt="shared image" fill sizes="220px" className="object-cover" />
-          </div>
-        ) : (
-          <p
-            className="font-body font-normal text-[14px] text-white leading-[normal] w-full"
-            style={{ fontVariationSettings: '"opsz" 14' }}
-          >
-            {message.content}
-          </p>
-        )}
+        {/* Message content — pl-10 aligns continuation text with grouped messages */}
+        <div className={`flex-1 min-w-0 flex flex-col gap-0 ${!showHeader ? 'pl-10' : ''}`}>
 
-        {/* ── Reaction picker (long-press / right-click menu) ──────────────── */}
-        {pickerOpen && (
-          <div
-            ref={pickerRef}
-            className="flex flex-wrap items-center gap-1 bg-surface border border-border px-2 py-1.5 mt-1"
-            style={{ maxWidth: 'calc(100vw - 2rem)' }}
-          >
-            {QUICK_REACTIONS.map((emoji) => {
-              const active = (reactions[emoji] ?? []).includes(currentUserId)
-              return (
-                <button
-                  key={emoji}
-                  onClick={() => void handleReaction(emoji)}
-                  className={`text-lg px-0.5 py-0 transition-transform active:scale-95 select-none ${
-                    active ? 'scale-110' : 'opacity-70 hover:opacity-100 hover:scale-110'
+          {/* Header row: username · class · xp · timestamp */}
+          {showHeader && (
+            <div className="flex items-center justify-between w-full">
+              <div className="flex items-center gap-[4px] flex-1 min-w-0">
+                <span
+                  className={`font-body font-medium text-[12px] tracking-[0.1px] shrink-0 leading-[normal] whitespace-nowrap ${
+                    isOwn ? 'text-purple' : 'text-primary'
                   }`}
+                  style={{ fontVariationSettings: '"opsz" 14', cursor: onAvatarTap ? 'pointer' : undefined }}
+                  onClick={onAvatarTap ? () => onAvatarTap(message.user_id) : undefined}
                 >
-                  {emoji}
-                </button>
-              )
-            })}
+                  {message.profile.username}
+                </span>
 
-            {/* + button: opens native device emoji keyboard */}
-            <button
-              className="font-pixel text-[9px] text-[#00e5ff] px-1.5 py-0.5 border border-[#00e5ff]/30 hover:border-[#00e5ff] transition-colors ml-0.5"
-              onClick={handlePickEmoji}
+                {className && (
+                  <>
+                    <span className="w-[2px] h-[2px] bg-purple shrink-0" />
+                    <span
+                      className="font-body font-normal text-[10px] tracking-[0.1px] shrink-0 leading-[normal] whitespace-nowrap"
+                      style={{ color: '#b3b3b3', fontVariationSettings: '"opsz" 14' }}
+                    >
+                      {className}
+                    </span>
+                  </>
+                )}
+
+                {displayXP > 0 && (
+                  <>
+                    <span className="w-[2px] h-[2px] bg-purple shrink-0" />
+                    <p className="font-silkscreen tracking-[0.1px] whitespace-nowrap leading-[0] text-[0px] shrink-0">
+                      <span className="text-[8px] leading-[normal]" style={{ color: '#f59e0b' }}>
+                        +{displayXP} XP
+                      </span>
+                    </p>
+                  </>
+                )}
+              </div>
+
+              <span
+                className="font-body font-normal text-[8px] tracking-[0.2px] shrink-0 leading-[normal] whitespace-nowrap ml-1"
+                style={{ color: 'var(--color-paper-200)', fontVariationSettings: '"opsz" 14' }}
+              >
+                {timeStr}
+              </span>
+            </div>
+          )}
+
+          {/* Message body */}
+          {message.message_type === 'image' ? (
+            <div className="relative w-[220px] h-[165px] mt-1">
+              <Image src={message.content} alt="shared image" fill sizes="220px" className="object-cover" />
+            </div>
+          ) : (
+            <p
+              className="font-body font-normal text-[14px] text-white leading-[normal] w-full"
+              style={{ fontVariationSettings: '"opsz" 14' }}
             >
-              +
-            </button>
+              {message.content}
+            </p>
+          )}
 
-            {/* Spacer */}
-            <span className="flex-1" />
+          {/* ── Reaction chips ────────────────────────────────────────────────── */}
+          {sortedReactions.length > 0 && (
+            <div className="relative flex flex-wrap gap-1 mt-1">
 
-            {/* Copy */}
-            <button
-              className="font-pixel text-[7px] text-tertiary hover:text-[#00e5ff] px-1 transition-colors"
-              onClick={handleCopy}
-            >
-              {copied ? '✓' : 'COPY'}
-            </button>
-
-            {/* Close */}
-            <button
-              className="font-pixel text-[8px] text-tertiary ml-1"
-              onClick={() => setPickerOpen(false)}
-            >
-              ✕
-            </button>
-
-            {/* Hidden input — focused by handlePickEmoji to surface the native emoji keyboard */}
-            <input
-              ref={emojiInputRef}
-              type="text"
-              aria-hidden="true"
-              tabIndex={-1}
-              style={{ position: 'fixed', top: '-9999px', left: '-9999px', width: 1, height: 1, opacity: 0.01 }}
-              onInput={handleNativeEmojiInput}
-            />
-          </div>
-        )}
-
-        {/* ── Reaction chips ───────────────────────────────────────────────── */}
-        {sortedReactions.length > 0 && (
-          <div className="relative flex flex-wrap gap-1 mt-1">
-
-            {/* Hype Man heal float — animates upward from chip row */}
-            <AnimatePresence>
-              {healFloat && (
-                <motion.div
-                  key={healFloat.id}
-                  initial={{ opacity: 0, y: 0 }}
-                  animate={{ opacity: [0, 1, 1, 0], y: [0, -8, -22, -36] }}
-                  transition={{ duration: 1.2, ease: 'easeOut', times: [0, 0.15, 0.65, 1] }}
-                  onAnimationComplete={() => setHealFloat(null)}
-                  className="pointer-events-none absolute -top-3 left-0 z-10"
-                >
-                  <span
-                    className="font-pixel text-[10px] font-bold"
-                    style={{ color: '#66bb6a', textShadow: '0 0 8px rgba(102,187,106,0.8)' }}
+              {/* Hype Man heal float */}
+              <AnimatePresence>
+                {healFloat && (
+                  <motion.div
+                    key={healFloat.id}
+                    initial={{ opacity: 0, y: 0 }}
+                    animate={{ opacity: [0, 1, 1, 0], y: [0, -8, -22, -36] }}
+                    transition={{ duration: 1.2, ease: 'easeOut', times: [0, 0.15, 0.65, 1] }}
+                    onAnimationComplete={() => setHealFloat(null)}
+                    className="pointer-events-none absolute -top-3 left-0 z-10"
                   >
-                    +{healFloat.amount} HEAL
-                  </span>
-                </motion.div>
-              )}
-            </AnimatePresence>
+                    <span
+                      className="font-pixel text-[10px] font-bold"
+                      style={{ color: '#66bb6a', textShadow: '0 0 8px rgba(102,187,106,0.8)' }}
+                    >
+                      +{healFloat.amount} HEAL
+                    </span>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
-            {sortedReactions.map(([emoji, users]) => {
-              const active = users.includes(currentUserId)
-              return (
+              {sortedReactions.map(([emoji, users]) => {
+                const active = users.includes(currentUserId)
+                return (
+                  <button
+                    key={emoji}
+                    onClick={() => void handleReaction(emoji)}
+                    className={`flex items-center gap-1 px-2 py-0.5 border text-[13px] leading-none transition-colors select-none ${
+                      active
+                        ? 'bg-[rgba(191,95,255,0.15)] border-[#bf5fff]'
+                        : 'bg-surface border-border'
+                    }`}
+                  >
+                    <span>{emoji}</span>
+                    <span className={`font-silkscreen text-[9px] leading-none ${active ? 'text-[#bf5fff]' : 'text-tertiary'}`}>
+                      {users.length}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Reaction / action bottom sheet (Discord-style) ──────────────────── */}
+      {mounted && createPortal(
+        <AnimatePresence>
+          {sheetOpen && (
+            <>
+              {/* Backdrop */}
+              <motion.div
+                key="msg-backdrop"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.18 }}
+                className="fixed inset-0 z-[70] bg-black/60"
+                onTouchStart={(e) => { e.stopPropagation(); setSheetOpen(false) }}
+                onClick={() => setSheetOpen(false)}
+              />
+
+              {/* Sheet */}
+              <motion.div
+                key="msg-sheet"
+                initial={{ y: '100%' }}
+                animate={{ y: 0 }}
+                exit={{ y: '100%' }}
+                transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+                className="fixed bottom-0 left-0 right-0 z-[80] bg-[#0a0612] border-t border-border"
+                style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 24px)' }}
+              >
+                {/* ── Emoji quick-pick row ─────────────────────────────────── */}
+                <div className="px-4 pt-4 pb-3 flex items-center">
+                  {QUICK_REACTIONS.map((emoji) => {
+                    const active = (reactions[emoji] ?? []).includes(currentUserId)
+                    return (
+                      <button
+                        key={emoji}
+                        onClick={() => void handleReaction(emoji)}
+                        className={`flex-1 flex items-center justify-center py-3 text-[28px] select-none transition-transform active:scale-90 ${
+                          active ? 'scale-110' : ''
+                        }`}
+                      >
+                        {emoji}
+                      </button>
+                    )
+                  })}
+
+                  {/* Open native emoji keyboard */}
+                  <button
+                    onClick={handlePickEmoji}
+                    className="flex-1 flex items-center justify-center py-3"
+                    aria-label="More emojis"
+                  >
+                    <span className="w-9 h-9 rounded-full bg-[#1a1a2e] border border-border flex items-center justify-center text-[18px]">
+                      😊
+                    </span>
+                  </button>
+                </div>
+
+                <div className="border-t border-border" />
+
+                {/* ── Copy Text ────────────────────────────────────────────── */}
                 <button
-                  key={emoji}
-                  onClick={() => void handleReaction(emoji)}
-                  className={`flex items-center gap-1 px-2 py-0.5 border text-[13px] leading-none transition-colors select-none ${
-                    active
-                      ? 'bg-[rgba(191,95,255,0.15)] border-[#bf5fff]'
-                      : 'bg-surface border-border'
-                  }`}
+                  onClick={handleCopy}
+                  className="w-full flex items-center gap-4 px-5 min-h-[52px] active:bg-[#111111] transition-colors"
                 >
-                  <span>{emoji}</span>
-                  <span className={`font-silkscreen text-[9px] leading-none ${active ? 'text-[#bf5fff]' : 'text-tertiary'}`}>
-                    {users.length}
+                  <span className="text-[20px]">📋</span>
+                  <span className="font-body text-[15px] text-primary">
+                    {copied ? 'Copied!' : 'Copy Text'}
                   </span>
                 </button>
-              )
-            })}
-          </div>
-        )}
-      </div>
-    </div>
+
+                {/* Hidden input — focus opens native emoji keyboard on mobile */}
+                <input
+                  ref={emojiInputRef}
+                  type="text"
+                  aria-hidden="true"
+                  tabIndex={-1}
+                  style={{ position: 'fixed', top: '-9999px', left: '-9999px', width: 1, height: 1, opacity: 0.01 }}
+                  onInput={handleNativeEmojiInput}
+                />
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
+    </>
   )
 }
 

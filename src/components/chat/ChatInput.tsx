@@ -46,7 +46,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatI
   const msgChannelRef    = useRef<RealtimeChannel | null>(null)
 
   const {
-    addMessage, updateMessage, setCrewXP, receiveXP,
+    addMessage, updateMessage, setCrewXP, receiveXP, addXP,
     activeRaid, damageFloats, addDamageFloat, dismissDamageFloat,
     crewXP, crewLevel, xpFloats, dismissXPFloat,
     onlineUserIds, setOnlineUserIds, addUserCoins,
@@ -161,6 +161,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatI
         xp_awarded: raw.xp_awarded, reactions: {}, created_at: raw.created_at, profile: userProfile,
       }
       addMessage(newMessage)
+      addXP(10) // optimistic: show float + advance bar immediately; server syncs authoritative total below
 
       msgChannelRef.current?.send({
         type: 'broadcast', event: 'new_message',
@@ -183,7 +184,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatI
           console.log('[award-xp]', data)
           if (typeof data.xp_earned === 'number' && data.xp_earned > 0) updateMessage(msgId, { xp_awarded: data.xp_earned })
           if (typeof data.new_total_xp === 'number') {
-            receiveXP(data.xp_earned ?? 0, data.new_total_xp)
+            setCrewXP(data.new_total_xp) // sync authoritative total; float already shown optimistically
             msgChannelRef.current?.send({
               type: 'broadcast', event: 'xp_update',
               payload: { xp_earned: data.xp_earned ?? 0, new_total_xp: data.new_total_xp, sender_id: userId },
