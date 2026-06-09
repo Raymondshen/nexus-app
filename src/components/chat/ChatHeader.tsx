@@ -11,6 +11,8 @@ import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { Bell } from 'pixelarticons/react/Bell'
 import { BellOff } from 'pixelarticons/react/BellOff'
 import { UserPlus } from 'pixelarticons/react/UserPlus'
+import { Copy } from 'pixelarticons/react/Copy'
+import { Check } from 'pixelarticons/react/Check'
 
 // ─── NotifSheet ───────────────────────────────────────────────────────────────
 
@@ -138,23 +140,11 @@ function ShareModal({ crew, onClose }: { crew: Crew; onClose: () => void }) {
 
   async function handleCopy() {
     try {
-      await navigator.clipboard.writeText(crew.invite_code)
+      await navigator.clipboard.writeText(`Come join my squad on Nexus app ${crew.invite_code}`)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch {
       // Clipboard API not available
-    }
-  }
-
-  async function handleShare() {
-    if (!navigator.share) return
-    try {
-      await navigator.share({
-        title: `Join ${crew.name} on Nexus`,
-        text:  `Join my crew on Nexus!\nCrew: ${crew.name}\nCode: ${crew.invite_code}`,
-      })
-    } catch {
-      // User cancelled or share failed
     }
   }
 
@@ -168,58 +158,61 @@ function ShareModal({ crew, onClose }: { crew: Crew; onClose: () => void }) {
     >
       <div className="absolute inset-0 bg-black/60" />
       <motion.div
-        initial={{ y: 80, opacity: 0 }}
-        animate={{ y: 0,  opacity: 1 }}
-        exit={{   y: 80, opacity: 0 }}
-        transition={{ type: 'spring', stiffness: 280, damping: 26 }}
-        className="relative w-full max-w-[480px] bg-[#0f0820] border-t border-[#2a1545] p-6"
+        initial={{ y: '100%' }}
+        animate={{ y: 0 }}
+        exit={{ y: '100%' }}
+        transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+        className="relative w-full max-w-[480px] bg-black border-t border-border flex flex-col gap-6 items-center p-4"
         style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 24px)' }}
         onClick={(e) => e.stopPropagation()}
       >
-        <p className="font-pixel text-[8px] text-[#6b4f8f] mb-1">{crew.name.toUpperCase()}</p>
-        <h2 className="font-pixel text-[11px] text-white mb-4">INVITE YOUR CREW</h2>
-
-        <div
-          className="flex items-center justify-center mb-4 py-4 border border-[#2a1545]"
-          style={{ background: 'rgba(191,95,255,0.06)', letterSpacing: '0.5em' }}
-        >
-          <span className="font-pixel text-[20px] text-[#bf5fff]"
-            style={{ textShadow: '0 0 14px rgba(191,95,255,0.6)' }}>
-            {crew.invite_code}
-          </span>
+        {/* Header */}
+        <div className="flex flex-col gap-2 items-start w-full">
+          <p className="font-pixel text-[8px] text-tertiary leading-none whitespace-nowrap">
+            SQUAD SH**!
+          </p>
+          <p
+            className="font-body font-bold text-[18px] text-primary leading-none whitespace-nowrap"
+            style={{ fontVariationSettings: '"opsz" 14' }}
+          >
+            Invite Your Squad
+          </p>
         </div>
 
-        <div className="flex gap-3">
+        {/* Invite code card */}
+        <div className="flex items-center justify-between bg-[rgba(168,85,247,0.1)] border border-purple p-4 w-full overflow-hidden">
+          <p
+            className="font-silkscreen text-[24px] text-purple leading-none tracking-[0.2px]"
+            style={{ textShadow: '0px 0px 3px #a855f7' }}
+          >
+            {crew.invite_code}
+          </p>
           <button
             onClick={handleCopy}
-            className="flex-1 py-3 font-pixel text-[9px] border transition-colors"
-            style={{
-              color:       copied ? '#66bb6a' : '#bf5fff',
-              borderColor: copied ? 'rgba(102,187,106,0.5)' : 'rgba(191,95,255,0.4)',
-              background:  copied ? 'rgba(102,187,106,0.08)' : 'rgba(191,95,255,0.06)',
-            }}
+            className="flex items-center gap-1 px-4 py-3 flex-shrink-0 transition-colors duration-150"
+            style={copied
+              ? { backgroundColor: '#22c55e', boxShadow: '2px 2px 0px 0px rgba(34,197,94,0.5)' }
+              : { backgroundColor: 'var(--color-purple)' }
+            }
           >
-            {copied ? '✓ COPIED' : 'COPY CODE'}
+            {copied ? (
+              <>
+                <Check style={{ width: 12, height: 12, color: 'white' }} aria-hidden="true" />
+                <span className="font-silkscreen text-[11px] text-white leading-none whitespace-nowrap">copied</span>
+              </>
+            ) : (
+              <>
+                <Copy style={{ width: 12, height: 12, color: 'white' }} aria-hidden="true" />
+                <span className="font-silkscreen text-[11px] text-white leading-none whitespace-nowrap">Copy Code</span>
+              </>
+            )}
           </button>
-
-          {typeof navigator !== 'undefined' && 'share' in navigator && (
-            <button
-              onClick={handleShare}
-              className="flex-1 py-3 font-pixel text-[9px] border transition-colors"
-              style={{
-                color:       '#00e5ff',
-                borderColor: 'rgba(0,229,255,0.4)',
-                background:  'rgba(0,229,255,0.06)',
-              }}
-            >
-              ↑ SHARE
-            </button>
-          )}
         </div>
 
+        {/* Close */}
         <button
           onClick={onClose}
-          className="mt-4 w-full font-pixel text-[8px] text-[#3d2660] py-2 hover:text-[#6b4f8f] transition-colors"
+          className="h-12 w-full flex items-center justify-center font-pixel text-[8px] text-tertiary transition-colors active:text-primary"
         >
           CLOSE
         </button>

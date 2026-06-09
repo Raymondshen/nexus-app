@@ -854,7 +854,7 @@ export function HomeClient({
                 aria-label={`${infiniteCoins ? '∞' : coins} coins`}
                 className="self-stretch flex items-center"
               >
-                <div className="flex items-center gap-[var(--space-2)] h-full bg-[rgba(245,158,11,0.25)] rounded-[4px] px-1">
+                <div className="flex items-center h-full bg-[rgba(245,158,11,0.25)] rounded-[4px] px-1">
                   <TokeCircle style={{ width: 24, height: 16, color: '#f59e0b' }} aria-hidden="true" />
                   <span className="font-silkscreen text-[12px] leading-none w-[26px] pb-[2px]" style={{ color: '#f59e0b' }}>
                     {infiniteCoins ? '∞' : coins.toLocaleString()}

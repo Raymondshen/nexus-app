@@ -90,7 +90,7 @@ Coins are the invite currency. Earned by sending messages; spent (future) to inv
 - Awarded in `award-xp` edge function via `increment_user_coins(user_id, amount)` RPC (atomic UPDATE)
 - Anti-spam: coins only awarded when `xpBlocked = false` (same cooldown/burst gate as XP)
 - `ChatInput` calls `addUserCoins(coins_earned)` from store on award-xp response
-- **Displayed in the home header only**: amber pill badge — `bg-[rgba(245,158,11,0.25)] rounded-[4px] px-1` (4px horizontal padding) stretching the full `h-10` row height, containing `TokeCircle` icon (`pixelarticons/react/TokeCircle`) at **24×16px** (not square) + count in **Silkscreen 12px** `#f59e0b` (amber, not gold), `w-[26px] pb-[2px]`. Gap inside badge is `gap-[var(--space-2)]` (4px via design token). The NEXUS logo has `w-[140px]`. Tap shows "25 COINS = 1 CREW INVITE" tooltip (2s). `HomeClient` seeds local `coins` state from `Math.max(initialCoins, chatStore.userCoins)` on mount. **Critical**: `chatStore.userCoins` must hold the absolute balance (not a delta from 0) — the `useState` initializer seeds the store with `initialCoins` whenever the store value is lower, so that subsequent `addUserCoins(1)` calls in chat accumulate from the correct base (e.g. 100 → 101, not 0 → 1). Without this seeding, `Math.max(initialCoins=100, storeCoins=5)` would always return 100 and ignore earned coins until realtime fires. Realtime `postgres_changes` UPDATE on `profiles` keeps the display live AND re-syncs the store value (`setUserCoins(newCoins)`). `handleCoinsDeducted` also syncs the store on spend (-25). **No `initialCoins` sync effect** — a previously present `useEffect([initialCoins])` was removed because stale server re-renders snapped back to pre-deduction values. The `useState` initializer + Realtime subscription are the two correct sources of truth.
+- **Displayed in the home header only**: amber pill badge — `bg-[rgba(245,158,11,0.25)] rounded-[4px] px-1` (4px horizontal padding) stretching the full `h-10` row height, containing `TokeCircle` icon (`pixelarticons/react/TokeCircle`) at **24×16px** (not square) + count in **Silkscreen 12px** `#f59e0b` (amber, not gold), `w-[26px] pb-[2px]`. No gap between icon and count (icon and text are flush). The NEXUS logo has `w-[140px]`. Tap shows "25 COINS = 1 CREW INVITE" tooltip (2s). `HomeClient` seeds local `coins` state from `Math.max(initialCoins, chatStore.userCoins)` on mount. **Critical**: `chatStore.userCoins` must hold the absolute balance (not a delta from 0) — the `useState` initializer seeds the store with `initialCoins` whenever the store value is lower, so that subsequent `addUserCoins(1)` calls in chat accumulate from the correct base (e.g. 100 → 101, not 0 → 1). Without this seeding, `Math.max(initialCoins=100, storeCoins=5)` would always return 100 and ignore earned coins until realtime fires. Realtime `postgres_changes` UPDATE on `profiles` keeps the display live AND re-syncs the store value (`setUserCoins(newCoins)`). `handleCoinsDeducted` also syncs the store on spend (-25). **No `initialCoins` sync effect** — a previously present `useEffect([initialCoins])` was removed because stale server re-renders snapped back to pre-deduction values. The `useState` initializer + Realtime subscription are the two correct sources of truth.
   - Coins are **not** shown in the message bubble header — home header only.
 - `chatStore` holds `userCoins`, `setUserCoins`, `addUserCoins`; **not** shown in `ChatHeader` — coins are home-only at the global level
 - `profiles` table is in `supabase_realtime` publication — `HomeClient` subscribes to `postgres_changes` UPDATE on `profiles` for live coin balance (ChatHeader no longer subscribes)
@@ -387,6 +387,19 @@ Triggered by tapping the bell icon in `ChatHeader`. Matches Figma node 54:337.
   - Three `NotifToggleRow` rows (`px-4`): Messages / Raid Alerts / Victory; separated by `border-t border-border` dividers
   - Each row: label DM Sans Medium 14px `text-secondary`, description DM Sans Regular 12px `text-tertiary`, toggle 40×24px (purple when on / `#27272a` off), knob `w-4 h-4` animates `left: 4 → 20` via spring `stiffness 400 / damping 30`
 - **Close button**: `w-full font-silkscreen text-[16px] text-muted` — `"Close"` (title-case, not all-caps)
+
+### ChatHeader — ShareModal (invite sheet)
+Triggered by tapping the `UserPlus` icon in `ChatHeader`. Matches Figma node 71:801. Only shown for group chats (not DMs — `DMHeader` omits the UserPlus button).
+- Container: `bg-black border-t border-border flex flex-col gap-6 items-center p-4`; `paddingBottom: max(env(safe-area-inset-bottom), 24px)`; spring `stiffness 320 / damping 32`, slides `y: '100%' → 0`
+- **Header** (`flex flex-col gap-2 items-start w-full`):
+  - Label: Press Start 2P 8px `text-tertiary` — `"SQUAD SH**!"`
+  - Title: DM Sans Bold 18px `text-primary` — `"Invite Your Squad"`
+- **Invite code card**: `bg-[rgba(168,85,247,0.1)] border border-purple p-4 flex items-center justify-between w-full`
+  - Code: Silkscreen 24px `text-purple` with `textShadow: '0px 0px 3px #a855f7'`
+  - Copy button toggles state — default: `bg-purple` + `Copy` 12px icon + "Copy Code" Silkscreen 11px white; copied: `bg-[#22c55e] boxShadow: '2px 2px 0px 0px rgba(34,197,94,0.5)'` + `Check` 12px icon + "copied" Silkscreen 11px white for 2s
+  - Copy writes `"Come join my squad on Nexus app {code}"` to clipboard (same string as ChatInput panel)
+- **Close button**: `h-12 w-full font-pixel text-[8px] text-tertiary` — `"CLOSE"` (all-caps)
+- Uses `Copy` + `Check` from `pixelarticons` (already in imports for ChatInput; added to ChatHeader imports)
 
 ### ChatHeader — props and spacing
 `ChatHeader` accepts only `{ crew, initialXP, initialRaid, currentUserId, crewId }`. It has **no** `members`, `memberLastSeen`, or `initialCoins` props — member avatars live in ChatInput; coins are home-only. Do not add a second presence channel here (see Online Presence note above).
@@ -767,6 +780,7 @@ Note: next/font variable for Silkscreen is `--font-silk` (not `--font-silkscreen
   | ChatInput — collapse members (expanded sheet) | `ChevronRight` rotate(90deg) | `pixelarticons/react/ChevronRight` | 24×24, `color: var(--color-tertiary)` |
   | ChatInput — crew creator badge | `Crown` | `pixelarticons/react/Crown` | `var(--text-xs)` (12px), `color: #f59e0b` (amber) |
   | ChatInput — invite code copy button | `Copy` | `pixelarticons/react/Copy` | 12×12, white |
+  | ChatHeader — invite sheet copy button | `Copy` / `Check` | `pixelarticons/react/Copy`, `Check` | 12×12, white |
   | Home header — friends | `AvatarSquare` | `pixelarticons/react/AvatarSquare` | 24×24 |
   | Home header — add | `PlusBox` | `pixelarticons/react/PlusBox` | 24×24 |
   | Home profile banner — edit | `MagicEdit` | `pixelarticons/react/MagicEdit` | 16×16 |
