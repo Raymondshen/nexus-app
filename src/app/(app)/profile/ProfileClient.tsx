@@ -247,15 +247,15 @@ export function ProfileClient({
     >
       {/* ── Header ── */}
       <div
-        className="px-4 border-b border-border flex-shrink-0"
-        style={{ paddingTop: 'max(env(safe-area-inset-top), 8px)', paddingBottom: 8 }}
+        className="bg-black border-b border-border px-4 pb-2 flex-shrink-0"
+        style={{ paddingTop: 'max(env(safe-area-inset-top), 8px)' }}
       >
-        <div className="flex items-center h-[40px] gap-2">
+        <div className="flex items-center h-10 gap-2">
           <button
             onClick={goBack}
             aria-label="Back"
             className="flex-shrink-0 flex items-center justify-center"
-            style={{ width: 44, height: 40 }}
+            style={{ width: 24, height: 40 }}
           >
             <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
           </button>
