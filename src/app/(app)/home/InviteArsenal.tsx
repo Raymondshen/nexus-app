@@ -92,6 +92,7 @@ export function InviteArsenal({ userId, coins, infiniteCoins, onClose, onCoinsDe
         <button
           onClick={onClose}
           className="self-start flex items-center justify-center min-h-[44px] text-tertiary hover:text-primary transition-colors"
+          style={{ width: 44 }}
           aria-label="Close"
         >
           <ChevronLeft style={{ width: 24, height: 24 }} aria-hidden="true" />
