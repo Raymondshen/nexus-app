@@ -14,7 +14,7 @@ import type { Profile, Crew, ActiveRaid, AvatarClass } from "@/types";
 type MemberProfile = Pick<Profile, "id" | "username" | "avatar_class" | "avatar_url">
 type MemberProfileMap = Record<string, MemberProfile>
 // class is the crew-specific class; last_seen is fetched fresh (not cached)
-type MemberRow = { user_id: string; last_seen: string | null; class: AvatarClass | null }
+type MemberRow = { user_id: string; last_seen: string | null; class: AvatarClass | null; joined_at: string | null }
 
 // ─── Cache ────────────────────────────────────────────────────────────────────
 
@@ -80,7 +80,7 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
       .maybeSingle(),
     supabase
       .from("crew_members")
-      .select("user_id, last_seen, class")
+      .select("user_id, last_seen, class, joined_at")
       .eq("crew_id", crewId),
   ]);
 
@@ -103,6 +103,15 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
   if (!currentMemberRow?.class) {
     redirect(`/onboarding/class?crew=${crewId}`)
   }
+
+  // Creator = member with the earliest joined_at
+  const creatorId = lastSeenRows.length > 0
+    ? lastSeenRows.reduce((earliest, row) => {
+        if (!earliest.joined_at) return row
+        if (!row.joined_at) return earliest
+        return row.joined_at < earliest.joined_at ? row : earliest
+      }, lastSeenRows[0]).user_id
+    : null
 
   return (
     <SlidePage
@@ -151,6 +160,8 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
           }
           memberProfiles={memberProfiles}
           crewName={crew.name}
+          inviteCode={crew.invite_code}
+          creatorId={creatorId ?? undefined}
         />
       </ErrorBoundary>
 

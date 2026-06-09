@@ -220,7 +220,7 @@ export function MessageBubble({
   return (
     <>
       <div
-        className={`flex gap-[8px] items-start w-full select-none ${showHeader ? 'pt-[var(--space-5)] pb-0' : 'pt-[var(--space-2)] pb-0'}`}
+        className={`flex gap-[8px] items-start w-full select-none ${showHeader ? 'pt-[var(--space-6)] pb-0' : 'pt-[var(--space-2)] pb-0'}`}
         onContextMenu={(e) => { e.preventDefault(); setSheetOpen(true) }}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}

@@ -15,6 +15,8 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/config'
 import { haptic } from '@/lib/sounds'
 import { Send } from 'pixelarticons/react/Send'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
+import { Crown } from 'pixelarticons/react/Crown'
+import { Copy } from 'pixelarticons/react/Copy'
 import type { Message, MessageWithProfile, Profile } from '@/types'
 
 const MAX_MESSAGE_LENGTH = 2000
@@ -35,6 +37,8 @@ interface ChatInputProps {
   userProfile:    MemberProfile
   memberProfiles: Record<string, MemberProfile>
   crewName:       string
+  inviteCode?:    string
+  creatorId?:     string
 }
 
 function sanitizeMessage(raw: string): string {
@@ -42,9 +46,9 @@ function sanitizeMessage(raw: string): string {
 }
 
 function MemberListRow({
-  profile, msgCount, loading, isOnline,
+  profile, msgCount, loading, isOnline, isCreator,
 }: {
-  profile: MemberProfile; msgCount: number; loading: boolean; isOnline: boolean
+  profile: MemberProfile; msgCount: number; loading: boolean; isOnline: boolean; isCreator?: boolean
 }) {
   const spriteInfo = spriteInfoFor(profile.avatar_class)
   const url        = profile.avatar_url as string | null
@@ -69,10 +73,10 @@ function MemberListRow({
         )}
       </div>
 
-      {/* Animated sprite */}
-      <div className="w-8 h-8 flex-shrink-0 flex items-center justify-center bg-surface">
+      {/* Animated sprite — no background, bumped scale with overflow clip */}
+      <div className="w-8 h-8 flex-shrink-0 flex items-center justify-center overflow-hidden">
         {spriteInfo ? (
-          <PixelSprite spriteId={spriteInfo.id} nativePx={spriteInfo.nativePx} scale={1} animate />
+          <PixelSprite spriteId={spriteInfo.id} nativePx={spriteInfo.nativePx} scale={1.5} animate />
         ) : (
           <span className="font-pixel text-[8px] text-purple">{initial}</span>
         )}
@@ -80,7 +84,12 @@ function MemberListRow({
 
       {/* Name + class · msg count */}
       <div className="flex flex-col gap-1 justify-center min-w-0">
-        <p className="font-body font-bold text-[16px] text-white truncate leading-none">{profile.username}</p>
+        <div className="flex items-center gap-1">
+          <p className="font-body font-bold text-[16px] text-white truncate leading-none">{profile.username}</p>
+          {isCreator && (
+            <Crown style={{ width: 16, height: 16, color: '#f59e0b' }} aria-hidden="true" />
+          )}
+        </div>
         <p className="font-silkscreen text-[8px] text-secondary leading-none">
           {loading ? '...' : `${classLabel} · ${msgCount.toLocaleString()} msg.`}
         </p>
@@ -89,7 +98,7 @@ function MemberListRow({
   )
 }
 
-export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewName }: ChatInputProps) {
+export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewName, inviteCode, creatorId }: ChatInputProps) {
   const [text,           setText]          = useState('')
   const [sending,        setSending]        = useState(false)
   const [sendError,      setSendError]      = useState<string | null>(null)
@@ -100,6 +109,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   const [isExpanded,     setIsExpanded]     = useState(false)
   const [memberMsgCounts, setMemberMsgCounts] = useState<Map<string, number>>(new Map())
   const [loadingCounts,  setLoadingCounts]  = useState(false)
+  const [copied,         setCopied]         = useState(false)
 
   const textareaRef      = useRef<HTMLTextAreaElement>(null)
   const rateRef          = useRef({ count: 0, resetAt: Date.now() + RATE_LIMIT_WINDOW })
@@ -340,6 +350,13 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     if (typingTimerRef.current) clearTimeout(typingTimerRef.current)
   }
 
+  function handleCopyCode() {
+    if (!inviteCode) return
+    navigator.clipboard.writeText(`Come join my squad on Nexus app ${inviteCode}`).catch(() => {})
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
   const typingLabel = typingUsers.length === 1
     ? `${typingUsers[0]} is typing...`
     : typingUsers.length === 2
@@ -532,11 +549,11 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
               onPanEnd={handlePanelPanEnd}
             >
               <div
-                className="flex flex-col px-4 pt-4"
+                className="flex flex-col gap-4 px-4 pt-4"
                 style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 32px)' }}
               >
                 {/* Title + stats + chevron AND avatar row + XP bar — 56px gap between them */}
-                <div className="flex flex-col gap-14 mb-4">
+                <div className="flex flex-col gap-14">
 
                   {/* Crew name + member stats + collapse button */}
                   <div className="flex items-start justify-between">
@@ -610,6 +627,36 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                   </div>
                 </div>
 
+                {/* Invite code block */}
+                {inviteCode && (
+                  <div className="flex items-center justify-between bg-[rgba(168,85,247,0.1)] border border-purple p-4 overflow-hidden">
+                    <div className="flex flex-col gap-1">
+                      <p className="font-silkscreen text-[8px] text-secondary leading-none tracking-[0.2px]">
+                        Invite your squad
+                      </p>
+                      <p
+                        className="font-silkscreen text-[24px] text-purple leading-none tracking-[0.2px]"
+                        style={{ textShadow: '0px 0px 3px #a855f7' }}
+                      >
+                        {inviteCode}
+                      </p>
+                    </div>
+                    <button
+                      onClick={handleCopyCode}
+                      className="flex items-center gap-1 bg-purple px-4 py-3 flex-shrink-0 active:opacity-70 transition-opacity"
+                    >
+                      {copied ? (
+                        <p className="font-silkscreen text-[11px] text-white leading-none whitespace-nowrap">Copied!</p>
+                      ) : (
+                        <>
+                          <Copy style={{ width: 12, height: 12, color: 'white' }} aria-hidden="true" />
+                          <p className="font-silkscreen text-[11px] text-white leading-none whitespace-nowrap">Copy Code</p>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
+
                 {/* Member rows */}
                 <div className="flex flex-col">
                   {members.map((m) => (
@@ -619,6 +666,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                       msgCount={memberMsgCounts.get(m.id) ?? 0}
                       loading={loadingCounts}
                       isOnline={onlineUserIds.has(m.id)}
+                      isCreator={m.id === creatorId}
                     />
                   ))}
                 </div>

@@ -5,6 +5,20 @@ import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { SlidePage, useSlideBack } from '@/components/ui/SlidePage'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
+
+function BackButton() {
+  const goBack = useSlideBack()
+  return (
+    <button
+      onClick={goBack}
+      aria-label="Back"
+      className="flex-shrink-0 flex items-center justify-center"
+      style={{ width: 44, height: 40 }}
+    >
+      <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
+    </button>
+  )
+}
 import Image from 'next/image'
 import { isSupabaseStorage, resolveAvatarUrl } from '@/components/ui/Avatar'
 import { createClient } from '@/lib/supabase/client'
@@ -126,7 +140,6 @@ export function ProfileClient({
   memberSinceYear, totalMessages, groupChats, inviterUsername,
 }: ProfileClientProps) {
   const router = useRouter()
-  const goBack = useSlideBack()
 
   // ── Avatar upload + reset ─────────────────────────────────────────────────
   const [localAvatarUrl,    setLocalAvatarUrl]    = useState(avatarUrl)
@@ -275,14 +288,7 @@ export function ProfileClient({
         style={{ paddingTop: 'max(env(safe-area-inset-top), 8px)' }}
       >
         <div className="flex items-center h-10 gap-2">
-          <button
-            onClick={goBack}
-            aria-label="Back"
-            className="flex-shrink-0 flex items-center justify-center"
-            style={{ width: 24, height: 40 }}
-          >
-            <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
-          </button>
+          <BackButton />
           <h1 className="font-pixel text-[18px] text-primary leading-none">PROFILE</h1>
         </div>
       </div>

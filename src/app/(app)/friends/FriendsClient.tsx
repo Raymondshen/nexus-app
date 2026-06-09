@@ -8,6 +8,20 @@ import { motion, AnimatePresence, useMotionValue, animate } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
 import { SlidePage, useSlideBack } from '@/components/ui/SlidePage'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
+
+function BackButton() {
+  const goBack = useSlideBack()
+  return (
+    <button
+      onClick={goBack}
+      aria-label="Back"
+      className="flex-shrink-0 flex items-center justify-center"
+      style={{ width: 44, height: 40 }}
+    >
+      <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
+    </button>
+  )
+}
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
 import { Search } from 'pixelarticons/react/Search'
 import { Check } from 'pixelarticons/react/Check'
@@ -173,7 +187,6 @@ export function FriendsClient({
   outgoingRequests: initialOutgoing,
 }: FriendsClientProps) {
   const router = useRouter()
-  const goBack = useSlideBack()
 
   const [friends,       setFriends]       = useState<FriendEntry[]>(initialFriends)
   const [incoming,      setIncoming]      = useState<FriendEntry[]>(initialIncoming)
@@ -309,14 +322,7 @@ export function FriendsClient({
         style={{ paddingTop: 'max(env(safe-area-inset-top), 8px)' }}
       >
         <div className="flex items-center h-10 gap-2">
-          <button
-            onClick={goBack}
-            aria-label="Back"
-            className="flex-shrink-0 flex items-center justify-center"
-            style={{ width: 24, height: 40 }}
-          >
-            <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
-          </button>
+          <BackButton />
           <h1 className="font-pixel text-[18px] text-primary leading-none whitespace-nowrap">FRIENDS</h1>
         </div>
       </div>

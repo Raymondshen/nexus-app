@@ -90,7 +90,7 @@ Coins are the invite currency. Earned by sending messages; spent (future) to inv
 - Awarded in `award-xp` edge function via `increment_user_coins(user_id, amount)` RPC (atomic UPDATE)
 - Anti-spam: coins only awarded when `xpBlocked = false` (same cooldown/burst gate as XP)
 - `ChatInput` calls `addUserCoins(coins_earned)` from store on award-xp response
-- **Displayed in the home header only**: amber pill badge — `bg-[rgba(245,158,11,0.25)] rounded-[4px] px-1` (4px horizontal padding) stretching the full `h-10` row height, containing `TokeCircle` icon (`pixelarticons/react/TokeCircle`) at **24×16px** (not square) + count in **Silkscreen 12px** `#f59e0b` (amber, not gold), `w-[26px] pb-[2px]`. Gap inside badge is `gap-1` (4px). The NEXUS logo has `w-[140px]`. Tap shows "25 COINS = 1 CREW INVITE" tooltip (2s). `HomeClient` seeds local `coins` state from `Math.max(initialCoins, chatStore.userCoins)` on mount. **Critical**: `chatStore.userCoins` must hold the absolute balance (not a delta from 0) — the `useState` initializer seeds the store with `initialCoins` whenever the store value is lower, so that subsequent `addUserCoins(1)` calls in chat accumulate from the correct base (e.g. 100 → 101, not 0 → 1). Without this seeding, `Math.max(initialCoins=100, storeCoins=5)` would always return 100 and ignore earned coins until realtime fires. Realtime `postgres_changes` UPDATE on `profiles` keeps the display live AND re-syncs the store value (`setUserCoins(newCoins)`). `handleCoinsDeducted` also syncs the store on spend (-25). **No `initialCoins` sync effect** — a previously present `useEffect([initialCoins])` was removed because stale server re-renders snapped back to pre-deduction values. The `useState` initializer + Realtime subscription are the two correct sources of truth.
+- **Displayed in the home header only**: amber pill badge — `bg-[rgba(245,158,11,0.25)] rounded-[4px] px-1` (4px horizontal padding) stretching the full `h-10` row height, containing `TokeCircle` icon (`pixelarticons/react/TokeCircle`) at **24×16px** (not square) + count in **Silkscreen 12px** `#f59e0b` (amber, not gold), `w-[26px] pb-[2px]`. Gap inside badge is `gap-[var(--space-2)]` (4px via design token). The NEXUS logo has `w-[140px]`. Tap shows "25 COINS = 1 CREW INVITE" tooltip (2s). `HomeClient` seeds local `coins` state from `Math.max(initialCoins, chatStore.userCoins)` on mount. **Critical**: `chatStore.userCoins` must hold the absolute balance (not a delta from 0) — the `useState` initializer seeds the store with `initialCoins` whenever the store value is lower, so that subsequent `addUserCoins(1)` calls in chat accumulate from the correct base (e.g. 100 → 101, not 0 → 1). Without this seeding, `Math.max(initialCoins=100, storeCoins=5)` would always return 100 and ignore earned coins until realtime fires. Realtime `postgres_changes` UPDATE on `profiles` keeps the display live AND re-syncs the store value (`setUserCoins(newCoins)`). `handleCoinsDeducted` also syncs the store on spend (-25). **No `initialCoins` sync effect** — a previously present `useEffect([initialCoins])` was removed because stale server re-renders snapped back to pre-deduction values. The `useState` initializer + Realtime subscription are the two correct sources of truth.
   - Coins are **not** shown in the message bubble header — home header only.
 - `chatStore` holds `userCoins`, `setUserCoins`, `addUserCoins`; **not** shown in `ChatHeader` — coins are home-only at the global level
 - `profiles` table is in `supabase_realtime` publication — `HomeClient` subscribes to `postgres_changes` UPDATE on `profiles` for live coin balance (ChatHeader no longer subscribes)
@@ -249,7 +249,7 @@ Member avatars and online dots in ChatInput are not gated — those are chat fea
 ### MessageList — message grouping
 Consecutive messages from the same user within 60 seconds are visually grouped (no repeated avatar/header). `showHeader = false` for continuation messages.
 - `lastUserId` + `lastMsgTime` tracked in the display-list loop; both reset to null/0 on day dividers, boss cards, artifacts, level-up banners, and system messages — these all break grouping so the next regular message shows a fresh header
-- **Spacing**: first in group → `pt-[var(--space-5)] pb-0` (16px, `--space-5` from globals.css); continuation → `pt-[var(--space-2)] pb-0` (4px, `--space-2`). Between-group gap = 16px; within-group gap = 4px.
+- **Spacing**: first in group → `pt-[var(--space-6)] pb-0` (20px, `--space-6` from globals.css); continuation → `pt-[var(--space-2)] pb-0` (4px, `--space-2`). Between-group gap = 20px; within-group gap = 4px.
 - **Avatar**: only rendered for `showHeader = true` (first in group). Continuation messages (`showHeader = false`) skip the avatar element entirely and use `pl-10` (40px = 32px avatar + 8px gap) on the content div to keep text aligned.
 - **Pre-pass accumulation**: a single pre-pass loop builds both `groupXPMap` and `groupCoinMap` (Map<msgId, number>). The group-leader bubble receives `xpOverride` and `coinOverride` props; `xpOverride` counts up via `requestAnimationFrame` in `MessageBubble`. `coinOverride` state is maintained internally but not rendered — coin totals are home-only.
 - **Message bubble header format**: `username · [dot] · class · [dot] · +XP XP` — all items center-aligned with `gap-[4px]`. Purple 2×2px dot separators. Class label `#b3b3b3`, XP amber `#f59e0b`. No pixel sprite in the header; no coin display. Row `gap-[8px]` between avatar and content column.
@@ -257,7 +257,7 @@ Consecutive messages from the same user within 60 seconds are visually grouped (
 ### ChatInput — send flow
 `insert_message` RPC → `addMessage` (optimistic) → broadcast slim payload on `messages:{crewId}` → `award-xp` edge function (patches `xp_awarded` back + broadcasts `xp_update`) → `attack-boss` edge function (if raid active)
 
-- **Props**: `{ crewId, userId, userProfile, memberProfiles, crewName }`. `crewName` is the crew's display name (passed from the chat page and DM page); used in the expanded member panel header.
+- **Props**: `{ crewId, userId, userProfile, memberProfiles, crewName, inviteCode?, creatorId? }`. `crewName` is the crew's display name; `inviteCode` is the crew's join code (group chats only — omitted for DMs); `creatorId` is derived server-side as the `crew_members` row with the earliest `joined_at`.
 - **Single channel**: `messages:{crewId}` is configured with presence and handles message broadcasting, typing presence, and online presence. There is no separate `typing:{crewId}` channel.
 - **Send icon**: `Send` from `pixelarticons/react/Send` (16px); `text-primary` when textarea has text, `text-muted` when empty.
 - **"Next Boss" label**: always visible (right side of XP stats row) — not gated by dev mode.
@@ -268,16 +268,17 @@ Consecutive messages from the same user within 60 seconds are visually grouped (
 ### ChatInput — expanded member panel
 Triggered by swipe-up (`onPanEnd` offset.y < -50 or velocity.y < -300) or tapping the chevron-up button. Slides up from the ChatInput container itself (not from off-screen) with `spring stiffness 320 / damping 32`. The ChatInput wrapper carries `relative z-[40]`; the panel is `absolute bottom-0 left-0 right-0 z-[50]` so `y: '100%' → 0` originates from within the container. Backdrop: `fixed inset-0 z-[38] bg-black/60`. Sheet: `bg-black border-t border-border`, `maxHeight: 85vh`, scrollable.
 
-**Sheet interior** (`flex flex-col px-4 pt-4`, safe-area-bottom padding):
-- **Content block** (`flex flex-col gap-14` = 56px gap, `mb-4`):
+**Sheet interior** (`flex flex-col gap-4 px-4 pt-4`, safe-area-bottom padding; `gap-4` = 16px between all sections):
+- **Content block** (`flex flex-col gap-14` = 56px gap):
   - *Title row* (`flex items-start justify-between`): crew name in Press Start 2P 18px `text-primary` + member count/total-messages stat in Silkscreen 8px `text-secondary` below it; `ChevronRight` rotated `90deg` (pointing down) 24×24 `text-tertiary` on the right — taps to collapse.
   - *Avatar + XP bar* (`flex flex-col gap-2`): same 24×24 avatar row with online dots, then Silkscreen 8px Level/XP/Next Boss stats row + 4px purple progress bar.
+- **Invite code block** (group chats only, not shown for DMs): `bg-[rgba(168,85,247,0.1)] border border-purple p-4`. Left: "Invite your squad" (Silkscreen 8px `text-secondary`) + crew code (Silkscreen 24px `text-purple`, `textShadow: '0px 0px 3px #a855f7'`). Right: `bg-purple px-4 py-3` button with `Copy` icon 12px + "Copy Code" / "Copied!" Silkscreen 11px. Tapping copies `"Come join my squad on Nexus app {code}"` to clipboard; button shows "Copied!" for 2s.
 - **Member rows** (`flex flex-col`, divider via `border-b border-border last:border-0`, `py-4` per row):
   - Left 32×32: profile photo (or initial fallback) with online dot
-  - Center 32×32: `PixelSprite scale={1}` centered in `bg-surface` box (or initial fallback)
-  - Right text: DM Sans Bold 16px `text-white` name + Silkscreen 8px `text-secondary` subtitle `"Class · N msg."`
+  - Center 32×32: `PixelSprite scale={1.5}` in `overflow-hidden` container, no background (sprite clips at edges); initial fallback if no sprite available
+  - Right text: `flex flex-col gap-1` — DM Sans Bold 16px `text-white` name with `Crown` icon 16px `#f59e0b` (amber) inline to the right when `isCreator` is true; Silkscreen 8px `text-secondary` subtitle `"Class · N msg."`. Name+icon row uses `gap-1` (4px).
   - Row gap: `gap-3` (12px)
-- **CLOSE button**: `h-12 w-full`, Press Start 2P 8px `text-tertiary`, centered, `mt-4`; swipe-down gesture (`offset.y > 60` or `velocity.y > 300`) also collapses.
+- **CLOSE button**: `h-12 w-full`, Press Start 2P 8px `text-tertiary`, centered; swipe-down gesture (`offset.y > 60` or `velocity.y > 300`) also collapses.
 
 ### award-xp — query batching + anti-spam
 - **Batch 1** (always, parallel): previous message gap + burst window count + crew name/XP + sender's `is_dev` flag — 4 queries in one `Promise.all`
@@ -388,7 +389,7 @@ Triggered by tapping the bell icon in `ChatHeader`. Matches Figma node 54:337.
 ### ChatHeader — props and spacing
 `ChatHeader` accepts only `{ crew, initialXP, initialRaid, currentUserId, crewId }`. It has **no** `members`, `memberLastSeen`, or `initialCoins` props — member avatars live in ChatInput; coins are home-only. Do not add a second presence channel here (see Online Presence note above).
 
-Header spacing: `px-4 pb-2` (16px horizontal, 8px bottom), `paddingTop: max(env(safe-area-inset-top), 8px)`, heading row `h-10`. Left side: `gap-2` (8px) between back button and crew name. Crew name is a static `<h1>` — **not** a button; no tap handler, no underline, no dropdown chevron. All icons `style={{ width: 24, height: 24 }}`. Back arrows across all screens use `ChevronLeft` from pixelarticons with `color: var(--color-tertiary)`.
+Header spacing: `px-4 pb-2` (16px horizontal, 8px bottom), `paddingTop: max(env(safe-area-inset-top), 8px)`, heading row `h-10`. Left side: `gap-2` (8px) between back button and crew name. Crew name is a static `<h1>` — **not** a button; no tap handler, no underline, no dropdown chevron. All icons `style={{ width: 24, height: 24 }}`. Back arrows across all screens use `ChevronLeft` from pixelarticons with `color: var(--color-tertiary)`. Right side has bell + UserPlus only — the vault (Notebook) icon has been removed.
 
 ### Page Transitions — SlidePage + useSlideBack
 All "detail" pages (chat, DM, profile, friends, vault) slide in from the right on mount and slide back out on close.
@@ -396,7 +397,8 @@ All "detail" pages (chat, DM, profile, friends, vault) slide in from the right o
 - **`SlidePage`** (`src/components/ui/SlidePage.tsx`) — client component that wraps the page's outermost `motion.div`. Enter: spring `stiffness 380 / damping 36` (~280ms). Exit: ease-in tween `[0.32,0,0.67,0]` 280ms, then fires `router.back()` (or `router.replace(backHref)` when `backHref` is set) after 290ms. Guards against double-fire with `exiting` flag.
   - **`backHref` prop** — optional string; when set, `goBack()` calls `router.replace(backHref)` instead of `router.back()`. Used by the chat page when `?welcome=1` is present, and by `ProfileClient` (always `backHref="/home"`) so back navigation is reliable even when there is no browser history entry (e.g. direct URL load or page refresh). `FriendsClient` does NOT use `backHref` — it uses `router.back()` like other slide pages (DM, member profile), since it is only reachable from `/home`.
 - **`useSlideBack()`** — hook that returns the `goBack` callback from SlidePage context. Use this **instead of `router.back()`** in all back buttons on slide pages. Falls back to no-op if called outside a SlidePage (safe).
-- **Wired in**: `ChatHeader`, `DMHeader`, `ProfileClient`, `FriendsClient` all call `useSlideBack()`. `VaultClient` wraps in SlidePage for the entrance animation but has no explicit back button.
+- **Wired in**: `ChatHeader`, `DMHeader` call `useSlideBack()` directly — they are children of a parent SlidePage rendered by the page. `VaultClient` wraps in SlidePage for the entrance animation but has no explicit back button.
+- **Context scoping caveat**: `ProfileClient` and `FriendsClient` render their own `<SlidePage>` wrapper and cannot call `useSlideBack()` at the component body level (the hook would fire outside the context they provide). Instead they define a local `BackButton` component that is rendered *inside* `<SlidePage>` and calls `useSlideBack()` there — where the context is reachable.
 - **Back button tap target**: back buttons must be at least 44px wide (not just 24px for the icon) to be reliably tappable on mobile. Use `style={{ width: 44 }}` or `w-11` on the `<button>` wrapper.
 - **Onboarding → chat back navigation**: after any onboarding flow (create crew, join crew, class selection), the final redirect to `/chat/[crewId]` always includes `?welcome=1`. The chat page passes `backHref="/home"` to `SlidePage` when this param is present, so the back button skips the onboarding history and goes directly to home. `WelcomeDetector` strips `?welcome=1` from the URL bar client-side via `window.history.replaceState` without triggering a re-render.
 - `html, body` has `overflow-x: hidden` in `globals.css` to prevent a horizontal scrollbar during the off-screen initial position.
@@ -418,8 +420,8 @@ All "detail" pages (chat, DM, profile, friends, vault) slide in from the right o
 - **Friends section**: always rendered. Friend row: 40px avatar, name (DM Sans SemiBold 16px primary), `"est. {year}"` subtitle (Silkscreen 11px tertiary). Tapping the row navigates to `/dm/[friendId]`. Right side: `ChevronRight` 24px tertiary (nav affordance) + red Remove button `bg-[#ef4444] px-4 py-3 gap-[4px]` — `UserMinus` 12px white + `"Remove"` Silkscreen 11px white — uses `e.stopPropagation()`.
 - User + section rows use: `gap-4` between items, `tracking-[0.2px]` on text columns
 - Guest guard: `isGuest` prop (`user.is_anonymous === true`); ADD button disabled + Google sign-in banner shown; `sendFriendRequestAction` also blocks anonymous users server-side
-- **No BottomNav** — users go back via `useSlideBack()` (SlidePage context)
-- Header: matches ChatHeader — `bg-black border-b border-border px-4 pb-2`, `paddingTop: max(env(safe-area-inset-top), 8px)`, `h-10` row, `gap-2` between back button and title. Back button `style={{ width: 24, height: 40 }}`, `ChevronLeft` 24px tertiary. Title `"FRIENDS"` in `font-pixel text-[18px] text-primary leading-none whitespace-nowrap`.
+- **No BottomNav** — users go back via a local `BackButton` component (see SlidePage context scoping caveat above)
+- Header: matches ChatHeader — `bg-black border-b border-border px-4 pb-2`, `paddingTop: max(env(safe-area-inset-top), 8px)`, `h-10` row, `gap-2` between back button and title. Back button `style={{ width: 44, height: 40 }}` (44px minimum tap target), `ChevronLeft` 24px tertiary. Title `"FRIENDS"` in `font-pixel text-[18px] text-primary leading-none whitespace-nowrap`.
 
 ### Member Profile Page — `/chat/[crewId]/member/[userId]`
 - Route: `src/app/(app)/chat/[crewId]/member/[userId]/page.tsx` + `MemberProfileClient.tsx`
@@ -741,10 +743,11 @@ Note: next/font variable for Silkscreen is `--font-silk` (not `--font-silkscreen
   | ChatHeader — crew dropdown | `ChevronRight` rotated 90° | `pixelarticons/react/ChevronRight` | 24×24, `color: var(--color-primary)` |
   | ChatHeader — notifications | `Bell` / `BellOff` | `pixelarticons/react/Bell`, `BellOff` | 24×24 |
   | ChatHeader — invite | `UserPlus` | `pixelarticons/react/UserPlus` | 24×24 |
-  | ChatHeader — vault | `Notebook` | `pixelarticons/react/Notebook` | 24×24 |
   | ChatInput — send | `Send` | `pixelarticons/react/Send` | 16×16 |
   | ChatInput — expand members (collapsed row) | `ChevronRight` rotate(-90deg) | `pixelarticons/react/ChevronRight` | 24×24, `color: var(--color-tertiary)` |
   | ChatInput — collapse members (expanded sheet) | `ChevronRight` rotate(90deg) | `pixelarticons/react/ChevronRight` | 24×24, `color: var(--color-tertiary)` |
+  | ChatInput — crew creator badge | `Crown` | `pixelarticons/react/Crown` | 16×16, `color: #f59e0b` (amber) |
+  | ChatInput — invite code copy button | `Copy` | `pixelarticons/react/Copy` | 12×12, white |
   | Home header — friends | `AvatarSquare` | `pixelarticons/react/AvatarSquare` | 24×24 |
   | Home header — add | `PlusBox` | `pixelarticons/react/PlusBox` | 24×24 |
   | Home profile banner — edit | `MagicEdit` | `pixelarticons/react/MagicEdit` | 16×16 |

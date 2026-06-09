@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useSlideBack } from '@/components/ui/SlidePage'
-import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useChatStore } from '@/store/chatStore'
 import { createClient } from '@/lib/supabase/client'
@@ -12,7 +11,6 @@ import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { Bell } from 'pixelarticons/react/Bell'
 import { BellOff } from 'pixelarticons/react/BellOff'
 import { UserPlus } from 'pixelarticons/react/UserPlus'
-import { Notebook } from 'pixelarticons/react/Notebook'
 
 // ─── NotifSheet ───────────────────────────────────────────────────────────────
 
@@ -343,7 +341,7 @@ export function ChatHeader({
             </h1>
           </div>
 
-          {/* Right: bell + user-plus + vault */}
+          {/* Right: bell + user-plus */}
           <div className="flex items-center gap-4 flex-shrink-0">
             <button
               onClick={() => setShowNotif(true)}
@@ -364,14 +362,6 @@ export function ChatHeader({
             >
               <UserPlus style={{ width: 24, height: 24 }} aria-hidden="true" />
             </button>
-            <Link
-              href={`/vault/${crewId}`}
-              aria-label="View vault"
-              className="flex items-center justify-center text-primary hover:text-purple transition-colors"
-              style={{ width: 24, height: 40 }}
-            >
-              <Notebook style={{ width: 24, height: 24 }} aria-hidden="true" />
-            </Link>
           </div>
         </div>
 
