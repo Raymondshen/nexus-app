@@ -210,7 +210,6 @@ export function FriendsClient({
             </button>
             <h1 className="font-pixel text-[18px] text-primary whitespace-nowrap">FRIENDS</h1>
           </div>
-          {/* 64px spacer matching Figma header alignment */}
           <div style={{ width: 64, height: 24 }} />
         </div>
       </div>
@@ -232,10 +231,10 @@ export function FriendsClient({
       )}
 
       {/* ── Body ── */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-6">
+      <div className="flex-1 overflow-y-auto nexus-scroll px-4 py-4 flex flex-col gap-6">
 
         {/* Search input */}
-        <div className="border border-border h-[48px] flex items-center gap-2 px-4">
+        <div className="border border-border h-[48px] flex items-center gap-2 px-4 py-[12px]">
           <Search className="flex-shrink-0" style={{ width: 16, height: 16, color: 'var(--color-muted)' }} aria-hidden="true" />
           <input
             value={searchQuery}
@@ -250,7 +249,7 @@ export function FriendsClient({
         {/* ── Search results ── */}
         {showSearch ? (
           <div className="flex flex-col gap-4">
-            <p className="font-body font-medium text-[14px] text-primary tracking-[0.2px] leading-normal">Results</p>
+            <p className="font-silkscreen text-[14px] text-primary tracking-[0.2px] leading-normal">Results</p>
             {searchResults.length === 0 && !isSearching ? (
               <p className="font-pixel text-[8px] text-muted py-4 text-center">NO USERS FOUND</p>
             ) : (
@@ -272,7 +271,7 @@ export function FriendsClient({
                         >
                           {profile.username}
                         </span>
-                        <span className="font-silkscreen text-[12px] text-tertiary leading-normal">
+                        <span className="font-silkscreen text-[11px] text-tertiary leading-normal">
                           @{profile.username.toLowerCase()}
                         </span>
                       </div>
@@ -286,19 +285,19 @@ export function FriendsClient({
                         <button
                           disabled={loading}
                           onClick={() => handleAccept(incomingEntry)}
-                          className="border border-[#22c55e] flex items-center justify-center p-3 flex-shrink-0 disabled:opacity-50"
+                          className="w-[32px] h-[32px] bg-[#22c55e] flex items-center justify-center flex-shrink-0 overflow-hidden disabled:opacity-50"
+                          aria-label="Accept"
                         >
-                          <Check style={{ width: 16, height: 16, color: '#22c55e' }} aria-hidden="true" />
+                          <Check style={{ width: 16, height: 16, color: '#ffffff' }} aria-hidden="true" />
                         </button>
                       )}
                       {rel === 'none' && (
                         <button
                           disabled={isGuest || loading}
                           onClick={() => handleSendRequest(profile)}
-                          className="border border-purple flex items-center justify-center overflow-hidden px-4 py-2 flex-shrink-0 disabled:opacity-50"
-                          style={{ width: 88 }}
+                          className="bg-purple flex items-center justify-center overflow-hidden px-4 py-3 flex-shrink-0 disabled:opacity-50"
                         >
-                          <span className="font-pixel text-[8px] text-purple whitespace-nowrap">
+                          <span className="font-silkscreen text-[11px] text-primary whitespace-nowrap leading-none">
                             {loading ? '...' : 'ADD +'}
                           </span>
                         </button>
@@ -316,19 +315,19 @@ export function FriendsClient({
               <div className="flex flex-col gap-4">
                 {/* Section title */}
                 <div className="flex items-center justify-between">
-                  <p className="font-body font-medium text-[14px] text-primary tracking-[0.2px] leading-normal">Requests</p>
+                  <p className="font-silkscreen text-[14px] text-primary tracking-[0.2px] leading-normal">Requests</p>
                   <button
                     onClick={() => setRequestsOpen((o) => !o)}
                     className="flex items-center justify-center"
-                    style={{ width: 16, height: 24 }}
+                    style={{ width: 24, height: 16 }}
                     aria-label={requestsOpen ? 'Collapse requests' : 'Expand requests'}
                   >
                     <motion.div
-                      style={{ display: 'block', width: 18, height: 18 }}
+                      style={{ display: 'block', width: 24, height: 16 }}
                       animate={{ rotate: requestsOpen ? 90 : 0 }}
                       transition={{ duration: 0.18, ease: 'easeInOut' }}
                     >
-                      <ChevronRight style={{ width: 18, height: 18, color: 'var(--color-muted)' }} aria-hidden="true" />
+                      <ChevronRight style={{ width: 24, height: 16, color: 'var(--color-muted)' }} aria-hidden="true" />
                     </motion.div>
                   </button>
                 </div>
@@ -357,17 +356,17 @@ export function FriendsClient({
                               >
                                 {entry.profile?.username ?? '—'}
                               </span>
-                              <span className="font-silkscreen text-[12px] text-tertiary leading-normal">
+                              <span className="font-silkscreen text-[11px] text-tertiary leading-normal">
                                 Sent Friend Request
                               </span>
                             </div>
                             <button
                               disabled={loading}
                               onClick={() => handleCancelOutgoing(entry)}
-                              className="border border-purple flex items-center justify-center overflow-hidden px-4 py-4 flex-shrink-0 disabled:opacity-50"
-                              style={{ width: 88 }}
+                              className="bg-purple flex items-center justify-center gap-2 overflow-hidden px-4 py-3 flex-shrink-0 disabled:opacity-50 active:opacity-70"
                             >
-                              <span className="font-pixel text-[8px] text-purple whitespace-nowrap">
+                              <Close style={{ width: 12, height: 12, color: '#ffffff' }} aria-hidden="true" />
+                              <span className="font-silkscreen text-[11px] text-primary whitespace-nowrap leading-none">
                                 {loading ? '...' : 'CANCEL'}
                               </span>
                             </button>
@@ -388,27 +387,26 @@ export function FriendsClient({
                               >
                                 {entry.profile?.username ?? '—'}
                               </span>
-                              <span className="font-silkscreen text-[12px] text-tertiary leading-normal">
+                              <span className="font-silkscreen text-[11px] text-tertiary leading-normal">
                                 Wants to be your friend
                               </span>
                             </div>
-                            <div className="flex items-center gap-2 flex-shrink-0">
+                            <div className="flex items-center gap-4 flex-shrink-0">
                               <button
                                 disabled={loading}
                                 onClick={() => handleAccept(entry)}
-                                className="border border-[#22c55e] flex items-center justify-center p-3 disabled:opacity-50"
+                                className="w-[32px] h-[32px] bg-[#22c55e] flex items-center justify-center overflow-hidden disabled:opacity-50 active:opacity-70"
                                 aria-label="Accept"
                               >
-                                <Check style={{ width: 16, height: 16, color: '#22c55e' }} aria-hidden="true" />
+                                <Check style={{ width: 16, height: 16, color: '#ffffff' }} aria-hidden="true" />
                               </button>
                               <button
                                 disabled={loading}
                                 onClick={() => handleDecline(entry)}
-                                className="border border-[#ef4444] flex items-center justify-center p-3 disabled:opacity-50"
-                                style={{ width: 40, height: 40 }}
+                                className="w-[32px] h-[32px] bg-[#ef4444] flex items-center justify-center overflow-hidden disabled:opacity-50 active:opacity-70"
                                 aria-label="Decline"
                               >
-                                <Close style={{ width: 12, height: 12, color: '#ef4444' }} aria-hidden="true" />
+                                <Close style={{ width: 12, height: 12, color: '#ffffff' }} aria-hidden="true" />
                               </button>
                             </div>
                           </div>
@@ -422,7 +420,7 @@ export function FriendsClient({
 
             {/* ── Friends section ── */}
             <div className="flex flex-col gap-4">
-              <p className="font-body font-medium text-[14px] text-primary tracking-[0.2px] leading-normal">Friends</p>
+              <p className="font-silkscreen text-[14px] text-primary tracking-[0.2px] leading-normal">Friends</p>
               {friends.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center">
                   <p className="font-pixel text-[9px] text-primary mb-3">NO FRIENDS YET</p>
@@ -447,17 +445,24 @@ export function FriendsClient({
                         >
                           {entry.profile?.username ?? '—'}
                         </span>
-                        <span className="font-silkscreen text-[12px] text-tertiary leading-normal">
+                        <span className="font-silkscreen text-[11px] text-tertiary leading-normal">
                           est. {friendshipYear(entry.friendship.created_at)}
                         </span>
                       </div>
+                      <ChevronRight
+                        style={{ width: 24, height: 24, color: 'var(--color-tertiary)', flexShrink: 0 }}
+                        aria-hidden="true"
+                      />
                       <button
                         disabled={loading}
                         onClick={(e) => { e.stopPropagation(); handleRemoveFriend(entry) }}
                         aria-label="Remove friend"
-                        className="text-muted hover:text-[#ef4444] transition-colors disabled:opacity-40 flex-shrink-0"
+                        className="bg-[#ef4444] flex items-center justify-center gap-[4px] overflow-hidden px-4 py-3 flex-shrink-0 disabled:opacity-50 active:opacity-70"
                       >
-                        <UserMinus style={{ width: 16, height: 16 }} aria-hidden="true" />
+                        <UserMinus style={{ width: 12, height: 12, color: '#ffffff' }} aria-hidden="true" />
+                        <span className="font-silkscreen text-[11px] text-primary whitespace-nowrap leading-none">
+                          {loading ? '...' : 'Remove'}
+                        </span>
                       </button>
                     </div>
                   )
