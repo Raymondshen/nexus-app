@@ -2,7 +2,8 @@
 
 import { useState, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { SlidePage } from '@/components/ui/SlidePage'
+import { SlidePage, useSlideBack } from '@/components/ui/SlidePage'
+import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { format, formatDistanceToNow } from 'date-fns'
 import { toPng } from 'html-to-image'
 import { ArtifactCard } from './ArtifactCard'
@@ -218,6 +219,7 @@ export function VaultClient({ crewId, crewName, crewCreatedAt, artifacts }: Vaul
   const [activeTab, setActiveTab] = useState<FilterTab>('ALL')
   const [viewMode,  setViewMode]  = useState<'grid' | 'timeline'>('grid')
   const [selected,  setSelected]  = useState<Artifact | null>(null)
+  const goBack = useSlideBack()
 
   const filtered = artifacts.filter((a) => matchesFilter(a, activeTab))
   const TABS: FilterTab[] = ['ALL', 'RELICS', 'GEAR', 'LEGENDARY']
@@ -227,21 +229,31 @@ export function VaultClient({ crewId, crewName, crewCreatedAt, artifacts }: Vaul
 
       {/* Header with safe area */}
       <div
-        className="px-4 pb-4 flex-shrink-0"
+        className="px-4 pb-2 flex-shrink-0"
         style={{
-          paddingTop: 'max(env(safe-area-inset-top), 24px)',
+          paddingTop: 'max(env(safe-area-inset-top), 8px)',
           background: 'linear-gradient(180deg,rgba(191,95,255,0.08) 0%,transparent 100%)',
           borderBottom: '1px solid rgba(26,26,46,0.8)',
         }}
       >
-        <p className="font-pixel text-[8px] text-[#4a3060] mb-1">{crewName.toUpperCase()}</p>
-        <h1
-          className="font-pixel text-[14px] text-[#bf5fff] mb-1"
-          style={{ textShadow:'0 0 20px rgba(191,95,255,0.5)' }}
-        >
-          MEMORY VAULT
-        </h1>
-        <p className="font-pixel text-[7px] text-[#3d2660]">
+        <div className="flex items-center h-10 gap-2">
+          <button
+            onClick={goBack}
+            aria-label="Back"
+            className="flex-shrink-0 flex items-center justify-center"
+            style={{ width: 24, height: 40 }}
+          >
+            <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-tertiary)' }} />
+          </button>
+          <h1
+            className="font-pixel text-[14px] text-[#bf5fff] leading-none"
+            style={{ textShadow:'0 0 20px rgba(191,95,255,0.5)' }}
+          >
+            MEMORY VAULT
+          </h1>
+        </div>
+        <p className="font-pixel text-[8px] text-[#4a3060] mt-0.5">{crewName.toUpperCase()}</p>
+        <p className="font-pixel text-[7px] text-[#3d2660] mt-0.5">
           {artifacts.length} ARTIFACT{artifacts.length !== 1 ? 'S' : ''} — {artifacts.length} BOSS{artifacts.length !== 1 ? 'ES' : ''} SLAIN
         </p>
         {crewCreatedAt && (
