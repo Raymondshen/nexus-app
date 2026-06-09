@@ -128,7 +128,7 @@ export function MessageBubble({
     hasMoved.current = false
     longPressTimer.current = setTimeout(() => {
       if (!hasMoved.current) setSheetOpen(true)
-    }, 500)
+    }, 300)
   }
   function handleTouchEnd() {
     if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null }
