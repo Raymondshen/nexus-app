@@ -243,6 +243,7 @@ export function ProfileClient({
     <SlidePage
       className="bg-black flex flex-col"
       style={{ position: 'fixed', inset: 0, maxWidth: 480, marginLeft: 'auto', marginRight: 'auto', overflow: 'hidden' }}
+      backHref="/home"
     >
       {/* ── Header ── */}
       <div
@@ -254,7 +255,7 @@ export function ProfileClient({
             onClick={goBack}
             aria-label="Back"
             className="flex-shrink-0 flex items-center justify-center"
-            style={{ width: 24, height: 40 }}
+            style={{ width: 44, height: 40 }}
           >
             <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
           </button>

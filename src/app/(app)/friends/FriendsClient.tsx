@@ -191,7 +191,7 @@ export function FriendsClient({
   }, [])
 
   return (
-    <SlidePage className="min-h-screen bg-black flex flex-col">
+    <SlidePage className="min-h-screen bg-black flex flex-col" backHref="/home">
 
       {/* ── Header ── */}
       <div
@@ -203,11 +203,12 @@ export function FriendsClient({
             <button
               onClick={goBack}
               aria-label="Back"
-              className="flex items-center justify-center flex-shrink-0 w-6 h-10"
+              className="flex items-center justify-center flex-shrink-0 h-10"
+              style={{ width: 44 }}
             >
               <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
             </button>
-            <h1 className="font-pixel text-[18px] text-primary whitespace-nowrap">COMPANIONS</h1>
+            <h1 className="font-pixel text-[18px] text-primary whitespace-nowrap">FRIENDS</h1>
           </div>
           {/* 64px spacer matching Figma header alignment */}
           <div style={{ width: 64, height: 24 }} />
