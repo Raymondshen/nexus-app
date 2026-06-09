@@ -266,19 +266,21 @@ Consecutive messages from the same user within 60 seconds are visually grouped (
 - **XP progress bar spring**: `type: 'spring', stiffness: 300, damping: 28` — tuned so the bar starts moving visibly within the first frame, reaching the target in ~250ms. This matches the float's fade-in timing (~210ms to full opacity) so both animations feel simultaneous. Do **not** drop stiffness below ~280 — slow springs have near-zero initial velocity and appear to lag behind the float.
 
 ### ChatInput — expanded member panel
-Triggered by swipe-up (`onPanEnd` offset.y < -50 or velocity.y < -300) or tapping the chevron-up button. Slides up from the ChatInput container itself (not from off-screen) with `spring stiffness 320 / damping 32`. The ChatInput wrapper carries `relative z-[40]`; the panel is `absolute bottom-0 left-0 right-0 z-[50]` so `y: '100%' → 0` originates from within the container. Backdrop: `fixed inset-0 z-[38] bg-black/60`. Sheet: `bg-black border-t border-border`, `maxHeight: 85vh`, scrollable.
+Triggered by swipe-up (`onPanEnd` offset.y < -50 or velocity.y < -300) or tapping the chevron-up button. Slides up from the ChatInput container itself (not from off-screen) with `spring stiffness 320 / damping 32`. The ChatInput wrapper carries `relative z-[40]`; the panel is `absolute bottom-0 left-0 right-0 z-[50]` so `y: '100%' → 0` originates from within the container. Backdrop: `fixed inset-0 z-[38] bg-black/60`. Sheet: `bg-black border-t border-border`, `maxHeight: 85vh`, `flex flex-col` (fixed header + scrollable list + fixed footer).
 
-**Sheet interior** (`flex flex-col gap-4 px-4 pt-4`, safe-area-bottom padding; `gap-4` = 16px between all sections):
-- **Content block** (`flex flex-col gap-14` = 56px gap):
-  - *Title row* (`flex items-start justify-between`): crew name in Press Start 2P 18px `text-primary` + member count/total-messages stat in Silkscreen 8px `text-secondary` below it; `ChevronRight` rotated `90deg` (pointing down) 24×24 `text-tertiary` on the right — taps to collapse.
-  - *Avatar + XP bar* (`flex flex-col gap-2`): same 24×24 avatar row with online dots, then Silkscreen 8px Level/XP/Next Boss stats row + 4px purple progress bar.
-- **Invite code block** (group chats only, not shown for DMs): `bg-[rgba(168,85,247,0.1)] border border-purple p-4`. Left: "Invite your squad" (Silkscreen 8px `text-secondary`) + crew code (Silkscreen 24px `text-purple`, `textShadow: '0px 0px 3px #a855f7'`). Right: `bg-purple px-4 py-3` button with `Copy` icon 12px + "Copy Code" / "Copied!" Silkscreen 11px. Tapping copies `"Come join my squad on Nexus app {code}"` to clipboard; button shows "Copied!" for 2s.
-- **Member rows** (`flex flex-col`, divider via `border-b border-border last:border-0`, `py-4` per row):
+**Sheet layout** (`motion.div` is `flex flex-col`):
+- **Fixed header** (`flex-shrink-0 flex flex-col gap-4 pt-[var(--space-7)] px-4`, 24px top padding via `--space-7`):
+  - *Content block* (`flex flex-col gap-14` = 56px gap, `mb-4`):
+    - *Title row* (`flex items-start justify-between`): crew name in Press Start 2P 18px `text-primary` + member count/total-messages stat in Silkscreen 8px `text-secondary` below it; `ChevronRight` rotated `90deg` (pointing down) 24×24 `text-tertiary` on the right — taps to collapse.
+    - *Avatar + XP bar* (`flex flex-col gap-2`): same 24×24 avatar row with online dots, then Silkscreen 8px Level/XP/Next Boss stats row + 4px purple progress bar.
+  - *Invite code block* (group chats only, not shown for DMs): `bg-[rgba(168,85,247,0.1)] border border-purple p-4`. Left: "Invite your squad" (Silkscreen 8px `text-secondary`) + crew code (Silkscreen 24px `text-purple`, `textShadow: '0px 0px 3px #a855f7'`). Right: copy button that transitions: default `bg-purple px-4 py-3` with `Copy` icon 12px + "Copy Code" Silkscreen 11px; tapped state `bg-[#22c55e]` + `boxShadow: '2px 2px 0px 0px rgba(34,197,94,0.5)'` + `Check` icon 12px + "copied" (lowercase) Silkscreen 11px for 1s. Tapping copies `"Come join my squad on Nexus app {code}"` to clipboard.
+- **Scrollable member list** (`flex-1 overflow-y-auto nexus-scroll px-4 min-h-0`; `min-h-0` is critical — without it flex children won't shrink below content height):
+  - `flex flex-col`, divider via `border-b border-border last:border-0`, `py-4` per row
   - Left 32×32: profile photo (or initial fallback) with online dot
   - Center 32×32: `PixelSprite scale={1.5}` in `overflow-hidden` container, no background (sprite clips at edges); initial fallback if no sprite available
-  - Right text: `flex flex-col gap-1` — DM Sans Bold 16px `text-white` name with `Crown` icon 16px `#f59e0b` (amber) inline to the right when `isCreator` is true; Silkscreen 8px `text-secondary` subtitle `"Class · N msg."`. Name+icon row uses `gap-1` (4px).
+  - Right text: `flex flex-col gap-1` — DM Sans Bold 16px `text-white` name with `Crown` icon `var(--text-xs)` (12px) `#f59e0b` (amber) inline to the right when `isCreator` is true; Silkscreen 8px `text-secondary` subtitle `"Class · N msg."`. Name+icon row uses `gap-1` (4px).
   - Row gap: `gap-3` (12px)
-- **CLOSE button**: `h-12 w-full`, Press Start 2P 8px `text-tertiary`, centered; swipe-down gesture (`offset.y > 60` or `velocity.y > 300`) also collapses.
+- **Fixed close footer** (`flex-shrink-0 px-4`, safe-area-bottom padding): **CLOSE button** `h-12 w-full`, Press Start 2P 8px `text-tertiary`, centered; swipe-down gesture (`offset.y > 60` or `velocity.y > 300`) also collapses.
 
 ### award-xp — query batching + anti-spam
 - **Batch 1** (always, parallel): previous message gap + burst window count + crew name/XP + sender's `is_dev` flag — 4 queries in one `Promise.all`
@@ -399,7 +401,7 @@ All "detail" pages (chat, DM, profile, friends, vault) slide in from the right o
 - **`useSlideBack()`** — hook that returns the `goBack` callback from SlidePage context. Use this **instead of `router.back()`** in all back buttons on slide pages. Falls back to no-op if called outside a SlidePage (safe).
 - **Wired in**: `ChatHeader`, `DMHeader` call `useSlideBack()` directly — they are children of a parent SlidePage rendered by the page. `VaultClient` wraps in SlidePage for the entrance animation but has no explicit back button.
 - **Context scoping caveat**: `ProfileClient` and `FriendsClient` render their own `<SlidePage>` wrapper and cannot call `useSlideBack()` at the component body level (the hook would fire outside the context they provide). Instead they define a local `BackButton` component that is rendered *inside* `<SlidePage>` and calls `useSlideBack()` there — where the context is reachable.
-- **Back button tap target**: back buttons must be at least 44px wide (not just 24px for the icon) to be reliably tappable on mobile. Use `style={{ width: 44 }}` or `w-11` on the `<button>` wrapper.
+- **Back button tap target**: back button `<button>` wrappers use `style={{ width: 24, height: 40 }}` across all screens (matching Figma spec and ChatHeader). The `height: 40` ensures a tall enough touch area on the full `h-10` header row.
 - **Onboarding → chat back navigation**: after any onboarding flow (create crew, join crew, class selection), the final redirect to `/chat/[crewId]` always includes `?welcome=1`. The chat page passes `backHref="/home"` to `SlidePage` when this param is present, so the back button skips the onboarding history and goes directly to home. `WelcomeDetector` strips `?welcome=1` from the URL bar client-side via `window.history.replaceState` without triggering a re-render.
 - `html, body` has `overflow-x: hidden` in `globals.css` to prevent a horizontal scrollbar during the off-screen initial position.
 
@@ -421,7 +423,7 @@ All "detail" pages (chat, DM, profile, friends, vault) slide in from the right o
 - User + section rows use: `gap-4` between items, `tracking-[0.2px]` on text columns
 - Guest guard: `isGuest` prop (`user.is_anonymous === true`); ADD button disabled + Google sign-in banner shown; `sendFriendRequestAction` also blocks anonymous users server-side
 - **No BottomNav** — users go back via a local `BackButton` component (see SlidePage context scoping caveat above)
-- Header: matches ChatHeader — `bg-black border-b border-border px-4 pb-2`, `paddingTop: max(env(safe-area-inset-top), 8px)`, `h-10` row, `gap-2` between back button and title. Back button `style={{ width: 44, height: 40 }}` (44px minimum tap target), `ChevronLeft` 24px tertiary. Title `"FRIENDS"` in `font-pixel text-[18px] text-primary leading-none whitespace-nowrap`.
+- Header: matches ChatHeader — `bg-black border-b border-border px-4 pb-2`, `paddingTop: max(env(safe-area-inset-top), 8px)`, `h-10` row, `gap-2` between back button and title. Back button `style={{ width: 24, height: 40 }}`, `ChevronLeft` 24px tertiary. Title `"FRIENDS"` in `font-pixel text-[18px] text-primary leading-none whitespace-nowrap`.
 
 ### Member Profile Page — `/chat/[crewId]/member/[userId]`
 - Route: `src/app/(app)/chat/[crewId]/member/[userId]/page.tsx` + `MemberProfileClient.tsx`
@@ -517,6 +519,7 @@ Server actions (Next.js) calling `send-notification` directly also use this same
 - `CLASS_TO_SPRITE` map in PixelSprite.tsx links `AvatarClass` → sprite folder; uncomment entries as sprites are added
 - Currently available: `necromancer`
 - **Do NOT use `next/image` for sprites** — use plain `<img>` with `imageRendering: pixelated`; next/image has iOS PWA rendering quirks for pixel art
+- **`maxWidth: 'none'` required**: Tailwind's base reset applies `img { max-width: 100% }` which caps sprite width at the container width even when `width` is set inline. The PixelSprite `<img>` carries `maxWidth: 'none'` in its inline styles to override this — critical when rendering `scale > 1` inside a small container (e.g. the 32×32 member panel slot with a 42px sprite).
 
 ## Caching Architecture
 
@@ -746,7 +749,7 @@ Note: next/font variable for Silkscreen is `--font-silk` (not `--font-silkscreen
   | ChatInput — send | `Send` | `pixelarticons/react/Send` | 16×16 |
   | ChatInput — expand members (collapsed row) | `ChevronRight` rotate(-90deg) | `pixelarticons/react/ChevronRight` | 24×24, `color: var(--color-tertiary)` |
   | ChatInput — collapse members (expanded sheet) | `ChevronRight` rotate(90deg) | `pixelarticons/react/ChevronRight` | 24×24, `color: var(--color-tertiary)` |
-  | ChatInput — crew creator badge | `Crown` | `pixelarticons/react/Crown` | 16×16, `color: #f59e0b` (amber) |
+  | ChatInput — crew creator badge | `Crown` | `pixelarticons/react/Crown` | `var(--text-xs)` (12px), `color: #f59e0b` (amber) |
   | ChatInput — invite code copy button | `Copy` | `pixelarticons/react/Copy` | 12×12, white |
   | Home header — friends | `AvatarSquare` | `pixelarticons/react/AvatarSquare` | 24×24 |
   | Home header — add | `PlusBox` | `pixelarticons/react/PlusBox` | 24×24 |

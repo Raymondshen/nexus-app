@@ -98,8 +98,9 @@ export function PixelSprite({
       className={className}
       style={{
         imageRendering: 'pixelated',
-        width:  displayPx,
-        height: displayPx,
+        width:    displayPx,
+        height:   displayPx,
+        maxWidth: 'none',
         flexShrink: 0,
         animation: animate ? 'pixel-bob 0.45s ease-in-out infinite' : 'none',
         display: 'block',

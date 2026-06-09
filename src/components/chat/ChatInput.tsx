@@ -17,6 +17,7 @@ import { Send } from 'pixelarticons/react/Send'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
 import { Crown } from 'pixelarticons/react/Crown'
 import { Copy } from 'pixelarticons/react/Copy'
+import { Check } from 'pixelarticons/react/Check'
 import type { Message, MessageWithProfile, Profile } from '@/types'
 
 const MAX_MESSAGE_LENGTH = 2000
@@ -87,7 +88,7 @@ function MemberListRow({
         <div className="flex items-center gap-1">
           <p className="font-body font-bold text-[16px] text-white truncate leading-none">{profile.username}</p>
           {isCreator && (
-            <Crown style={{ width: 16, height: 16, color: '#f59e0b' }} aria-hidden="true" />
+            <Crown style={{ width: 'var(--text-xs)', height: 'var(--text-xs)', color: '#f59e0b' }} aria-hidden="true" />
           )}
         </div>
         <p className="font-silkscreen text-[8px] text-secondary leading-none">
@@ -351,10 +352,10 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   }
 
   function handleCopyCode() {
-    if (!inviteCode) return
+    if (!inviteCode || copied) return
     navigator.clipboard.writeText(`Come join my squad on Nexus app ${inviteCode}`).catch(() => {})
     setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    setTimeout(() => setCopied(false), 1000)
   }
 
   const typingLabel = typingUsers.length === 1
@@ -540,7 +541,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
 
             {/* Sheet — absolute so it slides up from the ChatInput container */}
             <motion.div
-              className="absolute bottom-0 left-0 right-0 z-[50] bg-black border-t border-border overflow-y-auto nexus-scroll"
+              className="absolute bottom-0 left-0 right-0 z-[50] bg-black border-t border-border flex flex-col"
               initial={{ y: '100%' }}
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
@@ -548,10 +549,8 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
               style={{ maxHeight: '85vh' }}
               onPanEnd={handlePanelPanEnd}
             >
-              <div
-                className="flex flex-col gap-4 px-4 pt-4"
-                style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 32px)' }}
-              >
+              {/* ── Fixed header: title, subtext, avatars, XP bar, invite code ── */}
+              <div className="flex flex-col gap-4 px-4 pt-[var(--space-7)] flex-shrink-0">
                 {/* Title + stats + chevron AND avatar row + XP bar — 56px gap between them */}
                 <div className="flex flex-col gap-14">
 
@@ -643,10 +642,17 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                     </div>
                     <button
                       onClick={handleCopyCode}
-                      className="flex items-center gap-1 bg-purple px-4 py-3 flex-shrink-0 active:opacity-70 transition-opacity"
+                      className="flex items-center gap-1 px-4 py-3 flex-shrink-0 transition-colors duration-150"
+                      style={copied
+                        ? { backgroundColor: '#22c55e', boxShadow: '2px 2px 0px 0px rgba(34,197,94,0.5)' }
+                        : { backgroundColor: 'var(--color-purple)' }
+                      }
                     >
                       {copied ? (
-                        <p className="font-silkscreen text-[11px] text-white leading-none whitespace-nowrap">Copied!</p>
+                        <>
+                          <Check style={{ width: 12, height: 12, color: 'white' }} aria-hidden="true" />
+                          <p className="font-silkscreen text-[11px] text-white leading-none whitespace-nowrap">copied</p>
+                        </>
                       ) : (
                         <>
                           <Copy style={{ width: 12, height: 12, color: 'white' }} aria-hidden="true" />
@@ -656,8 +662,10 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                     </button>
                   </div>
                 )}
+              </div>
 
-                {/* Member rows */}
+              {/* ── Scrollable member list ── */}
+              <div className="flex-1 overflow-y-auto nexus-scroll px-4 min-h-0">
                 <div className="flex flex-col">
                   {members.map((m) => (
                     <MemberListRow
@@ -670,11 +678,16 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                     />
                   ))}
                 </div>
+              </div>
 
-                {/* Close button */}
+              {/* ── Fixed close button ── */}
+              <div
+                className="flex-shrink-0 px-4"
+                style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 32px)' }}
+              >
                 <button
                   onClick={() => setIsExpanded(false)}
-                  className="mt-4 h-12 w-full flex items-center justify-center font-pixel text-[8px] text-tertiary transition-colors active:text-primary"
+                  className="h-12 w-full flex items-center justify-center font-pixel text-[8px] text-tertiary transition-colors active:text-primary"
                 >
                   CLOSE
                 </button>
