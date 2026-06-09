@@ -377,7 +377,7 @@ Header spacing: `px-4 pb-2` (16px horizontal, 8px bottom), `paddingTop: max(env(
 All "detail" pages (chat, DM, profile, friends, vault) slide in from the right on mount and slide back out on close.
 
 - **`SlidePage`** (`src/components/ui/SlidePage.tsx`) — client component that wraps the page's outermost `motion.div`. Enter: spring `stiffness 380 / damping 36` (~280ms). Exit: ease-in tween `[0.32,0,0.67,0]` 280ms, then fires `router.back()` (or `router.replace(backHref)` when `backHref` is set) after 290ms. Guards against double-fire with `exiting` flag.
-  - **`backHref` prop** — optional string; when set, `goBack()` calls `router.replace(backHref)` instead of `router.back()`. Used by the chat page when `?welcome=1` is present, and by `ProfileClient`/`FriendsClient` (always `backHref="/home"`) so back navigation is reliable even when there is no browser history entry (e.g. direct URL load or page refresh).
+  - **`backHref` prop** — optional string; when set, `goBack()` calls `router.replace(backHref)` instead of `router.back()`. Used by the chat page when `?welcome=1` is present, and by `ProfileClient` (always `backHref="/home"`) so back navigation is reliable even when there is no browser history entry (e.g. direct URL load or page refresh). `FriendsClient` does NOT use `backHref` — it uses `router.back()` like other slide pages (DM, member profile), since it is only reachable from `/home`.
 - **`useSlideBack()`** — hook that returns the `goBack` callback from SlidePage context. Use this **instead of `router.back()`** in all back buttons on slide pages. Falls back to no-op if called outside a SlidePage (safe).
 - **Wired in**: `ChatHeader`, `DMHeader`, `ProfileClient`, `FriendsClient` all call `useSlideBack()`. `VaultClient` wraps in SlidePage for the entrance animation but has no explicit back button.
 - **Back button tap target**: back buttons must be at least 44px wide (not just 24px for the icon) to be reliably tappable on mobile. Use `style={{ width: 44 }}` or `w-11` on the `<button>` wrapper.
@@ -402,7 +402,7 @@ All "detail" pages (chat, DM, profile, friends, vault) slide in from the right o
 - User + section rows use: `gap-4` between items, `tracking-[0.2px]` on text columns
 - Guest guard: `isGuest` prop (`user.is_anonymous === true`); ADD button disabled + Google sign-in banner shown; `sendFriendRequestAction` also blocks anonymous users server-side
 - **No BottomNav** — users go back via `useSlideBack()` (SlidePage context)
-- Header: `pb-2`, `paddingTop: max(env(safe-area-inset-top), 8px)`, back icon (`ChevronLeft` from pixelarticons, 24px, `color: var(--color-tertiary)`) + title `gap-2`
+- Header: matches DMHeader — `pb-4`, `paddingTop: max(env(safe-area-inset-top), 12px)`, `h-10` row, `gap-3` between back button and title. Back icon `ChevronLeft` 24px tertiary, `style={{ width: 44 }}`. Title `"FRIENDS"` in `font-pixel text-[14px] text-primary leading-none` — no underline, no subcaption.
 
 ### Member Profile Page — `/chat/[crewId]/member/[userId]`
 - Route: `src/app/(app)/chat/[crewId]/member/[userId]/page.tsx` + `MemberProfileClient.tsx`

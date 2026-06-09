@@ -299,26 +299,23 @@ export function FriendsClient({
   }, [])
 
   return (
-    <SlidePage className="min-h-screen bg-black flex flex-col" backHref="/home">
+    <SlidePage className="min-h-screen bg-black flex flex-col">
 
-      {/* ── Header ── */}
+      {/* ── Header — matches DMHeader padding/font ── */}
       <div
-        className="border-b border-border px-4 pb-2 flex-shrink-0"
-        style={{ paddingTop: 'max(env(safe-area-inset-top), 8px)' }}
+        className="bg-black border-b border-border px-4 pb-4 flex-shrink-0"
+        style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}
       >
-        <div className="flex items-center justify-between h-10">
-          <div className="flex items-center gap-2">
-            <button
-              onClick={goBack}
-              aria-label="Back"
-              className="flex items-center justify-center flex-shrink-0 h-10"
-              style={{ width: 44 }}
-            >
-              <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
-            </button>
-            <h1 className="font-pixel text-[18px] text-primary whitespace-nowrap">FRIENDS</h1>
-          </div>
-          <div style={{ width: 64, height: 24 }} />
+        <div className="flex items-center h-10 gap-3">
+          <button
+            onClick={goBack}
+            aria-label="Back"
+            className="flex-shrink-0 flex items-center justify-center"
+            style={{ width: 44 }}
+          >
+            <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
+          </button>
+          <h1 className="font-pixel text-[14px] text-primary leading-none whitespace-nowrap">FRIENDS</h1>
         </div>
       </div>
 
