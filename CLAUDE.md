@@ -312,7 +312,7 @@ Sheet design: `bg-[#0a0612]`, full-width rows min 44px, `border-l-2 border-trans
 ### Home Page — InviteArsenal (full-screen modal)
 `src/app/(app)/home/InviteArsenal.tsx` — slides up from bottom (`z-[60]`, spring 320/32) over the home screen. Opened by tapping "Invite a Friend" in the action sheet; no coin gate on open.
 
-**Header**: `px-4 pb-4 border-b border-border`, `paddingTop: max(env(safe-area-inset-top), 12px)`. Main row: `flex items-center h-10 gap-3` — `ChevronLeft` 24px tertiary in a 44px-wide button (calls `onClose`) + `"INVITE ARSENAL"` in `font-pixel text-[14px] text-primary leading-none whitespace-nowrap`. Below the row: subtitle `"Spend coins. Recruit warriors."` (DM Sans 13px rgba(255,255,255,0.4)) + coin balance (`Coins` 16px `#ffd700` + count Press Start 2P 12px `#ffd700`). Back button and title share the same `h-10` row — same layout as friends/DM page headers.
+**Header**: `px-4 pb-2 border-b border-border`, `paddingTop: max(env(safe-area-inset-top), 8px)`. Main row: `flex items-center h-10 gap-2` — `ChevronLeft` 24px tertiary in a `style={{ width: 24, height: 40 }}` button (calls `onClose`) + `"INVITE ARSENAL"` in `font-pixel text-[14px] text-primary leading-none whitespace-nowrap`. Gap and padding match ChatHeader exactly. Below the row: subtitle `"Spend coins. Recruit warriors."` (DM Sans 13px rgba(255,255,255,0.4)) + coin balance (`Coins` 16px `#ffd700` + count Press Start 2P 12px `#ffd700`).
 
 **Forge button** (full-width, min-height 56px):
 - Label `FORGE INVITE CODE` (Press Start 2P 10px) + sub-label `25 coins` (system-ui 11px)
@@ -402,7 +402,7 @@ All "detail" pages (chat, DM, profile, friends, vault) slide in from the right o
 - User + section rows use: `gap-4` between items, `tracking-[0.2px]` on text columns
 - Guest guard: `isGuest` prop (`user.is_anonymous === true`); ADD button disabled + Google sign-in banner shown; `sendFriendRequestAction` also blocks anonymous users server-side
 - **No BottomNav** — users go back via `useSlideBack()` (SlidePage context)
-- Header: matches DMHeader — `pb-4`, `paddingTop: max(env(safe-area-inset-top), 12px)`, `h-10` row, `gap-3` between back button and title. Back icon `ChevronLeft` 24px tertiary, `style={{ width: 44 }}`. Title `"FRIENDS"` in `font-pixel text-[14px] text-primary leading-none` — no underline, no subcaption.
+- Header: matches ChatHeader — `bg-black border-b border-border px-4 pb-2`, `paddingTop: max(env(safe-area-inset-top), 8px)`, `h-10` row, `gap-2` between back button and title. Back button `style={{ width: 24, height: 40 }}`, `ChevronLeft` 24px tertiary. Title `"FRIENDS"` in `font-pixel text-[18px] text-primary leading-none whitespace-nowrap`.
 
 ### Member Profile Page — `/chat/[crewId]/member/[userId]`
 - Route: `src/app/(app)/chat/[crewId]/member/[userId]/page.tsx` + `MemberProfileClient.tsx`

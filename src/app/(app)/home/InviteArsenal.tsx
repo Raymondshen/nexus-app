@@ -86,15 +86,15 @@ export function InviteArsenal({ userId, coins, infiniteCoins, onClose, onCoinsDe
     >
       {/* Header */}
       <div
-        className="flex-shrink-0 px-4 pb-4 border-b border-border"
-        style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}
+        className="flex-shrink-0 px-4 pb-2 border-b border-border"
+        style={{ paddingTop: 'max(env(safe-area-inset-top), 8px)' }}
       >
-        {/* Back + title — same row layout as friends/profile pages */}
-        <div className="flex items-center h-10 gap-3">
+        {/* Back + title — matches ChatHeader gap/padding */}
+        <div className="flex items-center h-10 gap-2">
           <button
             onClick={onClose}
             className="flex-shrink-0 flex items-center justify-center"
-            style={{ width: 44 }}
+            style={{ width: 24, height: 40 }}
             aria-label="Close"
           >
             <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />

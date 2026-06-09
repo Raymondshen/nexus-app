@@ -301,21 +301,21 @@ export function FriendsClient({
   return (
     <SlidePage className="min-h-screen bg-black flex flex-col">
 
-      {/* ── Header — matches DMHeader padding/font ── */}
+      {/* ── Header — matches ChatHeader padding/gap ── */}
       <div
-        className="bg-black border-b border-border px-4 pb-4 flex-shrink-0"
-        style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}
+        className="bg-black border-b border-border px-4 pb-2 flex-shrink-0"
+        style={{ paddingTop: 'max(env(safe-area-inset-top), 8px)' }}
       >
-        <div className="flex items-center h-10 gap-3">
+        <div className="flex items-center h-10 gap-2">
           <button
             onClick={goBack}
             aria-label="Back"
             className="flex-shrink-0 flex items-center justify-center"
-            style={{ width: 44 }}
+            style={{ width: 24, height: 40 }}
           >
             <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
           </button>
-          <h1 className="font-pixel text-[14px] text-primary leading-none whitespace-nowrap">FRIENDS</h1>
+          <h1 className="font-pixel text-[18px] text-primary leading-none whitespace-nowrap">FRIENDS</h1>
         </div>
       </div>
 
