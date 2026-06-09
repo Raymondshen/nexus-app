@@ -86,25 +86,27 @@ export function InviteArsenal({ userId, coins, infiniteCoins, onClose, onCoinsDe
     >
       {/* Header */}
       <div
-        className="flex-shrink-0 px-4 pb-4 border-b border-border flex flex-col gap-2"
+        className="flex-shrink-0 px-4 pb-4 border-b border-border"
         style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}
       >
-        <button
-          onClick={onClose}
-          className="self-start flex items-center justify-center min-h-[44px] text-tertiary hover:text-primary transition-colors"
-          style={{ width: 44 }}
-          aria-label="Close"
-        >
-          <ChevronLeft style={{ width: 24, height: 24 }} aria-hidden="true" />
-        </button>
+        {/* Back + title — same row layout as friends/profile pages */}
+        <div className="flex items-center h-10 gap-3">
+          <button
+            onClick={onClose}
+            className="flex-shrink-0 flex items-center justify-center"
+            style={{ width: 44 }}
+            aria-label="Close"
+          >
+            <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
+          </button>
+          <h1 className="font-pixel text-[14px] text-primary leading-none whitespace-nowrap">INVITE ARSENAL</h1>
+        </div>
 
-        <h1 className="font-pixel text-[14px] text-primary leading-tight">INVITE ARSENAL</h1>
-
-        <p className="font-body text-[13px] leading-snug" style={{ color: 'rgba(255,255,255,0.4)' }}>
+        {/* Subtitle + coin balance */}
+        <p className="font-body text-[13px] leading-snug mt-1" style={{ color: 'rgba(255,255,255,0.4)' }}>
           Spend coins. Recruit warriors.
         </p>
-
-        <div className="flex items-center gap-2 mt-1">
+        <div className="flex items-center gap-2 mt-2">
           <Coins style={{ width: 16, height: 16, color: '#ffd700' }} aria-hidden="true" />
           <span className="font-pixel text-[12px]" style={{ color: '#ffd700' }}>
             {infiniteCoins ? '∞' : coins.toLocaleString()}

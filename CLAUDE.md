@@ -312,7 +312,7 @@ Sheet design: `bg-[#0a0612]`, full-width rows min 44px, `border-l-2 border-trans
 ### Home Page — InviteArsenal (full-screen modal)
 `src/app/(app)/home/InviteArsenal.tsx` — slides up from bottom (`z-[60]`, spring 320/32) over the home screen. Opened by tapping "Invite a Friend" in the action sheet; no coin gate on open.
 
-**Header**: back chevron (`ChevronLeft` from pixelarticons, 24px tertiary) → closes modal. Title `INVITE ARSENAL` (Press Start 2P 14px). Subtitle `"Spend coins. Recruit warriors."` (system-ui 13px rgba(255,255,255,0.4)). Coin balance: `Coins` from pixelarticons (16px) + count (Press Start 2P 12px, `#ffd700`).
+**Header**: `px-4 pb-4 border-b border-border`, `paddingTop: max(env(safe-area-inset-top), 12px)`. Main row: `flex items-center h-10 gap-3` — `ChevronLeft` 24px tertiary in a 44px-wide button (calls `onClose`) + `"INVITE ARSENAL"` in `font-pixel text-[14px] text-primary leading-none whitespace-nowrap`. Below the row: subtitle `"Spend coins. Recruit warriors."` (DM Sans 13px rgba(255,255,255,0.4)) + coin balance (`Coins` 16px `#ffd700` + count Press Start 2P 12px `#ffd700`). Back button and title share the same `h-10` row — same layout as friends/DM page headers.
 
 **Forge button** (full-width, min-height 56px):
 - Label `FORGE INVITE CODE` (Press Start 2P 10px) + sub-label `25 coins` (system-ui 11px)
