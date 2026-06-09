@@ -4,7 +4,6 @@ import { useState, useEffect, useRef, useCallback, useActionState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence, useMotionValue, animate } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
-import { X } from 'lucide-react'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
 import { TokeCircle } from 'pixelarticons/react/TokeCircle'
@@ -247,54 +246,49 @@ function HomeActionSheet({
 
     // Menu view
     return (
-      <div className="flex flex-col gap-2">
-        <p className="font-pixel text-[8px] text-tertiary mb-2">WHAT DO YOU WANT TO DO?</p>
-
-        {/* Create a Crew */}
-        <button
-          onClick={() => setView('create')}
-          className="w-full text-left flex items-center gap-4 px-4 py-4 min-h-[56px] border-l-2 border-transparent active:border-purple transition-colors hover:bg-white/5"
-        >
-          <div className="flex-1 min-w-0">
-            <p className="font-pixel text-[10px] text-primary">CREATE A CREW</p>
-            <p className="font-pixel text-[8px] text-muted mt-1">Start a new war party</p>
+      <>
+        <div className="flex flex-col gap-2">
+          <p className="font-pixel text-[8px] text-tertiary leading-none">SQUADS</p>
+          <div className="flex flex-col gap-1">
+            <h2 className="font-body font-bold text-[18px] text-primary leading-none">Actions</h2>
+            <p className="font-body text-[12px] text-secondary leading-normal">What would you like to do?</p>
           </div>
-          <ChevronRight className="flex-shrink-0" style={{ width: 16, height: 16, color: 'var(--color-muted)' }} aria-hidden="true" />
-        </button>
+        </div>
 
-        <div className="border-t border-border" />
+        <div className="flex flex-col gap-2">
+          <button
+            onClick={() => setView('create')}
+            className="w-full h-[48px] flex items-center justify-center bg-[#a855f7]"
+          >
+            <span className="font-pixel text-[8px] text-primary leading-none">CREATE A SQUAD</span>
+          </button>
 
-        {/* Join a Crew */}
+          <button
+            onClick={() => setView('join')}
+            className="w-full h-[48px] flex items-center justify-center border border-[#a855f7]"
+          >
+            <span className="font-pixel text-[8px] text-purple leading-none">JOIN A SQUAD</span>
+          </button>
+
+          <button
+            onClick={onOpenArsenal}
+            className="w-full h-[48px] flex items-center justify-center border border-[#f59e0b]"
+          >
+            <span className="font-pixel text-[8px] leading-none" style={{ color: '#f59e0b' }}>INVITE A FRIEND</span>
+            <span className="font-silkscreen text-[12px] leading-none ml-2 text-tertiary">
+              25 COINS Per INVITE{' '}
+              <span style={{ color: '#f59e0b' }}>· {infiniteCoins ? '∞' : coins.toLocaleString()} coins available</span>
+            </span>
+          </button>
+        </div>
+
         <button
-          onClick={() => setView('join')}
-          className="w-full text-left flex items-center gap-4 px-4 py-4 min-h-[56px] border-l-2 border-transparent active:border-purple transition-colors hover:bg-white/5"
+          onClick={onClose}
+          className="w-full h-[48px] flex items-center justify-center"
         >
-          <div className="flex-1 min-w-0">
-            <p className="font-pixel text-[10px] text-primary">JOIN A CREW</p>
-            <p className="font-pixel text-[8px] text-muted mt-1">Enter an invite code</p>
-          </div>
-          <ChevronRight className="flex-shrink-0" style={{ width: 16, height: 16, color: 'var(--color-muted)' }} aria-hidden="true" />
+          <span className="font-pixel text-[8px] text-tertiary leading-none">CLOSE</span>
         </button>
-
-        <div className="border-t border-border" />
-
-        {/* Invite a Friend — always tappable; opens InviteArsenal */}
-        <button
-          onClick={onOpenArsenal}
-          className="w-full text-left flex items-center gap-4 px-4 py-4 min-h-[56px] border-l-2 border-transparent active:border-purple transition-colors hover:bg-white/5"
-        >
-          <div className="flex-1 min-w-0">
-            <p className="font-pixel text-[10px] text-primary">INVITE A FRIEND</p>
-            <div className="flex items-center gap-1 mt-1">
-              <Coins style={{ width: 10, height: 10, color: 'rgba(255,255,255,0.4)' }} aria-hidden="true" />
-              <span className="font-body text-[12px]" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                {infiniteCoins ? '∞' : coins.toLocaleString()} coins available
-              </span>
-            </div>
-          </div>
-          <ChevronRight className="flex-shrink-0" style={{ width: 16, height: 16, color: 'var(--color-muted)' }} aria-hidden="true" />
-        </button>
-      </div>
+      </>
     )
   })()
 
@@ -312,17 +306,10 @@ function HomeActionSheet({
         animate={{ y: 0,  opacity: 1 }}
         exit={{   y: 80, opacity: 0 }}
         transition={{ type: 'spring', stiffness: 280, damping: 26 }}
-        className="relative w-full max-w-[480px] bg-[#0a0612] border-t border-border px-6 pt-5"
+        className="relative w-full max-w-[480px] bg-surface border-t border-border flex flex-col gap-6 p-4 overflow-hidden"
         style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 24px)' }}
         onClick={(e) => e.stopPropagation()}
       >
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center text-tertiary hover:text-primary"
-          aria-label="Close"
-        >
-          <X size={16} />
-        </button>
         {sheetContent}
       </motion.div>
     </motion.div>
