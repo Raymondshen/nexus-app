@@ -254,8 +254,18 @@ function HomeActionSheet({
         <div className="flex flex-col gap-2">
           <p className="font-pixel text-[8px] text-tertiary leading-none">SQUADS</p>
           <div className="flex flex-col gap-1">
-            <h2 className="font-body font-bold text-[18px] text-primary leading-none">Actions</h2>
-            <p className="font-body text-[12px] text-secondary leading-normal">What would you like to do?</p>
+            <h2
+              className="font-body font-bold text-[18px] text-primary leading-none"
+              style={{ fontVariationSettings: '"opsz" 14' }}
+            >
+              SQUAD?!?!
+            </h2>
+            <p
+              className="font-body text-[12px] text-secondary leading-normal"
+              style={{ fontVariationSettings: '"opsz" 14' }}
+            >
+              What would you like to do?
+            </p>
           </div>
         </div>
 
@@ -274,16 +284,18 @@ function HomeActionSheet({
             <span className="font-pixel text-[8px] text-purple leading-none">JOIN A SQUAD</span>
           </button>
 
-          <button
-            onClick={onOpenArsenal}
-            className="w-full h-[48px] flex items-center justify-center border border-[#f59e0b]"
-          >
-            <span className="font-pixel text-[8px] leading-none" style={{ color: '#f59e0b' }}>INVITE A FRIEND</span>
-            <span className="font-silkscreen text-[12px] leading-none ml-2 text-tertiary">
-              25 COINS Per INVITE{' '}
-              <span style={{ color: '#f59e0b' }}>· {infiniteCoins ? '∞' : coins.toLocaleString()} coins available</span>
-            </span>
-          </button>
+          <div className="flex flex-col gap-1">
+            <button
+              onClick={onOpenArsenal}
+              className="w-full h-[48px] flex items-center justify-center border border-[#f59e0b]"
+            >
+              <span className="font-pixel text-[8px] leading-none" style={{ color: '#f59e0b' }}>INVITE A FRIEND</span>
+            </button>
+            <p className="font-silkscreen text-[12px] tracking-[0.2px] leading-normal" style={{ color: '#f59e0b' }}>
+              <span className="text-tertiary">25 COINS Per INVITE</span>
+              {` · ${infiniteCoins ? '∞' : coins.toLocaleString()} coins available`}
+            </p>
+          </div>
         </div>
 
         <button
