@@ -229,7 +229,7 @@ export function MessageBubble({
           <div
             className="relative flex-shrink-0"
             onClick={onAvatarTap ? () => onAvatarTap(message.user_id) : undefined}
-            onTouchEnd={onAvatarTap ? (e) => { e.stopPropagation(); onAvatarTap(message.user_id) } : undefined}
+            onTouchStart={onAvatarTap ? (e) => e.stopPropagation() : undefined}
             style={onAvatarTap ? { cursor: 'pointer' } : undefined}
           >
             <div className="w-8 h-8 bg-surface flex items-center justify-center overflow-hidden">
@@ -260,7 +260,7 @@ export function MessageBubble({
                   }`}
                   style={{ fontVariationSettings: '"opsz" 14', cursor: onAvatarTap ? 'pointer' : undefined }}
                   onClick={onAvatarTap ? () => onAvatarTap(message.user_id) : undefined}
-                  onTouchEnd={onAvatarTap ? (e) => { e.stopPropagation(); onAvatarTap(message.user_id) } : undefined}
+                  onTouchStart={onAvatarTap ? (e) => e.stopPropagation() : undefined}
                 >
                   {message.profile.username}
                 </span>
@@ -342,7 +342,7 @@ export function MessageBubble({
                 return (
                   <button
                     key={emoji}
-                    onTouchEnd={(e) => { e.stopPropagation(); void handleReaction(emoji) }}
+                    onTouchStart={(e) => e.stopPropagation()}
                     onClick={() => void handleReaction(emoji)}
                     className={`flex items-center gap-1 px-2 py-0.5 border text-[13px] leading-none transition-colors select-none ${
                       active
