@@ -17,7 +17,7 @@ Group messaging app where the chat is an RPG. Every message earns XP, boss fight
 
 ## Database Tables
 ```
-profiles       id, username (unique case-insensitive), avatar_class, avatar_url, custom_avatar (bool default false), birthday (date), is_dev, coins (int default 0), created_at
+profiles       id, username (unique case-insensitive), avatar_class, avatar_url, avatar_storage_key (text nullable), custom_avatar (bool default false), birthday (date), is_dev, coins (int default 0), created_at
 crews          id, name, invite_code (6 chars unique), level, total_xp, created_at,
                is_dm (bool default false), dm_partner_1 (uuid nullable), dm_partner_2 (uuid nullable)
 crew_members   id, crew_id, user_id, class, joined_at, last_seen (unread cursor + presence)
@@ -214,6 +214,8 @@ Member avatars and online dots in ChatInput are not gated — those are chat fea
 - Protected prefixes: `/home`, `/chat`, `/vault`, `/party`, `/profile`, `/onboarding`, `/friends`, `/dm`
 - Uses `getSession()` (cookie-only) NOT `getUser()` — `getUser()` adds 100–300ms per nav
 - Build: `next build --webpack` in vercel.json — Turbopack breaks next-pwa and conflicts with proxy.ts
+- `images.minimumCacheTTL: 604800` (7 days) — prevents Vercel re-optimizing Google OAuth avatars on every 60 s default TTL expiry; matches the SW `CacheFirst` rule for `lh3.googleusercontent.com`
+- `images.deviceSizes: [390, 768, 1080]` + `imageSizes: [24, 32, 40, 48, 56, 64, 128, 256]` — tuned for mobile-first avatar sizes
 
 ## Architecture Notes
 
@@ -465,6 +467,7 @@ All "detail" pages (chat, DM, profile, friends, vault) slide in from the right o
 - Deploy command: `supabase functions deploy send-notification --project-ref tlveyeisjbythssmocth --no-verify-jwt`
 - Deploy `award-xp` separately (no `--no-verify-jwt` needed — it is called by authenticated clients): `supabase functions deploy award-xp --project-ref tlveyeisjbythssmocth`
 - Deploy `react-to-message` (no `--no-verify-jwt` needed — called by authenticated clients with anon key): `supabase functions deploy react-to-message --project-ref tlveyeisjbythssmocth`
+- Deploy `process-avatar` (no auth header — called fire-and-forget from `updateAvatarAction`): `supabase functions deploy process-avatar --project-ref tlveyeisjbythssmocth --no-verify-jwt`
 
 ### Inter-function call pattern (award-xp → send-notification)
 `send-notification` is deployed with `--no-verify-jwt`. Call it via raw `fetch()` with **no Authorization header** — do NOT use `supabase.functions.invoke()` or pass any Bearer token (both return 401):
@@ -537,7 +540,7 @@ Always use `createServiceClient()` inside cache functions (service role, no cook
 
 ## Disabled Features (wired for future)
 - Voice notes: button removed; `XP_VALUES['voice']` + element type `lightning` still defined server-side
-- Image upload: button removed; upload logic, `browser-image-compression`, `chat-images` bucket still exist
+- Image upload: button removed; upload logic and `chat-images` bucket still exist (`browser-image-compression` removed — canvas WebP handles compression)
 
 ## Migrations (supabase/migrations/)
 - `20240101000000_initial_schema.sql` — tables, RLS, indexes, seed bosses
@@ -560,6 +563,9 @@ Always use `createServiceClient()` inside cache functions (service role, no cook
 - `20240103000011_reserved_users.sql` — `reserved_users` table (invite-only waitlist); RLS: public insert, service-role-only select/update
 - `20240103000012_reactions.sql` — `messages.reactions` JSONB column (default `'{}'`) + `toggle_reaction` row-locking Postgres function
 - `20240103000013_avatar_upload.sql` — `profiles.custom_avatar` boolean (default false) + `avatars` storage bucket + RLS policies (public read, user writes own folder)
+- `20240103000015_fix_chat_images_rls.sql` — **security**: tightened `chat-images` INSERT policy to validate `auth.uid()::text = storage.foldername(name)[2]`; old policy allowed any authenticated user to write anywhere in the bucket
+- `20240103000016_avatar_bucket_limits.sql` — raised `avatars` bucket `file_size_limit` to 10 MB (was 300 KB); added `image/heic`, `image/heic-sequence`, `image/heif` to `allowed_mime_types`
+- `20240103000017_avatar_storage_key.sql` — adds `profiles.avatar_storage_key text`; backfills `{userId}/{ts}` prefix from existing `avatar_url` values for bulk variant cleanup
 
 ### Manual SQL applied directly (no migration file)
 ```sql
@@ -651,22 +657,28 @@ create policy "friendships: either party can delete"
 - `unstable_cache`: always `createServiceClient()` inside the function; verify auth first with cookie client
 
 ## Image Rules
-- Compress client-side before upload: `browser-image-compression` with `maxSizeMB: 0.5`, `maxWidthOrHeight: 1024`, `useWebWorker: true`, `fileType: 'image/webp'`
 - Upload with `cacheControl: '31536000'` for CDN cache hit rate
 - Always `next/image` — never raw `<img>`; whitelist hostnames in `next.config.ts` under `images.remotePatterns`
+- **`unoptimized` flag**: every `<Image>` whose `src` can be a Supabase storage URL must pass `unoptimized={isSupabaseStorage(url)}`. Supabase already serves CDN-cached WebP; routing it through Vercel's optimizer adds a proxy hop, bills against Vercel's image quota, and re-compresses an already-compressed file. `isSupabaseStorage` and `resolveAvatarUrl` are exported from `src/components/ui/Avatar.tsx`.
+- **Thumbnail resolution**: call `resolveAvatarUrl(url, displaySize)` on every avatar `src`. For display sizes ≤ 64 CSS px it swaps `-256.ext` → `-128.ext`, halving transfer bytes for all chat/card avatar slots. URLs that don't match the pattern (legacy single-file, Google OAuth) pass through unchanged.
 - **Exception**: pixel art sprites in `PixelSprite.tsx` use plain `<img>` with `imageRendering: pixelated` — next/image interferes with pixel-perfect rendering on iOS PWA
 - **Exception**: `AvatarUploadModal` crop target uses plain `<img>` — `next/image` interferes with `react-image-crop`'s overlay positioning
 - Profile pictures from `profiles.avatar_url` (synced on every Google login); fall back to initials; use `Avatar.tsx` everywhere
 - Chat images: `chat-images` bucket, path `{crewId}/{userId}/{timestamp}.webp`
 
 ### Avatar Upload
-- **Component**: `src/components/ui/AvatarUploadModal.tsx` — bottom sheet with `react-image-crop` (aspect=1) + canvas render to 256×256 WebP
-- **Bucket**: `avatars` (public, 300 KB limit, `image/webp` only); path `{userId}/{timestamp}.webp`; `cacheControl: '31536000'`
-- **Flow**: tap avatar on `/profile` → file picker → `AvatarUploadModal` slides up → user crops → canvas renders 256×256 → upload to `avatars` bucket → `updateAvatarAction` (server action)
-- **Server action** (`updateAvatarAction` in `profile/actions.ts`): writes new URL + sets `custom_avatar = true` on the profile, deletes the old file from the `avatars` bucket (if previous URL was in that bucket), revalidates `profile:{userId}` + `crew-members:{crewId}` for every crew the user is in
-- **Google sync guard**: `profiles.custom_avatar = true` prevents the auth callback from overwriting a user-uploaded photo on next Google login. Set automatically by `updateAvatarAction`.
+- **Component**: `src/components/ui/AvatarUploadModal.tsx` — bottom sheet with `react-image-crop` (aspect=1) + canvas crop to **two** WebP variants (128px @ 0.82q, 256px @ 0.85q) uploaded in parallel
+- **Fallback chain** (Safari can't encode WebP from canvas): WebP → JPEG (0.87/0.90q) → PNG. The `ext` variable is derived from `blob.type` so the correct extension is always stored.
+- **Accepted input**: JPEG, PNG, WebP, HEIC/HEIF; max 10 MB (validated client-side and enforced by bucket policy)
+- **Bucket**: `avatars` (public, 10 MB input limit); paths `{userId}/{ts}-128.{ext}` and `{userId}/{ts}-256.{ext}`; `cacheControl: '31536000'`
+- **DB field `avatar_url`**: always points to the 256px variant (canonical URL stored in DB, used by all avatar renders)
+- **DB field `avatar_storage_key`**: `{userId}/{ts}` prefix (no size or ext); used by `updateAvatarAction` and `resetAvatarAction` to list + bulk-delete all variants via `storage.list(folder, { search: ts })` + `remove()`
+- **Flow**: tap avatar on `/profile` → file picker → `AvatarUploadModal` slides up → user crops → canvas renders 128+256px → upload both to `avatars` bucket → `updateAvatarAction` (server action) → fire-and-forget `process-avatar` edge function for AVIF variants
+- **`updateAvatarAction`** (`profile/actions.ts`): fetches old `avatar_url` + `avatar_storage_key` + crew list in parallel; writes new URL + storage key + `custom_avatar: true`; bulk-deletes old variants via storage key (falls back to single-file delete for legacy uploads without a stored key); fires `process-avatar` fire-and-forget; revalidates profile + crew-member caches
+- **`resetAvatarAction`** (`profile/actions.ts`): reads `user_metadata.avatar_url` (Google photo) from session; sets `custom_avatar: false`, `avatar_storage_key: null`, `avatar_url` = Google URL; bulk-deletes all stored variants; revalidates caches. Exposed as "Use Google photo" button in `ProfileClient` — only visible when `customAvatar === true`
+- **`process-avatar` edge function**: downloads the 256px WebP, uses `npm:sharp` to generate 64/128/256px AVIF variants, uploads them back with `upsert: true`. Called fire-and-forget (no auth header, deployed `--no-verify-jwt`). Failure has no impact on the user.
+- **Google sync guard**: `profiles.custom_avatar = true` prevents the auth callback from overwriting a user-uploaded photo on next Google login. Set automatically by `updateAvatarAction`; cleared by `resetAvatarAction`.
 - **Realtime propagation**: `MessageList` subscribes to `postgres_changes UPDATE` on `profiles` (no filter — all members). Patches `localProfiles` state on any matching member update → avatar changes appear in active chats within ~1 second without a page reload.
-- **Old file cleanup**: `updateAvatarAction` checks if the previous `avatar_url` starts with the `avatars` bucket prefix; if so, removes the old file via service role client to keep storage lean.
 
 ## Design Language
 

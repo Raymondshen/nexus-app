@@ -10,42 +10,131 @@ export async function revalidateProfileAction() {
   revalidateTag(`profile:${session.user.id}`, 'max')
 }
 
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+const AVATAR_BUCKET = 'avatars'
+
+function avatarPrefix() {
+  return `${process.env.NEXT_PUBLIC_SUPABASE_URL!}/storage/v1/object/public/${AVATAR_BUCKET}/`
+}
+
+/** Derive {userId}/{ts} storage key from a full avatar CDN URL. */
+function storageKeyFromUrl(url: string): string | null {
+  const prefix = avatarPrefix()
+  if (!url.startsWith(prefix)) return null
+  const path = url.slice(prefix.length)
+  // Strip size suffix: -{128|256|512}.ext  or  .ext  (legacy single-file)
+  return path
+    .replace(/-(128|256|512)\.(webp|jpg|png)$/, '')
+    .replace(/\.(webp|jpg|png)$/, '')
+}
+
+/** Bulk-delete all storage variants for a given {userId}/{ts} key. */
+async function deleteStorageVariants(storageKey: string) {
+  const slash   = storageKey.lastIndexOf('/')
+  const folder  = storageKey.slice(0, slash)   // userId
+  const tsPrefix = storageKey.slice(slash + 1)  // timestamp
+  const service = createServiceClient()
+  const { data: files } = await service.storage
+    .from(AVATAR_BUCKET)
+    .list(folder, { search: tsPrefix })
+  if (files && files.length > 0) {
+    await service.storage
+      .from(AVATAR_BUCKET)
+      .remove(files.map((f) => `${folder}/${f.name}`))
+  }
+}
+
+/** Invalidate profile + all crew-member caches for a user. */
+async function revalidateUserCaches(userId: string, crewIds: string[]) {
+  revalidateTag(`profile:${userId}`, 'max')
+  for (const crewId of crewIds) {
+    revalidateTag(`crew-members:${crewId}`, 'max')
+  }
+}
+
+// ── Actions ────────────────────────────────────────────────────────────────────
+
 export async function updateAvatarAction(newAvatarUrl: string): Promise<{ error: string | null }> {
   const supabase = await createClient()
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) return { error: 'Not authenticated' }
   const userId = session.user.id
 
-  // Fetch old URL so we can clean up the previous file from storage
-  const { data: profile } = await supabase
-    .from('profiles').select('avatar_url').eq('id', userId).single()
-  const oldUrl = (profile as { avatar_url?: string | null } | null)?.avatar_url ?? null
+  const storageKey = storageKeyFromUrl(newAvatarUrl)
 
-  // Persist new URL and mark as custom so Google sync never overwrites it
+  // Fetch old keys + crew membership list in parallel
+  const [{ data: profile }, { data: memberships }] = await Promise.all([
+    supabase.from('profiles').select('avatar_url, avatar_storage_key').eq('id', userId).single(),
+    supabase.from('crew_members').select('crew_id').eq('user_id', userId),
+  ])
+  type OldProfile = { avatar_url?: string | null; avatar_storage_key?: string | null }
+  const oldUrl        = (profile as OldProfile | null)?.avatar_url ?? null
+  const oldStorageKey = (profile as OldProfile | null)?.avatar_storage_key ?? null
+
+  // Persist new URL, storage key, and mark as custom
   const { error } = await supabase
     .from('profiles')
-    .update({ avatar_url: newAvatarUrl, custom_avatar: true })
+    .update({ avatar_url: newAvatarUrl, custom_avatar: true, avatar_storage_key: storageKey })
     .eq('id', userId)
   if (error) return { error: error.message }
 
-  // Delete old file if it came from the avatars bucket
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const avatarPrefix = `${supabaseUrl}/storage/v1/object/public/avatars/`
-  if (oldUrl?.startsWith(avatarPrefix)) {
-    const oldPath = oldUrl.slice(avatarPrefix.length)
+  // Delete old storage variants
+  if (oldStorageKey) {
+    await deleteStorageVariants(oldStorageKey)
+  } else if (oldUrl?.startsWith(avatarPrefix())) {
+    // Legacy: single-file upload without a stored key
     const service = createServiceClient()
-    await service.storage.from('avatars').remove([oldPath])
+    await service.storage.from(AVATAR_BUCKET).remove([oldUrl.slice(avatarPrefix().length)])
   }
 
-  // Invalidate server caches for this user's profile + every crew they're in
-  revalidateTag(`profile:${userId}`, 'max')
-  const { data: memberships } = await supabase
-    .from('crew_members').select('crew_id').eq('user_id', userId)
-  if (memberships) {
-    for (const row of memberships as { crew_id: string }[]) {
-      revalidateTag(`crew-members:${row.crew_id}`, 'max')
-    }
+  // Fire-and-forget AVIF generation — non-blocking, failure is acceptable
+  if (storageKey) {
+    const slash  = storageKey.lastIndexOf('/')
+    const ts     = storageKey.slice(slash + 1)
+    const ext    = newAvatarUrl.match(/\.(webp|jpg|png)$/)?.[1] ?? 'webp'
+    const fnUrl  = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/process-avatar`
+    fetch(fnUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, ts, ext }),
+    }).catch(() => {})
   }
 
+  const crewIds = ((memberships ?? []) as { crew_id: string }[]).map((r) => r.crew_id)
+  await revalidateUserCaches(userId, crewIds)
   return { error: null }
+}
+
+export async function resetAvatarAction(): Promise<{ error: string | null; avatarUrl?: string | null }> {
+  const supabase = await createClient()
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) return { error: 'Not authenticated' }
+  const userId = session.user.id
+
+  // Google avatar URL lives in user_metadata (refreshed on every OAuth login)
+  const googleAvatarUrl = (session.user.user_metadata?.avatar_url as string | undefined) ?? null
+
+  // Fetch current storage key + crew membership list in parallel
+  const [{ data: profile }, { data: memberships }] = await Promise.all([
+    supabase.from('profiles').select('avatar_storage_key').eq('id', userId).single(),
+    supabase.from('crew_members').select('crew_id').eq('user_id', userId),
+  ])
+  const oldStorageKey = (profile as { avatar_storage_key?: string | null } | null)?.avatar_storage_key ?? null
+
+  // Reset profile to Google photo and clear custom flag
+  const { error } = await supabase
+    .from('profiles')
+    .update({ avatar_url: googleAvatarUrl, custom_avatar: false, avatar_storage_key: null })
+    .eq('id', userId)
+  if (error) return { error: error.message }
+
+  // Bulk-delete all storage variants
+  if (oldStorageKey) {
+    await deleteStorageVariants(oldStorageKey)
+  }
+
+  const crewIds = ((memberships ?? []) as { crew_id: string }[]).map((r) => r.crew_id)
+  await revalidateUserCaches(userId, crewIds)
+  return { error: null, avatarUrl: googleAvatarUrl }
 }

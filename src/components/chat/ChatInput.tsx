@@ -4,6 +4,7 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
 import Image from 'next/image'
+import { isSupabaseStorage, resolveAvatarUrl } from '@/components/ui/Avatar'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/client'
 import { getElementType, getXPProgress, XP_PER_LEVEL } from '@/lib/game/xp'
@@ -56,7 +57,7 @@ function ExpandedMemberRow({ profile, msgCount, loading }: { profile: MemberProf
       </div>
       <div className="relative w-9 h-9 flex-shrink-0 overflow-hidden bg-border">
         {url ? (
-          <Image src={url} alt={profile.username} fill sizes="36px" className="object-cover" />
+          <Image src={resolveAvatarUrl(url, 36)} alt={profile.username} fill sizes="36px" className="object-cover" unoptimized={isSupabaseStorage(url)} />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             <span className="font-pixel text-[10px] text-purple">{initial}</span>
@@ -350,7 +351,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatI
                 <div className="w-6 h-6 overflow-hidden bg-surface flex items-center justify-center">
                   {url ? (
                     <div className="relative w-full h-full">
-                      <Image src={url} alt={m.username} fill sizes="24px" className="object-cover" />
+                      <Image src={resolveAvatarUrl(url, 24)} alt={m.username} fill sizes="24px" className="object-cover" unoptimized={isSupabaseStorage(url)} />
                     </div>
                   ) : (
                     <span className="font-pixel text-[8px] text-purple">{initial}</span>

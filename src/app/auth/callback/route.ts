@@ -19,10 +19,17 @@ export async function GET(request: NextRequest) {
       const { data: { user } } = await supabase.auth.getUser()
       const avatarUrl = user?.user_metadata?.avatar_url as string | undefined
       if (user && avatarUrl) {
-        await supabase.from('profiles')
-          .update({ avatar_url: avatarUrl })
+        const { data: existing } = await supabase
+          .from('profiles')
+          .select('avatar_url, custom_avatar')
           .eq('id', user.id)
-          .eq('custom_avatar', false)
+          .single()
+        const profile = existing as { avatar_url: string | null; custom_avatar: boolean } | null
+        if (profile && !profile.custom_avatar && profile.avatar_url !== avatarUrl) {
+          await supabase.from('profiles')
+            .update({ avatar_url: avatarUrl })
+            .eq('id', user.id)
+        }
       }
 
       let destination: string

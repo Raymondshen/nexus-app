@@ -22,6 +22,7 @@ export interface Profile extends Record<string, unknown> {
   username: string
   avatar_class: AvatarClass | null
   avatar_url: string | null
+  avatar_storage_key: string | null
   birthday: string | null
   coins: number
   custom_avatar: boolean

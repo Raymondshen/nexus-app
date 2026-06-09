@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import Image from 'next/image'
+import { isSupabaseStorage, resolveAvatarUrl } from '@/components/ui/Avatar'
 import { format } from 'date-fns'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useChatStore } from '@/store/chatStore'
@@ -236,7 +237,7 @@ export function MessageBubble({
             <div className="w-8 h-8 bg-surface flex items-center justify-center overflow-hidden">
               {avatarUrl ? (
                 <div className="relative w-full h-full">
-                  <Image src={avatarUrl} alt={message.profile.username} fill sizes="32px" className="object-cover" />
+                  <Image src={resolveAvatarUrl(avatarUrl, 32)} alt={message.profile.username} fill sizes="32px" className="object-cover" unoptimized={isSupabaseStorage(avatarUrl)} />
                 </div>
               ) : (
                 <span className="font-pixel text-[8px] text-purple">{initial}</span>

@@ -12,7 +12,14 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { createClient } from '@/lib/supabase/client'
 import { updateAvatarAction } from '@/app/(app)/profile/actions'
 
-const OUTPUT_SIZE = 256
+const SIZES = [128, 256] as const
+type VariantSize = typeof SIZES[number]
+
+const ACCEPTED_TYPES = new Set([
+  'image/jpeg', 'image/jpg', 'image/png', 'image/webp',
+  'image/heic', 'image/heic-sequence', 'image/heif',
+])
+const MAX_BYTES = 10 * 1024 * 1024 // 10 MB
 
 function initCrop(width: number, height: number): Crop {
   return centerCrop(
@@ -22,27 +29,50 @@ function initCrop(width: number, height: number): Crop {
   )
 }
 
-async function cropToBlob(img: HTMLImageElement, crop: PixelCrop): Promise<Blob> {
-  const canvas = document.createElement('canvas')
-  canvas.width = OUTPUT_SIZE
-  canvas.height = OUTPUT_SIZE
-  const ctx = canvas.getContext('2d')!
+async function cropToBlobs(
+  img: HTMLImageElement,
+  crop: PixelCrop,
+): Promise<{ size: VariantSize; blob: Blob }[]> {
   const scaleX = img.naturalWidth / img.width
   const scaleY = img.naturalHeight / img.height
-  ctx.drawImage(
-    img,
-    crop.x * scaleX, crop.y * scaleY,
-    crop.width * scaleX, crop.height * scaleY,
-    0, 0,
-    OUTPUT_SIZE, OUTPUT_SIZE,
+  return Promise.all(
+    SIZES.map((size) =>
+      new Promise<{ size: VariantSize; blob: Blob }>((resolve, reject) => {
+        const canvas = document.createElement('canvas')
+        canvas.width = size
+        canvas.height = size
+        const ctx = canvas.getContext('2d')!
+        ctx.drawImage(
+          img,
+          crop.x * scaleX, crop.y * scaleY,
+          crop.width * scaleX, crop.height * scaleY,
+          0, 0, size, size,
+        )
+        canvas.toBlob(
+          (blob) => {
+            if (blob) { resolve({ size, blob }); return }
+            // Safari can't produce WebP from canvas — try JPEG before PNG.
+            // JPEG photos are 5-20× smaller than PNG at comparable quality.
+            canvas.toBlob(
+              (jpegBlob) => {
+                if (jpegBlob) { resolve({ size, blob: jpegBlob }); return }
+                canvas.toBlob(
+                  (pngBlob) => pngBlob
+                    ? resolve({ size, blob: pngBlob })
+                    : reject(new Error(`canvas.toBlob failed at ${size}px`)),
+                  'image/png',
+                )
+              },
+              'image/jpeg',
+              size === 256 ? 0.90 : 0.87,
+            )
+          },
+          'image/webp',
+          size === 256 ? 0.85 : 0.82,
+        )
+      }),
+    ),
   )
-  return new Promise((resolve, reject) => {
-    canvas.toBlob(
-      (blob) => (blob ? resolve(blob) : reject(new Error('canvas.toBlob returned null — browser may not support WebP'))),
-      'image/webp',
-      0.9,
-    )
-  })
 }
 
 type StepStatus = 'idle' | 'running' | 'ok' | 'fail'
@@ -100,22 +130,34 @@ export function AvatarUploadModal({ file, userId, isDev, onClose, onSuccess }: A
 
   async function handleSave() {
     if (!imgRef.current || !completedCrop || saving) return
+
+    if (!file) return
+    if (!ACCEPTED_TYPES.has(file.type.toLowerCase())) {
+      setUploadError('Unsupported format. Use JPG, PNG, WebP, or HEIC.')
+      return
+    }
+    if (file.size > MAX_BYTES) {
+      setUploadError('File too large. Maximum 10 MB.')
+      return
+    }
+
     setSaving(true)
     setUploadError('')
 
     const steps: DebugStep[] = [
-      { label: '1. Canvas crop → WebP blob', status: 'running', detail: '' },
-      { label: '2. Supabase storage upload',  status: 'idle',    detail: '' },
-      { label: '3. Profile DB update',        status: 'idle',    detail: '' },
+      { label: '1. Canvas crop → 128+256 blobs', status: 'running', detail: '' },
+      { label: '2. Supabase storage upload (×2)', status: 'idle',    detail: '' },
+      { label: '3. Profile DB update',            status: 'idle',    detail: '' },
     ]
     if (isDev) { setDebugSteps([...steps]); setShowDebug(true) }
 
     try {
-      // ── Step 1: crop to blob ───────────────────────────────────────────────
-      let blob: Blob
+      // ── Step 1: crop to blobs (128px + 256px in parallel) ─────────────────
+      let variants: { size: VariantSize; blob: Blob }[]
       try {
-        blob = await cropToBlob(imgRef.current, completedCrop)
-        steps[0] = { ...steps[0], status: 'ok', detail: `${(blob.size / 1024).toFixed(1)} KB, type=${blob.type}` }
+        variants = await cropToBlobs(imgRef.current, completedCrop)
+        const detail = variants.map(v => `${v.size}px: ${(v.blob.size / 1024).toFixed(1)} KB`).join(' · ')
+        steps[0] = { ...steps[0], status: 'ok', detail: `type=${variants[0].blob.type} · ${detail}` }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e)
         steps[0] = { ...steps[0], status: 'fail', detail: msg }
@@ -124,25 +166,33 @@ export function AvatarUploadModal({ file, userId, isDev, onClose, onSuccess }: A
       }
       if (isDev) setDebugSteps([...steps])
 
-      // ── Step 2: storage upload ─────────────────────────────────────────────
+      // ── Step 2: storage upload (both variants in parallel) ─────────────────
       // Use the blob's actual type — Safari falls back to image/png since it
       // doesn't support WebP canvas output.
-      const ext = blob.type === 'image/webp' ? 'webp' : blob.type === 'image/jpeg' ? 'jpg' : 'png'
-      const path = `${userId}/${Date.now()}.${ext}`
-      steps[1] = { ...steps[1], status: 'running', detail: `path: ${path}, type: ${blob.type}` }
+      const ext = variants[0].blob.type === 'image/webp' ? 'webp' : variants[0].blob.type === 'image/jpeg' ? 'jpg' : 'png'
+      const ts = Date.now()
+      steps[1] = { ...steps[1], status: 'running', detail: `uploading ${variants.length} variants…` }
       if (isDev) setDebugSteps([...steps])
 
       const supabase = createClient()
-      const { error: storageErr } = await supabase.storage
-        .from('avatars')
-        .upload(path, blob, { contentType: blob.type, cacheControl: '31536000' })
+      const uploadResults = await Promise.all(
+        variants.map(({ size, blob }) =>
+          supabase.storage.from('avatars').upload(
+            `${userId}/${ts}-${size}.${ext}`,
+            blob,
+            { contentType: blob.type, cacheControl: '31536000' },
+          ),
+        ),
+      )
 
-      if (storageErr) {
-        steps[1] = { ...steps[1], status: 'fail', detail: `${storageErr.message} (status ${(storageErr as { statusCode?: string }).statusCode ?? '?'})` }
+      const failedUpload = uploadResults.find(({ error }) => error)
+      if (failedUpload?.error) {
+        const err = failedUpload.error
+        steps[1] = { ...steps[1], status: 'fail', detail: `${err.message} (status ${(err as { statusCode?: string }).statusCode ?? '?'})` }
         if (isDev) setDebugSteps([...steps])
-        throw new Error(`Storage: ${storageErr.message}`)
+        throw new Error(`Storage: ${err.message}`)
       }
-      const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path)
+      const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(`${userId}/${ts}-256.${ext}`)
       steps[1] = { ...steps[1], status: 'ok', detail: publicUrl }
       if (isDev) setDebugSteps([...steps])
 

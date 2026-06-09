@@ -11,6 +11,11 @@ const baseConfig: NextConfig = {
   // proxy.ts from middleware.ts and then error on finding both files.
   // Use `next dev --turbo` to opt into Turbopack during development.
   images: {
+    deviceSizes: [390, 768, 1080],
+    imageSizes:  [24, 32, 40, 48, 56, 64, 128, 256],
+    // Cache Vercel-optimized images for 7 days (matches SW rule for Google avatars).
+    // Without this, Next.js defaults to 60 s and re-optimizes on every cache miss.
+    minimumCacheTTL: 604800,
     remotePatterns: [
       {
         protocol: 'https',
@@ -37,16 +42,7 @@ const pwaConfig = {
     document: '/offline.html',
   },
   runtimeCaching: [
-    // Static assets: CacheFirst, 30 days
-    {
-      urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp|ico|woff2?|ttf|otf)(\?.*)?$/i,
-      handler: 'CacheFirst',
-      options: {
-        cacheName: 'nexus-static',
-        expiration: { maxEntries: 100, maxAgeSeconds: 30 * 24 * 60 * 60 },
-      },
-    },
-    // Google profile pictures: CacheFirst, 7 days
+    // Google profile pictures: CacheFirst, 7 days — URL rule fires before generic extension rule
     {
       urlPattern: /^https:\/\/lh3\.googleusercontent\.com\/.*/i,
       handler: 'CacheFirst',
@@ -55,7 +51,16 @@ const pwaConfig = {
         expiration: { maxEntries: 200, maxAgeSeconds: 7 * 24 * 60 * 60 },
       },
     },
-    // Supabase Storage images (chat-images bucket): CacheFirst, 30 days
+    // Supabase avatars bucket: CacheFirst, 365 days (paths include a timestamp — immutable)
+    {
+      urlPattern: /^https:\/\/.*\.supabase\.co\/storage\/v1\/object\/public\/avatars\/.*/i,
+      handler: 'CacheFirst',
+      options: {
+        cacheName: 'nexus-avatars-storage',
+        expiration: { maxEntries: 500, maxAgeSeconds: 365 * 24 * 60 * 60 },
+      },
+    },
+    // Supabase chat-images bucket: CacheFirst, 30 days
     {
       urlPattern: /^https:\/\/.*\.supabase\.co\/storage\/v1\/object\/public\/chat-images\/.*/i,
       handler: 'CacheFirst',
@@ -64,13 +69,25 @@ const pwaConfig = {
         expiration: { maxEntries: 500, maxAgeSeconds: 30 * 24 * 60 * 60 },
       },
     },
-    // Supabase Storage (all other public buckets — artifacts, avatars, etc.): CacheFirst, 30 days
+    // Supabase Storage (all other public buckets): CacheFirst, 30 days
     {
       urlPattern: /^https:\/\/.*\.supabase\.co\/storage\/v1\/object\/public\/.*/i,
       handler: 'CacheFirst',
       options: {
         cacheName: 'nexus-storage',
         expiration: { maxEntries: 300, maxAgeSeconds: 30 * 24 * 60 * 60 },
+      },
+    },
+    // Static assets — exclude Supabase/Google hosts whose URL rules already fired above
+    {
+      urlPattern: ({ url }: { url: URL }) =>
+        !url.hostname.includes('.supabase.co') &&
+        url.hostname !== 'lh3.googleusercontent.com' &&
+        /\.(?:png|jpg|jpeg|svg|gif|webp|ico|woff2?|ttf|otf)(\?.*)?$/i.test(url.pathname),
+      handler: 'CacheFirst',
+      options: {
+        cacheName: 'nexus-static',
+        expiration: { maxEntries: 100, maxAgeSeconds: 30 * 24 * 60 * 60 },
       },
     },
     // API routes: NetworkFirst, 10s timeout

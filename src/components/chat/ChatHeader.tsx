@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useSlideBack } from '@/components/ui/SlidePage'
 import Link from 'next/link'
 import Image from 'next/image'
+import { isSupabaseStorage, resolveAvatarUrl } from '@/components/ui/Avatar'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useChatStore } from '@/store/chatStore'
 import { getXPProgress, XP_PER_LEVEL } from '@/lib/game/xp'
@@ -79,7 +80,7 @@ function MemberRow({ member, isCurrentUser }: { member: MemberInfo; isCurrentUse
       {/* Profile avatar */}
       <div className="w-9 h-9 flex-shrink-0 relative overflow-hidden bg-border">
         {member.avatarUrl ? (
-          <Image src={member.avatarUrl} alt={member.username} fill sizes="36px" className="object-cover" />
+          <Image src={resolveAvatarUrl(member.avatarUrl, 36)} alt={member.username} fill sizes="36px" className="object-cover" unoptimized={isSupabaseStorage(member.avatarUrl)} />
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-[#111]">
             <span className="font-pixel text-[10px] text-primary">{initial}</span>

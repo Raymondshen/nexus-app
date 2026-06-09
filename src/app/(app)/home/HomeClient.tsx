@@ -12,6 +12,7 @@ import { Logout } from 'pixelarticons/react/Logout'
 import { AvatarSquare } from 'pixelarticons/react/AvatarSquare'
 import { PlusBox } from 'pixelarticons/react/PlusBox'
 import Image from 'next/image'
+import { isSupabaseStorage, resolveAvatarUrl } from '@/components/ui/Avatar'
 import { createClient } from '@/lib/supabase/client'
 import { createCrewAction } from '@/app/(app)/onboarding/create/actions'
 import { joinCrewAction }   from '@/app/(app)/onboarding/join/actions'
@@ -89,7 +90,7 @@ function ProfileBanner({
         {/* Avatar */}
         <div className="w-12 h-12 flex-shrink-0 overflow-hidden relative bg-border">
           {avatarUrl ? (
-            <Image src={avatarUrl} alt={username} fill sizes="48px" className="object-cover" />
+            <Image src={resolveAvatarUrl(avatarUrl, 48)} alt={username} fill sizes="48px" className="object-cover" priority unoptimized={isSupabaseStorage(avatarUrl)} />
           ) : (
             <div className="w-full h-full flex items-center justify-center font-pixel text-[10px] text-primary">
               {username[0]?.toUpperCase() ?? '?'}
@@ -500,7 +501,7 @@ function FriendCard({ friend, onTap }: { friend: FriendSummary; onTap: () => voi
         style={{ background: avatarColor + '22', border: `1px solid ${avatarColor}60`, color: avatarColor }}
       >
         {friend.avatarUrl ? (
-          <Image src={friend.avatarUrl} alt={friend.username} width={40} height={40} className="object-cover w-full h-full" />
+          <Image src={resolveAvatarUrl(friend.avatarUrl, 40)} alt={friend.username} width={40} height={40} className="object-cover w-full h-full" unoptimized={isSupabaseStorage(friend.avatarUrl)} />
         ) : (
           friend.username[0]?.toUpperCase()
         )}

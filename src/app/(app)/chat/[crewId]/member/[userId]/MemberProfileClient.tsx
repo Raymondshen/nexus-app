@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Image from 'next/image'
+import { isSupabaseStorage, resolveAvatarUrl } from '@/components/ui/Avatar'
 import { format, parseISO } from 'date-fns'
 import { useSlideBack } from '@/components/ui/SlidePage'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
@@ -114,7 +115,7 @@ export function MemberProfileClient({
     return (
       <div className={`${wh} bg-surface overflow-hidden relative flex-shrink-0`}>
         {avatarUrl ? (
-          <Image src={avatarUrl} alt={username} fill sizes={`${size}px`} className="object-cover" />
+          <Image src={resolveAvatarUrl(avatarUrl, size)} alt={username} fill sizes={`${size}px`} className="object-cover" unoptimized={isSupabaseStorage(avatarUrl)} />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             <span className={`font-pixel ${txtSz} text-purple`}>{initial}</span>

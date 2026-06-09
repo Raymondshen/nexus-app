@@ -6,11 +6,12 @@ import { motion } from 'framer-motion'
 import { SlidePage, useSlideBack } from '@/components/ui/SlidePage'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import Image from 'next/image'
+import { isSupabaseStorage, resolveAvatarUrl } from '@/components/ui/Avatar'
 import { createClient } from '@/lib/supabase/client'
 import { signOut } from '@/lib/supabase/auth'
 import { isSupported, getPermissionState, requestPermission, subscribeToPush } from '@/lib/notifications'
 import type { PermissionState } from '@/lib/notifications'
-import { revalidateProfileAction } from './actions'
+import { revalidateProfileAction, resetAvatarAction } from './actions'
 import { AvatarUploadModal } from '@/components/ui/AvatarUploadModal'
 
 interface ProfileClientProps {
@@ -19,6 +20,7 @@ interface ProfileClientProps {
   initialUsername: string
   avatarUrl:       string | null
   avatarClass:     string | null
+  customAvatar:    boolean
   isDev:           boolean
   isGuest:         boolean
   memberSinceYear: string
@@ -120,16 +122,32 @@ function NotifRow({
 // ─── ProfileClient ────────────────────────────────────────────────────────────
 
 export function ProfileClient({
-  userId, userEmail, initialUsername, avatarUrl, avatarClass, isDev, isGuest,
+  userId, userEmail, initialUsername, avatarUrl, avatarClass, customAvatar, isDev, isGuest,
   memberSinceYear, totalMessages, groupChats, inviterUsername,
 }: ProfileClientProps) {
   const router = useRouter()
   const goBack = useSlideBack()
 
-  // ── Avatar upload ─────────────────────────────────────────────────────────
-  const [localAvatarUrl, setLocalAvatarUrl] = useState(avatarUrl)
-  const [pendingFile, setPendingFile]       = useState<File | null>(null)
-  const fileInputRef                        = useRef<HTMLInputElement>(null)
+  // ── Avatar upload + reset ─────────────────────────────────────────────────
+  const [localAvatarUrl,    setLocalAvatarUrl]    = useState(avatarUrl)
+  const [localCustomAvatar, setLocalCustomAvatar] = useState(customAvatar)
+  const [pendingFile,       setPendingFile]       = useState<File | null>(null)
+  const [resettingAvatar,   setResettingAvatar]   = useState(false)
+  const fileInputRef                              = useRef<HTMLInputElement>(null)
+
+  async function handleResetAvatar() {
+    if (resettingAvatar) return
+    setResettingAvatar(true)
+    try {
+      const result = await resetAvatarAction()
+      if (!result.error) {
+        setLocalAvatarUrl(result.avatarUrl ?? null)
+        setLocalCustomAvatar(false)
+      }
+    } finally {
+      setResettingAvatar(false)
+    }
+  }
 
   // ── Username ──────────────────────────────────────────────────────────────
   const [username,   setUsername]   = useState(initialUsername)
@@ -275,32 +293,43 @@ export function ProfileClient({
         {/* Details row */}
         <div className="flex items-center gap-4">
           {/* Avatar — tappable for authenticated users */}
-          <button
-            onClick={() => !isGuest && fileInputRef.current?.click()}
-            disabled={isGuest}
-            className="relative flex-shrink-0 w-14 h-14 bg-primary overflow-hidden group"
-            aria-label="Change photo"
-          >
-            {localAvatarUrl ? (
-              <Image src={localAvatarUrl} alt={initialUsername} fill sizes="56px" className="object-cover" />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center bg-surface">
-                <span className="font-pixel text-[14px] text-purple">{initial}</span>
-              </div>
+          <div className="flex-shrink-0 flex flex-col items-center gap-1">
+            <button
+              onClick={() => !isGuest && fileInputRef.current?.click()}
+              disabled={isGuest}
+              className="relative w-14 h-14 bg-primary overflow-hidden group"
+              aria-label="Change photo"
+            >
+              {localAvatarUrl ? (
+                <Image src={resolveAvatarUrl(localAvatarUrl, 56)} alt={initialUsername} fill sizes="56px" className="object-cover" priority unoptimized={isSupabaseStorage(localAvatarUrl)} />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-surface">
+                  <span className="font-pixel text-[14px] text-purple">{initial}</span>
+                </div>
+              )}
+              {!isGuest && (
+                <div className="absolute inset-0 bg-black/55 flex items-center justify-center opacity-0 group-hover:opacity-100 group-active:opacity-100 transition-opacity pointer-events-none">
+                  <span className="font-pixel text-[6px] text-white text-center leading-relaxed">
+                    CHANGE<br />PHOTO
+                  </span>
+                </div>
+              )}
+            </button>
+            {localCustomAvatar && !isGuest && (
+              <button
+                onClick={handleResetAvatar}
+                disabled={resettingAvatar}
+                className="font-silkscreen text-[7px] text-muted leading-none whitespace-nowrap disabled:opacity-40"
+              >
+                {resettingAvatar ? '...' : 'Use Google photo'}
+              </button>
             )}
-            {!isGuest && (
-              <div className="absolute inset-0 bg-black/55 flex items-center justify-center opacity-0 group-hover:opacity-100 group-active:opacity-100 transition-opacity pointer-events-none">
-                <span className="font-pixel text-[6px] text-white text-center leading-relaxed">
-                  CHANGE<br />PHOTO
-                </span>
-              </div>
-            )}
-          </button>
+          </div>
           {/* Hidden file input */}
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*"
+            accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif"
             className="hidden"
             onChange={(e) => {
               const f = e.target.files?.[0]
@@ -475,7 +504,7 @@ export function ProfileClient({
         userId={userId}
         isDev={isDev}
         onClose={() => setPendingFile(null)}
-        onSuccess={(url) => setLocalAvatarUrl(url)}
+        onSuccess={(url) => { setLocalAvatarUrl(url); setLocalCustomAvatar(true) }}
       />
     </SlidePage>
   )
