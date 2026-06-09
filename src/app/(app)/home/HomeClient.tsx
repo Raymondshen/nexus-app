@@ -72,6 +72,7 @@ function ProfileBanner({
   crewCount,
   totalMessages,
   onEditProfile,
+  afkExpEnabled,
 }: {
   username:      string
   avatarUrl:     string | null
@@ -79,6 +80,7 @@ function ProfileBanner({
   crewCount:     number
   totalMessages: number
   onEditProfile: () => void
+  afkExpEnabled: boolean
 }) {
   return (
     <div className="bg-surface border border-border rounded-lg p-4 flex flex-col gap-4">
@@ -120,20 +122,22 @@ function ProfileBanner({
         </button>
       </div>
 
-      {/* AFK XP bar */}
-      <div className="flex items-stretch gap-2">
-        <div className="flex-1 flex flex-col gap-2 justify-center">
-          <span className="font-silkscreen text-[8px] text-primary">
-            AFK EXP ACCUMULATED · 100 / 100 XP
-          </span>
-          <div className="h-1 w-full bg-purple" />
+      {/* AFK XP bar — dev-only feature flag: nexus_afk_exp */}
+      {afkExpEnabled && (
+        <div className="flex items-stretch gap-2">
+          <div className="flex-1 flex flex-col gap-2 justify-center">
+            <span className="font-silkscreen text-[8px] text-primary">
+              AFK EXP ACCUMULATED · 100 / 100 XP
+            </span>
+            <div className="h-1 w-full bg-purple" />
+          </div>
+          <button
+            className="bg-purple px-4 py-2 font-pixel text-[8px] text-primary whitespace-nowrap"
+          >
+            CLAIM
+          </button>
         </div>
-        <button
-          className="bg-purple px-4 py-2 font-pixel text-[8px] text-primary whitespace-nowrap"
-        >
-          CLAIM
-        </button>
-      </div>
+      )}
     </div>
   )
 }
@@ -663,6 +667,7 @@ export function HomeClient({
   })
   const [showCoinTip,       setShowCoinTip]       = useState(false)
   const [infiniteCoins,     setInfiniteCoins]     = useState(false)
+  const [afkExpEnabled,    setAfkExpEnabled]    = useState(false)
 
   const profileCacheRef = useRef<Record<string, string>>(profileCache)
   useEffect(() => { profileCacheRef.current = profileCache }, [profileCache])
@@ -675,6 +680,16 @@ export function HomeClient({
     }
     window.addEventListener('nexus-infinite-coins-change', onFlagChange)
     return () => window.removeEventListener('nexus-infinite-coins-change', onFlagChange)
+  }, [])
+
+  // Sync AFK XP feature flag from localStorage + listen for dev-section toggle
+  useEffect(() => {
+    setAfkExpEnabled(localStorage.getItem('nexus_afk_exp') === '1')
+    function onFlagChange(e: Event) {
+      setAfkExpEnabled((e as CustomEvent<{ on: boolean }>).detail.on)
+    }
+    window.addEventListener('nexus-afk-exp-change', onFlagChange)
+    return () => window.removeEventListener('nexus-afk-exp-change', onFlagChange)
   }, [])
 
   useEffect(() => { setCrews(initialCrews) }, [initialCrews])
@@ -826,7 +841,7 @@ export function HomeClient({
                 aria-label={`${infiniteCoins ? '∞' : coins} coins`}
                 className="self-stretch flex items-center"
               >
-                <div className="flex items-center gap-1 h-full bg-[rgba(245,158,11,0.25)] rounded-[4px] px-2">
+                <div className="flex items-center gap-1 h-full bg-[rgba(245,158,11,0.25)] rounded-[4px] px-1">
                   <TokeCircle style={{ width: 24, height: 16, color: '#f59e0b' }} aria-hidden="true" />
                   <span className="font-silkscreen text-[12px] leading-none w-[26px] pb-[2px]" style={{ color: '#f59e0b' }}>
                     {infiniteCoins ? '∞' : coins.toLocaleString()}
@@ -877,6 +892,7 @@ export function HomeClient({
           crewCount={crews.length}
           totalMessages={totalMessages}
           onEditProfile={() => router.push('/profile')}
+          afkExpEnabled={afkExpEnabled}
         />
 
         {/* Squads section */}

@@ -450,6 +450,7 @@ function DevSection({ userId, userEmail }: { userId: string; userEmail: string }
   const [devMode,      setDevMode]      = useState(false)
   const [showPush,     setShowPush]     = useState(false)
   const [infiniteCoins, setInfiniteCoins] = useState(false)
+  const [afkExp,        setAfkExp]        = useState(false)
   const [actualCoins,  setActualCoins]  = useState<number | null>(null)
 
 
@@ -457,6 +458,7 @@ function DevSection({ userId, userEmail }: { userId: string; userEmail: string }
     setDevMode(localStorage.getItem('nexus_dev_mode') === '1')
     setShowPush(localStorage.getItem('nexus_push_diag') === '1')
     setInfiniteCoins(localStorage.getItem('nexus_infinite_coins') === '1')
+    setAfkExp(localStorage.getItem('nexus_afk_exp') === '1')
     // fetch actual coin balance
     const supabase = createClient()
     supabase.from('profiles').select('coins').eq('id', userId).maybeSingle().then(({ data }) => {
@@ -485,6 +487,14 @@ function DevSection({ userId, userEmail }: { userId: string; userEmail: string }
     if (next) localStorage.setItem('nexus_infinite_coins', '1')
     else localStorage.removeItem('nexus_infinite_coins')
     window.dispatchEvent(new CustomEvent('nexus-infinite-coins-change', { detail: { on: next } }))
+  }
+
+  function toggleAfkExp() {
+    const next = !afkExp
+    setAfkExp(next)
+    if (next) localStorage.setItem('nexus_afk_exp', '1')
+    else localStorage.removeItem('nexus_afk_exp')
+    window.dispatchEvent(new CustomEvent('nexus-afk-exp-change', { detail: { on: next } }))
   }
 
   function copyToClipboard(text: string, setCopied: (v: boolean) => void) {
@@ -542,6 +552,15 @@ function DevSection({ userId, userEmail }: { userId: string; userEmail: string }
             </p>
           </div>
           <ToggleSwitch enabled={infiniteCoins} onChange={toggleInfiniteCoins} />
+        </div>
+
+        {/* Feat: AFK Exp toggle */}
+        <div className={rowClass}>
+          <div className="flex-1 min-w-0 flex flex-col gap-0 leading-[0] tracking-[0.2px]">
+            <p className="font-body font-medium text-[14px] text-secondary leading-normal" style={{ fontVariationSettings: '"opsz" 14' }}>Feat: AFK Exp</p>
+            <p className="font-body font-normal text-[12px] text-tertiary leading-normal" style={{ fontVariationSettings: '"opsz" 14' }}>Show AFK XP bar and Claim button on home screen</p>
+          </div>
+          <ToggleSwitch enabled={afkExp} onChange={toggleAfkExp} />
         </div>
 
         {/* User ID */}
