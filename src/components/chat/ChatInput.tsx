@@ -350,7 +350,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
 
   return (
     <div
-      className="bg-black border-t border-border px-4 pt-4 flex-shrink-0 relative"
+      className="bg-black border-t border-border px-4 pt-4 flex-shrink-0 relative z-[40]"
       style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 32px)' }}
     >
       {devMode && <DamageFloat floats={damageFloats} onDismiss={dismissDamageFloat} />}
@@ -521,14 +521,14 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
               onClick={() => setIsExpanded(false)}
             />
 
-            {/* Sheet */}
+            {/* Sheet — absolute so it slides up from the ChatInput container */}
             <motion.div
-              className="fixed inset-x-0 bottom-0 z-[39] bg-black border-t border-border overflow-y-auto nexus-scroll"
+              className="absolute bottom-0 left-0 right-0 z-[50] bg-black border-t border-border overflow-y-auto nexus-scroll"
               initial={{ y: '100%' }}
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-              style={{ maxWidth: 480, margin: '0 auto', maxHeight: '85vh' }}
+              style={{ maxHeight: '85vh' }}
               onPanEnd={handlePanelPanEnd}
             >
               <div
