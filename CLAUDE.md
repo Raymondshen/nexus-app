@@ -17,7 +17,7 @@ Group messaging app where the chat is an RPG. Every message earns XP, boss fight
 
 ## Database Tables
 ```
-profiles       id, username (unique case-insensitive), avatar_class, avatar_url, birthday (date), is_dev, coins (int default 0), created_at
+profiles       id, username (unique case-insensitive), avatar_class, avatar_url, custom_avatar (bool default false), birthday (date), is_dev, coins (int default 0), created_at
 crews          id, name, invite_code (6 chars unique), level, total_xp, created_at,
                is_dm (bool default false), dm_partner_1 (uuid nullable), dm_partner_2 (uuid nullable)
 crew_members   id, crew_id, user_id, class, joined_at, last_seen (unread cursor + presence)
@@ -505,8 +505,8 @@ Always use `createServiceClient()` inside cache functions (service role, no cook
 
 | Cache | TTL | Tag | Invalidated by |
 |---|---|---|---|
-| Home profile (username, avatar_url, birthday, coins, created_at) | 60s | `profile:{userId}` | saveBirthdayAction, revalidateProfileAction |
-| Home member profiles + counts | 60s | `crew-members:{crewId}` (all crews) | joinCrewAction, leaveCrewAction |
+| Home profile (username, avatar_url, birthday, coins, created_at) | 60s | `profile:{userId}` | saveBirthdayAction, revalidateProfileAction, updateAvatarAction |
+| Home member profiles + counts | 60s | `crew-members:{crewId}` (all crews) | joinCrewAction, leaveCrewAction, updateAvatarAction |
 | Home last message preview | 30s | TTL only | TTL only |
 | Vault crew (name, created_at) + artifacts | 300s | `vault:{crewId}`, `artifacts:{crewId}` | TTL only |
 | Chat member profiles | 60s | `crew-members:{crewId}` | joinCrewAction, leaveCrewAction |
@@ -559,6 +559,7 @@ Always use `createServiceClient()` inside cache functions (service role, no cook
 - `20240103000009_app_invites.sql` — `app_invites` table + RLS (inviter reads own, inviter inserts own)
 - `20240103000011_reserved_users.sql` — `reserved_users` table (invite-only waitlist); RLS: public insert, service-role-only select/update
 - `20240103000012_reactions.sql` — `messages.reactions` JSONB column (default `'{}'`) + `toggle_reaction` row-locking Postgres function
+- `20240103000013_avatar_upload.sql` — `profiles.custom_avatar` boolean (default false) + `avatars` storage bucket + RLS policies (public read, user writes own folder)
 
 ### Manual SQL applied directly (no migration file)
 ```sql
@@ -654,8 +655,18 @@ create policy "friendships: either party can delete"
 - Upload with `cacheControl: '31536000'` for CDN cache hit rate
 - Always `next/image` — never raw `<img>`; whitelist hostnames in `next.config.ts` under `images.remotePatterns`
 - **Exception**: pixel art sprites in `PixelSprite.tsx` use plain `<img>` with `imageRendering: pixelated` — next/image interferes with pixel-perfect rendering on iOS PWA
+- **Exception**: `AvatarUploadModal` crop target uses plain `<img>` — `next/image` interferes with `react-image-crop`'s overlay positioning
 - Profile pictures from `profiles.avatar_url` (synced on every Google login); fall back to initials; use `Avatar.tsx` everywhere
 - Chat images: `chat-images` bucket, path `{crewId}/{userId}/{timestamp}.webp`
+
+### Avatar Upload
+- **Component**: `src/components/ui/AvatarUploadModal.tsx` — bottom sheet with `react-image-crop` (aspect=1) + canvas render to 256×256 WebP
+- **Bucket**: `avatars` (public, 300 KB limit, `image/webp` only); path `{userId}/{timestamp}.webp`; `cacheControl: '31536000'`
+- **Flow**: tap avatar on `/profile` → file picker → `AvatarUploadModal` slides up → user crops → canvas renders 256×256 → upload to `avatars` bucket → `updateAvatarAction` (server action)
+- **Server action** (`updateAvatarAction` in `profile/actions.ts`): writes new URL + sets `custom_avatar = true` on the profile, deletes the old file from the `avatars` bucket (if previous URL was in that bucket), revalidates `profile:{userId}` + `crew-members:{crewId}` for every crew the user is in
+- **Google sync guard**: `profiles.custom_avatar = true` prevents the auth callback from overwriting a user-uploaded photo on next Google login. Set automatically by `updateAvatarAction`.
+- **Realtime propagation**: `MessageList` subscribes to `postgres_changes UPDATE` on `profiles` (no filter — all members). Patches `localProfiles` state on any matching member update → avatar changes appear in active chats within ~1 second without a page reload.
+- **Old file cleanup**: `updateAvatarAction` checks if the previous `avatar_url` starts with the `avatars` bucket prefix; if so, removes the old file via service role client to keep storage lean.
 
 ## Design Language
 

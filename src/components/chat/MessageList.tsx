@@ -15,7 +15,7 @@ import { MessageBubble } from './MessageBubble'
 import { LevelUpBanner } from '@/components/game/LevelUpBanner'
 import { parseBossSpawnRaidId } from '@/lib/game/boss'
 import { parseArtifactDropId, parseLevelUp } from '@/lib/game/artifacts'
-import type { MessageWithProfile, Message, Profile, ActiveRaid } from '@/types'
+import type { MessageWithProfile, Message, Profile, ActiveRaid, AvatarClass } from '@/types'
 
 const BossCard = dynamic(
   () => import('@/components/game/BossCard').then((m) => m.BossCard),
@@ -112,6 +112,8 @@ export function MessageList({
 
   const { messages, setMessages, addMessage, updateMessage, setCrewXP, receiveXP } = useChatStore()
   const [dismissedLevelUps, setDismissedLevelUps] = useState<Set<string>>(new Set())
+  // Local override map for profiles — patched in real-time when a member updates their avatar/username
+  const [localProfiles, setLocalProfiles] = useState<Record<string, Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url'>>>(memberProfiles)
   const [devMode] = useState(() => {
     if (typeof window === 'undefined') return false
     return localStorage.getItem('nexus_dev_mode') === '1'
@@ -299,6 +301,23 @@ export function MessageList({
           if (hasDbReactions || !hasLocalReactions) patch.reactions = dbReactions
 
           updateMessage(raw.id, patch)
+        }
+      )
+      // Profile UPDATE: reflects avatar/username changes immediately for active chat members.
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'profiles' },
+        (payload) => {
+          const p = payload.new as { id: string; username: string; avatar_url: string | null; avatar_class: string | null }
+          if (!profilesRef.current[p.id]) return
+          const updated: Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url'> = {
+            id: p.id,
+            username: p.username,
+            avatar_url: p.avatar_url,
+            avatar_class: p.avatar_class as AvatarClass | null,
+          }
+          profilesRef.current[p.id] = updated
+          setLocalProfiles((prev) => ({ ...prev, [p.id]: updated }))
         }
       )
       .subscribe()
@@ -515,10 +534,13 @@ export function MessageList({
           )
         }
 
+        // Use localProfiles for real-time avatar/username updates; fall back to the
+        // profile embedded in the message for users who left the crew since fetch.
+        const liveProfile = localProfiles[item.message.user_id] ?? item.message.profile
         return (
           <MessageBubble
             key={item.message.id}
-            message={item.message}
+            message={{ ...item.message, profile: liveProfile }}
             isOwn={item.isOwn}
             showHeader={item.showHeader}
             currentUserId={currentUserId}

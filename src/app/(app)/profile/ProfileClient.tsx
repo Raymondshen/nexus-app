@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { SlidePage, useSlideBack } from '@/components/ui/SlidePage'
@@ -11,6 +11,7 @@ import { signOut } from '@/lib/supabase/auth'
 import { isSupported, getPermissionState, requestPermission, subscribeToPush } from '@/lib/notifications'
 import type { PermissionState } from '@/lib/notifications'
 import { revalidateProfileAction } from './actions'
+import { AvatarUploadModal } from '@/components/ui/AvatarUploadModal'
 
 interface ProfileClientProps {
   userId:          string
@@ -124,6 +125,11 @@ export function ProfileClient({
 }: ProfileClientProps) {
   const router = useRouter()
   const goBack = useSlideBack()
+
+  // ── Avatar upload ─────────────────────────────────────────────────────────
+  const [localAvatarUrl, setLocalAvatarUrl] = useState(avatarUrl)
+  const [pendingFile, setPendingFile]       = useState<File | null>(null)
+  const fileInputRef                        = useRef<HTMLInputElement>(null)
 
   // ── Username ──────────────────────────────────────────────────────────────
   const [username,   setUsername]   = useState(initialUsername)
@@ -268,15 +274,40 @@ export function ProfileClient({
 
         {/* Details row */}
         <div className="flex items-center gap-4">
-          <div className="relative flex-shrink-0 w-14 h-14 bg-primary overflow-hidden">
-            {avatarUrl ? (
-              <Image src={avatarUrl} alt={initialUsername} fill sizes="56px" className="object-cover" />
+          {/* Avatar — tappable for authenticated users */}
+          <button
+            onClick={() => !isGuest && fileInputRef.current?.click()}
+            disabled={isGuest}
+            className="relative flex-shrink-0 w-14 h-14 bg-primary overflow-hidden group"
+            aria-label="Change photo"
+          >
+            {localAvatarUrl ? (
+              <Image src={localAvatarUrl} alt={initialUsername} fill sizes="56px" className="object-cover" />
             ) : (
               <div className="w-full h-full flex items-center justify-center bg-surface">
                 <span className="font-pixel text-[14px] text-purple">{initial}</span>
               </div>
             )}
-          </div>
+            {!isGuest && (
+              <div className="absolute inset-0 bg-black/55 flex items-center justify-center opacity-0 group-hover:opacity-100 group-active:opacity-100 transition-opacity pointer-events-none">
+                <span className="font-pixel text-[6px] text-white text-center leading-relaxed">
+                  CHANGE<br />PHOTO
+                </span>
+              </div>
+            )}
+          </button>
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0]
+              if (f) setPendingFile(f)
+              e.target.value = ''
+            }}
+          />
           <div className="flex-1 min-w-0 flex flex-col gap-1">
             {memberSinceYear && (
               <p className="font-silkscreen text-[8px] text-tertiary leading-none">
@@ -437,6 +468,14 @@ export function ProfileClient({
 
         <div style={{ height: 'max(env(safe-area-inset-bottom), 16px)' }} />
       </div>
+
+      {/* Avatar crop/upload modal — rendered outside scroll container so it overlays correctly */}
+      <AvatarUploadModal
+        file={pendingFile}
+        userId={userId}
+        onClose={() => setPendingFile(null)}
+        onSuccess={(url) => setLocalAvatarUrl(url)}
+      />
     </SlidePage>
   )
 }

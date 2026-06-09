@@ -24,6 +24,7 @@ export interface Profile extends Record<string, unknown> {
   avatar_url: string | null
   birthday: string | null
   coins: number
+  custom_avatar: boolean
   created_at: string
 }
 
@@ -194,7 +195,7 @@ export type Database = {
     Tables: {
       profiles: {
         Row: Profile
-        Insert: Omit<Profile, 'created_at' | 'avatar_url' | 'coins'> & { created_at?: string; avatar_url?: string | null; coins?: number }
+        Insert: Omit<Profile, 'created_at' | 'avatar_url' | 'coins' | 'custom_avatar'> & { created_at?: string; avatar_url?: string | null; coins?: number; custom_avatar?: boolean }
         Update: Partial<Omit<Profile, 'id'>>
         Relationships: []
       }

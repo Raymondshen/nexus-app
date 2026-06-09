@@ -15,11 +15,14 @@ export async function GET(request: NextRequest) {
     const supabase = await createClient()
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
-      // Sync Google avatar_url on every login so returning users stay up to date
+      // Sync Google avatar_url on login, but skip if user has set a custom photo.
       const { data: { user } } = await supabase.auth.getUser()
       const avatarUrl = user?.user_metadata?.avatar_url as string | undefined
       if (user && avatarUrl) {
-        await supabase.from('profiles').update({ avatar_url: avatarUrl }).eq('id', user.id)
+        await supabase.from('profiles')
+          .update({ avatar_url: avatarUrl })
+          .eq('id', user.id)
+          .eq('custom_avatar', false)
       }
 
       let destination: string
