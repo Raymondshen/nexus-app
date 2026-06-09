@@ -7,6 +7,7 @@ import { useSlideBack } from '@/components/ui/SlidePage'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { UserPlus } from 'pixelarticons/react/UserPlus'
 import { sendFriendRequestAction, acceptFriendRequestAction } from '@/app/(app)/friends/actions'
+import { PixelSprite, spriteInfoFor } from '@/components/game/PixelSprite'
 import type { AvatarClass } from '@/types'
 
 const CLASS_LABELS: Record<string, string> = {
@@ -82,6 +83,7 @@ export function MemberProfileClient({
 
   const classLabel  = avatarClass ? (CLASS_LABELS[avatarClass] ?? avatarClass) : '???'
   const initial     = username[0]?.toUpperCase() ?? '?'
+  const spriteInfo  = spriteInfoFor(avatarClass)
   const level       = getLevelFromXP(totalXP)
   const birthdayStr = birthday ? format(parseISO(birthday), 'MMM d').toLowerCase() : null
   const joinedYear  = joinedAt ? new Date(joinedAt).getFullYear() : null
@@ -146,9 +148,23 @@ export function MemberProfileClient({
       <div className="flex-1 overflow-y-auto nexus-scroll">
         <div className="flex flex-col items-center gap-[24px] px-4 py-4">
 
-          {/* ── 80×80 Avatar + Recruited by ── */}
+          {/* ── Hero sprite ── */}
           <div className="flex flex-col items-center gap-[8px] w-full">
-            <Avatar size={80} />
+            <div
+              className="w-full flex items-center justify-center"
+              style={{ minHeight: 128, background: 'radial-gradient(ellipse at center, rgba(191,95,255,0.12) 0%, transparent 70%)' }}
+            >
+              {spriteInfo ? (
+                <PixelSprite
+                  spriteId={spriteInfo.id}
+                  nativePx={spriteInfo.nativePx}
+                  scale={4}
+                  animate
+                />
+              ) : (
+                <Avatar size={80} />
+              )}
+            </div>
             {inviterUsername && (
               <p className="font-silkscreen text-[8px] text-center leading-none">
                 <span style={{ color: '#a1a1aa' }}>Recruited by: </span>
