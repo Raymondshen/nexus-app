@@ -267,6 +267,15 @@ export function ProfileClient({
     catch { setLoggingOut(false) }
   }
 
+  // ── AFK EXP (dev feature flag) ───────────────────────────────────────────
+  const [afkExp, setAfkExp] = useState(false)
+  useEffect(() => {
+    setAfkExp(localStorage.getItem('nexus_afk_exp') === '1')
+    const handler = (e: Event) => setAfkExp((e as CustomEvent<{ on: boolean }>).detail.on)
+    window.addEventListener('nexus-afk-exp-change', handler)
+    return () => window.removeEventListener('nexus-afk-exp-change', handler)
+  }, [])
+
   const isDirty = username.trim() !== initialUsername && username.trim().length > 0
   const initial = initialUsername[0]?.toUpperCase() ?? '?'
   const msgFormatted   = totalMessages.toLocaleString()
@@ -296,74 +305,92 @@ export function ProfileClient({
       {/* ── Scrollable body ── */}
       <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-6 nexus-scroll">
 
-        {/* Details row */}
-        <div className="flex items-center gap-4">
-          {/* Avatar — tappable for authenticated users */}
-          <div className="flex-shrink-0 flex flex-col items-center gap-1">
-            <button
-              onClick={() => !isGuest && fileInputRef.current?.click()}
-              disabled={isGuest}
-              className="relative w-14 h-14 bg-primary overflow-hidden group"
-              aria-label="Change photo"
-            >
-              {localAvatarUrl ? (
-                <Image src={resolveAvatarUrl(localAvatarUrl, 56)} alt={initialUsername} fill sizes="56px" className="object-cover" priority unoptimized={isSupabaseStorage(localAvatarUrl)} />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center bg-surface">
-                  <span className="font-pixel text-[14px] text-purple">{initial}</span>
-                </div>
-              )}
-              {!isGuest && (
-                <div className="absolute inset-0 bg-black/55 flex items-center justify-center opacity-0 group-hover:opacity-100 group-active:opacity-100 transition-opacity pointer-events-none">
-                  <span className="font-pixel text-[6px] text-white text-center leading-relaxed">
-                    CHANGE<br />PHOTO
-                  </span>
-                </div>
-              )}
-            </button>
-            {localCustomAvatar && !isGuest && (
+        {/* Profile banner card */}
+        <div className="bg-surface border border-border rounded-[8px] p-4 flex flex-col gap-4 w-full">
+          {/* Details row */}
+          <div className="flex items-center gap-4 w-full">
+            {/* Avatar — tappable for authenticated users */}
+            <div className="flex-shrink-0 flex flex-col items-center gap-1">
               <button
-                onClick={handleResetAvatar}
-                disabled={resettingAvatar}
-                className="font-silkscreen text-[7px] text-muted leading-none whitespace-nowrap disabled:opacity-40"
+                onClick={() => !isGuest && fileInputRef.current?.click()}
+                disabled={isGuest}
+                className="relative w-12 h-12 bg-primary overflow-hidden group"
+                aria-label="Change photo"
               >
-                {resettingAvatar ? '...' : 'Use Google photo'}
+                {localAvatarUrl ? (
+                  <Image src={resolveAvatarUrl(localAvatarUrl, 48)} alt={initialUsername} fill sizes="48px" className="object-cover" priority unoptimized={isSupabaseStorage(localAvatarUrl)} />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-surface">
+                    <span className="font-pixel text-[12px] text-purple">{initial}</span>
+                  </div>
+                )}
+                {!isGuest && (
+                  <div className="absolute inset-0 bg-black/55 flex items-center justify-center opacity-0 group-hover:opacity-100 group-active:opacity-100 transition-opacity pointer-events-none">
+                    <span className="font-pixel text-[6px] text-white text-center leading-relaxed">
+                      CHANGE<br />PHOTO
+                    </span>
+                  </div>
+                )}
               </button>
-            )}
-          </div>
-          {/* Hidden file input */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0]
-              if (f) setPendingFile(f)
-              e.target.value = ''
-            }}
-          />
-          <div className="flex-1 min-w-0 flex flex-col gap-1">
-            {memberSinceYear && (
-              <p className="font-silkscreen text-[8px] text-tertiary leading-none">
-                Member Since {memberSinceYear}
+              {localCustomAvatar && !isGuest && (
+                <button
+                  onClick={handleResetAvatar}
+                  disabled={resettingAvatar}
+                  className="font-silkscreen text-[7px] text-muted leading-none whitespace-nowrap disabled:opacity-40"
+                >
+                  {resettingAvatar ? '...' : 'Use Google photo'}
+                </button>
+              )}
+            </div>
+            {/* Hidden file input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0]
+                if (f) setPendingFile(f)
+                e.target.value = ''
+              }}
+            />
+            <div className="flex-1 min-w-0 flex flex-col gap-1 justify-center">
+              {memberSinceYear && (
+                <p className="font-silkscreen text-[8px] text-tertiary leading-none">
+                  Member Since {memberSinceYear}
+                </p>
+              )}
+              <p
+                className="font-body font-bold text-[18px] text-primary leading-none truncate"
+                style={{ fontVariationSettings: '"opsz" 14' }}
+              >
+                {initialUsername}
               </p>
-            )}
-            <p
-              className="font-body font-bold text-[18px] text-primary leading-none truncate"
-              style={{ fontVariationSettings: '"opsz" 14' }}
-            >
-              {initialUsername}
-            </p>
-            <p className="font-silkscreen text-[8px] text-secondary leading-none">
-              {groupChats} group chat{groupChats !== 1 ? 's' : ''} · {msgFormatted} msg
-            </p>
-            {inviterUsername && (
-              <p className="font-silkscreen text-[8px] text-tertiary leading-none">
-                Recruited by {inviterUsername}
+              <p className="font-silkscreen text-[8px] text-secondary leading-none">
+                {groupChats} group chat{groupChats !== 1 ? 's' : ''} · {msgFormatted} msg
               </p>
-            )}
+              {inviterUsername && (
+                <p className="font-silkscreen text-[8px] text-tertiary leading-none">
+                  Recruited by {inviterUsername}
+                </p>
+              )}
+            </div>
           </div>
+
+          {/* AFK EXP row — dev-only, shown when nexus_afk_exp flag is on */}
+          {afkExp && (
+            <div className="flex items-center gap-2 w-full">
+              <div className="flex flex-1 flex-col gap-2 min-w-0">
+                <p className="font-silkscreen text-[8px] text-primary leading-none w-full">
+                  AFK EXP accumulated · 100 / 100 XP
+                </p>
+                <div className="bg-purple h-1 w-full" />
+              </div>
+              <button className="bg-purple px-4 py-2 flex-shrink-0 flex items-center justify-center">
+                <span className="font-pixel text-[8px] text-primary leading-none whitespace-nowrap">CLAIM</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Account */}
@@ -383,7 +410,7 @@ export function ProfileClient({
             disabled={loggingOut}
             className="w-full h-12 border border-[#ef4444] flex items-center justify-center transition-colors hover:bg-[#ef4444]/8 disabled:opacity-50"
           >
-            <span className="font-pixel text-[11px] text-[#ef4444] leading-none whitespace-nowrap">
+            <span className="font-pixel text-[8px] text-[#ef4444] leading-none whitespace-nowrap">
               {loggingOut ? '...' : 'LOG OUT'}
             </span>
           </button>

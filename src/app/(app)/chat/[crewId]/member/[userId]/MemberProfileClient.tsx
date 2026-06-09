@@ -25,27 +25,24 @@ const CLASS_LABELS: Record<string, string> = {
   archer:    'Archer',
 }
 
-const XP_PER_LEVEL = 500
-function getLevelFromXP(xp: number): number {
-  return Math.floor(xp / XP_PER_LEVEL) + 1
-}
-
 type FriendState = 'none' | 'pending_sent' | 'pending_received' | 'accepted'
 
 interface Props {
-  crewId:          string
-  userId:          string
-  viewerId:        string
-  isGuest:         boolean
-  username:        string
-  avatarUrl:       string | null
-  birthday:        string | null
-  avatarClass:     AvatarClass | null
-  msgCount:        number
-  totalXP:         number
-  joinedAt:        string | null
-  friendship:      { id: string; requester_id: string; addressee_id: string; status: string } | null
-  inviterUsername: string | null
+  crewId:           string
+  userId:           string
+  viewerId:         string
+  isGuest:          boolean
+  username:         string
+  avatarUrl:        string | null
+  birthday:         string | null
+  avatarClass:      AvatarClass | null
+  msgCount:         number
+  totalXP:          number
+  joinedAt:         string | null
+  friendship:       { id: string; requester_id: string; addressee_id: string; status: string } | null
+  inviterUsername:  string | null
+  globalGroupChats: number
+  globalMessages:   number
 }
 
 function deriveFriendState(
@@ -71,28 +68,28 @@ export function MemberProfileClient({
   joinedAt,
   friendship,
   inviterUsername,
+  globalGroupChats,
+  globalMessages,
 }: Props) {
-  const goBack = useSlideBack()
-  const isSelf = userId === viewerId
+  const goBack  = useSlideBack()
+  const isSelf  = userId === viewerId
 
   const [friendState, setFriendState] = useState<FriendState>(() =>
     isSelf ? 'accepted' : deriveFriendState(friendship, viewerId)
   )
-  const [friendshipId]    = useState(friendship?.id ?? null)
+  const [friendshipId]        = useState(friendship?.id ?? null)
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState<string | null>(null)
 
   const classLabel  = avatarClass ? (CLASS_LABELS[avatarClass] ?? avatarClass) : '???'
   const initial     = username[0]?.toUpperCase() ?? '?'
   const spriteInfo  = spriteInfoFor(avatarClass)
-  const level       = getLevelFromXP(totalXP)
   const birthdayStr = birthday ? format(parseISO(birthday), 'MMM d').toLowerCase() : null
   const joinedYear  = joinedAt ? new Date(joinedAt).getFullYear() : null
 
   async function handleAddFriend() {
     if (loading) return
-    setLoading(true)
-    setError(null)
+    setLoading(true); setError(null)
     const result = await sendFriendRequestAction(userId)
     setLoading(false)
     if (result.error) { setError(result.error); return }
@@ -101,60 +98,81 @@ export function MemberProfileClient({
 
   async function handleAccept() {
     if (!friendshipId || loading) return
-    setLoading(true)
-    setError(null)
+    setLoading(true); setError(null)
     const result = await acceptFriendRequestAction(friendshipId)
     setLoading(false)
     if (result.error) { setError(result.error); return }
     setFriendState('accepted')
   }
 
-  function Avatar({ size }: { size: 80 | 48 }) {
-    const wh     = size === 80 ? 'w-[80px] h-[80px]' : 'w-[48px] h-[48px]'
-    const txtSz  = size === 80 ? 'text-[22px]' : 'text-[13px]'
-    return (
-      <div className={`${wh} bg-surface overflow-hidden relative flex-shrink-0`}>
-        {avatarUrl ? (
-          <Image src={resolveAvatarUrl(avatarUrl, size)} alt={username} fill sizes={`${size}px`} className="object-cover" unoptimized={isSupabaseStorage(avatarUrl)} />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <span className={`font-pixel ${txtSz} text-purple`}>{initial}</span>
-          </div>
-        )}
-      </div>
-    )
-  }
-
   return (
     <>
       {/* ── Header ── */}
       <div
-        className="flex-shrink-0 border-b border-border px-4 py-[8px]"
+        className="flex-shrink-0 bg-black border-b border-border px-4 pb-2"
         style={{ paddingTop: 'max(env(safe-area-inset-top), 8px)' }}
       >
-        <div className="flex items-center gap-[8px] h-[40px]">
+        <div className="flex items-center h-10 gap-2">
           <button
             onClick={goBack}
             aria-label="Back"
-            style={{ width: 44 }}
-            className="flex items-center"
+            className="flex-shrink-0 flex items-center justify-center"
+            style={{ width: 24, height: 40 }}
           >
             <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
           </button>
-          <span className="font-pixel text-[18px] text-primary leading-none whitespace-nowrap">PROFILE</span>
+          <h1 className="font-pixel text-[18px] text-primary leading-none whitespace-nowrap">SQUAD PROFILE</h1>
         </div>
       </div>
 
       {/* ── Scrollable body ── */}
       <div className="flex-1 overflow-y-auto nexus-scroll">
-        <div className="flex flex-col items-center gap-[24px] px-4 py-4">
+        <div className="flex flex-col items-center gap-6 px-4 py-4">
 
-          {/* ── Hero sprite ── */}
-          <div className="flex flex-col items-center gap-[8px] w-full">
-            <div
-              className="w-full flex items-center justify-center"
-              style={{ minHeight: 128, background: 'radial-gradient(ellipse at center, rgba(191,95,255,0.12) 0%, transparent 70%)' }}
-            >
+          {/* ── Profile banner card ── */}
+          <div className="bg-surface border border-border rounded-[8px] p-4 flex items-center gap-4 w-full">
+            {/* Avatar 48×48 */}
+            <div className="relative w-12 h-12 bg-surface overflow-hidden flex-shrink-0">
+              {avatarUrl ? (
+                <Image
+                  src={resolveAvatarUrl(avatarUrl, 48)}
+                  alt={username}
+                  fill
+                  sizes="48px"
+                  className="object-cover"
+                  unoptimized={isSupabaseStorage(avatarUrl)}
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <span className="font-pixel text-[12px] text-purple">{initial}</span>
+                </div>
+              )}
+            </div>
+            {/* Text details */}
+            <div className="flex-1 min-w-0 flex flex-col gap-1 justify-center">
+              {joinedYear && (
+                <p className="font-silkscreen text-[8px] text-tertiary leading-none">
+                  Member Since {joinedYear}
+                </p>
+              )}
+              <p
+                className="font-body font-bold text-[18px] text-primary leading-none truncate w-full"
+                style={{ fontVariationSettings: '"opsz" 14' }}
+              >
+                {username}
+              </p>
+              <p className="font-silkscreen text-[8px] text-secondary leading-none w-full">
+                {globalGroupChats} group chat{globalGroupChats !== 1 ? 's' : ''} · {globalMessages.toLocaleString()} msg
+              </p>
+            </div>
+            {isSelf && (
+              <span className="font-silkscreen text-[8px] text-purple leading-none flex-shrink-0">YOU</span>
+            )}
+          </div>
+
+          {/* ── Sprite + Recruited by ── */}
+          <div className="flex flex-col items-center gap-2 w-full">
+            <div className="flex items-center justify-center">
               {spriteInfo ? (
                 <PixelSprite
                   spriteId={spriteInfo.id}
@@ -163,73 +181,57 @@ export function MemberProfileClient({
                   animate
                 />
               ) : (
-                <Avatar size={80} />
+                <div className="w-20 h-20 bg-surface overflow-hidden flex items-center justify-center">
+                  {avatarUrl ? (
+                    <Image
+                      src={resolveAvatarUrl(avatarUrl, 80)}
+                      alt={username}
+                      width={80}
+                      height={80}
+                      className="object-cover"
+                      unoptimized={isSupabaseStorage(avatarUrl)}
+                    />
+                  ) : (
+                    <span className="font-pixel text-[22px] text-purple">{initial}</span>
+                  )}
+                </div>
               )}
             </div>
             {inviterUsername && (
               <p className="font-silkscreen text-[8px] text-center leading-none">
-                <span style={{ color: '#a1a1aa' }}>Recruited by: </span>
+                <span style={{ color: 'var(--color-tertiary)' }}>Recruited by: </span>
                 <span className="text-primary">{inviterUsername}</span>
               </p>
             )}
           </div>
 
-          {/* ── Stats list ── */}
-          <div className="flex flex-col gap-[8px] items-start w-full">
-            <p className="font-silkscreen text-[11px] text-primary leading-none">
-              {`Lv.${level} · ${classLabel}`}
-            </p>
-            {inviterUsername && (
+          {/* ── Stats row — two columns ── */}
+          <div className="flex gap-2 items-start w-full">
+            {/* Left column */}
+            <div className="flex-1 min-w-0 flex flex-col gap-1">
               <p className="font-silkscreen text-[11px] leading-none">
-                <span style={{ color: '#a1a1aa' }}>Recruited by: </span>
-                <span className="text-primary">{inviterUsername}</span>
+                <span style={{ color: 'var(--color-tertiary)' }}>Class: </span>
+                <span className="text-primary">{classLabel}</span>
               </p>
-            )}
-            <p className="font-silkscreen text-[11px] leading-none">
-              <span className="text-primary">{`${msgCount.toLocaleString()} `}</span>
-              <span style={{ color: '#a1a1aa' }}>Messages sent</span>
-            </p>
-            <p className="font-silkscreen text-[11px] leading-none">
-              <span className="text-primary">{`${totalXP.toLocaleString()} `}</span>
-              <span style={{ color: '#a1a1aa' }}>Xp earned</span>
-            </p>
-            {birthdayStr && (
+              {birthdayStr && (
+                <p className="font-silkscreen text-[11px] leading-none">
+                  <span style={{ color: 'var(--color-tertiary)' }}>Born: </span>
+                  <span className="text-primary">{birthdayStr}</span>
+                </p>
+              )}
+            </div>
+            {/* Right column */}
+            <div className="flex-1 min-w-0 flex flex-col gap-1">
               <p className="font-silkscreen text-[11px] leading-none">
-                <span className="text-primary">{`${birthdayStr} `}</span>
-                <span style={{ color: '#a1a1aa' }}>birthday</span>
+                <span style={{ color: 'var(--color-tertiary)' }}>Messages sent: </span>
+                <span className="text-primary">{msgCount.toLocaleString()}</span>
               </p>
-            )}
-          </div>
-
-          {/* ── Profile banner card ── */}
-          <div className="w-full bg-surface border border-border rounded-[8px] p-4">
-            <div className="flex gap-4 items-center w-full">
-              <Avatar size={48} />
-              <div className="flex flex-col gap-[4px] items-start justify-center flex-1 min-w-0">
-                <p
-                  className="font-silkscreen text-[8px] leading-none w-full"
-                  style={{ color: 'var(--color-tertiary)' }}
-                >
-                  {joinedYear ? `Member Since ${joinedYear}` : 'Member'}
-                </p>
-                <p
-                  className="font-body font-bold text-[18px] text-primary leading-none w-full truncate"
-                  style={{ fontVariationSettings: '"opsz" 14' }}
-                >
-                  {username}
-                </p>
-                <p
-                  className="font-silkscreen text-[8px] leading-none w-full"
-                  style={{ color: 'var(--color-secondary)' }}
-                >
-                  {`${msgCount.toLocaleString()} msg · Lv.${level}`}
-                </p>
-              </div>
+              <p className="font-silkscreen text-[11px] leading-none">
+                <span style={{ color: 'var(--color-tertiary)' }}>Xp earned: </span>
+                <span className="text-primary">{totalXP.toLocaleString()}</span>
+              </p>
             </div>
           </div>
-
-          {/* ── Divider ── */}
-          <div className="w-full border-t border-border" />
 
           {/* ── Friend action ── */}
           {!isSelf && (
@@ -242,7 +244,7 @@ export function MemberProfileClient({
                 <button
                   onClick={handleAddFriend}
                   disabled={loading || isGuest}
-                  className="w-full h-[48px] flex items-center justify-center gap-[8px] border border-purple overflow-hidden px-4 py-[8px] disabled:opacity-40 active:opacity-70 transition-opacity"
+                  className="w-full h-12 flex items-center justify-center gap-2 border border-purple overflow-hidden px-4 py-2 disabled:opacity-40 active:opacity-70 transition-opacity"
                 >
                   <UserPlus style={{ width: 16, height: 16, color: 'var(--color-purple)' }} aria-hidden="true" />
                   <span className="font-pixel text-[8px] text-purple leading-none whitespace-nowrap">
@@ -252,7 +254,7 @@ export function MemberProfileClient({
               )}
 
               {friendState === 'pending_sent' && (
-                <div className="w-full h-[48px] flex items-center justify-center border border-border">
+                <div className="w-full h-12 flex items-center justify-center border border-border">
                   <span className="font-silkscreen text-[9px] text-muted tracking-[0.2px]">REQUEST SENT</span>
                 </div>
               )}
@@ -261,7 +263,7 @@ export function MemberProfileClient({
                 <button
                   onClick={handleAccept}
                   disabled={loading}
-                  className="w-full h-[48px] flex items-center justify-center gap-[8px] border border-[#22c55e] px-4 py-[8px] disabled:opacity-40 active:opacity-70 transition-opacity"
+                  className="w-full h-12 flex items-center justify-center gap-2 border border-[#22c55e] px-4 py-2 disabled:opacity-40 active:opacity-70 transition-opacity"
                 >
                   <span className="font-pixel text-[8px] text-[#22c55e] leading-none">
                     {loading ? '...' : 'ACCEPT'}
@@ -270,7 +272,7 @@ export function MemberProfileClient({
               )}
 
               {friendState === 'accepted' && (
-                <div className="w-full h-[48px] flex items-center justify-center border border-[#22c55e]/40">
+                <div className="w-full h-12 flex items-center justify-center border border-[#22c55e]/40">
                   <span className="font-silkscreen text-[9px] text-[#22c55e] tracking-[0.2px]">COMPANIONS ✓</span>
                 </div>
               )}
@@ -283,6 +285,7 @@ export function MemberProfileClient({
             </div>
           )}
 
+          <div style={{ height: 'max(env(safe-area-inset-bottom), 16px)' }} />
         </div>
       </div>
     </>

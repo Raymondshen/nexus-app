@@ -36,7 +36,7 @@ export default async function MemberProfilePage({ params }: Props) {
   }
 
   // Security: verify viewer is in the crew + target is in the crew
-  // Fetch profile, class, stats, friendship, and invite origin in parallel
+  // Fetch profile, class, stats, friendship, invite origin, and global stats in parallel
   const [
     viewerMembership,
     profileResult,
@@ -44,6 +44,8 @@ export default async function MemberProfilePage({ params }: Props) {
     statsResult,
     friendshipResult,
     inviterUsername,
+    targetCrewCountResult,
+    targetMessagesResult,
   ] = await Promise.all([
     supabase
       .from('crew_members')
@@ -74,6 +76,15 @@ export default async function MemberProfilePage({ params }: Props) {
           .maybeSingle()
       : Promise.resolve({ data: null }),
     fetchInviterUsername(userId),
+    supabase
+      .from('crew_members')
+      .select('id', { count: 'estimated', head: true })
+      .eq('user_id', userId),
+    supabase
+      .from('messages')
+      .select('id', { count: 'estimated', head: true })
+      .eq('user_id', userId)
+      .neq('message_type', 'system'),
   ])
 
   // Must be a crew member viewing another crew member
@@ -85,6 +96,8 @@ export default async function MemberProfilePage({ params }: Props) {
   const friendship = friendshipResult.data as {
     id: string; requester_id: string; addressee_id: string; status: string
   } | null
+  const globalGroupChats = targetCrewCountResult.count ?? 0
+  const globalMessages   = targetMessagesResult.count ?? 0
 
   return (
     <SlidePage
@@ -115,6 +128,8 @@ export default async function MemberProfilePage({ params }: Props) {
         joinedAt={(profile as Record<string, unknown>).created_at as string | null}
         friendship={friendship}
         inviterUsername={inviterUsername}
+        globalGroupChats={globalGroupChats}
+        globalMessages={globalMessages}
       />
     </SlidePage>
   )

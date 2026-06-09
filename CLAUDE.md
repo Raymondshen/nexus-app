@@ -425,14 +425,30 @@ All "detail" pages (chat, DM, profile, friends, vault) slide in from the right o
 - **No BottomNav** — users go back via a local `BackButton` component (see SlidePage context scoping caveat above)
 - Header: matches ChatHeader — `bg-black border-b border-border px-4 pb-2`, `paddingTop: max(env(safe-area-inset-top), 8px)`, `h-10` row, `gap-2` between back button and title. Back button `style={{ width: 24, height: 40 }}`, `ChevronLeft` 24px tertiary. Title `"FRIENDS"` in `font-pixel text-[18px] text-primary leading-none whitespace-nowrap`.
 
+### Profile Page — `/profile`
+- Route: `src/app/(app)/profile/page.tsx` + `ProfileClient.tsx`
+- **Layout** (matches Figma node 42:425):
+  1. **Profile banner card** (`bg-surface border border-border rounded-[8px] p-4`) — avatar 48×48, "Member Since {year}", username (DM Sans Bold 18px), "N group chats · N msg" (Silkscreen 8px secondary), "Recruited by [name]" (Silkscreen 8px tertiary, below stats when present). Avatar tap opens `AvatarUploadModal`; "Use Google photo" link shown when `customAvatar === true`.
+  2. **AFK EXP row** inside banner card — shown only when dev + `nexus_afk_exp` flag on; "AFK EXP accumulated · 100 / 100 XP" (Silkscreen 8px primary) + full purple `h-1` bar + `CLAIM` button (Press Start 2P 8px, bg-purple); listens to `nexus-afk-exp-change` CustomEvent for live toggle sync
+  3. **Account section** — "Account" label + "Signed in with [email]" (DM Sans 12px, email in primary) + `LOG OUT` button (h-12, border `#ef4444`, Press Start 2P **8px** red text)
+  4. **Username section** — label + input (`bg-surface border border-[#a855f7] h-12 px-3`) + `SAVE` button (bg-purple); inline success/taken/error feedback below
+  5. **Notifications section** — label + `bg-surface border border-[rgba(168,85,247,0.5)]` card with 3 toggle rows (Messages / Raid Alerts / Victory), 40×24px toggle (purple on / `#27272a` off), `divide-y divide-border` separators
+  6. **Dev section** — shown only when `isDev === true`; gold-bordered card with toggles for Spawn Boss Mode, Push Diagnostics, Infinite Coins, Feat: AFK Exp, plus User ID / Email copy rows and Local Flags reset
+- `SlidePage` wrapper with `backHref="/home"` (reliable back even without history); `BackButton` defined inside `SlidePage` to satisfy `useSlideBack()` context scoping
+
 ### Member Profile Page — `/chat/[crewId]/member/[userId]`
 - Route: `src/app/(app)/chat/[crewId]/member/[userId]/page.tsx` + `MemberProfileClient.tsx`
-- Opened by tapping any avatar or username in `MessageBubble` — `onAvatarTap` callback passed from `MessageList` navigates to this route (works for own messages too)
+- Opened by tapping any avatar or username in `MessageBubble` — `onAvatarTap` callback passed from `MessageList` navigates to this route (works for own messages too); also opened from the expanded member panel in `ChatInput` via `router.push`
 - **Security**: viewer must be a member of the crew; target must also be a crew member — both checked before any data is returned; non-members redirect to `/chat/{crewId}` or `/home`
-- **Data** (single parallel fetch): profile (username, avatar_url, birthday), target's crew-specific class, `get_member_crew_stats` RPC (msg count + total XP in one call), friendship status between viewer and target, `inviterUsername` (service client query on `app_invites` where `used_by = userId` — service role needed because invitee cannot read their own row under RLS)
-- **Displays**: animated PixelSprite (scale=4), 64×64 avatar, username, class label, `RECRUITED BY [NAME]` (Silkscreen 8px `rgba(255,255,255,0.4)`, only when present), message count, XP earned in crew, birthday (month + day, e.g. "JAN 15"), friend action button
-- **Friend states**: ADD COMPANION (none) → REQUEST SENT (pending_sent) → ACCEPT (pending_received) → COMPANIONS ✓ (accepted); guests see disabled button + sign-in hint
-- `isSelf` guard: shows "YOU" badge and hides friend button when viewing own profile
+- **Data** (single parallel fetch): profile (username, avatar_url, birthday), target's crew-specific class, `get_member_crew_stats` RPC (msg count + total XP in one call), friendship status between viewer and target, `inviterUsername` (service client query on `app_invites` where `used_by = userId` — service role needed because invitee cannot read their own row under RLS), `globalGroupChats` + `globalMessages` (estimated counts of the target's total crew memberships and non-system messages across all crews)
+- **Layout** (matches Figma node 57:165 "SQUAD PROFILE"):
+  1. **Profile banner card** (`bg-surface border border-border rounded-[8px] p-4`) — avatar 48×48, "Member Since {year}", username (DM Sans Bold 18px), "N group chats · N msg" (global stats, Silkscreen 8px secondary)
+  2. **Sprite section** — `PixelSprite scale=4` centered (fallback: 80×80 avatar); "Recruited by: [name]" (Silkscreen 8px, label tertiary, value primary) below when present
+  3. **Stats row** — two equal columns, Silkscreen 11px, `gap-2` between cols, `gap-1` per col; left: "Class: X" / "Born: mmm d"; right: "Messages sent: N" / "Xp earned: N" (crew-specific counts from `get_member_crew_stats`)
+  4. **Friend action button** — full-width h-12, states: ADD FRIEND (border-purple + UserPlus icon) → REQUEST SENT → ACCEPT → COMPANIONS ✓
+- **Friend states**: ADD FRIEND (none) → REQUEST SENT (pending_sent) → ACCEPT (pending_received) → COMPANIONS ✓ (accepted); guests see disabled button + sign-in hint
+- `isSelf` guard: shows "YOU" badge in the banner card and hides friend button when viewing own profile
+- Header title is "SQUAD PROFILE" (Press Start 2P 18px); back button `style={{ width: 24, height: 40 }}`
 - SlidePage wrapper for slide-in/out; `useSlideBack()` for back button
 
 ### DM Page — `/dm/[friendId]`

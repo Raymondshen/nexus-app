@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
 import Image from 'next/image'
@@ -47,9 +48,9 @@ function sanitizeMessage(raw: string): string {
 }
 
 function MemberListRow({
-  profile, msgCount, loading, isOnline, isCreator,
+  profile, msgCount, loading, isOnline, isCreator, onTap,
 }: {
-  profile: MemberProfile; msgCount: number; loading: boolean; isOnline: boolean; isCreator?: boolean
+  profile: MemberProfile; msgCount: number; loading: boolean; isOnline: boolean; isCreator?: boolean; onTap?: () => void
 }) {
   const spriteInfo = spriteInfoFor(profile.avatar_class)
   const url        = profile.avatar_url as string | null
@@ -57,7 +58,11 @@ function MemberListRow({
   const classLabel = profile.avatar_class ? (CLASS_LABELS[profile.avatar_class] ?? profile.avatar_class) : 'Unknown'
 
   return (
-    <div className="flex items-center gap-3 py-4 border-b border-border last:border-0">
+    <div
+      className="flex items-center gap-3 py-4 border-b border-border last:border-0 active:bg-surface/50 transition-colors"
+      onClick={onTap}
+      style={onTap ? { cursor: 'pointer' } : undefined}
+    >
       {/* Profile photo with online dot */}
       <div className="relative flex-shrink-0">
         <div className="w-8 h-8 overflow-hidden bg-surface flex items-center justify-center">
@@ -100,6 +105,7 @@ function MemberListRow({
 }
 
 export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewName, inviteCode, creatorId }: ChatInputProps) {
+  const router = useRouter()
   const [text,           setText]          = useState('')
   const [sending,        setSending]        = useState(false)
   const [sendError,      setSendError]      = useState<string | null>(null)
@@ -675,6 +681,10 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                       loading={loadingCounts}
                       isOnline={onlineUserIds.has(m.id)}
                       isCreator={m.id === creatorId}
+                      onTap={() => {
+                        setIsExpanded(false)
+                        router.push(`/chat/${crewId}/member/${m.id}`)
+                      }}
                     />
                   ))}
                 </div>
