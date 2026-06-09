@@ -164,51 +164,57 @@ function GroupProfileSheet({
         style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 24px)' }}
         onClick={e => e.stopPropagation()}
       >
-        {/* Sheet header */}
-        <div className="px-6 pt-6 pb-4 border-b border-border">
-          <p className="font-silkscreen text-[8px] text-muted leading-none mb-1">SQUAD</p>
-          <h2 className="font-pixel text-[14px] text-primary leading-none">{crew.name.toUpperCase()}</h2>
-          {!loading && (
-            <p className="font-silkscreen text-[8px] text-muted leading-none mt-2">
-              {members.length} {members.length === 1 ? 'MEMBER' : 'MEMBERS'}
-            </p>
-          )}
-        </div>
-
-        {/* XP bar */}
-        <div className="px-6 py-4 border-b border-border flex flex-col gap-2">
-          <div className="flex items-center gap-2 w-full font-silkscreen">
-            <p className="flex-1 min-w-0 leading-[0] text-[0px]">
-              <span className="text-[8px] leading-none text-purple">Level {crewLevel}</span>
-              <span className="text-[8px] leading-none text-tertiary">
-                {` · ${crewXP % XP_PER_LEVEL} / ${XP_PER_LEVEL}XP`}
-              </span>
-              <span className="relative inline-block">
-                <AnimatePresence>
-                  {xpFloats.map((f) => (
-                    <motion.span
-                      key={f.id}
-                      initial={{ opacity: 0, y: 0 }}
-                      animate={{ opacity: [0, 1, 1, 0], y: [0, -12, -26, -42] }}
-                      transition={{ duration: 1.4, ease: 'easeOut', times: [0, 0.15, 0.65, 1] }}
-                      onAnimationComplete={() => dismissXPFloat(f.id)}
-                      className="pointer-events-none absolute bottom-0 left-0 font-pixel text-[8px] text-[#ffd700] whitespace-nowrap z-10"
-                      style={{ textShadow: '0 0 8px rgba(255,215,0,0.8)' }}
-                    >
-                      +{f.amount} XP
-                    </motion.span>
-                  ))}
-                </AnimatePresence>
-              </span>
-            </p>
-            <p className="text-[8px] leading-none whitespace-nowrap text-tertiary">Next Boss</p>
+        {/* Header + XP bar — unified container */}
+        <div className="px-6 pt-6 pb-4 border-b border-border flex flex-col gap-3">
+          <div className="flex flex-col gap-1">
+            <p className="font-silkscreen text-[8px] text-muted leading-none">SQUAD</p>
+            <h2 className="font-pixel text-[14px] text-primary leading-none">{crew.name.toUpperCase()}</h2>
+            {!loading && (() => {
+              const totalMessages = members.reduce((sum, m) => sum + m.msgCount, 0)
+              return (
+                <p className="font-silkscreen text-[8px] text-muted leading-none">
+                  {members.length} {members.length === 1 ? 'MEMBER' : 'MEMBERS'}
+                  {' · '}
+                  {totalMessages.toLocaleString()} {totalMessages === 1 ? 'MESSAGE' : 'MESSAGES'}
+                </p>
+              )
+            })()}
           </div>
-          <div className="bg-surface h-1 overflow-hidden w-full relative">
-            <motion.div
-              className="absolute left-0 top-0 h-full bg-purple"
-              animate={{ width: `${xpProgress}%` }}
-              transition={{ type: 'spring', stiffness: 300, damping: 28 }}
-            />
+
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2 w-full font-silkscreen">
+              <p className="flex-1 min-w-0 leading-[0] text-[0px]">
+                <span className="text-[8px] leading-none text-purple">Level {crewLevel}</span>
+                <span className="text-[8px] leading-none text-tertiary">
+                  {` · ${crewXP % XP_PER_LEVEL} / ${XP_PER_LEVEL}XP`}
+                </span>
+                <span className="relative inline-block">
+                  <AnimatePresence>
+                    {xpFloats.map((f) => (
+                      <motion.span
+                        key={f.id}
+                        initial={{ opacity: 0, y: 0 }}
+                        animate={{ opacity: [0, 1, 1, 0], y: [0, -12, -26, -42] }}
+                        transition={{ duration: 1.4, ease: 'easeOut', times: [0, 0.15, 0.65, 1] }}
+                        onAnimationComplete={() => dismissXPFloat(f.id)}
+                        className="pointer-events-none absolute bottom-0 left-0 font-pixel text-[8px] text-[#ffd700] whitespace-nowrap z-10"
+                        style={{ textShadow: '0 0 8px rgba(255,215,0,0.8)' }}
+                      >
+                        +{f.amount} XP
+                      </motion.span>
+                    ))}
+                  </AnimatePresence>
+                </span>
+              </p>
+              <p className="text-[8px] leading-none whitespace-nowrap text-tertiary">Next Boss</p>
+            </div>
+            <div className="bg-surface h-1 overflow-hidden w-full relative">
+              <motion.div
+                className="absolute left-0 top-0 h-full bg-purple"
+                animate={{ width: `${xpProgress}%` }}
+                transition={{ type: 'spring', stiffness: 300, damping: 28 }}
+              />
+            </div>
           </div>
         </div>
 
