@@ -139,6 +139,7 @@ export default async function DMPage({ params }: DMPageProps) {
             }
           }
           memberProfiles={memberProfiles}
+          crewName={friendUsername}
         />
       </ErrorBoundary>
     </SlidePage>

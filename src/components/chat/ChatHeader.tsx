@@ -580,16 +580,11 @@ export function ChatHeader({
             <button
               onClick={() => setShowProfile(true)}
               aria-label="View squad profile"
-              className="flex items-center gap-1 min-w-0 text-left active:opacity-70 transition-opacity"
+              className="flex items-center min-w-0 text-left active:opacity-70 transition-opacity"
             >
               <h1 className="font-pixel text-[18px] text-primary truncate leading-none" style={{ textDecoration: 'underline' }}>
                 {crew.name.toUpperCase()}
               </h1>
-              <ChevronRight
-                className="flex-shrink-0"
-                style={{ width: 24, height: 24, color: 'var(--color-primary)', display: 'inline-block', transform: 'rotate(90deg)' }}
-                aria-hidden="true"
-              />
             </button>
           </div>
 

@@ -150,6 +150,7 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
             }
           }
           memberProfiles={memberProfiles}
+          crewName={crew.name}
         />
       </ErrorBoundary>
 

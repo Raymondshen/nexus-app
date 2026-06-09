@@ -21,6 +21,12 @@ const MAX_MESSAGE_LENGTH = 2000
 const RATE_LIMIT_MAX     = 30
 const RATE_LIMIT_WINDOW  = 60_000
 
+const CLASS_LABELS: Record<string, string> = {
+  berserker: 'Berserker', sage: 'Sage', ghost: 'Ghost', hype_man: 'Hype Man',
+  the_voice: 'The Voice', meme_lord: 'Meme Lord', mage: 'Mage', warrior: 'Warrior',
+  rogue: 'Rogue', healer: 'Healer', archer: 'Archer',
+}
+
 type MemberProfile = Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url'>
 
 interface ChatInputProps {
@@ -28,48 +34,62 @@ interface ChatInputProps {
   userId:         string
   userProfile:    MemberProfile
   memberProfiles: Record<string, MemberProfile>
+  crewName:       string
 }
 
 function sanitizeMessage(raw: string): string {
   return raw.replace(/<[^>]*>/g, '').trim().slice(0, MAX_MESSAGE_LENGTH)
 }
 
-function ExpandedMemberRow({ profile, msgCount, loading }: { profile: MemberProfile; msgCount: number; loading: boolean }) {
+function MemberListRow({
+  profile, msgCount, loading, isOnline,
+}: {
+  profile: MemberProfile; msgCount: number; loading: boolean; isOnline: boolean
+}) {
   const spriteInfo = spriteInfoFor(profile.avatar_class)
-  const initial    = profile.username[0]?.toUpperCase() ?? '?'
   const url        = profile.avatar_url as string | null
+  const initial    = profile.username[0]?.toUpperCase() ?? '?'
+  const classLabel = profile.avatar_class ? (CLASS_LABELS[profile.avatar_class] ?? profile.avatar_class) : 'Unknown'
 
   return (
-    <div className="flex items-center gap-3 py-3 border-b border-border last:border-0">
-      <div className="w-12 h-12 flex-shrink-0 flex items-center justify-center">
+    <div className="flex items-center gap-3 py-4 border-b border-border last:border-0">
+      {/* Profile photo with online dot */}
+      <div className="relative flex-shrink-0">
+        <div className="w-8 h-8 overflow-hidden bg-surface flex items-center justify-center">
+          {url ? (
+            <div className="relative w-full h-full">
+              <Image src={resolveAvatarUrl(url, 32)} alt={profile.username} fill sizes="32px" className="object-cover" unoptimized={isSupabaseStorage(url)} />
+            </div>
+          ) : (
+            <span className="font-pixel text-[8px] text-purple">{initial}</span>
+          )}
+        </div>
+        {isOnline && (
+          <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#66bb6a] border-[1.5px] border-black" />
+        )}
+      </div>
+
+      {/* Animated sprite */}
+      <div className="w-8 h-8 flex-shrink-0 flex items-center justify-center bg-surface">
         {spriteInfo ? (
-          <PixelSprite spriteId={spriteInfo.id} nativePx={spriteInfo.nativePx} scale={2} animate />
+          <PixelSprite spriteId={spriteInfo.id} nativePx={spriteInfo.nativePx} scale={1} animate />
         ) : (
-          <div className="w-10 h-10 bg-[#0f0820] border border-[#2a1545] flex items-center justify-center">
-            <span className="font-pixel text-[10px] text-purple">{initial}</span>
-          </div>
+          <span className="font-pixel text-[8px] text-purple">{initial}</span>
         )}
       </div>
-      <div className="flex-1 min-w-0">
-        <p className="font-body font-bold text-[16px] text-primary truncate leading-none">{profile.username}</p>
-        <p className="font-silkscreen text-[8px] text-muted leading-none mt-[5px]">
-          {loading ? '...' : `${msgCount.toLocaleString()} MSG`}
+
+      {/* Name + class · msg count */}
+      <div className="flex flex-col gap-1 justify-center min-w-0">
+        <p className="font-body font-bold text-[16px] text-white truncate leading-none">{profile.username}</p>
+        <p className="font-silkscreen text-[8px] text-secondary leading-none">
+          {loading ? '...' : `${classLabel} · ${msgCount.toLocaleString()} msg.`}
         </p>
-      </div>
-      <div className="relative w-9 h-9 flex-shrink-0 overflow-hidden bg-border">
-        {url ? (
-          <Image src={resolveAvatarUrl(url, 36)} alt={profile.username} fill sizes="36px" className="object-cover" unoptimized={isSupabaseStorage(url)} />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <span className="font-pixel text-[10px] text-purple">{initial}</span>
-          </div>
-        )}
       </div>
     </div>
   )
 }
 
-export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatInputProps) {
+export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewName }: ChatInputProps) {
   const [text,           setText]          = useState('')
   const [sending,        setSending]        = useState(false)
   const [sendError,      setSendError]      = useState<string | null>(null)
@@ -503,65 +523,113 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatI
 
             {/* Sheet */}
             <motion.div
-              className="fixed inset-x-0 bottom-0 z-[39] bg-[#0a0612] border-t border-[#2a1545]"
+              className="fixed inset-x-0 bottom-0 z-[39] bg-black border-t border-border overflow-y-auto nexus-scroll"
               initial={{ y: '100%' }}
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-              style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 24px)', maxWidth: 480, margin: '0 auto' }}
+              style={{ maxWidth: 480, margin: '0 auto', maxHeight: '85vh' }}
+              onPanEnd={handlePanelPanEnd}
             >
-              {/* Drag-down header */}
-              <motion.div
-                className="px-6 pt-4 pb-4 border-b border-border flex flex-col gap-3"
-                style={{ touchAction: 'pan-x', cursor: 'grab' }}
-                onPanEnd={handlePanelPanEnd}
+              <div
+                className="flex flex-col px-4 pt-4"
+                style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 32px)' }}
               >
-                {/* Pill handle */}
-                <div className="w-8 h-1 bg-border rounded-full mx-auto" />
+                {/* Title + stats + chevron AND avatar row + XP bar — 56px gap between them */}
+                <div className="flex flex-col gap-14 mb-4">
 
-                {/* Crew stats */}
-                <div className="flex flex-col gap-1">
-                  <p className="font-silkscreen text-[8px] text-muted leading-none">SQUAD</p>
-                  {!loadingCounts && (
-                    <p className="font-silkscreen text-[8px] text-muted leading-none">
-                      {memberCount} {memberCount === 1 ? 'MEMBER' : 'MEMBERS'}
-                      {' · '}
-                      {totalMessages.toLocaleString()} {totalMessages === 1 ? 'MESSAGE' : 'MESSAGES'}
-                    </p>
-                  )}
+                  {/* Crew name + member stats + collapse button */}
+                  <div className="flex items-start justify-between">
+                    <div className="flex flex-col gap-1">
+                      <p className="font-pixel text-[18px] text-primary leading-none">
+                        {crewName.toUpperCase()}
+                      </p>
+                      {!loadingCounts && (
+                        <p className="font-silkscreen text-[8px] text-secondary leading-none">
+                          {memberCount} {memberCount === 1 ? 'member' : 'members'} · {totalMessages.toLocaleString()} total messages
+                        </p>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => setIsExpanded(false)}
+                      style={{ width: 24, height: 24 }}
+                      className="flex-shrink-0 flex items-center justify-center"
+                      aria-label="Collapse"
+                    >
+                      <ChevronRight
+                        style={{ width: 24, height: 24, color: 'var(--color-tertiary)', transform: 'rotate(90deg)' }}
+                        aria-hidden="true"
+                      />
+                    </button>
+                  </div>
+
+                  {/* Avatar list + XP bar */}
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center gap-3">
+                      {members.slice(0, 8).map((m) => {
+                        const url     = m.avatar_url as string | null | undefined
+                        const initial = m.username[0]?.toUpperCase() ?? '?'
+                        const online  = onlineUserIds.has(m.id)
+                        return (
+                          <div key={m.id} className="relative flex-shrink-0" title={m.username}>
+                            <div className="w-6 h-6 overflow-hidden bg-surface flex items-center justify-center">
+                              {url ? (
+                                <div className="relative w-full h-full">
+                                  <Image src={resolveAvatarUrl(url, 24)} alt={m.username} fill sizes="24px" className="object-cover" unoptimized={isSupabaseStorage(url)} />
+                                </div>
+                              ) : (
+                                <span className="font-pixel text-[8px] text-purple">{initial}</span>
+                              )}
+                            </div>
+                            {online && (
+                              <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#66bb6a] border-[1.5px] border-black" />
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    <div className="h-6 flex flex-col gap-2 items-center justify-center w-full">
+                      <div className="flex items-center gap-2 w-full font-silkscreen text-tertiary">
+                        <p className="flex-1 min-w-0 leading-[0] text-[0px]">
+                          <span className="text-[8px] leading-none text-purple">Level {crewLevel}</span>
+                          <span className="text-[8px] leading-none">
+                            {` · ${crewXP % XP_PER_LEVEL} / ${XP_PER_LEVEL}XP`}
+                          </span>
+                        </p>
+                        <p className="text-[8px] leading-none whitespace-nowrap text-tertiary">Next Boss</p>
+                      </div>
+                      <div className="bg-surface h-1 overflow-hidden w-full relative">
+                        <motion.div
+                          className="absolute left-0 top-0 h-full bg-purple"
+                          animate={{ width: `${xpProgress}%` }}
+                          transition={{ type: 'spring', stiffness: 300, damping: 28 }}
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
-                {/* XP bar */}
-                <div className="flex flex-col gap-2">
-                  <div className="flex items-center gap-2 w-full font-silkscreen">
-                    <p className="flex-1 min-w-0 leading-[0] text-[0px]">
-                      <span className="text-[8px] leading-none text-purple">Level {crewLevel}</span>
-                      <span className="text-[8px] leading-none text-tertiary">
-                        {` · ${crewXP % XP_PER_LEVEL} / ${XP_PER_LEVEL}XP`}
-                      </span>
-                    </p>
-                    <p className="text-[8px] leading-none whitespace-nowrap text-tertiary">Next Boss</p>
-                  </div>
-                  <div className="bg-surface h-1 overflow-hidden w-full relative">
-                    <motion.div
-                      className="absolute left-0 top-0 h-full bg-purple"
-                      animate={{ width: `${xpProgress}%` }}
-                      transition={{ type: 'spring', stiffness: 300, damping: 28 }}
+                {/* Member rows */}
+                <div className="flex flex-col">
+                  {members.map((m) => (
+                    <MemberListRow
+                      key={m.id}
+                      profile={m}
+                      msgCount={memberMsgCounts.get(m.id) ?? 0}
+                      loading={loadingCounts}
+                      isOnline={onlineUserIds.has(m.id)}
                     />
-                  </div>
+                  ))}
                 </div>
-              </motion.div>
 
-              {/* Member list */}
-              <div className="overflow-y-auto px-4 nexus-scroll" style={{ maxHeight: '55vh' }}>
-                {members.map((m) => (
-                  <ExpandedMemberRow
-                    key={m.id}
-                    profile={m}
-                    msgCount={memberMsgCounts.get(m.id) ?? 0}
-                    loading={loadingCounts}
-                  />
-                ))}
+                {/* Close button */}
+                <button
+                  onClick={() => setIsExpanded(false)}
+                  className="mt-4 h-12 w-full flex items-center justify-center font-pixel text-[8px] text-tertiary transition-colors active:text-primary"
+                >
+                  CLOSE
+                </button>
               </div>
             </motion.div>
           </>
