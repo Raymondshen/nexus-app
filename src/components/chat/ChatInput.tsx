@@ -14,6 +14,7 @@ import { PixelSprite, spriteInfoFor } from '@/components/game/PixelSprite'
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/config'
 import { haptic } from '@/lib/sounds'
 import { Send } from 'pixelarticons/react/Send'
+import { ChevronRight } from 'pixelarticons/react/ChevronRight'
 import type { Message, MessageWithProfile, Profile } from '@/types'
 
 const MAX_MESSAGE_LENGTH = 2000
@@ -341,28 +342,41 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles }: ChatI
         onPanEnd={handleTopPanEnd}
       >
         {/* User list */}
-        <div className="flex items-center gap-3">
-          {members.slice(0, 8).map((m) => {
-            const url     = m.avatar_url as string | null | undefined
-            const initial = m.username[0]?.toUpperCase() ?? '?'
-            const online  = onlineUserIds.has(m.id)
-            return (
-              <div key={m.id} className="relative flex-shrink-0" title={m.username}>
-                <div className="w-6 h-6 overflow-hidden bg-surface flex items-center justify-center">
-                  {url ? (
-                    <div className="relative w-full h-full">
-                      <Image src={resolveAvatarUrl(url, 24)} alt={m.username} fill sizes="24px" className="object-cover" unoptimized={isSupabaseStorage(url)} />
-                    </div>
-                  ) : (
-                    <span className="font-pixel text-[8px] text-purple">{initial}</span>
+        <div className="flex items-center justify-between w-full">
+          <div className="flex items-center gap-3">
+            {members.slice(0, 8).map((m) => {
+              const url     = m.avatar_url as string | null | undefined
+              const initial = m.username[0]?.toUpperCase() ?? '?'
+              const online  = onlineUserIds.has(m.id)
+              return (
+                <div key={m.id} className="relative flex-shrink-0" title={m.username}>
+                  <div className="w-6 h-6 overflow-hidden bg-surface flex items-center justify-center">
+                    {url ? (
+                      <div className="relative w-full h-full">
+                        <Image src={resolveAvatarUrl(url, 24)} alt={m.username} fill sizes="24px" className="object-cover" unoptimized={isSupabaseStorage(url)} />
+                      </div>
+                    ) : (
+                      <span className="font-pixel text-[8px] text-purple">{initial}</span>
+                    )}
+                  </div>
+                  {online && (
+                    <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#66bb6a] border-[1.5px] border-black" />
                   )}
                 </div>
-                {online && (
-                  <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#66bb6a] border-[1.5px] border-black" />
-                )}
-              </div>
-            )
-          })}
+              )
+            })}
+          </div>
+          <button
+            onClick={() => setIsExpanded(true)}
+            style={{ width: 24, height: 24 }}
+            className="flex-shrink-0 flex items-center justify-center"
+            aria-label="Show members"
+          >
+            <ChevronRight
+              style={{ width: 24, height: 24, color: 'var(--color-tertiary)', transform: 'rotate(-90deg)' }}
+              aria-hidden="true"
+            />
+          </button>
         </div>
 
         {/* XP indicator */}
