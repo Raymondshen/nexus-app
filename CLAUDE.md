@@ -52,7 +52,7 @@ All are `SECURITY DEFINER`. All declared in `Database.Functions` in `src/types/i
 - `is_crew_member(p_crew_id)` → boolean (RLS helper)
 - `get_or_create_dm(other_user_id)` → uuid — returns the DM crew id for this pair, creating it if needed; verifies an accepted friendship exists before creating
 - `get_unread_counts(p_crew_ids, p_cutoffs)` → `TABLE(crew_id, unread_count)` — batch unread counts for multiple crews in one query; uses `auth.uid()` internally; replaces N parallel count queries on the home page
-- `get_crew_member_msg_counts(p_crew_id)` → `TABLE(user_id, msg_count)` — per-member message counts for a crew in one query; replaces N parallel count queries in `GroupProfileSheet`
+- `get_crew_member_msg_counts(p_crew_id)` → `TABLE(user_id, msg_count)` — per-member message counts for a crew in one query; used by the expanded member panel in `ChatInput`
 - `get_member_crew_stats(p_crew_id, p_user_id)` → `TABLE(msg_count, total_xp)` — message count + XP total for one member in one crew; used by the member profile page
 - `increment_user_coins(p_user_id, p_amount)` → void — atomic `UPDATE profiles SET coins = coins + p_amount`; called by `award-xp` edge function
 - `toggle_reaction(p_message_id, p_emoji, p_user_id)` → jsonb — row-locking atomic toggle: adds user to the emoji's array if absent, removes if present, deletes empty keys; returns full updated reactions object; called by `react-to-message` edge function
@@ -266,7 +266,7 @@ Consecutive messages from the same user within 60 seconds are visually grouped (
 - **XP progress bar spring**: `type: 'spring', stiffness: 300, damping: 28` — tuned so the bar starts moving visibly within the first frame, reaching the target in ~250ms. This matches the float's fade-in timing (~210ms to full opacity) so both animations feel simultaneous. Do **not** drop stiffness below ~280 — slow springs have near-zero initial velocity and appear to lag behind the float.
 
 ### ChatInput — expanded member panel
-Triggered by swipe-up (`onPanEnd` offset.y < -50 or velocity.y < -300) or tapping the chevron-up button. Slides up from bottom with `spring stiffness 320 / damping 32`. Backdrop: `fixed inset-0 z-[38] bg-black/60` (same overlay as all other bottom sheets). Sheet: `fixed inset-x-0 bottom-0 z-[39] bg-black border-t border-border`, `maxHeight: 85vh`, scrollable.
+Triggered by swipe-up (`onPanEnd` offset.y < -50 or velocity.y < -300) or tapping the chevron-up button. Slides up from the ChatInput container itself (not from off-screen) with `spring stiffness 320 / damping 32`. The ChatInput wrapper carries `relative z-[40]`; the panel is `absolute bottom-0 left-0 right-0 z-[50]` so `y: '100%' → 0` originates from within the container. Backdrop: `fixed inset-0 z-[38] bg-black/60`. Sheet: `bg-black border-t border-border`, `maxHeight: 85vh`, scrollable.
 
 **Sheet interior** (`flex flex-col px-4 pt-4`, safe-area-bottom padding):
 - **Content block** (`flex flex-col gap-14` = 56px gap, `mb-4`):
@@ -388,7 +388,7 @@ Triggered by tapping the bell icon in `ChatHeader`. Matches Figma node 54:337.
 ### ChatHeader — props and spacing
 `ChatHeader` accepts only `{ crew, initialXP, initialRaid, currentUserId, crewId }`. It has **no** `members`, `memberLastSeen`, or `initialCoins` props — member avatars live in ChatInput; coins are home-only. Do not add a second presence channel here (see Online Presence note above).
 
-Header spacing: `px-4 pb-2` (16px horizontal, 8px bottom), `paddingTop: max(env(safe-area-inset-top), 8px)`, heading row `h-10`. Left side: `gap-2` (8px) between back button and crew name. Crew name is underlined via `style={{ textDecoration: 'underline' }}` (inline style, **not** the Tailwind `underline` class) — iOS Safari strips `text-decoration` from class-applied styles on elements inside `<button>`; inline style bypasses this. There is **no** dropdown chevron next to the crew name. All icons `style={{ width: 24, height: 24 }}`. Back arrows across all screens use `ChevronLeft` from pixelarticons with `color: var(--color-tertiary)`.
+Header spacing: `px-4 pb-2` (16px horizontal, 8px bottom), `paddingTop: max(env(safe-area-inset-top), 8px)`, heading row `h-10`. Left side: `gap-2` (8px) between back button and crew name. Crew name is a static `<h1>` — **not** a button; no tap handler, no underline, no dropdown chevron. All icons `style={{ width: 24, height: 24 }}`. Back arrows across all screens use `ChevronLeft` from pixelarticons with `color: var(--color-tertiary)`.
 
 ### Page Transitions — SlidePage + useSlideBack
 All "detail" pages (chat, DM, profile, friends, vault) slide in from the right on mount and slide back out on close.
@@ -661,7 +661,7 @@ create policy "friendships: either party can delete"
 - Always handle loading + error states; add `loading.tsx` alongside every data-fetching `page.tsx`
 - **Loading skeleton conventions** — wrap skeleton content in `<DelayedSkeleton>` (`src/components/ui/DelayedSkeleton.tsx`) so it only renders after 300ms; fast loads never flash. Use `bg-border animate-pulse` blocks on `bg-black` (home/chat) background. Structure must mirror the real page layout precisely:
   - `home/loading.tsx`: header (logo + 2 icons) → profile banner (48×48 avatar + text rows + AFK XP bar) → Squads label + 3 crew card rows (40×40 avatar, XP/level row, name+timestamp row, preview row, `pr-2`)
-  - `chat/[crewId]/loading.tsx`: header (back + crew name + chevron | 3 right icons) → message rows (avatar shown on group-start, `pl-10` offset on continuations) → input (member avatar row + XP stats/bar + h-12 input box). **No BottomNav.**
+  - `chat/[crewId]/loading.tsx`: header (back + crew name | 3 right icons) → message rows (avatar shown on group-start, `pl-10` offset on continuations) → input (member avatar row + XP stats/bar + h-12 input box). **No BottomNav.**
   - `dm/[friendId]/loading.tsx`: header (back + 32×32 avatar + username + label) → message rows (all left-aligned, same grouping pattern) → input (2-avatar row + XP stats/bar + h-12 input box)
 - Clean up Realtime subscriptions on unmount; use `cancelled` flag in async effects
 - RLS on every table from day one
