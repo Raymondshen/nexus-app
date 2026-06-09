@@ -125,14 +125,17 @@ export function AvatarUploadModal({ file, userId, isDev, onClose, onSuccess }: A
       if (isDev) setDebugSteps([...steps])
 
       // ── Step 2: storage upload ─────────────────────────────────────────────
-      const path = `${userId}/${Date.now()}.webp`
-      steps[1] = { ...steps[1], status: 'running', detail: `path: ${path}` }
+      // Use the blob's actual type — Safari falls back to image/png since it
+      // doesn't support WebP canvas output.
+      const ext = blob.type === 'image/webp' ? 'webp' : blob.type === 'image/jpeg' ? 'jpg' : 'png'
+      const path = `${userId}/${Date.now()}.${ext}`
+      steps[1] = { ...steps[1], status: 'running', detail: `path: ${path}, type: ${blob.type}` }
       if (isDev) setDebugSteps([...steps])
 
       const supabase = createClient()
       const { error: storageErr } = await supabase.storage
         .from('avatars')
-        .upload(path, blob, { contentType: 'image/webp', cacheControl: '31536000' })
+        .upload(path, blob, { contentType: blob.type, cacheControl: '31536000' })
 
       if (storageErr) {
         steps[1] = { ...steps[1], status: 'fail', detail: `${storageErr.message} (status ${(storageErr as { statusCode?: string }).statusCode ?? '?'})` }
