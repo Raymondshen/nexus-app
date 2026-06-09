@@ -478,7 +478,8 @@ Server actions (Next.js) calling `send-notification` directly also use this same
 ### Reactions System
 - **Data model**: `messages.reactions` JSONB column — `{ emoji: [userId, userId, ...] }`. Empty arrays are pruned; the column defaults to `{}`.
 - **Quick-pick emojis**: `['🔥', '💧', '⚡', '🌿', '🌑', '🔮']` — map 1:1 to the six element types (fire, water, lightning, nature, shadow, arcane).
-- **Trigger**: long-press (1500 ms) or right-click a message bubble → opens a Discord-style bottom sheet via `createPortal` on `document.body`. `hasMoved` ref cancels the long press on scroll; backdrop tap closes the sheet.
+- **Trigger**: long-press (500 ms) or right-click a message bubble → opens a Discord-style bottom sheet via `createPortal` on `document.body`. `hasMoved` ref cancels the long press on scroll; backdrop tap closes the sheet.
+- **Text selection disabled**: message container and `<p>` text carry `select-none` + `WebkitUserSelect: none`. The outer div's `touchstart` calls `e.preventDefault()` to suppress the iOS native text-selection callout (source of brief emoji flash on long-press). Avatar, username span, and reaction chips each call `e.stopPropagation()` on `touchEnd` to preserve their own tap actions despite the parent `preventDefault`.
 - **Sheet layout** (z-[80] sheet, z-[70] backdrop, spring 320/32 slide-up): emoji quick-pick row (6 `QUICK_REACTIONS` + 😊 opens native keyboard), `border-t border-border` divider, Copy Text action row (min-h-[52px]).
 - **Native emoji keyboard**: tapping 😊 focuses a hidden `<input>` (off-screen `position: fixed`). On mobile this surfaces the native emoji keyboard. `onInput` reads the first grapheme cluster via `Intl.Segmenter` (fallback: spread), then calls `handleReaction`.
 - **Optimistic update + rollback**: store is patched immediately via `updateMessage`; on edge function error the store is reverted to the pre-tap state.

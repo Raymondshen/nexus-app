@@ -123,12 +123,14 @@ export function MessageBubble({
     return () => cancelAnimationFrame(raf)
   }, [coinTarget]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ─── Long-press handlers (1500 ms, cancelled on scroll) ─────────────────────
-  function handleTouchStart() {
+  // ─── Long-press handlers (500 ms, cancelled on scroll) ──────────────────────
+  function handleTouchStart(e: React.TouchEvent) {
+    // Suppress iOS text-selection callout (the source of the brief emoji flash)
+    e.preventDefault()
     hasMoved.current = false
     longPressTimer.current = setTimeout(() => {
       if (!hasMoved.current) setSheetOpen(true)
-    }, 1500)
+    }, 500)
   }
   function handleTouchEnd() {
     if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null }
@@ -218,7 +220,7 @@ export function MessageBubble({
   return (
     <>
       <div
-        className={`flex gap-[8px] items-start w-full ${showHeader ? 'pt-[var(--space-5)] pb-0' : 'pt-[var(--space-2)] pb-0'}`}
+        className={`flex gap-[8px] items-start w-full select-none ${showHeader ? 'pt-[var(--space-5)] pb-0' : 'pt-[var(--space-2)] pb-0'}`}
         onContextMenu={(e) => { e.preventDefault(); setSheetOpen(true) }}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
@@ -229,6 +231,7 @@ export function MessageBubble({
           <div
             className="relative flex-shrink-0"
             onClick={onAvatarTap ? () => onAvatarTap(message.user_id) : undefined}
+            onTouchEnd={onAvatarTap ? (e) => { e.stopPropagation(); onAvatarTap(message.user_id) } : undefined}
             style={onAvatarTap ? { cursor: 'pointer' } : undefined}
           >
             <div className="w-8 h-8 bg-surface flex items-center justify-center overflow-hidden">
@@ -259,6 +262,7 @@ export function MessageBubble({
                   }`}
                   style={{ fontVariationSettings: '"opsz" 14', cursor: onAvatarTap ? 'pointer' : undefined }}
                   onClick={onAvatarTap ? () => onAvatarTap(message.user_id) : undefined}
+                  onTouchEnd={onAvatarTap ? (e) => { e.stopPropagation(); onAvatarTap(message.user_id) } : undefined}
                 >
                   {message.profile.username}
                 </span>
@@ -303,8 +307,8 @@ export function MessageBubble({
             </div>
           ) : (
             <p
-              className="font-body font-normal text-[14px] text-white leading-[normal] w-full"
-              style={{ fontVariationSettings: '"opsz" 14' }}
+              className="font-body font-normal text-[14px] text-white leading-[normal] w-full select-none"
+              style={{ fontVariationSettings: '"opsz" 14', WebkitUserSelect: 'none' }}
             >
               {message.content}
             </p>
@@ -340,6 +344,7 @@ export function MessageBubble({
                 return (
                   <button
                     key={emoji}
+                    onTouchEnd={(e) => { e.stopPropagation(); void handleReaction(emoji) }}
                     onClick={() => void handleReaction(emoji)}
                     className={`flex items-center gap-1 px-2 py-0.5 border text-[13px] leading-none transition-colors select-none ${
                       active
