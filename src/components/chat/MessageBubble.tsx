@@ -124,9 +124,7 @@ export function MessageBubble({
   }, [coinTarget]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Long-press handlers (500 ms, cancelled on scroll) ──────────────────────
-  function handleTouchStart(e: React.TouchEvent) {
-    // Suppress iOS text-selection callout (the source of the brief emoji flash)
-    e.preventDefault()
+  function handleTouchStart() {
     hasMoved.current = false
     longPressTimer.current = setTimeout(() => {
       if (!hasMoved.current) setSheetOpen(true)
