@@ -38,27 +38,38 @@ async function cropToBlob(img: HTMLImageElement, crop: PixelCrop): Promise<Blob>
   )
   return new Promise((resolve, reject) => {
     canvas.toBlob(
-      (blob) => (blob ? resolve(blob) : reject(new Error('canvas empty'))),
+      (blob) => (blob ? resolve(blob) : reject(new Error('canvas.toBlob returned null — browser may not support WebP'))),
       'image/webp',
       0.9,
     )
   })
 }
 
+type StepStatus = 'idle' | 'running' | 'ok' | 'fail'
+
+interface DebugStep {
+  label: string
+  status: StepStatus
+  detail: string
+}
+
 interface AvatarUploadModalProps {
   file: File | null
   userId: string
+  isDev: boolean
   onClose: () => void
   onSuccess: (url: string) => void
 }
 
-export function AvatarUploadModal({ file, userId, onClose, onSuccess }: AvatarUploadModalProps) {
+export function AvatarUploadModal({ file, userId, isDev, onClose, onSuccess }: AvatarUploadModalProps) {
   const isOpen = !!file
   const [imgSrc, setImgSrc]               = useState('')
   const [crop, setCrop]                   = useState<Crop>()
   const [completedCrop, setCompletedCrop] = useState<PixelCrop>()
   const [saving, setSaving]               = useState(false)
   const [uploadError, setUploadError]     = useState('')
+  const [debugSteps, setDebugSteps]       = useState<DebugStep[]>([])
+  const [showDebug, setShowDebug]         = useState(false)
   const imgRef = useRef<HTMLImageElement>(null)
 
   useEffect(() => {
@@ -67,6 +78,8 @@ export function AvatarUploadModal({ file, userId, onClose, onSuccess }: AvatarUp
       setCrop(undefined)
       setCompletedCrop(undefined)
       setUploadError('')
+      setDebugSteps([])
+      setShowDebug(false)
       return
     }
     const url = URL.createObjectURL(file)
@@ -79,31 +92,85 @@ export function AvatarUploadModal({ file, userId, onClose, onSuccess }: AvatarUp
     setCrop(initCrop(naturalWidth, naturalHeight))
   }
 
+  function setStep(steps: DebugStep[], index: number, patch: Partial<DebugStep>): DebugStep[] {
+    const next = [...steps]
+    next[index] = { ...next[index], ...patch }
+    return next
+  }
+
   async function handleSave() {
     if (!imgRef.current || !completedCrop || saving) return
     setSaving(true)
     setUploadError('')
-    try {
-      const blob = await cropToBlob(imgRef.current, completedCrop)
-      const path = `${userId}/${Date.now()}.webp`
-      const supabase = createClient()
 
+    const steps: DebugStep[] = [
+      { label: '1. Canvas crop → WebP blob', status: 'running', detail: '' },
+      { label: '2. Supabase storage upload',  status: 'idle',    detail: '' },
+      { label: '3. Profile DB update',        status: 'idle',    detail: '' },
+    ]
+    if (isDev) { setDebugSteps([...steps]); setShowDebug(true) }
+
+    try {
+      // ── Step 1: crop to blob ───────────────────────────────────────────────
+      let blob: Blob
+      try {
+        blob = await cropToBlob(imgRef.current, completedCrop)
+        steps[0] = { ...steps[0], status: 'ok', detail: `${(blob.size / 1024).toFixed(1)} KB, type=${blob.type}` }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        steps[0] = { ...steps[0], status: 'fail', detail: msg }
+        if (isDev) setDebugSteps([...steps])
+        throw new Error(`Canvas: ${msg}`)
+      }
+      if (isDev) setDebugSteps([...steps])
+
+      // ── Step 2: storage upload ─────────────────────────────────────────────
+      const path = `${userId}/${Date.now()}.webp`
+      steps[1] = { ...steps[1], status: 'running', detail: `path: ${path}` }
+      if (isDev) setDebugSteps([...steps])
+
+      const supabase = createClient()
       const { error: storageErr } = await supabase.storage
         .from('avatars')
         .upload(path, blob, { contentType: 'image/webp', cacheControl: '31536000' })
-      if (storageErr) throw storageErr
 
+      if (storageErr) {
+        steps[1] = { ...steps[1], status: 'fail', detail: `${storageErr.message} (status ${(storageErr as { statusCode?: string }).statusCode ?? '?'})` }
+        if (isDev) setDebugSteps([...steps])
+        throw new Error(`Storage: ${storageErr.message}`)
+      }
       const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path)
+      steps[1] = { ...steps[1], status: 'ok', detail: publicUrl }
+      if (isDev) setDebugSteps([...steps])
+
+      // ── Step 3: DB update via server action ────────────────────────────────
+      steps[2] = { ...steps[2], status: 'running', detail: '' }
+      if (isDev) setDebugSteps([...steps])
+
       const result = await updateAvatarAction(publicUrl)
-      if (result.error) throw new Error(result.error)
+      if (result.error) {
+        steps[2] = { ...steps[2], status: 'fail', detail: result.error }
+        if (isDev) setDebugSteps([...steps])
+        throw new Error(`DB: ${result.error}`)
+      }
+      steps[2] = { ...steps[2], status: 'ok', detail: 'custom_avatar=true, caches revalidated' }
+      if (isDev) setDebugSteps([...steps])
 
       onSuccess(publicUrl)
       onClose()
-    } catch {
-      setUploadError('Upload failed. Try again.')
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      setUploadError(isDev ? msg : 'Upload failed. Try again.')
     } finally {
       setSaving(false)
     }
+  }
+
+  const stepColor: Record<StepStatus, string> = {
+    idle:    'rgba(255,255,255,0.3)',
+    running: '#f59e0b',
+    ok:      '#66bb6a',
+    fail:    '#ef4444',
   }
 
   return (
@@ -172,9 +239,29 @@ export function AvatarUploadModal({ file, userId, onClose, onSuccess }: AvatarUp
 
             {/* Error */}
             {uploadError && (
-              <p className="font-pixel text-[8px] text-[#ef4444] px-4 pb-2 flex-shrink-0">
+              <p className="font-pixel text-[7px] text-[#ef4444] px-4 pb-2 leading-relaxed flex-shrink-0 break-all">
                 {uploadError}
               </p>
+            )}
+
+            {/* Dev debug panel */}
+            {isDev && showDebug && debugSteps.length > 0 && (
+              <div className="mx-4 mb-3 flex-shrink-0 border border-[rgba(255,215,0,0.25)] bg-[rgba(255,215,0,0.04)] p-3 flex flex-col gap-2">
+                <p className="font-pixel text-[7px] text-[#ffd700] leading-none">DEBUG</p>
+                {debugSteps.map((step, i) => (
+                  <div key={i} className="flex flex-col gap-[2px]">
+                    <p className="font-silkscreen text-[9px] leading-none" style={{ color: stepColor[step.status] }}>
+                      {step.status === 'running' ? '⟳' : step.status === 'ok' ? '✓' : step.status === 'fail' ? '✗' : '○'}{' '}
+                      {step.label}
+                    </p>
+                    {step.detail && (
+                      <p className="font-silkscreen text-[8px] leading-relaxed break-all pl-3" style={{ color: stepColor[step.status], opacity: 0.8 }}>
+                        {step.detail}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
             )}
 
             {/* Save button */}

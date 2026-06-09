@@ -473,6 +473,7 @@ export function ProfileClient({
       <AvatarUploadModal
         file={pendingFile}
         userId={userId}
+        isDev={isDev}
         onClose={() => setPendingFile(null)}
         onSuccess={(url) => setLocalAvatarUrl(url)}
       />
