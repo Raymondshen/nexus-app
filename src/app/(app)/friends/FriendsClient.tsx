@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence, useMotionValue, animate } from 'framer-motion'
+import type { PanInfo } from 'framer-motion'
 import { SlidePage, useSlideBack } from '@/components/ui/SlidePage'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
@@ -56,6 +57,112 @@ function UserAvatar({ profile, size = 40 }: { profile: FriendProfile | null; siz
   )
 }
 
+// ─── Swipeable friend row ─────────────────────────────────────────────────────
+
+const REMOVE_REVEAL = 104
+
+function SwipeableFriendRow({
+  entry,
+  onTap,
+  onRemove,
+  openRowId,
+  onOpen,
+  loading,
+}: {
+  entry:     FriendEntry
+  onTap:     () => void
+  onRemove:  () => void
+  openRowId: string | null
+  onOpen:    (id: string) => void
+  loading:   boolean
+}) {
+  const x           = useMotionValue(0)
+  const [open, setOpen] = useState(false)
+  const wasDragging = useRef(false)
+  const rowId       = entry.friendship.id
+
+  useEffect(() => {
+    if (openRowId !== rowId) {
+      animate(x, 0, { type: 'spring', stiffness: 300, damping: 28 })
+      setOpen(false)
+    }
+  }, [openRowId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function snapTo(target: number, isOpen: boolean) {
+    animate(x, target, { type: 'spring', stiffness: 300, damping: 28 })
+    setOpen(isOpen)
+  }
+
+  function handleDragEnd(_: unknown, info: PanInfo) {
+    setTimeout(() => { wasDragging.current = false }, 50)
+    if (info.offset.x < -(REMOVE_REVEAL / 2)) {
+      snapTo(-REMOVE_REVEAL, true)
+    } else {
+      snapTo(0, false)
+    }
+  }
+
+  function handleClick() {
+    if (wasDragging.current) return
+    if (open) {
+      snapTo(0, false)
+    } else {
+      onTap()
+    }
+  }
+
+  return (
+    <div className="overflow-hidden">
+      <motion.div
+        className="flex"
+        drag="x"
+        dragConstraints={{ left: -REMOVE_REVEAL, right: 0 }}
+        dragElastic={{ left: 0.05, right: 0.1 }}
+        style={{ x, width: `calc(100% + ${REMOVE_REVEAL}px)` }}
+        onDragStart={() => { wasDragging.current = true; onOpen(rowId) }}
+        onDragEnd={handleDragEnd}
+      >
+        <motion.div
+          className="flex-1 min-w-0 cursor-pointer flex items-center gap-4 overflow-hidden"
+          onClick={handleClick}
+          whileTap={{ scale: open ? 1 : 0.98 }}
+        >
+          <UserAvatar profile={entry.profile} size={40} />
+          <div className="flex-1 min-w-0 flex flex-col tracking-[0.2px]">
+            <span
+              className="font-body font-semibold text-[16px] text-primary leading-normal truncate"
+              style={{ fontVariationSettings: '"opsz" 14' }}
+            >
+              {entry.profile?.username ?? '—'}
+            </span>
+            <span className="font-silkscreen text-[11px] text-tertiary leading-normal">
+              est. {friendshipYear(entry.friendship.created_at)}
+            </span>
+          </div>
+          <ChevronRight
+            style={{ width: 24, height: 24, color: 'var(--color-tertiary)', flexShrink: 0 }}
+            aria-hidden="true"
+          />
+        </motion.div>
+
+        <button
+          className="flex-shrink-0 self-stretch flex flex-row items-center justify-center gap-[4px] bg-[#ef4444] px-[12px] py-[8px] overflow-hidden disabled:opacity-50"
+          style={{ width: REMOVE_REVEAL }}
+          onClick={(e) => { e.stopPropagation(); snapTo(0, false); onRemove() }}
+          tabIndex={open ? 0 : -1}
+          disabled={loading}
+          aria-label={`Remove ${entry.profile?.username}`}
+        >
+          <UserMinus style={{ width: 16, height: 16, color: 'white' }} aria-hidden="true" />
+          <span className="font-silkscreen text-[12px] text-white whitespace-nowrap leading-none">REMOVE</span>
+        </button>
+      </motion.div>
+    </div>
+  )
+}
+
+// ─── FriendsClient ────────────────────────────────────────────────────────────
+
 export function FriendsClient({
   userId,
   isGuest,
@@ -70,6 +177,7 @@ export function FriendsClient({
   const [incoming,      setIncoming]      = useState<FriendEntry[]>(initialIncoming)
   const [outgoing,      setOutgoing]      = useState<FriendEntry[]>(initialOutgoing)
   const [requestsOpen,  setRequestsOpen]  = useState(true)
+  const [openRowId,     setOpenRowId]     = useState<string | null>(null)
 
   const [searchQuery,   setSearchQuery]   = useState('')
   const [searchResults, setSearchResults] = useState<FriendProfile[]>([])
@@ -429,44 +537,17 @@ export function FriendsClient({
                   </p>
                 </div>
               ) : (
-                friends.map((entry) => {
-                  const loading = loadingIds.has(entry.friendship.id)
-                  return (
-                    <div
-                      key={entry.friendship.id}
-                      className="flex items-center gap-4 overflow-hidden cursor-pointer"
-                      onClick={() => { if (!loading && entry.profile) router.push(`/dm/${entry.profile.id}`) }}
-                    >
-                      <UserAvatar profile={entry.profile} size={40} />
-                      <div className="flex-1 min-w-0 flex flex-col tracking-[0.2px]">
-                        <span
-                          className="font-body font-semibold text-[16px] text-primary leading-normal truncate"
-                          style={{ fontVariationSettings: '"opsz" 14' }}
-                        >
-                          {entry.profile?.username ?? '—'}
-                        </span>
-                        <span className="font-silkscreen text-[11px] text-tertiary leading-normal">
-                          est. {friendshipYear(entry.friendship.created_at)}
-                        </span>
-                      </div>
-                      <ChevronRight
-                        style={{ width: 24, height: 24, color: 'var(--color-tertiary)', flexShrink: 0 }}
-                        aria-hidden="true"
-                      />
-                      <button
-                        disabled={loading}
-                        onClick={(e) => { e.stopPropagation(); handleRemoveFriend(entry) }}
-                        aria-label="Remove friend"
-                        className="bg-[#ef4444] flex items-center justify-center gap-[4px] overflow-hidden px-4 py-3 flex-shrink-0 disabled:opacity-50 active:opacity-70"
-                      >
-                        <UserMinus style={{ width: 12, height: 12, color: '#ffffff' }} aria-hidden="true" />
-                        <span className="font-silkscreen text-[11px] text-primary whitespace-nowrap leading-none">
-                          {loading ? '...' : 'Remove'}
-                        </span>
-                      </button>
-                    </div>
-                  )
-                })
+                friends.map((entry) => (
+                  <SwipeableFriendRow
+                    key={entry.friendship.id}
+                    entry={entry}
+                    onTap={() => { if (entry.profile) router.push(`/dm/${entry.profile.id}`) }}
+                    onRemove={() => handleRemoveFriend(entry)}
+                    openRowId={openRowId}
+                    onOpen={setOpenRowId}
+                    loading={loadingIds.has(entry.friendship.id)}
+                  />
+                ))
               )}
             </div>
           </>
