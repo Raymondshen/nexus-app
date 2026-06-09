@@ -257,12 +257,27 @@ Consecutive messages from the same user within 60 seconds are visually grouped (
 ### ChatInput — send flow
 `insert_message` RPC → `addMessage` (optimistic) → broadcast slim payload on `messages:{crewId}` → `award-xp` edge function (patches `xp_awarded` back + broadcasts `xp_update`) → `attack-boss` edge function (if raid active)
 
+- **Props**: `{ crewId, userId, userProfile, memberProfiles, crewName }`. `crewName` is the crew's display name (passed from the chat page and DM page); used in the expanded member panel header.
 - **Single channel**: `messages:{crewId}` is configured with presence and handles message broadcasting, typing presence, and online presence. There is no separate `typing:{crewId}` channel.
 - **Send icon**: `Send` from `pixelarticons/react/Send` (16px); `text-primary` when textarea has text, `text-muted` when empty.
 - **"Next Boss" label**: always visible (right side of XP stats row) — not gated by dev mode.
-- **Member avatars**: 24×24px squares (`w-6 h-6`, no `rounded-full`, no border) — matches Figma `size-[24px]`. Online dot shown via `onlineUserIds` from `messages:{crewId}` presence state.
+- **Member avatars row (collapsed)**: `flex items-center justify-between w-full`. Left: avatars 24×24px squares (`w-6 h-6`, no `rounded-full`, no border), `gap-3` (12px). Right: `ChevronRight` from pixelarticons rotated `-90deg` (pointing up) in a 24×24 button — taps to expand the member panel. Online dot `#66bb6a` (2×2, `rounded-full`, `border-[1.5px] border-black`) at `-bottom-0.5 -right-0.5`.
 - **XP floats**: animate bottom-to-top with fade-in then fade-out — `opacity: [0,1,1,0]`, `y: [0,-12,-26,-42]`, `times: [0, 0.15, 0.65, 1]` over 1.4s. Text shows `+{amount} XP` in gold `#ffd700`. Float anchors inline after the Members count text via a `relative inline-block` span — no static label, animation only.
 - **XP progress bar spring**: `type: 'spring', stiffness: 300, damping: 28` — tuned so the bar starts moving visibly within the first frame, reaching the target in ~250ms. This matches the float's fade-in timing (~210ms to full opacity) so both animations feel simultaneous. Do **not** drop stiffness below ~280 — slow springs have near-zero initial velocity and appear to lag behind the float.
+
+### ChatInput — expanded member panel
+Triggered by swipe-up (`onPanEnd` offset.y < -50 or velocity.y < -300) or tapping the chevron-up button. Slides up from bottom with `spring stiffness 320 / damping 32`. Backdrop: `fixed inset-0 z-[38] bg-black/60` (same overlay as all other bottom sheets). Sheet: `fixed inset-x-0 bottom-0 z-[39] bg-black border-t border-border`, `maxHeight: 85vh`, scrollable.
+
+**Sheet interior** (`flex flex-col px-4 pt-4`, safe-area-bottom padding):
+- **Content block** (`flex flex-col gap-14` = 56px gap, `mb-4`):
+  - *Title row* (`flex items-start justify-between`): crew name in Press Start 2P 18px `text-primary` + member count/total-messages stat in Silkscreen 8px `text-secondary` below it; `ChevronRight` rotated `90deg` (pointing down) 24×24 `text-tertiary` on the right — taps to collapse.
+  - *Avatar + XP bar* (`flex flex-col gap-2`): same 24×24 avatar row with online dots, then Silkscreen 8px Level/XP/Next Boss stats row + 4px purple progress bar.
+- **Member rows** (`flex flex-col`, divider via `border-b border-border last:border-0`, `py-4` per row):
+  - Left 32×32: profile photo (or initial fallback) with online dot
+  - Center 32×32: `PixelSprite scale={1}` centered in `bg-surface` box (or initial fallback)
+  - Right text: DM Sans Bold 16px `text-white` name + Silkscreen 8px `text-secondary` subtitle `"Class · N msg."`
+  - Row gap: `gap-3` (12px)
+- **CLOSE button**: `h-12 w-full`, Press Start 2P 8px `text-tertiary`, centered, `mt-4`; swipe-down gesture (`offset.y > 60` or `velocity.y > 300`) also collapses.
 
 ### award-xp — query batching + anti-spam
 - **Batch 1** (always, parallel): previous message gap + burst window count + crew name/XP + sender's `is_dev` flag — 4 queries in one `Promise.all`
@@ -373,7 +388,7 @@ Triggered by tapping the bell icon in `ChatHeader`. Matches Figma node 54:337.
 ### ChatHeader — props and spacing
 `ChatHeader` accepts only `{ crew, initialXP, initialRaid, currentUserId, crewId }`. It has **no** `members`, `memberLastSeen`, or `initialCoins` props — member avatars live in ChatInput; coins are home-only. Do not add a second presence channel here (see Online Presence note above).
 
-Header spacing: `px-4 pb-2` (16px horizontal, 8px bottom), `paddingTop: max(env(safe-area-inset-top), 8px)`, heading row `h-10`. Left side: `gap-2` (8px) between back button and crew name group. Crew name button has `gap-1` (4px) between the underlined name and the dropdown chevron. Crew name uses `style={{ textDecoration: 'underline' }}` (inline style, **not** the Tailwind `underline` class) — iOS Safari strips `text-decoration` from class-applied styles on elements inside `<button>`; inline style bypasses this. Dropdown chevron is `ChevronRight` from pixelarticons with `style={{ transform: 'rotate(90deg)' }}`. All icons `style={{ width: 24, height: 24 }}`. Back arrows across all screens use `ChevronLeft` from pixelarticons with `color: var(--color-tertiary)`.
+Header spacing: `px-4 pb-2` (16px horizontal, 8px bottom), `paddingTop: max(env(safe-area-inset-top), 8px)`, heading row `h-10`. Left side: `gap-2` (8px) between back button and crew name. Crew name is underlined via `style={{ textDecoration: 'underline' }}` (inline style, **not** the Tailwind `underline` class) — iOS Safari strips `text-decoration` from class-applied styles on elements inside `<button>`; inline style bypasses this. There is **no** dropdown chevron next to the crew name. All icons `style={{ width: 24, height: 24 }}`. Back arrows across all screens use `ChevronLeft` from pixelarticons with `color: var(--color-tertiary)`.
 
 ### Page Transitions — SlidePage + useSlideBack
 All "detail" pages (chat, DM, profile, friends, vault) slide in from the right on mount and slide back out on close.
@@ -728,6 +743,8 @@ Note: next/font variable for Silkscreen is `--font-silk` (not `--font-silkscreen
   | ChatHeader — invite | `UserPlus` | `pixelarticons/react/UserPlus` | 24×24 |
   | ChatHeader — vault | `Notebook` | `pixelarticons/react/Notebook` | 24×24 |
   | ChatInput — send | `Send` | `pixelarticons/react/Send` | 16×16 |
+  | ChatInput — expand members (collapsed row) | `ChevronRight` rotate(-90deg) | `pixelarticons/react/ChevronRight` | 24×24, `color: var(--color-tertiary)` |
+  | ChatInput — collapse members (expanded sheet) | `ChevronRight` rotate(90deg) | `pixelarticons/react/ChevronRight` | 24×24, `color: var(--color-tertiary)` |
   | Home header — friends | `AvatarSquare` | `pixelarticons/react/AvatarSquare` | 24×24 |
   | Home header — add | `PlusBox` | `pixelarticons/react/PlusBox` | 24×24 |
   | Home profile banner — edit | `MagicEdit` | `pixelarticons/react/MagicEdit` | 16×16 |
