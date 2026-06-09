@@ -181,7 +181,8 @@ export function MessageBubble({
       if (data.hype_man_heal && data.heal_amount > 0) {
         setHealFloat({ id: Date.now(), amount: data.heal_amount })
       }
-    } catch {
+    } catch (err) {
+      console.error('[react-to-message]', err)
       updateMessage(message.id, { reactions: prev })
     }
   }, [message.id, message.crew_id, message.reactions, currentUserId, updateMessage])

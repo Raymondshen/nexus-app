@@ -196,10 +196,25 @@ export function MessageList({
 
         // Merge with any messages already in the store (Realtime events or
         // optimistic sends that arrived while the fetch was in flight).
+        // For messages in both sets, use the fetched row as the base but
+        // preserve local reactions when the fetched snapshot has none — the
+        // fetch may have been issued before react-to-message committed, so
+        // the fetched row is stale with respect to reactions.
         const existing = useChatStore.getState().messages
+        const existingMap = new Map(existing.map((m) => [m.id, m]))
         const fetchedIds = new Set(fetched.map((m) => m.id))
+        const fetchedWithLocalReactions = fetched.map((fetchedMsg) => {
+          const existingMsg = existingMap.get(fetchedMsg.id)
+          if (!existingMsg) return fetchedMsg
+          const fetchedReactions = (fetchedMsg.reactions ?? {}) as Record<string, string[]>
+          const localReactions   = (existingMsg.reactions  ?? {}) as Record<string, string[]>
+          if (Object.keys(fetchedReactions).length === 0 && Object.keys(localReactions).length > 0) {
+            return { ...fetchedMsg, reactions: existingMsg.reactions }
+          }
+          return fetchedMsg
+        })
         const merged = [
-          ...fetched,
+          ...fetchedWithLocalReactions,
           ...existing.filter((m) => !fetchedIds.has(m.id)),
         ].sort((a, b) => a.created_at.localeCompare(b.created_at))
 

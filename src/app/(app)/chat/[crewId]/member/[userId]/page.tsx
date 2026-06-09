@@ -53,7 +53,7 @@ export default async function MemberProfilePage({ params }: Props) {
       .maybeSingle(),
     supabase
       .from('profiles')
-      .select('username, avatar_url, birthday')
+      .select('username, avatar_url, birthday, created_at')
       .eq('id', userId)
       .single(),
     supabase
@@ -112,6 +112,7 @@ export default async function MemberProfilePage({ params }: Props) {
         avatarClass={(targetMembership.data as Record<string, unknown>).class as AvatarClass | null}
         msgCount={Number(statsRow.msg_count)}
         totalXP={Number(statsRow.total_xp)}
+        joinedAt={(profile as Record<string, unknown>).created_at as string | null}
         friendship={friendship}
         inviterUsername={inviterUsername}
       />

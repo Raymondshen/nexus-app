@@ -609,14 +609,14 @@ function SwipeableCrewCard({
         </motion.div>
 
         <button
-          className="flex-shrink-0 self-stretch flex flex-row items-center justify-center gap-2 bg-[#ef4444] px-3 overflow-hidden"
+          className="flex-shrink-0 self-stretch flex flex-row items-center justify-center gap-[4px] bg-[#ef4444] px-[12px] py-[8px] overflow-hidden"
           style={{ width: LEAVE_REVEAL }}
           onClick={(e) => { e.stopPropagation(); snapTo(0, false); onLeaveRequest() }}
           tabIndex={open ? 0 : -1}
           aria-label={`Leave ${summary.crew.name}`}
         >
-          <Logout className="flex-shrink-0" style={{ width: 16, height: 16, color: 'white' }} aria-hidden="true" />
-          <span className="font-silkscreen text-[16px] text-white whitespace-nowrap leading-none">LEAVE</span>
+          <Logout style={{ width: 16, height: 16, color: 'white' }} aria-hidden="true" />
+          <span className="font-silkscreen text-[12px] text-white whitespace-nowrap leading-none">LEAVE</span>
         </button>
       </motion.div>
     </div>

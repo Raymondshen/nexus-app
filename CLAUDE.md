@@ -340,10 +340,10 @@ Sheet design: `bg-[#0a0612]`, full-width rows min 44px, `border-l-2 border-trans
 ### Home Page — SwipeableCrewCard leave button
 Swipe left on a crew card to reveal the leave action (`LEAVE_REVEAL = 104px`). Leave button design (matches Figma node 50:516):
 - Background: `#ef4444`
-- Layout: `flex-row items-center justify-center gap-2` (icon beside text — **not** stacked)
-- Padding: `px-3 py-2` (12px horizontal, 8px vertical), `h-full overflow-hidden`
+- Layout: `flex-row items-center justify-center gap-[4px]` (icon beside text — **not** stacked)
+- Padding: `px-[12px] py-[8px]`, `h-full overflow-hidden`
 - Icon: `Logout` from `pixelarticons/react/Logout` (16px, white)
-- Label: `"LEAVE"` in `font-silkscreen text-[16px] text-white whitespace-nowrap leading-none`
+- Label: `"LEAVE"` in `font-silkscreen text-[12px] text-white whitespace-nowrap leading-none`
 - `CrewCardContent` outer div has `pr-2` (8px right padding) to create 8px gap between the timestamp and the revealed leave button edge
 
 ### Home Page — LeaveConfirmSheet (bottom sheet)
