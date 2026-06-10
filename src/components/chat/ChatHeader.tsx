@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useSlideBack } from '@/components/ui/SlidePage'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useChatStore } from '@/store/chatStore'
 import { createClient } from '@/lib/supabase/client'
+import { renameCrewAction } from '@/app/(app)/chat/actions'
 import type { Crew, ActiveRaid } from '@/types'
 import { formatDistanceToNow } from 'date-fns'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
@@ -13,6 +14,7 @@ import { BellOff } from 'pixelarticons/react/BellOff'
 import { UserPlus } from 'pixelarticons/react/UserPlus'
 import { Copy } from 'pixelarticons/react/Copy'
 import { Check } from 'pixelarticons/react/Check'
+import { MagicEdit } from 'pixelarticons/react/MagicEdit'
 
 // ─── NotifSheet ───────────────────────────────────────────────────────────────
 
@@ -157,6 +159,7 @@ interface ChatHeaderProps {
   currentUserId:    string
   crewId:           string
   memberBirthdays?: MemberBirthday[]
+  isCreator?:       boolean
 }
 
 // ─── Share modal ─────────────────────────────────────────────────────────────
@@ -256,17 +259,33 @@ export function ChatHeader({
   currentUserId,
   crewId,
   memberBirthdays = [],
+  isCreator = false,
 }: ChatHeaderProps) {
   const goBack = useSlideBack()
-  const { setCrewXP, setActiveRaid, activeRaid } = useChatStore()
+  const { setCrewXP, setActiveRaid, activeRaid, crewName: storeCrewName, setCrewName } = useChatStore()
   const [showShare,    setShowShare]    = useState(false)
   const [showNotif,    setShowNotif]    = useState(false)
   const [notifPrefs,   setNotifPrefs]   = useState<NotifPrefs>({ messages: true, raids: true, victory: true })
   const [devMode,      setDevMode]      = useState(false)
+  const [isEditing,    setIsEditing]    = useState(false)
+  const [editValue,    setEditValue]    = useState(crew.name)
+  const editInputRef = useRef<HTMLInputElement>(null)
+
+  const liveCrewName = storeCrewName || crew.name
 
   useEffect(() => {
     setDevMode(localStorage.getItem('nexus_dev_mode') === '1')
   }, [])
+
+  // Seed the store with the server-fetched name on mount
+  useEffect(() => {
+    setCrewName(crew.name)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Focus the input whenever edit mode opens
+  useEffect(() => {
+    if (isEditing) editInputRef.current?.focus()
+  }, [isEditing])
 
   useEffect(() => {
     setCrewXP(initialXP)
@@ -332,6 +351,26 @@ export function ChatHeader({
       )
   }, [notifPrefs, currentUserId, crewId])
 
+  function startEditing() {
+    setEditValue(liveCrewName)
+    setIsEditing(true)
+  }
+
+  async function confirmRename() {
+    const trimmed = editValue.trim()
+    setIsEditing(false)
+    if (!trimmed || trimmed.length < 2 || trimmed === liveCrewName) return
+    const prev = liveCrewName
+    setCrewName(trimmed)  // optimistic
+    const result = await renameCrewAction(crewId, trimmed)
+    if (result?.error) setCrewName(prev)  // rollback
+  }
+
+  function cancelRename() {
+    setIsEditing(false)
+    setEditValue(liveCrewName)
+  }
+
   const handleCloseShare   = useCallback(() => setShowShare(false), [])
   const handleCloseNotif   = useCallback(() => setShowNotif(false), [])
 
@@ -346,7 +385,7 @@ export function ChatHeader({
       >
         <div className="flex items-center justify-between h-10">
 
-          {/* Left: back button + [underlined crew name + dropdown chevron] */}
+          {/* Left: back button + crew name (editable for creator) */}
           <div className="flex items-center gap-2 flex-1 min-w-0">
             <button
               onClick={goBack}
@@ -357,9 +396,37 @@ export function ChatHeader({
               <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
             </button>
 
-            <h1 className="font-pixel text-[18px] text-primary truncate leading-none">
-              {crew.name.toUpperCase()}
-            </h1>
+            {isEditing ? (
+              <input
+                ref={editInputRef}
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value.slice(0, 30))}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') confirmRename()
+                  if (e.key === 'Escape') cancelRename()
+                }}
+                onBlur={confirmRename}
+                maxLength={30}
+                className="font-pixel text-[14px] text-primary bg-transparent border-b border-purple focus:outline-none leading-none min-w-0 flex-1 py-1 uppercase"
+                aria-label="Edit squad name"
+              />
+            ) : (
+              <>
+                <h1 className="font-pixel text-[18px] text-primary truncate leading-none">
+                  {liveCrewName.toUpperCase()}
+                </h1>
+                {isCreator && (
+                  <button
+                    onClick={startEditing}
+                    aria-label="Rename squad"
+                    className="flex-shrink-0 flex items-center justify-center active:opacity-60 transition-opacity"
+                    style={{ width: 16, height: 40 }}
+                  >
+                    <MagicEdit style={{ width: 16, height: 16, color: 'var(--color-muted)' }} aria-hidden="true" />
+                  </button>
+                )}
+              </>
+            )}
           </div>
 
           {/* Right: bell + user-plus */}
@@ -419,7 +486,7 @@ export function ChatHeader({
         {showShare && <ShareModal crew={crew} onClose={handleCloseShare} />}
         {showNotif && (
           <NotifSheet
-            crew={crew}
+            crew={{ ...crew, name: liveCrewName }}
             prefs={notifPrefs}
             onToggle={handleToggleNotif}
             onClose={handleCloseNotif}

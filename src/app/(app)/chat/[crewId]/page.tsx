@@ -143,6 +143,7 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
         currentUserId={user.id}
         crewId={crewId}
         memberBirthdays={memberBirthdays}
+        isCreator={user.id === creatorId}
       />
 
       <ErrorBoundary>

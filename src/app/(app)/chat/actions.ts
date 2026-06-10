@@ -1,6 +1,6 @@
 'use server'
 
-import { revalidateTag } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 
 export async function kickMemberAction(
@@ -38,5 +38,45 @@ export async function kickMemberAction(
   if (error) return { error: error.message }
 
   revalidateTag(`crew-members:${crewId}`, 'max')
+  return {}
+}
+
+export async function renameCrewAction(
+  crewId: string,
+  name: string,
+): Promise<{ error?: string }> {
+  const trimmed = name.trim()
+  if (!trimmed || trimmed.length < 2 || trimmed.length > 30) {
+    return { error: 'Name must be 2–30 characters' }
+  }
+
+  const supabase = await createClient()
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) return { error: 'Not authenticated' }
+
+  // Verify caller is the creator (earliest joined_at)
+  const { data: earliest } = await supabase
+    .from('crew_members')
+    .select('user_id')
+    .eq('crew_id', crewId)
+    .order('joined_at', { ascending: true })
+    .limit(1)
+    .single()
+
+  if (!earliest || (earliest as { user_id: string }).user_id !== session.user.id) {
+    return { error: 'Only the squad creator can rename the squad' }
+  }
+
+  const service = createServiceClient()
+  const { error } = await service
+    .from('crews')
+    .update({ name: trimmed })
+    .eq('id', crewId)
+    .eq('is_dm', false)
+
+  if (error) return { error: error.message }
+
+  revalidateTag(`crew-members:${crewId}`, 'max')
+  revalidatePath('/home')
   return {}
 }

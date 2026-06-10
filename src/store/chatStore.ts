@@ -17,6 +17,7 @@ interface ChatStore {
   damageFloats:  DamageFloatItem[]
   onlineUserIds: Set<string>
   userCoins:     number
+  crewName:      string
 
   setMessages:       (messages: Message[]) => void
   addMessage:        (message: Message) => void
@@ -31,6 +32,7 @@ interface ChatStore {
   setOnlineUserIds:  (ids: Set<string>) => void
   setUserCoins:      (coins: number) => void
   addUserCoins:      (amount: number) => void
+  setCrewName:       (name: string) => void
 }
 
 let floatCounter = 0
@@ -44,6 +46,7 @@ export const useChatStore = create<ChatStore>((set) => ({
   damageFloats:  [],
   onlineUserIds: new Set<string>(),
   userCoins:     0,
+  crewName:      '',
 
   setMessages: (messages) => set({ messages }),
 
@@ -99,6 +102,8 @@ export const useChatStore = create<ChatStore>((set) => ({
 
   addUserCoins: (amount) =>
     set((s) => ({ userCoins: s.userCoins + amount })),
+
+  setCrewName: (name) => set({ crewName: name }),
 }))
 
 export { XP_PER_LEVEL }

@@ -253,34 +253,28 @@ function HomeActionSheet({
     return (
       <>
         <div className="flex flex-col gap-2">
-          <p className="font-pixel text-[8px] text-tertiary leading-none">SQUADS</p>
-          <div className="flex flex-col gap-1">
-            <h2
-              className="font-body font-bold text-[18px] text-primary leading-none"
-              style={{ fontVariationSettings: '"opsz" 14' }}
-            >
-              SQUAD?!?!
-            </h2>
-            <p
-              className="font-body text-[12px] text-secondary leading-normal"
-              style={{ fontVariationSettings: '"opsz" 14' }}
-            >
-              What would you like to do?
-            </p>
-          </div>
+          <p className="font-pixel text-[8px] text-tertiary leading-none">SQUAD SH**!</p>
+          <h2
+            className="font-body font-bold text-[18px] text-primary leading-none"
+            style={{ fontVariationSettings: '"opsz" 14' }}
+          >
+            What would you like to do?
+          </h2>
         </div>
 
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-4">
           <button
             onClick={() => setView('create')}
-            className="w-full h-[48px] flex items-center justify-center bg-[#a855f7]"
+            className="w-full h-[48px] flex items-center justify-center bg-[#a855f7] overflow-hidden"
+            style={{ boxShadow: '2px 2px 0px 0px rgba(168,85,247,0.5)' }}
           >
             <span className="font-pixel text-[8px] text-primary leading-none">CREATE A SQUAD</span>
           </button>
 
           <button
             onClick={() => setView('join')}
-            className="w-full h-[48px] flex items-center justify-center border border-[#a855f7]"
+            className="w-full h-[48px] flex items-center justify-center bg-surface border border-[#a855f7] overflow-hidden"
+            style={{ boxShadow: '2px 2px 0px 0px rgba(168,85,247,0.5)' }}
           >
             <span className="font-pixel text-[8px] text-purple leading-none">JOIN A SQUAD</span>
           </button>
@@ -288,12 +282,13 @@ function HomeActionSheet({
           <div className="flex flex-col gap-1">
             <button
               onClick={onOpenArsenal}
-              className="w-full h-[48px] flex items-center justify-center border border-[#f59e0b]"
+              className="w-full h-[48px] flex items-center justify-center bg-surface border border-[#f59e0b] overflow-hidden"
+              style={{ boxShadow: '2px 2px 0px 0px rgba(245,158,11,0.5)' }}
             >
               <span className="font-pixel text-[8px] leading-none" style={{ color: '#f59e0b' }}>INVITE A FRIEND</span>
             </button>
-            <p className="font-silkscreen text-[12px] tracking-[0.2px] leading-normal" style={{ color: '#f59e0b' }}>
-              <span className="text-tertiary">25 COINS Per INVITE</span>
+            <p className="font-silkscreen text-[8px] tracking-[0.2px] leading-normal" style={{ color: '#f59e0b' }}>
+              <span className="text-tertiary">Cost 25 COINS Per INVITE</span>
               {` · ${infiniteCoins ? '∞' : coins.toLocaleString()} coins available`}
             </p>
           </div>
@@ -301,7 +296,7 @@ function HomeActionSheet({
 
         <button
           onClick={onClose}
-          className="w-full h-[48px] flex items-center justify-center"
+          className="w-full h-[48px] flex items-center justify-center overflow-hidden"
         >
           <span className="font-pixel text-[8px] text-tertiary leading-none">CLOSE</span>
         </button>

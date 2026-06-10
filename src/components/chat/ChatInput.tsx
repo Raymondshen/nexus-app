@@ -146,7 +146,10 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     activeRaid, damageFloats, addDamageFloat, dismissDamageFloat,
     crewXP, crewLevel, xpFloats, dismissXPFloat,
     onlineUserIds, setOnlineUserIds, addUserCoins,
+    crewName: storeCrewName,
   } = useChatStore()
+
+  const liveCrewName = storeCrewName || crewName
 
   const profilesRef     = useRef(memberProfiles)
   profilesRef.current   = memberProfiles
@@ -657,7 +660,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                   <div className="flex items-start justify-between">
                     <div className="flex flex-col gap-1">
                       <p className="font-pixel text-[18px] text-primary leading-none">
-                        {crewName.toUpperCase()}
+                        {liveCrewName.toUpperCase()}
                       </p>
                       {!loadingCounts && (
                         <p className="font-silkscreen text-[8px] text-secondary leading-none">
