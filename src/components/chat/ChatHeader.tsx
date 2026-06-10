@@ -125,12 +125,38 @@ function NotifSheet({
   )
 }
 
+type MemberBirthday = { username: string; birthday: string }
+
+function getNextBirthday(members: MemberBirthday[]): { username: string; label: string } | null {
+  if (!members.length) return null
+  const today = new Date()
+  const thisYear = today.getFullYear()
+  // Map each member to their next occurrence of their birthday
+  const ranked = members.map(({ username, birthday }) => {
+    const [, mm, dd] = birthday.split('-').map(Number)
+    let next = new Date(thisYear, mm - 1, dd)
+    if (next < today) next = new Date(thisYear + 1, mm - 1, dd)
+    const diff = Math.ceil((next.getTime() - today.getTime()) / 86_400_000)
+    return { username, next, diff, mm, dd }
+  }).sort((a, b) => a.diff - b.diff)
+
+  const top = ranked[0]
+  const monthName = top.next.toLocaleString('default', { month: 'short' })
+  const label = top.diff === 0
+    ? `🎂 Today!`
+    : top.diff === 1
+    ? `🎂 Tomorrow`
+    : `🎂 ${monthName} ${top.dd}`
+  return { username: top.username, label }
+}
+
 interface ChatHeaderProps {
-  crew:          Crew
-  initialXP:     number
-  initialRaid:   ActiveRaid | null
-  currentUserId: string
-  crewId:        string
+  crew:             Crew
+  initialXP:        number
+  initialRaid:      ActiveRaid | null
+  currentUserId:    string
+  crewId:           string
+  memberBirthdays?: MemberBirthday[]
 }
 
 // ─── Share modal ─────────────────────────────────────────────────────────────
@@ -229,6 +255,7 @@ export function ChatHeader({
   initialRaid,
   currentUserId,
   crewId,
+  memberBirthdays = [],
 }: ChatHeaderProps) {
   const goBack = useSlideBack()
   const { setCrewXP, setActiveRaid, activeRaid } = useChatStore()
@@ -309,6 +336,7 @@ export function ChatHeader({
   const handleCloseNotif   = useCallback(() => setShowNotif(false), [])
 
   const allMuted = !notifPrefs.messages && !notifPrefs.raids && !notifPrefs.victory
+  const nextBirthday = getNextBirthday(memberBirthdays)
 
   return (
     <>
@@ -357,6 +385,15 @@ export function ChatHeader({
             </button>
           </div>
         </div>
+
+        {/* Next upcoming birthday */}
+        {nextBirthday && (
+          <div className="flex items-center gap-1 mt-[2px]">
+            <span className="font-silkscreen text-[8px] text-muted leading-none">{nextBirthday.label}</span>
+            <span className="font-silkscreen text-[8px] text-tertiary leading-none">·</span>
+            <span className="font-silkscreen text-[8px] text-tertiary leading-none">@{nextBirthday.username}</span>
+          </div>
+        )}
 
         {/* Boss countdown if raid is active — dev mode only */}
         {devMode && activeRaid && !activeRaid.defeated_at && (

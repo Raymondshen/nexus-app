@@ -12,6 +12,7 @@ import type { Profile, Crew, ActiveRaid, AvatarClass } from "@/types";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type MemberProfile = Pick<Profile, "id" | "username" | "avatar_class" | "avatar_url">
+type MemberBirthday = { username: string; birthday: string }
 type MemberProfileMap = Record<string, MemberProfile>
 // class is the crew-specific class; last_seen is fetched fresh (not cached)
 type MemberRow = { user_id: string; last_seen: string | null; class: AvatarClass | null; joined_at: string | null }
@@ -27,10 +28,9 @@ function getCachedMemberProfiles(crewId: string) {
       const supabase = createServiceClient()
       const { data } = await supabase
         .from("crew_members")
-        .select("user_id, class, profile:profiles(id, username, avatar_url)")
+        .select("user_id, class, profile:profiles(id, username, avatar_url, birthday)")
         .eq("crew_id", crewId)
-      // Expose crew_members.class as avatar_class so the rest of the app stays typed
-      type RawRow = { user_id: string; class: string | null; profile: Omit<MemberProfile, 'avatar_class'> | null }
+      type RawRow = { user_id: string; class: string | null; profile: (Omit<MemberProfile, 'avatar_class'> & { birthday: string | null }) | null }
       return (data ?? []).map((r) => {
         const row = r as unknown as RawRow
         return {
@@ -39,7 +39,7 @@ function getCachedMemberProfiles(crewId: string) {
             ? { ...row.profile, avatar_class: row.class as AvatarClass | null }
             : null,
         }
-      }) as { user_id: string; profile: MemberProfile | null }[]
+      }) as { user_id: string; profile: (MemberProfile & { birthday: string | null }) | null }[]
     },
     [`chat-member-profiles:${crewId}`],
     { tags: [`crew-members:${crewId}`], revalidate: 60 }
@@ -97,6 +97,11 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
     cachedProfiles.filter((r) => r.profile).map((r) => [r.user_id, r.profile!])
   );
 
+  // Birthdays for next-upcoming display in header
+  const memberBirthdays: MemberBirthday[] = cachedProfiles
+    .filter((r) => r.profile?.birthday)
+    .map((r) => ({ username: r.profile!.username, birthday: r.profile!.birthday! }))
+
   // Per-crew class check — uses crew_members.class so each crew has its own class selection.
   // lastSeenResult is always fresh (not cached) so no redirect-loop risk.
   const currentMemberRow = lastSeenRows.find((r) => r.user_id === user.id)
@@ -137,6 +142,7 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
         initialRaid={raidRow ?? null}
         currentUserId={user.id}
         crewId={crewId}
+        memberBirthdays={memberBirthdays}
       />
 
       <ErrorBoundary>
