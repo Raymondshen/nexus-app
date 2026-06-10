@@ -237,6 +237,8 @@ Member avatars and online dots in ChatInput are not gated — those are chat fea
 - `ch.track({ username, typing: false })` is called in the `.subscribe()` callback (status === `'SUBSCRIBED'`) so every user enters presence state as soon as the chat opens — **not** only when they type. Uses `userProfileRef.current.username` (ref, not closure) to guarantee the current username is used.
 - `join` and `leave` presence events update `onlineUserIds` immediately; `sync` reconciles full state on reconnect
 - `onlineUserIds` is seeded with the current user's own ID on mount (optimistic)
+- **`sync` always includes self**: the `sync` handler calls `ids.add(userId)` after building the set from `Object.keys(state)` — `sync` fires before `track()` confirms with the server, so without this the current user's own dot blinks out briefly on initial load and after reconnection
+- **Visibility change re-track**: a `visibilitychange` listener calls `ch.track()` again when the document becomes visible — handles iOS PWA backgrounding where the WebSocket reconnects without re-firing `SUBSCRIBED`, which was the main cause of dots going missing after switching apps
 - Green dot `#66bb6a` (2×2, `rounded-full`, `border-[1.5px] border-black`) positioned at `-bottom-0.5 -right-0.5` on the 24×24 avatar wrapper
 - ChatHeader still updates `last_seen` in DB every 60s (for unread count cursors) — this is separate from Realtime presence
 
