@@ -19,6 +19,8 @@ import { ChevronRight } from 'pixelarticons/react/ChevronRight'
 import { Crown } from 'pixelarticons/react/Crown'
 import { Copy } from 'pixelarticons/react/Copy'
 import { Check } from 'pixelarticons/react/Check'
+import { UserMinus } from 'pixelarticons/react/UserMinus'
+import { kickMemberAction } from '@/app/(app)/chat/actions'
 import type { Message, MessageWithProfile, Profile } from '@/types'
 
 const MAX_MESSAGE_LENGTH = 2000
@@ -48,9 +50,9 @@ function sanitizeMessage(raw: string): string {
 }
 
 function MemberListRow({
-  profile, msgCount, loading, isOnline, isCreator, onTap,
+  profile, msgCount, loading, isOnline, isCreator, onTap, onRemove,
 }: {
-  profile: MemberProfile; msgCount: number; loading: boolean; isOnline: boolean; isCreator?: boolean; onTap?: () => void
+  profile: MemberProfile; msgCount: number; loading: boolean; isOnline: boolean; isCreator?: boolean; onTap?: () => void; onRemove?: () => void
 }) {
   const spriteInfo = spriteInfoFor(profile.avatar_class)
   const url        = profile.avatar_url as string | null
@@ -89,7 +91,7 @@ function MemberListRow({
       </div>
 
       {/* Name + class · msg count */}
-      <div className="flex flex-col gap-1 justify-center min-w-0">
+      <div className="flex flex-col gap-1 justify-center min-w-0 flex-1">
         <div className="flex items-center gap-1">
           <p className="font-body font-bold text-[16px] text-white truncate leading-none">{profile.username}</p>
           {isCreator && (
@@ -100,6 +102,17 @@ function MemberListRow({
           {loading ? '...' : `${classLabel} · ${msgCount.toLocaleString()} msg.`}
         </p>
       </div>
+
+      {/* Remove button — creator only */}
+      {onRemove && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onRemove() }}
+          className="flex-shrink-0 flex items-center justify-center w-8 h-8 text-[#ef4444] active:opacity-70 transition-opacity"
+          aria-label={`Remove ${profile.username}`}
+        >
+          <UserMinus style={{ width: 16, height: 16 }} aria-hidden="true" />
+        </button>
+      )}
     </div>
   )
 }
@@ -117,6 +130,10 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   const [memberMsgCounts, setMemberMsgCounts] = useState<Map<string, number>>(new Map())
   const [loadingCounts,  setLoadingCounts]  = useState(false)
   const [copied,         setCopied]         = useState(false)
+  const [removeTarget,   setRemoveTarget]   = useState<MemberProfile | null>(null)
+  const [removing,       setRemoving]       = useState(false)
+  const [removeError,    setRemoveError]    = useState<string | null>(null)
+  const [kickedIds,      setKickedIds]      = useState<Set<string>>(new Set())
 
   const textareaRef      = useRef<HTMLTextAreaElement>(null)
   const rateRef          = useRef({ count: 0, resetAt: Date.now() + RATE_LIMIT_WINDOW })
@@ -138,8 +155,8 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   const inRaid = !!(activeRaid && !activeRaid.defeated_at)
 
   const xpProgress  = getXPProgress(crewXP)
-  const memberCount = Object.keys(memberProfiles).length
-  const members     = Object.values(memberProfiles)
+  const members     = Object.values(memberProfiles).filter(m => !kickedIds.has(m.id))
+  const memberCount = members.length
 
   useEffect(() => {
     setDevMode(localStorage.getItem('nexus_dev_mode') === '1')
@@ -364,6 +381,17 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     setTimeout(() => setCopied(false), 1000)
   }
 
+  async function handleKick() {
+    if (!removeTarget || removing) return
+    setRemoving(true)
+    setRemoveError(null)
+    const result = await kickMemberAction(crewId, removeTarget.id)
+    setRemoving(false)
+    if (result.error) { setRemoveError(result.error); return }
+    setKickedIds(prev => new Set([...prev, removeTarget.id]))
+    setRemoveTarget(null)
+  }
+
   const typingLabel = typingUsers.length === 1
     ? `${typingUsers[0]} is typing...`
     : typingUsers.length === 2
@@ -379,11 +407,12 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     >
       {devMode && <DamageFloat floats={damageFloats} onDismiss={dismissDamageFloat} />}
 
-      {/* ── Member avatars + XP bar — swipe up to expand ── */}
+      {/* ── Member avatars + XP bar — tap or swipe up to expand ── */}
       <motion.div
-        className="flex flex-col gap-2 mb-4"
+        className="flex flex-col gap-2 mb-4 cursor-pointer"
         style={{ touchAction: 'pan-x' }}
         onPanEnd={handleTopPanEnd}
+        onClick={() => setIsExpanded(true)}
       >
         {/* User list */}
         <div className="flex items-center justify-between w-full">
@@ -411,7 +440,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
             })}
           </div>
           <button
-            onClick={() => setIsExpanded(true)}
+            onClick={(e) => { e.stopPropagation(); setIsExpanded(true) }}
             style={{ width: 24, height: 24 }}
             className="flex-shrink-0 flex items-center justify-center"
             aria-label="Show members"
@@ -530,6 +559,70 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
           </button>
         </div>
       </motion.div>
+
+      {/* ── Kick confirmation sheet ── */}
+      <AnimatePresence>
+        {removeTarget && (
+          <motion.div
+            className="fixed inset-0 z-[60] flex items-end justify-center"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => { if (!removing) setRemoveTarget(null) }}
+          >
+            <div className="absolute inset-0 bg-black/60" />
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+              className="relative w-full max-w-[480px] bg-surface border-t border-border flex flex-col gap-6 p-4"
+              style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 24px)' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex flex-col gap-2">
+                <p className="font-pixel text-[8px] text-tertiary leading-none">REMOVE FROM SQUAD</p>
+                <div className="flex flex-col gap-1">
+                  <h2
+                    className="font-body font-bold text-[18px] text-primary leading-none"
+                    style={{ fontVariationSettings: '"opsz" 14' }}
+                  >
+                    {removeTarget.username}
+                  </h2>
+                  <p className="font-body text-[12px] text-secondary leading-normal">
+                    Removing this member will redistribute their XP and any gains within the squad equally to all remaining members.
+                  </p>
+                </div>
+              </div>
+
+              {removeError && (
+                <p className="font-silkscreen text-[8px] text-[#ef4444] leading-none">{removeError}</p>
+              )}
+
+              {/* Buttons */}
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={handleKick}
+                  disabled={removing}
+                  className="w-full h-12 flex items-center justify-center bg-[#ef4444] disabled:opacity-50 transition-opacity active:opacity-70"
+                >
+                  <span className="font-pixel text-[8px] text-primary leading-none">
+                    {removing ? '...' : 'REMOVE MEMBER'}
+                  </span>
+                </button>
+                <button
+                  onClick={() => { setRemoveTarget(null); setRemoveError(null) }}
+                  disabled={removing}
+                  className="w-full h-12 flex items-center justify-center transition-opacity active:opacity-70"
+                >
+                  <span className="font-pixel text-[8px] text-tertiary leading-none">CANCEL</span>
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Expanded member panel ── */}
       <AnimatePresence>
@@ -685,6 +778,10 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                         setIsExpanded(false)
                         router.push(`/chat/${crewId}/member/${m.id}`)
                       }}
+                      onRemove={userId === creatorId && m.id !== userId && !!inviteCode
+                        ? () => setRemoveTarget(m)
+                        : undefined
+                      }
                     />
                   ))}
                 </div>
