@@ -201,7 +201,9 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     ch
       .on('presence', { event: 'sync' }, () => {
         const state = ch.presenceState<{ username: string; typing: boolean }>()
-        setOnlineUserIds(new Set(Object.keys(state)))
+        const ids = new Set(Object.keys(state))
+        ids.add(userId) // always include self — track() confirmation may lag behind sync
+        setOnlineUserIds(ids)
         const others = Object.entries(state)
           .filter(([key]) => key !== userId)
           .flatMap(([, presences]) => presences)
@@ -236,9 +238,21 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
         }
       })
 
+    // Re-track presence when user brings the app back to foreground (handles iOS PWA
+    // backgrounding where the WebSocket may reconnect without firing SUBSCRIBED again)
+    function handleVisibilityChange() {
+      if (document.visibilityState === 'visible') {
+        ch.track({ username: userProfileRef.current.username, typing: false }).catch(() => {})
+        // Also ensure self is always in the online set while visible
+        setOnlineUserIds(new Set([...useChatStore.getState().onlineUserIds, userId]))
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
     msgChannelRef.current    = ch
     typingChannelRef.current = ch
     return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
       supabase.removeChannel(ch)
       msgChannelRef.current    = null
       typingChannelRef.current = null
