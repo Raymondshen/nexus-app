@@ -385,7 +385,7 @@ export function MessageList({
         preLastUserId = null; preLastMsgTime = 0; preGroupLeaderId = null
         continue
       }
-      if (msg.message_type === 'system') {
+      if (msg.message_type === 'system' || msg.message_type === 'poll') {
         preLastUserId = null; preLastMsgTime = 0; preGroupLeaderId = null
         continue
       }
@@ -463,7 +463,12 @@ export function MessageList({
       lastUserId  = null
       lastMsgTime = 0
     } else {
-      if (msg.message_type === 'system') {
+      if (msg.message_type === 'poll') {
+        // Polls always render with a header and break grouping on both sides
+        items.push({ kind: 'message', message: msg as MessageWithProfile, isOwn: msg.user_id === currentUserId, showHeader: true })
+        lastUserId  = null
+        lastMsgTime = 0
+      } else if (msg.message_type === 'system') {
         if (devMode) {
           items.push({ kind: 'message', message: msg as MessageWithProfile, isOwn: false, showHeader: false })
         }

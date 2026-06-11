@@ -9,7 +9,7 @@ export interface GuestUser {
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
 
-export type MessageType = 'text' | 'voice' | 'image' | 'reaction' | 'system'
+export type MessageType = 'text' | 'voice' | 'image' | 'reaction' | 'system' | 'poll'
 export type ElementType = 'fire' | 'water' | 'lightning' | 'nature' | 'shadow' | 'arcane'
 export type ArtifactRarity = 'common' | 'rare' | 'epic' | 'legendary'
 export type BossType = 'void' | 'ghost' | 'flood' | 'scheduled'
@@ -176,6 +176,19 @@ export interface Announcement extends Record<string, unknown> {
   created_at: string
 }
 
+export interface Poll extends Record<string, unknown> {
+  id:         string
+  message_id: string | null
+  crew_id:    string
+  creator_id: string
+  question:   string
+  options:    string[]
+  votes:      Record<string, string[]>
+  expires_at: string
+  closed_at:  string | null
+  created_at: string
+}
+
 export interface AppInvite extends Record<string, unknown> {
   id: string
   code: string
@@ -314,6 +327,12 @@ export type Database = {
         Update: Partial<Omit<AppInvite, 'id'>>
         Relationships: []
       }
+      polls: {
+        Row: Poll
+        Insert: Omit<Poll, 'id' | 'votes' | 'created_at'> & { id?: string; votes?: Record<string, string[]>; created_at?: string }
+        Update: Partial<Omit<Poll, 'id' | 'created_at'>>
+        Relationships: []
+      }
       reserved_users: {
         Row: ReservedUser
         Insert: Omit<ReservedUser, 'id' | 'created_at' | 'converted'> & { id?: string; created_at?: string; converted?: boolean }
@@ -366,6 +385,18 @@ export type Database = {
       toggle_reaction: {
         Args: { p_message_id: string; p_emoji: string; p_user_id: string }
         Returns: Record<string, string[]>
+      }
+      create_poll: {
+        Args: { p_crew_id: string; p_question: string; p_options: string[]; p_expires_at: string }
+        Returns: Message
+      }
+      vote_on_poll: {
+        Args: { p_poll_id: string; p_option_index: number }
+        Returns: Record<string, string[]>
+      }
+      close_poll: {
+        Args: { p_poll_id: string }
+        Returns: void
       }
     }
     Enums: Record<string, never>

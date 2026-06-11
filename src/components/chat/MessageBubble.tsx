@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useChatStore } from '@/store/chatStore'
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/config'
 import type { MessageWithProfile, AvatarClass } from '@/types'
+import { PollCard } from '@/components/chat/PollCard'
 
 const CLASS_NAMES: Record<AvatarClass, string> = {
   berserker: 'Berserker',
@@ -204,6 +205,70 @@ export function MessageBubble({
   // ─── System messages ────────────────────────────────────────────────────────
   if (message.message_type === 'system') {
     return <SystemMessage message={message} />
+  }
+
+  // ─── Poll messages ───────────────────────────────────────────────────────────
+  if (message.message_type === 'poll') {
+    const pollId = message.content.startsWith('POLL:') ? message.content.slice(5) : null
+    if (!pollId) return null
+
+    const pollAvatarUrl = message.profile.avatar_url as string | null | undefined
+    const pollInitial   = message.profile.username[0]?.toUpperCase() ?? '?'
+    const pollClassName = message.profile.avatar_class ? CLASS_NAMES[message.profile.avatar_class] : null
+    const pollIsOnline  = onlineUserIds.has(message.user_id)
+    const pollTimeStr   = format(new Date(message.created_at), 'h:mma').toLowerCase()
+
+    return (
+      <div className={`flex gap-[8px] items-start w-full ${showHeader ? 'pt-[var(--space-6)] pb-0' : 'pt-[var(--space-2)] pb-0'}`}>
+        {showHeader && (
+          <div
+            className="relative flex-shrink-0"
+            onClick={onAvatarTap ? () => onAvatarTap(message.user_id) : undefined}
+            style={onAvatarTap ? { cursor: 'pointer' } : undefined}
+          >
+            <div className="w-8 h-8 bg-surface flex items-center justify-center overflow-hidden">
+              {pollAvatarUrl ? (
+                <div className="relative w-full h-full">
+                  <Image src={resolveAvatarUrl(pollAvatarUrl, 32)} alt={message.profile.username} fill sizes="32px" className="object-cover" unoptimized={isSupabaseStorage(pollAvatarUrl)} />
+                </div>
+              ) : (
+                <span className="font-pixel text-[8px] text-purple">{pollInitial}</span>
+              )}
+            </div>
+            {pollIsOnline && (
+              <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#66bb6a] border-[1.5px] border-black" />
+            )}
+          </div>
+        )}
+        <div className={`flex-1 min-w-0 flex flex-col gap-0 ${!showHeader ? 'pl-10' : ''}`}>
+          {showHeader && (
+            <div className="flex items-center justify-between w-full">
+              <div className="flex items-center gap-[4px] flex-1 min-w-0">
+                <span
+                  className={`font-body font-medium text-[12px] tracking-[0.1px] shrink-0 leading-[normal] whitespace-nowrap ${isOwn ? 'text-purple' : 'text-primary'}`}
+                  style={{ fontVariationSettings: '"opsz" 14', cursor: onAvatarTap ? 'pointer' : undefined }}
+                  onClick={onAvatarTap ? () => onAvatarTap(message.user_id) : undefined}
+                >
+                  {message.profile.username}
+                </span>
+                {pollClassName && (
+                  <>
+                    <span className="w-[2px] h-[2px] bg-purple shrink-0" />
+                    <span className="font-body font-normal text-[10px] tracking-[0.1px] shrink-0 leading-[normal] whitespace-nowrap" style={{ color: '#b3b3b3', fontVariationSettings: '"opsz" 14' }}>
+                      {pollClassName}
+                    </span>
+                  </>
+                )}
+              </div>
+              <span className="font-body font-normal text-[8px] tracking-[0.2px] shrink-0 leading-[normal] whitespace-nowrap ml-1" style={{ color: 'var(--color-paper-200)', fontVariationSettings: '"opsz" 14' }}>
+                {pollTimeStr}
+              </span>
+            </div>
+          )}
+          <PollCard pollId={pollId} currentUserId={currentUserId} />
+        </div>
+      </div>
+    )
   }
 
   const initial   = message.profile.username[0]?.toUpperCase() ?? '?'

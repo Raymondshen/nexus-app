@@ -15,6 +15,7 @@ import { PixelSprite, spriteInfoFor } from '@/components/game/PixelSprite'
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/config'
 import { haptic } from '@/lib/sounds'
 import { Send } from 'pixelarticons/react/Send'
+import { Chart } from 'pixelarticons/react/Chart'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
 import { Crown } from 'pixelarticons/react/Crown'
 import { Copy } from 'pixelarticons/react/Copy'
@@ -26,6 +27,7 @@ import { CrewImageUploadModal } from '@/components/chat/CrewImageUploadModal'
 import { MagicEdit } from 'pixelarticons/react/MagicEdit'
 import { NotifSheet, type NotifPrefs } from '@/components/chat/NotifSheet'
 import { SquadDetailsSheet } from '@/components/chat/SquadDetailsSheet'
+import { PollCreatorSheet } from '@/components/chat/PollCreatorSheet'
 import type { Message, MessageWithProfile, Profile, ActiveRaid } from '@/types'
 
 const MAX_MESSAGE_LENGTH = 2000
@@ -152,7 +154,8 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   const [editNameValue,  setEditNameValue]  = useState('')
   const [showNotif,       setShowNotif]       = useState(false)
   const [notifPrefs,      setNotifPrefs]      = useState<NotifPrefs>({ messages: true, raids: true, victory: true })
-  const [showSquadDetails, setShowSquadDetails] = useState(false)
+  const [showSquadDetails,  setShowSquadDetails]  = useState(false)
+  const [showPollCreator,   setShowPollCreator]   = useState(false)
 
   const textareaRef       = useRef<HTMLTextAreaElement>(null)
   const crewImageInputRef = useRef<HTMLInputElement>(null)
@@ -536,6 +539,20 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     setTimeout(() => setCopied(false), 1000)
   }
 
+  function handlePollCreated(message: MessageWithProfile) {
+    setShowPollCreator(false)
+    addMessage(message)
+    msgChannelRef.current?.send({
+      type: 'broadcast', event: 'new_message',
+      payload: {
+        id: message.id, crew_id: message.crew_id, user_id: message.user_id,
+        content: message.content, message_type: message.message_type,
+        element_type: message.element_type, xp_awarded: message.xp_awarded,
+        created_at: message.created_at,
+      },
+    })
+  }
+
   async function handleKick() {
     if (!removeTarget || removing) return
     setRemoving(true)
@@ -715,9 +732,16 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
         )}
 
         <div
-          className="border border-border h-12 flex items-center justify-between overflow-hidden"
-          style={{ borderColor: inRaid ? 'rgba(255,34,0,0.4)' : undefined, paddingLeft: 'var(--space-5)', paddingRight: 'var(--space-5)', paddingTop: 12, paddingBottom: 12 }}
+          className="border border-border h-12 flex items-center overflow-hidden"
+          style={{ borderColor: inRaid ? 'rgba(255,34,0,0.4)' : undefined, paddingLeft: 8, paddingRight: 'var(--space-5)', paddingTop: 12, paddingBottom: 12, gap: 8 }}
         >
+          <button
+            onClick={() => setShowPollCreator(true)}
+            className="flex-shrink-0 flex items-center justify-center w-8 h-8 text-tertiary active:text-purple transition-colors"
+            aria-label="Create poll"
+          >
+            <Chart style={{ width: 16, height: 16 }} aria-hidden="true" />
+          </button>
           <textarea
             ref={textareaRef}
             value={text}
@@ -1114,6 +1138,17 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
         onClose={() => setCrewImageFile(null)}
         onSuccess={(url) => setCrewImageUrl(url)}
       />
+
+      <AnimatePresence>
+        {showPollCreator && (
+          <PollCreatorSheet
+            crewId={crewId}
+            userProfile={userProfile}
+            onClose={() => setShowPollCreator(false)}
+            onCreated={handlePollCreated}
+          />
+        )}
+      </AnimatePresence>
     </div>
   )
 }

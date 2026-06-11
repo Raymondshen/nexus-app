@@ -6,6 +6,7 @@ export const XP_VALUES: Record<MessageType, number> = {
   image:    20,
   reaction:  5,
   system:    0,
+  poll:      0,
 }
 
 export const XP_BONUS_FIRST_TODAY = 20
