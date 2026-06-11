@@ -16,6 +16,7 @@
   --color-purple:    #a855f7;
   --color-paper-150: #b3b3b3;
   --color-paper-200: #9a9a9a;
+  --color-border-hover: #3f3f46;
 
   /* Spacing */
   --space-1:  0px;
@@ -30,10 +31,12 @@
 
   /* Font sizes */
   --text-mini: 8px;
+  --text-xxs:  11px;
   --text-xs:   12px;
   --text-sm:   14px;
   --text-md:   16px;
   --text-lg:   18px;
+  --text-xl:   20px;
 }
 
 @theme {
@@ -54,7 +57,11 @@
   --color-purple:    #a855f7;
   --color-paper-150: #b3b3b3;
   --color-paper-200: #9a9a9a;
+  --color-border-hover: #3f3f46;
 }
+
+/* ─── Utility class for border-hover color ───────────────────────────────── */
+.border-border-hover { border-color: var(--color-border-hover); }
 
 *,
 *::before,

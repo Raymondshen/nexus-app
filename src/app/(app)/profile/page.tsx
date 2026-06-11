@@ -27,10 +27,10 @@ function getCachedProfile(userId: string) {
       const supabase = createServiceClient()
       const { data } = await supabase
         .from('profiles')
-        .select('username, avatar_url, avatar_class, is_dev, created_at, custom_avatar')
+        .select('username, avatar_url, avatar_class, is_dev, created_at, custom_avatar, status')
         .eq('id', userId)
         .single()
-      return data as { username: string; avatar_url: string | null; avatar_class: string | null; is_dev: boolean; created_at: string; custom_avatar: boolean } | null
+      return data as { username: string; avatar_url: string | null; avatar_class: string | null; is_dev: boolean; created_at: string; custom_avatar: boolean; status: string | null } | null
     },
     [`profile:${userId}`],
     { tags: [`profile:${userId}`], revalidate: 60 }
@@ -77,6 +77,7 @@ export default async function ProfilePage() {
       totalMessages={totalMessages}
       groupChats={groupChats}
       inviterUsername={inviterUsername}
+      initialStatus={profile?.status ?? null}
     />
   )
 }

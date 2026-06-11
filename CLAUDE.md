@@ -17,7 +17,7 @@ Group messaging app where the chat is an RPG. Every message earns XP, boss fight
 
 ## Database Tables
 ```
-profiles       id, username (unique case-insensitive), first_name (text nullable), last_name (text nullable), avatar_class, avatar_url, avatar_storage_key (text nullable), custom_avatar (bool default false), birthday (date), is_dev, coins (int default 0), created_at
+profiles       id, username (unique case-insensitive), first_name (text nullable), last_name (text nullable), avatar_class, avatar_url, avatar_storage_key (text nullable), custom_avatar (bool default false), birthday (date), is_dev, coins (int default 0), status (text nullable ≤100 chars), created_at
 crews          id, name, invite_code (6 chars unique), level, total_xp, created_at,
                is_dm (bool default false), dm_partner_1 (uuid nullable), dm_partner_2 (uuid nullable),
                image_url (text nullable), image_storage_key (text nullable)
@@ -485,21 +485,34 @@ All "detail" pages (chat, DM, profile, friends, vault) slide in from the right o
 - **No BottomNav** — users go back via a local `BackButton` component (see SlidePage context scoping caveat above)
 - Header: matches ChatHeader — `bg-black border-b border-border px-4 pb-2`, `paddingTop: max(env(safe-area-inset-top), 8px)`, `h-10` row, `gap-2` between back button and title. Back button `style={{ width: 24, height: 40 }}`, `ChevronLeft` 24px tertiary. Title `"FRIENDS"` in `font-pixel text-[18px] text-primary leading-none whitespace-nowrap`.
 
-### Profile Page — `/profile`
+### Account Page — `/profile`
+- UI label: **"Account"** — page is called "Account" in all user-facing text; route stays `/profile`
 - Route: `src/app/(app)/profile/page.tsx` + `ProfileClient.tsx`
-- **Layout** (matches Figma node 42:133):
-  1. **Hero section** (240px tall, `relative flex-shrink-0 w-full bg-black overflow-hidden`) — full-bleed, designed to eventually support a background image. Content anchored to bottom (`absolute inset-0 flex flex-col justify-end gap-2 p-4`):
-     - Avatar 56×56 — tap opens `AvatarUploadModal`; "Use Google photo" link shown when `customAvatar === true`
-     - Name: DM Sans Bold `fontSize: 20` `text-primary`
-     - Stats: Silkscreen `var(--text-mini)` (8px) `text-secondary` — `"{N} group chats · {N} msg"` + "Recruited by [name]" (tertiary) below when present
-     - **AFK EXP row** (dev + `nexus_afk_exp` flag only): Silkscreen 8px primary + full purple `h-1` bar + `CLAIM` button (Press Start 2P `fontSize: 11` bg-purple); listens to `nexus-afk-exp-change` CustomEvent
-     - Gradient overlay (`absolute inset-0 pointer-events-none`): 86px tall, `linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.25) 46.158%, rgba(0,0,0,0) 100%)`, at top of hero
-     - Floating back button box (`absolute z-20`, `top: 16, left: 16`): `bg-surface border border-purple p-2`; `boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.8)'`; `ChevronLeft` 24×24 tertiary
-  2. **Display Name section** (was "Username") — label + input (`bg-surface border border-[#a855f7] h-12 px-3`) + `SAVE` button (`background: rgba(168,85,247,0.12)`, `borderColor: rgba(168,85,247,0.5)`, Silkscreen `var(--text-xs)` `text-muted`); inline success/taken/error feedback below
-  3. **Notifications section** — label + `bg-surface border border-[rgba(168,85,247,0.5)]` card with 3 toggle rows (Messages / Raid Alerts / Victory), 40×24px toggle (purple on / `#27272a` off), `divide-y divide-border` separators
-  4. **Account section** — "Account" label + "Signed in with [email]" (DM Sans 12px, email in primary) + `LOG OUT` button (h-12, border `#ef4444`, Press Start 2P **8px** red text)
-  5. **Dev section** — shown only when `isDev === true`; gold-bordered card with toggles for Spawn Boss Mode, Push Diagnostics, Infinite Coins, Feat: AFK Exp, Announcements management row (expandable inline panel for add/edit/toggle/delete banners), plus User ID / Email copy rows and Local Flags reset
-- `SlidePage` wrapper with `backHref="/home"` + `style={{ paddingTop: 'env(safe-area-inset-top)' }}` (pushes hero below the native status bar); `BackButton` defined inside `SlidePage` to satisfy `useSlideBack()` context scoping; back button `style={{ width: 24, height: 24 }}` (sits inside the hero overlay, not a standard `h-10` header row)
+- **Layout** (matches Figma nodes 42:133 + 101:1313):
+  1. **Hero section** (280px, `relative flex-shrink-0 w-full bg-black overflow-hidden`) — full-bleed, designed to eventually support a background image. Two gradient layers:
+     - Full-height layer (`absolute inset-0`): `linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.5) 48.668%, rgba(0,0,0,0.8) 82.216%, rgb(0,0,0) 100%)` — transparent top → black bottom, for future bg image support
+     - 86px top layer: `linear-gradient(to bottom, rgba(0,0,0,0.8) → rgba(0,0,0,0))` — back button readability
+     - Content anchored to bottom (`absolute inset-0 flex flex-col justify-end gap-[var(--space-5)] p-[var(--space-5)]`):
+       - Avatar 56×56 — tap opens `AvatarUploadModal`; "Use Google photo" link shown when `customAvatar === true`
+       - Name: DM Sans Bold `var(--text-xl)` (20px) `text-primary`; Stats: Silkscreen `var(--text-mini)` (8px) `text-secondary`; "Recruited by [name]" (tertiary) when present
+       - **Status line** — `font-body var(--text-xxs)` (11px) `text-secondary` shown as `"status text"` when `localStatus` is non-empty
+       - **AFK EXP row** (dev + `nexus_afk_exp` flag only): Silkscreen 8px primary + purple `h-[4px]` bar + CLAIM button (Silkscreen `var(--text-xxs)` bg-purple)
+     - Floating back button box (`absolute z-20 top-[16px] left-[16px]`): `bg-surface border border-purple p-2`; `boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.8)'`; `ChevronLeft` 24×24 tertiary; `style={{ width: 24, height: 24 }}`
+  2. **Edit Profile card** — `bg-surface border border-[var(--color-border-hover)]` row with `MagicEdit` 24×24 icon + "Edit Profile" (DM Sans Medium 14px secondary) + "Manage your profile." (DM Sans Regular 12px tertiary). Tap opens **EditProfileSheet** bottom sheet. Disabled for guest users.
+  3. **Notifications section** — "Notifications" label + `bg-surface border border-[var(--color-border-hover)]` card with 3 toggle rows (Messages / Raid Alerts / Victory), 40×24px toggle (purple on / `#27272a` off)
+  4. **Account section** — "Account" label + "Signed in with [email]" (DM Sans 12px, email in primary) + `LOG OUT` button (h-12, `border-[#ef4444]`, Press Start 2P **8px** red text)
+  5. **Dev section** — shown only when `isDev === true`; gold-bordered card with toggles for Spawn Boss Mode, Push Diagnostics, Infinite Coins, Feat: AFK Exp, Announcements management, User ID / Email copy rows, Local Flags reset
+- **EditProfileSheet** (Figma node 101:1313) — bottom sheet slides up with spring 320/32:
+  - Container: `bg-black border-t border-[var(--color-border-hover)] flex flex-col gap-[var(--space-7)] px-[var(--space-5)] pt-[var(--space-7)]`; safe-area-aware padding-bottom
+  - Title: "Account Details" DM Sans Bold `var(--text-lg)` (18px) text-primary
+  - Mini profile hero (180px): same gradient layers over black; shows live preview of avatar + name (updates as user types) + stats + status quote
+  - **Display Name** field: label `var(--text-sm)` DM Sans Medium primary + `bg-black border border-[var(--color-border-hover)] h-[48px] px-3` input (DM Sans Regular 14px text-primary); edits `profiles.username`
+  - **Status** field: same input style; edits `profiles.status` (nullable text ≤ 100 chars); placeholder "Whats the mood today..."
+  - "Save Changes" button: `bg-purple h-[48px]` Silkscreen `var(--text-sm)` (14px) text-primary
+  - "Cancel" button: `border-[#ef4444] h-[48px]` Silkscreen `var(--text-sm)` (14px) text-[#ef4444]
+  - `updateProfileDetailsAction(displayName, status)` — checks uniqueness, updates `profiles.username` + `profiles.status`, calls `revalidateTag`
+- **`profiles.status`**: text column (nullable, max 100 chars via `profiles_status_length` constraint); migration `20240103000021`
+- `SlidePage` wrapper with `backHref="/home"` + `style={{ paddingTop: 'env(safe-area-inset-top)' }}`; `BackButton` defined inside `SlidePage` (useSlideBack context scoping); back button `style={{ width: 24, height: 24 }}`
 
 ### Member Profile Page — `/chat/[crewId]/member/[userId]`
 - Route: `src/app/(app)/chat/[crewId]/member/[userId]/page.tsx` + `MemberProfileClient.tsx`
@@ -674,6 +687,7 @@ Always use `createServiceClient()` inside cache functions (service role, no cook
 - `20240103000018_crew_image.sql` — adds `crews.image_url text` + `crews.image_storage_key text`; creates `crew-images` storage bucket (public, 10 MB limit, JPEG/PNG/WebP/HEIC); RLS: public read, crew members insert/delete own folder (`{crewId}/{userId}/`). Applied 2026-06-10.
 - `20240103000019_announcements.sql` — `announcements` table (id, text 1–500 chars, active bool default true, created_at); RLS: public SELECT on `active = true` only; all writes are service-role via server actions. Applied 2026-06-10.
 - `20240103000020_name_fields.sql` — adds `first_name text` and `last_name text` (both nullable) to `profiles` and `reserved_users`. Applied 2026-06-11.
+- `20240103000021_profile_status.sql` — adds `profiles.status text` (nullable, max 100 chars via check constraint). Applied 2026-06-11.
 
 ### Manual SQL applied directly (no migration file)
 ```sql

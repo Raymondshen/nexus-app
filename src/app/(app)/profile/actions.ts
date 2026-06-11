@@ -106,6 +106,35 @@ export async function updateAvatarAction(newAvatarUrl: string): Promise<{ error:
   return { error: null }
 }
 
+export async function updateProfileDetailsAction(
+  displayName: string,
+  status: string,
+): Promise<{ error: string | null }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  const trimmedName   = displayName.trim()
+  const trimmedStatus = status.trim().slice(0, 100)
+  if (!trimmedName || trimmedName.length < 3) return { error: 'Name too short' }
+
+  const { data: existing } = await supabase
+    .from('profiles').select('id').ilike('username', trimmedName).neq('id', user.id).maybeSingle()
+  if (existing) return { error: 'taken' }
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({ username: trimmedName, status: trimmedStatus || null })
+    .eq('id', user.id)
+  if (error) {
+    if (error.code === '23505') return { error: 'taken' }
+    return { error: error.message }
+  }
+
+  revalidateTag(`profile:${user.id}`, 'max')
+  return { error: null }
+}
+
 export async function resetAvatarAction(): Promise<{ error: string | null; avatarUrl?: string | null }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()

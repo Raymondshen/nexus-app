@@ -28,6 +28,7 @@ export interface Profile extends Record<string, unknown> {
   birthday: string | null
   coins: number
   custom_avatar: boolean
+  status: string | null
   created_at: string
 }
 

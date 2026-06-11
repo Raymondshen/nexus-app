@@ -2,31 +2,17 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { SlidePage, useSlideBack } from '@/components/ui/SlidePage'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { MagicEdit } from 'pixelarticons/react/MagicEdit'
-
-function BackButton() {
-  const goBack = useSlideBack()
-  return (
-    <button
-      onClick={goBack}
-      aria-label="Back"
-      className="flex items-center justify-center flex-shrink-0"
-      style={{ width: 24, height: 24 }}
-    >
-      <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
-    </button>
-  )
-}
 import Image from 'next/image'
 import { isSupabaseStorage, resolveAvatarUrl } from '@/components/ui/Avatar'
 import { createClient } from '@/lib/supabase/client'
 import { signOut } from '@/lib/supabase/auth'
 import { isSupported, getPermissionState, requestPermission, subscribeToPush } from '@/lib/notifications'
 import type { PermissionState } from '@/lib/notifications'
-import { revalidateProfileAction, resetAvatarAction } from './actions'
+import { revalidateProfileAction, resetAvatarAction, updateProfileDetailsAction } from './actions'
 import {
   getAllAnnouncementsAction,
   createAnnouncementAction,
@@ -50,6 +36,7 @@ interface ProfileClientProps {
   totalMessages:   number
   groupChats:      number
   inviterUsername: string | null
+  initialStatus:   string | null
 }
 
 type NotifPrefs = {
@@ -69,15 +56,15 @@ const DEFAULT_PREFS: NotifPrefs = {
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <p
-      className="font-body font-medium text-[14px] text-primary tracking-[0.2px] leading-normal"
-      style={{ fontVariationSettings: '"opsz" 14' }}
+      className="font-body font-medium text-primary tracking-[0.2px] leading-normal"
+      style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
     >
       {children}
     </p>
   )
 }
 
-// ─── Toggle switch — matches Figma: 40px wide, square thumb, purple when on ──
+// ─── Toggle switch ─────────────────────────────────────────────────────────────
 
 function ToggleSwitch({ enabled, onChange, disabled }: { enabled: boolean; onChange: () => void; disabled?: boolean }) {
   return (
@@ -102,7 +89,7 @@ function ToggleSwitch({ enabled, onChange, disabled }: { enabled: boolean; onCha
   )
 }
 
-// ─── Notification row ─────────────────────────────────────────────────────────
+// ─── Notification row ──────────────────────────────────────────────────────────
 
 function NotifRow({
   label, sub, prefKey, prefs, savingPref, onToggle, showDivider,
@@ -119,14 +106,14 @@ function NotifRow({
       <div className="flex items-center gap-2 px-4">
         <div className="flex-1 min-w-0 flex flex-col gap-0 leading-[0] tracking-[0.2px]">
           <p
-            className="font-body font-medium text-[14px] text-secondary leading-normal"
-            style={{ fontVariationSettings: '"opsz" 14' }}
+            className="font-body font-medium text-secondary leading-normal"
+            style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
           >
             {label}
           </p>
           <p
-            className="font-body font-normal text-[12px] text-tertiary leading-normal"
-            style={{ fontVariationSettings: '"opsz" 14' }}
+            className="font-body font-normal text-tertiary leading-normal"
+            style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}
           >
             {sub}
           </p>
@@ -142,11 +129,237 @@ function NotifRow({
   )
 }
 
+// ─── Edit Profile Bottom Sheet ────────────────────────────────────────────────
+
+function EditProfileSheet({
+  isOpen,
+  onClose,
+  onSave,
+  initialDisplayName,
+  initialStatus,
+  avatarUrl,
+  memberSinceYear,
+  groupChats,
+  totalMessages,
+}: {
+  isOpen:             boolean
+  onClose:            () => void
+  onSave:             (displayName: string, status: string) => void
+  initialDisplayName: string
+  initialStatus:      string
+  avatarUrl:          string | null
+  memberSinceYear:    string
+  groupChats:         number
+  totalMessages:      number
+}) {
+  const [displayName, setDisplayName] = useState(initialDisplayName)
+  const [status,      setStatus]      = useState(initialStatus)
+  const [saving,      setSaving]      = useState(false)
+  const [saveError,   setSaveError]   = useState<string | null>(null)
+
+  useEffect(() => {
+    if (isOpen) {
+      setDisplayName(initialDisplayName)
+      setStatus(initialStatus)
+      setSaveError(null)
+    }
+  }, [isOpen, initialDisplayName, initialStatus])
+
+  async function handleSave() {
+    const trimmed = displayName.trim()
+    if (!trimmed || trimmed.length < 3) { setSaveError('Name must be at least 3 characters'); return }
+    if (saving) return
+    setSaving(true)
+    setSaveError(null)
+    try {
+      const result = await updateProfileDetailsAction(trimmed, status.trim())
+      if (result.error === 'taken') { setSaveError('Name already taken'); return }
+      if (result.error) { setSaveError('Failed to save — try again'); return }
+      onSave(trimmed, status.trim())
+      onClose()
+    } catch {
+      setSaveError('Failed to save — try again')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const msgFormatted = totalMessages.toLocaleString()
+  const initial      = initialDisplayName[0]?.toUpperCase() ?? '?'
+  const previewName  = displayName.trim() || initialDisplayName
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <>
+          <motion.div
+            className="fixed inset-0 z-[48] bg-black/60"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+          />
+          <motion.div
+            className="fixed bottom-0 left-0 right-0 z-[50] max-w-[480px] mx-auto"
+            initial={{ y: '100%' }}
+            animate={{ y: 0 }}
+            exit={{ y: '100%' }}
+            transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+          >
+            <div
+              className="bg-black border-t overflow-hidden flex flex-col gap-[var(--space-7)]"
+              style={{
+                borderColor: 'var(--color-border-hover)',
+                padding: 'var(--space-7) var(--space-5)',
+                paddingBottom: 'max(env(safe-area-inset-bottom), var(--space-5))',
+              }}
+            >
+              {/* Title */}
+              <p
+                className="font-body font-bold text-primary leading-none"
+                style={{ fontSize: 'var(--text-lg)', fontVariationSettings: '"opsz" 14' }}
+              >
+                Account Details
+              </p>
+
+              {/* Mini profile hero — live preview */}
+              <div
+                className="relative w-full overflow-hidden flex flex-col gap-[var(--space-5)] items-start justify-end"
+                style={{ height: 180, padding: 'var(--space-5)' }}
+              >
+                <div
+                  className="absolute inset-0 pointer-events-none"
+                  style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.5) 48.668%, rgba(0,0,0,0.8) 82.216%, rgb(0,0,0) 100%)' }}
+                />
+                <div className="relative flex gap-[var(--space-5)] items-center w-full">
+                  <div className="flex-shrink-0 bg-border overflow-hidden relative" style={{ width: 56, height: 56 }}>
+                    {avatarUrl ? (
+                      <Image src={resolveAvatarUrl(avatarUrl, 56)} alt={previewName} fill sizes="56px" className="object-cover" unoptimized={isSupabaseStorage(avatarUrl)} />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <span className="font-pixel text-[12px] text-purple">{initial}</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0 flex flex-col gap-[var(--space-2)] justify-center leading-none">
+                    {memberSinceYear && (
+                      <p className="font-silkscreen" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}>
+                        Member Since {memberSinceYear}
+                      </p>
+                    )}
+                    <p className="font-body font-bold truncate" style={{ fontSize: 'var(--text-xl)', fontVariationSettings: '"opsz" 14', color: 'var(--color-primary)' }}>
+                      {previewName}
+                    </p>
+                    <p className="font-silkscreen" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>
+                      {groupChats} group chat{groupChats !== 1 ? 's' : ''} · {msgFormatted} msg
+                    </p>
+                  </div>
+                </div>
+                <p
+                  className="relative font-body font-normal leading-none w-full"
+                  style={{ fontSize: 'var(--text-xxs)', fontVariationSettings: '"opsz" 14', color: status.trim() ? 'var(--color-secondary)' : 'var(--color-tertiary)' }}
+                >
+                  &ldquo;{status.trim() || 'Whats the mood today...'}&rdquo;
+                </p>
+              </div>
+
+              {/* Display Name input */}
+              <div className="flex flex-col gap-[var(--space-3)] w-full">
+                <p className="font-body font-medium text-primary tracking-[0.2px] leading-normal" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}>
+                  Display Name
+                </p>
+                <div
+                  className="bg-black border h-[48px] flex items-center overflow-hidden px-3 w-full"
+                  style={{ borderColor: 'var(--color-border-hover)' }}
+                >
+                  <input
+                    value={displayName}
+                    onChange={(e) => { setDisplayName(e.target.value); setSaveError(null) }}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleSave() }}
+                    minLength={3}
+                    maxLength={20}
+                    placeholder="your display name"
+                    className="flex-1 bg-transparent font-body font-normal text-primary placeholder:text-tertiary focus:outline-none leading-normal"
+                    style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
+                  />
+                </div>
+              </div>
+
+              {/* Status input */}
+              <div className="flex flex-col gap-[var(--space-3)] w-full">
+                <p className="font-body font-medium text-primary tracking-[0.2px] leading-normal" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}>
+                  Status
+                </p>
+                <div
+                  className="bg-black border h-[48px] flex items-center overflow-hidden px-3 w-full"
+                  style={{ borderColor: 'var(--color-border-hover)' }}
+                >
+                  <input
+                    value={status}
+                    onChange={(e) => setStatus(e.target.value.slice(0, 100))}
+                    placeholder="Whats the mood today..."
+                    className="flex-1 bg-transparent font-body font-normal text-primary placeholder:text-tertiary focus:outline-none leading-normal"
+                    style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
+                  />
+                </div>
+              </div>
+
+              {/* Save error */}
+              {saveError && (
+                <p className="font-pixel text-[8px] text-[#ef4444] -mt-4">{saveError}</p>
+              )}
+
+              {/* Action buttons */}
+              <div className="flex flex-col gap-[var(--space-5)] w-full">
+                <button
+                  onClick={handleSave}
+                  disabled={saving || !displayName.trim() || displayName.trim().length < 3}
+                  className="w-full h-[48px] bg-purple flex items-center justify-center overflow-hidden disabled:opacity-50"
+                >
+                  <span className="font-silkscreen leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-sm)', color: 'var(--color-primary)' }}>
+                    {saving ? '...' : 'Save Changes'}
+                  </span>
+                </button>
+                <button
+                  onClick={onClose}
+                  disabled={saving}
+                  className="w-full h-[48px] border flex items-center justify-center overflow-hidden"
+                  style={{ borderColor: '#ef4444' }}
+                >
+                  <span className="font-silkscreen leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-sm)', color: '#ef4444' }}>
+                    Cancel
+                  </span>
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  )
+}
+
+// ─── BackButton (inside SlidePage context) ────────────────────────────────────
+
+function BackButton() {
+  const goBack = useSlideBack()
+  return (
+    <button
+      onClick={goBack}
+      aria-label="Back"
+      className="flex items-center justify-center flex-shrink-0"
+      style={{ width: 24, height: 24 }}
+    >
+      <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
+    </button>
+  )
+}
+
 // ─── ProfileClient ────────────────────────────────────────────────────────────
 
 export function ProfileClient({
   userId, userEmail, initialUsername, avatarUrl, avatarClass, customAvatar, isDev, isGuest,
-  memberSinceYear, totalMessages, groupChats, inviterUsername,
+  memberSinceYear, totalMessages, groupChats, inviterUsername, initialStatus,
 }: ProfileClientProps) {
   const router = useRouter()
 
@@ -171,38 +384,10 @@ export function ProfileClient({
     }
   }
 
-  // ── Username ──────────────────────────────────────────────────────────────
-  const [username,   setUsername]   = useState(initialUsername)
-  const [saving,     setSaving]     = useState(false)
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error' | 'taken'>('idle')
-
-  async function handleSaveUsername() {
-    const trimmed = username.trim()
-    if (!trimmed || trimmed === initialUsername || saving) return
-    if (trimmed.length < 3) { setSaveStatus('error'); return }
-
-    setSaving(true)
-    setSaveStatus('idle')
-    try {
-      const supabase = createClient()
-      const { data: existing } = await supabase
-        .from('profiles').select('id').ilike('username', trimmed).neq('id', userId).maybeSingle()
-      if (existing) { setSaveStatus('taken'); return }
-
-      const { error } = await supabase.from('profiles').update({ username: trimmed }).eq('id', userId)
-      if (error) {
-        if (error.code === '23505') { setSaveStatus('taken'); return }
-        throw error
-      }
-      setSaveStatus('success')
-      setTimeout(() => setSaveStatus('idle'), 2000)
-      revalidateProfileAction()
-    } catch {
-      setSaveStatus('error')
-    } finally {
-      setSaving(false)
-    }
-  }
+  // ── Profile edit sheet ────────────────────────────────────────────────────
+  const [showEditSheet,   setShowEditSheet]   = useState(false)
+  const [localUsername,   setLocalUsername]   = useState(initialUsername)
+  const [localStatus,     setLocalStatus]     = useState(initialStatus ?? '')
 
   // ── Notifications ─────────────────────────────────────────────────────────
   const [notifSupported,  setNotifSupported]  = useState(false)
@@ -285,10 +470,9 @@ export function ProfileClient({
     return () => window.removeEventListener('nexus-afk-exp-change', handler)
   }, [])
 
-  const isDirty = username.trim() !== initialUsername && username.trim().length > 0
-  const initial = initialUsername[0]?.toUpperCase() ?? '?'
-  const msgFormatted   = totalMessages.toLocaleString()
-  const notifRows = [
+  const initial      = localUsername[0]?.toUpperCase() ?? '?'
+  const msgFormatted = totalMessages.toLocaleString()
+  const notifRows    = [
     { key: 'notif_messages' as const, label: 'Messages',    sub: 'Notify me with new messages from this chat' },
     { key: 'notif_raids'    as const, label: 'Raid Alerts', sub: 'Notify me when boss spawns and expires' },
     { key: 'notif_victory'  as const, label: 'Victory',     sub: 'Notify me when boss defeated & artifact drops' },
@@ -300,13 +484,20 @@ export function ProfileClient({
       style={{ position: 'fixed', inset: 0, maxWidth: 480, marginLeft: 'auto', marginRight: 'auto', overflow: 'hidden', paddingTop: 'env(safe-area-inset-top)' }}
       backHref="/home"
     >
-      {/* ── Hero section — 280px, full-bleed, will support background image ── */}
+      {/* ── Hero section — 280px ─────────────────────────────────────────── */}
       <div className="relative flex-shrink-0 w-full bg-black overflow-hidden" style={{ height: 280 }}>
 
+        {/* Full-height gradient — transparent top → black bottom (for future bg image support) */}
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.5) 48.668%, rgba(0,0,0,0.8) 82.216%, rgb(0,0,0) 100%)' }}
+        />
+
         {/* Content anchored to bottom */}
-        <div className="absolute inset-0 flex flex-col justify-end gap-4 p-4">
+        <div className="absolute inset-0 flex flex-col justify-end gap-[var(--space-5)] p-[var(--space-5)]">
+
           {/* Details row */}
-          <div className="flex items-center gap-4 w-full">
+          <div className="flex items-center gap-[var(--space-5)] w-full">
             {/* Avatar 56×56 — tappable */}
             <div className="flex-shrink-0 flex flex-col items-center gap-1">
               <button
@@ -317,7 +508,7 @@ export function ProfileClient({
                 aria-label="Change photo"
               >
                 {localAvatarUrl ? (
-                  <Image src={resolveAvatarUrl(localAvatarUrl, 56)} alt={initialUsername} fill sizes="56px" className="object-cover" priority unoptimized={isSupabaseStorage(localAvatarUrl)} />
+                  <Image src={resolveAvatarUrl(localAvatarUrl, 56)} alt={localUsername} fill sizes="56px" className="object-cover" priority unoptimized={isSupabaseStorage(localAvatarUrl)} />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
                     <span className="font-pixel text-[12px] text-purple">{initial}</span>
@@ -333,7 +524,8 @@ export function ProfileClient({
                 <button
                   onClick={handleResetAvatar}
                   disabled={resettingAvatar}
-                  className="font-silkscreen text-[7px] text-muted leading-none whitespace-nowrap disabled:opacity-40"
+                  className="font-silkscreen text-muted leading-none whitespace-nowrap disabled:opacity-40"
+                  style={{ fontSize: 7 }}
                 >
                   {resettingAvatar ? '...' : 'Use Google photo'}
                 </button>
@@ -354,39 +546,37 @@ export function ProfileClient({
             />
 
             {/* Name + stats */}
-            <div className="flex-1 min-w-0 flex flex-col gap-1 justify-center">
+            <div className="flex-1 min-w-0 flex flex-col gap-[var(--space-2)] justify-center leading-none">
               {memberSinceYear && (
-                <p className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}>
+                <p className="font-silkscreen" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}>
                   Member Since {memberSinceYear}
                 </p>
               )}
-              <p className="font-body font-bold leading-none truncate" style={{ fontSize: 20, fontVariationSettings: '"opsz" 14', color: 'var(--color-primary)' }}>
-                {initialUsername}
+              <p className="font-body font-bold truncate" style={{ fontSize: 'var(--text-xl)', fontVariationSettings: '"opsz" 14', color: 'var(--color-primary)' }}>
+                {localUsername}
               </p>
-              <p className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>
+              <p className="font-silkscreen" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>
                 {groupChats} group chat{groupChats !== 1 ? 's' : ''} · {msgFormatted} msg
               </p>
               {inviterUsername && (
-                <p className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}>
+                <p className="font-silkscreen" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}>
                   Recruited by {inviterUsername}
                 </p>
               )}
             </div>
-
-            {/* Edit icon — triggers avatar picker */}
-            {!isGuest && (
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                aria-label="Change photo"
-                className="flex-shrink-0 flex items-center justify-center"
-                style={{ width: 24, height: 24 }}
-              >
-                <MagicEdit style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
-              </button>
-            )}
           </div>
 
-          {/* AFK EXP row — dev-only, shown when nexus_afk_exp flag is on */}
+          {/* Status line — shown when set */}
+          {localStatus && (
+            <p
+              className="font-body font-normal leading-none w-full"
+              style={{ fontSize: 'var(--text-xxs)', fontVariationSettings: '"opsz" 14', color: 'var(--color-secondary)' }}
+            >
+              &ldquo;{localStatus}&rdquo;
+            </p>
+          )}
+
+          {/* AFK EXP row — dev-only */}
           {afkExp && (
             <div className="flex items-center gap-2 w-full">
               <div className="flex flex-1 flex-col gap-2 min-w-0">
@@ -399,26 +589,23 @@ export function ProfileClient({
                 className="bg-purple flex-shrink-0 flex items-center justify-center"
                 style={{ paddingLeft: 'var(--space-5)', paddingRight: 'var(--space-5)', paddingTop: 'var(--space-3)', paddingBottom: 'var(--space-3)' }}
               >
-                <span className="font-silkscreen leading-none whitespace-nowrap" style={{ fontSize: 11, color: 'var(--color-primary)' }}>CLAIM</span>
+                <span className="font-silkscreen leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-xxs)', color: 'var(--color-primary)' }}>CLAIM</span>
               </button>
             </div>
           )}
         </div>
 
-        {/* Top gradient overlay — same pattern as chat/DM overlay */}
+        {/* Top gradient overlay — for back button readability */}
         <div
           className="absolute left-0 right-0 top-0 pointer-events-none"
           style={{
-            height: 86,
+            height:     86,
             background: 'linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.25) 46.158%, rgba(0,0,0,0) 100%)',
           }}
         />
 
         {/* Floating back button box */}
-        <div
-          className="absolute z-20 pointer-events-none"
-          style={{ top: 16, left: 16 }}
-        >
+        <div className="absolute z-20 pointer-events-none" style={{ top: 16, left: 16 }}>
           <div
             className="pointer-events-auto flex items-center bg-surface border border-purple p-2"
             style={{ boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.8)' }}
@@ -428,79 +615,31 @@ export function ProfileClient({
         </div>
       </div>
 
-      {/* ── Scrollable body ── */}
-      <div className="flex-1 overflow-y-auto flex flex-col gap-6 nexus-scroll" style={{ padding: 'var(--space-5)' }}>
+      {/* ── Scrollable body ─────────────────────────────────────────────────── */}
+      <div className="flex-1 overflow-y-auto flex flex-col gap-[var(--space-7)] nexus-scroll" style={{ padding: 'var(--space-5)' }}>
 
-        {/* Display Name */}
-        <div className="flex flex-col gap-2">
-          <SectionLabel>Display Name</SectionLabel>
-          {isGuest ? (
-            <div>
-              <div
-                className="w-full bg-surface border h-12 flex items-center overflow-hidden opacity-50 cursor-not-allowed"
-                style={{ borderColor: 'rgba(168,85,247,0.5)', padding: 12 }}
-              >
-                <span className="font-body font-normal text-secondary leading-normal" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }} >
-                  {initialUsername}
-                </span>
-              </div>
-              <p className="font-pixel text-[7px] text-muted mt-2 leading-relaxed">
-                SIGN IN WITH GOOGLE TO UPDATE YOUR USERNAME
-              </p>
-            </div>
-          ) : (
-            <div>
-              <div className="flex gap-2">
-                <div
-                  className="flex-1 bg-surface border h-12 flex items-center overflow-hidden"
-                  style={{ borderColor: saveStatus === 'taken' ? '#ef4444' : 'rgba(168,85,247,0.5)', padding: 12 }}
-                >
-                  <input
-                    value={username}
-                    onChange={(e) => { setUsername(e.target.value); setSaveStatus('idle') }}
-                    onKeyDown={(e) => { if (e.key === 'Enter') handleSaveUsername() }}
-                    minLength={3}
-                    maxLength={20}
-                    placeholder="your username"
-                    className="flex-1 bg-transparent font-body font-normal text-secondary placeholder:text-muted focus:outline-none leading-normal"
-                    style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
-                  />
-                </div>
-                <button
-                  onClick={handleSaveUsername}
-                  disabled={!isDirty || saving}
-                  className="self-stretch flex items-center justify-center border transition-opacity disabled:opacity-40"
-                  style={{
-                    paddingLeft: 'var(--space-5)',
-                    paddingRight: 'var(--space-5)',
-                    paddingTop: 'var(--space-3)',
-                    paddingBottom: 'var(--space-3)',
-                    background: 'rgba(168,85,247,0.12)',
-                    borderColor: 'rgba(168,85,247,0.5)',
-                  }}
-                >
-                  <span className="font-silkscreen leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-muted)' }}>
-                    {saving ? '...' : 'SAVE'}
-                  </span>
-                </button>
-              </div>
-              {saveStatus === 'success' && (
-                <p className="font-pixel text-[8px] text-[#66bb6a] mt-2">✓ SAVED</p>
-              )}
-              {saveStatus === 'taken' && (
-                <p className="font-pixel text-[8px] text-[#ef4444] mt-2">USERNAME TAKEN — PICK ANOTHER</p>
-              )}
-              {saveStatus === 'error' && (
-                <p className="font-pixel text-[8px] text-[#ef4444] mt-2">FAILED — TRY AGAIN</p>
-              )}
-            </div>
-          )}
-        </div>
+        {/* Edit Profile card */}
+        <button
+          onClick={() => setShowEditSheet(true)}
+          disabled={isGuest}
+          className="w-full bg-surface border flex gap-3 items-center px-[var(--space-5)] py-[var(--space-5)] text-left disabled:opacity-50"
+          style={{ borderColor: 'var(--color-border-hover)' }}
+        >
+          <MagicEdit style={{ width: 24, height: 24, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
+          <div className="flex-1 min-w-0 flex flex-col gap-0 leading-[0] tracking-[0.2px]">
+            <p className="font-body font-medium text-secondary leading-normal" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}>
+              Edit Profile
+            </p>
+            <p className="font-body font-normal text-tertiary leading-normal" style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}>
+              Manage your profile.
+            </p>
+          </div>
+        </button>
 
         {/* Notifications */}
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-[var(--space-3)]">
           <SectionLabel>Notifications</SectionLabel>
-          <div className="bg-surface border overflow-hidden" style={{ borderColor: 'rgba(168,85,247,0.5)' }}>
+          <div className="bg-surface border overflow-hidden" style={{ borderColor: 'var(--color-border-hover)' }}>
             {!notifSupported ? (
               <div className="px-4 py-4">
                 <p className="font-pixel text-[8px] text-muted leading-relaxed">NOT SUPPORTED ON THIS DEVICE</p>
@@ -514,7 +653,7 @@ export function ProfileClient({
               </div>
             ) : notifPermission !== 'granted' ? (
               <div className="px-4 py-4 flex flex-col gap-3">
-                <p className="font-body font-normal text-[12px] text-tertiary leading-normal" style={{ fontVariationSettings: '"opsz" 14' }}>
+                <p className="font-body font-normal text-tertiary leading-normal" style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}>
                   Get notified for messages, boss spawns, and victories
                 </p>
                 <button
@@ -550,12 +689,12 @@ export function ProfileClient({
         </div>
 
         {/* Account */}
-        <div className="flex flex-col gap-2">
-          <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-[var(--space-3)]">
+          <div className="flex flex-col gap-[var(--space-2)]">
             <SectionLabel>Account</SectionLabel>
             <p
               className="font-body font-normal leading-normal tracking-[0.2px]"
-              style={{ fontSize: 'var(--text-xs)', color: '#9a9a9a', fontVariationSettings: '"opsz" 14' }}
+              style={{ fontSize: 'var(--text-xs)', color: 'var(--color-paper-200)', fontVariationSettings: '"opsz" 14' }}
             >
               {'Signed in with '}
               <span style={{ color: 'var(--color-primary)' }}>{userEmail}</span>
@@ -578,13 +717,30 @@ export function ProfileClient({
         <div style={{ height: 'max(env(safe-area-inset-bottom), 16px)' }} />
       </div>
 
-      {/* Avatar crop/upload modal — rendered outside scroll container so it overlays correctly */}
+      {/* Avatar crop/upload modal */}
       <AvatarUploadModal
         file={pendingFile}
         userId={userId}
         isDev={isDev}
         onClose={() => setPendingFile(null)}
         onSuccess={(url) => { setLocalAvatarUrl(url); setLocalCustomAvatar(true) }}
+      />
+
+      {/* Edit Profile bottom sheet */}
+      <EditProfileSheet
+        isOpen={showEditSheet}
+        onClose={() => setShowEditSheet(false)}
+        onSave={(displayName, status) => {
+          setLocalUsername(displayName)
+          setLocalStatus(status)
+          revalidateProfileAction()
+        }}
+        initialDisplayName={localUsername}
+        initialStatus={localStatus}
+        avatarUrl={localAvatarUrl}
+        memberSinceYear={memberSinceYear}
+        groupChats={groupChats}
+        totalMessages={totalMessages}
       />
     </SlidePage>
   )
@@ -655,7 +811,6 @@ function DevSection({ userId, userEmail }: { userId: string; userEmail: string }
     setShowPush(localStorage.getItem('nexus_push_diag') === '1')
     setInfiniteCoins(localStorage.getItem('nexus_infinite_coins') === '1')
     setAfkExp(localStorage.getItem('nexus_afk_exp') === '1')
-    // fetch actual coin balance
     const supabase = createClient()
     supabase.from('profiles').select('coins').eq('id', userId).maybeSingle().then(({ data }) => {
       if (data) setActualCoins((data as { coins: number }).coins)
@@ -710,20 +865,14 @@ function DevSection({ userId, userEmail }: { userId: string; userEmail: string }
     setTimeout(() => setFlagsCleared(false), 2000)
   }
 
-  const rowClass = 'flex items-center justify-between px-4 py-4 gap-4'
+  const rowClass  = 'flex items-center justify-between px-4 py-4 gap-4'
   const labelClass = 'font-body font-medium text-[14px] tracking-[0.2px] leading-normal'
 
   return (
     <div className="flex flex-col gap-2">
-      <p
-        className={labelClass}
-        style={{ color: '#ffd700', fontVariationSettings: '"opsz" 14' }}
-      >
-        Dev
-      </p>
+      <p className={labelClass} style={{ color: '#ffd700', fontVariationSettings: '"opsz" 14' }}>Dev</p>
       <div className="bg-surface border border-[rgba(255,215,0,0.25)] overflow-hidden divide-y divide-border">
 
-        {/* Spawn boss mode */}
         <div className={rowClass}>
           <div className="flex-1 min-w-0 flex flex-col gap-0 leading-[0] tracking-[0.2px]">
             <p className="font-body font-medium text-[14px] text-secondary leading-normal" style={{ fontVariationSettings: '"opsz" 14' }}>Spawn Boss Mode</p>
@@ -732,7 +881,6 @@ function DevSection({ userId, userEmail }: { userId: string; userEmail: string }
           <ToggleSwitch enabled={devMode} onChange={toggleDevMode} />
         </div>
 
-        {/* Push diagnostics toggle */}
         <div className={rowClass}>
           <div className="flex-1 min-w-0 flex flex-col gap-0 leading-[0] tracking-[0.2px]">
             <p className="font-body font-medium text-[14px] text-secondary leading-normal" style={{ fontVariationSettings: '"opsz" 14' }}>Push Diagnostics</p>
@@ -741,20 +889,16 @@ function DevSection({ userId, userEmail }: { userId: string; userEmail: string }
           <ToggleSwitch enabled={showPush} onChange={toggleShowPush} />
         </div>
 
-        {/* Infinite coins toggle */}
         <div className={rowClass}>
           <div className="flex-1 min-w-0 flex flex-col gap-0 leading-[0] tracking-[0.2px]">
             <p className="font-body font-medium text-[14px] text-secondary leading-normal" style={{ fontVariationSettings: '"opsz" 14' }}>Infinite Coins</p>
             <p className="font-body font-normal text-[12px] text-tertiary leading-normal" style={{ fontVariationSettings: '"opsz" 14' }}>
-              {infiniteCoins
-                ? 'Unlimited coins (testing only)'
-                : `Balance: ${actualCoins === null ? '...' : actualCoins.toLocaleString()} coins`}
+              {infiniteCoins ? 'Unlimited coins (testing only)' : `Balance: ${actualCoins === null ? '...' : actualCoins.toLocaleString()} coins`}
             </p>
           </div>
           <ToggleSwitch enabled={infiniteCoins} onChange={toggleInfiniteCoins} />
         </div>
 
-        {/* Feat: AFK Exp toggle */}
         <div className={rowClass}>
           <div className="flex-1 min-w-0 flex flex-col gap-0 leading-[0] tracking-[0.2px]">
             <p className="font-body font-medium text-[14px] text-secondary leading-normal" style={{ fontVariationSettings: '"opsz" 14' }}>Feat: AFK Exp</p>
@@ -763,7 +907,6 @@ function DevSection({ userId, userEmail }: { userId: string; userEmail: string }
           <ToggleSwitch enabled={afkExp} onChange={toggleAfkExp} />
         </div>
 
-        {/* User ID */}
         <div className="px-4 py-4 flex flex-col gap-2">
           <p className="font-body font-medium text-[14px] text-secondary leading-normal tracking-[0.2px]" style={{ fontVariationSettings: '"opsz" 14' }}>User ID</p>
           <div className="flex items-center gap-2">
@@ -778,7 +921,6 @@ function DevSection({ userId, userEmail }: { userId: string; userEmail: string }
           </div>
         </div>
 
-        {/* Email */}
         <div className="px-4 py-4 flex flex-col gap-2">
           <p className="font-body font-medium text-[14px] text-secondary leading-normal tracking-[0.2px]" style={{ fontVariationSettings: '"opsz" 14' }}>Email</p>
           <div className="flex items-center gap-2">
@@ -793,8 +935,6 @@ function DevSection({ userId, userEmail }: { userId: string; userEmail: string }
           </div>
         </div>
 
-
-        {/* Reset flags */}
         <div className="px-4 py-4 flex flex-col gap-2">
           <p className="font-body font-medium text-[14px] text-secondary leading-normal tracking-[0.2px]" style={{ fontVariationSettings: '"opsz" 14' }}>Local Flags</p>
           <p className="font-body font-normal text-[12px] text-tertiary leading-normal" style={{ fontVariationSettings: '"opsz" 14' }}>
@@ -806,15 +946,9 @@ function DevSection({ userId, userEmail }: { userId: string; userEmail: string }
           </button>
         </div>
 
-        {/* Announcements management */}
         <div className="px-4 py-4 flex flex-col gap-3">
-          <button
-            onClick={() => setShowBanners(v => !v)}
-            className="flex items-center justify-between w-full"
-          >
-            <p className="font-body font-medium text-[14px] text-secondary leading-normal tracking-[0.2px]" style={{ fontVariationSettings: '"opsz" 14' }}>
-              Announcements
-            </p>
+          <button onClick={() => setShowBanners(v => !v)} className="flex items-center justify-between w-full">
+            <p className="font-body font-medium text-[14px] text-secondary leading-normal tracking-[0.2px]" style={{ fontVariationSettings: '"opsz" 14' }}>Announcements</p>
             <span className="font-pixel text-[8px] transition-colors" style={{ color: '#ffd700' }}>
               {showBanners ? '▲ HIDE' : '▼ MANAGE'}
             </span>
@@ -822,11 +956,7 @@ function DevSection({ userId, userEmail }: { userId: string; userEmail: string }
 
           {showBanners && (
             <div className="flex flex-col gap-3">
-              {bannerError && (
-                <p className="font-pixel text-[7px] text-[#ff4444] leading-none">{bannerError}</p>
-              )}
-
-              {/* Existing banners */}
+              {bannerError && <p className="font-pixel text-[7px] text-[#ff4444] leading-none">{bannerError}</p>}
               {bannersLoading ? (
                 <p className="font-pixel text-[7px] text-muted">Loading...</p>
               ) : banners.length === 0 ? (
@@ -834,65 +964,22 @@ function DevSection({ userId, userEmail }: { userId: string; userEmail: string }
               ) : (
                 <div className="flex flex-col gap-2">
                   {banners.map((b) => (
-                    <div
-                      key={b.id}
-                      className="border flex flex-col gap-2 p-3"
-                      style={{ borderColor: b.active ? 'rgba(168,85,247,0.4)' : 'rgba(255,255,255,0.1)', background: b.active ? 'rgba(168,85,247,0.06)' : 'rgba(255,255,255,0.02)' }}
-                    >
+                    <div key={b.id} className="border flex flex-col gap-2 p-3" style={{ borderColor: b.active ? 'rgba(168,85,247,0.4)' : 'rgba(255,255,255,0.1)', background: b.active ? 'rgba(168,85,247,0.06)' : 'rgba(255,255,255,0.02)' }}>
                       {editingId === b.id ? (
                         <div className="flex flex-col gap-2">
-                          <textarea
-                            value={editingText}
-                            onChange={(e) => setEditingText(e.target.value.slice(0, 500))}
-                            className="w-full bg-black border border-border px-3 py-2 font-body text-[13px] text-primary resize-none focus:outline-none focus:border-purple"
-                            rows={3}
-                            maxLength={500}
-                            autoFocus
-                          />
+                          <textarea value={editingText} onChange={(e) => setEditingText(e.target.value.slice(0, 500))} className="w-full bg-black border border-border px-3 py-2 font-body text-[13px] text-primary resize-none focus:outline-none focus:border-purple" rows={3} maxLength={500} autoFocus />
                           <div className="flex gap-2">
-                            <button
-                              onClick={() => handleUpdateBanner(b.id)}
-                              className="flex-1 h-8 font-pixel text-[7px] border"
-                              style={{ color: '#66bb6a', borderColor: 'rgba(102,187,106,0.4)', background: 'rgba(102,187,106,0.08)' }}
-                            >
-                              SAVE
-                            </button>
-                            <button
-                              onClick={() => { setEditingId(null); setBannerError(null) }}
-                              className="flex-1 h-8 font-pixel text-[7px] border"
-                              style={{ color: '#ffd700', borderColor: 'rgba(255,215,0,0.3)', background: 'rgba(255,215,0,0.06)' }}
-                            >
-                              CANCEL
-                            </button>
+                            <button onClick={() => handleUpdateBanner(b.id)} className="flex-1 h-8 font-pixel text-[7px] border" style={{ color: '#66bb6a', borderColor: 'rgba(102,187,106,0.4)', background: 'rgba(102,187,106,0.08)' }}>SAVE</button>
+                            <button onClick={() => { setEditingId(null); setBannerError(null) }} className="flex-1 h-8 font-pixel text-[7px] border" style={{ color: '#ffd700', borderColor: 'rgba(255,215,0,0.3)', background: 'rgba(255,215,0,0.06)' }}>CANCEL</button>
                           </div>
                         </div>
                       ) : (
                         <>
-                          <p className="font-body text-[13px] leading-snug" style={{ color: b.active ? 'var(--color-primary)' : 'var(--color-muted)', fontVariationSettings: '"opsz" 14' }}>
-                            {b.text}
-                          </p>
+                          <p className="font-body text-[13px] leading-snug" style={{ color: b.active ? 'var(--color-primary)' : 'var(--color-muted)', fontVariationSettings: '"opsz" 14' }}>{b.text}</p>
                           <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => handleToggleBanner(b.id, b.active)}
-                              className="font-pixel text-[7px] px-2 py-1 border transition-colors"
-                              style={{ color: b.active ? '#66bb6a' : '#a1a1aa', borderColor: b.active ? 'rgba(102,187,106,0.4)' : 'rgba(161,161,170,0.3)', background: b.active ? 'rgba(102,187,106,0.08)' : 'rgba(161,161,170,0.06)' }}
-                            >
-                              {b.active ? 'ACTIVE' : 'INACTIVE'}
-                            </button>
-                            <button
-                              onClick={() => { setEditingId(b.id); setEditingText(b.text); setBannerError(null) }}
-                              className="font-pixel text-[7px] px-2 py-1 border"
-                              style={{ color: '#ffd700', borderColor: 'rgba(255,215,0,0.3)', background: 'rgba(255,215,0,0.06)' }}
-                            >
-                              EDIT
-                            </button>
-                            <button
-                              onClick={() => handleDeleteBanner(b.id)}
-                              className="font-pixel text-[7px] px-2 py-1 border ml-auto"
-                              style={{ color: '#ef4444', borderColor: 'rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.06)' }}
-                            >
-                              DELETE
-                            </button>
+                            <button onClick={() => handleToggleBanner(b.id, b.active)} className="font-pixel text-[7px] px-2 py-1 border transition-colors" style={{ color: b.active ? '#66bb6a' : '#a1a1aa', borderColor: b.active ? 'rgba(102,187,106,0.4)' : 'rgba(161,161,170,0.3)', background: b.active ? 'rgba(102,187,106,0.08)' : 'rgba(161,161,170,0.06)' }}>{b.active ? 'ACTIVE' : 'INACTIVE'}</button>
+                            <button onClick={() => { setEditingId(b.id); setEditingText(b.text); setBannerError(null) }} className="font-pixel text-[7px] px-2 py-1 border" style={{ color: '#ffd700', borderColor: 'rgba(255,215,0,0.3)', background: 'rgba(255,215,0,0.06)' }}>EDIT</button>
+                            <button onClick={() => handleDeleteBanner(b.id)} className="font-pixel text-[7px] px-2 py-1 border ml-auto" style={{ color: '#ef4444', borderColor: 'rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.06)' }}>DELETE</button>
                           </div>
                         </>
                       )}
@@ -900,23 +987,9 @@ function DevSection({ userId, userEmail }: { userId: string; userEmail: string }
                   ))}
                 </div>
               )}
-
-              {/* Add new banner */}
               <div className="flex flex-col gap-2">
-                <textarea
-                  value={newText}
-                  onChange={(e) => setNewText(e.target.value.slice(0, 500))}
-                  placeholder="New announcement text..."
-                  className="w-full bg-black border border-border px-3 py-2 font-body text-[13px] text-primary placeholder:text-muted resize-none focus:outline-none focus:border-purple"
-                  rows={2}
-                  maxLength={500}
-                />
-                <button
-                  onClick={handleCreateBanner}
-                  disabled={!newText.trim() || addingBanner}
-                  className="w-full h-9 font-pixel text-[8px] border transition-colors disabled:opacity-40"
-                  style={{ color: '#ffd700', borderColor: 'rgba(255,215,0,0.3)', background: 'rgba(255,215,0,0.06)' }}
-                >
+                <textarea value={newText} onChange={(e) => setNewText(e.target.value.slice(0, 500))} placeholder="New announcement text..." className="w-full bg-black border border-border px-3 py-2 font-body text-[13px] text-primary placeholder:text-muted resize-none focus:outline-none focus:border-purple" rows={2} maxLength={500} />
+                <button onClick={handleCreateBanner} disabled={!newText.trim() || addingBanner} className="w-full h-9 font-pixel text-[8px] border transition-colors disabled:opacity-40" style={{ color: '#ffd700', borderColor: 'rgba(255,215,0,0.3)', background: 'rgba(255,215,0,0.06)' }}>
                   {addingBanner ? '...' : '+ ADD ANNOUNCEMENT'}
                 </button>
               </div>
