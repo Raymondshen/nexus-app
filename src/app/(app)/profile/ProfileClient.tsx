@@ -296,7 +296,7 @@ export function ProfileClient({
   return (
     <SlidePage
       className="bg-black flex flex-col"
-      style={{ position: 'fixed', inset: 0, maxWidth: 480, marginLeft: 'auto', marginRight: 'auto', overflow: 'hidden' }}
+      style={{ position: 'fixed', inset: 0, maxWidth: 480, marginLeft: 'auto', marginRight: 'auto', overflow: 'hidden', paddingTop: 'env(safe-area-inset-top)' }}
       backHref="/home"
     >
       {/* ── Hero section — 240px, full-bleed, will support background image ── */}
@@ -404,7 +404,7 @@ export function ProfileClient({
         {/* Floating back button box */}
         <div
           className="absolute z-20 pointer-events-none"
-          style={{ top: 'calc(env(safe-area-inset-top, 0px) + 16px)', left: 16 }}
+          style={{ top: 16, left: 16 }}
         >
           <div
             className="pointer-events-auto flex items-center bg-surface border border-purple p-2"
