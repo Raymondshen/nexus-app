@@ -286,37 +286,37 @@ function HomeActionSheet({
         <div className="flex flex-col gap-2">
           <p className="font-pixel text-[8px] text-tertiary leading-none">SQUAD SH**!</p>
           <h2
-            className="font-body font-bold text-[18px] text-primary leading-none"
+            className="font-body font-bold text-[length:var(--text-lg)] text-primary leading-none"
             style={{ fontVariationSettings: '"opsz" 14' }}
           >
             What would you like to do?
           </h2>
         </div>
 
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-6">
           <button
             onClick={() => setView('create')}
-            className="w-full h-[48px] flex items-center justify-center bg-[#a855f7] overflow-hidden"
-            style={{ boxShadow: '2px 2px 0px 0px rgba(168,85,247,0.5)' }}
+            className="w-full h-[48px] flex items-center justify-center bg-purple overflow-hidden"
+            style={{ boxShadow: '4px 4px 0px 0px rgba(168,85,247,0.5)' }}
           >
-            <span className="font-pixel text-[8px] text-primary leading-none">CREATE A SQUAD</span>
+            <span className="font-silkscreen leading-none whitespace-nowrap text-primary" style={{ fontSize: 'var(--text-sm)' }}>CREATE A SQUAD</span>
           </button>
 
           <button
             onClick={() => setView('join')}
-            className="w-full h-[48px] flex items-center justify-center bg-surface border border-[#a855f7] overflow-hidden"
-            style={{ boxShadow: '2px 2px 0px 0px rgba(168,85,247,0.5)' }}
+            className="w-full h-[48px] flex items-center justify-center bg-surface border border-purple overflow-hidden"
+            style={{ boxShadow: '4px 4px 0px 0px rgba(168,85,247,0.5)' }}
           >
-            <span className="font-pixel text-[8px] text-purple leading-none">JOIN A SQUAD</span>
+            <span className="font-silkscreen leading-none whitespace-nowrap text-purple" style={{ fontSize: 'var(--text-sm)' }}>JOIN A SQUAD</span>
           </button>
 
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-2">
             <button
               onClick={onOpenArsenal}
-              className="w-full h-[48px] flex items-center justify-center bg-surface border border-[#f59e0b] overflow-hidden"
-              style={{ boxShadow: '2px 2px 0px 0px rgba(245,158,11,0.5)' }}
+              className="w-full h-[48px] flex items-center justify-center bg-surface border overflow-hidden"
+              style={{ borderColor: '#f59e0b', boxShadow: '4px 4px 0px 0px rgba(245,158,11,0.5)' }}
             >
-              <span className="font-pixel text-[8px] leading-none" style={{ color: '#f59e0b' }}>INVITE A FRIEND</span>
+              <span className="font-silkscreen leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-sm)', color: '#f59e0b' }}>INVITE A FRIEND</span>
             </button>
             <p className="font-silkscreen text-[8px] tracking-[0.2px] leading-normal" style={{ color: '#f59e0b' }}>
               <span className="text-tertiary">Cost 25 COINS Per INVITE</span>

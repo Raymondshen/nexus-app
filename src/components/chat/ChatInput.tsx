@@ -25,6 +25,7 @@ import { kickMemberAction, renameCrewAction } from '@/app/(app)/chat/actions'
 import { CrewImageUploadModal } from '@/components/chat/CrewImageUploadModal'
 import { MagicEdit } from 'pixelarticons/react/MagicEdit'
 import { NotifSheet, type NotifPrefs } from '@/components/chat/NotifSheet'
+import { SquadDetailsSheet } from '@/components/chat/SquadDetailsSheet'
 import type { Message, MessageWithProfile, Profile, ActiveRaid } from '@/types'
 
 const MAX_MESSAGE_LENGTH = 2000
@@ -149,8 +150,9 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   const [crewImageFile,  setCrewImageFile]  = useState<File | null>(null)
   const [isEditingName,  setIsEditingName]  = useState(false)
   const [editNameValue,  setEditNameValue]  = useState('')
-  const [showNotif,      setShowNotif]      = useState(false)
-  const [notifPrefs,     setNotifPrefs]     = useState<NotifPrefs>({ messages: true, raids: true, victory: true })
+  const [showNotif,       setShowNotif]       = useState(false)
+  const [notifPrefs,      setNotifPrefs]      = useState<NotifPrefs>({ messages: true, raids: true, victory: true })
+  const [showSquadDetails, setShowSquadDetails] = useState(false)
 
   const textareaRef       = useRef<HTMLTextAreaElement>(null)
   const crewImageInputRef = useRef<HTMLInputElement>(null)
@@ -903,10 +905,10 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                     <div className="flex items-center gap-4 flex-shrink-0">
                       {userId === creatorId && (
                         <button
-                          onClick={startEditingName}
+                          onClick={() => setShowSquadDetails(true)}
                           className="flex items-center justify-center"
                           style={{ width: 24, height: 24 }}
-                          aria-label="Edit squad name"
+                          aria-label="Squad details"
                         >
                           <MagicEdit style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
                         </button>
@@ -1075,6 +1077,33 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
             prefs={notifPrefs}
             onToggle={handleToggleNotif}
             onClose={() => setShowNotif(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showSquadDetails && (
+          <SquadDetailsSheet
+            crewName={liveCrewName}
+            memberCount={memberCount}
+            crewImageUrl={crewImageUrl}
+            members={members.map(m => ({ id: m.id, username: m.username, avatar_url: m.avatar_url as string | null }))}
+            onlineUserIds={onlineUserIds}
+            crewXP={crewXP}
+            crewLevel={crewLevel}
+            xpProgress={xpProgress}
+            totalMessages={totalMessages}
+            onUploadPhoto={() => crewImageInputRef.current?.click()}
+            onSave={async (newName) => {
+              const trimmed = newName.trim()
+              if (!trimmed || trimmed.length < 2) return
+              const prev = liveCrewName
+              setCrewName(trimmed)
+              const result = await renameCrewAction(crewId, trimmed)
+              if (result?.error) setCrewName(prev)
+              else setShowSquadDetails(false)
+            }}
+            onClose={() => setShowSquadDetails(false)}
           />
         )}
       </AnimatePresence>
