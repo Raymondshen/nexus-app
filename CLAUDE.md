@@ -294,7 +294,7 @@ Triggered by swipe-up (`onPanEnd` offset.y < -50 or velocity.y < -300) or tappin
   - `flex flex-col gap-6` — rows and dividers are interleaved via `flatMap`; `h-px bg-border` divider between each row (not after last). No `py-*` or `border-b` on rows.
   - Left 32×32: profile photo (or initial fallback) with online dot
   - Center 32×32: `PixelSprite scale={1.5}` in `overflow-hidden` container, no background (sprite clips at edges); initial fallback if no sprite available
-  - Right text: `flex flex-col gap-1` — DM Sans Bold 16px `text-white` name with `Crown` icon 16×16 `#f59e0b` (amber) inline to the right when `isCreator` is true; Silkscreen 8px `text-secondary` subtitle `"Class · N msg."`. Name+icon row uses `gap-1` (4px).
+  - Right text: `flex flex-col gap-1` — DM Sans Bold 16px `text-white` name with `Crown` icon 12×12 `#f59e0b` (amber) inline to the right when `isCreator` is true; Silkscreen 8px `text-secondary` subtitle `"Class · N msg."`. Name+icon row uses `gap-1` (4px). **Icon size rule**: all icons placed inline beside the username in this row must be 12×12px.
   - Row gap: `gap-3` (12px)
 - **Fixed close footer** (`flex-shrink-0 px-4`, safe-area-bottom padding): **CLOSE button** `h-12 w-full`, Press Start 2P 8px `text-[#ef4444]` (red), centered; swipe-down gesture (`offset.y > 60` or `velocity.y > 300`) also collapses.
 

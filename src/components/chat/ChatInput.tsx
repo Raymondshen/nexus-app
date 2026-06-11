@@ -107,7 +107,7 @@ function MemberListRow({
         <div className="flex items-center gap-1">
           <p className="font-body font-bold text-[16px] text-white truncate leading-none">{profile.username}</p>
           {isCreator && (
-            <Crown style={{ width: 16, height: 16, color: '#f59e0b' }} aria-hidden="true" />
+            <Crown style={{ width: 12, height: 12, color: '#f59e0b' }} aria-hidden="true" />
           )}
         </div>
         <p className="font-silkscreen text-[8px] text-secondary leading-none">
