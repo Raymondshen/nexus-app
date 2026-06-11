@@ -227,9 +227,9 @@ function EditProfileSheet({
                 className="relative w-full overflow-hidden flex flex-col gap-[var(--space-5)] items-start justify-end"
                 style={{ height: 180, padding: 'var(--space-5)' }}
               >
-                {/* Background image */}
+                {/* Background image — unoptimized so the raw /img/default_image.png URL is cached by the SW nexus-static rule */}
                 <div aria-hidden className="absolute inset-0 pointer-events-none">
-                  <Image src="/img/default_image.png" alt="" fill sizes="480px" className="object-cover" />
+                  <Image src="/img/default_image.png" alt="" fill sizes="480px" className="object-cover" unoptimized />
                 </div>
                 <div
                   className="absolute inset-0 pointer-events-none"
@@ -491,9 +491,9 @@ export function ProfileClient({
       {/* ── Hero section — 280px ─────────────────────────────────────────── */}
       <div className="relative flex-shrink-0 w-full bg-black overflow-hidden" style={{ height: 280 }}>
 
-        {/* Background image */}
+        {/* Background image — unoptimized so the raw /img/default_image.png URL is cached by the SW nexus-static rule */}
         <div aria-hidden className="absolute inset-0 pointer-events-none">
-          <Image src="/img/default_image.png" alt="" fill sizes="480px" className="object-cover" priority />
+          <Image src="/img/default_image.png" alt="" fill sizes="480px" className="object-cover" priority unoptimized />
         </div>
 
         {/* Full-height gradient — transparent top → black bottom */}
