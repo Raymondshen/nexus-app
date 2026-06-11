@@ -41,6 +41,7 @@ interface HomeClientProps {
   memberSince:   string
   profileCache:  Record<string, string>
   totalMessages: number
+  status:        string | null
   friends:       FriendSummary[]
   initialCoins:  number
   announcements: AnnouncementItem[]
@@ -66,13 +67,15 @@ function relativeTime(iso: string): string {
   }
 }
 
-// ─── Profile banner ───────────────────────────────────────────────────────────
+// ─── Account preview container ───────────────────────────────────────────────
 
-function ProfileBanner({
+function AccountPreviewContainer({
   username,
   avatarUrl,
   memberSince,
   crewCount,
+  totalMessages,
+  status,
   onEditProfile,
   afkExpEnabled,
   coins,
@@ -84,6 +87,8 @@ function ProfileBanner({
   avatarUrl:     string | null
   memberSince:   string
   crewCount:     number
+  totalMessages: number
+  status:        string | null
   onEditProfile: () => void
   afkExpEnabled: boolean
   coins:         number
@@ -93,37 +98,40 @@ function ProfileBanner({
 }) {
   return (
     <div
-      className="bg-surface border border-border rounded-lg p-4 flex flex-col gap-4 cursor-pointer active:opacity-80 transition-opacity"
+      className="bg-[rgba(17,17,17,0.5)] border border-border rounded-[8px] p-4 flex flex-col gap-4 cursor-pointer active:opacity-80 transition-opacity"
       onClick={onEditProfile}
       role="button"
       aria-label="Edit profile"
     >
-      {/* User details row */}
+      {/* Details row */}
       <div className="flex items-start gap-4">
-        {/* Avatar */}
-        <div className="w-12 h-12 flex-shrink-0 overflow-hidden relative bg-border">
-          {avatarUrl ? (
-            <Image src={resolveAvatarUrl(avatarUrl, 48)} alt={username} fill sizes="48px" className="object-cover" priority unoptimized={isSupabaseStorage(avatarUrl)} />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center font-pixel text-[10px] text-primary">
-              {username[0]?.toUpperCase() ?? '?'}
-            </div>
-          )}
-        </div>
+        {/* Avatar + text */}
+        <div className="flex gap-4 items-center flex-1 min-w-0">
+          {/* Avatar 48×48 */}
+          <div className="w-12 h-12 flex-shrink-0 overflow-hidden relative bg-primary">
+            {avatarUrl ? (
+              <Image src={resolveAvatarUrl(avatarUrl, 48)} alt={username} fill sizes="48px" className="object-cover" priority unoptimized={isSupabaseStorage(avatarUrl)} />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center font-pixel text-[10px] text-black">
+                {username[0]?.toUpperCase() ?? '?'}
+              </div>
+            )}
+          </div>
 
-        {/* Name + stats */}
-        <div className="flex-1 min-w-0 flex flex-col gap-1 justify-center">
-          {memberSince && (
-            <span className="font-silkscreen text-[8px] text-muted leading-none">
-              Member Since {memberSince}
+          {/* Name + stats */}
+          <div className="flex-1 min-w-0 flex flex-col gap-1 justify-center leading-none">
+            {memberSince && (
+              <span className="font-silkscreen text-[8px] text-secondary leading-none">
+                Member Since {memberSince}
+              </span>
+            )}
+            <span className="font-body font-bold text-[20px] text-primary leading-tight truncate" style={{ fontVariationSettings: '"opsz" 14' }}>
+              {username}
             </span>
-          )}
-          <span className="font-body font-bold text-[18px] text-primary leading-tight truncate">
-            {username}
-          </span>
-          <span className="font-silkscreen text-[8px] text-tertiary leading-none">
-            {crewCount} group chat{crewCount !== 1 ? 's' : ''}
-          </span>
+            <span className="font-silkscreen text-[8px] text-secondary leading-none">
+              {crewCount} group chat{crewCount !== 1 ? 's' : ''} · {totalMessages.toLocaleString()} msg
+            </span>
+          </div>
         </div>
 
         {/* Coin badge */}
@@ -133,7 +141,7 @@ function ProfileBanner({
             aria-label={`${infiniteCoins ? '∞' : coins} coins`}
             className="flex items-center gap-1 bg-[rgba(245,158,11,0.25)] rounded-[4px] p-1"
           >
-            <TokeCircle style={{ width: 16, height: 16, color: '#f59e0b' }} aria-hidden="true" />
+            <TokeCircle style={{ width: 24, height: 16, color: '#f59e0b' }} aria-hidden="true" />
             <span className="font-silkscreen leading-none w-[26px] pb-[2px]" style={{ fontSize: 'var(--text-xs)', color: '#f59e0b' }}>
               {infiniteCoins ? '∞' : coins.toLocaleString()}
             </span>
@@ -154,6 +162,14 @@ function ProfileBanner({
         </div>
       </div>
 
+      {/* Status quote */}
+      <p
+        className="font-body font-normal leading-none text-secondary"
+        style={{ fontSize: 'var(--text-xxs)', fontVariationSettings: '"opsz" 14' }}
+      >
+        {status ? `"${status}"` : '"Whats the mood today..."'}
+      </p>
+
       {/* AFK XP bar — dev-only feature flag: nexus_afk_exp */}
       {afkExpEnabled && (
         <div className="flex items-stretch gap-2">
@@ -163,9 +179,7 @@ function ProfileBanner({
             </span>
             <div className="h-1 w-full bg-purple" />
           </div>
-          <button
-            className="bg-purple px-4 py-2 font-pixel text-[8px] text-primary whitespace-nowrap"
-          >
+          <button className="bg-purple px-4 py-2 font-pixel text-[8px] text-primary whitespace-nowrap">
             CLAIM
           </button>
         </div>
@@ -698,6 +712,8 @@ export function HomeClient({
   avatarUrl,
   memberSince,
   profileCache,
+  totalMessages,
+  status,
   friends,
   initialCoins,
   announcements,
@@ -887,23 +903,25 @@ export function HomeClient({
         }}
       >
 
-        {/* Profile banner */}
+        {/* Account preview container */}
         <div style={{ marginTop: 'var(--space-5)' }}>
-        <ProfileBanner
-          username={username}
-          avatarUrl={avatarUrl}
-          memberSince={memberSince}
-          crewCount={crews.length}
-          onEditProfile={() => router.push('/profile')}
-          afkExpEnabled={afkExpEnabled}
-          coins={coins}
-          infiniteCoins={infiniteCoins}
-          showCoinTip={showCoinTip}
-          onCoinTap={() => {
-            setShowCoinTip(true)
-            setTimeout(() => setShowCoinTip(false), 2000)
-          }}
-        />
+          <AccountPreviewContainer
+            username={username}
+            avatarUrl={avatarUrl}
+            memberSince={memberSince}
+            crewCount={crews.length}
+            totalMessages={totalMessages}
+            status={status}
+            onEditProfile={() => router.push('/profile')}
+            afkExpEnabled={afkExpEnabled}
+            coins={coins}
+            infiniteCoins={infiniteCoins}
+            showCoinTip={showCoinTip}
+            onCoinTap={() => {
+              setShowCoinTip(true)
+              setTimeout(() => setShowCoinTip(false), 2000)
+            }}
+          />
         </div>
 
         {/* Squads section */}

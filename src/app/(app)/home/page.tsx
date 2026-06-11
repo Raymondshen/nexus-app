@@ -42,17 +42,17 @@ type LastMessage = { content: string; created_at: string; profiles: { username: 
 // same profile:{userId} tag so a single cache miss fetches both in parallel.
 type HomeProfile = {
   username: string; avatar_url: string | null; birthday: string | null
-  coins: number; created_at: string; totalMessages: number
+  coins: number; created_at: string; totalMessages: number; status: string | null
 }
 function getCachedHomeProfile(userId: string) {
   return unstable_cache(
     async () => {
       const supabase = createServiceClient()
       const [{ data: profile }, { count: msgCount }] = await Promise.all([
-        supabase.from('profiles').select('username, avatar_url, birthday, coins, created_at').eq('id', userId).single(),
+        supabase.from('profiles').select('username, avatar_url, birthday, coins, created_at, status').eq('id', userId).single(),
         supabase.from('messages').select('id', { count: 'estimated', head: true }).eq('user_id', userId).neq('message_type', 'system'),
       ])
-      return profile ? { ...profile, totalMessages: msgCount ?? 0 } as HomeProfile : null
+      return profile ? { ...profile, totalMessages: msgCount ?? 0, status: (profile as { status?: string | null }).status ?? null } as HomeProfile : null
     },
     [`home-profile:${userId}`],
     { tags: [`profile:${userId}`], revalidate: 60 }
@@ -207,6 +207,7 @@ export default async function HomePage() {
         memberSince={memberSince}
         profileCache={{}}
         totalMessages={profile?.totalMessages ?? 0}
+        status={profile?.status ?? null}
         friends={friends}
         initialCoins={profile?.coins ?? 0}
         announcements={announcements}
@@ -297,6 +298,7 @@ export default async function HomePage() {
       memberSince={memberSince}
       profileCache={profileCache}
       totalMessages={profile?.totalMessages ?? 0}
+      status={profile?.status ?? null}
       friends={friends}
       initialCoins={profile?.coins ?? 0}
       announcements={announcements}
