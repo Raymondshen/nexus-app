@@ -829,7 +829,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                         )}
                       </button>
 
-                      <div className="flex flex-col gap-1 min-w-0 flex-1">
+                      <div className="flex flex-col min-w-0 flex-1">
                         {isEditingName ? (
                           <input
                             ref={editNameInputRef}
