@@ -243,7 +243,7 @@ export function VaultClient({ crewId, crewName, crewCreatedAt, artifacts }: Vaul
             className="flex-shrink-0 flex items-center justify-center"
             style={{ width: 24, height: 40 }}
           >
-            <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-tertiary)' }} />
+            <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-purple)' }} />
           </button>
           <h1
             className="font-pixel text-[14px] text-[#bf5fff] leading-none"

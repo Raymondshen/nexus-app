@@ -25,7 +25,7 @@ export function FloatingBackButton({ crewImageUrl, crewName }: FloatingBackButto
       }}
     >
       <ChevronLeft
-        style={{ width: 'var(--space-7)', height: 'var(--space-7)', color: 'var(--color-tertiary)' }}
+        style={{ width: 'var(--space-7)', height: 'var(--space-7)', color: 'var(--color-purple)' }}
         aria-hidden="true"
       />
       <div

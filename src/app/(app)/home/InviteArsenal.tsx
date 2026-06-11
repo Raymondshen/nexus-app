@@ -97,7 +97,7 @@ export function InviteArsenal({ userId, coins, infiniteCoins, onClose, onCoinsDe
             style={{ width: 24, height: 40 }}
             aria-label="Close"
           >
-            <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
+            <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-purple)' }} aria-hidden="true" />
           </button>
           <h1 className="font-pixel text-[14px] text-primary leading-none whitespace-nowrap">INVITE ARSENAL</h1>
         </div>

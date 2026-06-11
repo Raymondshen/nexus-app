@@ -67,7 +67,7 @@ export function DMOverlayBack({
           className="flex items-center justify-center flex-shrink-0"
           style={{ width: 24, height: 24 }}
         >
-          <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
+          <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-purple)' }} aria-hidden="true" />
         </button>
         <div className="flex-shrink-0 w-6 h-6 overflow-hidden relative bg-border">
           {friendAvatarUrl ? (

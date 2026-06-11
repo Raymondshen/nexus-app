@@ -119,7 +119,7 @@ export function MemberProfileClient({
             className="flex-shrink-0 flex items-center justify-center"
             style={{ width: 24, height: 40 }}
           >
-            <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
+            <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-purple)' }} aria-hidden="true" />
           </button>
           <h1 className="font-pixel text-[18px] text-primary leading-none whitespace-nowrap">SQUAD PROFILE</h1>
         </div>
