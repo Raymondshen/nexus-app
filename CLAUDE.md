@@ -19,7 +19,8 @@ Group messaging app where the chat is an RPG. Every message earns XP, boss fight
 ```
 profiles       id, username (unique case-insensitive), avatar_class, avatar_url, avatar_storage_key (text nullable), custom_avatar (bool default false), birthday (date), is_dev, coins (int default 0), created_at
 crews          id, name, invite_code (6 chars unique), level, total_xp, created_at,
-               is_dm (bool default false), dm_partner_1 (uuid nullable), dm_partner_2 (uuid nullable)
+               is_dm (bool default false), dm_partner_1 (uuid nullable), dm_partner_2 (uuid nullable),
+               image_url (text nullable), image_storage_key (text nullable)
 crew_members   id, crew_id, user_id, class, joined_at, last_seen (unread cursor + presence)
 messages       id, crew_id, user_id, content, message_type, element_type, xp_awarded, reactions (jsonb default '{}'), created_at
 crew_xp_log    id, crew_id, user_id, xp_amount, source, created_at
@@ -32,6 +33,7 @@ friendships    id, requester_id, addressee_id, status (pending|accepted), create
 coin_log       id, user_id, crew_id (nullable), coins, source, created_at
 app_invites    id, code (text unique), inviter_id (uuid → profiles), used (bool default false), used_by (uuid → profiles), used_at (timestamptz), created_at
 reserved_users id, email (text unique), username, class (text nullable), created_at, converted (bool default false)
+announcements  id, text (1–500 chars), active (bool default true), created_at
 ```
 
 ### DM Channels
@@ -188,11 +190,12 @@ Styled subordinately (dim border, muted text brightens on hover) so it does not 
 ## Dev Mode
 - Controlled by `profiles.is_dev` boolean (default false) — **not hardcoded emails**
 - To grant dev mode: `UPDATE profiles SET is_dev = true WHERE id IN (SELECT id FROM auth.users WHERE email = '...')`
-- Dev section in `/profile` shows four toggle rows + utility rows:
+- Dev section in `/profile` shows five toggle rows + utility rows:
   - **Spawn Boss Mode** (`nexus_dev_mode`) — enables game event UI in chat
   - **Push Diagnostics** (`nexus_push_diag`) — shows/hides CHECK / SYNC SUB / SEND TEST buttons and push status output; hidden by default to keep the section clean
   - **Infinite Coins** (`nexus_infinite_coins`) — bypasses 25-coin gate for invite forging; home header and InviteArsenal show `∞` when on; sub-label shows live DB coin balance when off; dispatches `nexus-infinite-coins-change` CustomEvent so `HomeClient` reacts immediately without remount
   - **Feat: AFK Exp** (`nexus_afk_exp`) — shows AFK XP accumulated bar + CLAIM button in home screen `ProfileBanner`; dispatches `nexus-afk-exp-change` CustomEvent; hidden from all non-dev users
+  - **Announcements** — expandable row (tapping the row expands/collapses an inline panel); loads all announcements via `getAllAnnouncementsAction`; per-banner rows show active toggle + inline edit (pencil icon opens textarea) + delete button; "Add" textarea + CREATE button at the bottom; all writes call `revalidateTag('announcements', 'max')`
   - User ID (copy button), Email (copy button), Local Flags reset
 
 ### Game Events — Dev-Only Gate
@@ -270,10 +273,14 @@ Consecutive messages from the same user within 60 seconds are visually grouped (
 ### ChatInput — expanded member panel
 Triggered by swipe-up (`onPanEnd` offset.y < -50 or velocity.y < -300) or tapping the chevron-up button. Slides up from the ChatInput container itself (not from off-screen) with `spring stiffness 320 / damping 32`. The ChatInput wrapper carries `relative z-[40]`; the panel is `absolute bottom-0 left-0 right-0 z-[50]` so `y: '100%' → 0` originates from within the container. Backdrop: `fixed inset-0 z-[38] bg-black/60`. Sheet: `bg-black border-t border-border`, `maxHeight: 85vh`, `flex flex-col` (fixed header + scrollable list + fixed footer).
 
+**Pull-to-dismiss**: non-passive `touchmove` listener on the scrollable member list div (via `memberListRef`). `touchstart` records `atTop = (scrollTop === 0)`. While `atTop` and dragging down, `e.preventDefault()` is called (non-passive, prevents native scroll from consuming the gesture). `touchend` closes the sheet if displacement > 60px. Listeners are added/removed in a `useEffect([isExpanded])` so they are only active when the sheet is open.
+
+**Squad rename**: the crew name in the title row is editable by the crew creator. Creator sees a `MagicEdit` (16px muted) icon button beside the name. Tapping it enters inline edit mode: the name becomes an `<input>` (`font-pixel text-[18px] bg-transparent border-b border-purple`, max 30 chars, uppercase). `Enter` or `onBlur` confirms (calls `renameCrewAction`, optimistic update + rollback on error); `Escape` cancels. Non-creators see the static name only. Uses `isEditingName` + `editNameValue` state + `editNameInputRef`.
+
 **Sheet layout** (`motion.div` is `flex flex-col`):
 - **Fixed header** (`flex-shrink-0 flex flex-col gap-4 pt-[var(--space-7)] px-4`, 24px top padding via `--space-7`):
   - *Content block* (`flex flex-col gap-14` = 56px gap, `mb-4`):
-    - *Title row* (`flex items-start justify-between`): crew name in Press Start 2P 18px `text-primary` + member count/total-messages stat in Silkscreen 8px `text-secondary` below it; `ChevronRight` rotated `90deg` (pointing down) 24×24 `text-tertiary` on the right — taps to collapse.
+    - *Title row* (`flex items-start justify-between`): crew name (editable by creator — see Squad rename above) in Press Start 2P 18px `text-primary` + member count/total-messages stat in Silkscreen 8px `text-secondary` below it; `ChevronRight` rotated `90deg` (pointing down) 24×24 `text-tertiary` on the right — taps to collapse.
     - *Avatar + XP bar* (`flex flex-col gap-2`): same 24×24 avatar row with online dots, then Silkscreen 8px Level/XP/Next Boss stats row + 4px purple progress bar.
   - *Invite code block* (group chats only, not shown for DMs): `bg-[rgba(168,85,247,0.1)] border border-purple p-4`. Left: "Invite your squad" (Silkscreen 8px `text-secondary`) + crew code (Silkscreen 24px `text-purple`, `textShadow: '0px 0px 3px #a855f7'`). Right: copy button that transitions: default `bg-purple px-4 py-3` with `Copy` icon 12px + "Copy Code" Silkscreen 11px; tapped state `bg-[#22c55e]` + `boxShadow: '2px 2px 0px 0px rgba(34,197,94,0.5)'` + `Check` icon 12px + "copied" (lowercase) Silkscreen 11px for 1s. Tapping copies `"Come join my squad on Nexus app {code}"` to clipboard.
 - **Scrollable member list** (`flex-1 overflow-y-auto nexus-scroll px-4 min-h-0`; `min-h-0` is critical — without it flex children won't shrink below content height):
@@ -306,6 +313,20 @@ Home page subscribes to one `messages:{crewId}` channel per crew for live previe
 
 ### Home Page — profile banner stats
 `home/page.tsx` fetches `totalMessages` (estimated count of non-system messages by the user) in the same `Promise.all` as crew membership. Uses `count: 'estimated'` — exact count forces a seq scan for a stat display that doesn't need precision. Displayed in `ProfileBanner` as `"{N} group chats · {N} msg"` (formatted with `toLocaleString()`). Edit icon uses `MagicEdit` from `pixelarticons/react/MagicEdit` (16px).
+
+The entire `ProfileBanner` card is tappable (not just the edit icon) — the outer div carries `onClick={onEditProfile}`, `role="button"`, `cursor-pointer`, and `active:opacity-80`. The `MagicEdit` icon is purely decorative inside the card (no separate button wrapper).
+
+### Home Page — Announcement Banner
+`AnnouncementBanner` (`src/components/ui/AnnouncementBanner.tsx`) sits between the header and the body content. Rendered from `HomeClient` with `announcements` prop (active announcements fetched server-side via `getCachedAnnouncements()`).
+
+- **Hydration guard**: renders `null` until a `useEffect` runs on client; `mounted` state prevents localStorage access during SSR.
+- **Dismissal**: tapping the `Close` (14px) button removes the banner from local state and stores its `id` in `localStorage` under key `nexus_dismissed_banners` (JSON array). Dismissed IDs are filtered out on mount — they persist across page loads.
+- **Carousel** (multiple announcements): `[[idx, dir], setPage]` tuple state for direction-aware slide animations. Swipe left/right via Framer Motion `drag="x"` + `onDragEnd` (±40px threshold). Directional `slideVariants` (`enter`/`center`/`exit` with `x` offset based on `dir`), `AnimatePresence mode="wait"`.
+- **Pagination dots**: pill-shaped `motion.button` dots shown only when `visible.length > 1`. Active dot animates width 4→12px + color `rgba(255,255,255,0.2)` → `#a855f7` via spring 400/30.
+- **Style**: `border-b` with `rgba(168,85,247,0.2)` color, `rgba(168,85,247,0.06)` background. "ANNOUNCEMENT" label Silkscreen 8px `#a855f7`. Text DM Sans 14px `text-primary`.
+- **Server data**: `getCachedAnnouncements()` in `home/page.tsx` fetches `{ id, text }` for `active = true` rows, ordered newest-first. Tagged `announcements`, 60s TTL. Passed to both HomeClient render paths (empty crew and normal).
+- **Dev management**: `ProfileClient` DevSection has an expandable "Announcements" row that loads all banners (including inactive) via `getAllAnnouncementsAction`. Per-banner: active toggle (`toggleAnnouncementAction`), inline text edit (`updateAnnouncementAction`), delete button (`deleteAnnouncementAction`). "Add" textarea + CREATE button at the bottom (`createAnnouncementAction`). All actions call `revalidateTag('announcements', 'max')`. All CRUD actions are gated server-side by `requireDev()`.
+- **`requireDev()` helper** in `home/actions.ts`: checks session + queries `profiles.is_dev` via service client; returns `{ userId }` or `{ error }` — used by all five announcement server actions.
 
 ### Home Page — Squads + Friends sections
 The home body is split into two labeled sections below the profile banner:
@@ -404,9 +425,9 @@ Triggered by tapping the `UserPlus` icon in `ChatHeader`. Matches Figma node 71:
 - Uses `Copy` + `Check` from `pixelarticons` (already in imports for ChatInput; added to ChatHeader imports)
 
 ### ChatHeader — props and spacing
-`ChatHeader` accepts only `{ crew, initialXP, initialRaid, currentUserId, crewId }`. It has **no** `members`, `memberLastSeen`, or `initialCoins` props — member avatars live in ChatInput; coins are home-only. Do not add a second presence channel here (see Online Presence note above).
+`ChatHeader` accepts only `{ crew, initialXP, initialRaid, currentUserId, crewId }`. It has **no** `members`, `memberLastSeen`, `initialCoins`, or `isCreator` props — member avatars live in ChatInput; coins are home-only; rename is in the expanded member panel. Do not add a second presence channel here (see Online Presence note above).
 
-Header spacing: `px-4 pb-2` (16px horizontal, 8px bottom), `paddingTop: max(env(safe-area-inset-top), 8px)`, heading row `h-10`. Left side: `gap-2` (8px) between back button and crew name. Crew name is a static `<h1>` — **not** a button; no tap handler, no underline, no dropdown chevron. All icons `style={{ width: 24, height: 24 }}`. Back arrows across all screens use `ChevronLeft` from pixelarticons with `color: var(--color-tertiary)`. Right side has bell + UserPlus only — the vault (Notebook) icon has been removed.
+Header spacing: `px-4 pb-2` (16px horizontal, 8px bottom), `paddingTop: max(env(safe-area-inset-top), 8px)`, heading row `h-10`. Left side: `gap-2` (8px) between back button and crew name. Crew name is a static `<h1>` — **not** a button; no tap handler, no underline, no rename affordance, no dropdown chevron. All icons `style={{ width: 24, height: 24 }}`. Back arrows across all screens use `ChevronLeft` from pixelarticons with `color: var(--color-tertiary)`. Right side has bell + UserPlus only — the vault (Notebook) icon has been removed.
 
 ### Page Transitions — SlidePage + useSlideBack
 All "detail" pages (chat, DM, profile, friends, vault) slide in from the right on mount and slide back out on close.
@@ -448,7 +469,7 @@ All "detail" pages (chat, DM, profile, friends, vault) slide in from the right o
   3. **Account section** — "Account" label + "Signed in with [email]" (DM Sans 12px, email in primary) + `LOG OUT` button (h-12, border `#ef4444`, Press Start 2P **8px** red text)
   4. **Username section** — label + input (`bg-surface border border-[#a855f7] h-12 px-3`) + `SAVE` button (bg-purple); inline success/taken/error feedback below
   5. **Notifications section** — label + `bg-surface border border-[rgba(168,85,247,0.5)]` card with 3 toggle rows (Messages / Raid Alerts / Victory), 40×24px toggle (purple on / `#27272a` off), `divide-y divide-border` separators
-  6. **Dev section** — shown only when `isDev === true`; gold-bordered card with toggles for Spawn Boss Mode, Push Diagnostics, Infinite Coins, Feat: AFK Exp, plus User ID / Email copy rows and Local Flags reset
+  6. **Dev section** — shown only when `isDev === true`; gold-bordered card with toggles for Spawn Boss Mode, Push Diagnostics, Infinite Coins, Feat: AFK Exp, Announcements management row (expandable inline panel for add/edit/toggle/delete banners), plus User ID / Email copy rows and Local Flags reset
 - `SlidePage` wrapper with `backHref="/home"` (reliable back even without history); `BackButton` defined inside `SlidePage` to satisfy `useSlideBack()` context scoping
 
 ### Member Profile Page — `/chat/[crewId]/member/[userId]`
@@ -562,6 +583,9 @@ Always use `createServiceClient()` inside cache functions (service role, no cook
 | Home profile (username, avatar_url, birthday, coins, created_at) | 60s | `profile:{userId}` | saveBirthdayAction, revalidateProfileAction, updateAvatarAction |
 | Home member profiles + counts | 60s | `crew-members:{crewId}` (all crews) | joinCrewAction, leaveCrewAction, updateAvatarAction |
 | Home last message preview | 30s | TTL only | TTL only |
+| Home friend profiles (id, username, avatar_url) | 60s | `profile:{friendId}` per friend | revalidateProfileAction, updateAvatarAction |
+| Home friendships (accepted) | 60s | `friends:{userId}` | sendFriendRequestAction, acceptFriendRequestAction, removeFriendAction |
+| Active announcements (id, text) | 60s | `announcements` | createAnnouncementAction, updateAnnouncementAction, toggleAnnouncementAction, deleteAnnouncementAction |
 | Vault crew (name, created_at) + artifacts | 300s | `vault:{crewId}`, `artifacts:{crewId}` | TTL only |
 | Chat member profiles | 60s | `crew-members:{crewId}` | joinCrewAction, leaveCrewAction |
 | Profile page (username, avatar_url, avatar_class, is_dev, created_at) | 60s | `profile:{userId}` | revalidateProfileAction |
@@ -588,6 +612,7 @@ Always use `createServiceClient()` inside cache functions (service role, no cook
 | `nexus_push_diag` | `'1'` | shows push diagnostics block in dev section (CHECK / SYNC SUB / SEND TEST) |
 | `nexus_infinite_coins` | `'1'` | bypasses coin gate for invite forging; shows `∞` in home header and InviteArsenal; dev-only |
 | `nexus_afk_exp` | `'1'` | shows AFK XP accumulated bar + CLAIM button in home ProfileBanner; dev-only feature flag; dispatches `nexus-afk-exp-change` CustomEvent |
+| `nexus_dismissed_banners` | JSON array of IDs | announcement banner IDs dismissed by the user; filtered out in `AnnouncementBanner` on mount |
 
 ## Disabled Features (wired for future)
 - Voice notes: button removed; `XP_VALUES['voice']` + element type `lightning` still defined server-side
@@ -617,6 +642,8 @@ Always use `createServiceClient()` inside cache functions (service role, no cook
 - `20240103000015_fix_chat_images_rls.sql` — **security**: tightened `chat-images` INSERT policy to validate `auth.uid()::text = storage.foldername(name)[2]`; old policy allowed any authenticated user to write anywhere in the bucket
 - `20240103000016_avatar_bucket_limits.sql` — raised `avatars` bucket `file_size_limit` to 10 MB (was 300 KB); added `image/heic`, `image/heic-sequence`, `image/heif` to `allowed_mime_types`
 - `20240103000017_avatar_storage_key.sql` — adds `profiles.avatar_storage_key text`; backfills `{userId}/{ts}` prefix from existing `avatar_url` values for bulk variant cleanup
+- `20240103000018_crew_image.sql` — adds `crews.image_url text` + `crews.image_storage_key text`; creates `crew-images` storage bucket (public, 10 MB limit, JPEG/PNG/WebP/HEIC); RLS: public read, crew members insert/delete own folder (`{crewId}/{userId}/`). Applied 2026-06-10.
+- `20240103000019_announcements.sql` — `announcements` table (id, text 1–500 chars, active bool default true, created_at); RLS: public SELECT on `active = true` only; all writes are service-role via server actions. Applied 2026-06-10.
 
 ### Manual SQL applied directly (no migration file)
 ```sql
