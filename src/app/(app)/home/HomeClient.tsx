@@ -7,9 +7,8 @@ import type { PanInfo } from 'framer-motion'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
 import { TokeCircle } from 'pixelarticons/react/TokeCircle'
-import { MagicEdit } from 'pixelarticons/react/MagicEdit'
 import { Logout } from 'pixelarticons/react/Logout'
-import { AvatarSquare } from 'pixelarticons/react/AvatarSquare'
+import { Copy } from 'pixelarticons/react/Copy'
 import { PlusBox } from 'pixelarticons/react/PlusBox'
 import Image from 'next/image'
 import { isSupabaseStorage, resolveAvatarUrl } from '@/components/ui/Avatar'
@@ -74,17 +73,23 @@ function ProfileBanner({
   avatarUrl,
   memberSince,
   crewCount,
-  totalMessages,
   onEditProfile,
   afkExpEnabled,
+  coins,
+  infiniteCoins,
+  showCoinTip,
+  onCoinTap,
 }: {
   username:      string
   avatarUrl:     string | null
   memberSince:   string
   crewCount:     number
-  totalMessages: number
   onEditProfile: () => void
   afkExpEnabled: boolean
+  coins:         number
+  infiniteCoins: boolean
+  showCoinTip:   boolean
+  onCoinTap:     () => void
 }) {
   return (
     <div
@@ -94,7 +99,7 @@ function ProfileBanner({
       aria-label="Edit profile"
     >
       {/* User details row */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-start gap-4">
         {/* Avatar */}
         <div className="w-12 h-12 flex-shrink-0 overflow-hidden relative bg-border">
           {avatarUrl ? (
@@ -107,22 +112,46 @@ function ProfileBanner({
         </div>
 
         {/* Name + stats */}
-        <div className="flex-1 min-w-0 flex flex-col gap-1">
+        <div className="flex-1 min-w-0 flex flex-col gap-1 justify-center">
           {memberSince && (
-            <span className="font-silkscreen text-[8px] text-tertiary">
+            <span className="font-silkscreen text-[8px] text-muted leading-none">
               Member Since {memberSince}
             </span>
           )}
           <span className="font-body font-bold text-[18px] text-primary leading-tight truncate">
             {username}
           </span>
-          <span className="font-silkscreen text-[8px] text-secondary">
-            {crewCount} group chat{crewCount !== 1 ? 's' : ''} · {totalMessages.toLocaleString()} msg
+          <span className="font-silkscreen text-[8px] text-tertiary leading-none">
+            {crewCount} group chat{crewCount !== 1 ? 's' : ''}
           </span>
         </div>
 
-        {/* Edit affordance */}
-        <MagicEdit style={{ width: 16, height: 16, color: 'var(--color-tertiary)' }} aria-hidden="true" />
+        {/* Coin badge */}
+        <div className="relative flex-shrink-0">
+          <button
+            onClick={(e) => { e.stopPropagation(); onCoinTap() }}
+            aria-label={`${infiniteCoins ? '∞' : coins} coins`}
+            className="flex items-center gap-1 bg-[rgba(245,158,11,0.25)] rounded-[4px] p-1"
+          >
+            <TokeCircle style={{ width: 16, height: 16, color: '#f59e0b' }} aria-hidden="true" />
+            <span className="font-silkscreen text-[12px] leading-none w-[26px] pb-[2px]" style={{ color: '#f59e0b' }}>
+              {infiniteCoins ? '∞' : coins.toLocaleString()}
+            </span>
+          </button>
+          <AnimatePresence>
+            {showCoinTip && (
+              <motion.div
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.15 }}
+                className="absolute right-0 top-full mt-1 z-50 whitespace-nowrap font-silkscreen text-[8px] text-primary bg-surface border border-border px-2 py-1"
+              >
+                25 COINS = 1 CREW INVITE
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
 
       {/* AFK XP bar — dev-only feature flag: nexus_afk_exp */}
@@ -450,7 +479,7 @@ function CrewCardContent({ summary }: { summary: CrewSummary }) {
       <div className="flex-1 min-w-0 flex flex-col gap-2 justify-center leading-none">
         {/* XP / level */}
         <span className="font-silkscreen text-[8px] text-tertiary whitespace-nowrap leading-none">
-          {xpInLevel}/{XP_PER_LEVEL} XP · Group Lv. {crew.level}
+          {xpInLevel}/{XP_PER_LEVEL} XP · Lv. {crew.level}
           {hasUnread ? ` · +${unreadCount} new` : ''}
         </span>
 
@@ -669,7 +698,6 @@ export function HomeClient({
   avatarUrl,
   memberSince,
   profileCache,
-  totalMessages,
   friends,
   initialCoins,
   announcements,
@@ -847,70 +875,17 @@ export function HomeClient({
   return (
     <div className="min-h-screen bg-black flex flex-col">
 
-      {/* ── Header ── */}
-      <div
-        className="border-b border-border px-4 pb-2 flex-shrink-0"
-        style={{ paddingTop: 'max(env(safe-area-inset-top), 8px)' }}
-      >
-        <div className="flex items-center justify-between h-10">
-          <h1 className="font-pixel text-[18px] text-primary w-[140px]">NEXUS</h1>
-
-          <div className="flex items-center gap-4">
-            {/* Coin balance — tap for tooltip */}
-            <div className="relative self-stretch flex items-center">
-              <button
-                onClick={() => {
-                  setShowCoinTip(true)
-                  setTimeout(() => setShowCoinTip(false), 2000)
-                }}
-                aria-label={`${infiniteCoins ? '∞' : coins} coins`}
-                className="self-stretch flex items-center"
-              >
-                <div className="flex items-center h-full bg-[rgba(245,158,11,0.25)] rounded-[4px] px-1">
-                  <TokeCircle style={{ width: 24, height: 16, color: '#f59e0b' }} aria-hidden="true" />
-                  <span className="font-silkscreen text-[12px] leading-none w-[26px] pb-[2px]" style={{ color: '#f59e0b' }}>
-                    {infiniteCoins ? '∞' : coins.toLocaleString()}
-                  </span>
-                </div>
-              </button>
-              <AnimatePresence>
-                {showCoinTip && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -4 }}
-                    transition={{ duration: 0.15 }}
-                    className="absolute right-0 top-full mt-1 z-50 whitespace-nowrap font-silkscreen text-[8px] text-primary bg-surface border border-border px-2 py-1"
-                  >
-                    25 COINS = 1 CREW INVITE
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
-            <button
-              onClick={() => router.push('/friends')}
-              aria-label="Friends"
-              className="text-primary hover:text-purple transition-colors"
-            >
-              <AvatarSquare style={{ width: 24, height: 24 }} aria-hidden="true" />
-            </button>
-            <button
-              onClick={() => setShowCreate(true)}
-              aria-label="Create crew"
-              className="text-primary hover:text-purple transition-colors"
-            >
-              <PlusBox style={{ width: 24, height: 24 }} aria-hidden="true" />
-            </button>
-          </div>
-        </div>
-      </div>
-
       {/* ── Announcement banners ── */}
       <AnnouncementBanner announcements={announcements} />
 
       {/* ── Body ── */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-6">
+      <div
+        className="flex-1 overflow-y-auto px-4 flex flex-col gap-6"
+        style={{
+          paddingTop:    'max(env(safe-area-inset-top), 16px)',
+          paddingBottom: 'calc(max(env(safe-area-inset-bottom), 16px) + 72px)',
+        }}
+      >
 
         {/* Profile banner */}
         <ProfileBanner
@@ -918,9 +893,15 @@ export function HomeClient({
           avatarUrl={avatarUrl}
           memberSince={memberSince}
           crewCount={crews.length}
-          totalMessages={totalMessages}
           onEditProfile={() => router.push('/profile')}
           afkExpEnabled={afkExpEnabled}
+          coins={coins}
+          infiniteCoins={infiniteCoins}
+          showCoinTip={showCoinTip}
+          onCoinTap={() => {
+            setShowCoinTip(true)
+            setTimeout(() => setShowCoinTip(false), 2000)
+          }}
         />
 
         {/* Squads section */}
@@ -942,10 +923,10 @@ export function HomeClient({
           )}
         </div>
 
-        {/* Friends section */}
+        {/* Direct Messages section */}
         {friends.length > 0 && (
           <div className="flex flex-col gap-4 w-full">
-            <p className="font-body font-medium text-[14px] text-primary tracking-[0.2px] leading-normal">Friends</p>
+            <p className="font-body font-medium text-[14px] text-primary tracking-[0.2px] leading-normal">Direct Messages</p>
             {friends.map((friend) => (
               <FriendCard
                 key={friend.id}
@@ -955,6 +936,33 @@ export function HomeClient({
             ))}
           </div>
         )}
+      </div>
+
+      {/* ── Fixed bottom action bar ── */}
+      <div
+        className="fixed bottom-0 left-0 right-0 z-30 flex items-center justify-end gap-4 px-4"
+        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 24px)', paddingTop: 24 }}
+      >
+        {/* Join crew — copy/paste invite code */}
+        <button
+          onClick={() => { setShowCreate(true) }}
+          aria-label="Join a crew"
+          className="bg-black border border-secondary flex items-center justify-center p-3"
+          style={{ boxShadow: '4px 4px 0px 0px rgba(228,228,231,0.5)' }}
+        >
+          <Copy style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+        </button>
+
+        {/* Create squad */}
+        <button
+          onClick={() => setShowCreate(true)}
+          aria-label="Create a squad"
+          className="bg-purple flex items-center justify-center gap-1 px-5 py-4"
+          style={{ boxShadow: '4px 4px 0px 0px rgba(168,85,247,0.5)' }}
+        >
+          <PlusBox style={{ width: 16, height: 16, color: 'var(--color-primary)' }} aria-hidden="true" />
+          <span className="font-silkscreen text-[14px] text-primary leading-none whitespace-nowrap">Squad</span>
+        </button>
       </div>
 
       {/* ── Modals ── */}
