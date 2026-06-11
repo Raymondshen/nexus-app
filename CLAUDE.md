@@ -92,8 +92,8 @@ Coins are the invite currency. Earned by sending messages; spent (future) to inv
 - Awarded in `award-xp` edge function via `increment_user_coins(user_id, amount)` RPC (atomic UPDATE)
 - Anti-spam: coins only awarded when `xpBlocked = false` (same cooldown/burst gate as XP)
 - `ChatInput` calls `addUserCoins(coins_earned)` from store on award-xp response
-- **Displayed in the home header only**: amber pill badge — `bg-[rgba(245,158,11,0.25)] rounded-[4px] px-1` (4px horizontal padding) stretching the full `h-10` row height, containing `TokeCircle` icon (`pixelarticons/react/TokeCircle`) at **24×16px** (not square) + count in **Silkscreen 12px** `#f59e0b` (amber, not gold), `w-[26px] pb-[2px]`. No gap between icon and count (icon and text are flush). The NEXUS logo has `w-[140px]`. Tap shows "25 COINS = 1 CREW INVITE" tooltip (2s). `HomeClient` seeds local `coins` state from `Math.max(initialCoins, chatStore.userCoins)` on mount. **Critical**: `chatStore.userCoins` must hold the absolute balance (not a delta from 0) — the `useState` initializer seeds the store with `initialCoins` whenever the store value is lower, so that subsequent `addUserCoins(1)` calls in chat accumulate from the correct base (e.g. 100 → 101, not 0 → 1). Without this seeding, `Math.max(initialCoins=100, storeCoins=5)` would always return 100 and ignore earned coins until realtime fires. Realtime `postgres_changes` UPDATE on `profiles` keeps the display live AND re-syncs the store value (`setUserCoins(newCoins)`). `handleCoinsDeducted` also syncs the store on spend (-25). **No `initialCoins` sync effect** — a previously present `useEffect([initialCoins])` was removed because stale server re-renders snapped back to pre-deduction values. The `useState` initializer + Realtime subscription are the two correct sources of truth.
-  - Coins are **not** shown in the message bubble header — home header only.
+- **Displayed in the home ProfileBanner only**: amber pill badge — `bg-[rgba(245,158,11,0.25)] rounded-[4px] px-1` (4px horizontal padding), containing `TokeCircle` icon (`pixelarticons/react/TokeCircle`) at **24×16px** (not square) + count in **Silkscreen** `font-size: var(--text-xs)` (12px) `#f59e0b` (amber, not gold). No gap between icon and count (icon and text are flush). Tap shows "25 COINS = 1 CREW INVITE" tooltip (2s). `HomeClient` seeds local `coins` state from `Math.max(initialCoins, chatStore.userCoins)` on mount. **Critical**: `chatStore.userCoins` must hold the absolute balance (not a delta from 0) — the `useState` initializer seeds the store with `initialCoins` whenever the store value is lower, so that subsequent `addUserCoins(1)` calls in chat accumulate from the correct base (e.g. 100 → 101, not 0 → 1). Without this seeding, `Math.max(initialCoins=100, storeCoins=5)` would always return 100 and ignore earned coins until realtime fires. Realtime `postgres_changes` UPDATE on `profiles` keeps the display live AND re-syncs the store value (`setUserCoins(newCoins)`). `handleCoinsDeducted` also syncs the store on spend (-25). **No `initialCoins` sync effect** — a previously present `useEffect([initialCoins])` was removed because stale server re-renders snapped back to pre-deduction values. The `useState` initializer + Realtime subscription are the two correct sources of truth.
+  - Coins are **not** shown in the message bubble header — home ProfileBanner only.
 - `chatStore` holds `userCoins`, `setUserCoins`, `addUserCoins`; **not** shown in `ChatHeader` — coins are home-only at the global level
 - `profiles` table is in `supabase_realtime` publication — `HomeClient` subscribes to `postgres_changes` UPDATE on `profiles` for live coin balance (ChatHeader no longer subscribes)
 
@@ -208,7 +208,7 @@ All boss/game event features are disabled for regular users and only activate wh
 
 **Client-side** — all gated by reading `localStorage.getItem('nexus_dev_mode') === '1'`:
 - `MessageList`: hides boss cards, artifact drops, level-up banners, and all system messages
-- `ChatHeader` / `DMHeader`: hides boss HP bar + countdown
+- `ChatHeader` / `DMOverlayBack`: hides boss HP bar + countdown
 - `ChatInput`: hides DamageFloat, "Next Boss" label, and RAID ACTIVE indicator. **XP stats row (level, XP counter, XP floats, progress bar) is visible to all users** — only the boss-specific parts are dev-only.
 
 Member avatars and online dots in ChatInput are not gated — those are chat features, not game features.
@@ -266,10 +266,17 @@ Consecutive messages from the same user within 60 seconds are visually grouped (
 - **Pre-pass accumulation**: a single pre-pass loop builds both `groupXPMap` and `groupCoinMap` (Map<msgId, number>). The group-leader bubble receives `xpOverride` and `coinOverride` props; `xpOverride` counts up via `requestAnimationFrame` in `MessageBubble`. `coinOverride` state is maintained internally but not rendered — coin totals are home-only.
 - **Message bubble header format**: `username · [dot] · class · [dot] · +XP XP` — all items center-aligned with `gap-[4px]`. Purple 2×2px dot separators. Class label `#b3b3b3`, XP amber `#f59e0b`. No pixel sprite in the header; no coin display. Row `gap-[8px]` between avatar and content column.
 
+### MessageList — top gradient overlay
+`MessageList` wraps its scroll container in a `relative flex-1 min-h-0` div with an absolutely positioned gradient overlay at the top:
+- `pointer-events-none absolute left-0 right-0 top-0 z-10 h-1/4` (25% of the scroll area height)
+- `background: linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.25) 46.158%, rgba(0,0,0,0) 100%)`
+- Provides visual depth below the floating header elements (ChatHeader or DMOverlayBack) without blocking interaction
+
 ### ChatInput — send flow
 `insert_message` RPC → `addMessage` (optimistic) → broadcast slim payload on `messages:{crewId}` → `award-xp` edge function (patches `xp_awarded` back + broadcasts `xp_update`) → `attack-boss` edge function (if raid active)
 
-- **Props**: `{ crewId, userId, userProfile, memberProfiles, crewName, inviteCode?, creatorId? }`. `crewName` is the crew's display name; `inviteCode` is the crew's join code (group chats only — omitted for DMs); `creatorId` is derived server-side as the `crew_members` row with the earliest `joined_at`.
+- **Props**: `{ crewId, userId, userProfile, memberProfiles, crewName, inviteCode?, creatorId?, isDM? }`. `crewName` is the crew's display name; `inviteCode` is the crew's join code (group chats only — omitted for DMs); `creatorId` is derived server-side as the `crew_members` row with the earliest `joined_at`; `isDM` switches the top section to DM mode.
+- **DM mode (`isDM={true}`)**: the member avatars row and XP bar are replaced by a single `"Chatting with [name]"` label — Silkscreen 12px, `text-[#a1a1aa]` for "Chatting with " and `text-purple` for the friend's name (lowercase). The expanded member panel and invite code block are not shown. XP/raid logic still runs — only the collapsed top UI changes.
 - **Single channel**: `messages:{crewId}` is configured with presence and handles message broadcasting, typing presence, and online presence. There is no separate `typing:{crewId}` channel.
 - **Send icon**: `Send` from `pixelarticons/react/Send` (16px); `text-primary` when textarea has text, `text-muted` when empty.
 - **"Next Boss" label**: always visible (right side of XP stats row) — not gated by dev mode.
@@ -321,9 +328,13 @@ Home page subscribes to one `messages:{crewId}` channel per crew for live previe
 `home/page.tsx` reads `birthday` from the cached home profile. If null, redirects to `/onboarding/birthday` before rendering the home screen. This handles existing users who registered before the birthday field was added.
 
 ### Home Page — profile banner stats
-`home/page.tsx` fetches `totalMessages` (estimated count of non-system messages by the user) in the same `Promise.all` as crew membership. Uses `count: 'estimated'` — exact count forces a seq scan for a stat display that doesn't need precision. Displayed in `ProfileBanner` as `"{N} group chats · {N} msg"` (formatted with `toLocaleString()`). Edit icon uses `MagicEdit` from `pixelarticons/react/MagicEdit` (16px).
+`home/page.tsx` fetches `totalMessages` (estimated count of non-system messages by the user, passed as prop but not displayed in the banner). The `ProfileBanner` shows `"{N} group chats"` only (no msg count in the banner stat line). Edit icon uses `MagicEdit` from `pixelarticons/react/MagicEdit` (16px).
 
 The entire `ProfileBanner` card is tappable (not just the edit icon) — the outer div carries `onClick={onEditProfile}`, `role="button"`, `cursor-pointer`, and `active:opacity-80`. The `MagicEdit` icon is purely decorative inside the card (no separate button wrapper).
+
+**Coin badge**: amber pill badge (`bg-[rgba(245,158,11,0.25)] rounded-[4px] px-1`) is rendered inside the `ProfileBanner`, positioned at the top-right. Contains `TokeCircle` 24×16px + count Silkscreen `var(--text-xs)` (12px) `#f59e0b`. Tap shows "25 COINS = 1 CREW INVITE" tooltip (2s).
+
+**Wrapper**: `ProfileBanner` is wrapped in a `<div style={{ marginTop: 'var(--space-5)' }}>` (16px top margin via the `--space-5` token) inside `HomeClient`.
 
 ### Home Page — Announcement Banner
 `AnnouncementBanner` (`src/components/ui/AnnouncementBanner.tsx`) sits between the header and the body content. Rendered from `HomeClient` with `announcements` prop (active announcements fetched server-side via `getCachedAnnouncements()`).
@@ -337,10 +348,10 @@ The entire `ProfileBanner` card is tappable (not just the edit icon) — the out
 - **Dev management**: `ProfileClient` DevSection has an expandable "Announcements" row that loads all banners (including inactive) via `getAllAnnouncementsAction`. Per-banner: active toggle (`toggleAnnouncementAction`), inline text edit (`updateAnnouncementAction`), delete button (`deleteAnnouncementAction`). "Add" textarea + CREATE button at the bottom (`createAnnouncementAction`). All actions call `revalidateTag('announcements', 'max')`. All CRUD actions are gated server-side by `requireDev()`.
 - **`requireDev()` helper** in `home/actions.ts`: checks session + queries `profiles.is_dev` via service client; returns `{ userId }` or `{ error }` — used by all five announcement server actions.
 
-### Home Page — Squads + Friends sections
+### Home Page — Squads + Direct Messages sections
 The home body is split into two labeled sections below the profile banner:
 - **"Squads"** — crew list (group chats only — DM crews are filtered out). Label uses `font-body font-medium text-[14px] text-primary tracking-[0.2px]`. Empty state shows inline create/join prompt.
-- **"Friends"** — accepted 1:1 friends, rendered only when `friends.length > 0`. Same label style. Tapping a friend navigates to `/dm/[friendId]`. Uses `FriendCard` component inside `HomeClient.tsx`.
+- **"Direct Messages"** — accepted 1:1 friends, rendered only when `friends.length > 0`. Same label style. Tapping a friend navigates to `/dm/[friendId]`. Uses `FriendCard` component inside `HomeClient.tsx`.
 
 Data fetching in `home/page.tsx`:
 - Stage 1 `Promise.all` fetches `friendships` (accepted only) alongside profile, crew_members, messages
@@ -351,7 +362,11 @@ Data fetching in `home/page.tsx`:
 
 `FriendSummary` interface (`{ id, username, avatarUrl, dmChannelId, lastDMMessage }`) is exported from `HomeClient.tsx` and imported by `page.tsx`. `dmChannelId` is null until the first DM is opened; `lastDMMessage` shows the most recent DM content + timestamp in `FriendCard`.
 
-Header spacing: `pb-2` bottom padding, `paddingTop: max(env(safe-area-inset-top), 8px)`, icon gap `gap-4`.
+### Home Page — bottom action bar
+Fixed bar at the bottom of the home screen. `fixed bottom-0 left-0 right-0 z-30 flex items-center justify-end gap-4 px-4`; `paddingBottom: max(env(safe-area-inset-bottom), 24px)`, `paddingTop: 24px`. The home page has **no top header bar** — the NEXUS logo and icon row have been removed.
+- **Direct Messages button**: `bg-black border border-secondary flex items-center justify-center p-3`; `boxShadow: '4px 4px 0px 0px rgba(228,228,231,0.5)'`; `Notebook` from `pixelarticons/react/Notebook` 24×24 `text-primary`; navigates to `/friends`
+- **Squad button**: `bg-purple flex items-center justify-center gap-1 px-5 py-4`; `boxShadow: '4px 4px 0px 0px rgba(168,85,247,0.5)'`; `PlusBox` 16×16 `text-primary` + `"Squad"` Silkscreen 14px primary; opens `HomeActionSheet`
+- Body has `paddingBottom: calc(max(env(safe-area-inset-bottom), 16px) + 72px)` to prevent content being hidden behind the bar.
 
 ### Home Page — HomeActionSheet (+ button)
 The `+` button opens `HomeActionSheet`. Three menu options (no coin gate on any row):
@@ -444,7 +459,7 @@ All "detail" pages (chat, DM, profile, friends, vault) slide in from the right o
 - **`SlidePage`** (`src/components/ui/SlidePage.tsx`) — client component that wraps the page's outermost `motion.div`. Enter: spring `stiffness 380 / damping 36` (~280ms). Exit: ease-in tween `[0.32,0,0.67,0]` 280ms, then fires `router.back()` (or `router.replace(backHref)` when `backHref` is set) after 290ms. Guards against double-fire with `exiting` flag.
   - **`backHref` prop** — optional string; when set, `goBack()` calls `router.replace(backHref)` instead of `router.back()`. Used by the chat page when `?welcome=1` is present, and by `ProfileClient` (always `backHref="/home"`) so back navigation is reliable even when there is no browser history entry (e.g. direct URL load or page refresh). `FriendsClient` does NOT use `backHref` — it uses `router.back()` like other slide pages (DM, member profile), since it is only reachable from `/home`.
 - **`useSlideBack()`** — hook that returns the `goBack` callback from SlidePage context. Use this **instead of `router.back()`** in all back buttons on slide pages. Falls back to no-op if called outside a SlidePage (safe).
-- **Wired in**: `ChatHeader`, `DMHeader` call `useSlideBack()` directly — they are children of a parent SlidePage rendered by the page. `VaultClient` wraps in SlidePage for the entrance animation but has no explicit back button.
+- **Wired in**: `ChatHeader` and `DMOverlayBack` use `useSlideBack()` — they are rendered inside a parent `SlidePage` on their respective pages. `VaultClient` wraps in SlidePage for the entrance animation but has no explicit back button. (`DMHeader` has been removed — DM back navigation is handled by `DMOverlayBack`.)
 - **Context scoping caveat**: `ProfileClient` and `FriendsClient` render their own `<SlidePage>` wrapper and cannot call `useSlideBack()` at the component body level (the hook would fire outside the context they provide). Instead they define a local `BackButton` component that is rendered *inside* `<SlidePage>` and calls `useSlideBack()` there — where the context is reachable.
 - **Back button tap target**: back button `<button>` wrappers use `style={{ width: 24, height: 40 }}` across all screens (matching Figma spec and ChatHeader). The `height: 40` ensures a tall enough touch area on the full `h-10` header row.
 - **Onboarding → chat back navigation**: after any onboarding flow (create crew, join crew, class selection), the final redirect to `/chat/[crewId]` always includes `?welcome=1`. The chat page passes `backHref="/home"` to `SlidePage` when this param is present, so the back button skips the onboarding history and goes directly to home. `WelcomeDetector` strips `?welcome=1` from the URL bar client-side via `window.history.replaceState` without triggering a re-render.
@@ -454,7 +469,7 @@ All "detail" pages (chat, DM, profile, friends, vault) slide in from the right o
 `VaultClient` has **no** `BottomNav`. Users return via swipe-back / browser back — no nav bar needed.
 
 ### Friends Page — `/friends`
-- Opened via the `Bookmark` icon from `pixelarticons/react/Bookmark` in the home header
+- Opened via the `Notebook` icon (`pixelarticons/react/Notebook`) in the home bottom action bar
 - Page title is **"FRIENDS"** (Press Start 2P 18px)
 - Server component fetches accepted friendships + pending (incoming/outgoing) in parallel; resolves profiles for all involved user IDs in one `.in()` query
 - `FriendsClient` manages local state for optimistic mutations (send, accept, decline, remove, cancel)
@@ -472,14 +487,19 @@ All "detail" pages (chat, DM, profile, friends, vault) slide in from the right o
 
 ### Profile Page — `/profile`
 - Route: `src/app/(app)/profile/page.tsx` + `ProfileClient.tsx`
-- **Layout** (matches Figma node 42:425):
-  1. **Profile banner card** (`bg-surface border border-border rounded-[8px] p-4`) — avatar 48×48, "Member Since {year}", username (DM Sans Bold 18px), "N group chats · N msg" (Silkscreen 8px secondary), "Recruited by [name]" (Silkscreen 8px tertiary, below stats when present). Avatar tap opens `AvatarUploadModal`; "Use Google photo" link shown when `customAvatar === true`.
-  2. **AFK EXP row** inside banner card — shown only when dev + `nexus_afk_exp` flag on; "AFK EXP accumulated · 100 / 100 XP" (Silkscreen 8px primary) + full purple `h-1` bar + `CLAIM` button (Press Start 2P 8px, bg-purple); listens to `nexus-afk-exp-change` CustomEvent for live toggle sync
-  3. **Account section** — "Account" label + "Signed in with [email]" (DM Sans 12px, email in primary) + `LOG OUT` button (h-12, border `#ef4444`, Press Start 2P **8px** red text)
-  4. **Username section** — label + input (`bg-surface border border-[#a855f7] h-12 px-3`) + `SAVE` button (bg-purple); inline success/taken/error feedback below
-  5. **Notifications section** — label + `bg-surface border border-[rgba(168,85,247,0.5)]` card with 3 toggle rows (Messages / Raid Alerts / Victory), 40×24px toggle (purple on / `#27272a` off), `divide-y divide-border` separators
-  6. **Dev section** — shown only when `isDev === true`; gold-bordered card with toggles for Spawn Boss Mode, Push Diagnostics, Infinite Coins, Feat: AFK Exp, Announcements management row (expandable inline panel for add/edit/toggle/delete banners), plus User ID / Email copy rows and Local Flags reset
-- `SlidePage` wrapper with `backHref="/home"` (reliable back even without history); `BackButton` defined inside `SlidePage` to satisfy `useSlideBack()` context scoping
+- **Layout** (matches Figma node 42:133):
+  1. **Hero section** (240px tall, `relative flex-shrink-0 w-full bg-black overflow-hidden`) — full-bleed, designed to eventually support a background image. Content anchored to bottom (`absolute inset-0 flex flex-col justify-end gap-2 p-4`):
+     - Avatar 56×56 — tap opens `AvatarUploadModal`; "Use Google photo" link shown when `customAvatar === true`
+     - Name: DM Sans Bold `fontSize: 20` `text-primary`
+     - Stats: Silkscreen `var(--text-mini)` (8px) `text-secondary` — `"{N} group chats · {N} msg"` + "Recruited by [name]" (tertiary) below when present
+     - **AFK EXP row** (dev + `nexus_afk_exp` flag only): Silkscreen 8px primary + full purple `h-1` bar + `CLAIM` button (Press Start 2P `fontSize: 11` bg-purple); listens to `nexus-afk-exp-change` CustomEvent
+     - Gradient overlay (`absolute inset-0 pointer-events-none`): 86px tall, `linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.25) 46.158%, rgba(0,0,0,0) 100%)`, at top of hero
+     - Floating back button box (`absolute z-20`, `top: 16, left: 16`): `bg-surface border border-purple p-2`; `boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.8)'`; `ChevronLeft` 24×24 tertiary
+  2. **Display Name section** (was "Username") — label + input (`bg-surface border border-[#a855f7] h-12 px-3`) + `SAVE` button (`background: rgba(168,85,247,0.12)`, `borderColor: rgba(168,85,247,0.5)`, Silkscreen `var(--text-xs)` `text-muted`); inline success/taken/error feedback below
+  3. **Notifications section** — label + `bg-surface border border-[rgba(168,85,247,0.5)]` card with 3 toggle rows (Messages / Raid Alerts / Victory), 40×24px toggle (purple on / `#27272a` off), `divide-y divide-border` separators
+  4. **Account section** — "Account" label + "Signed in with [email]" (DM Sans 12px, email in primary) + `LOG OUT` button (h-12, border `#ef4444`, Press Start 2P **8px** red text)
+  5. **Dev section** — shown only when `isDev === true`; gold-bordered card with toggles for Spawn Boss Mode, Push Diagnostics, Infinite Coins, Feat: AFK Exp, Announcements management row (expandable inline panel for add/edit/toggle/delete banners), plus User ID / Email copy rows and Local Flags reset
+- `SlidePage` wrapper with `backHref="/home"` + `style={{ paddingTop: 'env(safe-area-inset-top)' }}` (pushes hero below the native status bar); `BackButton` defined inside `SlidePage` to satisfy `useSlideBack()` context scoping; back button `style={{ width: 24, height: 24 }}` (sits inside the hero overlay, not a standard `h-10` header row)
 
 ### Member Profile Page — `/chat/[crewId]/member/[userId]`
 - Route: `src/app/(app)/chat/[crewId]/member/[userId]/page.tsx` + `MemberProfileClient.tsx`
@@ -501,11 +521,11 @@ All "detail" pages (chat, DM, profile, friends, vault) slide in from the right o
 - Server component: verifies accepted friendship, calls `get_or_create_dm(friendId)` RPC to get/create the DM crew, then renders the full chat UI
 - Security: friendship check runs before the RPC — unauthenticated or non-friend access redirects to `/home`
 - `get_or_create_dm` is idempotent — safe to call on every page load; returns the existing crew id if one already exists
-- **Header**: `DMHeader` component (`src/components/chat/DMHeader.tsx`) — shows `ChevronLeft` from pixelarticons back button (24px, `var(--color-tertiary)`), friend 32×32px avatar, friend username (Press Start 2P 14px, `underline`), `"1:1 CHAT"` label (Silkscreen 8px muted). Boss countdown bar renders below if a raid is active and `nexus_dev_mode` is on (same style as ChatHeader).
-- **Chat UI**: reuses `MessageList` + `ChatInput` directly — same realtime, XP, boss raid, and artifact pipeline as group chats
-- `DMHeader` updates `crew_members.last_seen` every 60s (same as `ChatHeader`) for unread cursor accuracy
+- **Header**: No `DMHeader` component. The DM page uses `DMOverlayBack` (`src/components/chat/DMOverlayBack.tsx`) — a floating back button + friend avatar box overlaid on the message list (`absolute z-20 pointer-events-none`). Positioned `top: calc(env(safe-area-inset-top, 0px) + 16px), left: 16px`. Contains: 24×24 `ChevronLeft` back button (`useSlideBack()`) + 24×24 friend avatar (or initial letter fallback). Box style: `bg-surface border border-purple p-2 gap-2`; `boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.8)'`.
+- **`DMOverlayBack` responsibilities**: initializes `setCrewXP` + `setActiveRaid` in chatStore on mount; updates `crew_members.last_seen` every 60s for unread cursor accuracy. There is no separate `DMHeader` component.
+- **Chat UI**: reuses `MessageList` + `ChatInput` (with `isDM={true}`) directly — same realtime, XP, boss raid, and artifact pipeline as group chats
 - No class selection redirect — DM crew members are auto-assigned `berserker` at channel creation
-- No invite button, no vault link, no notification settings in the DM header (simplified)
+- No invite button, no vault link, no notification settings in the DM overlay (simplified)
 
 ### PWA / Push Architecture
 - **Service worker**: `public/sw-push.js` — handwritten, zero dependencies, committed to git
@@ -619,7 +639,7 @@ Always use `createServiceClient()` inside cache functions (service role, no cook
 | `nexus_notif_state` | `granted\|denied\|pending` | cached permission state |
 | `nexus_dev_mode` | `'1'` | enables game event UI (boss bars, XP stats, system messages) — only meaningful when `profiles.is_dev = true` |
 | `nexus_push_diag` | `'1'` | shows push diagnostics block in dev section (CHECK / SYNC SUB / SEND TEST) |
-| `nexus_infinite_coins` | `'1'` | bypasses coin gate for invite forging; shows `∞` in home header and InviteArsenal; dev-only |
+| `nexus_infinite_coins` | `'1'` | bypasses coin gate for invite forging; shows `∞` in home ProfileBanner and InviteArsenal; dev-only |
 | `nexus_afk_exp` | `'1'` | shows AFK XP accumulated bar + CLAIM button in home ProfileBanner; dev-only feature flag; dispatches `nexus-afk-exp-change` CustomEvent |
 | `nexus_dismissed_banners` | JSON array of IDs | announcement banner IDs dismissed by the user; filtered out in `AnnouncementBanner` on mount |
 
@@ -820,10 +840,10 @@ Note: next/font variable for Silkscreen is `--font-silk` (not `--font-silkscreen
   | ChatInput — crew creator badge | `Crown` | `pixelarticons/react/Crown` | `var(--text-xs)` (12px), `color: #f59e0b` (amber) |
   | ChatInput — invite code copy button | `Copy` | `pixelarticons/react/Copy` | 12×12, white |
   | ChatHeader — invite sheet copy button | `Copy` / `Check` | `pixelarticons/react/Copy`, `Check` | 12×12, white |
-  | Home header — friends | `AvatarSquare` | `pixelarticons/react/AvatarSquare` | 24×24 |
-  | Home header — add | `PlusBox` | `pixelarticons/react/PlusBox` | 24×24 |
-  | Home profile banner — edit | `MagicEdit` | `pixelarticons/react/MagicEdit` | 16×16 |
-  | Home header — coin badge | `TokeCircle` | `pixelarticons/react/TokeCircle` | **24×16** (amber pill badge) |
+  | Home bottom bar — Direct Messages | `Notebook` | `pixelarticons/react/Notebook` | 24×24, `color: var(--color-primary)` |
+  | Home bottom bar — Squad button | `PlusBox` | `pixelarticons/react/PlusBox` | 16×16, `color: var(--color-primary)` |
+  | Home ProfileBanner — edit | `MagicEdit` | `pixelarticons/react/MagicEdit` | 16×16 |
+  | Home ProfileBanner — coin badge | `TokeCircle` | `pixelarticons/react/TokeCircle` | **24×16** (amber pill badge) |
   | InviteArsenal — coins | `Coins` | `pixelarticons/react/Coins` | 16px |
   | Home — crew card leave (swipe-reveal) | `Logout` | `pixelarticons/react/Logout` | 16×16, white |
   | Friends — back chevron | `ChevronLeft` | `pixelarticons/react/ChevronLeft` | 24×24, `color: var(--color-tertiary)` |
@@ -832,7 +852,7 @@ Note: next/font variable for Silkscreen is `--font-silk` (not `--font-silkscreen
   | Friends — accept request | `Check` | `pixelarticons/react/Check` | 16×16, `color: #22c55e` |
   | Friends — decline request | `Close` | `pixelarticons/react/Close` | 12×12, `color: #ef4444` |
   | Friends — remove friend | `UserMinus` | `pixelarticons/react/UserMinus` | 16×16 |
-  | DMHeader — back chevron | `ChevronLeft` | `pixelarticons/react/ChevronLeft` | 24×24, `color: var(--color-tertiary)` |
+  | DMOverlayBack — back chevron | `ChevronLeft` | `pixelarticons/react/ChevronLeft` | 24×24, `color: var(--color-tertiary)` |
   | Profile — back chevron | `ChevronLeft` | `pixelarticons/react/ChevronLeft` | 24×24, `color: var(--color-tertiary)` |
 - **Do not use lucide-react** for chat or home UI icons — lucide-react is only used for `X` (close) in modals/sheets
 
