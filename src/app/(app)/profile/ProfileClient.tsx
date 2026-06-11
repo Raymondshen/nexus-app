@@ -7,6 +7,7 @@ import { SlidePage, useSlideBack } from '@/components/ui/SlidePage'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
 import { MagicEdit } from 'pixelarticons/react/MagicEdit'
+import { Bell } from 'pixelarticons/react/Bell'
 import Image from 'next/image'
 import { isSupabaseStorage, resolveAvatarUrl } from '@/components/ui/Avatar'
 import { createClient } from '@/lib/supabase/client'
@@ -417,6 +418,128 @@ function EditProfileSheet({
   )
 }
 
+// ─── Profile notification sheet ──────────────────────────────────────────────
+
+function ProfileNotifSheet({
+  notifSupported, notifPermission, enablingNotif, subError,
+  prefs, savingPref, prefsLoading,
+  onEnableNotifications, onTogglePref, onClose,
+}: {
+  notifSupported:        boolean
+  notifPermission:       PermissionState
+  enablingNotif:         boolean
+  subError:              boolean
+  prefs:                 NotifPrefs
+  savingPref:            keyof NotifPrefs | null
+  prefsLoading:          boolean
+  onEnableNotifications: () => void
+  onTogglePref:          (k: keyof NotifPrefs) => void
+  onClose:               () => void
+}) {
+  const rows = [
+    { key: 'notif_messages' as const, label: 'Messages',    sub: 'Notify me with new messages from this chat' },
+    { key: 'notif_raids'    as const, label: 'Raid Alerts', sub: 'Notify me when boss spawns and expires' },
+    { key: 'notif_victory'  as const, label: 'Victory',     sub: 'Notify me when boss defeated & artifact drops' },
+  ]
+
+  return (
+    <>
+      <motion.div
+        className="fixed inset-0 z-[48] bg-black/60"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+      />
+      <motion.div
+        className="fixed bottom-0 left-0 right-0 z-[50] max-w-[480px] mx-auto"
+        initial={{ y: '100%' }}
+        animate={{ y: 0 }}
+        exit={{ y: '100%' }}
+        transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+      >
+        <div
+          className="bg-surface border-t overflow-hidden flex flex-col gap-6"
+          style={{
+            borderColor: 'var(--color-border-hover)',
+            padding: 'var(--space-7) var(--space-5)',
+            paddingBottom: 'max(env(safe-area-inset-bottom), var(--space-5))',
+          }}
+        >
+          {/* Header */}
+          <div className="flex flex-col gap-2">
+            <p className="font-pixel text-[8px] text-tertiary leading-none">NOTIFICATIONS</p>
+            <div className="flex flex-col gap-1">
+              <p className="font-body font-bold text-primary leading-none" style={{ fontSize: 'var(--text-lg)', fontVariationSettings: '"opsz" 14' }}>
+                Notifications
+              </p>
+              <p className="font-body font-normal text-secondary leading-normal" style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}>
+                Control what pulls you back into the chat.
+              </p>
+            </div>
+          </div>
+
+          {/* Content */}
+          {!notifSupported ? (
+            <p className="font-pixel text-[8px] text-muted leading-relaxed">NOT SUPPORTED ON THIS DEVICE</p>
+          ) : notifPermission === 'denied' ? (
+            <div className="flex flex-col gap-2">
+              <p className="font-pixel text-[8px] text-[#ef4444]">BLOCKED BY BROWSER</p>
+              <p className="font-pixel text-[7px] text-muted leading-relaxed">
+                ENABLE IN YOUR BROWSER SETTINGS TO RECEIVE NOTIFICATIONS
+              </p>
+            </div>
+          ) : notifPermission !== 'granted' ? (
+            <div className="flex flex-col gap-3">
+              <p className="font-body font-normal text-tertiary leading-normal" style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}>
+                Get notified for messages, boss spawns, and victories
+              </p>
+              <button
+                onClick={onEnableNotifications}
+                disabled={enablingNotif}
+                className="w-full h-10 font-pixel text-[8px] text-purple border border-[rgba(168,85,247,0.5)] hover:border-purple transition-colors disabled:opacity-50"
+              >
+                {enablingNotif ? '...' : subError ? '↺ RETRY' : 'ENABLE NOTIFICATIONS'}
+              </button>
+              {subError && (
+                <p className="font-pixel text-[7px] text-[#f59e0b] leading-relaxed">
+                  SUBSCRIPTION FAILED — ADD APP TO HOME SCREEN, THEN RETRY
+                </p>
+              )}
+            </div>
+          ) : (
+            <div
+              className="flex flex-col gap-4 py-4 border overflow-hidden"
+              style={{ borderColor: 'rgba(168,85,247,0.5)', opacity: prefsLoading ? 0.5 : 1, pointerEvents: prefsLoading ? 'none' : 'auto' }}
+            >
+              {rows.map(({ key, label, sub }, i) => (
+                <NotifRow
+                  key={key}
+                  prefKey={key}
+                  label={label}
+                  sub={sub}
+                  prefs={prefs}
+                  savingPref={savingPref}
+                  onToggle={onTogglePref}
+                  showDivider={i < rows.length - 1}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Close */}
+          <button
+            onClick={onClose}
+            className="w-full h-[var(--space-13)] flex items-center justify-center font-silkscreen text-[16px] text-muted leading-none overflow-hidden transition-colors active:text-tertiary"
+          >
+            Close
+          </button>
+        </div>
+      </motion.div>
+    </>
+  )
+}
+
 // ─── BackButton (inside SlidePage context) ────────────────────────────────────
 
 function BackButton() {
@@ -468,6 +591,7 @@ export function ProfileClient({
   const [localStatus,     setLocalStatus]     = useState(initialStatus ?? '')
 
   // ── Notifications ─────────────────────────────────────────────────────────
+  const [showNotifSheet,  setShowNotifSheet]  = useState(false)
   const [notifSupported,  setNotifSupported]  = useState(false)
   const [notifPermission, setNotifPermission] = useState<PermissionState>('unsupported')
   const [enablingNotif,   setEnablingNotif]   = useState(false)
@@ -550,11 +674,6 @@ export function ProfileClient({
 
   const initial      = localUsername[0]?.toUpperCase() ?? '?'
   const msgFormatted = totalMessages.toLocaleString()
-  const notifRows    = [
-    { key: 'notif_messages' as const, label: 'Messages',    sub: 'Notify me with new messages from this chat' },
-    { key: 'notif_raids'    as const, label: 'Raid Alerts', sub: 'Notify me when boss spawns and expires' },
-    { key: 'notif_victory'  as const, label: 'Victory',     sub: 'Notify me when boss defeated & artifact drops' },
-  ]
 
   return (
     <SlidePage
@@ -704,75 +823,46 @@ export function ProfileClient({
       {/* ── Scrollable body ─────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto flex flex-col gap-[var(--space-7)] nexus-scroll" style={{ padding: 'var(--space-5)' }}>
 
-        {/* Edit Profile card */}
-        <button
-          onClick={() => setShowEditSheet(true)}
-          disabled={isGuest}
-          className="w-full bg-surface border flex gap-3 items-center px-[var(--space-5)] py-3 text-left disabled:opacity-50"
-          style={{ borderColor: 'var(--color-border-hover)' }}
-        >
-          <MagicEdit style={{ width: 16, height: 16, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
-          <div className="flex-1 min-w-0 flex flex-col gap-0 leading-[0] tracking-[0.2px]">
-            <p className="font-body font-semibold text-secondary leading-normal" style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}>
-              Edit Profile
-            </p>
-            <p className="font-body font-normal text-tertiary leading-normal" style={{ fontSize: 'var(--text-xxs)', fontVariationSettings: '"opsz" 14' }}>
-              Manage your profile.
-            </p>
-          </div>
-          <ChevronRight style={{ width: 16, height: 16, color: 'var(--color-tertiary)', flexShrink: 0 }} aria-hidden="true" />
-        </button>
+        {/* Menu rows: Edit Profile + Notification */}
+        <div className="flex flex-col gap-4">
 
-        {/* Notifications */}
-        <div className="flex flex-col gap-[var(--space-3)]">
-          <SectionLabel>Notifications</SectionLabel>
-          <div className="bg-surface border overflow-hidden" style={{ borderColor: 'var(--color-border-hover)' }}>
-            {!notifSupported ? (
-              <div className="px-4 py-4">
-                <p className="font-pixel text-[8px] text-muted leading-relaxed">NOT SUPPORTED ON THIS DEVICE</p>
-              </div>
-            ) : notifPermission === 'denied' ? (
-              <div className="px-4 py-4 flex flex-col gap-2">
-                <p className="font-pixel text-[8px] text-[#ef4444]">BLOCKED BY BROWSER</p>
-                <p className="font-pixel text-[7px] text-muted leading-relaxed">
-                  ENABLE IN YOUR BROWSER SETTINGS TO RECEIVE NOTIFICATIONS
-                </p>
-              </div>
-            ) : notifPermission !== 'granted' ? (
-              <div className="px-4 py-4 flex flex-col gap-3">
-                <p className="font-body font-normal text-tertiary leading-normal" style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}>
-                  Get notified for messages, boss spawns, and victories
-                </p>
-                <button
-                  onClick={handleEnableNotifications}
-                  disabled={enablingNotif}
-                  className="w-full h-10 font-pixel text-[8px] text-purple border border-[rgba(168,85,247,0.5)] hover:border-purple transition-colors disabled:opacity-50"
-                >
-                  {enablingNotif ? '...' : subError ? '↺ RETRY' : 'ENABLE NOTIFICATIONS'}
-                </button>
-                {subError && (
-                  <p className="font-pixel text-[7px] text-[#f59e0b] leading-relaxed">
-                    SUBSCRIPTION FAILED — ADD APP TO HOME SCREEN, THEN RETRY
-                  </p>
-                )}
-              </div>
-            ) : (
-              <div className={`flex flex-col gap-3 py-3${prefsLoading ? ' opacity-50 pointer-events-none' : ''}`}>
-                {notifRows.map(({ key, label, sub }, i) => (
-                  <NotifRow
-                    key={key}
-                    prefKey={key}
-                    label={label}
-                    sub={sub}
-                    prefs={prefs}
-                    savingPref={savingPref}
-                    onToggle={handleTogglePref}
-                    showDivider={i < notifRows.length - 1}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
+          {/* Edit Profile */}
+          <button
+            onClick={() => setShowEditSheet(true)}
+            disabled={isGuest}
+            className="w-full bg-surface border flex gap-3 items-center px-[var(--space-5)] py-3 text-left disabled:opacity-50"
+            style={{ borderColor: 'var(--color-border-hover)' }}
+          >
+            <MagicEdit style={{ width: 16, height: 16, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
+            <div className="flex-1 min-w-0 flex flex-col gap-0 leading-[0] tracking-[0.2px]">
+              <p className="font-body font-semibold text-secondary leading-normal" style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}>
+                Edit Profile
+              </p>
+              <p className="font-body font-normal text-tertiary leading-normal" style={{ fontSize: 'var(--text-xxs)', fontVariationSettings: '"opsz" 14' }}>
+                Manage your profile.
+              </p>
+            </div>
+            <ChevronRight style={{ width: 16, height: 16, color: 'var(--color-tertiary)', flexShrink: 0 }} aria-hidden="true" />
+          </button>
+
+          {/* Notification */}
+          <button
+            onClick={() => setShowNotifSheet(true)}
+            className="w-full bg-surface border flex gap-3 items-center px-[var(--space-5)] py-3 text-left"
+            style={{ borderColor: 'var(--color-border-hover)' }}
+          >
+            <Bell style={{ width: 16, height: 16, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
+            <div className="flex-1 min-w-0 flex flex-col gap-0 leading-[0] tracking-[0.2px]">
+              <p className="font-body font-semibold text-secondary leading-normal" style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}>
+                Notification
+              </p>
+              <p className="font-body font-normal text-tertiary leading-normal" style={{ fontSize: 'var(--text-xxs)', fontVariationSettings: '"opsz" 14' }}>
+                Control what pulls you back into the chat.
+              </p>
+            </div>
+            <ChevronRight style={{ width: 16, height: 16, color: 'var(--color-tertiary)', flexShrink: 0 }} aria-hidden="true" />
+          </button>
+
         </div>
 
         {/* Account */}
@@ -823,6 +913,24 @@ export function ProfileClient({
         groupChats={groupChats}
         totalMessages={totalMessages}
       />
+
+      {/* Notification bottom sheet */}
+      <AnimatePresence>
+        {showNotifSheet && (
+          <ProfileNotifSheet
+            notifSupported={notifSupported}
+            notifPermission={notifPermission}
+            enablingNotif={enablingNotif}
+            subError={subError}
+            prefs={prefs}
+            savingPref={savingPref}
+            prefsLoading={prefsLoading}
+            onEnableNotifications={handleEnableNotifications}
+            onTogglePref={handleTogglePref}
+            onClose={() => setShowNotifSheet(false)}
+          />
+        )}
+      </AnimatePresence>
     </SlidePage>
   )
 }
