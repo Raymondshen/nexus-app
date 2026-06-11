@@ -489,8 +489,9 @@ All "detail" pages (chat, DM, profile, friends, vault) slide in from the right o
 - UI label: **"Account"** — page is called "Account" in all user-facing text; route stays `/profile`
 - Route: `src/app/(app)/profile/page.tsx` + `ProfileClient.tsx`
 - **Layout** (matches Figma nodes 42:133 + 101:1313):
-  1. **Hero section** (280px, `relative flex-shrink-0 w-full bg-black overflow-hidden`) — full-bleed, designed to eventually support a background image. Two gradient layers:
-     - Full-height layer (`absolute inset-0`): `linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.5) 48.668%, rgba(0,0,0,0.8) 82.216%, rgb(0,0,0) 100%)` — transparent top → black bottom, for future bg image support
+  1. **Hero section** (280px, `relative flex-shrink-0 w-full bg-black overflow-hidden`) — full-bleed background image + gradient overlay. Three layers (bottom to top):
+     - **Background image**: plain `<img src="/img/default_image.png">` with inline `position:absolute; inset:0; width:100%; height:100%; objectFit:cover; pointerEvents:none` — **must use plain `<img>`, not `next/image`**; `next/image` with `fill` fails to render in iOS PWA standalone mode (same issue as pixel sprites)
+     - Full-height gradient (`absolute inset-0`): `linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.5) 48.668%, rgba(0,0,0,0.8) 82.216%, rgb(0,0,0) 100%)` — transparent top → black bottom
      - 86px top layer: `linear-gradient(to bottom, rgba(0,0,0,0.8) → rgba(0,0,0,0))` — back button readability
      - Content anchored to bottom (`absolute inset-0 flex flex-col justify-end gap-[var(--space-5)] p-[var(--space-5)]`):
        - Avatar 56×56 — tap opens `AvatarUploadModal`; "Use Google photo" link shown when `customAvatar === true`
@@ -505,7 +506,7 @@ All "detail" pages (chat, DM, profile, friends, vault) slide in from the right o
 - **EditProfileSheet** (Figma node 101:1313) — bottom sheet slides up with spring 320/32:
   - Container: `bg-black border-t border-[var(--color-border-hover)] flex flex-col gap-[var(--space-7)] px-[var(--space-5)] pt-[var(--space-7)]`; safe-area-aware padding-bottom
   - Title: "Account Details" DM Sans Bold `var(--text-lg)` (18px) text-primary
-  - Mini profile hero (180px): same gradient layers over black; shows live preview of avatar + name (updates as user types) + stats + status quote
+  - Mini profile hero (180px): same plain `<img>` background + gradient layers; shows live preview of avatar + name (updates as user types) + stats + status quote
   - **Display Name** field: label `var(--text-sm)` DM Sans Medium primary + `bg-black border border-[var(--color-border-hover)] h-[48px] px-3` input (DM Sans Regular 14px text-primary); edits `profiles.username`
   - **Status** field: same input style; edits `profiles.status` (nullable text ≤ 100 chars); placeholder "Whats the mood today..."
   - "Save Changes" button: `bg-purple h-[48px]` Silkscreen `var(--text-sm)` (14px) text-primary
@@ -785,6 +786,7 @@ create policy "friendships: either party can delete"
 - **Thumbnail resolution**: call `resolveAvatarUrl(url, displaySize)` on every avatar `src`. For display sizes ≤ 64 CSS px it swaps `-256.ext` → `-128.ext`, halving transfer bytes for all chat/card avatar slots. URLs that don't match the pattern (legacy single-file, Google OAuth) pass through unchanged.
 - **Exception**: pixel art sprites in `PixelSprite.tsx` use plain `<img>` with `imageRendering: pixelated` — next/image interferes with pixel-perfect rendering on iOS PWA
 - **Exception**: `AvatarUploadModal` crop target uses plain `<img>` — `next/image` interferes with `react-image-crop`'s overlay positioning
+- **Exception**: hero background images (`/img/default_image.png`) in `ProfileClient.tsx` use plain `<img>` with inline CSS — `next/image` with `fill` silently fails to render in iOS PWA standalone mode even with `unoptimized`; use `position:absolute; inset:0; width:100%; height:100%; objectFit:cover` instead
 - Profile pictures from `profiles.avatar_url` (synced on every Google login); fall back to initials; use `Avatar.tsx` everywhere
 - Chat images: `chat-images` bucket, path `{crewId}/{userId}/{timestamp}.webp`
 
