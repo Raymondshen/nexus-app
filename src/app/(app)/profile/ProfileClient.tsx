@@ -136,6 +136,7 @@ function EditProfileSheet({
   isOpen,
   onClose,
   onSave,
+  onUploadPhoto,
   initialDisplayName,
   initialStatus,
   avatarUrl,
@@ -146,6 +147,7 @@ function EditProfileSheet({
   isOpen:             boolean
   onClose:            () => void
   onSave:             (displayName: string, status: string) => void
+  onUploadPhoto:      () => void
   initialDisplayName: string
   initialStatus:      string
   avatarUrl:          string | null
@@ -271,6 +273,48 @@ function EditProfileSheet({
                 </p>
               </div>
 
+              {/* Editable fields */}
+              <div className="flex flex-col gap-[var(--space-5)]">
+
+              {/* Profile Picture */}
+              <div className="flex flex-col gap-2">
+                <p
+                  className="font-body font-medium text-primary tracking-[0.2px] leading-normal"
+                  style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
+                >
+                  Profile Picture
+                </p>
+                <div className="flex items-center gap-[var(--space-5)]">
+                  <div className="relative flex-shrink-0 w-12 h-12 overflow-hidden">
+                    {avatarUrl ? (
+                      <Image
+                        src={resolveAvatarUrl(avatarUrl, 48)}
+                        alt={initialDisplayName}
+                        fill
+                        sizes="48px"
+                        className="object-cover"
+                        unoptimized={isSupabaseStorage(avatarUrl)}
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-purple flex items-center justify-center">
+                        <span className="font-pixel text-[12px] text-white">{initialDisplayName[0]?.toUpperCase() ?? '?'}</span>
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    onClick={onUploadPhoto}
+                    className="flex-1 h-[var(--space-13)] border border-purple flex items-center justify-center overflow-hidden transition-opacity active:opacity-70"
+                  >
+                    <span
+                      className="font-silkscreen leading-none whitespace-nowrap text-purple"
+                      style={{ fontSize: 'var(--text-sm)' }}
+                    >
+                      upload photo
+                    </span>
+                  </button>
+                </div>
+              </div>
+
               {/* Display Name input */}
               <div className="flex flex-col gap-[var(--space-3)] w-full">
                 <p className="font-body font-medium text-primary tracking-[0.2px] leading-normal" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}>
@@ -311,6 +355,8 @@ function EditProfileSheet({
                   />
                 </div>
               </div>
+
+              </div>{/* end editable fields */}
 
               {/* Save error */}
               {saveError && (
@@ -752,6 +798,7 @@ export function ProfileClient({
           setLocalStatus(status)
           revalidateProfileAction()
         }}
+        onUploadPhoto={() => fileInputRef.current?.click()}
         initialDisplayName={localUsername}
         initialStatus={localStatus}
         avatarUrl={localAvatarUrl}
