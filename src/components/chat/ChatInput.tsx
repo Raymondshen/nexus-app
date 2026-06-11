@@ -20,6 +20,8 @@ import { Crown } from 'pixelarticons/react/Crown'
 import { Copy } from 'pixelarticons/react/Copy'
 import { Check } from 'pixelarticons/react/Check'
 import { UserMinus } from 'pixelarticons/react/UserMinus'
+import { Bell } from 'pixelarticons/react/Bell'
+import { UserPlus } from 'pixelarticons/react/UserPlus'
 import { kickMemberAction, renameCrewAction } from '@/app/(app)/chat/actions'
 import { CrewImageUploadModal } from '@/components/chat/CrewImageUploadModal'
 import { MagicEdit } from 'pixelarticons/react/MagicEdit'
@@ -51,6 +53,8 @@ interface ChatInputProps {
   initialXP?:     number
   initialRaid?:   ActiveRaid | null
   currentUserId?: string
+  onNotifPress?:  () => void
+  onSharePress?:  () => void
 }
 
 function sanitizeMessage(raw: string): string {
@@ -69,7 +73,7 @@ function MemberListRow({
 
   return (
     <div
-      className="flex items-center gap-3 py-4 border-b border-border last:border-0 active:bg-surface/50 transition-colors"
+      className="flex items-center gap-3 active:bg-surface/50 transition-colors"
       onClick={onTap}
       style={onTap ? { cursor: 'pointer' } : undefined}
     >
@@ -103,7 +107,7 @@ function MemberListRow({
         <div className="flex items-center gap-1">
           <p className="font-body font-bold text-[16px] text-white truncate leading-none">{profile.username}</p>
           {isCreator && (
-            <Crown style={{ width: 'var(--text-xs)', height: 'var(--text-xs)', color: '#f59e0b' }} aria-hidden="true" />
+            <Crown style={{ width: 16, height: 16, color: '#f59e0b' }} aria-hidden="true" />
           )}
         </div>
         <p className="font-silkscreen text-[8px] text-secondary leading-none">
@@ -125,7 +129,7 @@ function MemberListRow({
   )
 }
 
-export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewName, inviteCode, creatorId, crewImageUrl: initialCrewImageUrl, initialXP, initialRaid }: ChatInputProps) {
+export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewName, inviteCode, creatorId, crewImageUrl: initialCrewImageUrl, initialXP, initialRaid, onNotifPress, onSharePress }: ChatInputProps) {
   const router = useRouter()
   const [text,           setText]          = useState('')
   const [sending,        setSending]        = useState(false)
@@ -798,7 +802,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                       />
                       <button
                         onClick={userId === creatorId ? () => crewImageInputRef.current?.click() : undefined}
-                        className="relative flex-shrink-0 w-14 h-14 overflow-hidden bg-surface"
+                        className="relative flex-shrink-0 w-8 h-8 overflow-hidden"
                         style={userId !== creatorId ? { cursor: 'default' } : undefined}
                         aria-label={userId === creatorId ? 'Change crew photo' : undefined}
                       >
@@ -808,26 +812,18 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                               src={crewImageUrl}
                               alt={liveCrewName}
                               fill
-                              sizes="56px"
+                              sizes="32px"
                               className="object-cover"
                               unoptimized={isSupabaseStorage(crewImageUrl)}
                             />
                           </div>
                         ) : (
-                          <div
-                            className="w-full h-full flex items-center justify-center font-pixel text-[14px]"
-                            style={{
-                              background: CREW_AVATAR_COLORS[liveCrewName.charCodeAt(0) % CREW_AVATAR_COLORS.length] + '22',
-                              color:      CREW_AVATAR_COLORS[liveCrewName.charCodeAt(0) % CREW_AVATAR_COLORS.length],
-                            }}
-                          >
-                            {liveCrewName[0]?.toUpperCase()}
-                          </div>
+                          <div className="w-full h-full bg-purple" />
                         )}
                         {userId === creatorId && (
-                          <div className="absolute inset-0 flex items-end justify-end p-1 pointer-events-none">
-                            <div className="bg-black/60 rounded-sm p-[2px]">
-                              <MagicEdit style={{ width: 10, height: 10, color: 'var(--color-tertiary)' }} aria-hidden="true" />
+                          <div className="absolute inset-0 flex items-end justify-end p-[2px] pointer-events-none">
+                            <div className="bg-black/60 rounded-sm p-[1px]">
+                              <MagicEdit style={{ width: 8, height: 8, color: 'var(--color-tertiary)' }} aria-hidden="true" />
                             </div>
                           </div>
                         )}
@@ -845,12 +841,12 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                             }}
                             onBlur={confirmRename}
                             maxLength={30}
-                            className="font-pixel text-[18px] text-primary bg-transparent border-b border-purple focus:outline-none leading-none w-full py-1 uppercase"
+                            className="font-silkscreen text-[18px] text-purple bg-transparent border-b border-purple focus:outline-none leading-none w-full py-1 uppercase"
                             aria-label="Edit squad name"
                           />
                         ) : (
                           <div className="flex items-center gap-2">
-                            <p className="font-pixel text-[18px] text-primary leading-none truncate">
+                            <p className="font-silkscreen text-[18px] text-purple leading-none truncate">
                               {liveCrewName.toUpperCase()}
                             </p>
                             {userId === creatorId && (
@@ -865,24 +861,42 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                             )}
                           </div>
                         )}
-                        {!loadingCounts && (
-                          <p className="font-silkscreen text-[8px] text-secondary leading-none">
-                            {memberCount} {memberCount === 1 ? 'member' : 'members'} · {totalMessages.toLocaleString()} total messages
-                          </p>
-                        )}
+                        <p className="font-silkscreen text-[8px] text-tertiary leading-none">
+                          {memberCount} {memberCount === 1 ? 'member' : 'members'}
+                        </p>
                       </div>
                     </div>
-                    <button
-                      onClick={() => setIsExpanded(false)}
-                      style={{ width: 24, height: 24 }}
-                      className="flex-shrink-0 flex items-center justify-center"
-                      aria-label="Collapse"
-                    >
-                      <ChevronRight
-                        style={{ width: 24, height: 24, color: 'var(--color-tertiary)', transform: 'rotate(90deg)' }}
-                        aria-hidden="true"
-                      />
-                    </button>
+                    <div className="flex items-center gap-4 flex-shrink-0">
+                      <button
+                        onClick={onNotifPress}
+                        className="flex items-center justify-center"
+                        style={{ width: 24, height: 24 }}
+                        aria-label="Notification settings"
+                      >
+                        <Bell style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+                      </button>
+                      {inviteCode && (
+                        <button
+                          onClick={onSharePress}
+                          className="flex items-center justify-center"
+                          style={{ width: 24, height: 24 }}
+                          aria-label="Invite"
+                        >
+                          <UserPlus style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setIsExpanded(false)}
+                        className="flex items-center justify-center"
+                        style={{ width: 24, height: 24 }}
+                        aria-label="Collapse"
+                      >
+                        <ChevronRight
+                          style={{ width: 24, height: 24, color: 'var(--color-tertiary)', transform: 'rotate(90deg)' }}
+                          aria-hidden="true"
+                        />
+                      </button>
+                    </div>
                   </div>
 
                   {/* Avatar list + XP bar */}
@@ -914,10 +928,15 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                     <div className="h-6 flex flex-col gap-2 items-center justify-center w-full">
                       <div className="flex items-center gap-2 w-full font-silkscreen text-tertiary">
                         <p className="flex-1 min-w-0 leading-[0] text-[0px]">
-                          <span className="text-[8px] leading-none text-purple">Level {crewLevel}</span>
-                          <span className="text-[8px] leading-none">
+                          <span className="text-[8px] leading-none text-[#fafafa]">Level {crewLevel}</span>
+                          <span className="text-[8px] leading-none text-tertiary">
                             {` · ${crewXP % XP_PER_LEVEL} / ${XP_PER_LEVEL}XP`}
                           </span>
+                          {totalMessages > 0 && (
+                            <span className="text-[8px] leading-none text-tertiary">
+                              {` · ${totalMessages.toLocaleString()} total msg.`}
+                            </span>
+                          )}
                         </p>
                         <p className="text-[8px] leading-none whitespace-nowrap text-tertiary">Next Boss</p>
                       </div>
@@ -971,26 +990,31 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
               </div>
 
               {/* ── Scrollable member list ── */}
-              <div ref={memberListRef} className="flex-1 overflow-y-auto nexus-scroll px-4 min-h-0">
-                <div className="flex flex-col">
-                  {members.map((m) => (
-                    <MemberListRow
-                      key={m.id}
-                      profile={m}
-                      msgCount={memberMsgCounts.get(m.id) ?? 0}
-                      loading={loadingCounts}
-                      isOnline={onlineUserIds.has(m.id)}
-                      isCreator={m.id === creatorId}
-                      onTap={() => {
-                        setIsExpanded(false)
-                        router.push(`/chat/${crewId}/member/${m.id}`)
-                      }}
-                      onRemove={userId === creatorId && m.id !== userId && !!inviteCode
-                        ? () => setRemoveTarget(m)
-                        : undefined
-                      }
-                    />
-                  ))}
+              <div ref={memberListRef} className="flex-1 overflow-y-auto nexus-scroll px-4 min-h-0 mt-4">
+                <div className="flex flex-col gap-6">
+                  {members.flatMap((m, i) => {
+                    const row = (
+                      <MemberListRow
+                        key={m.id}
+                        profile={m}
+                        msgCount={memberMsgCounts.get(m.id) ?? 0}
+                        loading={loadingCounts}
+                        isOnline={onlineUserIds.has(m.id)}
+                        isCreator={m.id === creatorId}
+                        onTap={() => {
+                          setIsExpanded(false)
+                          router.push(`/chat/${crewId}/member/${m.id}`)
+                        }}
+                        onRemove={userId === creatorId && m.id !== userId && !!inviteCode
+                          ? () => setRemoveTarget(m)
+                          : undefined
+                        }
+                      />
+                    )
+                    return i < members.length - 1
+                      ? [row, <div key={`div-${i}`} className="h-px w-full bg-border" />]
+                      : [row]
+                  })}
                 </div>
               </div>
 
@@ -1001,7 +1025,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
               >
                 <button
                   onClick={() => setIsExpanded(false)}
-                  className="h-12 w-full flex items-center justify-center font-pixel text-[8px] text-tertiary transition-colors active:text-primary"
+                  className="h-12 w-full flex items-center justify-center font-pixel text-[8px] text-[#ef4444] transition-colors active:opacity-70"
                 >
                   CLOSE
                 </button>
