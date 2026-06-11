@@ -17,7 +17,7 @@ Group messaging app where the chat is an RPG. Every message earns XP, boss fight
 
 ## Database Tables
 ```
-profiles       id, username (unique case-insensitive), avatar_class, avatar_url, avatar_storage_key (text nullable), custom_avatar (bool default false), birthday (date), is_dev, coins (int default 0), created_at
+profiles       id, username (unique case-insensitive), first_name (text nullable), last_name (text nullable), avatar_class, avatar_url, avatar_storage_key (text nullable), custom_avatar (bool default false), birthday (date), is_dev, coins (int default 0), created_at
 crews          id, name, invite_code (6 chars unique), level, total_xp, created_at,
                is_dm (bool default false), dm_partner_1 (uuid nullable), dm_partner_2 (uuid nullable),
                image_url (text nullable), image_storage_key (text nullable)
@@ -32,7 +32,7 @@ notification_preferences  user_id (PK), notif_messages, notif_raids, notif_victo
 friendships    id, requester_id, addressee_id, status (pending|accepted), created_at — UNIQUE(requester_id, addressee_id)
 coin_log       id, user_id, crew_id (nullable), coins, source, created_at
 app_invites    id, code (text unique), inviter_id (uuid → profiles), used (bool default false), used_by (uuid → profiles), used_at (timestamptz), created_at
-reserved_users id, email (text unique), username, class (text nullable), created_at, converted (bool default false)
+reserved_users id, email (text unique), username, class (text nullable), first_name (text nullable), last_name (text nullable), created_at, converted (bool default false)
 announcements  id, text (1–500 chars), active (bool default true), created_at
 ```
 
@@ -131,19 +131,20 @@ The login page is invite-only with two paths. Guest mode is removed.
 3. On valid code → `invite-oauth` step: shows "CODE ACCEPTED" + the verified code in a purple info box. Before triggering OAuth, client sets `nexus_invite_code=CODE` cookie (SameSite=Lax, 5min TTL) via `document.cookie`, then calls `signInWithGoogleForInvite()` which sets the `nexus_auth_intent=invite` cookie and triggers OAuth.
 4. Auth callback reads both cookies: routes to `/login?flow=invite&step=2&code=CODE`, clears both cookies.
 5. `invite-profile` step: `checkReservedUserAction()` checks `reserved_users` by session email:
-   - **Match found with username + class**: auto-calls `completeInviteFlowAction` on mount (spinner stays up); redirects to `/home` silently — user never sees the form.
+   - **Match found with username + class**: auto-calls `completeInviteFlowAction` on mount (spinner stays up); redirects to `/home` silently — user never sees the form. First/last name not collected for this path (columns left null).
    - **Match found, class missing**: shows pre-filled read-only username; falls through to manual submit.
-   - **No match**: warrior name input only — **no class selection**. Class defaults to `'mage'` and is set properly per-crew during onboarding.
+   - **No match**: side-by-side **First Name** + **Last Name** inputs above the warrior name input — **no class selection**. Class defaults to `'mage'` and is set properly per-crew during onboarding.
    - **No session**: bounces back to `invite-oauth` with an error.
    - No invite code input in any case — code comes from the `?code=` URL param.
-6. `completeInviteFlowAction(code, username, cls)`: re-validates code in `app_invites` (final guard), upserts `profiles.username` + `profiles.avatar_class`, marks invite `used=true/used_by/used_at`, returns success → client calls `router.push('/home')`
+6. `completeInviteFlowAction(code, username, cls, firstName?, lastName?)`: re-validates code in `app_invites` (final guard), upserts `profiles.username` + `profiles.avatar_class` + `profiles.first_name` + `profiles.last_name` (names only written when non-empty), marks invite `used=true/used_by/used_at`, returns success → client calls `router.push('/home')`
 7. Home page birthday guard kicks in → `/onboarding/birthday` → `/onboarding/welcome` → crew join/create
 
 **Cookie flow for invite code across OAuth**: `nexus_invite_code` is set client-side before OAuth, survives the Google cross-site redirect (SameSite=Lax), read by the callback, appended to the step-2 redirect URL as `?code=XXX`, then deleted. `nexus_auth_intent=invite` is set by `signInWithGoogleForInvite()` (same pattern). Both cookies are deleted together in the callback response.
 
 **Reserve My Place Path** (`landing → reserve-email → reserve-class → reserve-name → reserve-done`):
 - No auth session created — purely a waitlist record in `reserved_users`
-- Validates Gmail-only (`@gmail.com` suffix), username length ≥ 3
+- `reserve-name` step collects **First Name**, **Last Name** (side-by-side), and warrior name — all three required
+- Validates Gmail-only (`@gmail.com` suffix), username length ≥ 3, first/last name non-empty (max 50 chars each)
 - Duplicate email check server-side before insert (idempotent error copy: "A warrior already guards this name.")
 - Confirmation screen with game-voice copy
 
@@ -250,6 +251,12 @@ Member avatars and online dots in ChatInput are not gated — those are chat fea
 - Background Supabase fetch merges with any Realtime messages already in store; result saved back (capped 50)
 - `setMessages([])` before cache/fetch prevents stale messages from a previous crew bleeding in
 - Cache is written **even if the component unmounts** before the fetch completes (navigating away early) — the fetched rows are stored so the next visit gets a cache hit. Without this, rapidly tapping a crew and going back would permanently prevent the cache from being seeded.
+
+### MessageList — scroll-to-bottom behaviour
+- **Initial open**: `hasInitialScrolled` ref starts `false` on mount. When `historyLoaded` flips to `true` (skeleton replaced by messages), the scroll effect fires an instant `scrollTop = scrollHeight` jump — no animation, no visible scroll. The ref is then set to `true`.
+- **New messages while chatting**: subsequent `messages.length` changes trigger `bottomRef.scrollIntoView({ behavior: 'smooth' })` only when `isNearBottomRef.current` (user within 120px of bottom). Smooth scroll is never used on initial open.
+- `hasInitialScrolled` resets naturally to `false` when navigating to a different crew (component remounts on new route segment).
+- Effect deps: `[messages.length, historyLoaded]` — `historyLoaded` ensures the effect re-runs once when the skeleton is resolved, regardless of whether `messages.length` changed in that transition.
 
 ### MessageList — message grouping
 Consecutive messages from the same user within 60 seconds are visually grouped (no repeated avatar/header). `showHeader = false` for continuation messages.
@@ -644,6 +651,7 @@ Always use `createServiceClient()` inside cache functions (service role, no cook
 - `20240103000017_avatar_storage_key.sql` — adds `profiles.avatar_storage_key text`; backfills `{userId}/{ts}` prefix from existing `avatar_url` values for bulk variant cleanup
 - `20240103000018_crew_image.sql` — adds `crews.image_url text` + `crews.image_storage_key text`; creates `crew-images` storage bucket (public, 10 MB limit, JPEG/PNG/WebP/HEIC); RLS: public read, crew members insert/delete own folder (`{crewId}/{userId}/`). Applied 2026-06-10.
 - `20240103000019_announcements.sql` — `announcements` table (id, text 1–500 chars, active bool default true, created_at); RLS: public SELECT on `active = true` only; all writes are service-role via server actions. Applied 2026-06-10.
+- `20240103000020_name_fields.sql` — adds `first_name text` and `last_name text` (both nullable) to `profiles` and `reserved_users`. Applied 2026-06-11.
 
 ### Manual SQL applied directly (no migration file)
 ```sql
