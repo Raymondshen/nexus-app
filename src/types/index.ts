@@ -20,6 +20,8 @@ export type AvatarClass = 'berserker' | 'sage' | 'ghost' | 'hype_man' | 'the_voi
 export interface Profile extends Record<string, unknown> {
   id: string
   username: string
+  first_name: string | null
+  last_name: string | null
   avatar_class: AvatarClass | null
   avatar_url: string | null
   avatar_storage_key: string | null
@@ -160,6 +162,8 @@ export interface ReservedUser extends Record<string, unknown> {
   email: string
   username: string
   class: string | null
+  first_name: string | null
+  last_name: string | null
   created_at: string
   converted: boolean
 }

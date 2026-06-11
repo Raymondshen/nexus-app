@@ -191,6 +191,8 @@ export function LoginForm({
   )
   const [email, setEmail]                 = useState('')
   const [username, setUsername]           = useState('')
+  const [firstName, setFirstName]         = useState('')
+  const [lastName, setLastName]           = useState('')
   const [selectedClass, setSelectedClass] = useState<AvatarClass>('mage')
   const [inviteCode, setInviteCode]       = useState('')
   const [error, setError]                 = useState<string | null>(null)
@@ -280,10 +282,12 @@ export function LoginForm({
       setError('Session expired. Please start over.')
       return
     }
+    if (!firstName.trim()) { setError('First name is required.'); return }
+    if (!lastName.trim())  { setError('Last name is required.');  return }
     setError(null)
     setLoading(true)
     try {
-      const result = await completeInviteFlowAction(code, username, selectedClass)
+      const result = await completeInviteFlowAction(code, username, selectedClass, firstName, lastName)
       if (result.success) {
         router.push('/home')
       } else {
@@ -307,10 +311,12 @@ export function LoginForm({
   }
 
   async function handleReserveSubmit() {
+    if (!firstName.trim()) { setError('First name is required.'); return }
+    if (!lastName.trim())  { setError('Last name is required.');  return }
     setError(null)
     setLoading(true)
     try {
-      const result = await reservePlaceAction(email, username, selectedClass)
+      const result = await reservePlaceAction(email, username, selectedClass, firstName, lastName)
       if (result.success) {
         setDoneUsername(username)
         setDoneClass(CLASSES.find(c => c.id === selectedClass)?.name ?? selectedClass)
@@ -554,17 +560,41 @@ export function LoginForm({
               )}
             </div>
           ) : (
-            /* Non-reserved user — username only; class defaults to mage */
-            <Input
-              name="username"
-              type="text"
-              label="WARRIOR NAME"
-              placeholder="ShadowBlade99"
-              value={username}
-              onChange={e => setUsername(e.target.value.replace(/<[^>]*>/g, '').slice(0, 20))}
-              maxLength={20}
-              autoComplete="off"
-            />
+            /* Non-reserved user — username + real name; class defaults to mage */
+            <div className="flex flex-col gap-3">
+              <div className="flex gap-3">
+                <Input
+                  name="firstName"
+                  type="text"
+                  label="FIRST NAME"
+                  placeholder="Alex"
+                  value={firstName}
+                  onChange={e => setFirstName(e.target.value.replace(/<[^>]*>/g, '').slice(0, 50))}
+                  maxLength={50}
+                  autoComplete="given-name"
+                />
+                <Input
+                  name="lastName"
+                  type="text"
+                  label="LAST NAME"
+                  placeholder="Mercer"
+                  value={lastName}
+                  onChange={e => setLastName(e.target.value.replace(/<[^>]*>/g, '').slice(0, 50))}
+                  maxLength={50}
+                  autoComplete="family-name"
+                />
+              </div>
+              <Input
+                name="username"
+                type="text"
+                label="WARRIOR NAME"
+                placeholder="ShadowBlade99"
+                value={username}
+                onChange={e => setUsername(e.target.value.replace(/<[^>]*>/g, '').slice(0, 20))}
+                maxLength={20}
+                autoComplete="off"
+              />
+            </div>
           )}
 
           {!loadingReserved && code && (
@@ -573,7 +603,7 @@ export function LoginForm({
                 type="button"
                 variant="primary"
                 loading={loading}
-                disabled={loading || !username.trim()}
+                disabled={loading || !username.trim() || (!isReserved && (!firstName.trim() || !lastName.trim()))}
                 className="w-full"
                 onClick={handleCompleteInvite}
               >
@@ -678,6 +708,29 @@ export function LoginForm({
 
           {error && <ErrorBox message={error} />}
 
+          <div className="flex gap-3">
+            <Input
+              name="firstName"
+              type="text"
+              label="FIRST NAME"
+              placeholder="Alex"
+              value={firstName}
+              onChange={e => setFirstName(e.target.value.replace(/<[^>]*>/g, '').slice(0, 50))}
+              maxLength={50}
+              autoComplete="given-name"
+            />
+            <Input
+              name="lastName"
+              type="text"
+              label="LAST NAME"
+              placeholder="Mercer"
+              value={lastName}
+              onChange={e => setLastName(e.target.value.replace(/<[^>]*>/g, '').slice(0, 50))}
+              maxLength={50}
+              autoComplete="family-name"
+            />
+          </div>
+
           <Input
             name="username"
             type="text"
@@ -693,7 +746,7 @@ export function LoginForm({
             type="button"
             variant="primary"
             loading={loading}
-            disabled={loading || username.trim().length < 3}
+            disabled={loading || username.trim().length < 3 || !firstName.trim() || !lastName.trim()}
             className="w-full"
             onClick={handleReserveSubmit}
           >
