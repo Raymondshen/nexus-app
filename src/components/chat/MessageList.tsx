@@ -137,6 +137,8 @@ export function MessageList({
 
   // Track whether user is near the bottom (within 120px)
   const isNearBottomRef = useRef(true)
+  // True after the first scroll-to-bottom on open; gates smooth vs instant scroll
+  const hasInitialScrolled = useRef(false)
 
   // Pre-paint: clear any stale Zustand messages from a previous crew and populate
   // from cache. historyLoaded is already correctly initialized by the lazy useState
@@ -241,12 +243,19 @@ export function MessageList({
     }
   }, [crewId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Only auto-scroll when user is already near bottom
+  // Instant jump on first load; smooth scroll for new messages while chatting
   useEffect(() => {
+    if (!historyLoaded) return
+    if (!hasInitialScrolled.current) {
+      const el = scrollRef.current
+      if (el) el.scrollTop = el.scrollHeight
+      hasInitialScrolled.current = true
+      return
+    }
     if (isNearBottomRef.current) {
       bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
     }
-  }, [messages.length])
+  }, [messages.length, historyLoaded])
 
   function handleScroll() {
     const el = scrollRef.current
