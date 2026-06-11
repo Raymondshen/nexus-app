@@ -113,7 +113,7 @@ function NotifRow({
           </p>
           <p
             className="font-body font-normal text-tertiary leading-normal"
-            style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}
+            style={{ fontSize: 'var(--text-xxs)', fontVariationSettings: '"opsz" 14' }}
           >
             {sub}
           </p>
@@ -637,15 +637,15 @@ export function ProfileClient({
         <button
           onClick={() => setShowEditSheet(true)}
           disabled={isGuest}
-          className="w-full bg-surface border flex gap-3 items-center px-[var(--space-5)] py-[var(--space-5)] text-left disabled:opacity-50"
+          className="w-full bg-surface border flex gap-3 items-center px-[var(--space-5)] py-3 text-left disabled:opacity-50"
           style={{ borderColor: 'var(--color-border-hover)' }}
         >
-          <MagicEdit style={{ width: 24, height: 24, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
+          <MagicEdit style={{ width: 16, height: 16, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
           <div className="flex-1 min-w-0 flex flex-col gap-0 leading-[0] tracking-[0.2px]">
             <p className="font-body font-medium text-secondary leading-normal" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}>
               Edit Profile
             </p>
-            <p className="font-body font-normal text-tertiary leading-normal" style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}>
+            <p className="font-body font-normal text-tertiary leading-normal" style={{ fontSize: 'var(--text-xxs)', fontVariationSettings: '"opsz" 14' }}>
               Manage your profile.
             </p>
           </div>
@@ -685,7 +685,7 @@ export function ProfileClient({
                 )}
               </div>
             ) : (
-              <div className={`flex flex-col gap-4 py-4${prefsLoading ? ' opacity-50 pointer-events-none' : ''}`}>
+              <div className={`flex flex-col gap-3 py-3${prefsLoading ? ' opacity-50 pointer-events-none' : ''}`}>
                 {notifRows.map(({ key, label, sub }, i) => (
                   <NotifRow
                     key={key}
