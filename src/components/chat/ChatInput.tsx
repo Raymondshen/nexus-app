@@ -142,9 +142,11 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   const [crewImageUrl,   setCrewImageUrl]   = useState<string | null>(initialCrewImageUrl ?? null)
   const [crewImageFile,  setCrewImageFile]  = useState<File | null>(null)
 
-  const textareaRef      = useRef<HTMLTextAreaElement>(null)
+  const textareaRef       = useRef<HTMLTextAreaElement>(null)
   const crewImageInputRef = useRef<HTMLInputElement>(null)
-  const rateRef          = useRef({ count: 0, resetAt: Date.now() + RATE_LIMIT_WINDOW })
+  const memberListRef     = useRef<HTMLDivElement>(null)
+  const rateRef           = useRef({ count: 0, resetAt: Date.now() + RATE_LIMIT_WINDOW })
+  const pullToCloseRef    = useRef({ startY: 0, atTop: false })
   const typingTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null)
   const typingChannelRef = useRef<RealtimeChannel | null>(null)
   const msgChannelRef    = useRef<RealtimeChannel | null>(null)
@@ -186,6 +188,34 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       })
     return () => { cancelled = true }
   }, [isExpanded, crewId]) // eslint-disable-line
+
+  // Pull-to-close: when the member list is at scroll-top and user drags down, dismiss the sheet
+  useEffect(() => {
+    if (!isExpanded) return
+    const el = memberListRef.current
+    if (!el) return
+
+    function onTouchStart(e: TouchEvent) {
+      pullToCloseRef.current = { startY: e.touches[0].clientY, atTop: el!.scrollTop === 0 }
+    }
+    function onTouchMove(e: TouchEvent) {
+      if (!pullToCloseRef.current.atTop) return
+      if (e.touches[0].clientY - pullToCloseRef.current.startY > 0) e.preventDefault()
+    }
+    function onTouchEnd(e: TouchEvent) {
+      if (!pullToCloseRef.current.atTop) return
+      if (e.changedTouches[0].clientY - pullToCloseRef.current.startY > 60) setIsExpanded(false)
+    }
+
+    el.addEventListener('touchstart', onTouchStart, { passive: true })
+    el.addEventListener('touchmove',  onTouchMove,  { passive: false })
+    el.addEventListener('touchend',   onTouchEnd,   { passive: true })
+    return () => {
+      el.removeEventListener('touchstart', onTouchStart)
+      el.removeEventListener('touchmove',  onTouchMove)
+      el.removeEventListener('touchend',   onTouchEnd)
+    }
+  }, [isExpanded])
 
   function handleTopPanEnd(_: PointerEvent, info: PanInfo) {
     if (info.offset.y < -50 || info.velocity.y < -300) setIsExpanded(true)
@@ -840,7 +870,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
               </div>
 
               {/* ── Scrollable member list ── */}
-              <div className="flex-1 overflow-y-auto nexus-scroll px-4 min-h-0">
+              <div ref={memberListRef} className="flex-1 overflow-y-auto nexus-scroll px-4 min-h-0">
                 <div className="flex flex-col">
                   {members.map((m) => (
                     <MemberListRow
