@@ -841,12 +841,12 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                             }}
                             onBlur={confirmRename}
                             maxLength={30}
-                            className="font-silkscreen text-[18px] text-purple bg-transparent border-b border-purple focus:outline-none leading-none w-full py-1 uppercase"
+                            className="font-silkscreen text-[length:var(--text-md)] text-purple bg-transparent border-b border-purple focus:outline-none leading-none w-full py-1 uppercase"
                             aria-label="Edit squad name"
                           />
                         ) : (
                           <div className="flex items-center gap-2">
-                            <p className="font-silkscreen text-[18px] text-purple leading-none truncate">
+                            <p className="font-silkscreen text-[length:var(--text-md)] text-purple leading-none truncate">
                               {liveCrewName.toUpperCase()}
                             </p>
                             {userId === creatorId && (
