@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { SlidePage, useSlideBack } from '@/components/ui/SlidePage'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
+import { MagicEdit } from 'pixelarticons/react/MagicEdit'
 
 function BackButton() {
   const goBack = useSlideBack()
@@ -115,7 +116,7 @@ function NotifRow({
 }) {
   return (
     <>
-      <div className="flex items-center gap-2 px-4 py-3">
+      <div className="flex items-center gap-2 px-4">
         <div className="flex-1 min-w-0 flex flex-col gap-0 leading-[0] tracking-[0.2px]">
           <p
             className="font-body font-medium text-[14px] text-secondary leading-normal"
@@ -299,11 +300,11 @@ export function ProfileClient({
       style={{ position: 'fixed', inset: 0, maxWidth: 480, marginLeft: 'auto', marginRight: 'auto', overflow: 'hidden', paddingTop: 'env(safe-area-inset-top)' }}
       backHref="/home"
     >
-      {/* ── Hero section — 240px, full-bleed, will support background image ── */}
-      <div className="relative flex-shrink-0 w-full bg-black overflow-hidden" style={{ height: 240 }}>
+      {/* ── Hero section — 280px, full-bleed, will support background image ── */}
+      <div className="relative flex-shrink-0 w-full bg-black overflow-hidden" style={{ height: 280 }}>
 
         {/* Content anchored to bottom */}
-        <div className="absolute inset-0 flex flex-col justify-end gap-2 p-4">
+        <div className="absolute inset-0 flex flex-col justify-end gap-4 p-4">
           {/* Details row */}
           <div className="flex items-center gap-4 w-full">
             {/* Avatar 56×56 — tappable */}
@@ -371,6 +372,18 @@ export function ProfileClient({
                 </p>
               )}
             </div>
+
+            {/* Edit icon — triggers avatar picker */}
+            {!isGuest && (
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                aria-label="Change photo"
+                className="flex-shrink-0 flex items-center justify-center"
+                style={{ width: 24, height: 24 }}
+              >
+                <MagicEdit style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+              </button>
+            )}
           </div>
 
           {/* AFK EXP row — dev-only, shown when nexus_afk_exp flag is on */}
@@ -427,7 +440,7 @@ export function ProfileClient({
                 className="w-full bg-surface border h-12 flex items-center overflow-hidden opacity-50 cursor-not-allowed"
                 style={{ borderColor: 'rgba(168,85,247,0.5)', padding: 12 }}
               >
-                <span className="font-body font-normal text-secondary leading-normal" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}>
+                <span className="font-body font-normal text-secondary leading-normal" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }} >
                   {initialUsername}
                 </span>
               </div>
@@ -450,7 +463,7 @@ export function ProfileClient({
                     maxLength={20}
                     placeholder="your username"
                     className="flex-1 bg-transparent font-body font-normal text-secondary placeholder:text-muted focus:outline-none leading-normal"
-                    style={{ fontSize: 16, fontVariationSettings: '"opsz" 14' }}
+                    style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
                   />
                 </div>
                 <button
@@ -487,7 +500,7 @@ export function ProfileClient({
         {/* Notifications */}
         <div className="flex flex-col gap-2">
           <SectionLabel>Notifications</SectionLabel>
-          <div className="bg-surface border overflow-hidden" style={{ borderColor: 'rgba(168,85,247,0.5)', paddingTop: 'var(--space-5)', paddingBottom: 'var(--space-5)' }}>
+          <div className="bg-surface border overflow-hidden" style={{ borderColor: 'rgba(168,85,247,0.5)' }}>
             {!notifSupported ? (
               <div className="px-4 py-4">
                 <p className="font-pixel text-[8px] text-muted leading-relaxed">NOT SUPPORTED ON THIS DEVICE</p>
@@ -518,7 +531,7 @@ export function ProfileClient({
                 )}
               </div>
             ) : (
-              <div className={prefsLoading ? 'opacity-50 pointer-events-none' : ''}>
+              <div className={`flex flex-col gap-4 py-4${prefsLoading ? ' opacity-50 pointer-events-none' : ''}`}>
                 {notifRows.map(({ key, label, sub }, i) => (
                   <NotifRow
                     key={key}
