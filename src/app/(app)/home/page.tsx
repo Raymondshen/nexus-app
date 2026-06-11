@@ -37,6 +37,67 @@ export interface CrewSummary {
 type MemberRow = { crew_id: string; user_id: string; profiles: { username: string } | null }
 type LastMessage = { content: string; created_at: string; profiles: { username: string } | null } | null
 
+// Cached: home profile + estimated message count. Both cached together under the
+// same profile:{userId} tag so a single cache miss fetches both in parallel.
+type HomeProfile = {
+  username: string; avatar_url: string | null; birthday: string | null
+  coins: number; created_at: string; totalMessages: number
+}
+function getCachedHomeProfile(userId: string) {
+  return unstable_cache(
+    async () => {
+      const supabase = createServiceClient()
+      const [{ data: profile }, { count: msgCount }] = await Promise.all([
+        supabase.from('profiles').select('username, avatar_url, birthday, coins, created_at').eq('id', userId).single(),
+        supabase.from('messages').select('id', { count: 'estimated', head: true }).eq('user_id', userId).neq('message_type', 'system'),
+      ])
+      return profile ? { ...profile, totalMessages: msgCount ?? 0 } as HomeProfile : null
+    },
+    [`home-profile:${userId}`],
+    { tags: [`profile:${userId}`], revalidate: 60 }
+  )()
+}
+
+// Cached: accepted friendships for the user. Tagged friends:{userId} so all
+// friendship mutations bust this cache. 60s TTL as a safety net.
+type FriendshipRow = { id: string; requester_id: string; addressee_id: string }
+function getCachedFriendships(userId: string) {
+  return unstable_cache(
+    async () => {
+      const supabase = createServiceClient()
+      const { data } = await supabase
+        .from('friendships')
+        .select('id, requester_id, addressee_id')
+        .eq('status', 'accepted')
+        .or(`requester_id.eq.${userId},addressee_id.eq.${userId}`)
+      return (data ?? []) as FriendshipRow[]
+    },
+    [`home-friendships:${userId}`],
+    { tags: [`friends:${userId}`], revalidate: 60 }
+  )()
+}
+
+// Cached: friend profiles by ID list. Tagged per-profile so an avatar/username
+// change busts only the affected entry. Empty list returns instantly.
+function getCachedFriendProfiles(friendIds: string[]) {
+  if (friendIds.length === 0) {
+    return Promise.resolve([] as Array<{ id: string; username: string; avatar_url: string | null }>)
+  }
+  const sorted = [...friendIds].sort()
+  return unstable_cache(
+    async () => {
+      const supabase = createServiceClient()
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, username, avatar_url')
+        .in('id', sorted)
+      return (data ?? []) as Array<{ id: string; username: string; avatar_url: string | null }>
+    },
+    [`home-friend-profiles:${sorted.join(',')}`],
+    { tags: sorted.map(id => `profile:${id}`), revalidate: 60 }
+  )()
+}
+
 // Cached: member usernames + counts for a set of crews (invalidated on join/leave via crew-members tags)
 function getCachedHomeMembers(crewIds: string[]) {
   const sorted = [...crewIds].sort()
@@ -51,25 +112,6 @@ function getCachedHomeMembers(crewIds: string[]) {
     },
     [`home-crew-members:${sorted.join(',')}`],
     { tags: sorted.map(id => `crew-members:${id}`), revalidate: 60 }
-  )()
-}
-
-// Cached: profile fields needed on the home page (birthday for redirect, avatar/name for display).
-// Tagged profile:{userId} so saveBirthdayAction + revalidateProfileAction bust it on change.
-type HomeProfile = { username: string; avatar_url: string | null; birthday: string | null; coins: number; created_at: string }
-function getCachedHomeProfile(userId: string) {
-  return unstable_cache(
-    async () => {
-      const supabase = createServiceClient()
-      const { data } = await supabase
-        .from('profiles')
-        .select('username, avatar_url, birthday, coins, created_at')
-        .eq('id', userId)
-        .single()
-      return data as HomeProfile | null
-    },
-    [`home-profile:${userId}`],
-    { tags: [`profile:${userId}`], revalidate: 60 }
   )()
 }
 
@@ -93,24 +135,35 @@ function getCachedCrewLastMessage(crewId: string) {
   )()
 }
 
+// Crew membership row with embedded crew data (single joined query replaces two separate queries)
+type MembershipWithCrew = {
+  crew_id:   string
+  last_seen: string | null
+  joined_at: string
+  crew:      Crew | null
+}
+
 export default async function HomePage() {
   const supabase = await createClient()
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) redirect('/login')
   const user = session.user
 
-  // Profile, crew membership, total messages, and friendships are independent — run in parallel.
-  // Profile is served from unstable_cache (service client, tagged profile:{userId}, 60s TTL).
+  // Stage 1 — 3 parallel calls, only 1 hits the DB (crew_members + crews joined).
+  // profile (cached) + friendships (cached) avoid fresh queries on cache hits.
+  // Crew total_xp/level is always fresh because crew_members itself is a fresh query.
   const [
     profile,
-    { data: memberRows, error: memberError },
-    { count: totalMessages },
-    { data: acceptedFriendships },
+    { data: membershipRows, error: memberError },
+    friendshipRows,
   ] = await Promise.all([
     getCachedHomeProfile(user.id),
-    supabase.from('crew_members').select('crew_id, last_seen, joined_at').eq('user_id', user.id).order('joined_at', { ascending: false }),
-    supabase.from('messages').select('id', { count: 'estimated', head: true }).eq('user_id', user.id).neq('message_type', 'system'),
-    supabase.from('friendships').select('id, requester_id, addressee_id').eq('status', 'accepted').or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`),
+    supabase
+      .from('crew_members')
+      .select('crew_id, last_seen, joined_at, crew:crews(id, name, level, total_xp, invite_code, is_dm, dm_partner_1, dm_partner_2, image_url)')
+      .eq('user_id', user.id)
+      .order('joined_at', { ascending: false }),
+    getCachedFriendships(user.id),
   ])
 
   if (memberError) console.error('[home] crew_members query error:', memberError)
@@ -118,19 +171,13 @@ export default async function HomePage() {
   // Prompt existing users who haven't set their birthday yet
   if (!profile?.birthday) redirect('/onboarding/birthday')
 
-  const memberships = memberRows ?? []
-
+  const memberships = (membershipRows ?? []) as unknown as MembershipWithCrew[]
   const memberSince = profile?.created_at ? new Date(profile.created_at).getFullYear().toString() : ''
-
-  const friendshipRows = (acceptedFriendships ?? []) as Array<{ id: string; requester_id: string; addressee_id: string }>
-  const friendUserIds  = friendshipRows.map((f) => f.requester_id === user.id ? f.addressee_id : f.requester_id)
+  const friendUserIds = friendshipRows.map(f => f.requester_id === user.id ? f.addressee_id : f.requester_id)
 
   if (memberships.length === 0) {
-    const { data: friendProfiles } = friendUserIds.length > 0
-      ? await supabase.from('profiles').select('id, username, avatar_url').in('id', friendUserIds)
-      : { data: [] }
-    const friends = buildFriends(friendshipRows, (friendProfiles ?? []) as Array<{ id: string; username: string; avatar_url: string | null }>, user.id)
-    // No memberships means no DM channels yet — dmCrewMap defaults to empty Map
+    const friendProfiles = await getCachedFriendProfiles(friendUserIds)
+    const friends = buildFriends(friendshipRows, friendProfiles, user.id)
     return (
       <HomeClient
         initialCrews={[]}
@@ -139,7 +186,7 @@ export default async function HomePage() {
         avatarUrl={profile?.avatar_url ?? null}
         memberSince={memberSince}
         profileCache={{}}
-        totalMessages={totalMessages ?? 0}
+        totalMessages={profile?.totalMessages ?? 0}
         friends={friends}
         initialCoins={profile?.coins ?? 0}
       />
@@ -148,26 +195,23 @@ export default async function HomePage() {
 
   const crewIds = memberships.map((m) => m.crew_id)
 
-  // Crew XP/level is always fresh (changes with every message — never cache per CLAUDE.md).
-  // Member profiles and last message previews are served from cache.
-  // Unread counts: single RPC replaces N parallel count queries.
-  const [crewsResult, cachedMembers, lastMessages, unreadResult, friendProfilesResult] = await Promise.all([
-    supabase.from('crews').select('id, name, level, total_xp, invite_code, is_dm, dm_partner_1, dm_partner_2, image_url').in('id', crewIds),
+  // Stage 2 — 4 parallel calls, only 1 hits the DB (get_unread_counts RPC).
+  // cachedMembers + lastMessages are served from cache; friendProfiles now also cached.
+  const [cachedMembers, lastMessages, unreadResult, friendProfiles] = await Promise.all([
     getCachedHomeMembers(crewIds),
     Promise.all(memberships.map((m) => getCachedCrewLastMessage(m.crew_id))),
     supabase.rpc('get_unread_counts', {
       p_crew_ids: crewIds,
       p_cutoffs:  memberships.map(m => (m.last_seen ?? m.joined_at) as string),
     }),
-    friendUserIds.length > 0
-      ? supabase.from('profiles').select('id, username, avatar_url').in('id', friendUserIds)
-      : Promise.resolve({ data: [] }),
+    getCachedFriendProfiles(friendUserIds),
   ])
 
   const unreadMap = new Map((unreadResult.data ?? []).map(r => [r.crew_id, r.unread_count]))
 
+  // Build crew map from the already-fetched embedded crew data — no separate crews query needed
   const crewMap = new Map(
-    (crewsResult.data ?? []).map((c) => [c.id, c as unknown as Crew]),
+    memberships.filter(m => m.crew).map(m => [m.crew_id, m.crew as unknown as Crew])
   )
 
   // Build DM channel maps: friendId → crewId, friendId → last message
@@ -183,13 +227,7 @@ export default async function HomePage() {
     if (lm) dmLastMsgMap.set(friendId, { content: lm.content, created_at: lm.created_at })
   }
 
-  const friends = buildFriends(
-    friendshipRows,
-    (friendProfilesResult.data ?? []) as Array<{ id: string; username: string; avatar_url: string | null }>,
-    user.id,
-    dmCrewMap,
-    dmLastMsgMap,
-  )
+  const friends = buildFriends(friendshipRows, friendProfiles, user.id, dmCrewMap, dmLastMsgMap)
 
   // Build userId → username cache and memberCount per crew from cached member rows
   const profileCache: Record<string, string> = {}
@@ -205,7 +243,6 @@ export default async function HomePage() {
     if (!crew || crew.is_dm) return []  // DM channels are shown in Friends section, not Squads
 
     const lastMsgData = lastMessages[i]
-
     const lastMessage = lastMsgData
       ? {
           content:    lastMsgData.content,
@@ -235,10 +272,10 @@ export default async function HomePage() {
       initialCrews={summaries}
       userId={user.id}
       username={profile?.username ?? ''}
-      avatarUrl={(profile as unknown as { avatar_url?: string | null })?.avatar_url ?? null}
+      avatarUrl={profile?.avatar_url ?? null}
       memberSince={memberSince}
       profileCache={profileCache}
-      totalMessages={totalMessages ?? 0}
+      totalMessages={profile?.totalMessages ?? 0}
       friends={friends}
       initialCoins={profile?.coins ?? 0}
     />

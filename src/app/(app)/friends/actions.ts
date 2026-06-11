@@ -1,6 +1,6 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 
 export async function sendFriendRequestAction(addresseeId: string): Promise<{ ok?: boolean; error?: string }> {
@@ -35,6 +35,9 @@ export async function sendFriendRequestAction(addresseeId: string): Promise<{ ok
     })
   } catch { /* notification is best-effort */ }
 
+  // Bust friendship cache for both parties
+  revalidateTag(`friends:${session.user.id}`, 'max')
+  revalidateTag(`friends:${addresseeId}`, 'max')
   revalidatePath('/friends')
   return { ok: true }
 }
@@ -44,6 +47,14 @@ export async function acceptFriendRequestAction(friendshipId: string): Promise<{
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) return { error: 'Not authenticated' }
 
+  // Fetch requester ID so we can bust their cache too
+  const { data: fship } = await supabase
+    .from('friendships')
+    .select('requester_id')
+    .eq('id', friendshipId)
+    .eq('addressee_id', session.user.id)
+    .single()
+
   const { error } = await supabase
     .from('friendships')
     .update({ status: 'accepted' })
@@ -51,6 +62,9 @@ export async function acceptFriendRequestAction(friendshipId: string): Promise<{
     .eq('addressee_id', session.user.id)
 
   if (error) return { error: error.message }
+
+  revalidateTag(`friends:${session.user.id}`, 'max')
+  if (fship) revalidateTag(`friends:${(fship as { requester_id: string }).requester_id}`, 'max')
   revalidatePath('/friends')
   return { ok: true }
 }
@@ -60,12 +74,26 @@ export async function deleteFriendshipAction(friendshipId: string): Promise<{ ok
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) return { error: 'Not authenticated' }
 
+  // Fetch the other party's ID so we can bust their cache too
+  const { data: fship } = await supabase
+    .from('friendships')
+    .select('requester_id, addressee_id')
+    .eq('id', friendshipId)
+    .single()
+
   const { error } = await supabase
     .from('friendships')
     .delete()
     .eq('id', friendshipId)
 
   if (error) return { error: error.message }
+
+  revalidateTag(`friends:${session.user.id}`, 'max')
+  if (fship) {
+    const f = fship as { requester_id: string; addressee_id: string }
+    const otherId = f.requester_id === session.user.id ? f.addressee_id : f.requester_id
+    revalidateTag(`friends:${otherId}`, 'max')
+  }
   revalidatePath('/friends')
   return { ok: true }
 }
