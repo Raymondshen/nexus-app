@@ -485,10 +485,18 @@ export function MessageList({
   }
 
   return (
+    <div className="relative flex-1 min-h-0">
+      {/* Top fade overlay matching Figma node 88:448 */}
+      <div
+        className="pointer-events-none absolute left-0 right-0 top-0 z-10 h-1/4"
+        style={{
+          background: 'linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.25) 46.158%, rgba(0,0,0,0) 100%)',
+        }}
+      />
     <div
       ref={scrollRef}
       onScroll={handleScroll}
-      className="flex-1 min-h-0 overflow-y-auto px-4 py-4 flex flex-col nexus-scroll"
+      className="flex-1 min-h-0 h-full overflow-y-auto px-4 py-4 flex flex-col nexus-scroll"
     >
       {messages.length === 0 && (
         <div className="flex-1 flex flex-col items-center justify-center gap-4 opacity-60">
@@ -561,6 +569,7 @@ export function MessageList({
       })}
 
       <div ref={bottomRef} />
+    </div>
     </div>
   )
 }
