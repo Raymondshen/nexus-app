@@ -136,10 +136,12 @@ function EditProfileSheet({
   isOpen,
   onClose,
   onSave,
-  onUploadPhoto,
+  onAvatarChange,
   initialDisplayName,
   initialStatus,
   avatarUrl,
+  userId,
+  isDev,
   memberSinceYear,
   groupChats,
   totalMessages,
@@ -147,18 +149,22 @@ function EditProfileSheet({
   isOpen:             boolean
   onClose:            () => void
   onSave:             (displayName: string, status: string) => void
-  onUploadPhoto:      () => void
+  onAvatarChange:     (url: string) => void
   initialDisplayName: string
   initialStatus:      string
   avatarUrl:          string | null
+  userId:             string
+  isDev:              boolean
   memberSinceYear:    string
   groupChats:         number
   totalMessages:      number
 }) {
-  const [displayName, setDisplayName] = useState(initialDisplayName)
-  const [status,      setStatus]      = useState(initialStatus)
-  const [saving,      setSaving]      = useState(false)
-  const [saveError,   setSaveError]   = useState<string | null>(null)
+  const [displayName,   setDisplayName]   = useState(initialDisplayName)
+  const [status,        setStatus]        = useState(initialStatus)
+  const [saving,        setSaving]        = useState(false)
+  const [saveError,     setSaveError]     = useState<string | null>(null)
+  const [pendingFile,   setPendingFile]   = useState<File | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (isOpen) {
@@ -302,7 +308,7 @@ function EditProfileSheet({
                     )}
                   </div>
                   <button
-                    onClick={onUploadPhoto}
+                    onClick={() => fileInputRef.current?.click()}
                     className="flex-1 h-[var(--space-13)] border border-purple flex items-center justify-center overflow-hidden transition-opacity active:opacity-70"
                   >
                     <span
@@ -312,6 +318,17 @@ function EditProfileSheet({
                       upload photo
                     </span>
                   </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0]
+                      if (f) setPendingFile(f)
+                      e.target.value = ''
+                    }}
+                  />
                 </div>
               </div>
 
@@ -387,6 +404,17 @@ function EditProfileSheet({
               </div>
             </div>
           </motion.div>
+
+          <AvatarUploadModal
+            file={pendingFile}
+            userId={userId}
+            isDev={isDev}
+            onClose={() => setPendingFile(null)}
+            onSuccess={(url) => {
+              onAvatarChange(url)
+              setPendingFile(null)
+            }}
+          />
         </>
       )}
     </AnimatePresence>
@@ -780,15 +808,6 @@ export function ProfileClient({
         <div style={{ height: 'max(env(safe-area-inset-bottom), 16px)' }} />
       </div>
 
-      {/* Avatar crop/upload modal */}
-      <AvatarUploadModal
-        file={pendingFile}
-        userId={userId}
-        isDev={isDev}
-        onClose={() => setPendingFile(null)}
-        onSuccess={(url) => { setLocalAvatarUrl(url); setLocalCustomAvatar(true) }}
-      />
-
       {/* Edit Profile bottom sheet */}
       <EditProfileSheet
         isOpen={showEditSheet}
@@ -798,10 +817,12 @@ export function ProfileClient({
           setLocalStatus(status)
           revalidateProfileAction()
         }}
-        onUploadPhoto={() => fileInputRef.current?.click()}
+        onAvatarChange={(url) => { setLocalAvatarUrl(url); setLocalCustomAvatar(true) }}
         initialDisplayName={localUsername}
         initialStatus={localStatus}
         avatarUrl={localAvatarUrl}
+        userId={userId}
+        isDev={isDev}
         memberSinceYear={memberSinceYear}
         groupChats={groupChats}
         totalMessages={totalMessages}
