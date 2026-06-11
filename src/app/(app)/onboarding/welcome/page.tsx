@@ -10,9 +10,9 @@ export default async function WelcomePage({
   const { crew: crewId, invite } = await searchParams
 
   const supabase = await createClient()
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session) redirect('/login')
-  const userId = session.user.id
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+  const userId = user.id
 
   let inviterUsername: string | null = null
   let validInviteCode: string | null = null

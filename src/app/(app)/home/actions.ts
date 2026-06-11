@@ -131,12 +131,12 @@ export async function getInviteCodesAction(): Promise<
 
 async function requireDev(): Promise<{ userId: string } | { error: string }> {
   const supabase = await createSupabaseClient()
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session) return { error: 'Not authenticated' }
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
   const service = createServiceClient()
-  const { data } = await service.from('profiles').select('is_dev').eq('id', session.user.id).single()
+  const { data } = await service.from('profiles').select('is_dev').eq('id', user.id).single()
   if (!(data as { is_dev?: boolean })?.is_dev) return { error: 'Not authorized' }
-  return { userId: session.user.id }
+  return { userId: user.id }
 }
 
 export async function getAllAnnouncementsAction(): Promise<{ data?: Announcement[]; error?: string }> {

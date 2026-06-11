@@ -5,9 +5,9 @@ import { createClient, createServiceClient } from '@/lib/supabase/server'
 
 export async function revalidateProfileAction() {
   const supabase = await createClient()
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session) return
-  revalidateTag(`profile:${session.user.id}`, 'max')
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return
+  revalidateTag(`profile:${user.id}`, 'max')
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -57,9 +57,9 @@ async function revalidateUserCaches(userId: string, crewIds: string[]) {
 
 export async function updateAvatarAction(newAvatarUrl: string): Promise<{ error: string | null }> {
   const supabase = await createClient()
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session) return { error: 'Not authenticated' }
-  const userId = session.user.id
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+  const userId = user.id
 
   const storageKey = storageKeyFromUrl(newAvatarUrl)
 
@@ -108,12 +108,12 @@ export async function updateAvatarAction(newAvatarUrl: string): Promise<{ error:
 
 export async function resetAvatarAction(): Promise<{ error: string | null; avatarUrl?: string | null }> {
   const supabase = await createClient()
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session) return { error: 'Not authenticated' }
-  const userId = session.user.id
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+  const userId = user.id
 
   // Google avatar URL lives in user_metadata (refreshed on every OAuth login)
-  const googleAvatarUrl = (session.user.user_metadata?.avatar_url as string | undefined) ?? null
+  const googleAvatarUrl = (user.user_metadata?.avatar_url as string | undefined) ?? null
 
   // Fetch current storage key + crew membership list in parallel
   const [{ data: profile }, { data: memberships }] = await Promise.all([

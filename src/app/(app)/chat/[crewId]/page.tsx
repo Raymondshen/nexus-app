@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { unstable_cache } from "next/cache"
 import { createClient, createServiceClient } from "@/lib/supabase/server";
-import { ChatHeader } from "@/components/chat/ChatHeader";
+import { FloatingBackButton } from "@/components/chat/FloatingBackButton";
 import { MessageList } from "@/components/chat/MessageList";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { WelcomeDetector } from "@/components/ui/WelcomeDetector";
@@ -12,7 +12,6 @@ import type { Profile, Crew, ActiveRaid, AvatarClass } from "@/types";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type MemberProfile = Pick<Profile, "id" | "username" | "avatar_class" | "avatar_url">
-type MemberBirthday = { username: string; birthday: string }
 type MemberProfileMap = Record<string, MemberProfile>
 // class is the crew-specific class; last_seen is fetched fresh (not cached)
 type MemberRow = { user_id: string; last_seen: string | null; class: AvatarClass | null; joined_at: string | null }
@@ -97,11 +96,6 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
     cachedProfiles.filter((r) => r.profile).map((r) => [r.user_id, r.profile!])
   );
 
-  // Birthdays for next-upcoming display in header
-  const memberBirthdays: MemberBirthday[] = cachedProfiles
-    .filter((r) => r.profile?.birthday)
-    .map((r) => ({ username: r.profile!.username, birthday: r.profile!.birthday! }))
-
   // Per-crew class check — uses crew_members.class so each crew has its own class selection.
   // lastSeenResult is always fresh (not cached) so no redirect-loop risk.
   const currentMemberRow = lastSeenRows.find((r) => r.user_id === user.id)
@@ -136,14 +130,7 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
     >
       {welcome === "1" && <WelcomeDetector crewId={crewId} />}
 
-      <ChatHeader
-        crew={crew}
-        initialXP={crew.total_xp}
-        initialRaid={raidRow ?? null}
-        currentUserId={user.id}
-        crewId={crewId}
-        memberBirthdays={memberBirthdays}
-      />
+      <FloatingBackButton crewImageUrl={crew.image_url ?? null} crewName={crew.name} />
 
       <ErrorBoundary>
         <MessageList
@@ -169,6 +156,9 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
           inviteCode={crew.invite_code}
           creatorId={creatorId ?? undefined}
           crewImageUrl={crew.image_url ?? null}
+          initialXP={crew.total_xp}
+          initialRaid={raidRow ?? null}
+          currentUserId={user.id}
         />
       </ErrorBoundary>
 

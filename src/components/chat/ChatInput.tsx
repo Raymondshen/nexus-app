@@ -23,7 +23,7 @@ import { UserMinus } from 'pixelarticons/react/UserMinus'
 import { kickMemberAction, renameCrewAction } from '@/app/(app)/chat/actions'
 import { CrewImageUploadModal } from '@/components/chat/CrewImageUploadModal'
 import { MagicEdit } from 'pixelarticons/react/MagicEdit'
-import type { Message, MessageWithProfile, Profile } from '@/types'
+import type { Message, MessageWithProfile, Profile, ActiveRaid } from '@/types'
 
 const MAX_MESSAGE_LENGTH = 2000
 const RATE_LIMIT_MAX     = 30
@@ -48,6 +48,9 @@ interface ChatInputProps {
   inviteCode?:    string
   creatorId?:     string
   crewImageUrl?:  string | null
+  initialXP?:     number
+  initialRaid?:   ActiveRaid | null
+  currentUserId?: string
 }
 
 function sanitizeMessage(raw: string): string {
@@ -122,7 +125,7 @@ function MemberListRow({
   )
 }
 
-export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewName, inviteCode, creatorId, crewImageUrl: initialCrewImageUrl }: ChatInputProps) {
+export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewName, inviteCode, creatorId, crewImageUrl: initialCrewImageUrl, initialXP, initialRaid }: ChatInputProps) {
   const router = useRouter()
   const [text,           setText]          = useState('')
   const [sending,        setSending]        = useState(false)
@@ -156,7 +159,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
 
   const {
     addMessage, updateMessage, setCrewXP, receiveXP, addXP,
-    activeRaid, damageFloats, addDamageFloat, dismissDamageFloat,
+    activeRaid, setActiveRaid, damageFloats, addDamageFloat, dismissDamageFloat,
     crewXP, crewLevel, xpFloats, dismissXPFloat,
     onlineUserIds, setOnlineUserIds, addUserCoins,
     crewName: storeCrewName, setCrewName,
@@ -177,6 +180,32 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   useEffect(() => {
     setDevMode(localStorage.getItem('nexus_dev_mode') === '1')
   }, [])
+
+  // Seed store with server-fetched values (previously handled by ChatHeader)
+  useEffect(() => {
+    if (initialXP   !== undefined) setCrewXP(initialXP)
+    if (initialRaid !== undefined) setActiveRaid(initialRaid ?? null)
+    setCrewName(crewName)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Update last_seen every 60s for accurate server-side unread cursors
+  useEffect(() => {
+    const supabase = createClient()
+    const update = async () => {
+      try {
+        await supabase
+          .from('crew_members')
+          .update({ last_seen: new Date().toISOString() })
+          .eq('crew_id', crewId)
+          .eq('user_id', userId)
+      } catch {
+        // Presence is best-effort
+      }
+    }
+    update()
+    const interval = setInterval(update, 60_000)
+    return () => clearInterval(interval)
+  }, [crewId, userId]) // eslint-disable-line
 
   useEffect(() => {
     if (!isExpanded) return
@@ -484,20 +513,45 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
 
   return (
     <div
-      className="bg-black border-t border-border px-4 pt-4 flex-shrink-0 relative z-[40]"
-      style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 32px)' }}
+      className="bg-black border-t border-border flex flex-col flex-shrink-0 relative z-[40]"
+      style={{
+        paddingTop:    'var(--space-5)',
+        paddingLeft:   'var(--space-5)',
+        paddingRight:  'var(--space-5)',
+        paddingBottom: 'max(env(safe-area-inset-bottom), 32px)',
+        gap:           'var(--space-5)',
+      }}
     >
       {devMode && <DamageFloat floats={damageFloats} onDismiss={dismissDamageFloat} />}
 
       {/* ── Member avatars + XP bar — tap or swipe up to expand ── */}
       <motion.div
-        className="flex flex-col gap-2 mb-4 cursor-pointer"
-        style={{ touchAction: 'pan-x' }}
+        className="flex flex-col relative cursor-pointer"
+        style={{ touchAction: 'pan-x', gap: 'var(--space-3)' }}
         onPanEnd={handleTopPanEnd}
         onClick={() => setIsExpanded(true)}
       >
+        {/* Crew name + member count */}
+        <div className="flex items-center" style={{ gap: 'var(--space-2)' }}>
+          <p className="font-silkscreen text-[length:var(--text-xs)] text-purple leading-none whitespace-nowrap">{liveCrewName.toUpperCase()}</p>
+          <p className="font-silkscreen text-[length:var(--text-mini)] text-tertiary leading-none">· {memberCount} member{memberCount !== 1 ? 's' : ''}</p>
+        </div>
+
+        {/* Chevron — absolute top-right of content section */}
+        <button
+          onClick={(e) => { e.stopPropagation(); setIsExpanded(true) }}
+          className="absolute right-0 top-0 flex items-center justify-center flex-shrink-0"
+          style={{ width: 'var(--space-7)', height: 'var(--space-7)' }}
+          aria-label="Show members"
+        >
+          <ChevronRight
+            style={{ width: 'var(--space-7)', height: 'var(--space-7)', color: 'var(--color-tertiary)', transform: 'rotate(-90deg)' }}
+            aria-hidden="true"
+          />
+        </button>
+
         {/* User list */}
-        <div className="flex items-center justify-between w-full">
+        <div className="flex items-center w-full">
           <div className="flex items-center gap-3">
             {members.slice(0, 8).map((m) => {
               const url     = m.avatar_url as string | null | undefined
@@ -511,7 +565,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                         <Image src={resolveAvatarUrl(url, 24)} alt={m.username} fill sizes="24px" className="object-cover" unoptimized={isSupabaseStorage(url)} />
                       </div>
                     ) : (
-                      <span className="font-pixel text-[8px] text-purple">{initial}</span>
+                      <span className="font-pixel text-[length:var(--text-mini)] text-purple">{initial}</span>
                     )}
                   </div>
                   {online && (
@@ -521,26 +575,18 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
               )
             })}
           </div>
-          <button
-            onClick={(e) => { e.stopPropagation(); setIsExpanded(true) }}
-            style={{ width: 24, height: 24 }}
-            className="flex-shrink-0 flex items-center justify-center"
-            aria-label="Show members"
-          >
-            <ChevronRight
-              style={{ width: 24, height: 24, color: 'var(--color-tertiary)', transform: 'rotate(-90deg)' }}
-              aria-hidden="true"
-            />
-          </button>
         </div>
 
         {/* XP indicator */}
-        <div className="h-6 flex flex-col gap-2 items-center justify-center w-full">
-          <div className="flex items-center gap-2 w-full font-silkscreen text-tertiary">
+        <div
+          className="flex flex-col items-center justify-center w-full"
+          style={{ height: 'var(--space-7)', gap: 'var(--space-3)' }}
+        >
+          <div className="flex items-center w-full font-silkscreen text-tertiary" style={{ gap: 'var(--space-2)' }}>
             <p className="flex-1 min-w-0 leading-[0] text-[0px]">
-              <span className="text-[8px] leading-none text-purple">Level {crewLevel}</span>
-              <span className="text-[8px] leading-none">
-                {` · ${crewXP % XP_PER_LEVEL} / ${XP_PER_LEVEL}XP · ${memberCount} Member${memberCount !== 1 ? 's' : ''}`}
+              <span className="text-[length:var(--text-mini)] leading-none text-secondary">Level {crewLevel}</span>
+              <span className="text-[length:var(--text-mini)] leading-none">
+                {` · ${crewXP % XP_PER_LEVEL} / ${XP_PER_LEVEL}XP`}
               </span>
               <span className="relative inline-block">
                 <AnimatePresence>
@@ -551,7 +597,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                       animate={{ opacity: [0, 1, 1, 0], y: [0, -12, -26, -42] }}
                       transition={{ duration: 1.4, ease: 'easeOut', times: [0, 0.15, 0.65, 1] }}
                       onAnimationComplete={() => dismissXPFloat(f.id)}
-                      className="pointer-events-none absolute bottom-0 left-0 font-pixel text-[8px] text-[#ffd700] whitespace-nowrap z-10"
+                      className="pointer-events-none absolute bottom-0 left-0 font-pixel text-[length:var(--text-mini)] text-[#ffd700] whitespace-nowrap z-10"
                       style={{ textShadow: '0 0 8px rgba(255,215,0,0.8)' }}
                     >
                       +{f.amount} XP
@@ -560,7 +606,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                 </AnimatePresence>
               </span>
             </p>
-            <p className="text-[8px] leading-none whitespace-nowrap text-tertiary">Next Boss</p>
+            <p className="text-[length:var(--text-mini)] leading-none whitespace-nowrap text-tertiary">Next Boss</p>
           </div>
 
           <div className="bg-surface h-1 overflow-hidden w-full relative">
@@ -617,8 +663,8 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
         )}
 
         <div
-          className="border border-border h-12 flex items-center px-4 gap-3 overflow-hidden"
-          style={{ borderColor: inRaid ? 'rgba(255,34,0,0.4)' : undefined }}
+          className="border border-border h-12 flex items-center justify-between overflow-hidden"
+          style={{ borderColor: inRaid ? 'rgba(255,34,0,0.4)' : undefined, paddingLeft: 'var(--space-5)', paddingRight: 'var(--space-5)', paddingTop: 12, paddingBottom: 12 }}
         >
           <textarea
             ref={textareaRef}

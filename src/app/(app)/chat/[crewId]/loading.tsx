@@ -7,27 +7,6 @@ export default function ChatLoading() {
       className="flex flex-col bg-black"
       style={{ position: 'fixed', top: 0, bottom: 0, left: 0, right: 0, maxWidth: 480, marginLeft: 'auto', marginRight: 'auto', overflow: 'hidden' }}
     >
-      {/* Header */}
-      <div
-        className="bg-black border-b border-border px-4 pb-2 flex-shrink-0"
-        style={{ paddingTop: 'max(env(safe-area-inset-top), 8px)' }}
-      >
-        <div className="flex items-center justify-between h-10">
-          {/* Left: back + crew name + chevron */}
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            <div className="w-6 h-6 flex-shrink-0 bg-border animate-pulse" />
-            <div className="h-4 w-32 bg-border animate-pulse" />
-            <div className="w-4 h-4 flex-shrink-0 bg-border animate-pulse" />
-          </div>
-          {/* Right: bell + user-plus + vault */}
-          <div className="flex items-center gap-4 flex-shrink-0">
-            <div className="w-6 h-6 bg-border animate-pulse" />
-            <div className="w-6 h-6 bg-border animate-pulse" />
-            <div className="w-6 h-6 bg-border animate-pulse" />
-          </div>
-        </div>
-      </div>
-
       {/* Messages */}
       <div className="flex-1 overflow-hidden px-4 py-3 flex flex-col gap-3">
         {[72, 48, 90, 60, 80, 44, 66].map((w, i) => (
@@ -51,6 +30,11 @@ export default function ChatLoading() {
         className="bg-black border-t border-border px-4 pt-4 flex-shrink-0"
         style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 32px)' }}
       >
+        {/* Crew name row */}
+        <div className="flex items-center gap-1 mb-2">
+          <div className="h-3 w-20 bg-border animate-pulse" />
+          <div className="h-2 w-16 bg-border animate-pulse" />
+        </div>
         {/* Member avatars row */}
         <div className="flex items-center gap-3 mb-2">
           {[0, 1, 2, 3].map((i) => (

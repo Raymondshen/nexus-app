@@ -9,8 +9,8 @@ export async function updateCrewImageAction(
   storageKey: string,
 ): Promise<{ error?: string }> {
   const supabase = await createClient()
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session) return { error: 'Not authenticated' }
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
 
   // Verify caller is crew creator (earliest joined_at)
   const { data: earliest } = await supabase
@@ -21,7 +21,7 @@ export async function updateCrewImageAction(
     .limit(1)
     .single()
 
-  if (!earliest || (earliest as { user_id: string }).user_id !== session.user.id) {
+  if (!earliest || (earliest as { user_id: string }).user_id !== user.id) {
     return { error: 'Only the squad creator can update the crew image' }
   }
 
@@ -66,10 +66,10 @@ export async function kickMemberAction(
   targetUserId: string,
 ): Promise<{ error?: string }> {
   const supabase = await createClient()
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session) return { error: 'Not authenticated' }
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
 
-  const callerId = session.user.id
+  const callerId = user.id
   if (callerId === targetUserId) return { error: 'Cannot remove yourself' }
 
   // Verify caller is the creator (earliest joined_at in this crew)
@@ -109,8 +109,8 @@ export async function renameCrewAction(
   }
 
   const supabase = await createClient()
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session) return { error: 'Not authenticated' }
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
 
   // Verify caller is the creator (earliest joined_at)
   const { data: earliest } = await supabase
@@ -121,7 +121,7 @@ export async function renameCrewAction(
     .limit(1)
     .single()
 
-  if (!earliest || (earliest as { user_id: string }).user_id !== session.user.id) {
+  if (!earliest || (earliest as { user_id: string }).user_id !== user.id) {
     return { error: 'Only the squad creator can rename the squad' }
   }
 
