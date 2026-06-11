@@ -78,7 +78,7 @@ function ShareModal({ crew, onClose }: { crew: Crew; onClose: () => void }) {
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
         transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-        className="relative w-full max-w-[480px] bg-black border-t border-border flex flex-col gap-6 items-center p-4"
+        className="relative w-full max-w-[480px] bg-surface border-t border-border-hover flex flex-col gap-6 items-center p-4"
         style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 24px)' }}
         onClick={(e) => e.stopPropagation()}
       >

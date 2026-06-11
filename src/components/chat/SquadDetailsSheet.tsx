@@ -62,7 +62,7 @@ export function SquadDetailsSheet({
 
       {/* Sheet */}
       <motion.div
-        className="fixed bottom-0 left-0 right-0 z-[63] max-w-[480px] mx-auto bg-black border-t border-border-hover flex flex-col gap-[var(--space-7)] px-[var(--space-5)] pt-[var(--space-7)] overflow-hidden"
+        className="fixed bottom-0 left-0 right-0 z-[63] max-w-[480px] mx-auto bg-surface border-t border-border-hover flex flex-col gap-[var(--space-7)] px-[var(--space-5)] pt-[var(--space-7)] overflow-hidden"
         style={{ paddingBottom: 'max(env(safe-area-inset-bottom), var(--space-5))' }}
         initial={{ y: '100%' }}
         animate={{ y: 0 }}

@@ -756,7 +756,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-              className="relative w-full max-w-[480px] bg-surface border-t border-border flex flex-col gap-6 p-4"
+              className="relative w-full max-w-[480px] bg-surface border-t border-border-hover flex flex-col gap-6 p-4"
               style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 24px)' }}
               onClick={(e) => e.stopPropagation()}
             >
@@ -820,7 +820,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
 
             {/* Sheet — absolute so it slides up from the ChatInput container */}
             <motion.div
-              className="absolute bottom-0 left-0 right-0 z-[50] bg-black border-t border-border flex flex-col"
+              className="absolute bottom-0 left-0 right-0 z-[50] bg-surface border-t border-border-hover flex flex-col"
               initial={{ y: '100%' }}
               animate={{ y: 0 }}
               exit={{ y: '100%' }}

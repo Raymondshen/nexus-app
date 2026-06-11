@@ -171,7 +171,7 @@ export function CrewImageUploadModal({ file, crewId, onClose, onSuccess }: CrewI
           />
           <motion.div
             key="crew-img-sheet"
-            className="fixed bottom-0 left-0 right-0 z-[80] bg-[#0a0612] border-t border-border flex flex-col"
+            className="fixed bottom-0 left-0 right-0 z-[80] bg-surface border-t border-border-hover flex flex-col"
             style={{
               maxWidth: 480,
               marginLeft: 'auto',

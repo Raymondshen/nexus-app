@@ -363,7 +363,7 @@ function HomeActionSheet({
         animate={{ y: 0,  opacity: 1 }}
         exit={{   y: 80, opacity: 0 }}
         transition={{ type: 'spring', stiffness: 280, damping: 26 }}
-        className="relative w-full max-w-[480px] bg-surface border-t border-border flex flex-col gap-6 p-4 overflow-hidden"
+        className="relative w-full max-w-[480px] bg-surface border-t border-border-hover flex flex-col gap-6 p-4 overflow-hidden"
         style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 24px)' }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -404,7 +404,7 @@ function LeaveConfirmSheet({
         animate={{ y: 0,  opacity: 1 }}
         exit={{   y: 80, opacity: 0 }}
         transition={{ type: 'spring', stiffness: 280, damping: 26 }}
-        className="relative w-full max-w-[480px] bg-surface border-t border-border flex flex-col gap-6 p-4"
+        className="relative w-full max-w-[480px] bg-surface border-t border-border-hover flex flex-col gap-6 p-4"
         style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 24px)' }}
         onClick={(e) => e.stopPropagation()}
       >

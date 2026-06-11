@@ -217,7 +217,7 @@ function EditProfileSheet({
             transition={{ type: 'spring', stiffness: 320, damping: 32 }}
           >
             <div
-              className="bg-black border-t overflow-hidden flex flex-col gap-[var(--space-7)]"
+              className="bg-surface border-t overflow-hidden flex flex-col gap-[var(--space-7)]"
               style={{
                 borderColor: 'var(--color-border-hover)',
                 padding: 'var(--space-7) var(--space-5)',
