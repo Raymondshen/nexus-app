@@ -291,8 +291,8 @@ function EditProfileSheet({
                   Profile Picture
                 </p>
                 <div className="flex items-center gap-[var(--space-5)]">
-                  <div className="relative flex-shrink-0 w-12 h-12 overflow-hidden">
-                    {avatarUrl ? (
+                  <div className="relative flex-shrink-0 w-12 h-12 overflow-hidden bg-purple">
+                    {avatarUrl && (
                       <Image
                         src={resolveAvatarUrl(avatarUrl, 48)}
                         alt={initialDisplayName}
@@ -301,10 +301,6 @@ function EditProfileSheet({
                         className="object-cover"
                         unoptimized={isSupabaseStorage(avatarUrl)}
                       />
-                    ) : (
-                      <div className="w-full h-full bg-purple flex items-center justify-center">
-                        <span className="font-pixel text-[12px] text-white">{initialDisplayName[0]?.toUpperCase() ?? '?'}</span>
-                      </div>
                     )}
                   </div>
                   <button
