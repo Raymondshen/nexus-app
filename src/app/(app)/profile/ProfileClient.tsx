@@ -620,10 +620,10 @@ export function ProfileClient({
         />
 
         {/* Floating back button box — positioned below safe area */}
-        <div className="absolute z-20 pointer-events-none" style={{ top: 'calc(env(safe-area-inset-top, 0px) + 16px)', left: 16 }}>
+        <div className="absolute z-20 pointer-events-none" style={{ top: 'calc(env(safe-area-inset-top, 0px) + 18px)', left: 16 }}>
           <div
-            className="pointer-events-auto flex items-center bg-surface border border-purple p-2"
-            style={{ boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.8)' }}
+            className="pointer-events-auto flex items-center bg-surface border border-purple p-2 overflow-hidden"
+            style={{ boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)' }}
           >
             <BackButton />
           </div>
