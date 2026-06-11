@@ -12,8 +12,8 @@ function BackButton() {
     <button
       onClick={goBack}
       aria-label="Back"
-      className="flex-shrink-0 flex items-center justify-center"
-      style={{ width: 24, height: 40 }}
+      className="flex items-center justify-center flex-shrink-0"
+      style={{ width: 24, height: 24 }}
     >
       <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
     </button>
@@ -299,44 +299,32 @@ export function ProfileClient({
       style={{ position: 'fixed', inset: 0, maxWidth: 480, marginLeft: 'auto', marginRight: 'auto', overflow: 'hidden' }}
       backHref="/home"
     >
-      {/* ── Header ── */}
-      <div
-        className="bg-black border-b border-border px-4 pb-2 flex-shrink-0"
-        style={{ paddingTop: 'max(env(safe-area-inset-top), 8px)' }}
-      >
-        <div className="flex items-center h-10 gap-2">
-          <BackButton />
-          <h1 className="font-pixel text-[18px] text-primary leading-none">PROFILE</h1>
-        </div>
-      </div>
+      {/* ── Hero section — 240px, full-bleed, will support background image ── */}
+      <div className="relative flex-shrink-0 w-full bg-black overflow-hidden" style={{ height: 240 }}>
 
-      {/* ── Scrollable body ── */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-6 nexus-scroll">
-
-        {/* Profile banner card */}
-        <div className="bg-surface border border-border rounded-[8px] p-4 flex flex-col gap-4 w-full">
+        {/* Content anchored to bottom */}
+        <div className="absolute inset-0 flex flex-col justify-end gap-2 p-4">
           {/* Details row */}
           <div className="flex items-center gap-4 w-full">
-            {/* Avatar — tappable for authenticated users */}
+            {/* Avatar 56×56 — tappable */}
             <div className="flex-shrink-0 flex flex-col items-center gap-1">
               <button
                 onClick={() => !isGuest && fileInputRef.current?.click()}
                 disabled={isGuest}
-                className="relative w-12 h-12 bg-primary overflow-hidden group"
+                className="relative overflow-hidden group bg-border"
+                style={{ width: 56, height: 56 }}
                 aria-label="Change photo"
               >
                 {localAvatarUrl ? (
-                  <Image src={resolveAvatarUrl(localAvatarUrl, 48)} alt={initialUsername} fill sizes="48px" className="object-cover" priority unoptimized={isSupabaseStorage(localAvatarUrl)} />
+                  <Image src={resolveAvatarUrl(localAvatarUrl, 56)} alt={initialUsername} fill sizes="56px" className="object-cover" priority unoptimized={isSupabaseStorage(localAvatarUrl)} />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-surface">
+                  <div className="w-full h-full flex items-center justify-center">
                     <span className="font-pixel text-[12px] text-purple">{initial}</span>
                   </div>
                 )}
                 {!isGuest && (
                   <div className="absolute inset-0 bg-black/55 flex items-center justify-center opacity-0 group-hover:opacity-100 group-active:opacity-100 transition-opacity pointer-events-none">
-                    <span className="font-pixel text-[6px] text-white text-center leading-relaxed">
-                      CHANGE<br />PHOTO
-                    </span>
+                    <span className="font-pixel text-[6px] text-white text-center leading-relaxed">CHANGE<br />PHOTO</span>
                   </div>
                 )}
               </button>
@@ -350,6 +338,7 @@ export function ProfileClient({
                 </button>
               )}
             </div>
+
             {/* Hidden file input */}
             <input
               ref={fileInputRef}
@@ -362,23 +351,22 @@ export function ProfileClient({
                 e.target.value = ''
               }}
             />
+
+            {/* Name + stats */}
             <div className="flex-1 min-w-0 flex flex-col gap-1 justify-center">
               {memberSinceYear && (
-                <p className="font-silkscreen text-[8px] text-tertiary leading-none">
+                <p className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}>
                   Member Since {memberSinceYear}
                 </p>
               )}
-              <p
-                className="font-body font-bold text-[18px] text-primary leading-none truncate"
-                style={{ fontVariationSettings: '"opsz" 14' }}
-              >
+              <p className="font-body font-bold leading-none truncate" style={{ fontSize: 20, fontVariationSettings: '"opsz" 14', color: 'var(--color-primary)' }}>
                 {initialUsername}
               </p>
-              <p className="font-silkscreen text-[8px] text-secondary leading-none">
+              <p className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>
                 {groupChats} group chat{groupChats !== 1 ? 's' : ''} · {msgFormatted} msg
               </p>
               {inviterUsername && (
-                <p className="font-silkscreen text-[8px] text-tertiary leading-none">
+                <p className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}>
                   Recruited by {inviterUsername}
                 </p>
               )}
@@ -389,51 +377,57 @@ export function ProfileClient({
           {afkExp && (
             <div className="flex items-center gap-2 w-full">
               <div className="flex flex-1 flex-col gap-2 min-w-0">
-                <p className="font-silkscreen text-[8px] text-primary leading-none w-full">
+                <p className="font-silkscreen leading-none w-full" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-primary)' }}>
                   AFK EXP accumulated · 100 / 100 XP
                 </p>
-                <div className="bg-purple h-1 w-full" />
+                <div className="bg-purple w-full" style={{ height: 4 }} />
               </div>
-              <button className="bg-purple px-4 py-2 flex-shrink-0 flex items-center justify-center">
-                <span className="font-pixel text-[8px] text-primary leading-none whitespace-nowrap">CLAIM</span>
+              <button
+                className="bg-purple flex-shrink-0 flex items-center justify-center"
+                style={{ paddingLeft: 'var(--space-5)', paddingRight: 'var(--space-5)', paddingTop: 'var(--space-3)', paddingBottom: 'var(--space-3)' }}
+              >
+                <span className="font-silkscreen leading-none whitespace-nowrap" style={{ fontSize: 11, color: 'var(--color-primary)' }}>CLAIM</span>
               </button>
             </div>
           )}
         </div>
 
-        {/* Account */}
-        <div className="flex flex-col gap-2">
-          <div className="flex flex-col gap-1">
-            <SectionLabel>Account</SectionLabel>
-            <p
-              className="font-body font-normal text-[12px] tracking-[0.2px] leading-normal"
-              style={{ color: '#9a9a9a', fontVariationSettings: '"opsz" 14' }}
-            >
-              {'Signed in with '}
-              <span className="text-primary">{userEmail}</span>
-            </p>
-          </div>
-          <button
-            onClick={handleLogout}
-            disabled={loggingOut}
-            className="w-full h-12 border border-[#ef4444] flex items-center justify-center transition-colors hover:bg-[#ef4444]/8 disabled:opacity-50"
-          >
-            <span className="font-pixel text-[8px] text-[#ef4444] leading-none whitespace-nowrap">
-              {loggingOut ? '...' : 'LOG OUT'}
-            </span>
-          </button>
-        </div>
+        {/* Top gradient overlay — same pattern as chat/DM overlay */}
+        <div
+          className="absolute left-0 right-0 top-0 pointer-events-none"
+          style={{
+            height: 86,
+            background: 'linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.25) 46.158%, rgba(0,0,0,0) 100%)',
+          }}
+        />
 
-        {/* Username */}
+        {/* Floating back button box */}
+        <div
+          className="absolute z-20 pointer-events-none"
+          style={{ top: 'calc(env(safe-area-inset-top, 0px) + 16px)', left: 16 }}
+        >
+          <div
+            className="pointer-events-auto flex items-center bg-surface border border-purple p-2"
+            style={{ boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.8)' }}
+          >
+            <BackButton />
+          </div>
+        </div>
+      </div>
+
+      {/* ── Scrollable body ── */}
+      <div className="flex-1 overflow-y-auto flex flex-col gap-6 nexus-scroll" style={{ padding: 'var(--space-5)' }}>
+
+        {/* Display Name */}
         <div className="flex flex-col gap-2">
-          <SectionLabel>Username</SectionLabel>
+          <SectionLabel>Display Name</SectionLabel>
           {isGuest ? (
             <div>
-              <div className="w-full bg-surface border border-[rgba(168,85,247,0.5)] h-12 flex items-center px-3 opacity-50 cursor-not-allowed">
-                <span
-                  className="font-body font-normal text-[14px] text-secondary leading-normal"
-                  style={{ fontVariationSettings: '"opsz" 14' }}
-                >
+              <div
+                className="w-full bg-surface border h-12 flex items-center overflow-hidden opacity-50 cursor-not-allowed"
+                style={{ borderColor: 'rgba(168,85,247,0.5)', padding: 12 }}
+              >
+                <span className="font-body font-normal text-secondary leading-normal" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}>
                   {initialUsername}
                 </span>
               </div>
@@ -444,8 +438,9 @@ export function ProfileClient({
           ) : (
             <div>
               <div className="flex gap-2">
-                <div className="flex-1 bg-surface border border-[rgba(168,85,247,0.5)] h-12 flex items-center px-3 overflow-hidden"
-                  style={{ borderColor: saveStatus === 'taken' ? '#ef4444' : undefined }}
+                <div
+                  className="flex-1 bg-surface border h-12 flex items-center overflow-hidden"
+                  style={{ borderColor: saveStatus === 'taken' ? '#ef4444' : 'rgba(168,85,247,0.5)', padding: 12 }}
                 >
                   <input
                     value={username}
@@ -454,16 +449,24 @@ export function ProfileClient({
                     minLength={3}
                     maxLength={20}
                     placeholder="your username"
-                    className="flex-1 bg-transparent font-body font-normal text-[14px] text-secondary placeholder:text-muted focus:outline-none leading-normal"
-                    style={{ fontVariationSettings: '"opsz" 14', fontSize: 16 }}
+                    className="flex-1 bg-transparent font-body font-normal text-secondary placeholder:text-muted focus:outline-none leading-normal"
+                    style={{ fontSize: 16, fontVariationSettings: '"opsz" 14' }}
                   />
                 </div>
                 <button
                   onClick={handleSaveUsername}
                   disabled={!isDirty || saving}
-                  className="bg-purple self-stretch px-4 flex items-center justify-center transition-opacity disabled:opacity-40"
+                  className="self-stretch flex items-center justify-center border transition-opacity disabled:opacity-40"
+                  style={{
+                    paddingLeft: 'var(--space-5)',
+                    paddingRight: 'var(--space-5)',
+                    paddingTop: 'var(--space-3)',
+                    paddingBottom: 'var(--space-3)',
+                    background: 'rgba(168,85,247,0.12)',
+                    borderColor: 'rgba(168,85,247,0.5)',
+                  }}
                 >
-                  <span className="font-pixel text-[8px] text-primary leading-none whitespace-nowrap">
+                  <span className="font-silkscreen leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-muted)' }}>
                     {saving ? '...' : 'SAVE'}
                   </span>
                 </button>
@@ -484,7 +487,7 @@ export function ProfileClient({
         {/* Notifications */}
         <div className="flex flex-col gap-2">
           <SectionLabel>Notifications</SectionLabel>
-          <div className="bg-surface border border-[rgba(168,85,247,0.5)] overflow-hidden py-4">
+          <div className="bg-surface border overflow-hidden" style={{ borderColor: 'rgba(168,85,247,0.5)', paddingTop: 'var(--space-5)', paddingBottom: 'var(--space-5)' }}>
             {!notifSupported ? (
               <div className="px-4 py-4">
                 <p className="font-pixel text-[8px] text-muted leading-relaxed">NOT SUPPORTED ON THIS DEVICE</p>
@@ -531,6 +534,29 @@ export function ProfileClient({
               </div>
             )}
           </div>
+        </div>
+
+        {/* Account */}
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-1">
+            <SectionLabel>Account</SectionLabel>
+            <p
+              className="font-body font-normal leading-normal tracking-[0.2px]"
+              style={{ fontSize: 'var(--text-xs)', color: '#9a9a9a', fontVariationSettings: '"opsz" 14' }}
+            >
+              {'Signed in with '}
+              <span style={{ color: 'var(--color-primary)' }}>{userEmail}</span>
+            </p>
+          </div>
+          <button
+            onClick={handleLogout}
+            disabled={loggingOut}
+            className="w-full h-12 border border-[#ef4444] flex items-center justify-center transition-colors hover:bg-[#ef4444]/8 disabled:opacity-50 overflow-hidden"
+          >
+            <span className="font-pixel leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-mini)', color: '#ef4444' }}>
+              {loggingOut ? '...' : 'LOG OUT'}
+            </span>
+          </button>
         </div>
 
         {/* Dev */}
