@@ -134,7 +134,7 @@ function ProfileBanner({
             className="flex items-center gap-1 bg-[rgba(245,158,11,0.25)] rounded-[4px] p-1"
           >
             <TokeCircle style={{ width: 16, height: 16, color: '#f59e0b' }} aria-hidden="true" />
-            <span className="font-silkscreen text-[12px] leading-none w-[26px] pb-[2px]" style={{ color: '#f59e0b' }}>
+            <span className="font-silkscreen leading-none w-[26px] pb-[2px]" style={{ fontSize: 'var(--text-xs)', color: '#f59e0b' }}>
               {infiniteCoins ? '∞' : coins.toLocaleString()}
             </span>
           </button>
