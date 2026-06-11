@@ -488,11 +488,11 @@ export function ProfileClient({
   return (
     <SlidePage
       className="bg-black flex flex-col"
-      style={{ position: 'fixed', inset: 0, maxWidth: 480, marginLeft: 'auto', marginRight: 'auto', overflow: 'hidden', paddingTop: 'env(safe-area-inset-top)' }}
+      style={{ position: 'fixed', inset: 0, maxWidth: 480, marginLeft: 'auto', marginRight: 'auto', overflow: 'hidden' }}
       backHref="/home"
     >
-      {/* ── Hero section — 280px ─────────────────────────────────────────── */}
-      <div className="relative flex-shrink-0 w-full bg-black overflow-hidden" style={{ height: 280 }}>
+      {/* ── Hero section — full bleed: 280px content + safe area at top ──── */}
+      <div className="relative flex-shrink-0 w-full bg-black overflow-hidden" style={{ height: 'calc(280px + env(safe-area-inset-top, 0px))' }}>
 
         {/* Background image — plain img avoids next/image iOS PWA rendering issues */}
         <img
@@ -610,17 +610,17 @@ export function ProfileClient({
           )}
         </div>
 
-        {/* Top gradient overlay — for back button readability */}
+        {/* Top gradient overlay — covers safe area + 86px below for back button readability */}
         <div
           className="absolute left-0 right-0 top-0 pointer-events-none"
           style={{
-            height:     86,
+            height:     'calc(86px + env(safe-area-inset-top, 0px))',
             background: 'linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.25) 46.158%, rgba(0,0,0,0) 100%)',
           }}
         />
 
-        {/* Floating back button box */}
-        <div className="absolute z-20 pointer-events-none" style={{ top: 16, left: 16 }}>
+        {/* Floating back button box — positioned below safe area */}
+        <div className="absolute z-20 pointer-events-none" style={{ top: 'calc(env(safe-area-inset-top, 0px) + 16px)', left: 16 }}>
           <div
             className="pointer-events-auto flex items-center bg-surface border border-purple p-2"
             style={{ boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.8)' }}
