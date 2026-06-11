@@ -227,6 +227,10 @@ function EditProfileSheet({
                 className="relative w-full overflow-hidden flex flex-col gap-[var(--space-5)] items-start justify-end"
                 style={{ height: 180, padding: 'var(--space-5)' }}
               >
+                {/* Background image */}
+                <div aria-hidden className="absolute inset-0 pointer-events-none">
+                  <Image src="/img/default_image.png" alt="" fill sizes="480px" className="object-cover" />
+                </div>
                 <div
                   className="absolute inset-0 pointer-events-none"
                   style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.5) 48.668%, rgba(0,0,0,0.8) 82.216%, rgb(0,0,0) 100%)' }}
@@ -487,7 +491,12 @@ export function ProfileClient({
       {/* ── Hero section — 280px ─────────────────────────────────────────── */}
       <div className="relative flex-shrink-0 w-full bg-black overflow-hidden" style={{ height: 280 }}>
 
-        {/* Full-height gradient — transparent top → black bottom (for future bg image support) */}
+        {/* Background image */}
+        <div aria-hidden className="absolute inset-0 pointer-events-none">
+          <Image src="/img/default_image.png" alt="" fill sizes="480px" className="object-cover" priority />
+        </div>
+
+        {/* Full-height gradient — transparent top → black bottom */}
         <div
           className="absolute inset-0 pointer-events-none"
           style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.5) 48.668%, rgba(0,0,0,0.8) 82.216%, rgb(0,0,0) 100%)' }}
