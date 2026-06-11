@@ -48,6 +48,8 @@ export interface Crew extends Record<string, unknown> {
   is_dm?: boolean
   dm_partner_1?: string | null
   dm_partner_2?: string | null
+  image_url?: string | null
+  image_storage_key?: string | null
 }
 
 export interface CrewMember extends Record<string, unknown> {

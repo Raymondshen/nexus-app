@@ -152,7 +152,7 @@ export default async function HomePage() {
   // Member profiles and last message previews are served from cache.
   // Unread counts: single RPC replaces N parallel count queries.
   const [crewsResult, cachedMembers, lastMessages, unreadResult, friendProfilesResult] = await Promise.all([
-    supabase.from('crews').select('id, name, level, total_xp, invite_code, is_dm, dm_partner_1, dm_partner_2').in('id', crewIds),
+    supabase.from('crews').select('id, name, level, total_xp, invite_code, is_dm, dm_partner_1, dm_partner_2, image_url').in('id', crewIds),
     getCachedHomeMembers(crewIds),
     Promise.all(memberships.map((m) => getCachedCrewLastMessage(m.crew_id))),
     supabase.rpc('get_unread_counts', {

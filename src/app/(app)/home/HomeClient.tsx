@@ -415,19 +415,33 @@ function CrewCardContent({ summary }: { summary: CrewSummary }) {
   const xpInLevel   = crew.total_xp % XP_PER_LEVEL
   const colorIndex  = crew.name.charCodeAt(0) % CREW_AVATAR_COLORS.length
   const avatarColor = CREW_AVATAR_COLORS[colorIndex]
+  const imageUrl    = crew.image_url as string | null | undefined
 
   return (
     <div className="w-full text-left flex items-center gap-4 pr-2">
       {/* Crew avatar — 40×40px per Figma node 50:465 */}
       <div
-        className="flex-shrink-0 w-10 h-10 flex items-center justify-center font-pixel text-[10px]"
-        style={{
+        className="flex-shrink-0 w-10 h-10 overflow-hidden flex items-center justify-center font-pixel text-[10px]"
+        style={!imageUrl ? {
           background:  avatarColor + '22',
           border:      `1px solid ${avatarColor}60`,
           color:       avatarColor,
-        }}
+        } : undefined}
       >
-        {crew.name[0]?.toUpperCase()}
+        {imageUrl ? (
+          <div className="relative w-full h-full">
+            <Image
+              src={resolveAvatarUrl(imageUrl, 40)}
+              alt={crew.name}
+              fill
+              sizes="40px"
+              className="object-cover"
+              unoptimized={isSupabaseStorage(imageUrl)}
+            />
+          </div>
+        ) : (
+          crew.name[0]?.toUpperCase()
+        )}
       </div>
 
       {/* Content — leading-none on container matches Figma node 4:62 */}

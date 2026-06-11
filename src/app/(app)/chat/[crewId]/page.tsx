@@ -70,7 +70,7 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
   // crew_members fetched fresh for membership check (RLS returns empty for non-members).
   const [cachedProfiles, crewResult, raidResult, lastSeenResult] = await Promise.all([
     getCachedMemberProfiles(crewId),
-    supabase.from("crews").select("id, name, invite_code, level, total_xp").eq("id", crewId).single(),
+    supabase.from("crews").select("id, name, invite_code, level, total_xp, image_url").eq("id", crewId).single(),
     supabase
       .from("active_raids")
       .select("*")
@@ -169,6 +169,7 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
           crewName={crew.name}
           inviteCode={crew.invite_code}
           creatorId={creatorId ?? undefined}
+          crewImageUrl={crew.image_url ?? null}
         />
       </ErrorBoundary>
 

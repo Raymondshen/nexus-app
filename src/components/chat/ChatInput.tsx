@@ -21,11 +21,15 @@ import { Copy } from 'pixelarticons/react/Copy'
 import { Check } from 'pixelarticons/react/Check'
 import { UserMinus } from 'pixelarticons/react/UserMinus'
 import { kickMemberAction } from '@/app/(app)/chat/actions'
+import { CrewImageUploadModal } from '@/components/chat/CrewImageUploadModal'
+import { MagicEdit } from 'pixelarticons/react/MagicEdit'
 import type { Message, MessageWithProfile, Profile } from '@/types'
 
 const MAX_MESSAGE_LENGTH = 2000
 const RATE_LIMIT_MAX     = 30
 const RATE_LIMIT_WINDOW  = 60_000
+
+const CREW_AVATAR_COLORS = ['#bf5fff', '#00e5ff', '#ffd700', '#ff4444', '#66bb6a', '#ff9800']
 
 const CLASS_LABELS: Record<string, string> = {
   berserker: 'Berserker', sage: 'Sage', ghost: 'Ghost', hype_man: 'Hype Man',
@@ -43,6 +47,7 @@ interface ChatInputProps {
   crewName:       string
   inviteCode?:    string
   creatorId?:     string
+  crewImageUrl?:  string | null
 }
 
 function sanitizeMessage(raw: string): string {
@@ -117,7 +122,7 @@ function MemberListRow({
   )
 }
 
-export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewName, inviteCode, creatorId }: ChatInputProps) {
+export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewName, inviteCode, creatorId, crewImageUrl: initialCrewImageUrl }: ChatInputProps) {
   const router = useRouter()
   const [text,           setText]          = useState('')
   const [sending,        setSending]        = useState(false)
@@ -134,8 +139,11 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   const [removing,       setRemoving]       = useState(false)
   const [removeError,    setRemoveError]    = useState<string | null>(null)
   const [kickedIds,      setKickedIds]      = useState<Set<string>>(new Set())
+  const [crewImageUrl,   setCrewImageUrl]   = useState<string | null>(initialCrewImageUrl ?? null)
+  const [crewImageFile,  setCrewImageFile]  = useState<File | null>(null)
 
   const textareaRef      = useRef<HTMLTextAreaElement>(null)
+  const crewImageInputRef = useRef<HTMLInputElement>(null)
   const rateRef          = useRef({ count: 0, resetAt: Date.now() + RATE_LIMIT_WINDOW })
   const typingTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null)
   const typingChannelRef = useRef<RealtimeChannel | null>(null)
@@ -665,22 +673,73 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
               style={{ maxHeight: '85vh' }}
               onPanEnd={handlePanelPanEnd}
             >
-              {/* ── Fixed header: title, subtext, avatars, XP bar, invite code ── */}
+              {/* ── Fixed header: crew image, title, subtext, avatars, XP bar, invite code ── */}
               <div className="flex flex-col gap-4 px-4 pt-[var(--space-7)] flex-shrink-0">
                 {/* Title + stats + chevron AND avatar row + XP bar — 56px gap between them */}
                 <div className="flex flex-col gap-14">
 
-                  {/* Crew name + member stats + collapse button */}
+                  {/* Crew image + name row + collapse button */}
                   <div className="flex items-start justify-between">
-                    <div className="flex flex-col gap-1">
-                      <p className="font-pixel text-[18px] text-primary leading-none">
-                        {liveCrewName.toUpperCase()}
-                      </p>
-                      {!loadingCounts && (
-                        <p className="font-silkscreen text-[8px] text-secondary leading-none">
-                          {memberCount} {memberCount === 1 ? 'member' : 'members'} · {totalMessages.toLocaleString()} total messages
+                    <div className="flex items-center gap-3">
+                      {/* Crew image — tappable for creator */}
+                      <input
+                        ref={crewImageInputRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+                        className="hidden"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0] ?? null
+                          if (f) setCrewImageFile(f)
+                          e.target.value = ''
+                        }}
+                      />
+                      <button
+                        onClick={userId === creatorId ? () => crewImageInputRef.current?.click() : undefined}
+                        className="relative flex-shrink-0 w-14 h-14 overflow-hidden bg-surface"
+                        style={userId !== creatorId ? { cursor: 'default' } : undefined}
+                        aria-label={userId === creatorId ? 'Change crew photo' : undefined}
+                      >
+                        {crewImageUrl ? (
+                          <div className="relative w-full h-full">
+                            <Image
+                              src={crewImageUrl}
+                              alt={liveCrewName}
+                              fill
+                              sizes="56px"
+                              className="object-cover"
+                              unoptimized={isSupabaseStorage(crewImageUrl)}
+                            />
+                          </div>
+                        ) : (
+                          <div
+                            className="w-full h-full flex items-center justify-center font-pixel text-[14px]"
+                            style={{
+                              background: CREW_AVATAR_COLORS[liveCrewName.charCodeAt(0) % CREW_AVATAR_COLORS.length] + '22',
+                              color:      CREW_AVATAR_COLORS[liveCrewName.charCodeAt(0) % CREW_AVATAR_COLORS.length],
+                            }}
+                          >
+                            {liveCrewName[0]?.toUpperCase()}
+                          </div>
+                        )}
+                        {userId === creatorId && (
+                          <div className="absolute inset-0 flex items-end justify-end p-1 pointer-events-none">
+                            <div className="bg-black/60 rounded-sm p-[2px]">
+                              <MagicEdit style={{ width: 10, height: 10, color: 'var(--color-tertiary)' }} aria-hidden="true" />
+                            </div>
+                          </div>
+                        )}
+                      </button>
+
+                      <div className="flex flex-col gap-1">
+                        <p className="font-pixel text-[18px] text-primary leading-none">
+                          {liveCrewName.toUpperCase()}
                         </p>
-                      )}
+                        {!loadingCounts && (
+                          <p className="font-silkscreen text-[8px] text-secondary leading-none">
+                            {memberCount} {memberCount === 1 ? 'member' : 'members'} · {totalMessages.toLocaleString()} total messages
+                          </p>
+                        )}
+                      </div>
                     </div>
                     <button
                       onClick={() => setIsExpanded(false)}
@@ -820,6 +879,13 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
           </>
         )}
       </AnimatePresence>
+
+      <CrewImageUploadModal
+        file={crewImageFile}
+        crewId={crewId}
+        onClose={() => setCrewImageFile(null)}
+        onSuccess={(url) => setCrewImageUrl(url)}
+      />
     </div>
   )
 }
