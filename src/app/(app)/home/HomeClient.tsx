@@ -87,7 +87,12 @@ function ProfileBanner({
   afkExpEnabled: boolean
 }) {
   return (
-    <div className="bg-surface border border-border rounded-lg p-4 flex flex-col gap-4">
+    <div
+      className="bg-surface border border-border rounded-lg p-4 flex flex-col gap-4 cursor-pointer active:opacity-80 transition-opacity"
+      onClick={onEditProfile}
+      role="button"
+      aria-label="Edit profile"
+    >
       {/* User details row */}
       <div className="flex items-center gap-4">
         {/* Avatar */}
@@ -116,14 +121,8 @@ function ProfileBanner({
           </span>
         </div>
 
-        {/* Edit */}
-        <button
-          onClick={onEditProfile}
-          className="self-start text-tertiary hover:text-primary transition-colors"
-          aria-label="Edit profile"
-        >
-          <MagicEdit style={{ width: 16, height: 16 }} aria-hidden="true" />
-        </button>
+        {/* Edit affordance */}
+        <MagicEdit style={{ width: 16, height: 16, color: 'var(--color-tertiary)' }} aria-hidden="true" />
       </div>
 
       {/* AFK XP bar — dev-only feature flag: nexus_afk_exp */}
