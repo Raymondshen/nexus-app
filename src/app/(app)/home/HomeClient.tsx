@@ -888,6 +888,7 @@ export function HomeClient({
       >
 
         {/* Profile banner */}
+        <div style={{ marginTop: 'var(--space-5)' }}>
         <ProfileBanner
           username={username}
           avatarUrl={avatarUrl}
@@ -903,6 +904,7 @@ export function HomeClient({
             setTimeout(() => setShowCoinTip(false), 2000)
           }}
         />
+        </div>
 
         {/* Squads section */}
         <div className="flex flex-col gap-4 w-full">
