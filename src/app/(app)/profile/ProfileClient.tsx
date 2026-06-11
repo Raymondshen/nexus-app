@@ -227,10 +227,13 @@ function EditProfileSheet({
                 className="relative w-full overflow-hidden flex flex-col gap-[var(--space-5)] items-start justify-end"
                 style={{ height: 180, padding: 'var(--space-5)' }}
               >
-                {/* Background image — unoptimized so the raw /img/default_image.png URL is cached by the SW nexus-static rule */}
-                <div aria-hidden className="absolute inset-0 pointer-events-none">
-                  <Image src="/img/default_image.png" alt="" fill sizes="480px" className="object-cover" unoptimized />
-                </div>
+                {/* Background image — plain img avoids next/image iOS PWA rendering issues */}
+                <img
+                  src="/img/default_image.png"
+                  alt=""
+                  aria-hidden
+                  style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }}
+                />
                 <div
                   className="absolute inset-0 pointer-events-none"
                   style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.5) 48.668%, rgba(0,0,0,0.8) 82.216%, rgb(0,0,0) 100%)' }}
@@ -491,10 +494,13 @@ export function ProfileClient({
       {/* ── Hero section — 280px ─────────────────────────────────────────── */}
       <div className="relative flex-shrink-0 w-full bg-black overflow-hidden" style={{ height: 280 }}>
 
-        {/* Background image — unoptimized so the raw /img/default_image.png URL is cached by the SW nexus-static rule */}
-        <div aria-hidden className="absolute inset-0 pointer-events-none">
-          <Image src="/img/default_image.png" alt="" fill sizes="480px" className="object-cover" priority unoptimized />
-        </div>
+        {/* Background image — plain img avoids next/image iOS PWA rendering issues */}
+        <img
+          src="/img/default_image.png"
+          alt=""
+          aria-hidden
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }}
+        />
 
         {/* Full-height gradient — transparent top → black bottom */}
         <div
