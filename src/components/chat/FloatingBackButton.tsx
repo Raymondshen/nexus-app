@@ -21,7 +21,7 @@ export function FloatingBackButton({ crewImageUrl, crewName }: FloatingBackButto
         top:       'max(calc(env(safe-area-inset-top) + 8px), 52px)',
         padding:   'var(--space-3)',
         gap:       'var(--space-3)',
-        boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.8)',
+        boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)',
       }}
     >
       <ChevronLeft

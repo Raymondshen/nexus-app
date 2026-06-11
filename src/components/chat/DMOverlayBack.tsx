@@ -59,7 +59,7 @@ export function DMOverlayBack({
     >
       <div
         className="pointer-events-auto flex items-center gap-2 bg-surface border border-purple p-2"
-        style={{ boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.8)' }}
+        style={{ boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)' }}
       >
         <button
           onClick={goBack}
