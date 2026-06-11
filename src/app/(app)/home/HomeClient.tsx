@@ -8,7 +8,7 @@ import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
 import { TokeCircle } from 'pixelarticons/react/TokeCircle'
 import { Logout } from 'pixelarticons/react/Logout'
-import { Copy } from 'pixelarticons/react/Copy'
+import { Notebook } from 'pixelarticons/react/Notebook'
 import { PlusBox } from 'pixelarticons/react/PlusBox'
 import Image from 'next/image'
 import { isSupabaseStorage, resolveAvatarUrl } from '@/components/ui/Avatar'
@@ -943,14 +943,14 @@ export function HomeClient({
         className="fixed bottom-0 left-0 right-0 z-30 flex items-center justify-end gap-4 px-4"
         style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 24px)', paddingTop: 24 }}
       >
-        {/* Join crew — copy/paste invite code */}
+        {/* Friends */}
         <button
-          onClick={() => { setShowCreate(true) }}
-          aria-label="Join a crew"
+          onClick={() => router.push('/friends')}
+          aria-label="Friends"
           className="bg-black border border-secondary flex items-center justify-center p-3"
           style={{ boxShadow: '4px 4px 0px 0px rgba(228,228,231,0.5)' }}
         >
-          <Copy style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+          <Notebook style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
         </button>
 
         {/* Create squad */}
