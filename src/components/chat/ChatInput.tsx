@@ -53,6 +53,7 @@ interface ChatInputProps {
   initialXP?:     number
   initialRaid?:   ActiveRaid | null
   currentUserId?: string
+  isDM?:          boolean
 }
 
 function sanitizeMessage(raw: string): string {
@@ -127,7 +128,7 @@ function MemberListRow({
   )
 }
 
-export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewName, inviteCode, creatorId, crewImageUrl: initialCrewImageUrl, initialXP, initialRaid }: ChatInputProps) {
+export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewName, inviteCode, creatorId, crewImageUrl: initialCrewImageUrl, initialXP, initialRaid, isDM }: ChatInputProps) {
   const router = useRouter()
   const [text,           setText]          = useState('')
   const [sending,        setSending]        = useState(false)
@@ -565,8 +566,16 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     >
       {devMode && <DamageFloat floats={damageFloats} onDismiss={dismissDamageFloat} />}
 
-      {/* ── Member avatars + XP bar — tap or swipe up to expand ── */}
-      <motion.div
+      {/* ── DM: "Chatting with" label ── */}
+      {isDM && (
+        <p className="font-silkscreen text-[12px] leading-none">
+          <span className="text-[#a1a1aa]">Chatting with </span>
+          <span className="text-purple">{liveCrewName.toLowerCase()}</span>
+        </p>
+      )}
+
+      {/* ── Group: Member avatars + XP bar — tap or swipe up to expand ── */}
+      {!isDM && <motion.div
         className="flex flex-col relative cursor-pointer"
         style={{ touchAction: 'pan-x', gap: 'var(--space-3)' }}
         onPanEnd={handleTopPanEnd}
@@ -658,7 +667,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
             />
           </div>
         </div>
-      </motion.div>
+      </motion.div>}
 
       {/* ── Status indicators + input — fade out when expanded ── */}
       <motion.div

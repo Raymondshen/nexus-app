@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { unstable_cache } from 'next/cache'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
-import { DMHeader } from '@/components/chat/DMHeader'
+import { DMOverlayBack } from '@/components/chat/DMOverlayBack'
 import { MessageList } from '@/components/chat/MessageList'
 import { ChatInput } from '@/components/chat/ChatInput'
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
@@ -110,24 +110,25 @@ export default async function DMPage({ params }: DMPageProps) {
         overflow:     'hidden',
       }}
     >
-      <DMHeader
-        crewId={dmCrewId}
-        currentUserId={user.id}
-        initialXP={crew.total_xp}
-        initialRaid={raidRow}
-        friendUsername={friendUsername}
-        friendAvatarUrl={friendAvatarUrl}
-      />
-
-      <ErrorBoundary>
-        <MessageList
+      <div className="relative flex-1 min-h-0">
+        <ErrorBoundary>
+          <MessageList
+            crewId={dmCrewId}
+            crewName={friendUsername}
+            currentUserId={user.id}
+            memberProfiles={memberProfiles}
+            initialRaid={raidRow}
+          />
+        </ErrorBoundary>
+        <DMOverlayBack
           crewId={dmCrewId}
-          crewName={friendUsername}
           currentUserId={user.id}
-          memberProfiles={memberProfiles}
+          initialXP={crew.total_xp}
           initialRaid={raidRow}
+          friendUsername={friendUsername}
+          friendAvatarUrl={friendAvatarUrl}
         />
-      </ErrorBoundary>
+      </div>
 
       <ErrorBoundary>
         <ChatInput
@@ -140,6 +141,7 @@ export default async function DMPage({ params }: DMPageProps) {
           }
           memberProfiles={memberProfiles}
           crewName={friendUsername}
+          isDM
         />
       </ErrorBoundary>
     </SlidePage>
