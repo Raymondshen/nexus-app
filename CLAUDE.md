@@ -34,6 +34,7 @@ coin_log       id, user_id, crew_id (nullable), coins, source, created_at
 app_invites    id, code (text unique), inviter_id (uuid → profiles), used (bool default false), used_by (uuid → profiles), used_at (timestamptz), created_at
 reserved_users id, email (text unique), username, class (text nullable), first_name (text nullable), last_name (text nullable), created_at, converted (bool default false)
 announcements  id, text (1–500 chars), active (bool default true), created_at
+polls          id, message_id (uuid → messages nullable), crew_id, creator_id, question (text 1–200 chars), options (jsonb string array), votes (jsonb default '{}' — `{ "0": ["userId",...] }`), expires_at (timestamptz), closed_at (timestamptz nullable), created_at
 ```
 
 ### DM Channels
@@ -58,6 +59,9 @@ All are `SECURITY DEFINER`. All declared in `Database.Functions` in `src/types/i
 - `get_member_crew_stats(p_crew_id, p_user_id)` → `TABLE(msg_count, total_xp)` — message count + XP total for one member in one crew; used by the member profile page
 - `increment_user_coins(p_user_id, p_amount)` → void — atomic `UPDATE profiles SET coins = coins + p_amount`; called by `award-xp` edge function
 - `toggle_reaction(p_message_id, p_emoji, p_user_id)` → jsonb — row-locking atomic toggle: adds user to the emoji's array if absent, removes if present, deletes empty keys; returns full updated reactions object; called by `react-to-message` edge function
+- `create_poll(p_crew_id, p_question, p_options, p_expires_at)` → messages row — atomically inserts message (type `'poll'`) + poll row; sets `message.content = 'POLL:{pollId}'`; returns the message row
+- `vote_on_poll(p_poll_id, p_option_index)` → jsonb — row-locked; one vote per user; tapping same option toggles it off; removes from previous option first; returns updated votes map `{ "0": ["userId",...] }`
+- `close_poll(p_poll_id)` → void — creator-only; sets `closed_at = now()`
 
 ## Game Rules
 
@@ -68,6 +72,7 @@ All are `SECURITY DEFINER`. All declared in `Database.Functions` in `src/types/i
 | Voice note | 25 (disabled in UI) |
 | Image / GIF | 20 (disabled in UI) |
 | Reaction | 5 |
+| Poll | 0 |
 | Daily Drop response | 50 |
 | First message today bonus | +20 |
 | Reply within 60s combo | +5 |
@@ -260,7 +265,7 @@ Member avatars and online dots in ChatInput are not gated — those are chat fea
 
 ### MessageList — message grouping
 Consecutive messages from the same user within 60 seconds are visually grouped (no repeated avatar/header). `showHeader = false` for continuation messages.
-- `lastUserId` + `lastMsgTime` tracked in the display-list loop; both reset to null/0 on day dividers, boss cards, artifacts, level-up banners, and system messages — these all break grouping so the next regular message shows a fresh header
+- `lastUserId` + `lastMsgTime` tracked in the display-list loop; both reset to null/0 on day dividers, boss cards, artifacts, level-up banners, system messages, and **poll messages** — these all break grouping so the next regular message shows a fresh header
 - **Spacing**: first in group → `pt-[var(--space-6)] pb-0` (20px, `--space-6` from globals.css); continuation → `pt-[var(--space-2)] pb-0` (4px, `--space-2`). Between-group gap = 20px; within-group gap = 4px.
 - **Avatar**: only rendered for `showHeader = true` (first in group). Continuation messages (`showHeader = false`) skip the avatar element entirely and use `pl-10` (40px = 32px avatar + 8px gap) on the content div to keep text aligned.
 - **Pre-pass accumulation**: a single pre-pass loop builds both `groupXPMap` and `groupCoinMap` (Map<msgId, number>). The group-leader bubble receives `xpOverride` and `coinOverride` props; `xpOverride` counts up via `requestAnimationFrame` in `MessageBubble`. `coinOverride` state is maintained internally but not rendered — coin totals are home-only.
@@ -285,18 +290,20 @@ Consecutive messages from the same user within 60 seconds are visually grouped (
 - **XP progress bar spring**: `type: 'spring', stiffness: 300, damping: 28` — tuned so the bar starts moving visibly within the first frame, reaching the target in ~250ms. This matches the float's fade-in timing (~210ms to full opacity) so both animations feel simultaneous. Do **not** drop stiffness below ~280 — slow springs have near-zero initial velocity and appear to lag behind the float.
 
 ### ChatInput — expanded member panel
-Triggered by swipe-up (`onPanEnd` offset.y < -50 or velocity.y < -300) or tapping the chevron-up button. Slides up from the ChatInput container itself (not from off-screen) with `spring stiffness 320 / damping 32`. The ChatInput wrapper carries `relative z-[40]`; the panel is `absolute bottom-0 left-0 right-0 z-[50]` so `y: '100%' → 0` originates from within the container. Backdrop: `fixed inset-0 z-[38] bg-black/60`. Sheet: `bg-black border-t border-border`, `maxHeight: 85vh`, `flex flex-col` (fixed header + scrollable list + fixed footer).
+Triggered by swipe-up (`onPanEnd` offset.y < -50 or velocity.y < -300) or tapping the chevron-up button. Renders `<SquadDetailsSheet>` (`src/components/chat/SquadDetailsSheet.tsx`) — the entire expanded panel is extracted into that component. The ChatInput wrapper carries `relative z-[40]`; the sheet is `absolute bottom-0 left-0 right-0 z-[50]` so `y: '100%' → 0` originates from within the container. Backdrop: `fixed inset-0 z-[38] bg-black/60`. Sheet: `bg-black border-t border-border`, `maxHeight: 85vh`, `flex flex-col` (fixed header + scrollable list + fixed footer).
 
-**Pull-to-dismiss**: non-passive `touchmove` listener on the scrollable member list div (via `memberListRef`). `touchstart` records `atTop = (scrollTop === 0)`. While `atTop` and dragging down, `e.preventDefault()` is called (non-passive, prevents native scroll from consuming the gesture). `touchend` closes the sheet if displacement > 60px. Listeners are added/removed in a `useEffect([isExpanded])` so they are only active when the sheet is open.
+`ChatInput` passes these props to `SquadDetailsSheet`: `crewName`, `memberCount`, `crewImageUrl`, `members` (includes `avatar_class`), `onlineUserIds`, `crewXP`, `crewLevel`, `xpProgress`, `totalMessages`, `inviteCode?`, `creatorId?`, `currentUserId`, `memberMsgCounts`, `loadingCounts`, `onUploadPhoto`, `onNotifPress` (opens `showNotif` in ChatInput), `onSave` (calls `renameCrewAction`), `onTapMember` (navigates to member profile), `onRemoveMember` (sets `removeTarget` for kick confirmation), `onClose`.
 
-**Squad rename**: the crew name in the title row is editable by the crew creator. Rename is triggered by the `MagicEdit` icon in the action buttons row (creator-only). Tapping it enters inline edit mode: the name becomes an `<input>` (`font-silkscreen text-[length:var(--text-md)] text-purple bg-transparent border-b border-purple`, max 30 chars, uppercase). `Enter` or `onBlur` confirms (calls `renameCrewAction`, optimistic update + rollback on error); `Escape` cancels. Non-creators see the static name only with no edit affordance. Uses `isEditingName` + `editNameValue` state + `editNameInputRef`.
+**Pull-to-dismiss**: non-passive `touchmove` listener on the scrollable member list div (internal `memberListRef` in `SquadDetailsSheet`). `touchstart` records `atTop = (scrollTop === 0)`. While `atTop` and dragging down, `e.preventDefault()` is called (non-passive, prevents native scroll from consuming the gesture). `touchend` closes the sheet if displacement > 60px.
 
-**Notification sheet**: `ChatInput` owns the notification prefs state — loads from `crew_notification_preferences` on mount (same logic as `ChatHeader`), upserts on toggle. `showNotif` state gates `<NotifSheet>` inside its own `<AnimatePresence>`. The `NotifSheet` component lives in `src/components/chat/NotifSheet.tsx` and is shared between `ChatInput` and `ChatHeader`. **No `onNotifPress` / `onSharePress` props** — `ChatInput` handles the Bell internally.
+**Squad rename**: the crew name in the title row is editable by the crew creator. Rename is triggered by the `MagicEdit` icon in the action buttons row (creator-only). Tapping it enters inline edit mode: the name becomes an `<input>` (`font-silkscreen text-[length:var(--text-md)] text-purple bg-transparent border-b border-purple`, max 30 chars, uppercase). `Enter` or `onBlur` confirms (calls `onSave` callback → `renameCrewAction`, optimistic update + rollback on error); `Escape` cancels. State (`isEditingName`, `editNameValue`) is internal to `SquadDetailsSheet`.
+
+**Notification sheet**: `ChatInput` owns the notification prefs state — loads from `crew_notification_preferences` on mount, upserts on toggle. `showNotif` state gates `<NotifSheet>` inside its own `<AnimatePresence>`. `SquadDetailsSheet` receives `onNotifPress` callback that sets `showNotif = true` in ChatInput. The `NotifSheet` component lives in `src/components/chat/NotifSheet.tsx` and is shared between `ChatInput` and `ChatHeader`.
 
 **Sheet layout** (`motion.div` is `flex flex-col`):
 - **Fixed header** (`flex-shrink-0 flex flex-col gap-4 pt-[var(--space-7)] px-4`, 24px top padding via `--space-7`):
   - *Content block* (`flex flex-col gap-14` = 56px gap):
-    - *Title row* (`flex items-start justify-between`): left group — 32×32 group profile image (solid `bg-purple` default; creator taps to upload via `CrewImageUploadModal`) + crew name in Silkscreen `var(--text-md)` (16px) `text-purple` (no inline edit button — rename triggered from action buttons) + member count in Silkscreen 8px `text-tertiary` below. Right group — `flex items-center gap-4`: `MagicEdit` 24×24 `text-primary` (creator-only, calls `startEditingName()`), `Bell` 24×24 `text-primary` (opens NotifSheet), `ChevronRight` rotated `90deg` 24×24 `text-tertiary` — taps to collapse.
+    - *Title row* (`flex items-start justify-between`): left group — 32×32 group profile image (solid `bg-purple` default; creator taps to upload via `CrewImageUploadModal`) + crew name in Silkscreen `var(--text-md)` (16px) `text-purple` + member count in Silkscreen 8px `text-tertiary` below. Right group — `flex items-center gap-4`: `MagicEdit` 24×24 `text-primary` (creator-only, enters inline rename), `Bell` 24×24 `text-primary` (calls `onNotifPress`), `ChevronRight` rotated `90deg` 24×24 `text-tertiary` — taps to collapse.
     - *Avatar + XP bar* (`flex flex-col gap-2`): same 24×24 avatar row with online dots, then Silkscreen 8px stats row `"Level N · X/YXPXP · N total msg."` (`text-[#fafafa]` for Level, `text-tertiary` for the rest) + "Next Boss" label right-aligned + 4px purple progress bar. Total messages only shown when counts have loaded (> 0).
   - *Invite code block* (group chats only, not shown for DMs): `bg-[rgba(168,85,247,0.1)] border border-purple p-4`. Left: "Invite your squad" (Silkscreen 8px `text-secondary`) + crew code (Silkscreen 24px `text-purple`, `textShadow: '0px 0px 3px #a855f7'`). Right: copy button that transitions: default `bg-purple px-4 py-3` with `Copy` icon 12px + "Copy Code" Silkscreen 11px; tapped state `bg-[#22c55e]` + `boxShadow: '2px 2px 0px 0px rgba(34,197,94,0.5)'` + `Check` icon 12px + "copied" (lowercase) Silkscreen 11px for 1s. Tapping copies `"Come join my squad on Nexus app {code}"` to clipboard.
 - **Scrollable member list** (`flex-1 overflow-y-auto nexus-scroll px-4 min-h-0 mt-4`; `min-h-0` is critical — without it flex children won't shrink below content height):
@@ -616,6 +623,32 @@ Server actions (Next.js) calling `send-notification` directly also use this same
 - **Hype Man passive** (`class = 'hype_man'`): when a Hype Man *adds* (not removes) a reaction, `react-to-message` awards 5 XP to the crew (`source = 'reaction_heal'` in `crew_xp_log`). The edge function returns `hype_man_heal: true, heal_amount: 5`; `MessageBubble` shows a `+5 HEAL` float in `#66bb6a` that animates upward from the chip row.
 - **`currentUserId` prop**: required on `MessageBubble` — determines active/inactive chip state and builds the toggle payload. Passed from `MessageList.currentUserId`.
 
+### Poll Feature
+Polls are a message type that lets any crew member create a question with up to 5 options; members vote with a single toggleable vote; the creator can close the poll early.
+
+**Data model**: `polls` table mirrors the `reactions` JSONB pattern — `votes: { "0": ["userId",...] }`. `message.content = 'POLL:{pollId}'` is the wire format; `PollCard` slices off the prefix to resolve the poll ID. `polls` is in the `supabase_realtime` publication so vote/close changes propagate to all viewers in real-time.
+
+**Creating a poll** (`src/components/chat/PollCreatorSheet.tsx`):
+- Opens when the user taps the `Chart` icon (16×16, left of textarea in ChatInput)
+- Bottom sheet with spring 320/32; fields: question textarea (200 chars), up to 5 option inputs (min 2 required), duration picker (5/10/15/20 min segmented), date picker (min = today)
+- `expires_at` = selected date at current time + duration minutes
+- Calls `create_poll` RPC on submit; returns a `MessageWithProfile` via `onCreated` callback to `ChatInput`
+- `ChatInput` calls `addMessage` + broadcasts `new_message` event (same path as text messages)
+
+**Rendering polls** (`src/components/chat/PollCard.tsx`):
+- `MessageBubble` detects `message_type === 'poll'`, renders full avatar + header (no reaction sheet), and replaces the bubble body with `<PollCard pollId={message.content.slice(5)} currentUserId={...} />`
+- Fetches the poll row from `polls` on mount; subscribes to `postgres_changes UPDATE` filtered by `id=eq.{pollId}` for live vote sync
+- Ticks every 30s (while poll is open) to refresh the countdown label
+- Options show animated progress bars (Framer Motion spring) after the user has voted or when the poll is closed; vote % shown only in those states
+- Radio-style circular indicator (purple fill when selected)
+- Optimistic vote update with rollback on RPC error; same for close
+- CLOSE POLL button shown only to creator while poll is open (red, Silkscreen 8px)
+- Footer: `"N votes · Xm left"` (or "Closed by creator" / "Expired")
+
+**XP / element**: polls earn 0 XP; no special element type (content-length rules apply to the `POLL:{id}` string, which resolves to `fire`). Polls always force `showHeader = true` and reset message grouping.
+
+**Poll expiry duration options**: 5, 10, 15, 20 minutes (segmented picker in PollCreatorSheet). `expires_at` is a timestamptz; the server-side RPC stores it as provided and enforces no edits after creation.
+
 ### Pixel Sprites
 - Component: `src/components/game/PixelSprite.tsx`
 - Sprites: `public/sprites/{spriteId}/{direction}.png` — 8 directions: south, south-east, east, north-east, north, north-west, west, south-west
@@ -698,6 +731,7 @@ Always use `createServiceClient()` inside cache functions (service role, no cook
 - `20240103000019_announcements.sql` — `announcements` table (id, text 1–500 chars, active bool default true, created_at); RLS: public SELECT on `active = true` only; all writes are service-role via server actions. Applied 2026-06-10.
 - `20240103000020_name_fields.sql` — adds `first_name text` and `last_name text` (both nullable) to `profiles` and `reserved_users`. Applied 2026-06-11.
 - `20240103000021_profile_status.sql` — adds `profiles.status text` (nullable, max 100 chars via check constraint). Applied 2026-06-11.
+- `20240103000022_polls.sql` — drops and recreates `messages_message_type_check` to include `'poll'`; creates `polls` table with RLS (crew members SELECT only; writes via SECURITY DEFINER RPCs); adds `polls` to `supabase_realtime` publication; creates `create_poll`, `vote_on_poll`, `close_poll` RPCs. Applied 2026-06-11.
 
 ### Manual SQL applied directly (no migration file)
 ```sql
@@ -860,6 +894,7 @@ Note: next/font variable for Silkscreen is `--font-silk` (not `--font-silkscreen
   | ChatHeader — notifications | `Bell` / `BellOff` | `pixelarticons/react/Bell`, `BellOff` | 24×24 |
   | ChatHeader — invite | `UserPlus` | `pixelarticons/react/UserPlus` | 24×24 |
   | ChatInput — send | `Send` | `pixelarticons/react/Send` | 16×16 |
+  | ChatInput — create poll | `Chart` | `pixelarticons/react/Chart` | 16×16, `text-tertiary active:text-purple` |
   | ChatInput — expand members (collapsed row) | `ChevronRight` rotate(-90deg) | `pixelarticons/react/ChevronRight` | 24×24, `color: var(--color-tertiary)` |
   | ChatInput — collapse members (expanded sheet) | `ChevronRight` rotate(90deg) | `pixelarticons/react/ChevronRight` | 24×24, `color: var(--color-tertiary)` |
   | ChatInput — crew creator badge | `Crown` | `pixelarticons/react/Crown` | `var(--text-xs)` (12px), `color: #f59e0b` (amber) |
