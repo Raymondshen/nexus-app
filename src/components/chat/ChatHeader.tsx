@@ -315,7 +315,6 @@ export function ChatHeader({
         {showShare && <ShareModal crew={crew} onClose={handleCloseShare} />}
         {showNotif && (
           <NotifSheet
-            crewName={liveCrewName}
             prefs={notifPrefs}
             onToggle={handleToggleNotif}
             onClose={handleCloseNotif}

@@ -16,16 +16,16 @@ export function NotifToggleRow({
   onToggle:    () => void
 }) {
   return (
-    <div className="flex items-center gap-2 px-4">
+    <div className="flex items-center gap-2">
       <div className="flex-1 min-w-0 flex flex-col tracking-[0.2px]">
-        <p className="font-body font-medium text-[14px] text-secondary leading-normal">{label}</p>
-        <p className="font-body text-[12px] text-tertiary leading-normal">{description}</p>
+        <p className="font-body font-medium text-[length:var(--text-sm)] text-secondary leading-normal">{label}</p>
+        <p className="font-body text-[length:var(--text-xs)] text-tertiary leading-normal">{description}</p>
       </div>
       <button
         onClick={onToggle}
         aria-label={`${enabled ? 'Disable' : 'Enable'} ${label} notifications`}
         className="relative w-[40px] h-[24px] flex-shrink-0 p-1 transition-colors"
-        style={{ background: enabled ? '#a855f7' : '#27272a' }}
+        style={{ background: enabled ? 'var(--color-purple)' : '#27272a' }}
       >
         <motion.span
           className="absolute top-1 w-4 h-4 bg-white pointer-events-none"
@@ -38,12 +38,10 @@ export function NotifToggleRow({
 }
 
 export function NotifSheet({
-  crewName,
   prefs,
   onToggle,
   onClose,
 }: {
-  crewName: string
   prefs:    NotifPrefs
   onToggle: (type: keyof NotifPrefs) => void
   onClose:  () => void
@@ -61,20 +59,17 @@ export function NotifSheet({
         initial={{ y: 80, opacity: 0 }}
         animate={{ y: 0,  opacity: 1 }}
         exit={{   y: 80, opacity: 0 }}
-        transition={{ type: 'spring', stiffness: 280, damping: 26 }}
-        className="relative w-full max-w-[480px] bg-surface border-t border-border flex flex-col gap-6 p-4 overflow-hidden"
+        transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+        className="relative w-full max-w-[480px] bg-black border-t border-border-hover flex flex-col gap-6 p-4 overflow-hidden"
         style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 24px)' }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex flex-col gap-2">
-          <p className="font-pixel text-[8px] text-tertiary leading-none">{crewName.toUpperCase()}</p>
-          <div className="flex flex-col gap-1">
-            <h2 className="font-body font-bold text-[18px] text-primary leading-none">Notifications</h2>
-            <p className="font-body text-[12px] text-secondary leading-normal">Control what pulls you back into the chat.</p>
-          </div>
+        <div className="flex flex-col gap-1">
+          <h2 className="font-body font-bold text-[length:var(--text-lg)] text-primary leading-none">Notifications</h2>
+          <p className="font-body text-[length:var(--text-xs)] text-secondary leading-normal">Control what pulls you back into the chat.</p>
         </div>
 
-        <div className="flex flex-col gap-4 py-4 border border-[rgba(168,85,247,0.5)] bg-surface overflow-hidden">
+        <div className="flex flex-col gap-3">
           <NotifToggleRow
             label="Messages"
             description="Notify me with new messages from this chat"
@@ -99,9 +94,9 @@ export function NotifSheet({
 
         <button
           onClick={onClose}
-          className="w-full font-silkscreen text-[16px] text-muted leading-none py-1 transition-colors active:text-tertiary"
+          className="w-full h-[var(--space-13)] flex items-center justify-center font-pixel text-[length:var(--text-mini)] text-tertiary leading-none overflow-hidden transition-colors active:text-muted"
         >
-          Close
+          CLOSE
         </button>
       </motion.div>
     </motion.div>

@@ -1072,7 +1072,6 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       <AnimatePresence>
         {showNotif && (
           <NotifSheet
-            crewName={liveCrewName}
             prefs={notifPrefs}
             onToggle={handleToggleNotif}
             onClose={() => setShowNotif(false)}
