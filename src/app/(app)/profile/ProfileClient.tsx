@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { SlidePage, useSlideBack } from '@/components/ui/SlidePage'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
+import { ChevronRight } from 'pixelarticons/react/ChevronRight'
 import { MagicEdit } from 'pixelarticons/react/MagicEdit'
 import Image from 'next/image'
 import { isSupabaseStorage, resolveAvatarUrl } from '@/components/ui/Avatar'
@@ -106,8 +107,8 @@ function NotifRow({
       <div className="flex items-center gap-2 px-4">
         <div className="flex-1 min-w-0 flex flex-col gap-0 leading-[0] tracking-[0.2px]">
           <p
-            className="font-body font-medium text-secondary leading-normal"
-            style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
+            className="font-body font-semibold text-secondary leading-normal"
+            style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}
           >
             {label}
           </p>
@@ -642,13 +643,14 @@ export function ProfileClient({
         >
           <MagicEdit style={{ width: 16, height: 16, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
           <div className="flex-1 min-w-0 flex flex-col gap-0 leading-[0] tracking-[0.2px]">
-            <p className="font-body font-medium text-secondary leading-normal" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}>
+            <p className="font-body font-semibold text-secondary leading-normal" style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}>
               Edit Profile
             </p>
             <p className="font-body font-normal text-tertiary leading-normal" style={{ fontSize: 'var(--text-xxs)', fontVariationSettings: '"opsz" 14' }}>
               Manage your profile.
             </p>
           </div>
+          <ChevronRight style={{ width: 16, height: 16, color: 'var(--color-tertiary)', flexShrink: 0 }} aria-hidden="true" />
         </button>
 
         {/* Notifications */}
