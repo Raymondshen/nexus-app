@@ -12,9 +12,8 @@ import Image from 'next/image'
 import { isSupabaseStorage, resolveAvatarUrl } from '@/components/ui/Avatar'
 import { createClient } from '@/lib/supabase/client'
 import { signOut } from '@/lib/supabase/auth'
-import { isSupported, getPermissionState, requestPermission, subscribeToPush } from '@/lib/notifications'
-import type { PermissionState } from '@/lib/notifications'
 import { revalidateProfileAction, resetAvatarAction, updateProfileDetailsAction } from './actions'
+import { NotifSheet, type NotifPrefs } from '@/components/chat/NotifSheet'
 import {
   getAllAnnouncementsAction,
   createAnnouncementAction,
@@ -39,18 +38,6 @@ interface ProfileClientProps {
   groupChats:      number
   inviterUsername: string | null
   initialStatus:   string | null
-}
-
-type NotifPrefs = {
-  notif_messages: boolean
-  notif_raids:    boolean
-  notif_victory:  boolean
-}
-
-const DEFAULT_PREFS: NotifPrefs = {
-  notif_messages: true,
-  notif_raids:    true,
-  notif_victory:  true,
 }
 
 // ─── Shared section label ─────────────────────────────────────────────────────
@@ -88,46 +75,6 @@ function ToggleSwitch({ enabled, onChange, disabled }: { enabled: boolean; onCha
         transition={{ type: 'spring', stiffness: 400, damping: 30 }}
       />
     </button>
-  )
-}
-
-// ─── Notification row ──────────────────────────────────────────────────────────
-
-function NotifRow({
-  label, sub, prefKey, prefs, savingPref, onToggle, showDivider,
-}: {
-  label: string; sub: string
-  prefKey: keyof NotifPrefs
-  prefs: NotifPrefs
-  savingPref: keyof NotifPrefs | null
-  onToggle: (k: keyof NotifPrefs) => void
-  showDivider: boolean
-}) {
-  return (
-    <>
-      <div className="flex items-center gap-2 px-4">
-        <div className="flex-1 min-w-0 flex flex-col gap-0 leading-[0] tracking-[0.2px]">
-          <p
-            className="font-body font-semibold text-secondary leading-normal"
-            style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}
-          >
-            {label}
-          </p>
-          <p
-            className="font-body font-normal text-tertiary leading-normal"
-            style={{ fontSize: 'var(--text-xxs)', fontVariationSettings: '"opsz" 14' }}
-          >
-            {sub}
-          </p>
-        </div>
-        <ToggleSwitch
-          enabled={prefs[prefKey]}
-          onChange={() => onToggle(prefKey)}
-          disabled={savingPref === prefKey}
-        />
-      </div>
-      {showDivider && <div className="h-px bg-border mx-0" />}
-    </>
   )
 }
 
@@ -418,128 +365,6 @@ function EditProfileSheet({
   )
 }
 
-// ─── Profile notification sheet ──────────────────────────────────────────────
-
-function ProfileNotifSheet({
-  notifSupported, notifPermission, enablingNotif, subError,
-  prefs, savingPref, prefsLoading,
-  onEnableNotifications, onTogglePref, onClose,
-}: {
-  notifSupported:        boolean
-  notifPermission:       PermissionState
-  enablingNotif:         boolean
-  subError:              boolean
-  prefs:                 NotifPrefs
-  savingPref:            keyof NotifPrefs | null
-  prefsLoading:          boolean
-  onEnableNotifications: () => void
-  onTogglePref:          (k: keyof NotifPrefs) => void
-  onClose:               () => void
-}) {
-  const rows = [
-    { key: 'notif_messages' as const, label: 'Messages',    sub: 'Notify me with new messages from this chat' },
-    { key: 'notif_raids'    as const, label: 'Raid Alerts', sub: 'Notify me when boss spawns and expires' },
-    { key: 'notif_victory'  as const, label: 'Victory',     sub: 'Notify me when boss defeated & artifact drops' },
-  ]
-
-  return (
-    <>
-      <motion.div
-        className="fixed inset-0 z-[48] bg-black/60"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={onClose}
-      />
-      <motion.div
-        className="fixed bottom-0 left-0 right-0 z-[50] max-w-[480px] mx-auto"
-        initial={{ y: '100%' }}
-        animate={{ y: 0 }}
-        exit={{ y: '100%' }}
-        transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-      >
-        <div
-          className="bg-surface border-t overflow-hidden flex flex-col gap-6"
-          style={{
-            borderColor: 'var(--color-border-hover)',
-            padding: 'var(--space-7) var(--space-5)',
-            paddingBottom: 'max(env(safe-area-inset-bottom), var(--space-5))',
-          }}
-        >
-          {/* Header */}
-          <div className="flex flex-col gap-2">
-            <p className="font-pixel text-[8px] text-tertiary leading-none">NOTIFICATIONS</p>
-            <div className="flex flex-col gap-1">
-              <p className="font-body font-bold text-primary leading-none" style={{ fontSize: 'var(--text-lg)', fontVariationSettings: '"opsz" 14' }}>
-                Notifications
-              </p>
-              <p className="font-body font-normal text-secondary leading-normal" style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}>
-                Control what pulls you back into the chat.
-              </p>
-            </div>
-          </div>
-
-          {/* Content */}
-          {!notifSupported ? (
-            <p className="font-pixel text-[8px] text-muted leading-relaxed">NOT SUPPORTED ON THIS DEVICE</p>
-          ) : notifPermission === 'denied' ? (
-            <div className="flex flex-col gap-2">
-              <p className="font-pixel text-[8px] text-[#ef4444]">BLOCKED BY BROWSER</p>
-              <p className="font-pixel text-[7px] text-muted leading-relaxed">
-                ENABLE IN YOUR BROWSER SETTINGS TO RECEIVE NOTIFICATIONS
-              </p>
-            </div>
-          ) : notifPermission !== 'granted' ? (
-            <div className="flex flex-col gap-3">
-              <p className="font-body font-normal text-tertiary leading-normal" style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}>
-                Get notified for messages, boss spawns, and victories
-              </p>
-              <button
-                onClick={onEnableNotifications}
-                disabled={enablingNotif}
-                className="w-full h-10 font-pixel text-[8px] text-purple border border-[rgba(168,85,247,0.5)] hover:border-purple transition-colors disabled:opacity-50"
-              >
-                {enablingNotif ? '...' : subError ? '↺ RETRY' : 'ENABLE NOTIFICATIONS'}
-              </button>
-              {subError && (
-                <p className="font-pixel text-[7px] text-[#f59e0b] leading-relaxed">
-                  SUBSCRIPTION FAILED — ADD APP TO HOME SCREEN, THEN RETRY
-                </p>
-              )}
-            </div>
-          ) : (
-            <div
-              className="flex flex-col gap-4 py-4 border overflow-hidden"
-              style={{ borderColor: 'rgba(168,85,247,0.5)', opacity: prefsLoading ? 0.5 : 1, pointerEvents: prefsLoading ? 'none' : 'auto' }}
-            >
-              {rows.map(({ key, label, sub }, i) => (
-                <NotifRow
-                  key={key}
-                  prefKey={key}
-                  label={label}
-                  sub={sub}
-                  prefs={prefs}
-                  savingPref={savingPref}
-                  onToggle={onTogglePref}
-                  showDivider={i < rows.length - 1}
-                />
-              ))}
-            </div>
-          )}
-
-          {/* Close */}
-          <button
-            onClick={onClose}
-            className="w-full h-[var(--space-13)] flex items-center justify-center font-silkscreen text-[16px] text-muted leading-none overflow-hidden transition-colors active:text-tertiary"
-          >
-            Close
-          </button>
-        </div>
-      </motion.div>
-    </>
-  )
-}
-
 // ─── BackButton (inside SlidePage context) ────────────────────────────────────
 
 function BackButton() {
@@ -591,67 +416,35 @@ export function ProfileClient({
   const [localStatus,     setLocalStatus]     = useState(initialStatus ?? '')
 
   // ── Notifications ─────────────────────────────────────────────────────────
-  const [showNotifSheet,  setShowNotifSheet]  = useState(false)
-  const [notifSupported,  setNotifSupported]  = useState(false)
-  const [notifPermission, setNotifPermission] = useState<PermissionState>('unsupported')
-  const [enablingNotif,   setEnablingNotif]   = useState(false)
-  const [subError,        setSubError]        = useState(false)
-  const [prefs,           setPrefs]           = useState<NotifPrefs>(DEFAULT_PREFS)
-  const [prefsLoading,    setPrefsLoading]    = useState(false)
-  const [savingPref,      setSavingPref]      = useState<keyof NotifPrefs | null>(null)
+  const [showNotifSheet, setShowNotifSheet] = useState(false)
+  const [prefs,          setPrefs]          = useState<NotifPrefs>({ messages: true, raids: true, victory: true })
 
   const fetchPrefs = useCallback(async () => {
-    setPrefsLoading(true)
-    try {
-      const supabase = createClient()
-      const { data } = await supabase
-        .from('notification_preferences')
-        .select('notif_messages, notif_raids, notif_victory')
-        .eq('user_id', userId).maybeSingle()
-      if (data) setPrefs({
-        notif_messages: data.notif_messages as boolean,
-        notif_raids:    data.notif_raids    as boolean,
-        notif_victory:  data.notif_victory  as boolean,
-      })
-    } finally {
-      setPrefsLoading(false)
-    }
+    const supabase = createClient()
+    const { data } = await supabase
+      .from('notification_preferences')
+      .select('notif_messages, notif_raids, notif_victory')
+      .eq('user_id', userId).maybeSingle()
+    if (data) setPrefs({
+      messages: data.notif_messages as boolean,
+      raids:    data.notif_raids    as boolean,
+      victory:  data.notif_victory  as boolean,
+    })
   }, [userId])
 
-  useEffect(() => {
-    const supported  = isSupported()
-    const permission = getPermissionState()
-    setNotifSupported(supported)
-    setNotifPermission(permission)
-    if (supported && permission === 'granted') fetchPrefs()
-  }, [fetchPrefs])
-
-  async function handleEnableNotifications() {
-    setEnablingNotif(true); setSubError(false)
-    try {
-      const state = await requestPermission()
-      setNotifPermission(state)
-      if (state === 'granted') {
-        const sub = await subscribeToPush()
-        if (!sub) setSubError(true)
-        fetchPrefs()
-      }
-    } finally {
-      setEnablingNotif(false)
-    }
-  }
+  useEffect(() => { fetchPrefs() }, [fetchPrefs])
 
   async function handleTogglePref(key: keyof NotifPrefs) {
     const next = { ...prefs, [key]: !prefs[key] }
     setPrefs(next)
-    setSavingPref(key)
-    try {
-      const supabase = createClient()
-      await supabase.from('notification_preferences')
-        .upsert({ user_id: userId, ...next, updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
-    } finally {
-      setSavingPref(null)
-    }
+    const supabase = createClient()
+    await supabase.from('notification_preferences').upsert({
+      user_id:        userId,
+      notif_messages: next.messages,
+      notif_raids:    next.raids,
+      notif_victory:  next.victory,
+      updated_at:     new Date().toISOString(),
+    }, { onConflict: 'user_id' })
   }
 
   // ── Logout ────────────────────────────────────────────────────────────────
@@ -917,16 +710,9 @@ export function ProfileClient({
       {/* Notification bottom sheet */}
       <AnimatePresence>
         {showNotifSheet && (
-          <ProfileNotifSheet
-            notifSupported={notifSupported}
-            notifPermission={notifPermission}
-            enablingNotif={enablingNotif}
-            subError={subError}
+          <NotifSheet
             prefs={prefs}
-            savingPref={savingPref}
-            prefsLoading={prefsLoading}
-            onEnableNotifications={handleEnableNotifications}
-            onTogglePref={handleTogglePref}
+            onToggle={handleTogglePref}
             onClose={() => setShowNotifSheet(false)}
           />
         )}
