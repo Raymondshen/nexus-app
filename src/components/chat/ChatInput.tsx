@@ -21,10 +21,10 @@ import { Copy } from 'pixelarticons/react/Copy'
 import { Check } from 'pixelarticons/react/Check'
 import { UserMinus } from 'pixelarticons/react/UserMinus'
 import { Bell } from 'pixelarticons/react/Bell'
-import { UserPlus } from 'pixelarticons/react/UserPlus'
 import { kickMemberAction, renameCrewAction } from '@/app/(app)/chat/actions'
 import { CrewImageUploadModal } from '@/components/chat/CrewImageUploadModal'
 import { MagicEdit } from 'pixelarticons/react/MagicEdit'
+import { NotifSheet, type NotifPrefs } from '@/components/chat/NotifSheet'
 import type { Message, MessageWithProfile, Profile, ActiveRaid } from '@/types'
 
 const MAX_MESSAGE_LENGTH = 2000
@@ -53,8 +53,6 @@ interface ChatInputProps {
   initialXP?:     number
   initialRaid?:   ActiveRaid | null
   currentUserId?: string
-  onNotifPress?:  () => void
-  onSharePress?:  () => void
 }
 
 function sanitizeMessage(raw: string): string {
@@ -129,7 +127,7 @@ function MemberListRow({
   )
 }
 
-export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewName, inviteCode, creatorId, crewImageUrl: initialCrewImageUrl, initialXP, initialRaid, onNotifPress, onSharePress }: ChatInputProps) {
+export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewName, inviteCode, creatorId, crewImageUrl: initialCrewImageUrl, initialXP, initialRaid }: ChatInputProps) {
   const router = useRouter()
   const [text,           setText]          = useState('')
   const [sending,        setSending]        = useState(false)
@@ -150,6 +148,8 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   const [crewImageFile,  setCrewImageFile]  = useState<File | null>(null)
   const [isEditingName,  setIsEditingName]  = useState(false)
   const [editNameValue,  setEditNameValue]  = useState('')
+  const [showNotif,      setShowNotif]      = useState(false)
+  const [notifPrefs,     setNotifPrefs]     = useState<NotifPrefs>({ messages: true, raids: true, victory: true })
 
   const textareaRef       = useRef<HTMLTextAreaElement>(null)
   const crewImageInputRef = useRef<HTMLInputElement>(null)
@@ -276,6 +276,43 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     setIsEditingName(false)
     setEditNameValue(liveCrewName)
   }
+
+  useEffect(() => {
+    let cancelled = false
+    createClient()
+      .from('crew_notification_preferences')
+      .select('notif_messages, notif_raids, notif_victory')
+      .eq('user_id', userId)
+      .eq('crew_id', crewId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled || !data) return
+        setNotifPrefs({
+          messages: data.notif_messages as boolean,
+          raids:    data.notif_raids    as boolean,
+          victory:  data.notif_victory  as boolean,
+        })
+      })
+    return () => { cancelled = true }
+  }, [userId, crewId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleToggleNotif = useCallback(async (type: keyof NotifPrefs) => {
+    const next = { ...notifPrefs, [type]: !notifPrefs[type] }
+    setNotifPrefs(next)
+    await createClient()
+      .from('crew_notification_preferences')
+      .upsert(
+        {
+          user_id:        userId,
+          crew_id:        crewId,
+          notif_messages: next.messages,
+          notif_raids:    next.raids,
+          notif_victory:  next.victory,
+          updated_at:     new Date().toISOString(),
+        },
+        { onConflict: 'user_id,crew_id' },
+      )
+  }, [notifPrefs, userId, crewId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleTopPanEnd(_: PointerEvent, info: PanInfo) {
     if (info.offset.y < -50 || info.velocity.y < -300) setIsExpanded(true)
@@ -845,21 +882,9 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                             aria-label="Edit squad name"
                           />
                         ) : (
-                          <div className="flex items-center gap-2">
-                            <p className="font-silkscreen text-[length:var(--text-md)] text-purple leading-none truncate">
-                              {liveCrewName.toUpperCase()}
-                            </p>
-                            {userId === creatorId && (
-                              <button
-                                onClick={startEditingName}
-                                aria-label="Rename squad"
-                                className="flex-shrink-0 flex items-center justify-center active:opacity-60 transition-opacity"
-                                style={{ width: 16, height: 24 }}
-                              >
-                                <MagicEdit style={{ width: 16, height: 16, color: 'var(--color-muted)' }} aria-hidden="true" />
-                              </button>
-                            )}
-                          </div>
+                          <p className="font-silkscreen text-[length:var(--text-md)] text-purple leading-none truncate">
+                            {liveCrewName.toUpperCase()}
+                          </p>
                         )}
                         <p className="font-silkscreen text-[8px] text-tertiary leading-none">
                           {memberCount} {memberCount === 1 ? 'member' : 'members'}
@@ -867,24 +892,24 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                       </div>
                     </div>
                     <div className="flex items-center gap-4 flex-shrink-0">
+                      {userId === creatorId && (
+                        <button
+                          onClick={startEditingName}
+                          className="flex items-center justify-center"
+                          style={{ width: 24, height: 24 }}
+                          aria-label="Edit squad name"
+                        >
+                          <MagicEdit style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+                        </button>
+                      )}
                       <button
-                        onClick={onNotifPress}
+                        onClick={() => setShowNotif(true)}
                         className="flex items-center justify-center"
                         style={{ width: 24, height: 24 }}
                         aria-label="Notification settings"
                       >
                         <Bell style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
                       </button>
-                      {inviteCode && (
-                        <button
-                          onClick={onSharePress}
-                          className="flex items-center justify-center"
-                          style={{ width: 24, height: 24 }}
-                          aria-label="Invite"
-                        >
-                          <UserPlus style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
-                        </button>
-                      )}
                       <button
                         onClick={() => setIsExpanded(false)}
                         className="flex items-center justify-center"
@@ -1032,6 +1057,17 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
               </div>
             </motion.div>
           </>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showNotif && (
+          <NotifSheet
+            crewName={liveCrewName}
+            prefs={notifPrefs}
+            onToggle={handleToggleNotif}
+            onClose={() => setShowNotif(false)}
+          />
         )}
       </AnimatePresence>
 
