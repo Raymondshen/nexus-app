@@ -20,7 +20,7 @@ import { Crown } from 'pixelarticons/react/Crown'
 import { Copy } from 'pixelarticons/react/Copy'
 import { Check } from 'pixelarticons/react/Check'
 import { UserMinus } from 'pixelarticons/react/UserMinus'
-import { kickMemberAction } from '@/app/(app)/chat/actions'
+import { kickMemberAction, renameCrewAction } from '@/app/(app)/chat/actions'
 import { CrewImageUploadModal } from '@/components/chat/CrewImageUploadModal'
 import { MagicEdit } from 'pixelarticons/react/MagicEdit'
 import type { Message, MessageWithProfile, Profile } from '@/types'
@@ -141,10 +141,13 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   const [kickedIds,      setKickedIds]      = useState<Set<string>>(new Set())
   const [crewImageUrl,   setCrewImageUrl]   = useState<string | null>(initialCrewImageUrl ?? null)
   const [crewImageFile,  setCrewImageFile]  = useState<File | null>(null)
+  const [isEditingName,  setIsEditingName]  = useState(false)
+  const [editNameValue,  setEditNameValue]  = useState('')
 
   const textareaRef       = useRef<HTMLTextAreaElement>(null)
   const crewImageInputRef = useRef<HTMLInputElement>(null)
   const memberListRef     = useRef<HTMLDivElement>(null)
+  const editNameInputRef  = useRef<HTMLInputElement>(null)
   const rateRef           = useRef({ count: 0, resetAt: Date.now() + RATE_LIMIT_WINDOW })
   const pullToCloseRef    = useRef({ startY: 0, atTop: false })
   const typingTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -156,7 +159,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     activeRaid, damageFloats, addDamageFloat, dismissDamageFloat,
     crewXP, crewLevel, xpFloats, dismissXPFloat,
     onlineUserIds, setOnlineUserIds, addUserCoins,
-    crewName: storeCrewName,
+    crewName: storeCrewName, setCrewName,
   } = useChatStore()
 
   const liveCrewName = storeCrewName || crewName
@@ -216,6 +219,30 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       el.removeEventListener('touchend',   onTouchEnd)
     }
   }, [isExpanded])
+
+  useEffect(() => {
+    if (isEditingName) editNameInputRef.current?.focus()
+  }, [isEditingName])
+
+  function startEditingName() {
+    setEditNameValue(liveCrewName)
+    setIsEditingName(true)
+  }
+
+  async function confirmRename() {
+    const trimmed = editNameValue.trim()
+    setIsEditingName(false)
+    if (!trimmed || trimmed.length < 2 || trimmed === liveCrewName) return
+    const prev = liveCrewName
+    setCrewName(trimmed)
+    const result = await renameCrewAction(crewId, trimmed)
+    if (result?.error) setCrewName(prev)
+  }
+
+  function cancelRename() {
+    setIsEditingName(false)
+    setEditNameValue(liveCrewName)
+  }
 
   function handleTopPanEnd(_: PointerEvent, info: PanInfo) {
     if (info.offset.y < -50 || info.velocity.y < -300) setIsExpanded(true)
@@ -760,10 +787,38 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                         )}
                       </button>
 
-                      <div className="flex flex-col gap-1">
-                        <p className="font-pixel text-[18px] text-primary leading-none">
-                          {liveCrewName.toUpperCase()}
-                        </p>
+                      <div className="flex flex-col gap-1 min-w-0 flex-1">
+                        {isEditingName ? (
+                          <input
+                            ref={editNameInputRef}
+                            value={editNameValue}
+                            onChange={(e) => setEditNameValue(e.target.value.slice(0, 30))}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') confirmRename()
+                              if (e.key === 'Escape') cancelRename()
+                            }}
+                            onBlur={confirmRename}
+                            maxLength={30}
+                            className="font-pixel text-[18px] text-primary bg-transparent border-b border-purple focus:outline-none leading-none w-full py-1 uppercase"
+                            aria-label="Edit squad name"
+                          />
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <p className="font-pixel text-[18px] text-primary leading-none truncate">
+                              {liveCrewName.toUpperCase()}
+                            </p>
+                            {userId === creatorId && (
+                              <button
+                                onClick={startEditingName}
+                                aria-label="Rename squad"
+                                className="flex-shrink-0 flex items-center justify-center active:opacity-60 transition-opacity"
+                                style={{ width: 16, height: 24 }}
+                              >
+                                <MagicEdit style={{ width: 16, height: 16, color: 'var(--color-muted)' }} aria-hidden="true" />
+                              </button>
+                            )}
+                          </div>
+                        )}
                         {!loadingCounts && (
                           <p className="font-silkscreen text-[8px] text-secondary leading-none">
                             {memberCount} {memberCount === 1 ? 'member' : 'members'} · {totalMessages.toLocaleString()} total messages
