@@ -23,6 +23,8 @@ import { Input } from '@/components/ui/Input'
 import type { CrewSummary } from './page'
 import type { Message, MessageWithProfile } from '@/types'
 import { useChatStore } from '@/store/chatStore'
+import { AnnouncementBanner } from '@/components/ui/AnnouncementBanner'
+import type { AnnouncementItem } from '@/components/ui/AnnouncementBanner'
 
 export interface FriendSummary {
   id:            string
@@ -42,6 +44,7 @@ interface HomeClientProps {
   totalMessages: number
   friends:       FriendSummary[]
   initialCoins:  number
+  announcements: AnnouncementItem[]
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -670,6 +673,7 @@ export function HomeClient({
   totalMessages,
   friends,
   initialCoins,
+  announcements,
 }: HomeClientProps) {
   const router = useRouter()
 
@@ -902,6 +906,9 @@ export function HomeClient({
           </div>
         </div>
       </div>
+
+      {/* ── Announcement banners ── */}
+      <AnnouncementBanner announcements={announcements} />
 
       {/* ── Body ── */}
       <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-6">

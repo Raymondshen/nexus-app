@@ -164,6 +164,13 @@ export interface ReservedUser extends Record<string, unknown> {
   converted: boolean
 }
 
+export interface Announcement extends Record<string, unknown> {
+  id:         string
+  text:       string
+  active:     boolean
+  created_at: string
+}
+
 export interface AppInvite extends Record<string, unknown> {
   id: string
   code: string
@@ -288,6 +295,12 @@ export type Database = {
         Row: Friendship
         Insert: Omit<Friendship, 'id' | 'created_at'> & { id?: string; created_at?: string }
         Update: Partial<Pick<Friendship, 'status'>>
+        Relationships: []
+      }
+      announcements: {
+        Row: Announcement
+        Insert: Omit<Announcement, 'id' | 'created_at'> & { id?: string; created_at?: string }
+        Update: Partial<Omit<Announcement, 'id' | 'created_at'>>
         Relationships: []
       }
       app_invites: {

@@ -4,6 +4,7 @@ import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { HomeClient } from './HomeClient'
 import type { FriendSummary } from './HomeClient'
 import type { Crew } from '@/types'
+import type { AnnouncementItem } from '@/components/ui/AnnouncementBanner'
 
 function buildFriends(
   friendshipRows: Array<{ id: string; requester_id: string; addressee_id: string }>,
@@ -135,6 +136,23 @@ function getCachedCrewLastMessage(crewId: string) {
   )()
 }
 
+// Cached: active announcements (60s TTL, invalidated by revalidateTag('announcements'))
+function getCachedAnnouncements() {
+  return unstable_cache(
+    async () => {
+      const supabase = createServiceClient()
+      const { data } = await supabase
+        .from('announcements')
+        .select('id, text')
+        .eq('active', true)
+        .order('created_at', { ascending: false })
+      return (data ?? []) as AnnouncementItem[]
+    },
+    ['announcements'],
+    { tags: ['announcements'], revalidate: 60 }
+  )()
+}
+
 // Crew membership row with embedded crew data (single joined query replaces two separate queries)
 type MembershipWithCrew = {
   crew_id:   string
@@ -149,13 +167,14 @@ export default async function HomePage() {
   if (!session) redirect('/login')
   const user = session.user
 
-  // Stage 1 — 3 parallel calls, only 1 hits the DB (crew_members + crews joined).
-  // profile (cached) + friendships (cached) avoid fresh queries on cache hits.
+  // Stage 1 — 4 parallel calls, only 1 hits the DB (crew_members + crews joined).
+  // profile (cached) + friendships (cached) + announcements (cached) avoid fresh queries on cache hits.
   // Crew total_xp/level is always fresh because crew_members itself is a fresh query.
   const [
     profile,
     { data: membershipRows, error: memberError },
     friendshipRows,
+    announcements,
   ] = await Promise.all([
     getCachedHomeProfile(user.id),
     supabase
@@ -164,6 +183,7 @@ export default async function HomePage() {
       .eq('user_id', user.id)
       .order('joined_at', { ascending: false }),
     getCachedFriendships(user.id),
+    getCachedAnnouncements(),
   ])
 
   if (memberError) console.error('[home] crew_members query error:', memberError)
@@ -189,6 +209,7 @@ export default async function HomePage() {
         totalMessages={profile?.totalMessages ?? 0}
         friends={friends}
         initialCoins={profile?.coins ?? 0}
+        announcements={announcements}
       />
     )
   }
@@ -278,6 +299,7 @@ export default async function HomePage() {
       totalMessages={profile?.totalMessages ?? 0}
       friends={friends}
       initialCoins={profile?.coins ?? 0}
+      announcements={announcements}
     />
   )
 }

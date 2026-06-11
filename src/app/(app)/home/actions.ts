@@ -3,7 +3,7 @@
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { createClient } from '@supabase/supabase-js'
 import { createClient as createSupabaseClient, createServiceClient } from '@/lib/supabase/server'
-import type { Database, AppInvite } from '@/types'
+import type { Database, AppInvite, Announcement } from '@/types'
 
 export interface InviteCodeData {
   id:               string
@@ -125,6 +125,69 @@ export async function getInviteCodesAction(): Promise<
       used_by_username: r.used_by ? (usernameMap[r.used_by] ?? null) : null,
     })),
   }
+}
+
+// ─── Announcements ───────────────────────────────────────────────────────────
+
+async function requireDev(): Promise<{ userId: string } | { error: string }> {
+  const supabase = await createSupabaseClient()
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) return { error: 'Not authenticated' }
+  const service = createServiceClient()
+  const { data } = await service.from('profiles').select('is_dev').eq('id', session.user.id).single()
+  if (!(data as { is_dev?: boolean })?.is_dev) return { error: 'Not authorized' }
+  return { userId: session.user.id }
+}
+
+export async function getAllAnnouncementsAction(): Promise<{ data?: Announcement[]; error?: string }> {
+  const auth = await requireDev()
+  if ('error' in auth) return auth
+  const { data, error } = await createServiceClient()
+    .from('announcements')
+    .select('id, text, active, created_at')
+    .order('created_at', { ascending: false })
+  if (error) return { error: error.message }
+  return { data: (data ?? []) as Announcement[] }
+}
+
+export async function createAnnouncementAction(text: string): Promise<{ ok?: boolean; error?: string }> {
+  const auth = await requireDev()
+  if ('error' in auth) return auth
+  const trimmed = text.trim()
+  if (!trimmed) return { error: 'Text is required' }
+  const { error } = await createServiceClient().from('announcements').insert({ text: trimmed })
+  if (error) return { error: error.message }
+  revalidateTag('announcements', 'max')
+  return { ok: true }
+}
+
+export async function updateAnnouncementAction(id: string, text: string): Promise<{ ok?: boolean; error?: string }> {
+  const auth = await requireDev()
+  if ('error' in auth) return auth
+  const trimmed = text.trim()
+  if (!trimmed) return { error: 'Text is required' }
+  const { error } = await createServiceClient().from('announcements').update({ text: trimmed }).eq('id', id)
+  if (error) return { error: error.message }
+  revalidateTag('announcements', 'max')
+  return { ok: true }
+}
+
+export async function toggleAnnouncementAction(id: string, active: boolean): Promise<{ ok?: boolean; error?: string }> {
+  const auth = await requireDev()
+  if ('error' in auth) return auth
+  const { error } = await createServiceClient().from('announcements').update({ active }).eq('id', id)
+  if (error) return { error: error.message }
+  revalidateTag('announcements', 'max')
+  return { ok: true }
+}
+
+export async function deleteAnnouncementAction(id: string): Promise<{ ok?: boolean; error?: string }> {
+  const auth = await requireDev()
+  if ('error' in auth) return auth
+  const { error } = await createServiceClient().from('announcements').delete().eq('id', id)
+  if (error) return { error: error.message }
+  revalidateTag('announcements', 'max')
+  return { ok: true }
 }
 
 export async function leaveCrewAction(

@@ -26,7 +26,15 @@ import { signOut } from '@/lib/supabase/auth'
 import { isSupported, getPermissionState, requestPermission, subscribeToPush } from '@/lib/notifications'
 import type { PermissionState } from '@/lib/notifications'
 import { revalidateProfileAction, resetAvatarAction } from './actions'
+import {
+  getAllAnnouncementsAction,
+  createAnnouncementAction,
+  updateAnnouncementAction,
+  toggleAnnouncementAction,
+  deleteAnnouncementAction,
+} from '@/app/(app)/home/actions'
 import { AvatarUploadModal } from '@/components/ui/AvatarUploadModal'
+import type { Announcement } from '@/types'
 
 interface ProfileClientProps {
   userId:          string
@@ -554,7 +562,54 @@ function DevSection({ userId, userEmail }: { userId: string; userEmail: string }
   const [infiniteCoins, setInfiniteCoins] = useState(false)
   const [afkExp,        setAfkExp]        = useState(false)
   const [actualCoins,  setActualCoins]  = useState<number | null>(null)
+  const [showBanners,  setShowBanners]  = useState(false)
+  const [banners,      setBanners]      = useState<Announcement[]>([])
+  const [bannersLoading, setBannersLoading] = useState(false)
+  const [editingId,    setEditingId]    = useState<string | null>(null)
+  const [editingText,  setEditingText]  = useState('')
+  const [newText,      setNewText]      = useState('')
+  const [addingBanner, setAddingBanner] = useState(false)
+  const [bannerError,  setBannerError]  = useState<string | null>(null)
 
+  async function loadBanners() {
+    setBannersLoading(true)
+    const result = await getAllAnnouncementsAction()
+    setBannersLoading(false)
+    if ('data' in result) setBanners(result.data ?? [])
+  }
+
+  async function handleCreateBanner() {
+    if (!newText.trim() || addingBanner) return
+    setAddingBanner(true)
+    setBannerError(null)
+    const result = await createAnnouncementAction(newText.trim())
+    setAddingBanner(false)
+    if (result.error) { setBannerError(result.error); return }
+    setNewText('')
+    loadBanners()
+  }
+
+  async function handleUpdateBanner(id: string) {
+    if (!editingText.trim()) return
+    const result = await updateAnnouncementAction(id, editingText.trim())
+    if (result.error) { setBannerError(result.error); return }
+    setEditingId(null)
+    loadBanners()
+  }
+
+  async function handleToggleBanner(id: string, active: boolean) {
+    const result = await toggleAnnouncementAction(id, !active)
+    if (result.error) setBannerError(result.error)
+    else loadBanners()
+  }
+
+  async function handleDeleteBanner(id: string) {
+    const result = await deleteAnnouncementAction(id)
+    if (result.error) setBannerError(result.error)
+    else {
+      setBanners(prev => prev.filter(b => b.id !== id))
+    }
+  }
 
   useEffect(() => {
     setDevMode(localStorage.getItem('nexus_dev_mode') === '1')
@@ -567,6 +622,10 @@ function DevSection({ userId, userEmail }: { userId: string; userEmail: string }
       if (data) setActualCoins((data as { coins: number }).coins)
     })
   }, [userId])
+
+  useEffect(() => {
+    if (showBanners) loadBanners()
+  }, [showBanners]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function toggleDevMode() {
     const next = !devMode
@@ -706,6 +765,124 @@ function DevSection({ userId, userEmail }: { userId: string; userEmail: string }
             style={{ color: flagsCleared ? '#66bb6a' : '#ffd700', borderColor: flagsCleared ? 'rgba(102,187,106,0.4)' : 'rgba(255,215,0,0.3)', background: flagsCleared ? 'rgba(102,187,106,0.08)' : 'rgba(255,215,0,0.06)' }}>
             {flagsCleared ? '✓ CLEARED' : 'RESET FLAGS'}
           </button>
+        </div>
+
+        {/* Announcements management */}
+        <div className="px-4 py-4 flex flex-col gap-3">
+          <button
+            onClick={() => setShowBanners(v => !v)}
+            className="flex items-center justify-between w-full"
+          >
+            <p className="font-body font-medium text-[14px] text-secondary leading-normal tracking-[0.2px]" style={{ fontVariationSettings: '"opsz" 14' }}>
+              Announcements
+            </p>
+            <span className="font-pixel text-[8px] transition-colors" style={{ color: '#ffd700' }}>
+              {showBanners ? '▲ HIDE' : '▼ MANAGE'}
+            </span>
+          </button>
+
+          {showBanners && (
+            <div className="flex flex-col gap-3">
+              {bannerError && (
+                <p className="font-pixel text-[7px] text-[#ff4444] leading-none">{bannerError}</p>
+              )}
+
+              {/* Existing banners */}
+              {bannersLoading ? (
+                <p className="font-pixel text-[7px] text-muted">Loading...</p>
+              ) : banners.length === 0 ? (
+                <p className="font-pixel text-[7px] text-muted">No announcements yet.</p>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {banners.map((b) => (
+                    <div
+                      key={b.id}
+                      className="border flex flex-col gap-2 p-3"
+                      style={{ borderColor: b.active ? 'rgba(168,85,247,0.4)' : 'rgba(255,255,255,0.1)', background: b.active ? 'rgba(168,85,247,0.06)' : 'rgba(255,255,255,0.02)' }}
+                    >
+                      {editingId === b.id ? (
+                        <div className="flex flex-col gap-2">
+                          <textarea
+                            value={editingText}
+                            onChange={(e) => setEditingText(e.target.value.slice(0, 500))}
+                            className="w-full bg-black border border-border px-3 py-2 font-body text-[13px] text-primary resize-none focus:outline-none focus:border-purple"
+                            rows={3}
+                            maxLength={500}
+                            autoFocus
+                          />
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleUpdateBanner(b.id)}
+                              className="flex-1 h-8 font-pixel text-[7px] border"
+                              style={{ color: '#66bb6a', borderColor: 'rgba(102,187,106,0.4)', background: 'rgba(102,187,106,0.08)' }}
+                            >
+                              SAVE
+                            </button>
+                            <button
+                              onClick={() => { setEditingId(null); setBannerError(null) }}
+                              className="flex-1 h-8 font-pixel text-[7px] border"
+                              style={{ color: '#ffd700', borderColor: 'rgba(255,215,0,0.3)', background: 'rgba(255,215,0,0.06)' }}
+                            >
+                              CANCEL
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <p className="font-body text-[13px] leading-snug" style={{ color: b.active ? 'var(--color-primary)' : 'var(--color-muted)', fontVariationSettings: '"opsz" 14' }}>
+                            {b.text}
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleToggleBanner(b.id, b.active)}
+                              className="font-pixel text-[7px] px-2 py-1 border transition-colors"
+                              style={{ color: b.active ? '#66bb6a' : '#a1a1aa', borderColor: b.active ? 'rgba(102,187,106,0.4)' : 'rgba(161,161,170,0.3)', background: b.active ? 'rgba(102,187,106,0.08)' : 'rgba(161,161,170,0.06)' }}
+                            >
+                              {b.active ? 'ACTIVE' : 'INACTIVE'}
+                            </button>
+                            <button
+                              onClick={() => { setEditingId(b.id); setEditingText(b.text); setBannerError(null) }}
+                              className="font-pixel text-[7px] px-2 py-1 border"
+                              style={{ color: '#ffd700', borderColor: 'rgba(255,215,0,0.3)', background: 'rgba(255,215,0,0.06)' }}
+                            >
+                              EDIT
+                            </button>
+                            <button
+                              onClick={() => handleDeleteBanner(b.id)}
+                              className="font-pixel text-[7px] px-2 py-1 border ml-auto"
+                              style={{ color: '#ef4444', borderColor: 'rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.06)' }}
+                            >
+                              DELETE
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Add new banner */}
+              <div className="flex flex-col gap-2">
+                <textarea
+                  value={newText}
+                  onChange={(e) => setNewText(e.target.value.slice(0, 500))}
+                  placeholder="New announcement text..."
+                  className="w-full bg-black border border-border px-3 py-2 font-body text-[13px] text-primary placeholder:text-muted resize-none focus:outline-none focus:border-purple"
+                  rows={2}
+                  maxLength={500}
+                />
+                <button
+                  onClick={handleCreateBanner}
+                  disabled={!newText.trim() || addingBanner}
+                  className="w-full h-9 font-pixel text-[8px] border transition-colors disabled:opacity-40"
+                  style={{ color: '#ffd700', borderColor: 'rgba(255,215,0,0.3)', background: 'rgba(255,215,0,0.06)' }}
+                >
+                  {addingBanner ? '...' : '+ ADD ANNOUNCEMENT'}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
       </div>
