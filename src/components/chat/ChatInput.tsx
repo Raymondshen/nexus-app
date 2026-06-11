@@ -11,22 +11,15 @@ import { createClient } from '@/lib/supabase/client'
 import { getElementType, getXPProgress, XP_PER_LEVEL } from '@/lib/game/xp'
 import { useChatStore } from '@/store/chatStore'
 import { DamageFloat } from '@/components/game/DamageFloat'
-import { PixelSprite, spriteInfoFor } from '@/components/game/PixelSprite'
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/config'
 import { haptic } from '@/lib/sounds'
 import { Send } from 'pixelarticons/react/Send'
 import { Chart } from 'pixelarticons/react/Chart'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
-import { Crown } from 'pixelarticons/react/Crown'
-import { Copy } from 'pixelarticons/react/Copy'
-import { Check } from 'pixelarticons/react/Check'
-import { UserMinus } from 'pixelarticons/react/UserMinus'
-import { Bell } from 'pixelarticons/react/Bell'
 import { kickMemberAction, renameCrewAction } from '@/app/(app)/chat/actions'
 import { CrewImageUploadModal } from '@/components/chat/CrewImageUploadModal'
-import { MagicEdit } from 'pixelarticons/react/MagicEdit'
 import { NotifSheet, type NotifPrefs } from '@/components/chat/NotifSheet'
-import { SquadDetailsSheet } from '@/components/chat/SquadDetailsSheet'
+import { SquadDetailsSheet, type MiniMember } from '@/components/chat/SquadDetailsSheet'
 import { PollCreatorSheet } from '@/components/chat/PollCreatorSheet'
 import type { Message, MessageWithProfile, Profile, ActiveRaid } from '@/types'
 
@@ -36,11 +29,6 @@ const RATE_LIMIT_WINDOW  = 60_000
 
 const CREW_AVATAR_COLORS = ['#bf5fff', '#00e5ff', '#ffd700', '#ff4444', '#66bb6a', '#ff9800']
 
-const CLASS_LABELS: Record<string, string> = {
-  berserker: 'Berserker', sage: 'Sage', ghost: 'Ghost', hype_man: 'Hype Man',
-  the_voice: 'The Voice', meme_lord: 'Meme Lord', mage: 'Mage', warrior: 'Warrior',
-  rogue: 'Rogue', healer: 'Healer', archer: 'Archer',
-}
 
 type MemberProfile = Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url'>
 
@@ -63,73 +51,6 @@ function sanitizeMessage(raw: string): string {
   return raw.replace(/<[^>]*>/g, '').trim().slice(0, MAX_MESSAGE_LENGTH)
 }
 
-function MemberListRow({
-  profile, msgCount, loading, isOnline, isCreator, onTap, onRemove,
-}: {
-  profile: MemberProfile; msgCount: number; loading: boolean; isOnline: boolean; isCreator?: boolean; onTap?: () => void; onRemove?: () => void
-}) {
-  const spriteInfo = spriteInfoFor(profile.avatar_class)
-  const url        = profile.avatar_url as string | null
-  const initial    = profile.username[0]?.toUpperCase() ?? '?'
-  const classLabel = profile.avatar_class ? (CLASS_LABELS[profile.avatar_class] ?? profile.avatar_class) : 'Unknown'
-
-  return (
-    <div
-      className="flex items-center gap-3 active:bg-surface/50 transition-colors"
-      onClick={onTap}
-      style={onTap ? { cursor: 'pointer' } : undefined}
-    >
-      {/* Profile photo with online dot */}
-      <div className="relative flex-shrink-0">
-        <div className="w-8 h-8 overflow-hidden bg-surface flex items-center justify-center">
-          {url ? (
-            <div className="relative w-full h-full">
-              <Image src={resolveAvatarUrl(url, 32)} alt={profile.username} fill sizes="32px" className="object-cover" unoptimized={isSupabaseStorage(url)} />
-            </div>
-          ) : (
-            <span className="font-pixel text-[8px] text-purple">{initial}</span>
-          )}
-        </div>
-        {isOnline && (
-          <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#66bb6a] border-[1.5px] border-black" />
-        )}
-      </div>
-
-      {/* Animated sprite — no background, bumped scale with overflow clip */}
-      <div className="w-8 h-8 flex-shrink-0 flex items-center justify-center overflow-hidden">
-        {spriteInfo ? (
-          <PixelSprite spriteId={spriteInfo.id} nativePx={spriteInfo.nativePx} scale={1.5} animate />
-        ) : (
-          <span className="font-pixel text-[8px] text-purple">{initial}</span>
-        )}
-      </div>
-
-      {/* Name + class · msg count */}
-      <div className="flex flex-col gap-1 justify-center min-w-0 flex-1">
-        <div className="flex items-center gap-1">
-          <p className="font-body font-bold text-[16px] text-white truncate leading-none">{profile.username}</p>
-          {isCreator && (
-            <Crown style={{ width: 12, height: 12, color: '#f59e0b' }} aria-hidden="true" />
-          )}
-        </div>
-        <p className="font-silkscreen text-[8px] text-secondary leading-none">
-          {loading ? '...' : `${classLabel} · ${msgCount.toLocaleString()} msg.`}
-        </p>
-      </div>
-
-      {/* Remove button — creator only */}
-      {onRemove && (
-        <button
-          onClick={(e) => { e.stopPropagation(); onRemove() }}
-          className="flex-shrink-0 flex items-center justify-center w-8 h-8 text-[#ef4444] active:opacity-70 transition-opacity"
-          aria-label={`Remove ${profile.username}`}
-        >
-          <UserMinus style={{ width: 16, height: 16 }} aria-hidden="true" />
-        </button>
-      )}
-    </div>
-  )
-}
 
 export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewName, inviteCode, creatorId, crewImageUrl: initialCrewImageUrl, initialXP, initialRaid, isDM }: ChatInputProps) {
   const router = useRouter()
@@ -143,26 +64,19 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   const [isExpanded,     setIsExpanded]     = useState(false)
   const [memberMsgCounts, setMemberMsgCounts] = useState<Map<string, number>>(new Map())
   const [loadingCounts,  setLoadingCounts]  = useState(false)
-  const [copied,         setCopied]         = useState(false)
   const [removeTarget,   setRemoveTarget]   = useState<MemberProfile | null>(null)
   const [removing,       setRemoving]       = useState(false)
   const [removeError,    setRemoveError]    = useState<string | null>(null)
   const [kickedIds,      setKickedIds]      = useState<Set<string>>(new Set())
   const [crewImageUrl,   setCrewImageUrl]   = useState<string | null>(initialCrewImageUrl ?? null)
   const [crewImageFile,  setCrewImageFile]  = useState<File | null>(null)
-  const [isEditingName,  setIsEditingName]  = useState(false)
-  const [editNameValue,  setEditNameValue]  = useState('')
   const [showNotif,       setShowNotif]       = useState(false)
   const [notifPrefs,      setNotifPrefs]      = useState<NotifPrefs>({ messages: true, raids: true, victory: true })
-  const [showSquadDetails,  setShowSquadDetails]  = useState(false)
   const [showPollCreator,   setShowPollCreator]   = useState(false)
 
   const textareaRef       = useRef<HTMLTextAreaElement>(null)
   const crewImageInputRef = useRef<HTMLInputElement>(null)
-  const memberListRef     = useRef<HTMLDivElement>(null)
-  const editNameInputRef  = useRef<HTMLInputElement>(null)
   const rateRef           = useRef({ count: 0, resetAt: Date.now() + RATE_LIMIT_WINDOW })
-  const pullToCloseRef    = useRef({ startY: 0, atTop: false })
   const typingTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null)
   const typingChannelRef = useRef<RealtimeChannel | null>(null)
   const msgChannelRef    = useRef<RealtimeChannel | null>(null)
@@ -231,58 +145,6 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     return () => { cancelled = true }
   }, [isExpanded, crewId]) // eslint-disable-line
 
-  // Pull-to-close: when the member list is at scroll-top and user drags down, dismiss the sheet
-  useEffect(() => {
-    if (!isExpanded) return
-    const el = memberListRef.current
-    if (!el) return
-
-    function onTouchStart(e: TouchEvent) {
-      pullToCloseRef.current = { startY: e.touches[0].clientY, atTop: el!.scrollTop === 0 }
-    }
-    function onTouchMove(e: TouchEvent) {
-      if (!pullToCloseRef.current.atTop) return
-      if (e.touches[0].clientY - pullToCloseRef.current.startY > 0) e.preventDefault()
-    }
-    function onTouchEnd(e: TouchEvent) {
-      if (!pullToCloseRef.current.atTop) return
-      if (e.changedTouches[0].clientY - pullToCloseRef.current.startY > 60) setIsExpanded(false)
-    }
-
-    el.addEventListener('touchstart', onTouchStart, { passive: true })
-    el.addEventListener('touchmove',  onTouchMove,  { passive: false })
-    el.addEventListener('touchend',   onTouchEnd,   { passive: true })
-    return () => {
-      el.removeEventListener('touchstart', onTouchStart)
-      el.removeEventListener('touchmove',  onTouchMove)
-      el.removeEventListener('touchend',   onTouchEnd)
-    }
-  }, [isExpanded])
-
-  useEffect(() => {
-    if (isEditingName) editNameInputRef.current?.focus()
-  }, [isEditingName])
-
-  function startEditingName() {
-    setEditNameValue(liveCrewName)
-    setIsEditingName(true)
-  }
-
-  async function confirmRename() {
-    const trimmed = editNameValue.trim()
-    setIsEditingName(false)
-    if (!trimmed || trimmed.length < 2 || trimmed === liveCrewName) return
-    const prev = liveCrewName
-    setCrewName(trimmed)
-    const result = await renameCrewAction(crewId, trimmed)
-    if (result?.error) setCrewName(prev)
-  }
-
-  function cancelRename() {
-    setIsEditingName(false)
-    setEditNameValue(liveCrewName)
-  }
-
   useEffect(() => {
     let cancelled = false
     createClient()
@@ -322,10 +184,6 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
 
   function handleTopPanEnd(_: PointerEvent, info: PanInfo) {
     if (info.offset.y < -50 || info.velocity.y < -300) setIsExpanded(true)
-  }
-
-  function handlePanelPanEnd(_: PointerEvent, info: PanInfo) {
-    if (info.offset.y > 60 || info.velocity.y > 300) setIsExpanded(false)
   }
 
   useEffect(() => {
@@ -530,13 +388,6 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   function handleBlur() {
     broadcastTyping(false)
     if (typingTimerRef.current) clearTimeout(typingTimerRef.current)
-  }
-
-  function handleCopyCode() {
-    if (!inviteCode || copied) return
-    navigator.clipboard.writeText(`Come join my squad on Nexus app ${inviteCode}`).catch(() => {})
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1000)
   }
 
   function handlePollCreated(message: MessageWithProfile) {
@@ -830,268 +681,44 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
 
       {/* ── Expanded member panel ── */}
       <AnimatePresence>
-        {isExpanded && (
-          <>
-            {/* Backdrop */}
-            <motion.div
-              className="fixed inset-0 z-[38] bg-black/60"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              onClick={() => setIsExpanded(false)}
-            />
-
-            {/* Sheet — absolute so it slides up from the ChatInput container */}
-            <motion.div
-              className="absolute bottom-0 left-0 right-0 z-[50] bg-surface border-t border-border-hover flex flex-col"
-              initial={{ y: '100%' }}
-              animate={{ y: 0 }}
-              exit={{ y: '100%' }}
-              transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-              style={{ maxHeight: '85vh' }}
-              onPanEnd={handlePanelPanEnd}
-            >
-              {/* ── Fixed header: crew image, title, subtext, avatars, XP bar, invite code ── */}
-              <div className="flex flex-col gap-4 px-4 pt-[var(--space-7)] flex-shrink-0">
-                {/* Title + stats + chevron AND avatar row + XP bar — 56px gap between them */}
-                <div className="flex flex-col gap-14">
-
-                  {/* Crew image + name row + collapse button */}
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      {/* Crew image — tappable for creator */}
-                      <input
-                        ref={crewImageInputRef}
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
-                        className="hidden"
-                        onChange={(e) => {
-                          const f = e.target.files?.[0] ?? null
-                          if (f) setCrewImageFile(f)
-                          e.target.value = ''
-                        }}
-                      />
-                      <button
-                        onClick={userId === creatorId ? () => crewImageInputRef.current?.click() : undefined}
-                        className="relative flex-shrink-0 w-8 h-8 overflow-hidden"
-                        style={userId !== creatorId ? { cursor: 'default' } : undefined}
-                        aria-label={userId === creatorId ? 'Change crew photo' : undefined}
-                      >
-                        {crewImageUrl ? (
-                          <div className="relative w-full h-full">
-                            <Image
-                              src={crewImageUrl}
-                              alt={liveCrewName}
-                              fill
-                              sizes="32px"
-                              className="object-cover"
-                              unoptimized={isSupabaseStorage(crewImageUrl)}
-                            />
-                          </div>
-                        ) : (
-                          <div className="w-full h-full bg-purple" />
-                        )}
-                        {userId === creatorId && (
-                          <div className="absolute inset-0 flex items-end justify-end p-[2px] pointer-events-none">
-                            <div className="bg-black/60 rounded-sm p-[1px]">
-                              <MagicEdit style={{ width: 8, height: 8, color: 'var(--color-tertiary)' }} aria-hidden="true" />
-                            </div>
-                          </div>
-                        )}
-                      </button>
-
-                      <div className="flex flex-col min-w-0 flex-1">
-                        {isEditingName ? (
-                          <input
-                            ref={editNameInputRef}
-                            value={editNameValue}
-                            onChange={(e) => setEditNameValue(e.target.value.slice(0, 30))}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') confirmRename()
-                              if (e.key === 'Escape') cancelRename()
-                            }}
-                            onBlur={confirmRename}
-                            maxLength={30}
-                            className="font-silkscreen text-[length:var(--text-md)] text-purple bg-transparent border-b border-purple focus:outline-none leading-none w-full py-1 uppercase"
-                            aria-label="Edit squad name"
-                          />
-                        ) : (
-                          <p className="font-silkscreen text-[length:var(--text-md)] text-purple leading-none truncate">
-                            {liveCrewName.toUpperCase()}
-                          </p>
-                        )}
-                        <p className="font-silkscreen text-[8px] text-tertiary leading-none">
-                          {memberCount} {memberCount === 1 ? 'member' : 'members'}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-4 flex-shrink-0">
-                      {userId === creatorId && (
-                        <button
-                          onClick={() => setShowSquadDetails(true)}
-                          className="flex items-center justify-center"
-                          style={{ width: 24, height: 24 }}
-                          aria-label="Squad details"
-                        >
-                          <MagicEdit style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
-                        </button>
-                      )}
-                      <button
-                        onClick={() => setShowNotif(true)}
-                        className="flex items-center justify-center"
-                        style={{ width: 24, height: 24 }}
-                        aria-label="Notification settings"
-                      >
-                        <Bell style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
-                      </button>
-                      <button
-                        onClick={() => setIsExpanded(false)}
-                        className="flex items-center justify-center"
-                        style={{ width: 24, height: 24 }}
-                        aria-label="Collapse"
-                      >
-                        <ChevronRight
-                          style={{ width: 24, height: 24, color: 'var(--color-tertiary)', transform: 'rotate(90deg)' }}
-                          aria-hidden="true"
-                        />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Avatar list + XP bar */}
-                  <div className="flex flex-col gap-2">
-                    <div className="flex items-center gap-3">
-                      {members.slice(0, 8).map((m) => {
-                        const url     = m.avatar_url as string | null | undefined
-                        const initial = m.username[0]?.toUpperCase() ?? '?'
-                        const online  = onlineUserIds.has(m.id)
-                        return (
-                          <div key={m.id} className="relative flex-shrink-0" title={m.username}>
-                            <div className="w-6 h-6 overflow-hidden bg-surface flex items-center justify-center">
-                              {url ? (
-                                <div className="relative w-full h-full">
-                                  <Image src={resolveAvatarUrl(url, 24)} alt={m.username} fill sizes="24px" className="object-cover" unoptimized={isSupabaseStorage(url)} />
-                                </div>
-                              ) : (
-                                <span className="font-pixel text-[8px] text-purple">{initial}</span>
-                              )}
-                            </div>
-                            {online && (
-                              <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#66bb6a] border-[1.5px] border-black" />
-                            )}
-                          </div>
-                        )
-                      })}
-                    </div>
-
-                    <div className="h-6 flex flex-col gap-2 items-center justify-center w-full">
-                      <div className="flex items-center gap-2 w-full font-silkscreen text-tertiary">
-                        <p className="flex-1 min-w-0 leading-[0] text-[0px]">
-                          <span className="text-[8px] leading-none text-[#fafafa]">Level {crewLevel}</span>
-                          <span className="text-[8px] leading-none text-tertiary">
-                            {` · ${crewXP % XP_PER_LEVEL} / ${XP_PER_LEVEL}XP`}
-                          </span>
-                          {totalMessages > 0 && (
-                            <span className="text-[8px] leading-none text-tertiary">
-                              {` · ${totalMessages.toLocaleString()} total msg.`}
-                            </span>
-                          )}
-                        </p>
-                        <p className="text-[8px] leading-none whitespace-nowrap text-tertiary">Next Boss</p>
-                      </div>
-                      <div className="bg-surface h-1 overflow-hidden w-full relative">
-                        <motion.div
-                          className="absolute left-0 top-0 h-full bg-purple"
-                          animate={{ width: `${xpProgress}%` }}
-                          transition={{ type: 'spring', stiffness: 300, damping: 28 }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Invite code block */}
-                {inviteCode && (
-                  <div className="flex items-center justify-between bg-[rgba(168,85,247,0.1)] border border-purple p-4 overflow-hidden">
-                    <div className="flex flex-col gap-1">
-                      <p className="font-silkscreen text-[8px] text-secondary leading-none tracking-[0.2px]">
-                        Invite your squad
-                      </p>
-                      <p
-                        className="font-silkscreen text-[24px] text-purple leading-none tracking-[0.2px]"
-                        style={{ textShadow: '0px 0px 3px #a855f7' }}
-                      >
-                        {inviteCode}
-                      </p>
-                    </div>
-                    <button
-                      onClick={handleCopyCode}
-                      className="flex items-center gap-1 px-4 py-3 flex-shrink-0 transition-colors duration-150"
-                      style={copied
-                        ? { backgroundColor: '#22c55e', boxShadow: '2px 2px 0px 0px rgba(34,197,94,0.5)' }
-                        : { backgroundColor: 'var(--color-purple)' }
-                      }
-                    >
-                      {copied ? (
-                        <>
-                          <Check style={{ width: 12, height: 12, color: 'white' }} aria-hidden="true" />
-                          <p className="font-silkscreen text-[11px] text-white leading-none whitespace-nowrap">copied</p>
-                        </>
-                      ) : (
-                        <>
-                          <Copy style={{ width: 12, height: 12, color: 'white' }} aria-hidden="true" />
-                          <p className="font-silkscreen text-[11px] text-white leading-none whitespace-nowrap">Copy Code</p>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* ── Scrollable member list ── */}
-              <div ref={memberListRef} className="flex-1 overflow-y-auto nexus-scroll px-4 min-h-0 mt-4">
-                <div className="flex flex-col gap-6">
-                  {members.flatMap((m, i) => {
-                    const row = (
-                      <MemberListRow
-                        key={m.id}
-                        profile={m}
-                        msgCount={memberMsgCounts.get(m.id) ?? 0}
-                        loading={loadingCounts}
-                        isOnline={onlineUserIds.has(m.id)}
-                        isCreator={m.id === creatorId}
-                        onTap={() => {
-                          setIsExpanded(false)
-                          router.push(`/chat/${crewId}/member/${m.id}`)
-                        }}
-                        onRemove={userId === creatorId && m.id !== userId && !!inviteCode
-                          ? () => setRemoveTarget(m)
-                          : undefined
-                        }
-                      />
-                    )
-                    return i < members.length - 1
-                      ? [row, <div key={`div-${i}`} className="h-px w-full bg-border" />]
-                      : [row]
-                  })}
-                </div>
-              </div>
-
-              {/* ── Fixed close button ── */}
-              <div
-                className="flex-shrink-0 px-4"
-                style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 32px)' }}
-              >
-                <button
-                  onClick={() => setIsExpanded(false)}
-                  className="h-12 w-full flex items-center justify-center font-pixel text-[8px] text-[#ef4444] transition-colors active:opacity-70"
-                >
-                  CLOSE
-                </button>
-              </div>
-            </motion.div>
-          </>
+        {isExpanded && !isDM && (
+          <SquadDetailsSheet
+            crewName={liveCrewName}
+            memberCount={memberCount}
+            crewImageUrl={crewImageUrl}
+            members={members.map((m): MiniMember => ({
+              id:           m.id,
+              username:     m.username,
+              avatar_url:   m.avatar_url as string | null,
+              avatar_class: m.avatar_class,
+            }))}
+            onlineUserIds={onlineUserIds}
+            crewXP={crewXP}
+            crewLevel={crewLevel}
+            xpProgress={xpProgress}
+            totalMessages={totalMessages}
+            inviteCode={inviteCode}
+            creatorId={creatorId}
+            currentUserId={userId}
+            memberMsgCounts={memberMsgCounts}
+            loadingCounts={loadingCounts}
+            onUploadPhoto={() => crewImageInputRef.current?.click()}
+            onNotifPress={() => setShowNotif(true)}
+            onSave={async (newName) => {
+              const trimmed = newName.trim()
+              if (!trimmed || trimmed.length < 2) return
+              const prev = liveCrewName
+              setCrewName(trimmed)
+              const result = await renameCrewAction(crewId, trimmed)
+              if (result?.error) setCrewName(prev)
+            }}
+            onTapMember={(memberId) => {
+              setIsExpanded(false)
+              router.push(`/chat/${crewId}/member/${memberId}`)
+            }}
+            onRemoveMember={(member) => setRemoveTarget(member as MemberProfile)}
+            onClose={() => setIsExpanded(false)}
+          />
         )}
       </AnimatePresence>
 
@@ -1101,33 +728,6 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
             prefs={notifPrefs}
             onToggle={handleToggleNotif}
             onClose={() => setShowNotif(false)}
-          />
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {showSquadDetails && (
-          <SquadDetailsSheet
-            crewName={liveCrewName}
-            memberCount={memberCount}
-            crewImageUrl={crewImageUrl}
-            members={members.map(m => ({ id: m.id, username: m.username, avatar_url: m.avatar_url as string | null }))}
-            onlineUserIds={onlineUserIds}
-            crewXP={crewXP}
-            crewLevel={crewLevel}
-            xpProgress={xpProgress}
-            totalMessages={totalMessages}
-            onUploadPhoto={() => crewImageInputRef.current?.click()}
-            onSave={async (newName) => {
-              const trimmed = newName.trim()
-              if (!trimmed || trimmed.length < 2) return
-              const prev = liveCrewName
-              setCrewName(trimmed)
-              const result = await renameCrewAction(crewId, trimmed)
-              if (result?.error) setCrewName(prev)
-              else setShowSquadDetails(false)
-            }}
-            onClose={() => setShowSquadDetails(false)}
           />
         )}
       </AnimatePresence>

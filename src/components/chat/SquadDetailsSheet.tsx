@@ -1,262 +1,421 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
+import type { PanInfo } from 'framer-motion'
 import Image from 'next/image'
 import { isSupabaseStorage, resolveAvatarUrl } from '@/components/ui/Avatar'
 import { XP_PER_LEVEL } from '@/lib/game/xp'
+import { PixelSprite, spriteInfoFor } from '@/components/game/PixelSprite'
+import { MagicEdit } from 'pixelarticons/react/MagicEdit'
+import { Bell } from 'pixelarticons/react/Bell'
+import { ChevronRight } from 'pixelarticons/react/ChevronRight'
+import { Crown } from 'pixelarticons/react/Crown'
+import { Copy } from 'pixelarticons/react/Copy'
+import { Check } from 'pixelarticons/react/Check'
+import { UserMinus } from 'pixelarticons/react/UserMinus'
 
-type MiniMember = { id: string; username: string; avatar_url: string | null }
+const CLASS_LABELS: Record<string, string> = {
+  berserker: 'Berserker', sage: 'Sage', ghost: 'Ghost', hype_man: 'Hype Man',
+  the_voice: 'The Voice', meme_lord: 'Meme Lord', mage: 'Mage', warrior: 'Warrior',
+  rogue: 'Rogue', healer: 'Healer', archer: 'Archer',
+}
+
+export type MiniMember = {
+  id:           string
+  username:     string
+  avatar_url:   string | null
+  avatar_class: string | null | undefined
+}
 
 interface SquadDetailsSheetProps {
-  crewName:      string
-  memberCount:   number
-  crewImageUrl:  string | null
-  members:       MiniMember[]
-  onlineUserIds: Set<string>
-  crewXP:        number
-  crewLevel:     number
-  xpProgress:    number
-  totalMessages: number
-  onUploadPhoto: () => void
-  onSave:        (newName: string) => Promise<void>
-  onClose:       () => void
+  crewName:        string
+  memberCount:     number
+  crewImageUrl:    string | null
+  members:         MiniMember[]
+  onlineUserIds:   Set<string>
+  crewXP:          number
+  crewLevel:       number
+  xpProgress:      number
+  totalMessages:   number
+  inviteCode?:     string
+  creatorId?:      string
+  currentUserId:   string
+  memberMsgCounts: Map<string, number>
+  loadingCounts:   boolean
+  onUploadPhoto:   () => void
+  onNotifPress:    () => void
+  onSave:          (newName: string) => Promise<void>
+  onTapMember:     (memberId: string) => void
+  onRemoveMember?: (member: MiniMember) => void
+  onClose:         () => void
+}
+
+function MemberListRow({
+  profile, msgCount, loading, isOnline, isCreator, onTap, onRemove,
+}: {
+  profile: MiniMember; msgCount: number; loading: boolean; isOnline: boolean
+  isCreator?: boolean; onTap?: () => void; onRemove?: () => void
+}) {
+  const spriteInfo = spriteInfoFor(profile.avatar_class ?? null)
+  const url        = profile.avatar_url
+  const initial    = profile.username[0]?.toUpperCase() ?? '?'
+  const classLabel = profile.avatar_class ? (CLASS_LABELS[profile.avatar_class] ?? profile.avatar_class) : 'Unknown'
+
+  return (
+    <div
+      className="flex items-center gap-3 active:bg-surface/50 transition-colors"
+      onClick={onTap}
+      style={onTap ? { cursor: 'pointer' } : undefined}
+    >
+      {/* Profile photo + online dot */}
+      <div className="relative flex-shrink-0">
+        <div className="w-8 h-8 overflow-hidden bg-surface flex items-center justify-center">
+          {url ? (
+            <div className="relative w-full h-full">
+              <Image src={resolveAvatarUrl(url, 32)} alt={profile.username} fill sizes="32px" className="object-cover" unoptimized={isSupabaseStorage(url)} />
+            </div>
+          ) : (
+            <span className="font-pixel text-[8px] text-purple">{initial}</span>
+          )}
+        </div>
+        {isOnline && (
+          <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#66bb6a] border-[1.5px] border-black" />
+        )}
+      </div>
+
+      {/* Pixel sprite — no background, overflow clips */}
+      <div className="w-8 h-8 flex-shrink-0 flex items-center justify-center overflow-hidden">
+        {spriteInfo ? (
+          <PixelSprite spriteId={spriteInfo.id} nativePx={spriteInfo.nativePx} scale={1.5} animate />
+        ) : (
+          <span className="font-pixel text-[8px] text-purple">{initial}</span>
+        )}
+      </div>
+
+      {/* Name + class · msg count */}
+      <div className="flex flex-col gap-1 justify-center min-w-0 flex-1">
+        <div className="flex items-center gap-1">
+          <p className="font-body font-bold text-[16px] text-white truncate leading-none">{profile.username}</p>
+          {isCreator && (
+            <Crown style={{ width: 12, height: 12, color: '#f59e0b' }} aria-hidden="true" />
+          )}
+        </div>
+        <p className="font-silkscreen text-[8px] text-secondary leading-none">
+          {loading ? '...' : `${classLabel} · ${msgCount.toLocaleString()} msg.`}
+        </p>
+      </div>
+
+      {/* Remove button — creator only */}
+      {onRemove && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onRemove() }}
+          className="flex-shrink-0 flex items-center justify-center w-8 h-8 text-[#ef4444] active:opacity-70 transition-opacity"
+          aria-label={`Remove ${profile.username}`}
+        >
+          <UserMinus style={{ width: 16, height: 16 }} aria-hidden="true" />
+        </button>
+      )}
+    </div>
+  )
 }
 
 export function SquadDetailsSheet({
-  crewName,
-  memberCount,
-  crewImageUrl,
-  members,
-  onlineUserIds,
-  crewXP,
-  crewLevel,
-  xpProgress,
-  totalMessages,
-  onUploadPhoto,
-  onSave,
-  onClose,
+  crewName, memberCount, crewImageUrl, members, onlineUserIds,
+  crewXP, crewLevel, xpProgress, totalMessages, inviteCode, creatorId,
+  currentUserId, memberMsgCounts, loadingCounts,
+  onUploadPhoto, onNotifPress, onSave, onTapMember, onRemoveMember, onClose,
 }: SquadDetailsSheetProps) {
-  const [nameValue, setNameValue] = useState(crewName)
-  const [saving,    setSaving]    = useState(false)
+  const [copied,       setCopied]       = useState(false)
+  const [isEditingName, setIsEditingName] = useState(false)
+  const [editNameValue, setEditNameValue] = useState('')
+  const memberListRef  = useRef<HTMLDivElement>(null)
+  const editNameInputRef = useRef<HTMLInputElement>(null)
+  const pullToCloseRef = useRef({ startY: 0, atTop: false })
+  const crewNameRef    = useRef(crewName)
+  crewNameRef.current  = crewName
 
-  useEffect(() => { setNameValue(crewName) }, [crewName])
+  // Pull-to-close: drag down from scroll-top dismisses the sheet
+  useEffect(() => {
+    const el = memberListRef.current
+    if (!el) return
 
-  async function handleSave() {
-    if (saving) return
-    setSaving(true)
-    try { await onSave(nameValue) }
-    finally { setSaving(false) }
+    function onTouchStart(e: TouchEvent) {
+      pullToCloseRef.current = { startY: e.touches[0].clientY, atTop: el!.scrollTop === 0 }
+    }
+    function onTouchMove(e: TouchEvent) {
+      if (!pullToCloseRef.current.atTop) return
+      if (e.touches[0].clientY - pullToCloseRef.current.startY > 0) e.preventDefault()
+    }
+    function onTouchEnd(e: TouchEvent) {
+      if (!pullToCloseRef.current.atTop) return
+      if (e.changedTouches[0].clientY - pullToCloseRef.current.startY > 60) onClose()
+    }
+
+    el.addEventListener('touchstart', onTouchStart, { passive: true })
+    el.addEventListener('touchmove',  onTouchMove,  { passive: false })
+    el.addEventListener('touchend',   onTouchEnd,   { passive: true })
+    return () => {
+      el.removeEventListener('touchstart', onTouchStart)
+      el.removeEventListener('touchmove',  onTouchMove)
+      el.removeEventListener('touchend',   onTouchEnd)
+    }
+  }, [onClose])
+
+  useEffect(() => {
+    if (isEditingName) editNameInputRef.current?.focus()
+  }, [isEditingName])
+
+  function handleCopyCode() {
+    if (!inviteCode || copied) return
+    navigator.clipboard.writeText(`Come join my squad on Nexus app ${inviteCode}`).catch(() => {})
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1000)
+  }
+
+  async function confirmRename() {
+    const trimmed = editNameValue.trim()
+    setIsEditingName(false)
+    if (!trimmed || trimmed.length < 2 || trimmed === crewNameRef.current) return
+    await onSave(trimmed)
+  }
+
+  function handlePanelPanEnd(_: PointerEvent, info: PanInfo) {
+    if (info.offset.y > 60 || info.velocity.y > 300) onClose()
   }
 
   return (
     <>
       {/* Backdrop */}
       <motion.div
-        className="fixed inset-0 z-[62] bg-black/60"
+        className="fixed inset-0 z-[38] bg-black/60"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
+        transition={{ duration: 0.2 }}
         onClick={onClose}
       />
 
       {/* Sheet */}
       <motion.div
-        className="fixed bottom-0 left-0 right-0 z-[63] max-w-[480px] mx-auto bg-surface border-t border-border-hover flex flex-col gap-[var(--space-7)] px-[var(--space-5)] pt-[var(--space-7)] overflow-hidden"
-        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), var(--space-5))' }}
+        className="absolute bottom-0 left-0 right-0 z-[50] bg-black border-t border-border flex flex-col"
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
         transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-        onClick={(e) => e.stopPropagation()}
+        style={{ maxHeight: '85vh' }}
+        onPanEnd={handlePanelPanEnd}
       >
-        {/* Title */}
-        <p
-          className="font-body font-bold text-primary leading-none"
-          style={{ fontSize: 'var(--text-lg)', fontVariationSettings: '"opsz" 14' }}
-        >
-          Squad Details
-        </p>
+        {/* ── Fixed header ── */}
+        <div className="flex-shrink-0 flex flex-col gap-4 px-4 pt-[var(--space-7)]">
+          {/* Content block: title row + avatar/XP bar, with 56px gap */}
+          <div className="flex flex-col gap-14">
 
-        {/* Read-only preview */}
-        <div className="flex flex-col gap-14">
-          {/* Crew image + name + member count */}
-          <div className="flex items-center gap-2">
-            <div className="relative flex-shrink-0 w-8 h-8 overflow-hidden">
-              {crewImageUrl ? (
-                <Image
-                  src={crewImageUrl}
-                  alt={crewName}
-                  fill
-                  sizes="32px"
-                  className="object-cover"
-                  unoptimized={isSupabaseStorage(crewImageUrl)}
-                />
-              ) : (
-                <div className="w-full h-full bg-purple" />
-              )}
-            </div>
-            <div className="flex flex-col gap-1 min-w-0">
-              <p
-                className="font-silkscreen text-purple leading-none truncate"
-                style={{ fontSize: 'var(--text-md)' }}
-              >
-                {crewName.toUpperCase()}
-              </p>
-              <p
-                className="font-silkscreen text-tertiary leading-none"
-                style={{ fontSize: 'var(--text-mini)' }}
-              >
-                {memberCount} {memberCount === 1 ? 'member' : 'members'}
-              </p>
-            </div>
-          </div>
+            {/* Title row: crew image + name/count | action buttons */}
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={currentUserId === creatorId ? onUploadPhoto : undefined}
+                  className="relative flex-shrink-0 w-8 h-8 overflow-hidden"
+                  style={currentUserId !== creatorId ? { cursor: 'default' } : undefined}
+                  aria-label={currentUserId === creatorId ? 'Change crew photo' : undefined}
+                >
+                  {crewImageUrl ? (
+                    <div className="relative w-full h-full">
+                      <Image src={crewImageUrl} alt={crewName} fill sizes="32px" className="object-cover" unoptimized={isSupabaseStorage(crewImageUrl)} />
+                    </div>
+                  ) : (
+                    <div className="w-full h-full bg-purple" />
+                  )}
+                </button>
 
-          {/* Avatar list + XP bar */}
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-3">
-              {members.slice(0, 8).map((m) => {
-                const url     = m.avatar_url
-                const initial = m.username[0]?.toUpperCase() ?? '?'
-                const online  = onlineUserIds.has(m.id)
-                return (
-                  <div key={m.id} className="relative flex-shrink-0">
-                    <div className="w-6 h-6 overflow-hidden bg-surface flex items-center justify-center">
-                      {url ? (
-                        <div className="relative w-full h-full">
-                          <Image
-                            src={resolveAvatarUrl(url, 24)}
-                            alt={m.username}
-                            fill
-                            sizes="24px"
-                            className="object-cover"
-                            unoptimized={isSupabaseStorage(url)}
-                          />
-                        </div>
-                      ) : (
-                        <span className="font-pixel text-[8px] text-purple">{initial}</span>
+                <div className="flex flex-col min-w-0">
+                  {isEditingName ? (
+                    <input
+                      ref={editNameInputRef}
+                      value={editNameValue}
+                      onChange={(e) => setEditNameValue(e.target.value.slice(0, 30))}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') confirmRename()
+                        if (e.key === 'Escape') setIsEditingName(false)
+                      }}
+                      onBlur={confirmRename}
+                      maxLength={30}
+                      className="font-silkscreen text-[length:var(--text-md)] text-purple bg-transparent border-b border-purple focus:outline-none leading-none w-full py-1 uppercase"
+                      aria-label="Edit squad name"
+                    />
+                  ) : (
+                    <p className="font-silkscreen text-[length:var(--text-md)] text-purple leading-none truncate">
+                      {crewName.toUpperCase()}
+                    </p>
+                  )}
+                  <p className="font-silkscreen text-[8px] text-tertiary leading-none mt-1">
+                    {memberCount} {memberCount === 1 ? 'member' : 'members'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex items-center gap-4 flex-shrink-0">
+                {currentUserId === creatorId && (
+                  <button
+                    onClick={() => { setEditNameValue(crewName); setIsEditingName(true) }}
+                    className="flex items-center justify-center"
+                    style={{ width: 24, height: 24 }}
+                    aria-label="Rename squad"
+                  >
+                    <MagicEdit style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+                  </button>
+                )}
+                <button
+                  onClick={onNotifPress}
+                  className="flex items-center justify-center"
+                  style={{ width: 24, height: 24 }}
+                  aria-label="Notification settings"
+                >
+                  <Bell style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+                </button>
+                <button
+                  onClick={onClose}
+                  className="flex items-center justify-center"
+                  style={{ width: 24, height: 24 }}
+                  aria-label="Collapse"
+                >
+                  <ChevronRight
+                    style={{ width: 24, height: 24, color: 'var(--color-tertiary)', transform: 'rotate(90deg)' }}
+                    aria-hidden="true"
+                  />
+                </button>
+              </div>
+            </div>
+
+            {/* Avatar list + XP bar */}
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-3">
+                {members.slice(0, 8).map((m) => {
+                  const url     = m.avatar_url
+                  const initial = m.username[0]?.toUpperCase() ?? '?'
+                  const online  = onlineUserIds.has(m.id)
+                  return (
+                    <div key={m.id} className="relative flex-shrink-0" title={m.username}>
+                      <div className="w-6 h-6 overflow-hidden bg-surface flex items-center justify-center">
+                        {url ? (
+                          <div className="relative w-full h-full">
+                            <Image src={resolveAvatarUrl(url, 24)} alt={m.username} fill sizes="24px" className="object-cover" unoptimized={isSupabaseStorage(url)} />
+                          </div>
+                        ) : (
+                          <span className="font-pixel text-[8px] text-purple">{initial}</span>
+                        )}
+                      </div>
+                      {online && (
+                        <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#66bb6a] border-[1.5px] border-black" />
                       )}
                     </div>
-                    {online && (
-                      <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#66bb6a] border-[1.5px] border-black" />
-                    )}
-                  </div>
-                )
-              })}
-            </div>
+                  )
+                })}
+              </div>
 
-            <div className="flex flex-col gap-2 w-full">
-              <p className="w-full leading-[0] text-[0px] font-silkscreen">
-                <span className="text-[8px] leading-none text-primary">Level {crewLevel}</span>
-                <span className="text-[8px] leading-none text-tertiary">
-                  {` · ${crewXP % XP_PER_LEVEL} / ${XP_PER_LEVEL}XP`}
-                </span>
-                {totalMessages > 0 && (
-                  <span className="text-[8px] leading-none text-tertiary">
-                    {` · ${totalMessages.toLocaleString()} total msg.`}
-                  </span>
-                )}
-              </p>
-              <div className="bg-surface h-1 overflow-hidden w-full relative">
-                <div
-                  className="absolute left-0 top-0 h-full bg-purple"
-                  style={{ width: `${xpProgress}%` }}
-                />
+              <div className="h-6 flex flex-col gap-2 justify-center w-full">
+                <div className="flex items-center gap-2 w-full font-silkscreen text-tertiary">
+                  <p className="flex-1 min-w-0 leading-[0] text-[0px]">
+                    <span className="text-[8px] leading-none text-[#fafafa]">Level {crewLevel}</span>
+                    <span className="text-[8px] leading-none text-tertiary">
+                      {` · ${crewXP % XP_PER_LEVEL} / ${XP_PER_LEVEL}XP`}
+                    </span>
+                    {totalMessages > 0 && (
+                      <span className="text-[8px] leading-none text-tertiary">
+                        {` · ${totalMessages.toLocaleString()} total msg.`}
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-[8px] leading-none whitespace-nowrap text-tertiary">Next Boss</p>
+                </div>
+                <div className="bg-surface h-1 overflow-hidden w-full relative">
+                  <motion.div
+                    className="absolute left-0 top-0 h-full bg-purple"
+                    animate={{ width: `${xpProgress}%` }}
+                    transition={{ type: 'spring', stiffness: 300, damping: 28 }}
+                  />
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Editable fields */}
-        <div className="flex flex-col gap-[var(--space-5)]">
-          {/* Squad Profile Picture */}
-          <div className="flex flex-col gap-2">
-            <p
-              className="font-body font-medium text-primary tracking-[0.2px] leading-normal"
-              style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
-            >
-              Squad Profile Picture
-            </p>
-            <div className="flex items-center gap-[var(--space-5)]">
-              <div className="relative flex-shrink-0 w-12 h-12 overflow-hidden">
-                {crewImageUrl ? (
-                  <Image
-                    src={crewImageUrl}
-                    alt={crewName}
-                    fill
-                    sizes="48px"
-                    className="object-cover"
-                    unoptimized={isSupabaseStorage(crewImageUrl)}
-                  />
-                ) : (
-                  <div className="w-full h-full bg-purple" />
-                )}
+          {/* Invite code block — group chats only */}
+          {inviteCode && (
+            <div className="flex items-center justify-between bg-[rgba(168,85,247,0.1)] border border-purple p-4 overflow-hidden">
+              <div className="flex flex-col gap-1">
+                <p className="font-silkscreen text-[8px] text-secondary leading-none tracking-[0.2px]">
+                  Invite your squad
+                </p>
+                <p
+                  className="font-silkscreen text-[24px] text-purple leading-none tracking-[0.2px]"
+                  style={{ textShadow: '0px 0px 3px #a855f7' }}
+                >
+                  {inviteCode}
+                </p>
               </div>
               <button
-                onClick={onUploadPhoto}
-                className="flex-1 h-[var(--space-13)] border border-purple flex items-center justify-center overflow-hidden transition-opacity active:opacity-70"
+                onClick={handleCopyCode}
+                className="flex items-center gap-1 px-4 py-3 flex-shrink-0 transition-colors duration-150"
+                style={copied
+                  ? { backgroundColor: '#22c55e', boxShadow: '2px 2px 0px 0px rgba(34,197,94,0.5)' }
+                  : { backgroundColor: 'var(--color-purple)' }
+                }
               >
-                <span
-                  className="font-silkscreen leading-none whitespace-nowrap text-purple"
-                  style={{ fontSize: 'var(--text-sm)' }}
-                >
-                  upload photo
-                </span>
+                {copied ? (
+                  <>
+                    <Check style={{ width: 12, height: 12, color: 'white' }} aria-hidden="true" />
+                    <p className="font-silkscreen text-[11px] text-white leading-none whitespace-nowrap">copied</p>
+                  </>
+                ) : (
+                  <>
+                    <Copy style={{ width: 12, height: 12, color: 'white' }} aria-hidden="true" />
+                    <p className="font-silkscreen text-[11px] text-white leading-none whitespace-nowrap">Copy Code</p>
+                  </>
+                )}
               </button>
             </div>
-          </div>
+          )}
+        </div>
 
-          {/* Squad Name */}
-          <div className="flex flex-col gap-2">
-            <p
-              className="font-body font-medium text-primary tracking-[0.2px] leading-normal"
-              style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
-            >
-              Squad Name
-            </p>
-            <div
-              className="bg-black border h-[var(--space-13)] flex items-center overflow-hidden px-3 w-full"
-              style={{ borderColor: 'var(--color-border-hover)' }}
-            >
-              <input
-                value={nameValue}
-                onChange={(e) => setNameValue(e.target.value.slice(0, 30))}
-                onKeyDown={(e) => { if (e.key === 'Enter') handleSave() }}
-                maxLength={30}
-                placeholder={crewName}
-                className="flex-1 bg-transparent font-body font-normal text-primary placeholder:text-tertiary focus:outline-none leading-normal"
-                style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
-              />
-            </div>
+        {/* ── Scrollable member list ── */}
+        <div ref={memberListRef} className="flex-1 overflow-y-auto nexus-scroll px-4 min-h-0 mt-4">
+          <div className="flex flex-col gap-6">
+            {members.flatMap((m, i) => {
+              const row = (
+                <MemberListRow
+                  key={m.id}
+                  profile={m}
+                  msgCount={memberMsgCounts.get(m.id) ?? 0}
+                  loading={loadingCounts}
+                  isOnline={onlineUserIds.has(m.id)}
+                  isCreator={m.id === creatorId}
+                  onTap={() => onTapMember(m.id)}
+                  onRemove={
+                    currentUserId === creatorId && m.id !== currentUserId && !!inviteCode && onRemoveMember
+                      ? () => onRemoveMember(m)
+                      : undefined
+                  }
+                />
+              )
+              return i < members.length - 1
+                ? [row, <div key={`div-${i}`} className="h-px w-full bg-border" />]
+                : [row]
+            })}
           </div>
         </div>
 
-        {/* Action buttons */}
-        <div className="flex flex-col gap-[var(--space-5)]">
-          <button
-            onClick={handleSave}
-            disabled={saving || !nameValue.trim() || nameValue.trim().length < 2}
-            className="w-full h-[var(--space-13)] bg-purple flex items-center justify-center overflow-hidden disabled:opacity-50 transition-opacity active:opacity-80"
-          >
-            <span
-              className="font-silkscreen leading-none whitespace-nowrap text-primary"
-              style={{ fontSize: 'var(--text-sm)' }}
-            >
-              {saving ? '...' : 'Save Changes'}
-            </span>
-          </button>
+        {/* ── Fixed close footer ── */}
+        <div
+          className="flex-shrink-0 px-4"
+          style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 32px)' }}
+        >
           <button
             onClick={onClose}
-            disabled={saving}
-            className="w-full h-[var(--space-13)] border flex items-center justify-center overflow-hidden disabled:opacity-50 transition-opacity active:opacity-70"
-            style={{ borderColor: '#ef4444' }}
+            className="h-12 w-full flex items-center justify-center font-pixel text-[8px] text-[#ef4444] transition-colors active:opacity-70"
           >
-            <span
-              className="font-silkscreen leading-none whitespace-nowrap"
-              style={{ fontSize: 'var(--text-sm)', color: '#ef4444' }}
-            >
-              Cancel
-            </span>
+            CLOSE
           </button>
         </div>
       </motion.div>
