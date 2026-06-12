@@ -80,6 +80,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   const [showPollCreator,   setShowPollCreator]   = useState(false)
   const [mentionQuery,    setMentionQuery]    = useState<string | null>(null)
   const [mentionIndex,    setMentionIndex]    = useState(0)
+  const [isFocused,       setIsFocused]       = useState(false)
 
   const textareaRef       = useRef<HTMLTextAreaElement>(null)
   const overlayRef        = useRef<HTMLDivElement>(null)
@@ -451,6 +452,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   function handleBlur() {
     broadcastTyping(false)
     if (typingTimerRef.current) clearTimeout(typingTimerRef.current)
+    setIsFocused(false)
   }
 
   async function executeCommand(name: SlashCommandName) {
@@ -812,8 +814,8 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
           })()}
 
           <div
-            className="border border-border h-12 flex items-center overflow-hidden"
-            style={{ borderColor: inRaid ? 'rgba(255,34,0,0.4)' : undefined, paddingLeft: 8, paddingRight: 'var(--space-5)', paddingTop: 12, paddingBottom: 12, gap: 8 }}
+            className="border h-12 flex items-center overflow-hidden transition-colors"
+            style={{ borderColor: inRaid ? 'rgba(255,34,0,0.4)' : isFocused ? 'var(--color-purple)' : 'var(--color-border)', paddingLeft: 8, paddingRight: 'var(--space-5)', gap: 8 }}
           >
             <button
               onClick={() => setShowPollCreator(true)}
@@ -828,7 +830,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                 ref={overlayRef}
                 aria-hidden="true"
                 className="pointer-events-none absolute inset-0 font-body text-[14px] leading-normal py-3 overflow-hidden"
-                style={{ fontVariationSettings: '"opsz" 14', whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: 'white' }}
+                style={{ fontVariationSettings: '"opsz" 14', whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: 'var(--color-primary)' }}
               >
                 {renderHighlightedInput(text)}
               </div>
@@ -840,8 +842,9 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                 onBlur={handleBlur}
                 placeholder={inRaid ? 'Attack The Void...' : 'Send a message...'}
                 rows={1}
+                onFocus={() => setIsFocused(true)}
                 className="relative w-full bg-transparent font-body text-[14px] placeholder:text-muted resize-none focus:outline-none leading-normal py-3"
-                style={{ maxHeight: 120, fontVariationSettings: '"opsz" 14', color: 'transparent', caretColor: 'white' }}
+                style={{ maxHeight: 120, fontVariationSettings: '"opsz" 14', color: 'transparent', caretColor: 'var(--color-primary)' }}
               />
             </div>
             {(() => {
@@ -851,7 +854,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                 <button
                   onClick={send}
                   disabled={!text.trim() || sending || hasMatch}
-                  className={`flex-shrink-0 flex items-center justify-center w-4 h-4 transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${text.trim() && !hasMatch ? 'text-primary' : 'text-muted'}`}
+                  className={`flex-shrink-0 flex items-center justify-center w-4 h-4 transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${isFocused ? 'text-purple' : text.trim() && !hasMatch ? 'text-primary' : 'text-muted'}`}
                   aria-label="Send message"
                 >
                   <Send style={{ width: 16, height: 16 }} aria-hidden="true" />
