@@ -733,124 +733,132 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
           </div>
         )}
 
-        {/* ── @mention picker ── */}
-        <AnimatePresence>
-          {mentionQuery !== null && mentionMatches.length > 0 && (
-            <motion.div
-              key="mention-menu"
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 6 }}
-              transition={{ duration: 0.12 }}
-              className="mb-2 border border-border bg-black flex flex-col w-full max-h-[220px] overflow-y-auto nexus-scroll"
-            >
-              {mentionMatches.map((m, i) => {
-                const url     = m.avatar_url as string | null | undefined
-                const initial = m.username[0]?.toUpperCase() ?? '?'
-                return (
-                  <button
-                    key={m.id}
-                    onMouseDown={(e) => { e.preventDefault(); completeMention(m.username) }}
-                    className={`w-full border border-border flex items-center gap-2 overflow-hidden p-2 text-left ${i === mentionIndex ? 'bg-surface' : 'active:bg-surface'}`}
-                  >
-                    <div className="w-6 h-6 flex-shrink-0 overflow-hidden bg-surface flex items-center justify-center">
-                      {url ? (
-                        <div className="relative w-full h-full">
-                          <Image src={resolveAvatarUrl(url, 24)} alt={m.username} fill sizes="24px" className="object-cover" unoptimized={isSupabaseStorage(url)} />
-                        </div>
-                      ) : (
-                        <span className="font-pixel text-[length:var(--text-mini)] text-purple">{initial}</span>
-                      )}
-                    </div>
-                    <div className="flex flex-col flex-1 min-w-0">
-                      <span className="font-silkscreen text-[length:var(--text-mini)] text-purple leading-normal w-full">@mention</span>
-                      <span className="font-body font-normal text-[length:var(--text-xs)] text-primary leading-normal w-full" style={{ fontVariationSettings: '"opsz" 14' }}>{m.username}</span>
-                    </div>
-                  </button>
-                )
-              })}
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* ── Slash command menu ── */}
-        {(() => {
-          const isCmd = text.startsWith('/') && !text.includes(' ')
-          const filter = isCmd ? text.slice(1).toLowerCase() : ''
-          const matches = isCmd ? SLASH_COMMANDS.filter((c) => c.name.startsWith(filter)) : []
-          if (!isCmd || matches.length === 0) return null
-          return (
-            <AnimatePresence>
+        {/* ── Input wrapper: pickers float above via absolute positioning ── */}
+        <div className="relative">
+          {/* @mention picker — absolute, grows upward over group details */}
+          <AnimatePresence>
+            {mentionQuery !== null && mentionMatches.length > 0 && (
               <motion.div
-                key="cmd-menu"
-                initial={{ opacity: 0, y: 6 }}
+                key="mention-menu"
+                initial={{ opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 6 }}
+                exit={{ opacity: 0, y: 4 }}
                 transition={{ duration: 0.12 }}
-                className="mb-2 border border-border bg-black flex flex-col w-full max-h-[220px] overflow-y-auto nexus-scroll"
+                className="absolute bottom-full left-0 right-0 border border-border bg-black flex flex-col max-h-[220px] overflow-y-auto nexus-scroll"
               >
-                {matches.map((cmd) => (
-                  <button
-                    key={cmd.name}
-                    onMouseDown={(e) => { e.preventDefault(); executeCommand(cmd.name) }}
-                    className="w-full border border-border flex flex-col items-start overflow-hidden p-2 text-left active:bg-surface"
-                  >
-                    <span className="font-silkscreen text-[length:var(--text-mini)] text-purple leading-normal w-full">/{cmd.name}</span>
-                    <span className="font-body font-normal text-[length:var(--text-xs)] text-tertiary leading-normal w-full" style={{ fontVariationSettings: '"opsz" 14' }}>{cmd.description}</span>
-                  </button>
-                ))}
+                {mentionMatches.map((m, i) => {
+                  const url     = m.avatar_url as string | null | undefined
+                  const initial = m.username[0]?.toUpperCase() ?? '?'
+                  const isLast  = i === mentionMatches.length - 1
+                  return (
+                    <button
+                      key={m.id}
+                      onMouseDown={(e) => { e.preventDefault(); completeMention(m.username) }}
+                      className={`w-full flex items-center overflow-hidden p-2 text-left ${!isLast ? 'border-b border-border' : ''} ${i === mentionIndex ? 'bg-surface' : 'active:bg-surface'}`}
+                      style={{ gap: 'var(--space-3)' }}
+                    >
+                      <div className="w-6 h-6 flex-shrink-0 overflow-hidden bg-surface flex items-center justify-center">
+                        {url ? (
+                          <div className="relative w-full h-full">
+                            <Image src={resolveAvatarUrl(url, 24)} alt={m.username} fill sizes="24px" className="object-cover" unoptimized={isSupabaseStorage(url)} />
+                          </div>
+                        ) : (
+                          <span className="font-pixel text-[length:var(--text-mini)] text-purple">{initial}</span>
+                        )}
+                      </div>
+                      <div className="flex flex-col flex-1 min-w-0 items-start">
+                        <span className="font-silkscreen text-[length:var(--text-mini)] text-purple leading-normal w-full">@mention</span>
+                        <span className="font-body font-normal text-[length:var(--text-xs)] text-primary leading-normal w-full" style={{ fontVariationSettings: '"opsz" 14' }}>{m.username}</span>
+                      </div>
+                    </button>
+                  )
+                })}
               </motion.div>
-            </AnimatePresence>
-          )
-        })()}
+            )}
+          </AnimatePresence>
 
-        <div
-          className="border border-border h-12 flex items-center overflow-hidden"
-          style={{ borderColor: inRaid ? 'rgba(255,34,0,0.4)' : undefined, paddingLeft: 8, paddingRight: 'var(--space-5)', paddingTop: 12, paddingBottom: 12, gap: 8 }}
-        >
-          <button
-            onClick={() => setShowPollCreator(true)}
-            className="flex-shrink-0 flex items-center justify-center w-8 h-8 text-tertiary active:text-purple transition-colors"
-            aria-label="Create poll"
-          >
-            <Chart style={{ width: 16, height: 16 }} aria-hidden="true" />
-          </button>
-          <div className="relative flex-1 min-w-0 overflow-hidden">
-            {/* Overlay renders @mention highlights behind the transparent textarea */}
-            <div
-              ref={overlayRef}
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-0 font-body text-[14px] leading-normal py-3 overflow-hidden"
-              style={{ fontVariationSettings: '"opsz" 14', whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: 'white' }}
-            >
-              {renderHighlightedInput(text)}
-            </div>
-            <textarea
-              ref={textareaRef}
-              value={text}
-              onChange={handleInput}
-              onKeyDown={handleKeyDown}
-              onBlur={handleBlur}
-              placeholder={inRaid ? 'Attack The Void...' : 'Send a message...'}
-              rows={1}
-              className="relative w-full bg-transparent font-body text-[14px] placeholder:text-muted resize-none focus:outline-none leading-normal py-3"
-              style={{ maxHeight: 120, fontVariationSettings: '"opsz" 14', color: 'transparent', caretColor: 'white' }}
-            />
-          </div>
+          {/* ── Slash command menu — absolute, grows upward over group details ── */}
           {(() => {
             const isCmd = text.startsWith('/') && !text.includes(' ')
-            const hasMatch = isCmd && SLASH_COMMANDS.some((c) => c.name.startsWith(text.slice(1).toLowerCase()))
+            const filter = isCmd ? text.slice(1).toLowerCase() : ''
+            const matches = isCmd ? SLASH_COMMANDS.filter((c) => c.name.startsWith(filter)) : []
+            if (!isCmd || matches.length === 0) return null
             return (
-              <button
-                onClick={send}
-                disabled={!text.trim() || sending || hasMatch}
-                className={`flex-shrink-0 flex items-center justify-center w-4 h-4 transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${text.trim() && !hasMatch ? 'text-primary' : 'text-muted'}`}
-                aria-label="Send message"
-              >
-                <Send style={{ width: 16, height: 16 }} aria-hidden="true" />
-              </button>
+              <AnimatePresence>
+                <motion.div
+                  key="cmd-menu"
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 4 }}
+                  transition={{ duration: 0.12 }}
+                  className="absolute bottom-full left-0 right-0 border border-border bg-black flex flex-col max-h-[220px] overflow-y-auto nexus-scroll"
+                >
+                  {matches.map((cmd, i) => {
+                    const isLast = i === matches.length - 1
+                    return (
+                      <button
+                        key={cmd.name}
+                        onMouseDown={(e) => { e.preventDefault(); executeCommand(cmd.name) }}
+                        className={`w-full flex flex-col items-start overflow-hidden p-2 text-left active:bg-surface ${!isLast ? 'border-b border-border' : ''}`}
+                      >
+                        <span className="font-silkscreen text-[length:var(--text-mini)] text-purple leading-normal w-full">/{cmd.name}</span>
+                        <span className="font-body font-normal text-[length:var(--text-xs)] text-tertiary leading-normal w-full" style={{ fontVariationSettings: '"opsz" 14' }}>{cmd.description}</span>
+                      </button>
+                    )
+                  })}
+                </motion.div>
+              </AnimatePresence>
             )
           })()}
+
+          <div
+            className="border border-border h-12 flex items-center overflow-hidden"
+            style={{ borderColor: inRaid ? 'rgba(255,34,0,0.4)' : undefined, paddingLeft: 8, paddingRight: 'var(--space-5)', paddingTop: 12, paddingBottom: 12, gap: 8 }}
+          >
+            <button
+              onClick={() => setShowPollCreator(true)}
+              className="flex-shrink-0 flex items-center justify-center w-8 h-8 text-tertiary active:text-purple transition-colors"
+              aria-label="Create poll"
+            >
+              <Chart style={{ width: 16, height: 16 }} aria-hidden="true" />
+            </button>
+            <div className="relative flex-1 min-w-0 overflow-hidden">
+              {/* Overlay renders @mention highlights behind the transparent textarea */}
+              <div
+                ref={overlayRef}
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0 font-body text-[14px] leading-normal py-3 overflow-hidden"
+                style={{ fontVariationSettings: '"opsz" 14', whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: 'white' }}
+              >
+                {renderHighlightedInput(text)}
+              </div>
+              <textarea
+                ref={textareaRef}
+                value={text}
+                onChange={handleInput}
+                onKeyDown={handleKeyDown}
+                onBlur={handleBlur}
+                placeholder={inRaid ? 'Attack The Void...' : 'Send a message...'}
+                rows={1}
+                className="relative w-full bg-transparent font-body text-[14px] placeholder:text-muted resize-none focus:outline-none leading-normal py-3"
+                style={{ maxHeight: 120, fontVariationSettings: '"opsz" 14', color: 'transparent', caretColor: 'white' }}
+              />
+            </div>
+            {(() => {
+              const isCmd = text.startsWith('/') && !text.includes(' ')
+              const hasMatch = isCmd && SLASH_COMMANDS.some((c) => c.name.startsWith(text.slice(1).toLowerCase()))
+              return (
+                <button
+                  onClick={send}
+                  disabled={!text.trim() || sending || hasMatch}
+                  className={`flex-shrink-0 flex items-center justify-center w-4 h-4 transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${text.trim() && !hasMatch ? 'text-primary' : 'text-muted'}`}
+                  aria-label="Send message"
+                >
+                  <Send style={{ width: 16, height: 16 }} aria-hidden="true" />
+                </button>
+              )
+            })()}
+          </div>
         </div>
       </motion.div>
 

@@ -199,7 +199,9 @@ Consecutive messages from same user within 60 seconds are grouped (no repeated a
 ### ChatInput — @mention system
 Typing `@` in the textarea triggers a member picker overlay (same visual pattern as `/` command picker).
 - `mentionQuery` state: substring after the last `@` before cursor; `null` if whitespace/newline present
-- **Picker**: up to 5 matching members (excluding self), filtered by username prefix; `motion.div` slide-up with `AnimatePresence`
+- **Picker**: all matching members (excluding self), filtered by username prefix; `motion.div` with `AnimatePresence`; scrollable, capped at `max-h-[220px]` (~5 rows visible)
+- **Picker layout**: `absolute bottom-full left-0 right-0` inside a `relative` wrapper around the input bar — overlays the group details section above rather than pushing layout; outer container has `border border-border`; rows have `border-b border-border` except the last
+- **Row anatomy**: 24×24 avatar + flex-col content (`@mention` label in Silkscreen `var(--text-mini)` purple; username in DM Sans `var(--text-xs)` primary); `p-2` padding, `var(--space-3)` gap
 - Keyboard nav: ArrowUp/Down cycles, Enter completes, Escape dismisses; rows use `onMouseDown + e.preventDefault()` to prevent textarea blur
 - `completeMention(username)`: replaces `@query` segment with `@username ` at cursor position
 - **Overlay highlighting**: transparent textarea (`color: transparent; caretColor: white`) overlaid by `aria-hidden` div with matching font/padding. `renderHighlightedInput(text)` renders valid `@username` tokens as purple `<mark style={{ background:'transparent', color:'var(--color-purple)' }}>`. Scroll-synced via `overlayRef.scrollTop = textareaRef.scrollTop`.
@@ -207,7 +209,9 @@ Typing `@` in the textarea triggers a member picker overlay (same visual pattern
 
 ### ChatInput — slash commands
 Typing `/` triggers a command picker. Filtered as you type; Escape clears; Enter executes single match.
-- **`SLASH_COMMANDS`**: `[{ name: 'birthdays', icon: '🎂', description: 'See upcoming squad birthdays' }]`
+- **`SLASH_COMMANDS`**: `[{ name: 'birthdays', description: 'See upcoming squad birthdays' }]` — no emoji icon in picker UI
+- **Picker layout**: `absolute bottom-full left-0 right-0` inside the same `relative` input wrapper as the mention picker — overlays group details; outer container has `border border-border`; rows have `border-b border-border` except the last; `max-h-[220px]` scrollable
+- **Row anatomy**: command name in Silkscreen `var(--text-mini)` purple (`/name`); description in DM Sans `var(--text-xs)` tertiary; `p-2` padding; no icon
 - `birthdaysCommandAction` (`chat/actions.ts`): inserts a `message_type: 'system'` message with upcoming birthday info. Birthday system messages get purple-tinted styling (`bg-[#1a0d2e] border-[#a855f7]/30`).
 
 ### ChatInput — send flow
