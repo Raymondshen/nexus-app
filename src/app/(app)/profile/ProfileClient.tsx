@@ -62,7 +62,7 @@ function ProfileStatusTicker({ status }: { status: string }) {
     setAnimPx(iw * (n / 2))
   }, [status])
 
-  const duration = Math.max(11, status.length * 0.28 + 5)
+  const duration = Math.max(21, status.length * 0.28 + 15)
 
   return (
     <div
