@@ -95,10 +95,12 @@ Deno.serve(async (req: Request) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     )
 
-    // ─── BATCH 1: spam checks + crew data (always, 3 queries in parallel) ────
+    // ─── BATCH 1: spam checks + crew data + other members (5 queries in parallel) ─
+    // crew_members is fetched here so the notification can fire immediately after
+    // this batch, without waiting for XP calculation or writes.
     const burstWindowStart = new Date(Date.now() - BURST_WINDOW_MS).toISOString()
 
-    const [prevMsgsResult, burstResult, crewResult, senderProfileResult] = await Promise.all([
+    const [prevMsgsResult, burstResult, crewResult, senderProfileResult, membersResult] = await Promise.all([
       // Layer 1: most recent prior message from this user in this crew
       supabase
         .from('messages')
@@ -131,7 +133,39 @@ Deno.serve(async (req: Request) => {
         .select('is_dev')
         .eq('id', user_id)
         .single(),
+
+      // Other crew members — fetched here so notification fires immediately
+      supabase
+        .from('crew_members')
+        .select('user_id')
+        .eq('crew_id', crew_id)
+        .neq('user_id', user_id),
     ])
+
+    // ─── FIRE NOTIFICATION IMMEDIATELY (fire-and-forget) ────────────────────
+    // Notifications don't need to wait for XP writes. Firing here saves ~300ms
+    // vs firing after XP calculation and DB writes.
+    if (message_type !== 'reaction') {
+      const otherUserIds = (membersResult.data ?? []).map((m: { user_id: string }) => m.user_id)
+      if (otherUserIds.length > 0) {
+        const fnUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/send-notification`
+        fetch(fnUrl, {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_ids:        otherUserIds,
+            type:            'message_received',
+            payload:         {
+              sender_name:     username ?? 'Someone',
+              content_preview: (content ?? '').slice(0, 80),
+              crew_name:       crewResult.data?.name ?? '',
+              crew_id,
+            },
+          }),
+        }).catch(() => {})
+        console.log(`[award-xp] notification fired early for ${otherUserIds.length} members (message ${message_id})`)
+      }
+    }
 
     // ─── LAYER 1: CONSECUTIVE COOLDOWN ──────────────────────────────────────
     let xpBlocked = false
@@ -200,32 +234,30 @@ Deno.serve(async (req: Request) => {
     const oldXP = crewBefore?.total_xp ?? 0
 
     if (xpAwarded > 0) {
-      // Log XP
-      await supabase.from('crew_xp_log').insert({
-        crew_id,
-        user_id,
-        xp_amount: xpAwarded,
-        source:    message_type,
-      })
-
       newXP          = oldXP + xpAwarded
       const oldLevel = getLevelFromXP(oldXP)
       newLevel       = getLevelFromXP(newXP)
 
-      // Update crew total_xp and level
-      await supabase
-        .from('crews')
-        .update({ total_xp: newXP, level: newLevel })
-        .eq('id', crew_id)
-
-      // Update message xp_awarded + element_type
-      await supabase
-        .from('messages')
-        .update({
-          xp_awarded:   xpAwarded,
-          element_type: getElementType(content ?? '', message_type),
-        })
-        .eq('id', message_id)
+      // Parallelize all three XP writes
+      await Promise.all([
+        supabase.from('crew_xp_log').insert({
+          crew_id,
+          user_id,
+          xp_amount: xpAwarded,
+          source:    message_type,
+        }),
+        supabase
+          .from('crews')
+          .update({ total_xp: newXP, level: newLevel })
+          .eq('id', crew_id),
+        supabase
+          .from('messages')
+          .update({
+            xp_awarded:   xpAwarded,
+            element_type: getElementType(content ?? '', message_type),
+          })
+          .eq('id', message_id),
+      ])
 
       // Level up notification (dev-only while game events are gated)
       if (newLevel > getLevelFromXP(oldXP) && isDevUser) {
@@ -301,18 +333,12 @@ Deno.serve(async (req: Request) => {
               xp_awarded:   0,
             })
 
-            const { data: crewMembers } = await supabase
-              .from('crew_members')
-              .select('user_id')
-              .eq('crew_id', crew_id)
-
-            // Single batch call — one HTTP request regardless of crew size
             const fnUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/send-notification`
-            await fetch(fnUrl, {
+            fetch(fnUrl, {
               method:  'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                user_ids: (crewMembers ?? []).map(m => m.user_id),
+                user_ids: (membersResult.data ?? []).map((m: { user_id: string }) => m.user_id),
                 type:     'boss_spawned',
                 payload:  {
                   boss_name: voidBoss.name ?? 'The Void',
@@ -326,44 +352,8 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Notify other crew members of the new message (skip reactions)
-    let notifResults: { uid: string; http: number; result: string }[] = []
-    if (message_type !== 'reaction') {
-      const { data: otherMembers } = await supabase
-        .from('crew_members')
-        .select('user_id')
-        .eq('crew_id', crew_id)
-        .neq('user_id', user_id)
-
-      console.log(`[award-xp] notifying ${otherMembers?.length ?? 0} members for message ${message_id}`)
-
-      // Single batch call — one HTTP request regardless of crew size
-      const fnUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/send-notification`
-      const notifRes = await fetch(fnUrl, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_ids:        (otherMembers ?? []).map(m => m.user_id),
-          type:            'message_received',
-          payload:         {
-            sender_name:     username ?? 'Someone',
-            content_preview: (content ?? '').slice(0, 80),
-            crew_name:       crewBefore?.name ?? '',
-            crew_id,
-          },
-        }),
-      })
-      const notifData = await notifRes.json().catch(() => ({ results: [] }))
-      notifResults = (notifData.results ?? []).map((r: { user_id?: string; status: string }) => ({
-        uid:    (r.user_id ?? '?').slice(0, 8),
-        http:   notifRes.status,
-        result: r.status,
-      }))
-      console.log(`[award-xp] batch notify: http=${notifRes.status} count=${notifResults.length}`)
-    }
-
     return new Response(
-      JSON.stringify({ xp_earned: xpAwarded, new_level: newLevel, new_total_xp: newXP, coins_earned: coinsEarned, notif_count: notifResults.length, notif_results: notifResults }),
+      JSON.stringify({ xp_earned: xpAwarded, new_level: newLevel, new_total_xp: newXP, coins_earned: coinsEarned, notif_count: (membersResult.data ?? []).length, notif_results: [] }),
       { headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
     )
   } catch (err) {

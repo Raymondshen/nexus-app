@@ -136,44 +136,54 @@ Deno.serve(async (req: Request) => {
 
     const prefCol = PREF_COLUMN[type as NotificationType]
 
-    // null prefCol = always deliver (e.g. friend_request), skip preference gate entirely
-    let enabledIds = targetIds
-    if (prefCol !== null) {
-      // Batch: fetch preferences for all target users in one query
-      const { data: prefsRows } = await supabase
-        .from('notification_preferences')
-        .select(`user_id, ${prefCol}`)
-        .in('user_id', targetIds)
+    // Fetch global prefs, crew prefs, and subscriptions all in parallel.
+    // Fetching subscriptions upfront avoids a serial round-trip after filtering.
+    const [globalPrefsResult, crewPrefsResult, subsResult] = await Promise.all([
+      prefCol !== null
+        ? supabase
+            .from('notification_preferences')
+            .select(`user_id, ${prefCol}`)
+            .in('user_id', targetIds)
+        : Promise.resolve({ data: [] as Array<Record<string, unknown>> }),
 
-      // Users with a row where the pref is explicitly false are opted out; missing row = opted in
+      prefCol !== null && payload?.crew_id
+        ? supabase
+            .from('crew_notification_preferences')
+            .select(`user_id, ${prefCol}`)
+            .in('user_id', targetIds)
+            .eq('crew_id', payload.crew_id as string)
+        : Promise.resolve({ data: [] as Array<Record<string, unknown>> }),
+
+      supabase
+        .from('push_subscriptions')
+        .select('id, user_id, endpoint, p256dh, auth')
+        .in('user_id', targetIds),
+    ])
+
+    // Apply global preference filter
+    let finalIds = targetIds
+    if (prefCol !== null) {
       const prefDisabledSet = new Set(
         // deno-lint-ignore no-explicit-any
-        (prefsRows ?? []).filter((r: any) => r[prefCol] === false).map((r: any) => r.user_id as string)
+        (globalPrefsResult.data ?? []).filter((r: any) => r[prefCol] === false).map((r: any) => r.user_id as string)
       )
-      enabledIds = targetIds.filter(uid => !prefDisabledSet.has(uid))
+      finalIds = targetIds.filter(uid => !prefDisabledSet.has(uid))
 
-      if (enabledIds.length === 0) {
+      if (finalIds.length === 0) {
         return new Response(
           JSON.stringify({ status: 'all_preferences_disabled', results: [] }),
           { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } },
         )
       }
-    }
 
-    // Per-crew preference check — applies when crew_id is in the payload and type has a pref column.
-    // Missing row = opted in (all true by default); explicit false = opted out.
-    let finalIds = enabledIds
-    if (prefCol !== null && payload?.crew_id) {
-      const { data: crewPrefRows } = await supabase
-        .from('crew_notification_preferences')
-        .select(`user_id, ${prefCol}`)
-        .in('user_id', enabledIds)
-        .eq('crew_id', payload.crew_id as string)
-      const crewDisabledSet = new Set(
-        // deno-lint-ignore no-explicit-any
-        (crewPrefRows ?? []).filter((r: any) => r[prefCol] === false).map((r: any) => r.user_id as string)
-      )
-      finalIds = enabledIds.filter((uid) => !crewDisabledSet.has(uid))
+      // Apply per-crew preference filter
+      if (payload?.crew_id) {
+        const crewDisabledSet = new Set(
+          // deno-lint-ignore no-explicit-any
+          (crewPrefsResult.data ?? []).filter((r: any) => r[prefCol] === false).map((r: any) => r.user_id as string)
+        )
+        finalIds = finalIds.filter(uid => !crewDisabledSet.has(uid))
+      }
     }
 
     if (finalIds.length === 0) {
@@ -183,22 +193,23 @@ Deno.serve(async (req: Request) => {
       )
     }
 
-    // Batch: fetch all push subscriptions for enabled users in one query
-    const { data: allSubs } = await supabase
-      .from('push_subscriptions')
-      .select('id, user_id, endpoint, p256dh, auth')
-      .in('user_id', finalIds)
-
-    // Group subscriptions by user_id
+    // Group pre-fetched subscriptions by user_id, filtered to finalIds
+    const finalIdSet = new Set(finalIds)
     const subsByUser = new Map<string, { id: string; user_id: string; endpoint: string; p256dh: string; auth: string }[]>()
-    for (const sub of allSubs ?? []) {
+    for (const sub of subsResult.data ?? []) {
       const s = sub as { id: string; user_id: string; endpoint: string; p256dh: string; auth: string }
+      if (!finalIdSet.has(s.user_id)) continue
       if (!subsByUser.has(s.user_id)) subsByUser.set(s.user_id, [])
       subsByUser.get(s.user_id)!.push(s)
     }
 
     const notifPayload = buildPayload(type as NotificationType, payload ?? {})
     const results: { user_id: string; endpoint: string; status: string }[] = []
+    const staleSubIds: string[] = []
+
+    // Fire all webpush calls in parallel — critical for multi-member chats where
+    // sequential sends would compound latency (each APNs call ~100-200ms).
+    const sendPromises: Promise<void>[] = []
 
     for (const uid of finalIds) {
       const subs = subsByUser.get(uid)
@@ -208,27 +219,35 @@ Deno.serve(async (req: Request) => {
       }
 
       for (const sub of subs) {
-        try {
-          await webpush.sendNotification(
+        sendPromises.push(
+          webpush.sendNotification(
             { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
             JSON.stringify(notifPayload),
             {
               TTL:     86400, // 1 day — keeps the message queued if the device is offline
               urgency: 'high', // maps to apns-priority:10 — deliver immediately on iOS
             },
-          )
-          results.push({ user_id: uid, endpoint: sub.endpoint, status: 'sent' })
-        } catch (err: unknown) {
-          const code = (err as { statusCode?: number })?.statusCode
-          if (code === 410 || code === 404) {
-            await supabase.from('push_subscriptions').delete().eq('id', sub.id)
-            results.push({ user_id: uid, endpoint: sub.endpoint, status: 'expired_deleted' })
-          } else {
-            console.error('[send-notification] push failed:', err)
-            results.push({ user_id: uid, endpoint: sub.endpoint, status: 'error' })
-          }
-        }
+          ).then(() => {
+            results.push({ user_id: uid, endpoint: sub.endpoint, status: 'sent' })
+          }).catch((err: unknown) => {
+            const code = (err as { statusCode?: number })?.statusCode
+            if (code === 410 || code === 404) {
+              staleSubIds.push(sub.id)
+              results.push({ user_id: uid, endpoint: sub.endpoint, status: 'expired_deleted' })
+            } else {
+              console.error('[send-notification] push failed:', err)
+              results.push({ user_id: uid, endpoint: sub.endpoint, status: 'error' })
+            }
+          })
+        )
       }
+    }
+
+    await Promise.all(sendPromises)
+
+    // Batch-delete stale subscriptions (410/404 from APNs)
+    if (staleSubIds.length > 0) {
+      await supabase.from('push_subscriptions').delete().in('id', staleSubIds)
     }
 
     return new Response(
