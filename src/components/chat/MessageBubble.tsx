@@ -10,7 +10,7 @@ import { useChatStore } from '@/store/chatStore'
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/config'
 import type { MessageWithProfile, AvatarClass, SquadDefinitionWithCreator } from '@/types'
 import { PollCard } from '@/components/chat/PollCard'
-import { DefinitionCreateSheet } from '@/components/chat/DefinitionCreateSheet'
+import { SuggestDefinitionSheet } from '@/components/chat/SuggestDefinitionSheet'
 
 const CLASS_NAMES: Record<AvatarClass, string> = {
   berserker: 'Berserker',
@@ -180,8 +180,7 @@ export function MessageBubble({
   const [healFloat,        setHealFloat]        = useState<{ id: number; amount: number } | null>(null)
   const [mounted,          setMounted]          = useState(false)
   const [activeDefinition, setActiveDefinition] = useState<SquadDefinitionWithCreator | null>(null)
-  const [suggestWord,      setSuggestWord]      = useState('')
-  const [showSuggest,      setShowSuggest]      = useState(false)
+  const [suggestTarget,    setSuggestTarget]    = useState<SquadDefinitionWithCreator | null>(null)
 
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hasMoved       = useRef(false)
@@ -627,10 +626,8 @@ export function MessageBubble({
                 {activeDefinition.creator_id !== currentUserId && crewId ? (
                   <button
                     onClick={() => {
-                      const word = parseAliases(activeDefinition.word)[0]
+                      setSuggestTarget(activeDefinition)
                       setActiveDefinition(null)
-                      setSuggestWord(word)
-                      setShowSuggest(true)
                     }}
                     className="w-full h-12 bg-purple overflow-hidden flex items-center justify-center px-4 py-2 active:opacity-80 transition-opacity"
                   >
@@ -656,11 +653,12 @@ export function MessageBubble({
       {/* ── Suggest new definition sheet ────────────────────────────────────── */}
       {mounted && crewId && createPortal(
         <AnimatePresence>
-          {showSuggest && (
-            <DefinitionCreateSheet
+          {suggestTarget && (
+            <SuggestDefinitionSheet
               crewId={crewId}
-              initialWord={suggestWord}
-              onClose={() => { setShowSuggest(false); setSuggestWord('') }}
+              definition={suggestTarget}
+              onClose={() => setSuggestTarget(null)}
+              zBase={90}
             />
           )}
         </AnimatePresence>,
