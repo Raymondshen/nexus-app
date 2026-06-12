@@ -671,7 +671,7 @@ export function SquadDetailsSheet({
         {/* ── Scrollable member list ── */}
         <div ref={memberListRef} className="flex-1 overflow-y-auto nexus-scroll px-4 min-h-0 mt-4" style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 24px)' }}>
           <div className="flex flex-col gap-[var(--space-6)]">
-            {members.map((m) => (
+            {[...members].sort((a, b) => (memberMsgCounts.get(b.id) ?? 0) - (memberMsgCounts.get(a.id) ?? 0)).map((m) => (
               <MemberListRow
                 key={m.id}
                 profile={m}
