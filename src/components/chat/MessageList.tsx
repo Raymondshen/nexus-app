@@ -513,16 +513,10 @@ export function MessageList({
     }
 
     if (raidId) {
-      if (!renderedRaids.has(raidId)) {
-        renderedRaids.add(raidId)
-        if (devMode) {
-          // Pass initialRaid if it matches; BossCard will self-fetch otherwise
-          const raid = initialRaid?.id === raidId ? initialRaid : null
-          items.push({ kind: 'boss', raidId, key: `boss-${raidId}`, raid })
-        }
-        lastUserId  = null
-        lastMsgTime = 0
-      }
+      // Boss spawn messages are always skipped — not rendered in squad chat
+      if (!renderedRaids.has(raidId)) renderedRaids.add(raidId)
+      lastUserId  = null
+      lastMsgTime = 0
     } else if (artifactId) {
       if (devMode) {
         items.push({ kind: 'artifact', artifactId, key: `artifact-${msg.id}` })
@@ -542,9 +536,13 @@ export function MessageList({
         lastUserId  = null
         lastMsgTime = 0
       } else if (msg.message_type === 'system') {
-        items.push({ kind: 'message', message: msg as MessageWithProfile, isOwn: false, showHeader: false })
-        lastUserId  = null
-        lastMsgTime = 0
+        const c = msg.content
+        const isBossMsg = c.includes('BOSS') || c.includes('VOID') || c.includes('boss') || c.includes('raid') || c.includes('RAID')
+        if (!isBossMsg) {
+          items.push({ kind: 'message', message: msg as MessageWithProfile, isOwn: false, showHeader: false })
+          lastUserId  = null
+          lastMsgTime = 0
+        }
       } else {
         const sameUser     = msg.user_id === lastUserId
         const withinMinute = sameUser && (msgTime - lastMsgTime) < 60_000
