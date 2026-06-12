@@ -188,7 +188,7 @@ export interface SquadDefinition extends Record<string, unknown> {
   created_at:  string
 }
 
-export type SquadDefinitionWithCreator = SquadDefinition & { creator_username?: string }
+export type SquadDefinitionWithCreator = SquadDefinition & { creator_username?: string; suggestion_count?: number }
 
 export interface Poll extends Record<string, unknown> {
   id:         string

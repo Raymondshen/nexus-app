@@ -7,7 +7,6 @@ import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { PlusBox } from 'pixelarticons/react/PlusBox'
 import { createClient } from '@/lib/supabase/client'
 import { createDefinitionAction, updateDefinitionAction, deleteDefinitionAction } from './actions'
-import { DefinitionCreateSheet } from '@/components/chat/DefinitionCreateSheet'
 import type { SquadDefinition, SquadDefinitionWithCreator } from '@/types'
 
 function BackButton() {
@@ -396,6 +395,156 @@ function DefinitionViewSheet({ definition, onClose, onSuggest }: DefinitionViewS
   )
 }
 
+// ─── SuggestDefinitionSheet ───────────────────────────────────────────────────
+// Shown when a non-creator taps "Suggest new definition" in DefinitionViewSheet
+// Figma 143:660
+
+interface SuggestDefinitionSheetProps {
+  crewId:     string
+  definition: SquadDefinitionWithCreator
+  onClose:    () => void
+  onSaved:    (def: SquadDefinition) => void
+}
+
+function SuggestDefinitionSheet({ crewId, definition, onClose, onSaved }: SuggestDefinitionSheetProps) {
+  const aliases    = definition.word.split(',').map((w) => w.trim()).filter(Boolean).join(', ')
+  const displayWord = definition.actual_word || definition.word.split(',')[0].trim()
+
+  const [suggestion, setSuggestion] = useState('')
+  const [error,      setError]      = useState('')
+  const [saving,     setSaving]     = useState(false)
+
+  async function handleSuggest() {
+    if (!suggestion.trim()) { setError('Please write your suggestion.'); return }
+    setSaving(true)
+    setError('')
+
+    const result = await createDefinitionAction(crewId, definition.word, suggestion)
+
+    setSaving(false)
+    if (result.error) { setError(result.error); return }
+    if (result.data) onSaved(result.data)
+    onClose()
+  }
+
+  return (
+    <>
+      {/* Backdrop */}
+      <motion.div
+        className="fixed inset-0 z-[60] bg-black/60"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+      />
+
+      {/* Sheet — Figma 143:660 */}
+      <motion.div
+        className="fixed bottom-0 left-0 right-0 z-[70] bg-black border-t border-border flex flex-col px-4 pt-6 overflow-y-auto"
+        initial={{ y: '100%' }}
+        animate={{ y: 0 }}
+        exit={{ y: '100%' }}
+        transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+        style={{ gap: 'var(--space-7)', maxHeight: '90vh', paddingBottom: 'max(env(safe-area-inset-bottom), 28px)' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Title — DM Sans Bold 18px text-primary */}
+        <h2
+          className="font-body font-bold text-[18px] text-primary leading-none flex-shrink-0"
+          style={{ fontVariationSettings: '"opsz" 14' }}
+        >
+          Suggest New Definition
+        </h2>
+
+        {/* Existing definition preview — flex-col gap-[--space-5] items-start */}
+        <div className="flex flex-col items-start w-full flex-shrink-0" style={{ gap: 'var(--space-5)' }}>
+          {/* Details — flex-col gap-[--space-3] items-start justify-center */}
+          <div className="flex flex-col items-start justify-center w-full" style={{ gap: 'var(--space-3)' }}>
+            {/* Aliases — Silkscreen --mini tertiary leading-none */}
+            <p
+              className="font-silkscreen text-tertiary leading-none w-full"
+              style={{ fontSize: 'var(--text-mini)' }}
+            >
+              {aliases}
+            </p>
+            {/* Inner — flex-col gap-[--space-2] */}
+            <div className="flex flex-col w-full" style={{ gap: 'var(--space-2)' }}>
+              {/* Word — DM Sans Bold --md blue leading-none */}
+              <p
+                className="font-body font-bold leading-none w-full"
+                style={{ fontSize: 'var(--text-md)', color: 'var(--color-blue)', fontVariationSettings: '"opsz" 14' }}
+              >
+                {displayWord}
+              </p>
+              {/* Definition body — DM Sans Regular 14px secondary leading-normal overflow ellipsis */}
+              <p
+                className="font-body text-secondary leading-normal overflow-hidden line-clamp-3 w-full"
+                style={{ fontSize: '14px', fontVariationSettings: '"opsz" 14' }}
+              >
+                {definition.definition}
+              </p>
+            </div>
+          </div>
+          {/* Creator — DM Sans Regular --xxs tertiary leading-none */}
+          {definition.creator_username && (
+            <p
+              className="font-body text-tertiary leading-none"
+              style={{ fontSize: 'var(--text-xxs)', fontVariationSettings: '"opsz" 14' }}
+            >
+              Created by : {definition.creator_username}
+            </p>
+          )}
+        </div>
+
+        {/* Suggestion textarea — flex-col gap-[--space-2] */}
+        <div className="flex flex-col items-start w-full flex-shrink-0" style={{ gap: 'var(--space-2)' }}>
+          <p
+            className="font-body font-medium text-[14px] text-primary tracking-[0.2px] leading-normal w-full"
+            style={{ fontVariationSettings: '"opsz" 14' }}
+          >
+            Suggest a new definition
+          </p>
+          <textarea
+            value={suggestion}
+            onChange={(e) => setSuggestion(e.target.value)}
+            maxLength={500}
+            placeholder="What does it mean in your squad?"
+            className="w-full h-[78px] bg-black border border-border-hover px-3 py-3 font-body text-[14px] text-primary placeholder:text-muted focus:outline-none focus:border-purple transition-colors resize-none overflow-hidden"
+            style={{ fontVariationSettings: '"opsz" 14' }}
+          />
+        </div>
+
+        {/* Error */}
+        {error && (
+          <p className="font-silkscreen text-[8px] text-[#ef4444] leading-relaxed flex-shrink-0">{error}</p>
+        )}
+
+        {/* Buttons — flex-col gap-[--space-5] */}
+        <div className="flex flex-col w-full flex-shrink-0" style={{ gap: 'var(--space-5)' }}>
+          <button
+            onClick={handleSuggest}
+            disabled={saving}
+            className="w-full h-12 bg-purple overflow-hidden flex items-center justify-center px-4 py-2 disabled:opacity-40 active:opacity-80 transition-opacity"
+          >
+            <span className="font-silkscreen text-[12px] text-primary leading-none whitespace-nowrap">
+              {saving ? 'Suggesting...' : 'Suggest'}
+            </span>
+          </button>
+          <button
+            onClick={onClose}
+            disabled={saving}
+            className="w-full h-12 border border-[#ef4444] overflow-hidden flex items-center justify-center px-4 py-2 active:opacity-70 transition-opacity disabled:opacity-40"
+          >
+            <span className="font-silkscreen text-[12px] text-[#ef4444] leading-none whitespace-nowrap">
+              Cancel suggestion
+            </span>
+          </button>
+        </div>
+      </motion.div>
+    </>
+  )
+}
+
 // ─── DefinitionsClient ────────────────────────────────────────────────────────
 
 interface DefinitionsClientProps {
@@ -411,14 +560,13 @@ export function DefinitionsClient({
   currentUsername,
   initialDefinitions,
 }: DefinitionsClientProps) {
-  const [definitions,  setDefinitions]  = useState<SquadDefinitionWithCreator[]>(initialDefinitions)
-  const [showCreate,   setShowCreate]   = useState(false)
-  const [actionTarget, setActionTarget] = useState<SquadDefinitionWithCreator | null>(null)
-  const [viewTarget,   setViewTarget]   = useState<SquadDefinitionWithCreator | null>(null)
-  const [editTarget,   setEditTarget]   = useState<SquadDefinitionWithCreator | null>(null)
-  const [deleting,     setDeleting]     = useState<string | null>(null)
-  const [showSuggest,  setShowSuggest]  = useState(false)
-  const [suggestWord,  setSuggestWord]  = useState('')
+  const [definitions,   setDefinitions]   = useState<SquadDefinitionWithCreator[]>(initialDefinitions)
+  const [showCreate,    setShowCreate]    = useState(false)
+  const [actionTarget,  setActionTarget]  = useState<SquadDefinitionWithCreator | null>(null)
+  const [viewTarget,    setViewTarget]    = useState<SquadDefinitionWithCreator | null>(null)
+  const [editTarget,    setEditTarget]    = useState<SquadDefinitionWithCreator | null>(null)
+  const [deleting,      setDeleting]      = useState<string | null>(null)
+  const [suggestTarget, setSuggestTarget] = useState<SquadDefinitionWithCreator | null>(null)
 
   // Realtime subscription
   useEffect(() => {
@@ -566,15 +714,25 @@ export function DefinitionsClient({
                       </p>
                     </div>
                   </div>
-                  {/* Created by — Figma 130:1293: DM Sans Regular --xxs tertiary leading-none */}
-                  {def.creator_username && (
+                  {/* Footer row — Figma 143:710: flex row gap-[8px] items-center justify-center */}
+                  <div
+                    className="flex items-center justify-center w-full font-body font-normal leading-none"
+                    style={{ gap: 8, fontSize: 'var(--text-xxs)', fontVariationSettings: '"opsz" 14' }}
+                  >
+                    {/* Created by — flex-1; purple if own, tertiary otherwise */}
                     <p
-                      className="font-body text-tertiary leading-none"
-                      style={{ fontSize: 'var(--text-xxs)', fontVariationSettings: '"opsz" 14' }}
+                      className="flex-1 min-w-0"
+                      style={{ color: isCreator ? 'var(--color-purple)' : 'var(--color-tertiary)' }}
                     >
-                      Created by : {def.creator_username}
+                      {def.creator_username ? `Created by : ${def.creator_username}` : ''}
                     </p>
-                  )}
+                    {/* Suggestion count — amber, text-right; hidden when 0 */}
+                    {(def.suggestion_count ?? 0) > 0 && (
+                      <p className="flex-1 min-w-0 text-right" style={{ color: '#f59e0b' }}>
+                        {def.suggestion_count} New Suggestion{(def.suggestion_count ?? 0) > 1 ? 's' : ''}
+                      </p>
+                    )}
+                  </div>
                 </button>
               )
             })}
@@ -637,20 +795,18 @@ export function DefinitionsClient({
             definition={viewTarget}
             onClose={() => setViewTarget(null)}
             onSuggest={() => {
-              const word = viewTarget.word.split(',')[0].trim()
+              setSuggestTarget(viewTarget)
               setViewTarget(null)
-              setSuggestWord(word)
-              setShowSuggest(true)
             }}
           />
         )}
-        {showSuggest && (
-          <DefinitionCreateSheet
+        {suggestTarget && (
+          <SuggestDefinitionSheet
             key="suggest"
             crewId={crewId}
-            initialWord={suggestWord}
-            onClose={() => { setShowSuggest(false); setSuggestWord('') }}
-            onSaved={handleCreated}
+            definition={suggestTarget}
+            onClose={() => setSuggestTarget(null)}
+            onSaved={(def) => { handleCreated(def); setSuggestTarget(null) }}
           />
         )}
       </AnimatePresence>
