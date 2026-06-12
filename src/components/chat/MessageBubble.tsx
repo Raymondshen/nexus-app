@@ -531,22 +531,13 @@ export function MessageBubble({
                     </p>
                     {/* Inner — Figma 130:1315: flex-col gap-[--space-2] */}
                     <div className="flex flex-col w-full" style={{ gap: 'var(--space-2)' }}>
-                      {/* Primary word — Figma 130:1316: DM Sans Bold --md blue leading-none */}
+                      {/* Actual word — Figma 130:1316: DM Sans Bold --md blue leading-none */}
                       <p
                         className="font-body font-bold leading-none w-full"
                         style={{ fontSize: 'var(--text-md)', color: 'var(--color-blue)', fontVariationSettings: '"opsz" 14' }}
                       >
-                        {parseAliases(activeDefinition.word)[0]}
+                        {(activeDefinition.actual_word as string | null) || parseAliases(activeDefinition.word)[0]}
                       </p>
-                      {/* Actual word — blue DM Sans Regular --xs */}
-                      {activeDefinition.actual_word && (
-                        <p
-                          className="font-body leading-normal w-full"
-                          style={{ fontSize: 'var(--text-xs)', color: 'var(--color-blue)', fontVariationSettings: '"opsz" 14' }}
-                        >
-                          {activeDefinition.actual_word as string}
-                        </p>
-                      )}
                       {/* Definition — Figma 130:1292: DM Sans Regular 14px secondary leading-normal overflow-hidden */}
                       <p
                         className="font-body text-secondary leading-normal overflow-hidden w-full"

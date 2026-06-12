@@ -249,22 +249,13 @@ function DefinitionActionSheet({ definition, onClose, onEdit, onDelete, deleting
             </p>
             {/* Inner — Figma 130:1315: flex-col gap-[--space-2] */}
             <div className="flex flex-col w-full" style={{ gap: 'var(--space-2)' }}>
-              {/* Primary word — Figma 130:1316: DM Sans Bold --md blue leading-none */}
+              {/* Actual word — Figma 130:1316: DM Sans Bold --md blue leading-none */}
               <p
                 className="font-body font-bold leading-none w-full"
                 style={{ fontSize: 'var(--text-md)', color: 'var(--color-blue)', fontVariationSettings: '"opsz" 14' }}
               >
-                {definition.word.split(',')[0].trim()}
+                {definition.actual_word || definition.word.split(',')[0].trim()}
               </p>
-              {/* Actual word — blue DM Sans Regular --xs */}
-              {definition.actual_word && (
-                <p
-                  className="font-body leading-normal w-full"
-                  style={{ fontSize: 'var(--text-xs)', color: 'var(--color-blue)', fontVariationSettings: '"opsz" 14' }}
-                >
-                  {definition.actual_word}
-                </p>
-              )}
               {/* Definition — Figma 130:1292: DM Sans Regular 14px secondary leading-normal overflow-hidden */}
               <p
                 className="font-body text-secondary leading-normal overflow-hidden line-clamp-4 w-full"
@@ -463,22 +454,13 @@ export function DefinitionsClient({
                     </p>
                     {/* Inner — Figma 130:1315: flex-col gap-[--space-2] */}
                     <div className="flex flex-col w-full" style={{ gap: 'var(--space-2)' }}>
-                      {/* Primary word — Figma 130:1316: DM Sans Bold --md blue leading-none */}
+                      {/* Actual word — Figma 130:1316: DM Sans Bold --md blue leading-none */}
                       <p
                         className="font-body font-bold leading-none w-full"
                         style={{ fontSize: 'var(--text-md)', color: 'var(--color-blue)', fontVariationSettings: '"opsz" 14' }}
                       >
-                        {def.word.split(',')[0].trim()}
+                        {def.actual_word || def.word.split(',')[0].trim()}
                       </p>
-                      {/* Actual word — blue DM Sans Regular --xs */}
-                      {def.actual_word && (
-                        <p
-                          className="font-body leading-normal w-full"
-                          style={{ fontSize: 'var(--text-xs)', color: 'var(--color-blue)', fontVariationSettings: '"opsz" 14' }}
-                        >
-                          {def.actual_word}
-                        </p>
-                      )}
                       {/* Definition — Figma 130:1292: DM Sans Regular 14px secondary leading-normal overflow-hidden */}
                       <p
                         className="font-body text-secondary leading-normal overflow-hidden line-clamp-3 w-full"

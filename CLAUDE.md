@@ -213,7 +213,7 @@ All boss/game event features are disabled for regular users and only activate wh
 **Server-side (`check-void-spawn`)**: Auto-spawn loop is disabled (no-op). Manual trigger for a specific `crew_id` still works for the dev panel.
 
 **Client-side** — all gated by reading `localStorage.getItem('nexus_dev_mode') === '1'`:
-- `MessageList`: hides boss cards, artifact drops, level-up banners, and all system messages
+- `MessageList`: hides boss cards, artifact drops, level-up banners, and game-event system messages (BOSS_SPAWN:, ARTIFACT_DROP:, LEVEL_UP: prefixes). Non-game system messages (e.g. birthday messages) render for all users regardless of devMode.
 - `ChatHeader` / `DMOverlayBack`: hides boss HP bar + countdown
 - `ChatInput`: hides DamageFloat, "Next Boss" label, and RAID ACTIVE indicator. **XP stats row (level, XP counter, XP floats, progress bar) is visible to all users** — only the boss-specific parts are dev-only.
 
@@ -277,6 +277,17 @@ Consecutive messages from the same user within 60 seconds are visually grouped (
 - `pointer-events-none absolute left-0 right-0 top-0 z-10 h-1/4` (25% of the scroll area height)
 - `background: linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.25) 46.158%, rgba(0,0,0,0) 100%)`
 - Provides visual depth below the floating header elements (ChatHeader or DMOverlayBack) without blocking interaction
+
+### ChatInput — slash commands
+Typing `/` in the textarea triggers a command picker overlay. Commands are filtered as the user types; Escape clears the input; Enter or tapping the row executes the single matching command.
+
+- **`SLASH_COMMANDS`** constant: `[{ name: 'birthdays', icon: '🎂', description: 'See upcoming squad birthdays' }]`
+- **Command picker UI**: `motion.div` with `initial={{ opacity: 0, y: 6 }}` slide-up, `AnimatePresence`; rendered above the textarea as an IIFE inside the status row. `border border-border bg-black`; each row `flex items-center gap-3 px-3 py-2 active:bg-surface`; icon 16px + command name Silkscreen 11px `text-purple` + description body 12px `text-tertiary`. Buttons use `onMouseDown` + `e.preventDefault()` to prevent textarea blur before execution.
+- **`executeCommand(name)`**: clears text + height, focuses textarea, sets `sending = true`; for `birthdays` calls `birthdaysCommandAction(crewId)`; on success calls `addMessage` + broadcasts `new_message` on the crew channel.
+- **`handleKeyDown` updates**: Escape while in command mode (`text.startsWith('/') && !text.includes(' ')`) clears the input. Enter in command mode with exactly one match executes that command instead of sending.
+- **`birthdaysCommandAction`** (`src/app/(app)/chat/actions.ts`): uses `createClient()` for auth + membership check; `createServiceClient()` to fetch crew member user IDs + profiles with birthdays; computes the next upcoming birthday; inserts a `message_type: 'system'` message; returns the inserted row for optimistic display.
+- Birthday message formats: `🎂 Today is {username}'s birthday! 🎉` / `🎂 {username}'s birthday is tomorrow! (Month Day)` / `🎂 Next squad birthday: {username} · Month Day · N days away` / `🎂 No squad members have set their birthday yet.`
+- **Birthday system message styling** (`MessageBubble` `SystemMessage`): `🎂`-prefixed content gets `bg-[#1a0d2e] border-[#a855f7]/30` (purple-tinted) instead of the default style.
 
 ### ChatInput — send flow
 `insert_message` RPC → `addMessage` (optimistic) → broadcast slim payload on `messages:{crewId}` → `award-xp` edge function (patches `xp_awarded` back + broadcasts `xp_update`) → `attack-boss` edge function (if raid active)
@@ -665,7 +676,8 @@ Crew members can define squad-specific words/phrases. Defined words are highligh
 - Header: `px-4 py-2`, h-10 row, purple `ChevronLeft` 24×24 + "Glossary" `font-silkscreen text-[24px]` uppercase; **no** `border-b`
 - Subtitle: "Words and phrases defined by your squad." DM Sans Regular 14px `text-primary`
 - Definition cards: `bg-[rgba(17,17,17,0.5)] border border-[#111111] rounded-[8px] p-4 flex-col gap-4`
-  - Word aliases joined with `, ` — DM Sans Bold 16px `text-primary`
+  - Aliases label — Silkscreen 8px `text-tertiary` — all comma-separated aliases joined with `, `
+  - Primary word — DM Sans Bold 16px `#60a5fa` (blue) — first alias only (`word.split(',')[0].trim()`)
   - Definition body — DM Sans Regular 14px `text-secondary`, `line-clamp-3`
   - "Created by : {username}" — DM Sans Regular 11px `text-tertiary`
   - **Creator cards are tappable** (`active:opacity-80`); non-creator cards have `disabled` and are visually non-interactive
@@ -682,7 +694,7 @@ Crew members can define squad-specific words/phrases. Defined words are highligh
 **`DefinitionActionSheet`** (inline in `DefinitionsClient.tsx`, creator-only tap sheet):
 - Opens when a creator taps their own definition card
 - Same sheet container as `CreateDefinitionSheet`
-- Shows word (DM Sans Bold 16px), definition preview `line-clamp-4` (DM Sans Regular 14px secondary), "Created by : {username}" (DM Sans Regular 11px tertiary)
+- Shows: aliases label (Silkscreen 8px tertiary, all aliases joined), primary word (DM Sans Bold 16px `#60a5fa` blue, first alias only), definition preview `line-clamp-4` (DM Sans Regular 14px secondary), "Created by : {username}" (DM Sans Regular 11px tertiary)
 - **"Edit definition"** — `border border-purple h-12 font-silkscreen text-[14px] text-purple`; tapping closes action sheet and opens `CreateDefinitionSheet` in edit mode pre-filled
 - **"Delete definition"** — `border border-[#ef4444] h-12 font-silkscreen text-[14px] text-[#ef4444]`; calls `deleteDefinitionAction` then removes from state
 
@@ -708,9 +720,11 @@ Crew members can define squad-specific words/phrases. Defined words are highligh
 **Definition tap sheet** (portal on `document.body`, z-[80]); matches Figma 130:1287:
 - Container: `bg-black border-t border-border flex flex-col pt-6 px-4 pb-[max(safe-area,16px)]`
 - Content wrapper (`flex flex-col gap-4`):
-  - Word block (`flex flex-col gap-2`): aliases joined with `, ` — DM Sans Bold 16px `#60a5fa` (blue); definition body DM Sans Regular 14px `text-secondary`
+  - Details block (`flex flex-col gap-2`):
+    - Aliases label: Silkscreen 8px `text-tertiary` — all aliases joined with `, `
+    - Inner block (`flex flex-col gap-1`): primary word DM Sans Bold 16px `#60a5fa` (blue, first alias only) + definition body DM Sans Regular 14px `text-secondary`
   - Creator line: DM Sans Regular 11px, `"Created by : {username}"` — **purple** (`var(--color-purple)`) when `creator_id === currentUserId`, **tertiary** otherwise
-- CLOSE button: `h-12 w-full font-pixel text-[8px] text-tertiary mt-4`
+- CLOSE button: `h-12 w-full font-pixel text-[8px] text-tertiary mt-6`
 
 ### Pixel Sprites
 - Component: `src/components/game/PixelSprite.tsx`
