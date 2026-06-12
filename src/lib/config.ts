@@ -4,7 +4,12 @@ export const config = {
     anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
   },
   app: {
-    url:     process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000',
+    url:     (() => {
+      const raw = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+      // Ensure the URL always has a scheme so downstream code and Supabase never
+      // receive a bare hostname (e.g. "example.com" instead of "https://example.com").
+      return /^https?:\/\//i.test(raw) ? raw : `https://${raw}`
+    })(),
     name:    'Nexus',
     version: '1.0.0',
   },
