@@ -89,6 +89,7 @@ interface Props {
   isGuest:          boolean
   username:         string
   avatarUrl:        string | null
+  backgroundUrl:    string | null
   birthday:         string | null
   avatarClass:      AvatarClass | null
   status:           string | null
@@ -117,6 +118,7 @@ export function MemberProfileClient({
   isGuest,
   username,
   avatarUrl,
+  backgroundUrl,
   birthday,
   avatarClass,
   status,
@@ -170,8 +172,9 @@ export function MemberProfileClient({
         style={{ height: 'calc(280px + env(safe-area-inset-top, 0px))' }}
       >
         {/* Background image */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src="/img/default_image.png"
+          src={backgroundUrl ?? '/img/default_image.png'}
           alt=""
           aria-hidden
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }}

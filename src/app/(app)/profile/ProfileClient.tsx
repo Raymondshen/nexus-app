@@ -325,17 +325,6 @@ function EditProfileSheet({
                       upload photo
                     </span>
                   </button>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif"
-                    className="hidden"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0]
-                      if (f) setPendingFile(f)
-                      e.target.value = ''
-                    }}
-                  />
                 </div>
               </div>
 
@@ -452,6 +441,18 @@ function EditProfileSheet({
             </div>
           </motion.div>
 
+          {/* File input outside the transformed motion.div — iOS Safari drops .click() inside transforms */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif"
+            style={{ position: 'fixed', top: -1, left: -1, width: 1, height: 1, opacity: 0, pointerEvents: 'none' }}
+            onChange={(e) => {
+              const f = e.target.files?.[0]
+              if (f) setPendingFile(f)
+              e.target.value = ''
+            }}
+          />
           <AvatarUploadModal
             file={pendingFile}
             userId={userId}
