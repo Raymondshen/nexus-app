@@ -21,9 +21,9 @@ type NotificationType = 'boss_spawned' | 'boss_defeated' | 'raid_expiring' | 'cr
 
 // Maps each notification type to its preference column in notification_preferences.
 // null = always deliver (no preference gate).
-const PREF_COLUMN: Record<NotificationType, 'notif_messages' | 'notif_raids' | 'notif_victory' | null> = {
+const PREF_COLUMN: Record<NotificationType, 'notif_messages' | 'notif_raids' | 'notif_victory' | 'notif_mentions' | null> = {
   message_received: 'notif_messages',
-  mention_received: 'notif_messages',
+  mention_received: 'notif_mentions',
   boss_spawned:     'notif_raids',
   raid_expiring:    'notif_raids',
   crew_silent:      'notif_raids',

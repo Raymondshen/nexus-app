@@ -123,6 +123,7 @@ export interface NotificationPreferences extends Record<string, unknown> {
   notif_messages: boolean
   notif_raids:    boolean
   notif_victory:  boolean
+  notif_mentions: boolean
   updated_at:     string
 }
 
@@ -137,6 +138,7 @@ export interface CrewNotificationPreferences extends Record<string, unknown> {
   notif_messages: boolean
   notif_raids:    boolean
   notif_victory:  boolean
+  notif_mentions: boolean
   updated_at:     string
 }
 

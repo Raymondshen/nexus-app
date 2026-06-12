@@ -151,7 +151,7 @@ export function ChatHeader({
   const { setCrewXP, setActiveRaid, activeRaid, crewName: storeCrewName, setCrewName } = useChatStore()
   const [showShare,    setShowShare]    = useState(false)
   const [showNotif,    setShowNotif]    = useState(false)
-  const [notifPrefs,   setNotifPrefs]   = useState<NotifPrefs>({ messages: true, raids: true, victory: true })
+  const [notifPrefs,   setNotifPrefs]   = useState<NotifPrefs>({ messages: true, raids: true, victory: true, mentions: true })
   const [devMode,      setDevMode]      = useState(false)
 
   const liveCrewName = storeCrewName || crew.name
@@ -195,7 +195,7 @@ export function ChatHeader({
       const supabase = createClient()
       const { data } = await supabase
         .from('crew_notification_preferences')
-        .select('notif_messages, notif_raids, notif_victory')
+        .select('notif_messages, notif_raids, notif_victory, notif_mentions')
         .eq('user_id', currentUserId)
         .eq('crew_id', crewId)
         .maybeSingle()
@@ -204,6 +204,7 @@ export function ChatHeader({
           messages: data.notif_messages as boolean,
           raids:    data.notif_raids    as boolean,
           victory:  data.notif_victory  as boolean,
+          mentions: data.notif_mentions as boolean,
         })
       }
     }
@@ -223,6 +224,7 @@ export function ChatHeader({
           notif_messages: next.messages,
           notif_raids:    next.raids,
           notif_victory:  next.victory,
+          notif_mentions: next.mentions,
           updated_at:     new Date().toISOString(),
         },
         { onConflict: 'user_id,crew_id' },

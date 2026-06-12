@@ -76,7 +76,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   const [crewImageUrl,   setCrewImageUrl]   = useState<string | null>(initialCrewImageUrl ?? null)
   const [crewImageFile,  setCrewImageFile]  = useState<File | null>(null)
   const [showNotif,       setShowNotif]       = useState(false)
-  const [notifPrefs,      setNotifPrefs]      = useState<NotifPrefs>({ messages: true, raids: true, victory: true })
+  const [notifPrefs,      setNotifPrefs]      = useState<NotifPrefs>({ messages: true, raids: true, victory: true, mentions: true })
   const [showPollCreator,   setShowPollCreator]   = useState(false)
   const [mentionQuery,    setMentionQuery]    = useState<string | null>(null)
   const [mentionIndex,    setMentionIndex]    = useState(0)
@@ -86,8 +86,9 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   const crewImageInputRef = useRef<HTMLInputElement>(null)
   const rateRef           = useRef({ count: 0, resetAt: Date.now() + RATE_LIMIT_WINDOW })
   const typingTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const typingChannelRef = useRef<RealtimeChannel | null>(null)
-  const msgChannelRef    = useRef<RealtimeChannel | null>(null)
+  const typingChannelRef  = useRef<RealtimeChannel | null>(null)
+  const msgChannelRef     = useRef<RealtimeChannel | null>(null)
+  const channelReadyRef   = useRef(false)
 
   const {
     addMessage, updateMessage, setCrewXP, receiveXP, addXP,
@@ -157,7 +158,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     let cancelled = false
     createClient()
       .from('crew_notification_preferences')
-      .select('notif_messages, notif_raids, notif_victory')
+      .select('notif_messages, notif_raids, notif_victory, notif_mentions')
       .eq('user_id', userId)
       .eq('crew_id', crewId)
       .maybeSingle()
@@ -167,6 +168,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
           messages: data.notif_messages as boolean,
           raids:    data.notif_raids    as boolean,
           victory:  data.notif_victory  as boolean,
+          mentions: data.notif_mentions as boolean,
         })
       })
     return () => { cancelled = true }
@@ -184,6 +186,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
           notif_messages: next.messages,
           notif_raids:    next.raids,
           notif_victory:  next.victory,
+          notif_mentions: next.mentions,
           updated_at:     new Date().toISOString(),
         },
         { onConflict: 'user_id,crew_id' },
@@ -251,6 +254,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       })
       .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
+          channelReadyRef.current = true
           await ch.track({ username: userProfileRef.current.username, typing: false })
         }
       })
@@ -266,13 +270,15 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     }
     document.addEventListener('visibilitychange', handleVisibilityChange)
 
-    msgChannelRef.current    = ch
-    typingChannelRef.current = ch
+    msgChannelRef.current     = ch
+    typingChannelRef.current  = ch
+    channelReadyRef.current   = false
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       supabase.removeChannel(ch)
-      msgChannelRef.current    = null
-      typingChannelRef.current = null
+      msgChannelRef.current     = null
+      typingChannelRef.current  = null
+      channelReadyRef.current   = false
     }
   }, [crewId, userId]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -327,7 +333,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       addMessage(newMessage)
       addXP(10) // optimistic: show float + advance bar immediately; server syncs authoritative total below
 
-      msgChannelRef.current?.send({
+      if (channelReadyRef.current) msgChannelRef.current?.send({
         type: 'broadcast', event: 'new_message',
         payload: {
           id: newMessage.id, crew_id: newMessage.crew_id, user_id: newMessage.user_id,
@@ -349,7 +355,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
           if (typeof data.xp_earned === 'number' && data.xp_earned > 0) updateMessage(msgId, { xp_awarded: data.xp_earned })
           if (typeof data.new_total_xp === 'number') {
             setCrewXP(data.new_total_xp) // sync authoritative total; float already shown optimistically
-            msgChannelRef.current?.send({
+            if (channelReadyRef.current) msgChannelRef.current?.send({
               type: 'broadcast', event: 'xp_update',
               payload: { xp_earned: data.xp_earned ?? 0, new_total_xp: data.new_total_xp, sender_id: userId },
             })
@@ -462,7 +468,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
         } else if (result.message) {
           const msgWithProfile = { ...result.message, profile: userProfile }
           addMessage(msgWithProfile)
-          msgChannelRef.current?.send({
+          if (channelReadyRef.current) msgChannelRef.current?.send({
             type: 'broadcast', event: 'new_message',
             payload: {
               id: msgWithProfile.id, crew_id: msgWithProfile.crew_id, user_id: msgWithProfile.user_id,
@@ -481,7 +487,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   function handlePollCreated(message: MessageWithProfile) {
     setShowPollCreator(false)
     addMessage(message)
-    msgChannelRef.current?.send({
+    if (channelReadyRef.current) msgChannelRef.current?.send({
       type: 'broadcast', event: 'new_message',
       payload: {
         id: message.id, crew_id: message.crew_id, user_id: message.user_id,

@@ -39,30 +39,29 @@ squad_definitions  id, crew_id, creator_id, word (text 1–100 chars — stores 
 ```
 
 ### DM Channels
-DM channels are stored as `crews` rows with `is_dm = true`. They reuse the entire existing chat stack (messages, realtime, XP, boss raids, artifacts). Key invariants:
-- `dm_partner_1 < dm_partner_2` (UUID order) — enforced by `get_or_create_dm` to guarantee uniqueness
-- `invite_code` is set to a random 8-char string (prefix `dm`) — DMs are never joinable by code
-- Both partners are inserted into `crew_members` with class `berserker` at creation time — no class-selection onboarding step needed
-- DM crews are **filtered out** of the home Squads section; they appear only in the Friends section
+DM channels are stored as `crews` rows with `is_dm = true`. Reuse the entire chat stack. Key invariants:
+- `dm_partner_1 < dm_partner_2` (UUID order) — enforced by `get_or_create_dm`
+- Both partners inserted into `crew_members` with class `berserker` at creation
+- DM crews filtered out of home Squads section; appear only in Friends section
 
 ## Postgres Functions
 All are `SECURITY DEFINER`. All declared in `Database.Functions` in `src/types/index.ts`.
 - `create_crew(p_name, p_invite_code)` → uuid
 - `join_crew(p_invite_code)` → uuid
 - `leave_crew(p_crew_id)` → jsonb `{ok|deleted}`
-- `insert_message(p_crew_id, p_content, p_message_type)` → messages row (computes element_type server-side)
+- `insert_message(p_crew_id, p_content, p_message_type)` → messages row
 - `damage_raid(p_raid_id, p_damage, p_user_id)` → `(current_hp, phase, defeated_at)`
 - `increment_crew_xp(p_crew_id, p_xp_delta)` → `(new_total_xp, new_level)`
-- `is_crew_member(p_crew_id)` → boolean (RLS helper)
-- `get_or_create_dm(other_user_id)` → uuid — returns the DM crew id for this pair, creating it if needed; verifies an accepted friendship exists before creating
-- `get_unread_counts(p_crew_ids, p_cutoffs)` → `TABLE(crew_id, unread_count)` — batch unread counts for multiple crews in one query; uses `auth.uid()` internally; replaces N parallel count queries on the home page
-- `get_crew_member_msg_counts(p_crew_id)` → `TABLE(user_id, msg_count)` — per-member message counts for a crew in one query; used by the expanded member panel in `ChatInput`
-- `get_member_crew_stats(p_crew_id, p_user_id)` → `TABLE(msg_count, total_xp)` — message count + XP total for one member in one crew; used by the member profile page
-- `increment_user_coins(p_user_id, p_amount)` → void — atomic `UPDATE profiles SET coins = coins + p_amount`; called by `award-xp` edge function
-- `toggle_reaction(p_message_id, p_emoji, p_user_id)` → jsonb — row-locking atomic toggle: adds user to the emoji's array if absent, removes if present, deletes empty keys; returns full updated reactions object; called by `react-to-message` edge function
-- `create_poll(p_crew_id, p_question, p_options, p_expires_at)` → messages row — atomically inserts message (type `'poll'`) + poll row; sets `message.content = 'POLL:{pollId}'`; returns the message row
-- `vote_on_poll(p_poll_id, p_option_index)` → jsonb — row-locked; one vote per user; tapping same option toggles it off; removes from previous option first; returns updated votes map `{ "0": ["userId",...] }`
-- `close_poll(p_poll_id)` → void — creator-only; sets `closed_at = now()`
+- `is_crew_member(p_crew_id)` → boolean
+- `get_or_create_dm(other_user_id)` → uuid — returns/creates DM crew; verifies accepted friendship first
+- `get_unread_counts(p_crew_ids, p_cutoffs)` → `TABLE(crew_id, unread_count)` — batch unread counts
+- `get_crew_member_msg_counts(p_crew_id)` → `TABLE(user_id, msg_count)` — used by expanded member panel
+- `get_member_crew_stats(p_crew_id, p_user_id)` → `TABLE(msg_count, total_xp)` — used by member profile page
+- `increment_user_coins(p_user_id, p_amount)` → void — atomic coins update; called by `award-xp`
+- `toggle_reaction(p_message_id, p_emoji, p_user_id)` → jsonb — row-locking atomic toggle; called by `react-to-message`
+- `create_poll(p_crew_id, p_question, p_options, p_expires_at)` → messages row — atomically inserts message + poll
+- `vote_on_poll(p_poll_id, p_option_index)` → jsonb — row-locked; one toggleable vote per user
+- `close_poll(p_poll_id)` → void — creator-only
 
 ## Game Rules
 
@@ -74,39 +73,28 @@ All are `SECURITY DEFINER`. All declared in `Database.Functions` in `src/types/i
 | Image / GIF | 20 (disabled in UI) |
 | Reaction | 5 |
 | Poll | 0 |
-| Daily Drop response | 50 |
 | First message today bonus | +20 |
 | Reply within 60s combo | +5 |
 
 ### Coin System
-Coins are the invite currency. Earned by sending messages; spent (future) to invite new members.
+Coins are the invite currency. Earned by sending messages; spent to invite new members.
 
 | Action | Coins |
 |---|---|
-| Text message | 1 |
-| Voice note | 1 |
-| Image / GIF | 1 |
+| Text / voice / image message | 1 |
 | Reaction / system | 0 |
-| Generate invite code | −25 (`source='invite_generated'`) |
-| Invited user joins | +50 to new user (`source='seed'`) |
+| Generate invite code | −25 |
+| Invited user joins (seed) | +50 to new user |
 
-- All message types (text, voice, image) earn exactly **1 coin** — flat rate regardless of type
-- New users receive a **50-coin signup bonus** awarded by the `handle_new_user` DB trigger at account creation; logged in `coin_log` with `source = 'signup_bonus'`
-- **Invite generation**: costs 25 coins; server re-validates balance before deducting — never trust client. If inviter already has an unused code, returns it without deducting. Code generation uses alphabet `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (no ambiguous chars: 0, O, I, 1). Up to 10 uniqueness retries before error.
-- **Seed coins**: new user who joins via invite gets 50 coins; idempotent — checked via `coin_log source='seed'` to prevent double award.
-- Stored in `profiles.coins` (integer, default 50 for new users); log in `coin_log`
-- Awarded in `award-xp` edge function via `increment_user_coins(user_id, amount)` RPC (atomic UPDATE)
-- Anti-spam: coins only awarded when `xpBlocked = false` (same cooldown/burst gate as XP)
-- `ChatInput` calls `addUserCoins(coins_earned)` from store on award-xp response
-- **Displayed in the home AccountPreviewContainer only**: amber pill badge — `bg-[rgba(245,158,11,0.25)] rounded-[4px] px-1` (4px horizontal padding), containing `TokeCircle` icon (`pixelarticons/react/TokeCircle`) at **24×16px** (not square) + count in **Silkscreen** `font-size: var(--text-xs)` (12px) `#f59e0b` (amber, not gold). No gap between icon and count (icon and text are flush). Tap shows "25 COINS = 1 CREW INVITE" tooltip (2s). `HomeClient` seeds local `coins` state from `Math.max(initialCoins, chatStore.userCoins)` on mount. **Critical**: `chatStore.userCoins` must hold the absolute balance (not a delta from 0) — the `useState` initializer seeds the store with `initialCoins` whenever the store value is lower, so that subsequent `addUserCoins(1)` calls in chat accumulate from the correct base (e.g. 100 → 101, not 0 → 1). Without this seeding, `Math.max(initialCoins=100, storeCoins=5)` would always return 100 and ignore earned coins until realtime fires. Realtime `postgres_changes` UPDATE on `profiles` keeps the display live AND re-syncs the store value (`setUserCoins(newCoins)`). `handleCoinsDeducted` also syncs the store on spend (-25). **No `initialCoins` sync effect** — a previously present `useEffect([initialCoins])` was removed because stale server re-renders snapped back to pre-deduction values. The `useState` initializer + Realtime subscription are the two correct sources of truth.
-  - Coins are **not** shown in the message bubble header — home AccountPreviewContainer only.
-- `chatStore` holds `userCoins`, `setUserCoins`, `addUserCoins`; **not** shown in `ChatHeader` — coins are home-only at the global level
-- `profiles` table is in `supabase_realtime` publication — `HomeClient` subscribes to `postgres_changes` UPDATE on `profiles` for live coin balance (ChatHeader no longer subscribes)
+- New users receive 50-coin signup bonus from `handle_new_user` DB trigger; logged as `source='signup_bonus'`
+- Invite generation: costs 25 coins, server-validated; alphabet `ABCDEFGHJKLMNPQRSTUVWXYZ23456789`; up to 10 uniqueness retries
+- Seed coins: idempotent via `coin_log source='seed'` check
+- Balance in `profiles.coins`; displayed in home `AccountPreviewContainer` only (amber pill: `TokeCircle` 24×16px + Silkscreen 12px `#f59e0b`). Not shown in chat.
+- `chatStore` holds `userCoins`, `setUserCoins`, `addUserCoins`. `HomeClient` seeds from `Math.max(initialCoins, chatStore.userCoins)` on mount to prevent snapback. Realtime `postgres_changes` UPDATE on `profiles` keeps balance live.
+- Anti-spam: coins only awarded when `xpBlocked = false`
 
 ### Boss Rules
-- The Void spawns at every 500 XP threshold
-- Fight window = 48 hours; 3 phases (100–60%, 60–30%, 30–0%)
-- Phase 3 = enrage (frequency threshold required)
+- The Void spawns at every 500 XP threshold; fight window = 48 hours; 3 phases (100–60%, 60–30%, 30–0%)
 - Defeat → artifact drops into chat
 
 ### Element System
@@ -124,635 +112,258 @@ Berserker (spam), Sage (long messages), Ghost (silence crit), Hype Man (reaction
 
 ## Auth Strategy
 - Primary: Google OAuth (`signInWithOAuth` → `/auth/callback` → `/home`)
-- Secondary: Anonymous sessions (`signInAnonymously`); guest badge + Save Progress shown in header
-- Save Progress triggers Google OAuth; guest session abandoned on upgrade
+- Secondary: Anonymous sessions (`signInAnonymously`); guest badge + Save Progress in header
 - No email/password auth
 
 ### Invite-Only Gate — `/login`
-The login page is invite-only with two paths. Guest mode is removed.
+Two paths on the login page:
 
-**Invite Code Path** (`LoginForm.tsx` step machine: `landing → invite-code → invite-oauth → invite-profile`):
-1. User clicks "I HAVE AN INVITE CODE" → `invite-code` step: enter code, click "VERIFY CODE"
-2. `validateInviteCodeAction(code)` (server action, service client) — checks `app_invites` for a valid unused code; returns error immediately if invalid or already claimed. Does **not** consume the code.
-3. On valid code → `invite-oauth` step: shows "CODE ACCEPTED" + the verified code in a purple info box. Before triggering OAuth, client sets `nexus_invite_code=CODE` cookie (SameSite=Lax, 5min TTL) via `document.cookie`, then calls `signInWithGoogleForInvite()` which sets the `nexus_auth_intent=invite` cookie and triggers OAuth.
-4. Auth callback reads both cookies: routes to `/login?flow=invite&step=2&code=CODE`, clears both cookies.
-5. `invite-profile` step: `checkReservedUserAction()` checks `reserved_users` by session email:
-   - **Match found with username + class**: auto-calls `completeInviteFlowAction` on mount (spinner stays up); redirects to `/home` silently — user never sees the form. First/last name not collected for this path (columns left null).
-   - **Match found, class missing**: shows pre-filled read-only username; falls through to manual submit.
-   - **No match**: side-by-side **First Name** + **Last Name** inputs above the warrior name input — **no class selection**. Class defaults to `'mage'` and is set properly per-crew during onboarding.
-   - **No session**: bounces back to `invite-oauth` with an error.
-   - No invite code input in any case — code comes from the `?code=` URL param.
-6. `completeInviteFlowAction(code, username, cls, firstName?, lastName?)`: re-validates code in `app_invites` (final guard), upserts `profiles.username` + `profiles.avatar_class` + `profiles.first_name` + `profiles.last_name` (names only written when non-empty), marks invite `used=true/used_by/used_at`, returns success → client calls `router.push('/home')`
-7. Home page birthday guard kicks in → `/onboarding/birthday` → `/onboarding/welcome` → crew join/create
+**Invite Code Path** (step machine: `landing → invite-code → invite-oauth → invite-profile`):
+1. `validateInviteCodeAction` (service client) — checks `app_invites`; does not consume the code
+2. Client sets `nexus_invite_code` + `nexus_auth_intent=invite` cookies (SameSite=Lax, 5min), then triggers Google OAuth
+3. Auth callback reads cookies, routes to `invite-profile` step with `?code=XXX`, clears both cookies
+4. `checkReservedUserAction()`: auto-completes if fully reserved, else shows profile form
+5. `completeInviteFlowAction`: re-validates code, upserts profile fields, marks invite used
 
-**Cookie flow for invite code across OAuth**: `nexus_invite_code` is set client-side before OAuth, survives the Google cross-site redirect (SameSite=Lax), read by the callback, appended to the step-2 redirect URL as `?code=XXX`, then deleted. `nexus_auth_intent=invite` is set by `signInWithGoogleForInvite()` (same pattern). Both cookies are deleted together in the callback response.
+**Reserve My Place Path**: no auth session; purely a `reserved_users` insert. Gmail-only.
 
-**Reserve My Place Path** (`landing → reserve-email → reserve-class → reserve-name → reserve-done`):
-- No auth session created — purely a waitlist record in `reserved_users`
-- `reserve-name` step collects **First Name**, **Last Name** (side-by-side), and warrior name — all three required
-- Validates Gmail-only (`@gmail.com` suffix), username length ≥ 3, first/last name non-empty (max 50 chars each)
-- Duplicate email check server-side before insert (idempotent error copy: "A warrior already guards this name.")
-- Confirmation screen with game-voice copy
+**Existing members**: "SIGN IN WITH GOOGLE" below main CTAs; no `profiles.username` → `/login?error=no_account`.
 
-**`reserved_users` RLS**: anyone can insert (public waitlist); no select/update policies (service role only reads). Migration `20240103000011`.
-
-**`app_invites` validation**: uses `createServiceClient()` in both `validateInviteCodeAction` and `completeInviteFlowAction` to bypass the inviter-only RLS policy. Code lookup is case-insensitive (input `.toUpperCase()`). Race condition guard: `.eq('used', false)` on the update.
-
-**Error copy** (game voice):
-- Invalid code: "The Nexus does not recognize this code."
-- Already used: "This code has already been claimed."
-- Generic: "The rift destabilized. Try again."
-- Email already reserved: "A warrior already guards this name."
-- No existing account on sign-in: "No warrior found. The Nexus is invite only — ask an existing member for a code."
-
-**`ClassCarousel`** (inline in `LoginForm.tsx`): single-class-at-a-time view, ‹/› arrows + dot indicators, color-coded border per class. Same 5 classes as onboarding: mage, warrior, rogue, healer, archer.
-
-**`signInWithGoogleForInvite()`** in `src/lib/supabase/auth.ts`: sets a `nexus_auth_intent=invite` cookie (SameSite=Lax, 5min TTL) then calls `signInWithOAuth` with the standard `redirectTo` (no query params). The cookie survives the Google cross-site redirect; the callback reads it and routes to the invite step, then clears it. This avoids adding a second URL to the Supabase redirect allowlist.
-
-**Landing screen — third option (existing members)**: below the two main CTAs a divider labeled "ALREADY A MEMBER" precedes a muted "SIGN IN WITH GOOGLE" button that calls the standard `signInWithGoogle()`. Auth callback checks `profiles.username` for the signed-in user:
-- Username set → `/home` (existing member)
-- No username → `/login?error=no_account` → red error on landing: "No warrior found. The Nexus is invite only — ask an existing member for a code."
-Styled subordinately (dim border, muted text brightens on hover) so it does not compete with the invite/reserve CTAs.
+**Error copy**: invalid code → "The Nexus does not recognize this code." / already used → "This code has already been claimed." / generic → "The rift destabilized. Try again."
 
 ## Onboarding Flow
 - **New users**: name → `/onboarding/birthday` → `/onboarding/class` → `/onboarding/welcome` → chat/crew
-- **Existing users without birthday**: home page detects missing `birthday` and redirects to `/onboarding/birthday`
-- Birthday page (`/onboarding/birthday`): three-dropdown UI (month/day/year); validates real dates (rejects Feb 30, future dates); saves as `YYYY-MM-DD`; redirects to class selection (with `crew` param) or `/onboarding/welcome` (no crew)
-- `crewId`, `welcome`, and `invite` query params are forwarded through the birthday → class steps so the user lands in the right crew after onboarding
-- **Per-crew class selection**: `chat/[crewId]/page.tsx` guards on `crew_members.class` (per-crew, can be null for new crews). `onboarding/class/page.tsx` skips selection using the same `crew_members.class` check — **NOT** `profiles.avatar_class` (global). Using the global field caused an infinite redirect loop for users who had a global class but joined a new crew. `profiles.avatar_class` is kept in sync by `selectClassAction` as a best-effort display value only.
-- **Welcome screen redirect**: `selectClassAction` with `welcome=1` redirects to `/onboarding/welcome?crew=${crewId}` ONLY when `crew_members` count for the user equals 1 (their first ever crew). Prevents redirect loop on subsequent crew joins.
-- **`invite` URL param threading**: threaded through birthday → class → welcome as a hidden form field + URL param. Known v1 limitation: unauthenticated users clicking an invite link lose the code through the OAuth flow (auth callback always goes to `/home`). Consequence: `app_invites.used_by` is never set for those users, so `"Recruited by"` never appears on their profile pages. To test the recruited-by display while already logged in, navigate directly to `/onboarding/welcome?invite=<code>&crew=<crewId>`. To force-test without going through the flow, run: `UPDATE app_invites SET used=true, used_by='<userId>', used_at=now() WHERE code='<code>';`
-
-### Welcome Screen — `/onboarding/welcome`
-- Server component reads `crew` and `invite` params
-- If valid unused invite code found: fetches inviter's username; if `crew` param present, marks invite used + awards 50 seed coins + sends `recruit_arrived` push to inviter (all in `Promise.all`, idempotent via `coin_log source='seed'` check)
-- Passes `inviterUsername` + `validInviteCode` (for no-crew path) to `WelcomeClient`
-- **Invited state**: heading "You're in the Nexus.", subtext "[inviter] recruited you. Now find your crew."
-- **Organic state**: heading "The Nexus is yours.", subtext "Build your crew. Start the fight."
-- If `crewId` present: single "ENTER THE NEXUS" button → `/chat/${crewId}?welcome=1`
-- If no `crewId`: "ENTER CREW CODE" (inline 6-char join form via `joinCrewFromWelcomeAction`) + "START YOUR OWN CREW" (→ `/onboarding/create`)
-- Join form passes `inviteCode` as hidden field so invite is processed even when user first lands without a crew
-- Key files: `src/app/(app)/onboarding/welcome/page.tsx`, `WelcomeClient.tsx`, `actions.ts`
+- **Per-crew class selection**: guard on `crew_members.class` (not `profiles.avatar_class` — using global caused infinite redirect loops)
+- **Welcome screen redirect**: `selectClassAction` redirects to welcome ONLY when `crew_members` count equals 1
+- **`invite` URL param**: threaded through birthday → class → welcome. Known limitation: unauthenticated OAuth flows lose the code, so `app_invites.used_by` is never set for those users
+- Welcome screen: marks invite used + awards 50 seed coins + sends `recruit_arrived` push to inviter (all in `Promise.all`)
 
 ## Dev Mode
-- Controlled by `profiles.is_dev` boolean (default false) — **not hardcoded emails**
-- To grant dev mode: `UPDATE profiles SET is_dev = true WHERE id IN (SELECT id FROM auth.users WHERE email = '...')`
-- Dev section in `/profile` shows five toggle rows + utility rows:
-  - **Spawn Boss Mode** (`nexus_dev_mode`) — enables game event UI in chat
-  - **Push Diagnostics** (`nexus_push_diag`) — shows/hides CHECK / SYNC SUB / SEND TEST buttons and push status output; hidden by default to keep the section clean
-  - **Infinite Coins** (`nexus_infinite_coins`) — bypasses 25-coin gate for invite forging; home header and InviteArsenal show `∞` when on; sub-label shows live DB coin balance when off; dispatches `nexus-infinite-coins-change` CustomEvent so `HomeClient` reacts immediately without remount
-  - **Feat: AFK Exp** (`nexus_afk_exp`) — shows AFK XP accumulated bar + CLAIM button in home screen `AccountPreviewContainer`; dispatches `nexus-afk-exp-change` CustomEvent; hidden from all non-dev users
-  - **Announcements** — expandable row (tapping the row expands/collapses an inline panel); loads all announcements via `getAllAnnouncementsAction`; per-banner rows show active toggle + inline edit (pencil icon opens textarea) + delete button; "Add" textarea + CREATE button at the bottom; all writes call `revalidateTag('announcements', 'max')`
-  - User ID (copy button), Email (copy button), Local Flags reset
+- Controlled by `profiles.is_dev` boolean — **not hardcoded emails**
+- To grant: `UPDATE profiles SET is_dev = true WHERE id IN (SELECT id FROM auth.users WHERE email = '...')`
+- Dev section in `/profile`: **Spawn Boss Mode** (`nexus_dev_mode`), **Push Diagnostics** (`nexus_push_diag`), **Infinite Coins** (`nexus_infinite_coins`), **Feat: AFK Exp** (`nexus_afk_exp`), **Announcements** management, User ID/Email copy rows, Local Flags reset
 
 ### Game Events — Dev-Only Gate
-All boss/game event features are disabled for regular users and only activate when **both** `profiles.is_dev = true` (server) and `nexus_dev_mode = '1'` in localStorage (client toggle):
+**Server-side (`award-xp`)**: boss spawn + `LEVEL_UP:` message only run when `isDevUser = true`.
 
-**Server-side (`award-xp`)**: Fetches sender's `is_dev` in Batch 1. Boss spawn (raid creation + `BOSS_SPAWN:` system message) and `LEVEL_UP:` message insertion only run when `isDevUser = true`.
-
-**Server-side (`check-void-spawn`)**: Auto-spawn loop is disabled (no-op). Manual trigger for a specific `crew_id` still works for the dev panel.
-
-**Client-side** — all gated by reading `localStorage.getItem('nexus_dev_mode') === '1'`:
-- `MessageList`: hides boss cards, artifact drops, level-up banners, and game-event system messages (BOSS_SPAWN:, ARTIFACT_DROP:, LEVEL_UP: prefixes). Non-game system messages (e.g. birthday messages) render for all users regardless of devMode.
+**Client-side** (gated by `localStorage.getItem('nexus_dev_mode') === '1'`):
+- `MessageList`: hides boss cards, artifact drops, level-up banners, game-event system messages (BOSS_SPAWN:, ARTIFACT_DROP:, LEVEL_UP:). Non-game system messages (e.g. birthdays) render for all users.
 - `ChatHeader` / `DMOverlayBack`: hides boss HP bar + countdown
-- `ChatInput`: hides DamageFloat, "Next Boss" label, and RAID ACTIVE indicator. **XP stats row (level, XP counter, XP floats, progress bar) is visible to all users** — only the boss-specific parts are dev-only.
-
-Member avatars and online dots in ChatInput are not gated — those are chat features, not game features.
+- `ChatInput`: hides DamageFloat, "Next Boss" label, RAID ACTIVE indicator. XP stats row is visible to all users.
 
 ## Routing — Next.js 16 Proxy
-- `src/proxy.ts` — exports `proxy()` + `config.matcher`; **DO NOT add `src/middleware.ts`** (Next.js 16 errors if both exist)
+- `src/proxy.ts` — **DO NOT add `src/middleware.ts`** (Next.js 16 errors if both exist)
 - Protected prefixes: `/home`, `/chat`, `/vault`, `/party`, `/profile`, `/onboarding`, `/friends`, `/dm`
 - Uses `getSession()` (cookie-only) NOT `getUser()` — `getUser()` adds 100–300ms per nav
 - Build: `next build --webpack` in vercel.json — Turbopack breaks next-pwa and conflicts with proxy.ts
-- `images.minimumCacheTTL: 604800` (7 days) — prevents Vercel re-optimizing Google OAuth avatars on every 60 s default TTL expiry; matches the SW `CacheFirst` rule for `lh3.googleusercontent.com`
-- `images.deviceSizes: [390, 768, 1080]` + `imageSizes: [24, 32, 40, 48, 56, 64, 128, 256]` — tuned for mobile-first avatar sizes
 
 ## Architecture Notes
 
 ### Realtime Delivery (dual-path + dedup)
 - **Sender**: insert DB → broadcast on `messages:{crewId}` → instant display
 - **Receiver** (MessageList): Broadcast fires first (~50ms), Postgres Changes INSERT fires as backup
-- `addMessage` in chatStore deduplicates by id — both paths can fire for the same message
-- **Broadcast payload is slim** — only core `Message` fields (`id, crew_id, user_id, content, message_type, element_type, xp_awarded, created_at`); no profile. MessageList resolves the sender profile from its `profilesRef` (populated from server-fetched `memberProfiles`).
+- `addMessage` deduplicates by id; broadcast payload is slim (core Message fields, no profile)
+- MessageList resolves sender profiles from `profilesRef` (populated from server-fetched `memberProfiles`)
 - Postgres Changes requires `messages` + `active_raids` in `supabase_realtime` publication (migration `20240103000001`)
 
 ### XP Sync — real-time for all crew members
-- `award-xp` edge function returns `new_total_xp` in response
-- Sender: calls `addXP(10)` immediately on send (optimistic — float + bar advance, zero network delay), then `setCrewXP(data.new_total_xp)` on award-xp response (quiet authoritative sync, no second float). Broadcasts `xp_update` on `messages:{crewId}` channel.
-- Receivers: `receiveXP(earned, newTotal)` action in chatStore sets absolute XP + spawns XP float
-- Broadcast handler deduplicates by `sender_id` — sender gets `setCrewXP` (no float), others get `receiveXP`
+- Sender: `addXP(10)` immediately (optimistic), then `setCrewXP(data.new_total_xp)` on response. Broadcasts `xp_update` on channel.
+- Receivers: `receiveXP(earned, newTotal)` sets absolute XP + spawns XP float
+- Broadcast deduplicates by `sender_id` — sender gets `setCrewXP` (no float), others get `receiveXP`
 
 ### Online Presence
-- **Single presence channel**: ChatInput's `messages:{crewId}` channel is the sole presence channel. ChatHeader has NO presence channel — having two concurrent presence channels from the same Supabase singleton client causes interference and breaks dot display.
-- `ch.track({ username, typing: false })` is called in the `.subscribe()` callback (status === `'SUBSCRIBED'`) so every user enters presence state as soon as the chat opens — **not** only when they type. Uses `userProfileRef.current.username` (ref, not closure) to guarantee the current username is used.
-- `join` and `leave` presence events update `onlineUserIds` immediately; `sync` reconciles full state on reconnect
-- `onlineUserIds` is seeded with the current user's own ID on mount (optimistic)
-- **`sync` always includes self**: the `sync` handler calls `ids.add(userId)` after building the set from `Object.keys(state)` — `sync` fires before `track()` confirms with the server, so without this the current user's own dot blinks out briefly on initial load and after reconnection
-- **Visibility change re-track**: a `visibilitychange` listener calls `ch.track()` again when the document becomes visible — handles iOS PWA backgrounding where the WebSocket reconnects without re-firing `SUBSCRIBED`, which was the main cause of dots going missing after switching apps
-- Green dot `#66bb6a` (2×2, `rounded-full`, `border-[1.5px] border-black`) positioned at `-bottom-0.5 -right-0.5` on the 24×24 avatar wrapper
-- ChatHeader still updates `last_seen` in DB every 60s (for unread count cursors) — this is separate from Realtime presence
+- **Single presence channel**: ChatInput's `messages:{crewId}` is the sole presence channel — two concurrent channels from the same client causes interference
+- `ch.track()` called in `.subscribe()` callback so every user enters presence on chat open
+- `onlineUserIds` seeded with own ID on mount; `sync` handler always re-adds self
+- **Visibility change re-track**: `visibilitychange` listener calls `ch.track()` — handles iOS PWA backgrounding where WebSocket reconnects without re-firing `SUBSCRIBED`
+- ChatHeader updates `last_seen` in DB every 60s (for unread cursors) — separate from Realtime presence
 
 ### MessageList — stale-while-revalidate
-- sessionStorage key `nexus-msgs-{crewId}`: load cached → `setMessages` + `setHistoryLoaded` in same tick → React 18 batches both so skeleton never flashes on cache hit
-- Background Supabase fetch merges with any Realtime messages already in store; result saved back (capped 50)
+- sessionStorage key `nexus-msgs-{crewId}`: load cached → `setMessages` + `setHistoryLoaded` in same tick (React 18 batches, no skeleton flash)
+- Background fetch merges with Realtime messages; result saved back (capped 50)
 - `setMessages([])` before cache/fetch prevents stale messages from a previous crew bleeding in
-- Cache is written **even if the component unmounts** before the fetch completes (navigating away early) — the fetched rows are stored so the next visit gets a cache hit. Without this, rapidly tapping a crew and going back would permanently prevent the cache from being seeded.
+- Cache written even on early unmount — next visit gets a cache hit
 
-### MessageList — scroll-to-bottom behaviour
-- **Initial open**: `hasInitialScrolled` ref starts `false` on mount. When `historyLoaded` flips to `true` (skeleton replaced by messages), the scroll effect fires an instant `scrollTop = scrollHeight` jump — no animation, no visible scroll. The ref is then set to `true`.
-- **New messages while chatting**: subsequent `messages.length` changes trigger `bottomRef.scrollIntoView({ behavior: 'smooth' })` only when `isNearBottomRef.current` (user within 120px of bottom). Smooth scroll is never used on initial open.
-- `hasInitialScrolled` resets naturally to `false` when navigating to a different crew (component remounts on new route segment).
-- Effect deps: `[messages.length, historyLoaded]` — `historyLoaded` ensures the effect re-runs once when the skeleton is resolved, regardless of whether `messages.length` changed in that transition.
+### MessageList — scroll behaviour
+- **Initial open**: instant `scrollTop = scrollHeight` jump when `historyLoaded` flips to `true`
+- **New messages**: `bottomRef.scrollIntoView({ behavior: 'smooth' })` only when within 120px of bottom
 
 ### MessageList — message grouping
-Consecutive messages from the same user within 60 seconds are visually grouped (no repeated avatar/header). `showHeader = false` for continuation messages.
-- `lastUserId` + `lastMsgTime` tracked in the display-list loop; both reset to null/0 on day dividers, boss cards, artifacts, level-up banners, system messages, and **poll messages** — these all break grouping so the next regular message shows a fresh header
-- **Spacing**: first in group → `pt-[var(--space-6)] pb-0` (20px, `--space-6` from globals.css); continuation → `pt-[var(--space-2)] pb-0` (4px, `--space-2`). Between-group gap = 20px; within-group gap = 4px.
-- **Avatar**: only rendered for `showHeader = true` (first in group). Continuation messages (`showHeader = false`) skip the avatar element entirely and use `pl-10` (40px = 32px avatar + 8px gap) on the content div to keep text aligned.
-- **Pre-pass accumulation**: a single pre-pass loop builds both `groupXPMap` and `groupCoinMap` (Map<msgId, number>). The group-leader bubble receives `xpOverride` and `coinOverride` props; `xpOverride` counts up via `requestAnimationFrame` in `MessageBubble`. `coinOverride` state is maintained internally but not rendered — coin totals are home-only.
-- **Message bubble header format**: `username · [dot] · class · [dot] · +XP XP` — all items center-aligned with `gap-[4px]`. Purple 2×2px dot separators. Class label `#b3b3b3`, XP amber `#f59e0b`. No pixel sprite in the header; no coin display. Row `gap-[8px]` between avatar and content column.
+Consecutive messages from same user within 60 seconds are grouped (no repeated avatar/header).
+- `lastUserId` + `lastMsgTime` reset on day dividers, boss cards, system messages, polls
+- **Spacing**: first in group → `pt-[var(--space-6)] pb-0`; continuation → `pt-[var(--space-2)] pb-0`
+- **Avatar**: rendered for first in group only; continuations use `pl-10` offset
+- Pre-pass loop builds `groupXPMap` + `groupCoinMap`; group-leader bubble gets `xpOverride` prop
+- **Bubble header format**: `username · [dot] · class · [dot] · +XP XP` — class `#b3b3b3`, XP `#f59e0b`
 
-### MessageList — top gradient overlay
-`MessageList` wraps its scroll container in a `relative flex-1 min-h-0` div with an absolutely positioned gradient overlay at the top:
-- `pointer-events-none absolute left-0 right-0 top-0 z-10 h-1/4` (25% of the scroll area height)
-- `background: linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.25) 46.158%, rgba(0,0,0,0) 100%)`
-- Provides visual depth below the floating header elements (ChatHeader or DMOverlayBack) without blocking interaction
+### ChatInput — @mention system
+Typing `@` in the textarea triggers a member picker overlay (same visual pattern as `/` command picker).
+- `mentionQuery` state: substring after the last `@` before cursor; `null` if whitespace/newline present
+- **Picker**: up to 5 matching members (excluding self), filtered by username prefix; `motion.div` slide-up with `AnimatePresence`
+- Keyboard nav: ArrowUp/Down cycles, Enter completes, Escape dismisses; rows use `onMouseDown + e.preventDefault()` to prevent textarea blur
+- `completeMention(username)`: replaces `@query` segment with `@username ` at cursor position
+- **Overlay highlighting**: transparent textarea (`color: transparent; caretColor: white`) overlaid by `aria-hidden` div with matching font/padding. `renderHighlightedInput(text)` renders valid `@username` tokens as purple `<mark style={{ background:'transparent', color:'var(--color-purple)' }}>`. Scroll-synced via `overlayRef.scrollTop = textareaRef.scrollTop`.
+- **Mentioned user IDs**: extracted in `send()` from `profilesRef.current` (fresh ref, no stale closure). Passed to `award-xp` as `mentioned_user_ids: string[]`.
 
 ### ChatInput — slash commands
-Typing `/` in the textarea triggers a command picker overlay. Commands are filtered as the user types; Escape clears the input; Enter or tapping the row executes the single matching command.
-
-- **`SLASH_COMMANDS`** constant: `[{ name: 'birthdays', icon: '🎂', description: 'See upcoming squad birthdays' }]`
-- **Command picker UI**: `motion.div` with `initial={{ opacity: 0, y: 6 }}` slide-up, `AnimatePresence`; rendered above the textarea as an IIFE inside the status row. `border border-border bg-black`; each row `flex items-center gap-3 px-3 py-2 active:bg-surface`; icon 16px + command name Silkscreen 11px `text-purple` + description body 12px `text-tertiary`. Buttons use `onMouseDown` + `e.preventDefault()` to prevent textarea blur before execution.
-- **`executeCommand(name)`**: clears text + height, focuses textarea, sets `sending = true`; for `birthdays` calls `birthdaysCommandAction(crewId)`; on success calls `addMessage` + broadcasts `new_message` on the crew channel.
-- **`handleKeyDown` updates**: Escape while in command mode (`text.startsWith('/') && !text.includes(' ')`) clears the input. Enter in command mode with exactly one match executes that command instead of sending.
-- **`birthdaysCommandAction`** (`src/app/(app)/chat/actions.ts`): uses `createClient()` for auth + membership check; `createServiceClient()` to fetch crew member user IDs + profiles with birthdays; computes the next upcoming birthday; inserts a `message_type: 'system'` message; returns the inserted row for optimistic display.
-- Birthday message formats: `🎂 Today is {username}'s birthday! 🎉` / `🎂 {username}'s birthday is tomorrow! (Month Day)` / `🎂 Next squad birthday: {username} · Month Day · N days away` / `🎂 No squad members have set their birthday yet.`
-- **Birthday system message styling** (`MessageBubble` `SystemMessage`): `🎂`-prefixed content gets `bg-[#1a0d2e] border-[#a855f7]/30` (purple-tinted) instead of the default style.
+Typing `/` triggers a command picker. Filtered as you type; Escape clears; Enter executes single match.
+- **`SLASH_COMMANDS`**: `[{ name: 'birthdays', icon: '🎂', description: 'See upcoming squad birthdays' }]`
+- `birthdaysCommandAction` (`chat/actions.ts`): inserts a `message_type: 'system'` message with upcoming birthday info. Birthday system messages get purple-tinted styling (`bg-[#1a0d2e] border-[#a855f7]/30`).
 
 ### ChatInput — send flow
-`insert_message` RPC → `addMessage` (optimistic) → broadcast slim payload on `messages:{crewId}` → `award-xp` edge function (patches `xp_awarded` back + broadcasts `xp_update`) → `attack-boss` edge function (if raid active)
+`insert_message` RPC → `addMessage` (optimistic) → broadcast slim payload → `award-xp` edge function → `attack-boss` (if raid active)
 
-- **Props**: `{ crewId, userId, userProfile, memberProfiles, crewName, inviteCode?, creatorId?, isDM? }`. `crewName` is the crew's display name; `inviteCode` is the crew's join code (group chats only — omitted for DMs); `creatorId` is derived server-side as the `crew_members` row with the earliest `joined_at`; `isDM` switches the top section to DM mode.
-- **DM mode (`isDM={true}`)**: the member avatars row and XP bar are replaced by a single `"Chatting with [name]"` label — Silkscreen 12px, `text-[#a1a1aa]` for "Chatting with " and `text-purple` for the friend's name (lowercase). The expanded member panel and invite code block are not shown. XP/raid logic still runs — only the collapsed top UI changes.
-- **Single channel**: `messages:{crewId}` is configured with presence and handles message broadcasting, typing presence, and online presence. There is no separate `typing:{crewId}` channel.
-- **Send icon**: `Send` from `pixelarticons/react/Send` (16px); `text-primary` when textarea has text, `text-muted` when empty.
-- **"Next Boss" label**: always visible (right side of XP stats row) — not gated by dev mode.
-- **Member avatars row (collapsed)**: `flex items-center justify-between w-full`. Left: avatars 24×24px squares (`w-6 h-6`, no `rounded-full`, no border), `gap-3` (12px). Right: `ChevronRight` from pixelarticons rotated `-90deg` (pointing up) in a 24×24 button — taps to expand the member panel. Online dot `#66bb6a` (2×2, `rounded-full`, `border-[1.5px] border-black`) at `-bottom-0.5 -right-0.5`.
-- **XP floats**: animate bottom-to-top with fade-in then fade-out — `opacity: [0,1,1,0]`, `y: [0,-12,-26,-42]`, `times: [0, 0.15, 0.65, 1]` over 1.4s. Text shows `+{amount} XP` in gold `#ffd700`. Float anchors inline after the Members count text via a `relative inline-block` span — no static label, animation only.
-- **XP progress bar spring**: `type: 'spring', stiffness: 300, damping: 28` — tuned so the bar starts moving visibly within the first frame, reaching the target in ~250ms. This matches the float's fade-in timing (~210ms to full opacity) so both animations feel simultaneous. Do **not** drop stiffness below ~280 — slow springs have near-zero initial velocity and appear to lag behind the float.
+- **Props**: `{ crewId, userId, userProfile, memberProfiles, crewName, inviteCode?, creatorId?, isDM? }`
+- **DM mode**: member avatars + XP bar replaced by `"Chatting with [name]"` label; expanded panel hidden
+- **Single channel**: `messages:{crewId}` handles broadcast, typing presence, and online presence
+- **XP floats**: `opacity: [0,1,1,0]`, `y: [0,-12,-26,-42]` over 1.4s; anchored inline after member count text
+- **XP progress bar spring**: `stiffness: 300, damping: 28` — do not drop below ~280
 
-### ChatInput — expanded member panel
-Triggered by swipe-up (`onPanEnd` offset.y < -50 or velocity.y < -300) or tapping the chevron-up button. Renders `<SquadDetailsSheet>` (`src/components/chat/SquadDetailsSheet.tsx`) — the entire expanded panel is extracted into that component. The ChatInput wrapper carries `relative z-[40]`; the sheet is `absolute bottom-0 left-0 right-0 z-[50]` so `y: '100%' → 0` originates from within the container. Backdrop: `fixed inset-0 z-[38] bg-black/60`. Sheet: `bg-black border-t border-border`, `maxHeight: 85vh`, `flex flex-col` (fixed header + scrollable list + fixed footer).
+### ChatInput — expanded member panel (`SquadDetailsSheet`)
+Triggered by swipe-up (`offset.y < -50` or `velocity.y < -300`) or chevron-up button. Component: `src/components/chat/SquadDetailsSheet.tsx`.
 
-`ChatInput` passes these props to `SquadDetailsSheet`: `crewId`, `crewName`, `memberCount`, `crewImageUrl`, `members` (includes `avatar_class`), `onlineUserIds`, `crewXP`, `crewLevel`, `xpProgress`, `totalMessages`, `inviteCode?`, `creatorId?`, `currentUserId`, `memberMsgCounts`, `loadingCounts`, `onUploadPhoto`, `onNotifPress` (opens `showNotif` in ChatInput), `onSave` (calls `renameCrewAction`), `onTapMember` (navigates to member profile), `onRemoveMember` (sets `removeTarget` for kick confirmation), `onClose`.
+ChatInput wrapper: `relative z-[40]`; sheet: `absolute bottom-0 left-0 right-0 z-[50]`, `maxHeight: 85vh`, `flex flex-col`.
 
-**Pull-to-dismiss**: non-passive `touchmove` listener on the scrollable member list div (internal `memberListRef` in `SquadDetailsSheet`). `touchstart` records `atTop = (scrollTop === 0)`. While `atTop` and dragging down, `e.preventDefault()` is called (non-passive, prevents native scroll from consuming the gesture). `touchend` closes the sheet if displacement > 60px.
+- **Header**: crew image (32×32, creator uploads via `CrewImageUploadModal`) + crew name (creator-editable inline via `MagicEdit`) + action icons: `MagicEdit` (rename), `Braces` (→ definitions), `Bell` (→ notif sheet), collapse chevron
+- **Invite code block** (group chats only): crew code Silkscreen 24px `text-purple`; copy button toggles to green + "copied" for 1s; copies `"Come join my squad on Nexus app {code}"`
+- **Member list** (`flex-1 overflow-y-auto nexus-scroll min-h-0`): avatar 32×32 + PixelSprite + name/class/msg count. Pull-to-dismiss via non-passive `touchmove`.
+- **Footer**: CLOSE button; swipe-down also collapses
 
-**Squad rename**: the crew name in the title row is editable by the crew creator. Rename is triggered by the `MagicEdit` icon in the action buttons row (creator-only). Tapping it enters inline edit mode: the name becomes an `<input>` (`font-silkscreen text-[length:var(--text-md)] text-purple bg-transparent border-b border-purple`, max 30 chars, uppercase). `Enter` or `onBlur` confirms (calls `onSave` callback → `renameCrewAction`, optimistic update + rollback on error); `Escape` cancels. State (`isEditingName`, `editNameValue`) is internal to `SquadDetailsSheet`.
+Props passed to `SquadDetailsSheet`: `crewId`, `crewName`, `memberCount`, `crewImageUrl`, `members`, `onlineUserIds`, `crewXP`, `crewLevel`, `xpProgress`, `totalMessages`, `inviteCode?`, `creatorId?`, `currentUserId`, `memberMsgCounts`, `loadingCounts`, `onUploadPhoto`, `onNotifPress`, `onSave`, `onTapMember`, `onRemoveMember`, `onClose`.
 
-**Notification sheet**: `ChatInput` owns the notification prefs state — loads from `crew_notification_preferences` on mount, upserts on toggle. `showNotif` state gates `<NotifSheet>` inside its own `<AnimatePresence>`. `SquadDetailsSheet` receives `onNotifPress` callback that sets `showNotif = true` in ChatInput. The `NotifSheet` component lives in `src/components/chat/NotifSheet.tsx` and is shared between `ChatInput` and `ChatHeader`.
+### award-xp — query batching + notifications
+- **Batch 1** (always, parallel): previous msg gap + burst count + crew data + sender `is_dev` + other crew members — 5 queries
+- **Batch 2** (if not spam-blocked, parallel): today's msg count + combo count + daily XP log count — 3 queries
+- **Notifications fire fire-and-forget before XP writes** (~300ms earlier):
+  - `mention_received` → mentioned users only; `message_received` → all other members (no double-notify)
+  - `mentionedIds` from request body filtered against fetched `crew_members` for validity
+- Anti-spam: (1) hard stop if prior msg <2000ms ago, (2) hard stop if ≥4 msgs in last 30s, (3) daily multiplier 1.0/0.5/0.1 at 30/60 messages
+- Spam blocks XP + coins only — **notifications always fire**; do NOT add early returns before notification block
 
-**Sheet layout** (`motion.div` is `flex flex-col`):
-- **Fixed header** (`flex-shrink-0 flex flex-col gap-4 pt-6 px-4`):
-  - *group_header* (`h-[200px] flex flex-col justify-between`) — title row pinned to top, avatar+XP bar pinned to bottom:
-    - *Title row* (`flex items-start justify-between`): left group — 32×32 group profile image (solid `bg-purple` default; creator taps to upload via `CrewImageUploadModal`) + crew name Silkscreen 16px `text-purple` uppercase + member count Silkscreen 8px `text-tertiary` below. Right group — `flex items-center gap-4`: `MagicEdit` 24×24 `text-primary` (creator-only, enters inline rename), `Braces` 24×24 `text-primary` (navigates to `/chat/${crewId}/definitions`, closes sheet first), `Bell` 24×24 `text-primary` (calls `onNotifPress`), `ChevronRight` rotated `90deg` 24×24 `text-tertiary` — taps to collapse.
-    - *Avatar + XP bar* (`flex flex-col gap-2`): 24×24 avatar row with online dots, then Silkscreen 8px stats row `"Level N · X/YXPXP · N total msg."` (`text-[#fafafa]` for Level, `text-tertiary` for the rest) + "Next Boss" label right-aligned + 4px purple progress bar. Total messages only shown when counts have loaded (> 0).
-  - *Invite code block* (group chats only, not shown for DMs): `bg-[rgba(168,85,247,0.1)] border border-purple p-3`. Left: "Invite your squad" (Silkscreen 8px `text-secondary`) + crew code (Silkscreen 24px `text-purple`, `textShadow: '0px 0px 3px #a855f7'`). Right: copy button that transitions: default `bg-purple px-4 py-3` with `Copy` icon 12px + "Copy Code" Silkscreen 11px; tapped state `bg-[#22c55e]` + `boxShadow: '2px 2px 0px 0px rgba(34,197,94,0.5)'` + `Check` icon 12px + "copied" (lowercase) Silkscreen 11px for 1s. Tapping copies `"Come join my squad on Nexus app {code}"` to clipboard.
-- **Scrollable member list** (`flex-1 overflow-y-auto nexus-scroll px-4 min-h-0 mt-4`; `min-h-0` is critical — without it flex children won't shrink below content height):
-  - `flex flex-col gap-4` (16px) — rows and dividers are interleaved via `flatMap`; `h-px bg-border` divider between each row (not after last). No `py-*` or `border-b` on rows.
-  - Left 32×32: profile photo (or initial fallback) with online dot
-  - Center 32×32: `PixelSprite scale={1.5}` in `overflow-hidden` container, no background (sprite clips at edges); initial fallback if no sprite available
-  - Right text: `flex flex-col gap-1` — DM Sans Bold 16px `text-white` name with `Crown` icon 12×12 `#f59e0b` (amber) inline to the right when `isCreator` is true; Silkscreen 8px `text-secondary` subtitle `"Class · N msg."`. Name+icon row uses `gap-1` (4px). **Icon size rule**: all icons placed inline beside the username in this row must be 12×12px.
-  - Row gap: `gap-3` (12px)
-- **Fixed close footer** (`flex-shrink-0 px-4`, safe-area-bottom padding): **CLOSE button** `h-12 w-full`, Press Start 2P 8px `text-[#ef4444]` (red), centered; swipe-down gesture (`offset.y > 60` or `velocity.y > 300`) also collapses.
+### MessageBubble — text rendering
+`renderMessageContent(content, definitions, memberUsernames, onTapDef)` — two-pass renderer for `message_type === 'text'`:
+1. **Pass 1**: split on `@username` tokens matched against `memberUsernames` Set → `{kind:'mention'}` + `{kind:'text'}` segments
+2. **Pass 2**: apply `renderWithDefinitions` to text segments; render mentions as `<span style={{ color: 'var(--color-purple)' }}>@name</span>`
 
-### award-xp — query batching + anti-spam
-- **Batch 1** (always, parallel): previous message gap + burst window count + crew name/XP + sender's `is_dev` flag — 4 queries in one `Promise.all`
-- **Batch 2** (only when not spam-blocked, parallel): today's message count + combo count + daily XP log count — 3 queries in one `Promise.all`
-- Anti-spam layers: (1) hard stop if prior message <2000ms ago, (2) hard stop if ≥4 messages in last 30s, (3) multiplier 1.0 / 0.5 / 0.1 at 30 / 60 daily message thresholds
-- Spam checks gate XP only — **notifications always fire** regardless. Implemented via `xpBlocked` flag; do NOT use early returns before the notification block.
-- **Coins**: awarded via `increment_user_coins` RPC + `coin_log` insert (parallel) when `!xpBlocked`. Response includes `coins_earned`; `ChatInput` calls `addUserCoins(coins_earned)` on receipt.
-- **Boss spawn + LEVEL_UP message** only execute when sender's `isDevUser = true` (see Dev Mode above)
-- Notifications use a **single batch fetch** to `send-notification` per event (one call for all recipients, not a per-member loop). Response includes `notif_count` + `notif_results` logged by ChatInput as `[award-xp] ...`.
+Used when `definitions.length > 0` or `memberUsernames.size > 0`. `memberUsernames` derived in `MessageList` via `useMemo` from `localProfiles`.
 
-### HomeClient — stale preview fix
-`router.refresh()` on every home mount forces a background server re-fetch. A `useEffect([initialCrews])` sync effect applies refreshed `initialCrews` prop into `crews` state (useState only runs once on mount).
-
-### HomeClient — realtime channels
-Home page subscribes to one `messages:{crewId}` channel per crew for live preview updates. **Broadcast events only** for crew channels — `postgres_changes` subscriptions on `messages` were removed to eliminate a persistent server-side listener that fired on every INSERT across all of the user's crews. If a preview update is missed, `router.refresh()` on mount catches it.
-
-**Exception**: a single `postgres_changes` UPDATE subscription on `profiles` (channel `home-profile-coins:{userId}`) keeps the coin balance live. This is one subscription on the user's own profile row — not per-crew.
-
-### Home Page — birthday guard
-`home/page.tsx` reads `birthday` from the cached home profile. If null, redirects to `/onboarding/birthday` before rendering the home screen. This handles existing users who registered before the birthday field was added.
-
-### Home Page — AccountPreviewContainer
-`home/page.tsx` fetches `totalMessages` (estimated count of non-system messages by the user) and `status` (user's status text, nullable) and passes both to `HomeClient` → `AccountPreviewContainer`. Component name is `AccountPreviewContainer` (renamed from the former `ProfileBanner`).
-
-**Card**: `bg-[rgba(17,17,17,0.5)] border border-border rounded-[8px] p-4 flex flex-col gap-4`. The background is semi-transparent (not `bg-surface`).
-
-**Details row** (top): left group — 48×48 avatar (`bg-primary` placeholder) + text column; right — coin badge.
-- Text column: "Member Since {year}" Silkscreen 8px `text-secondary`; username DM Sans Bold **20px** `text-primary`; stats Silkscreen 8px `text-secondary` — `"{N} group chats · {totalMessages} msg"` (both crew count and total message count shown).
-
-**Status quote** (bottom row): DM Sans Regular `var(--text-xxs)` (11px) `text-secondary`, always rendered — shows `"status text"` when set, or `"Whats the mood today..."` as placeholder when empty.
-
-The entire card is tappable (`onClick={onEditProfile}`, `role="button"`, `cursor-pointer`, `active:opacity-80`). No `MagicEdit` icon inside the card.
-
-**Coin badge**: amber pill (`bg-[rgba(245,158,11,0.25)] rounded-[4px] p-1`) at top-right of the details row. Contains `TokeCircle` 24×16px + count Silkscreen `var(--text-xs)` (12px) `#f59e0b`. Tap shows "25 COINS = 1 CREW INVITE" tooltip (2s).
-
-**Wrapper**: `AccountPreviewContainer` is wrapped in a `<div style={{ marginTop: 'var(--space-5)' }}>` (16px top margin) inside `HomeClient`.
-
-### Home Page — Announcement Banner
-`AnnouncementBanner` (`src/components/ui/AnnouncementBanner.tsx`) sits between the header and the body content. Rendered from `HomeClient` with `announcements` prop (active announcements fetched server-side via `getCachedAnnouncements()`).
-
-- **Hydration guard**: renders `null` until a `useEffect` runs on client; `mounted` state prevents localStorage access during SSR.
-- **Dismissal**: tapping the `Close` (14px) button removes the banner from local state and stores its `id` in `localStorage` under key `nexus_dismissed_banners` (JSON array). Dismissed IDs are filtered out on mount — they persist across page loads.
-- **Carousel** (multiple announcements): `[[idx, dir], setPage]` tuple state for direction-aware slide animations. Swipe left/right via Framer Motion `drag="x"` + `onDragEnd` (±40px threshold). Directional `slideVariants` (`enter`/`center`/`exit` with `x` offset based on `dir`), `AnimatePresence mode="wait"`.
-- **Pagination dots**: pill-shaped `motion.button` dots shown only when `visible.length > 1`. Active dot animates width 4→12px + color `rgba(255,255,255,0.2)` → `#a855f7` via spring 400/30.
-- **Style**: `border-b` with `rgba(168,85,247,0.2)` color, `rgba(168,85,247,0.06)` background. "ANNOUNCEMENT" label Silkscreen 8px `#a855f7`. Text DM Sans 14px `text-primary`.
-- **Server data**: `getCachedAnnouncements()` in `home/page.tsx` fetches `{ id, text }` for `active = true` rows, ordered newest-first. Tagged `announcements`, 60s TTL. Passed to both HomeClient render paths (empty crew and normal).
-- **Dev management**: `ProfileClient` DevSection has an expandable "Announcements" row that loads all banners (including inactive) via `getAllAnnouncementsAction`. Per-banner: active toggle (`toggleAnnouncementAction`), inline text edit (`updateAnnouncementAction`), delete button (`deleteAnnouncementAction`). "Add" textarea + CREATE button at the bottom (`createAnnouncementAction`). All actions call `revalidateTag('announcements', 'max')`. All CRUD actions are gated server-side by `requireDev()`.
-- **`requireDev()` helper** in `home/actions.ts`: checks session + queries `profiles.is_dev` via service client; returns `{ userId }` or `{ error }` — used by all five announcement server actions.
-
-### Home Page — Squads + Direct Messages sections
-The home body is split into two labeled sections below the account preview container:
-- **"Squads"** — crew list (group chats only — DM crews are filtered out). Label uses `font-body font-medium text-[14px] text-primary tracking-[0.2px]`. Empty state shows inline create/join prompt.
-- **"Direct Messages"** — accepted 1:1 friends, rendered only when `friends.length > 0`. Same label style. Tapping a friend navigates to `/dm/[friendId]`. Uses `FriendCard` component inside `HomeClient.tsx`.
-
-Data fetching in `home/page.tsx`:
-- Stage 1 `Promise.all` fetches `friendships` (accepted only) alongside profile, crew_members, messages
-- Stage 2 crews SELECT includes `is_dm, dm_partner_1, dm_partner_2`; DM crews are split off into `dmCrewMap` (friendId → crewId) and `dmLastMsgMap` (friendId → last message) before building Squads summaries
-- `buildFriends(friendshipRows, profiles, userId, dmCrewMap, dmLastMsgMap)` resolves friend user IDs → `FriendSummary[]`; `dmCrewMap`/`dmLastMsgMap` default to empty Maps in the no-membership early-return path
-- Friend profiles fetched in Stage 2 `Promise.all` alongside crew data (parallel, no waterfall)
-- DM last messages come from the same `getCachedCrewLastMessage` calls already made for all memberships — no extra queries
-
-`FriendSummary` interface (`{ id, username, avatarUrl, dmChannelId, lastDMMessage }`) is exported from `HomeClient.tsx` and imported by `page.tsx`. `dmChannelId` is null until the first DM is opened; `lastDMMessage` shows the most recent DM content + timestamp in `FriendCard`.
-
-### Home Page — bottom action bar
-Fixed bar at the bottom of the home screen. `fixed bottom-0 left-0 right-0 z-30 flex items-center justify-end gap-4 px-4`; `paddingBottom: max(env(safe-area-inset-bottom), 24px)`, `paddingTop: 24px`. The home page has **no top header bar** — the NEXUS logo and icon row have been removed.
-- **Direct Messages button**: `bg-black border border-secondary flex items-center justify-center p-3`; `boxShadow: '4px 4px 0px 0px rgba(228,228,231,0.5)'`; `Notebook` from `pixelarticons/react/Notebook` 24×24 `text-primary`; navigates to `/friends`
-- **Squad button**: `bg-purple flex items-center justify-center gap-1 px-5 py-4`; `boxShadow: '4px 4px 0px 0px rgba(168,85,247,0.5)'`; `PlusBox` 16×16 `text-primary` + `"Squad"` Silkscreen 14px primary; opens `HomeActionSheet`
-- Body has `paddingBottom: calc(max(env(safe-area-inset-bottom), 16px) + 72px)` to prevent content being hidden behind the bar.
-
-### Home Page — HomeActionSheet (+ button)
-The `+` button opens `HomeActionSheet`. Three menu options (no coin gate on any row):
-- **Create a Crew** — transitions to inline create form
-- **Join a Crew** — transitions to inline join form
-- **Invite a Friend** — always tappable; shows `[Coins 10px] [N] coins available` sub-label in `rgba(255,255,255,0.4)` system-ui. Tapping dismisses the sheet and opens **InviteArsenal** full-screen modal.
-
-Sheet design: `bg-[#0a0612]`, full-width rows min 44px, `border-l-2 border-transparent active:border-purple` on active row, dismisses on outside tap.
-
-### Home Page — InviteArsenal (full-screen modal)
-`src/app/(app)/home/InviteArsenal.tsx` — slides up from bottom (`z-[60]`, spring 320/32) over the home screen. Opened by tapping "Invite a Friend" in the action sheet; no coin gate on open.
-
-**Header**: `px-4 pb-2 border-b border-border`, `paddingTop: max(env(safe-area-inset-top), 8px)`. Main row: `flex items-center h-10 gap-2` — `ChevronLeft` 24px tertiary in a `style={{ width: 24, height: 40 }}` button (calls `onClose`) + `"INVITE ARSENAL"` in `font-pixel text-[14px] text-primary leading-none whitespace-nowrap`. Gap and padding match ChatHeader exactly. Below the row: subtitle `"Spend coins. Recruit warriors."` (DM Sans 13px rgba(255,255,255,0.4)) + coin balance (`Coins` 16px `#ffd700` + count Press Start 2P 12px `#ffd700`).
-
-**Forge button** (full-width, min-height 56px):
-- Label `FORGE INVITE CODE` (Press Start 2P 10px) + sub-label `25 coins` (system-ui 11px)
-- Active (coins ≥ 25): `#bf5fff` bg, white labels. On tap: calls `generateAppInviteAction` server-side. On success: `onCoinsDeducted()` (immediate -25 in header), toast "Code forged." in `#66bb6a`, reload list. If server returns insufficient-coins error: toast "Not enough coins." in `#ff4444`. Users can forge as many codes as they have coins for — no per-user unused-code limit.
-- Disabled (coins < 25): `rgba(255,255,255,0.1)` bg, muted labels, not tappable. Below: "Keep fighting to earn more coins." in `rgba(255,255,255,0.4)` system-ui 12px.
-
-**Code list** (scrollable, newest first): all `app_invites` rows for current user via `getInviteCodesAction`.
-- **UNUSED card**: `rgba(255,255,255,0.05)` bg, `1px solid rgba(255,255,255,0.1)` border. Top row: code (Press Start 2P 13px `#ffffff`, letter-spaced) + UNUSED badge (`rgba(191,95,255,0.15)` bg, `#bf5fff` border/text). Bottom row: formatted date + Copy Code button (`transparent` bg, `#bf5fff` border/text; flips to "Copied!" `#66bb6a` for 2s).
-- **USED card**: `rgba(255,255,255,0.02)` bg, `1px solid rgba(255,255,255,0.05)` border. All text `rgba(255,255,255,0.4)`. Top row: code (Press Start 2P 13px muted) + USED badge (muted style). Bottom row: date + "Claimed by [username]" (no copy button).
-- **Empty state**: centered, `Coins` from pixelarticons (32px dimmed), "No codes forged yet." (Press Start 2P 8px muted) + "Spend 25 coins to recruit a warrior." (system-ui 13px muted).
-- **Realtime**: subscribes to `postgres_changes` on `app_invites` filtered by `inviter_id=eq.{userId}` to update status live when a code is claimed. **Requires** `app_invites` in `supabase_realtime` publication (migration `20240103000010`).
-
-`generateAppInviteAction` (in `src/app/(app)/home/actions.ts`):
-- Always generates a new code — no existing-unused-code check (users can forge multiple)
-- Re-validates coin balance server-side before deducting
-- Generates 6-char code from `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (no ambiguous chars)
-- Up to 10 uniqueness retries; parallel insert + `increment_user_coins(-25)` + `coin_log` insert
-- Calls `revalidateTag(\`profile:${user.id}\`, 'max')` after deduction
-
-`getInviteCodesAction` (in `src/app/(app)/home/actions.ts`):
-- Fetches all `app_invites` for current user (service client, ordered newest first)
-- Resolves `used_by` UUIDs → usernames in one `.in()` profiles query
-- Returns `InviteCodeData[]` (id, code, used, created_at, used_by_username)
-
-### Home Page — SwipeableCrewCard leave button
-Swipe left on a crew card to reveal the leave action (`LEAVE_REVEAL = 104px`). Leave button design (matches Figma node 50:516):
-- Background: `#ef4444`
-- Layout: `flex-row items-center justify-center gap-[4px]` (icon beside text — **not** stacked)
-- Padding: `px-[12px] py-[8px]`, `h-full overflow-hidden`
-- Icon: `Logout` from `pixelarticons/react/Logout` (16px, white)
-- Label: `"LEAVE"` in `font-silkscreen text-[12px] text-white whitespace-nowrap leading-none`
-- `CrewCardContent` outer div has `pr-2` (8px right padding) to create 8px gap between the timestamp and the revealed leave button edge
-
-### Home Page — LeaveConfirmSheet (bottom sheet)
-Triggered by tapping the swipe-reveal leave button on a crew card. Matches Figma node 56:145.
-- Container: `bg-surface border-t border-border flex flex-col gap-6 p-4`; `paddingBottom: max(env(safe-area-inset-bottom), 24px)`
-- **Header** (`flex flex-col gap-2`):
-  - Label: Press Start 2P 8px `text-tertiary` — `"LEAVE CREW"` (or `"DELETE CREW"` when last member)
-  - Title + desc (`flex flex-col gap-1`): crew name in DM Sans Bold 18px primary; description in DM Sans Regular 12px secondary
-  - Description copy: `"Your XP and artifact gains will be redistributed to the remaining members."` / `"You are the last member. This will permanently delete the crew and all its history."`
-- **Buttons** (`flex flex-col gap-2`):
-  - Confirm: `w-full h-[48px] bg-[#ef4444]`, Press Start 2P 8px `text-primary`; `"LEAVE CREW"` / `"DELETE CREW"` / `"..."` (pending)
-  - Cancel: `w-full h-[48px]`, Press Start 2P 8px `text-tertiary`; `"CANCEL"`
-
-### ChatHeader — NotifSheet (bottom sheet)
-Triggered by tapping the bell icon in `ChatHeader`. Matches Figma node 54:337.
-- Container: `bg-surface border-t border-border flex flex-col gap-6 p-4 overflow-hidden`; `paddingBottom: max(env(safe-area-inset-bottom), 24px)`
-- **Header** (`flex flex-col gap-2`):
-  - Crew label: Press Start 2P 8px `text-tertiary`
-  - Title + subtitle (`flex flex-col gap-1`): `"Notifications"` in DM Sans Bold 18px primary; `"Control what pulls you back into the chat."` in DM Sans Regular 12px secondary
-- **Settings card**: `flex flex-col gap-4 py-4 border border-[rgba(168,85,247,0.5)] bg-surface overflow-hidden` — purple 50%-opacity border
-  - Three `NotifToggleRow` rows (`px-4`): Messages / Raid Alerts / Victory; separated by `border-t border-border` dividers
-  - Each row: label DM Sans Medium 14px `text-secondary`, description DM Sans Regular 12px `text-tertiary`, toggle 40×24px (purple when on / `#27272a` off), knob `w-4 h-4` animates `left: 4 → 20` via spring `stiffness 400 / damping 30`
-- **Close button**: `w-full font-silkscreen text-[16px] text-muted` — `"Close"` (title-case, not all-caps)
-
-### ChatHeader — ShareModal (invite sheet)
-Triggered by tapping the `UserPlus` icon in `ChatHeader`. Matches Figma node 71:801. Only shown for group chats (not DMs — `DMHeader` omits the UserPlus button).
-- Container: `bg-black border-t border-border flex flex-col gap-6 items-center p-4`; `paddingBottom: max(env(safe-area-inset-bottom), 24px)`; spring `stiffness 320 / damping 32`, slides `y: '100%' → 0`
-- **Header** (`flex flex-col gap-2 items-start w-full`):
-  - Label: Press Start 2P 8px `text-tertiary` — `"SQUAD SH**!"`
-  - Title: DM Sans Bold 18px `text-primary` — `"Invite Your Squad"`
-- **Invite code card**: `bg-[rgba(168,85,247,0.1)] border border-purple p-4 flex items-center justify-between w-full`
-  - Code: Silkscreen 24px `text-purple` with `textShadow: '0px 0px 3px #a855f7'`
-  - Copy button toggles state — default: `bg-purple` + `Copy` 12px icon + "Copy Code" Silkscreen 11px white; copied: `bg-[#22c55e] boxShadow: '2px 2px 0px 0px rgba(34,197,94,0.5)'` + `Check` 12px icon + "copied" Silkscreen 11px white for 2s
-  - Copy writes `"Come join my squad on Nexus app {code}"` to clipboard (same string as ChatInput panel)
-- **Close button**: `h-12 w-full font-pixel text-[8px] text-tertiary` — `"CLOSE"` (all-caps)
-- Uses `Copy` + `Check` from `pixelarticons` (already in imports for ChatInput; added to ChatHeader imports)
-
-### ChatHeader — props and spacing
-`ChatHeader` accepts only `{ crew, initialXP, initialRaid, currentUserId, crewId }`. It has **no** `members`, `memberLastSeen`, `initialCoins`, or `isCreator` props — member avatars live in ChatInput; coins are home-only; rename is in the expanded member panel. Do not add a second presence channel here (see Online Presence note above).
-
-Header spacing: `px-4 pb-2` (16px horizontal, 8px bottom), `paddingTop: max(env(safe-area-inset-top), 8px)`, heading row `h-10`. Left side: `gap-2` (8px) between back button and crew name. Crew name is a static `<h1>` — **not** a button; no tap handler, no underline, no rename affordance, no dropdown chevron. All icons `style={{ width: 24, height: 24 }}`. Back arrows across all screens use `ChevronLeft` from pixelarticons with `color: var(--color-tertiary)`. Right side has bell + UserPlus only — the vault (Notebook) icon has been removed.
+### HomeClient — realtime
+- One `messages:{crewId}` broadcast channel per crew for live preview (no `postgres_changes` on messages)
+- One `postgres_changes` UPDATE on `profiles` (channel `home-profile-coins:{userId}`) for live coin balance
+- `router.refresh()` on every mount syncs stale preview data; `useEffect([initialCrews])` applies refreshed props into state
 
 ### Page Transitions — SlidePage + useSlideBack
-All "detail" pages (chat, DM, profile, friends, vault) slide in from the right on mount and slide back out on close.
-
-- **`SlidePage`** (`src/components/ui/SlidePage.tsx`) — client component that wraps the page's outermost `motion.div`. Enter: spring `stiffness 380 / damping 36` (~280ms). Exit: ease-in tween `[0.32,0,0.67,0]` 280ms, then fires `router.back()` (or `router.replace(backHref)` when `backHref` is set) after 290ms. Guards against double-fire with `exiting` flag.
-  - **`backHref` prop** — optional string; when set, `goBack()` calls `router.replace(backHref)` instead of `router.back()`. Used by the chat page when `?welcome=1` is present, and by `ProfileClient` (always `backHref="/home"`) so back navigation is reliable even when there is no browser history entry (e.g. direct URL load or page refresh). `FriendsClient` does NOT use `backHref` — it uses `router.back()` like other slide pages (DM, member profile), since it is only reachable from `/home`.
-- **`useSlideBack()`** — hook that returns the `goBack` callback from SlidePage context. Use this **instead of `router.back()`** in all back buttons on slide pages. Falls back to no-op if called outside a SlidePage (safe).
-- **Wired in**: `ChatHeader` and `DMOverlayBack` use `useSlideBack()` — they are rendered inside a parent `SlidePage` on their respective pages. `VaultClient` wraps in SlidePage for the entrance animation but has no explicit back button. (`DMHeader` has been removed — DM back navigation is handled by `DMOverlayBack`.)
-- **Context scoping caveat**: `ProfileClient` and `FriendsClient` render their own `<SlidePage>` wrapper and cannot call `useSlideBack()` at the component body level (the hook would fire outside the context they provide). Instead they define a local `BackButton` component that is rendered *inside* `<SlidePage>` and calls `useSlideBack()` there — where the context is reachable.
-- **Back button tap target**: back button `<button>` wrappers use `style={{ width: 24, height: 40 }}` across all screens (matching Figma spec and ChatHeader). The `height: 40` ensures a tall enough touch area on the full `h-10` header row.
-- **Onboarding → chat back navigation**: after any onboarding flow (create crew, join crew, class selection), the final redirect to `/chat/[crewId]` always includes `?welcome=1`. The chat page passes `backHref="/home"` to `SlidePage` when this param is present, so the back button skips the onboarding history and goes directly to home. `WelcomeDetector` strips `?welcome=1` from the URL bar client-side via `window.history.replaceState` without triggering a re-render.
-- `html, body` has `overflow-x: hidden` in `globals.css` to prevent a horizontal scrollbar during the off-screen initial position.
-
-### Vault Page — navigation
-`VaultClient` has **no** `BottomNav`. Users return via swipe-back / browser back — no nav bar needed.
-
-### Friends Page — `/friends`
-- Opened via the `Notebook` icon (`pixelarticons/react/Notebook`) in the home bottom action bar
-- Page title is **"FRIENDS"** (Press Start 2P 18px)
-- Server component fetches accepted friendships + pending (incoming/outgoing) in parallel; resolves profiles for all involved user IDs in one `.in()` query
-- `FriendsClient` manages local state for optimistic mutations (send, accept, decline, remove, cancel)
-- **Layout**: single scrollable column — no tabs. Sections stack vertically: search input → Requests (collapsible) → Friends
-- **Search input**: `h-[48px] border border-border px-4 py-[12px] gap-2`, `font-body text-[14px]`, placeholder `"Search by @username"`. Shows "Results" section label + result rows while query ≥ 2 chars (debounced 300ms).
-- **Section labels** ("Requests", "Friends", "Results"): `font-silkscreen text-[14px] text-primary tracking-[0.2px]`
-- **Requests section**: only rendered when `incoming.length > 0 || outgoing.length > 0`. Collapsible via `requestsOpen` state; chevron (`ChevronRight` 24×16px from pixelarticons) animates rotate 0°→90° when open. AnimatePresence height transition on body.
-  - **Outgoing row**: avatar 40px, name (DM Sans SemiBold 16px primary), `"Sent Friend Request"` (Silkscreen 11px tertiary), CANCEL button: solid purple `bg-purple px-4 py-3 gap-2` — `Close` icon 12px white + `"CANCEL"` Silkscreen 11px white
-  - **Incoming row**: avatar 40px, name, `"Wants to be your friend"` subtitle (Silkscreen 11px tertiary), gap-4 between buttons; accept button `w-[32px] h-[32px] bg-[#22c55e]` (`Check` 16px white) + decline button `w-[32px] h-[32px] bg-[#ef4444]` (`Close` 12px white)
-- **Friends section**: always rendered. Friend row: 40px avatar, name (DM Sans SemiBold 16px primary), `"est. {year}"` subtitle (Silkscreen 11px tertiary). Tapping the row navigates to `/dm/[friendId]`. Right side: `ChevronRight` 24px tertiary (nav affordance) + red Remove button `bg-[#ef4444] px-4 py-3 gap-[4px]` — `UserMinus` 12px white + `"Remove"` Silkscreen 11px white — uses `e.stopPropagation()`.
-- User + section rows use: `gap-4` between items, `tracking-[0.2px]` on text columns
-- Guest guard: `isGuest` prop (`user.is_anonymous === true`); ADD button disabled + Google sign-in banner shown; `sendFriendRequestAction` also blocks anonymous users server-side
-- **No BottomNav** — users go back via a local `BackButton` component (see SlidePage context scoping caveat above)
-- Header: matches ChatHeader — `bg-black border-b border-border px-4 pb-2`, `paddingTop: max(env(safe-area-inset-top), 8px)`, `h-10` row, `gap-2` between back button and title. Back button `style={{ width: 24, height: 40 }}`, `ChevronLeft` 24px tertiary. Title `"FRIENDS"` in `font-pixel text-[18px] text-primary leading-none whitespace-nowrap`.
-
-### Account Page — `/profile`
-- UI label: **"Account"** — page is called "Account" in all user-facing text; route stays `/profile`
-- Route: `src/app/(app)/profile/page.tsx` + `ProfileClient.tsx`
-- **Layout** (matches Figma nodes 42:133 + 101:1313):
-  1. **Hero section** (280px, `relative flex-shrink-0 w-full bg-black overflow-hidden`) — full-bleed background image + gradient overlay. Three layers (bottom to top):
-     - **Background image**: plain `<img src="/img/default_image.png">` with inline `position:absolute; inset:0; width:100%; height:100%; objectFit:cover; pointerEvents:none` — **must use plain `<img>`, not `next/image`**; `next/image` with `fill` fails to render in iOS PWA standalone mode (same issue as pixel sprites)
-     - Full-height gradient (`absolute inset-0`): `linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.5) 48.668%, rgba(0,0,0,0.8) 82.216%, rgb(0,0,0) 100%)` — transparent top → black bottom
-     - 86px top layer: `linear-gradient(to bottom, rgba(0,0,0,0.8) → rgba(0,0,0,0))` — back button readability
-     - Content anchored to bottom (`absolute inset-0 flex flex-col justify-end gap-[var(--space-5)] p-[var(--space-5)]`):
-       - Avatar 56×56 — tap opens `AvatarUploadModal`; "Use Google photo" link shown when `customAvatar === true`
-       - Name: DM Sans Bold `var(--text-xl)` (20px) `text-primary`; Stats: Silkscreen `var(--text-mini)` (8px) `text-secondary`; "Recruited by [name]" (tertiary) when present
-       - **Status line** — `font-body var(--text-xxs)` (11px) `text-secondary` shown as `"status text"` when `localStatus` is non-empty
-       - **AFK EXP row** (dev + `nexus_afk_exp` flag only): Silkscreen 8px primary + purple `h-[4px]` bar + CLAIM button (Silkscreen `var(--text-xxs)` bg-purple)
-     - Floating back button box (`absolute z-20 top-[16px] left-[16px]`): `bg-surface border border-purple p-2`; `boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.8)'`; `ChevronLeft` 24×24 tertiary; `style={{ width: 24, height: 24 }}`
-  2. **Menu rows group** — `flex flex-col gap-4` container holding two identical tappable rows (Figma node 126:1054):
-     - **Edit Profile row** — `bg-surface border border-[var(--color-border-hover)] py-3 px-4 gap-3` with `MagicEdit` **16×16** `text-secondary` + "Edit Profile" (DM Sans SemiBold 12px secondary) + "Manage your profile." (DM Sans Regular 11px tertiary) + `ChevronRight` 16×16 tertiary. Tap opens **EditProfileSheet**. Disabled for guest users.
-     - **Notification row** — same card style with `Bell` **16×16** `text-secondary` + "Notification" (DM Sans SemiBold 12px secondary) + "Control what pulls you back into the chat." (DM Sans Regular 11px tertiary) + `ChevronRight` 16×16 tertiary. Tap opens the shared **`NotifSheet`** (`src/components/chat/NotifSheet.tsx`) — same component used by `ChatHeader`. Prefs are read from / written to the global `notification_preferences` table (no `crew_id`); keys are bridged: `messages ↔ notif_messages`, `raids ↔ notif_raids`, `victory ↔ notif_victory`.
-  3. **Notification sheet** — uses the shared `NotifSheet` component directly (no separate `ProfileNotifSheet`). `ProfileClient` owns `prefs: NotifPrefs` state (`{ messages, raids, victory }`), fetches from `notification_preferences` on mount, and upserts on toggle. No permission-gating UI in this sheet.
-  4. **Account section** — "Account" label + "Signed in with [email]" (DM Sans 12px, email in primary) + `LOG OUT` button (h-12, `border-[#ef4444]`, Press Start 2P **8px** red text)
-  5. **Dev section** — shown only when `isDev === true`; gold-bordered card with toggles for Spawn Boss Mode, Push Diagnostics, Infinite Coins, Feat: AFK Exp, Announcements management, User ID / Email copy rows, Local Flags reset
-- **EditProfileSheet** (Figma node 101:1313) — bottom sheet slides up with spring 320/32:
-  - Container: `bg-black border-t border-[var(--color-border-hover)] flex flex-col gap-[var(--space-7)] px-[var(--space-5)] pt-[var(--space-7)]`; safe-area-aware padding-bottom
-  - Title: "Account Details" DM Sans Bold `var(--text-lg)` (18px) text-primary
-  - Mini profile hero (180px): same plain `<img>` background + gradient layers; shows live preview of avatar + name (updates as user types) + stats + status quote
-  - **Display Name** field: label `var(--text-sm)` DM Sans Medium primary + `bg-black border border-[var(--color-border-hover)] h-[48px] px-3` input (DM Sans Regular 14px text-primary); edits `profiles.username`
-  - **Status** field: same input style; edits `profiles.status` (nullable text ≤ 100 chars); placeholder "Whats the mood today..."
-  - "Save Changes" button: `bg-purple h-[48px]` Silkscreen `var(--text-sm)` (14px) text-primary
-  - "Cancel" button: `border-[#ef4444] h-[48px]` Silkscreen `var(--text-sm)` (14px) text-[#ef4444]
-  - `updateProfileDetailsAction(displayName, status)` — checks uniqueness, updates `profiles.username` + `profiles.status`, calls `revalidateTag`
-- **`profiles.status`**: text column (nullable, max 100 chars via `profiles_status_length` constraint); migration `20240103000021`
-- `SlidePage` wrapper with `backHref="/home"` + `style={{ paddingTop: 'env(safe-area-inset-top)' }}`; `BackButton` defined inside `SlidePage` (useSlideBack context scoping); back button `style={{ width: 24, height: 24 }}`
-
-### Member Profile Page — `/chat/[crewId]/member/[userId]`
-- Route: `src/app/(app)/chat/[crewId]/member/[userId]/page.tsx` + `MemberProfileClient.tsx`
-- Opened by tapping any avatar or username in `MessageBubble` — `onAvatarTap` callback passed from `MessageList` navigates to this route (works for own messages too); also opened from the expanded member panel in `ChatInput` via `router.push`
-- **Security**: viewer must be a member of the crew; target must also be a crew member — both checked before any data is returned; non-members redirect to `/chat/{crewId}` or `/home`
-- **Data** (single parallel fetch): profile (username, avatar_url, birthday), target's crew-specific class, `get_member_crew_stats` RPC (msg count + total XP in one call), friendship status between viewer and target, `inviterUsername` (service client query on `app_invites` where `used_by = userId` — service role needed because invitee cannot read their own row under RLS), `globalGroupChats` + `globalMessages` (estimated counts of the target's total crew memberships and non-system messages across all crews)
-- **Layout** (matches Figma node 57:165 "SQUAD PROFILE"):
-  1. **Profile banner card** (`bg-surface border border-border rounded-[8px] p-4`) — avatar 48×48, "Member Since {year}", username (DM Sans Bold 18px), "N group chats · N msg" (global stats, Silkscreen 8px secondary)
-  2. **Sprite section** — `PixelSprite scale=4` centered (fallback: 80×80 avatar); "Recruited by: [name]" (Silkscreen 8px, label tertiary, value primary) below when present
-  3. **Stats row** — two equal columns, Silkscreen 11px, `gap-2` between cols, `gap-1` per col; left: "Class: X" / "Born: mmm d"; right: "Messages sent: N" / "Xp earned: N" (crew-specific counts from `get_member_crew_stats`)
-  4. **Friend action button** — full-width h-12, states: ADD FRIEND (border-purple + UserPlus icon) → REQUEST SENT → ACCEPT → COMPANIONS ✓
-- **Friend states**: ADD FRIEND (none) → REQUEST SENT (pending_sent) → ACCEPT (pending_received) → COMPANIONS ✓ (accepted); guests see disabled button + sign-in hint
-- `isSelf` guard: shows "YOU" badge in the banner card and hides friend button when viewing own profile
-- Header title is "SQUAD PROFILE" (Press Start 2P 18px); back button `style={{ width: 24, height: 40 }}`
-- SlidePage wrapper for slide-in/out; `useSlideBack()` for back button
+All detail pages (chat, DM, profile, friends, vault) slide in from right on mount, slide back out on close.
+- **`SlidePage`** (`src/components/ui/SlidePage.tsx`): enter spring 380/36 (~280ms); exit ease-in tween 280ms then `router.back()` or `router.replace(backHref)`
+- **`backHref` prop**: used by `ProfileClient` (always `/home`) and chat when `?welcome=1` present
+- **`useSlideBack()`**: hook returning `goBack` — use instead of `router.back()` in all back buttons on slide pages
+- **Context scoping**: `ProfileClient` + `FriendsClient` define a local `BackButton` inside `<SlidePage>` (hook must be inside the context they provide)
+- `WelcomeDetector` strips `?welcome=1` from URL via `window.history.replaceState`
 
 ### DM Page — `/dm/[friendId]`
-- Route: `src/app/(app)/dm/[friendId]/page.tsx`
-- Server component: verifies accepted friendship, calls `get_or_create_dm(friendId)` RPC to get/create the DM crew, then renders the full chat UI
-- Security: friendship check runs before the RPC — unauthenticated or non-friend access redirects to `/home`
-- `get_or_create_dm` is idempotent — safe to call on every page load; returns the existing crew id if one already exists
-- **Header**: No `DMHeader` component. The DM page uses `DMOverlayBack` (`src/components/chat/DMOverlayBack.tsx`) — a floating back button + friend avatar box overlaid on the message list (`absolute z-20 pointer-events-none`). Positioned `top: calc(env(safe-area-inset-top, 0px) + 16px), left: 16px`. Contains: 24×24 `ChevronLeft` back button (`useSlideBack()`) + 24×24 friend avatar (or initial letter fallback). Box style: `bg-surface border border-purple p-2 gap-2`; `boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.8)'`.
-- **`DMOverlayBack` responsibilities**: initializes `setCrewXP` + `setActiveRaid` in chatStore on mount; updates `crew_members.last_seen` every 60s for unread cursor accuracy. There is no separate `DMHeader` component.
-- **Chat UI**: reuses `MessageList` + `ChatInput` (with `isDM={true}`) directly — same realtime, XP, boss raid, and artifact pipeline as group chats
-- No class selection redirect — DM crew members are auto-assigned `berserker` at channel creation
-- No invite button, no vault link, no notification settings in the DM overlay (simplified)
+- Server: verifies friendship → `get_or_create_dm(friendId)` RPC (idempotent) → renders chat UI
+- **`DMOverlayBack`** (`src/components/chat/DMOverlayBack.tsx`): floating back + friend avatar box (`absolute z-20`); initializes `setCrewXP` + `setActiveRaid` on mount; updates `last_seen` every 60s
+- Reuses `MessageList` + `ChatInput (isDM={true})` — same XP/boss pipeline
 
 ### PWA / Push Architecture
-- **Service worker**: `public/sw-push.js` — handwritten, zero dependencies, committed to git
-  - next-pwa's generated `sw.js` uses multi-arg `importScripts()` which silently kills installation on iOS Safari
-  - `sw-push.js` handles only `push` + `notificationclick` events; no workbox precaching
-  - Registered by `SWRegister` component (root layout) and `subscribeToPush()` in notifications.ts
-  - On push receive, posts `{type:'nexus-push-received', ts}` to all open clients — ProfileClient DevSection listens for this to confirm the SW handler fired
-  - Uses bare `navigator.setAppBadge` (not `self.navigator`) and strips `badge` option from `showNotification` (iOS doesn't support it; can cause silent rejection)
-  - Fallback: if full `showNotification` options are rejected, retries with minimal `{body}` only
-- **Registration**: `SWRegister` (`src/components/ui/SWRegister.tsx`) — production-only, runs once in root layout
-- **Subscription storage**: `push_subscriptions` table (endpoint UNIQUE, crew_id nullable). `subscribeToPush()` does INSERT only — **no delete before insert**. Deleting first creates a zero-row window that races with the debug FAB's auto-check and risks data loss if the insert then fails. `23505` (unique_violation / row already exists) is treated as success.
-- **Subscription recovery**: if `INSERT` fails for a non-23505 reason (e.g. stale APNs token that was 410'd and the row deleted, but the browser still holds the old endpoint), `subscribeToPush()` automatically unsubscribes and creates a fresh APNs token. `PushRefresh` (app layout) calls `subscribeToPush()` on every mount so recovery is automatic on next app open.
-- **`nexus-push-subscribed` event**: `subscribeToPush()` dispatches this on `window` when it succeeds. `PushDebugFAB` listens and re-runs `checkStatus()` so the dot goes green without a manual REFRESH tap.
-- **Badge**: `BadgeClear` component clears app icon badge on focus/visibilitychange; SW sets it on push receive
-- **Preferences**: `notification_preferences` table; `send-notification` edge function checks before sending
-- **`message_received` notification format**: title = `"Name from Group Name"`, body = content preview or `"sent"` if empty
-- **`recruit_arrived` notification**: sent to inviter when a new user joins via their invite code. Title: "Your recruit arrived.", body: "[new_username] just entered the Nexus.", url: `/home`. No preference gate (`null` in `PREF_COLUMN` — always delivered). **Deployed 2026-06-05.**
-- `VAPID_SUBJECT` **must** be a `mailto:` URI — bare email breaks iOS APNs
+- **Service worker**: `public/sw-push.js` — handwritten; handles `push` + `notificationclick` only; no workbox precaching
+  - Avoids multi-arg `importScripts()` which kills iOS Safari installation
+  - Strips `badge` from `showNotification` (iOS rejects it); falls back to minimal `{body}` on rejection
+- **Registration**: `SWRegister` — production-only, root layout
+- **Subscription**: `subscribeToPush()` does INSERT only — no delete-first. `23505` (unique violation) = success. On other failure: auto-unsubscribe and create fresh APNs token. `PushRefresh` calls on every app mount.
+- **Badge**: `BadgeClear` clears app badge on focus/visibilitychange
+- **`message_received`**: title = `"Name from Group Name"`, body = content preview or `"sent"`
+- **`mention_received`**: title = `"[sender] mentioned you in [crew]"`, body = content preview; gated by `notif_messages` pref
+- **`recruit_arrived`**: title = "Your recruit arrived.", body = "[username] just entered the Nexus.", url = `/home`; no pref gate
+- `VAPID_SUBJECT` **must** be `mailto:` URI — bare email breaks iOS APNs
 - iOS push only works in standalone PWA mode (iOS 16.4+, added to Home Screen)
-- **iOS foreground suppression**: iOS does NOT show push banners when the PWA window is active. Always test push with the PWA completely closed (swiped away from app switcher).
-- **iOS notification tag — CRITICAL**: The `tag` passed to `showNotification` must be **unique per notification** (we append `-{timestamp}`). If multiple pushes share the same tag and an earlier one is still unread in the Notification Center, iOS silently replaces it without playing a sound or showing a banner — subsequent messages appear to never arrive. Stacking notifications (unique tags) is the correct behavior for a chat app.
-- **iOS push debugging workflow**: (1) Open push debug FAB → tap SUBSCRIBE (VERBOSE) — it logs every step including the exact DB insert error. (2) Check `fn HTTP` status from SEND TEST — **401 means `send-notification` was redeployed without `--no-verify-jwt`** (see deployment rules below). (3) If `expired_deleted`, the APNs endpoint was 410'd; tap FORCE RESUB. (4) Ensure PWA is fully swiped away before testing. (5) "Last push" timestamp in FAB updates even for foreground-suppressed pushes (Cache API written before `showNotification`).
-- **Subscription cleanup**: `send-notification` deletes the DB row on 410/404 from APNs. `PushRefresh` on the next app open calls `subscribeToPush()` which detects the missing row, unsubscribes the stale browser endpoint, and creates a fresh APNs token automatically.
-- PWA/SW disabled in dev; test push notifications against production Vercel deployment only
-- `subscribeToPush()` uses `getSession()` (not `getUser()`) — cookie-only, never fails due to network
-- VAPID env vars must be set in **Supabase Edge Function secrets** (separate from Vercel env vars)
+- **iOS foreground suppression**: push banners never show when PWA window is active — always test with PWA fully swiped away
+- **iOS notification tag — CRITICAL**: must be unique per notification (append `-{timestamp}`) — shared tags silently replace without sound/banner
+- **Debugging**: 401 from SEND TEST = deployed without `--no-verify-jwt`. `expired_deleted` = APNs 410'd; FORCE RESUB.
+- VAPID env vars in **Supabase Edge Function secrets** (not Vercel)
 
 ### Adding a new notification type — checklist
-1. Add the type to `NotificationType` union in `send-notification/index.ts`
-2. Add it to `PREF_COLUMN` map (`null` = always deliver, or map to a preferences column)
-3. Add a `case` to `buildPayload()` returning `{ title, body, icon, data: { url } }`
-4. Call `send-notification` from the trigger point (server action or edge function) using the pattern below
+1. Add to `NotificationType` union in `send-notification/index.ts`
+2. Add to `PREF_COLUMN` map (`null` = always deliver, or map to pref column)
+3. Add `case` to `buildPayload()` returning `{ title, body, icon, data: { url } }`
+4. Call `send-notification` from trigger point
 5. **Deploy**: `supabase functions deploy send-notification --project-ref tlveyeisjbythssmocth --no-verify-jwt`
-   - The `--no-verify-jwt` flag is **mandatory every time** — omitting it redeploys with JWT verification on, which causes all calls from `award-xp` (no auth header) to return `401 UNAUTHORIZED_NO_AUTH_HEADER` and silently breaks all push notifications for every user.
+   - `--no-verify-jwt` is mandatory every time — omitting it enables JWT verification and breaks all pushes from `award-xp`
 
 ### Edge function deployment rules
-- **`git push` to Vercel does NOT deploy Supabase Edge Functions** — must run manually every time the function code changes.
-- **Always use `--no-verify-jwt` for `send-notification`**: `award-xp` calls it via raw `fetch()` with no Authorization header. Without this flag the function returns `401 UNAUTHORIZED_NO_AUTH_HEADER` and no pushes are delivered.
-- Deploy command: `supabase functions deploy send-notification --project-ref tlveyeisjbythssmocth --no-verify-jwt`
-- Deploy `award-xp` separately (no `--no-verify-jwt` needed — it is called by authenticated clients): `supabase functions deploy award-xp --project-ref tlveyeisjbythssmocth`
-- Deploy `react-to-message` (no `--no-verify-jwt` needed — called by authenticated clients with anon key): `supabase functions deploy react-to-message --project-ref tlveyeisjbythssmocth`
-- Deploy `process-avatar` (no auth header — called fire-and-forget from `updateAvatarAction`): `supabase functions deploy process-avatar --project-ref tlveyeisjbythssmocth --no-verify-jwt`
+- **`git push` to Vercel does NOT deploy Supabase Edge Functions** — must run manually
+- **Always `--no-verify-jwt` for `send-notification`**: `award-xp` calls it with no auth header → 401 without this flag
+- `supabase functions deploy send-notification --project-ref tlveyeisjbythssmocth --no-verify-jwt`
+- `supabase functions deploy award-xp --project-ref tlveyeisjbythssmocth`
+- `supabase functions deploy react-to-message --project-ref tlveyeisjbythssmocth`
+- `supabase functions deploy process-avatar --project-ref tlveyeisjbythssmocth --no-verify-jwt`
 
 ### Inter-function call pattern (award-xp → send-notification)
-`send-notification` is deployed with `--no-verify-jwt`. Call it via raw `fetch()` with **no Authorization header** — do NOT use `supabase.functions.invoke()` or pass any Bearer token (both return 401):
+Call via raw `fetch()` with **no Authorization header** — do NOT use `supabase.functions.invoke()`:
 ```ts
 const fnUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/send-notification`
 fetch(fnUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({...}) })
 ```
-Server actions (Next.js) calling `send-notification` directly also use this same pattern with no auth header.
-
-- **Batch notifications**: `send-notification` accepts either `user_id: string` (single, backward compat) or `user_ids: string[]` (batch). Batch mode fetches all preferences and subscriptions in two `.in()` queries, then iterates per user. `award-xp` always uses the batch form. Server actions use single `user_id`.
+`send-notification` accepts `user_id: string` (single) or `user_ids: string[]` (batch).
 
 ### Reactions System
-- **Data model**: `messages.reactions` JSONB column — `{ emoji: [userId, userId, ...] }`. Empty arrays are pruned; the column defaults to `{}`.
-- **Quick-pick emojis**: `['🔥', '💧', '⚡', '🌿', '🌑', '🔮']` — map 1:1 to the six element types (fire, water, lightning, nature, shadow, arcane).
-- **Trigger**: long-press (500 ms) or right-click a message bubble → opens a Discord-style bottom sheet via `createPortal` on `document.body`. `hasMoved` ref cancels the long press on scroll; backdrop tap closes the sheet.
-- **Text selection disabled**: message container and `<p>` text carry `select-none` + `WebkitUserSelect: none`. The outer div's `touchstart` calls `e.preventDefault()` to suppress the iOS native text-selection callout (source of brief emoji flash on long-press). Avatar, username span, and reaction chips each call `e.stopPropagation()` on `touchEnd` to preserve their own tap actions despite the parent `preventDefault`.
-- **Sheet layout** (z-[80] sheet, z-[70] backdrop, spring 320/32 slide-up): emoji quick-pick row (6 `QUICK_REACTIONS` + 😊 opens native keyboard), `border-t border-border` divider, Copy Text action row (min-h-[52px]).
-- **Native emoji keyboard**: tapping 😊 focuses a hidden `<input>` (off-screen `position: fixed`). On mobile this surfaces the native emoji keyboard. `onInput` reads the first grapheme cluster via `Intl.Segmenter` (fallback: spread), then calls `handleReaction`.
-- **Optimistic update + rollback**: store is patched immediately via `updateMessage`; on edge function error the store is reverted to the pre-tap state.
-- **Edge function** (`react-to-message`): verifies crew membership, calls `toggle_reaction` RPC, returns `{ reactions, hype_man_heal, heal_amount }`. Called with the anon key from `MessageBubble` — no `--no-verify-jwt` needed.
-- **Realtime sync**: the Postgres changes `UPDATE` subscription in `MessageList` patches reactions on updates. Race-condition guard: if the DB update carries `reactions:{}` but local already has reactions (award-xp updates `xp_awarded` before `react-to-message` runs), local reactions are preserved until the react-to-message Postgres UPDATE arrives with the correct state.
-- **Reaction chips**: rendered below the bubble, sorted by count descending, zero-count chips hidden. Own active reaction highlighted `bg-[rgba(191,95,255,0.15)] border-[#bf5fff]` (chat purple). Tapping a chip toggles it.
-- **Hype Man passive** (`class = 'hype_man'`): when a Hype Man *adds* (not removes) a reaction, `react-to-message` awards 5 XP to the crew (`source = 'reaction_heal'` in `crew_xp_log`). The edge function returns `hype_man_heal: true, heal_amount: 5`; `MessageBubble` shows a `+5 HEAL` float in `#66bb6a` that animates upward from the chip row.
-- **`currentUserId` prop**: required on `MessageBubble` — determines active/inactive chip state and builds the toggle payload. Passed from `MessageList.currentUserId`.
+- **Data model**: `messages.reactions` JSONB — `{ emoji: [userId, ...] }`. Empty arrays pruned.
+- **Quick-pick emojis**: `['🔥', '💧', '⚡', '🌿', '🌑', '🔮']` — maps to six element types
+- **Trigger**: long-press (500ms) or right-click → portal sheet on `document.body`. `hasMoved` ref cancels on scroll.
+- **Text selection disabled**: `select-none` + `e.preventDefault()` on outer `touchstart` to suppress iOS callout
+- **Optimistic update + rollback** via `updateMessage` in store
+- **Edge function** (`react-to-message`): verifies membership, calls `toggle_reaction`, returns `{ reactions, hype_man_heal, heal_amount }`
+- **Reaction chips**: sorted by count desc; own active chip `bg-[rgba(191,95,255,0.15)] border-[#bf5fff]`
+- **Hype Man passive**: adding (not removing) a reaction awards 5 XP to crew; `MessageBubble` shows `+5 HEAL` float `#66bb6a`
+- **Race-condition guard**: if DB UPDATE carries `reactions:{}` but local has reactions, preserve local until react-to-message UPDATE arrives
 
 ### Poll Feature
-Polls are a message type that lets any crew member create a question with up to 5 options; members vote with a single toggleable vote; the creator can close the poll early.
-
-**Data model**: `polls` table mirrors the `reactions` JSONB pattern — `votes: { "0": ["userId",...] }`. `message.content = 'POLL:{pollId}'` is the wire format; `PollCard` slices off the prefix to resolve the poll ID. `polls` is in the `supabase_realtime` publication so vote/close changes propagate to all viewers in real-time.
-
-**Creating a poll** (`src/components/chat/PollCreatorSheet.tsx`):
-- Opens when the user taps the `Chart` icon (16×16, left of textarea in ChatInput)
-- Bottom sheet with spring 320/32; fields: question textarea (200 chars), up to 5 option inputs (min 2 required), duration segmented picker (3 options: **30 min / 6 hours / 1 day**). No date picker.
-- `expires_at` = `Date.now() + duration_minutes * 60_000` (relative from submission time)
-- Sheet design: "Create a poll" DM Sans Bold 18px title; section labels DM Sans Medium 14px; inputs `border-border-hover`; "Launch poll" Silkscreen 14px purple; "Cancel" Silkscreen 14px red-border
-- Calls `create_poll` RPC on submit; returns a `MessageWithProfile` via `onCreated` callback to `ChatInput`
-- `ChatInput` calls `addMessage` + broadcasts `new_message` event (same path as text messages)
-
-**Rendering polls** (`src/components/chat/PollCard.tsx`):
-- `MessageBubble` detects `message_type === 'poll'`, renders full avatar + header (no reaction sheet), and replaces the bubble body with `<PollCard pollId={message.content.slice(5)} currentUserId={...} />`
-- Fetches the poll row from `polls` on mount; subscribes to `postgres_changes UPDATE` filtered by `id=eq.{pollId}` for live vote sync
-- Ticks every 30s (while poll is open) to refresh the countdown label
-- Options show animated progress bars (Framer Motion spring) after the user has voted or when the poll is closed; vote % shown only in those states
-- Radio-style circular indicator (purple fill when selected)
-- Optimistic vote update with rollback on RPC error; same for close
-- CLOSE POLL button shown only to creator while poll is open (red, Silkscreen 8px)
-- Footer: `"N votes · Xm left"` (or "Closed by creator" / "Expired")
-
-**XP / element**: polls earn 0 XP; no special element type (content-length rules apply to the `POLL:{id}` string, which resolves to `fire`). Polls always force `showHeader = true` and reset message grouping.
-
-**Poll expiry duration options**: 30 min, 6 hours, 1 day (segmented picker in PollCreatorSheet; stored as 30, 360, 1440 minutes). `expires_at` is a timestamptz calculated relative from submission time; the server-side RPC stores it as provided and enforces no edits after creation.
+`polls` table; `message.content = 'POLL:{pollId}'`. `polls` in `supabase_realtime` publication.
+- **Create**: `Chart` icon in ChatInput → `PollCreatorSheet`; calls `create_poll` RPC; durations: 30min / 6h / 1day
+- **Render**: `MessageBubble` detects `message_type === 'poll'` → `<PollCard>`; fetches poll row, subscribes to `postgres_changes UPDATE`
+- **Vote**: `vote_on_poll` RPC; one toggleable vote per user; optimistic + rollback
+- Polls always force `showHeader = true` and reset message grouping; earn 0 XP
 
 ### Squad Glossary — `/chat/[crewId]/definitions`
-Crew members can define squad-specific words/phrases. Defined words are highlighted blue in chat messages; tapping a highlight shows the definition in a bottom sheet.
+Defined words highlighted blue in chat messages; tapping shows definition sheet.
 
-**Data model**: `squad_definitions` table. The `word` column stores comma-separated aliases (e.g. `"abg, ABG"`) in a single text field — no separate aliases column needed. Uniqueness is enforced by a separate expression index `squad_definitions_crew_word_uq ON (crew_id, lower(word))` (PostgreSQL does not allow expression-based unique constraints inline in `CREATE TABLE`).
+**Data model**: `squad_definitions`. `word` stores comma-separated aliases (e.g. `"abg, ABG"`). Uniqueness via expression index `squad_definitions_crew_word_uq ON (crew_id, lower(word))`.
 
-**Page** (`src/app/(app)/chat/[crewId]/definitions/`):
-- `page.tsx` — server component; auth + membership check; fetches initial definitions; resolves all creator usernames in a single batch `.in()` query (including current user); passes `SquadDefinitionWithCreator[]` + `currentUsername` to `<DefinitionsClient>`
-- `DefinitionsClient.tsx` — `<SlidePage>` wrapper with inline `BackButton`. Realtime on `squad-defs:{crewId}` handles INSERT (resolves `creator_username` via profile fetch) + DELETE + UPDATE.
-- `actions.ts` — `createDefinitionAction(crewId, word, definition)` + `updateDefinitionAction(definitionId, word, definition)` + `deleteDefinitionAction(definitionId)`; all use server-side auth + creator guard
+**Actions** (`definitions/actions.ts`): `createDefinitionAction` / `updateDefinitionAction` / `deleteDefinitionAction` — server-side auth + creator guard.
 
-**Glossary page UI**:
-- Header: `px-4 py-2`, h-10 row, purple `ChevronLeft` 24×24 + "Glossary" `font-silkscreen text-[24px]` uppercase; **no** `border-b`
-- Subtitle: "Words and phrases defined by your squad." DM Sans Regular 14px `text-primary`
-- Definition cards: `bg-[rgba(17,17,17,0.5)] border border-[#111111] rounded-[8px] p-4 flex-col gap-4`
-  - Aliases label — Silkscreen 8px `text-tertiary` — all comma-separated aliases joined with `, `
-  - Primary word — DM Sans Bold 16px `#60a5fa` (blue) — first alias only (`word.split(',')[0].trim()`)
-  - Definition body — DM Sans Regular 14px `text-secondary`, `line-clamp-3`
-  - "Created by : {username}" — DM Sans Regular 11px `text-tertiary`
-  - **Creator cards are tappable** (`active:opacity-80`); non-creator cards have `disabled` and are visually non-interactive
-- Footer: full-width `bg-purple h-12` button — `PlusBox` 16×16 + "Add a squad definition" `font-silkscreen text-[14px]`
+**`MessageList`** word highlighting: fetches definitions on mount; realtime on `ml-defs:{crewId}`. Passes `definitions` prop to each `<MessageBubble>`.
 
-**`CreateDefinitionSheet`** (inline in `DefinitionsClient.tsx`, supports create + edit modes):
-- Sheet: `bg-black border-t border-border flex-col gap-6 px-4 pt-6`, `paddingBottom: max(safe-area, 16px)`, `maxHeight: 90vh overflow-y-auto`
-- Title: "Squad Definition" DM Sans Bold 18px `text-primary`
-- **Words** field: label DM Sans Medium 14px; input `border-border-hover px-3 py-3`, placeholder "e.g. GG, gg, good game"; hint DM Sans Regular 11px `text-tertiary` below
-- **Definition** field: label DM Sans Medium 14px; textarea `h-[78px] border-border-hover px-3 py-3`, placeholder "What does it mean in your squad?"
-- Buttons: "Save definition" `bg-purple h-12 font-silkscreen text-[14px]` + "Cancel" `border-[#ef4444] h-12 font-silkscreen text-[14px] text-[#ef4444]`; both have `overflow-hidden px-4 py-2`
-- In **edit** mode: pre-fills `initialWord` / `initialDefinition`, calls `updateDefinitionAction` instead of `createDefinitionAction`
+**`MessageBubble`** rendering via `renderWithDefinitions`:
+- Expands aliases via `parseAliases`, sorts by length desc (prevents short alias shadowing longer one)
+- Builds combined regex with `\b` word boundaries + `gi` flag
+- Renders blue `<span>` (`text-[#60a5fa] cursor-pointer`) with `onClick → setActiveDefinition`
+- Composed inside `renderMessageContent` as pass 2 — applied to text segments after @mentions are extracted
 
-**`DefinitionActionSheet`** (inline in `DefinitionsClient.tsx`, creator-only tap sheet):
-- Opens when a creator taps their own definition card
-- Same sheet container as `CreateDefinitionSheet`
-- Shows: aliases label (Silkscreen 8px tertiary, all aliases joined), primary word (DM Sans Bold 16px `#60a5fa` blue, first alias only), definition preview `line-clamp-4` (DM Sans Regular 14px secondary), "Created by : {username}" (DM Sans Regular 11px tertiary)
-- **"Edit definition"** — `border border-purple h-12 font-silkscreen text-[14px] text-purple`; tapping closes action sheet and opens `CreateDefinitionSheet` in edit mode pre-filled
-- **"Delete definition"** — `border border-[#ef4444] h-12 font-silkscreen text-[14px] text-[#ef4444]`; calls `deleteDefinitionAction` then removes from state
+**Definition tap sheet** (portal, z-[80]): aliases label (Silkscreen 8px tertiary) + primary word (DM Sans Bold 16px `#60a5fa`) + definition body (DM Sans Regular 14px secondary) + "Created by : {username}" (purple if own, tertiary otherwise) + CLOSE button.
 
-**`FloatingBackButton`** (`src/components/chat/FloatingBackButton.tsx`):
-- Accepts `crewId: string` prop (unused at render time, kept for the page API)
-- Renders a single `ChevronLeft` pill (`bg-surface border border-purple p-[var(--space-3)]`, `boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.8)'`) in an `absolute left-4 z-[60]` container; calls `useSlideBack()` on tap
-- The glossary (`Braces`) button was moved into `SquadDetailsSheet`'s action button row — no longer a separate floating pill
-
-**`MessageList`** word highlighting:
-- Fetches `squad_definitions` for the crew on mount; then fetches creator profiles in a second `.in()` query to resolve `creator_username`. Result stored as `SquadDefinitionWithCreator[]`.
-- Realtime subscription on channel `ml-defs:{crewId}` — INSERT handler resolves `creator_username` from `profilesRef.current` first (no extra round-trip); falls back to a direct DB fetch if creator isn't in member profiles.
-- Passes `definitions` prop to each `<MessageBubble>`
-
-**`MessageBubble`** word rendering:
-- `parseAliases(word: string): string[]` — splits by comma, trims, filters empty
-- `renderWithDefinitions(text, definitions)`:
-  - Expands each `SquadDefinitionWithCreator` into `(alias, def)` pairs via `parseAliases`
-  - Sorts pairs by alias length descending (prevents short alias shadowing a longer one in the same message)
-  - Builds a single combined regex with `\b` word boundaries + `gi` flag
-  - On match: renders a blue `<span>` (`text-[#60a5fa] cursor-pointer`) with `onClick` that calls `setActiveDefinition`
-- Used only for `message_type === 'text'` messages when `definitions.length > 0`
-
-**Definition tap sheet** (portal on `document.body`, z-[80]); matches Figma 130:1287:
-- Container: `bg-black border-t border-border flex flex-col pt-6 px-4 pb-[max(safe-area,16px)]`
-- Content wrapper (`flex flex-col gap-4`):
-  - Details block (`flex flex-col gap-2`):
-    - Aliases label: Silkscreen 8px `text-tertiary` — all aliases joined with `, `
-    - Inner block (`flex flex-col gap-1`): primary word DM Sans Bold 16px `#60a5fa` (blue, first alias only) + definition body DM Sans Regular 14px `text-secondary`
-  - Creator line: DM Sans Regular 11px, `"Created by : {username}"` — **purple** (`var(--color-purple)`) when `creator_id === currentUserId`, **tertiary** otherwise
-- CLOSE button: `h-12 w-full font-pixel text-[8px] text-tertiary mt-6`
+**Glossary page**: `FloatingBackButton` (absolute left-4 z-60 pill using `useSlideBack()`). Accessed via `Braces` icon in `SquadDetailsSheet` action row.
 
 ### Pixel Sprites
-- Component: `src/components/game/PixelSprite.tsx`
-- Sprites: `public/sprites/{spriteId}/{direction}.png` — 8 directions: south, south-east, east, north-east, north, north-west, west, south-west
-- Each sprite is 24×24px native; rendered with `image-rendering: pixelated` and CSS keyframe bob animation
-- `CLASS_TO_SPRITE` map in PixelSprite.tsx links `AvatarClass` → sprite folder; uncomment entries as sprites are added
-- Currently available: `necromancer`
-- **Do NOT use `next/image` for sprites** — use plain `<img>` with `imageRendering: pixelated`; next/image has iOS PWA rendering quirks for pixel art
-- **`maxWidth: 'none'` required**: Tailwind's base reset applies `img { max-width: 100% }` which caps sprite width at the container width even when `width` is set inline. The PixelSprite `<img>` carries `maxWidth: 'none'` in its inline styles to override this — critical when rendering `scale > 1` inside a small container (e.g. the 32×32 member panel slot with a 42px sprite).
+- Component: `src/components/game/PixelSprite.tsx`; sprites in `public/sprites/{spriteId}/{direction}.png` — 8 directions; 24×24px native
+- Use plain `<img>` with `imageRendering: pixelated` — never `next/image` (iOS PWA quirks)
+- `maxWidth: 'none'` on `<img>` required — Tailwind base reset caps sprite width at container width
 
 ## Caching Architecture
 
 ### Server (unstable_cache via createServiceClient)
-Always use `createServiceClient()` inside cache functions (service role, no cookies) — `createClient()` reads cookies and disables cross-request sharing. Verify auth + membership with cookie-based client **before** calling the cached function.
+Always use `createServiceClient()` inside cache functions — `createClient()` reads cookies. Verify auth with cookie client before calling cached function.
 
 | Cache | TTL | Tag | Invalidated by |
 |---|---|---|---|
-| Home profile (username, avatar_url, birthday, coins, created_at) | 60s | `profile:{userId}` | saveBirthdayAction, revalidateProfileAction, updateAvatarAction |
-| Home member profiles + counts | 60s | `crew-members:{crewId}` (all crews) | joinCrewAction, leaveCrewAction, updateAvatarAction |
-| Home last message preview | 30s | TTL only | TTL only |
-| Home friend profiles (id, username, avatar_url) | 60s | `profile:{friendId}` per friend | revalidateProfileAction, updateAvatarAction |
-| Home friendships (accepted) | 60s | `friends:{userId}` | sendFriendRequestAction, acceptFriendRequestAction, removeFriendAction |
-| Active announcements (id, text) | 60s | `announcements` | createAnnouncementAction, updateAnnouncementAction, toggleAnnouncementAction, deleteAnnouncementAction |
-| Vault crew (name, created_at) + artifacts | 300s | `vault:{crewId}`, `artifacts:{crewId}` | TTL only |
+| Home profile | 60s | `profile:{userId}` | saveBirthdayAction, revalidateProfileAction, updateAvatarAction |
+| Home member profiles + counts | 60s | `crew-members:{crewId}` | joinCrewAction, leaveCrewAction, updateAvatarAction |
+| Home last message preview | 30s | TTL only | — |
+| Home friend profiles | 60s | `profile:{friendId}` | revalidateProfileAction, updateAvatarAction |
+| Home friendships | 60s | `friends:{userId}` | sendFriendRequestAction, acceptFriendRequestAction, removeFriendAction |
+| Active announcements | 60s | `announcements` | all announcement CRUD actions |
+| Vault crew + artifacts | 300s | `vault:{crewId}`, `artifacts:{crewId}` | TTL only |
 | Chat member profiles | 60s | `crew-members:{crewId}` | joinCrewAction, leaveCrewAction |
-| Profile page (username, avatar_url, avatar_class, is_dev, created_at) | 60s | `profile:{userId}` | revalidateProfileAction |
-
-`/profile` page also fetches `inviterUsername` in the same `Promise.all` (service client, `app_invites` where `used_by = userId`). Displayed as `"Recruited by [name]"` (Silkscreen 8px tertiary) below the group chats · msg stats line. Not cached — it's a one-time fact.
+| Profile page | 60s | `profile:{userId}` | revalidateProfileAction |
 
 **Never cache:** `crews.total_xp`, `crews.level`, `active_raids`, `crew_members.last_seen`, auth sessions
 
@@ -770,202 +381,127 @@ Always use `createServiceClient()` inside cache functions (service role, no cook
 | `nexus_crew_created` | `'1'` | triggers NotificationPrompt via WelcomeDetector |
 | `nexus_notif_prompted` | timestamp ms | throttles NotificationPrompt to 24h |
 | `nexus_notif_state` | `granted\|denied\|pending` | cached permission state |
-| `nexus_dev_mode` | `'1'` | enables game event UI (boss bars, XP stats, system messages) — only meaningful when `profiles.is_dev = true` |
-| `nexus_push_diag` | `'1'` | shows push diagnostics block in dev section (CHECK / SYNC SUB / SEND TEST) |
-| `nexus_infinite_coins` | `'1'` | bypasses coin gate for invite forging; shows `∞` in home AccountPreviewContainer and InviteArsenal; dev-only |
-| `nexus_afk_exp` | `'1'` | shows AFK XP accumulated bar + CLAIM button in home AccountPreviewContainer; dev-only feature flag; dispatches `nexus-afk-exp-change` CustomEvent |
-| `nexus_dismissed_banners` | JSON array of IDs | announcement banner IDs dismissed by the user; filtered out in `AnnouncementBanner` on mount |
+| `nexus_dev_mode` | `'1'` | enables game event UI — only meaningful when `profiles.is_dev = true` |
+| `nexus_push_diag` | `'1'` | shows push diagnostics block in dev section |
+| `nexus_infinite_coins` | `'1'` | bypasses coin gate; shows `∞`; dev-only |
+| `nexus_afk_exp` | `'1'` | AFK XP bar + CLAIM in AccountPreviewContainer; dev-only |
+| `nexus_dismissed_banners` | JSON array of IDs | dismissed announcement IDs; filtered on mount |
 
 ## Disabled Features (wired for future)
-- Voice notes: button removed; `XP_VALUES['voice']` + element type `lightning` still defined server-side
-- Image upload: button removed; upload logic and `chat-images` bucket still exist (`browser-image-compression` removed — canvas WebP handles compression)
+- Voice notes: UI button removed; `XP_VALUES['voice']` + element type `lightning` still defined server-side
+- Image upload: UI button removed; upload logic + `chat-images` bucket still exist
 
 ## Migrations (supabase/migrations/)
-- `20240101000000_initial_schema.sql` — tables, RLS, indexes, seed bosses
-- `20240101000001_push_subscriptions.sql` — push_subscriptions table
-- `20240101000002_last_seen.sql` — crew_members.last_seen, damage_raid fn, increment_crew_xp fn
-- `20240101000003_push_notifications_fix.sql` — crew_id nullable, endpoint UNIQUE, expiry_notif_sent ⚠ apply manually if not present
-- `20240101000004_leave_crew_fn.sql` — leave_crew fn
-- `20240101000005_avatar_url_and_storage.sql` — profiles.avatar_url, storage bucket
-- `20240102000001_notification_preferences.sql` — notification_preferences table
-- `20240102000002_username_unique_constraint.sql` — username unique via lower()
-- `20240103000001_realtime_and_insert_message.sql` — ⚠ MUST BE APPLIED: enables supabase_realtime publication for messages + active_raids; creates insert_message fn
-- `20240103000002_push_subscriptions_update_rls.sql` — UPDATE policy on push_subscriptions (needed for upsert)
-- `20240103000003_birthday.sql` — adds `birthday date` column to profiles
-- `20240103000004_crew_notification_mutes.sql` — crew_notification_mutes + crew_notification_preferences tables
-- `20240103000005_batch_query_rpcs.sql` — `get_unread_counts` + `get_crew_member_msg_counts` RPCs
-- `20240103000006_member_crew_stats_rpc.sql` — `get_member_crew_stats` RPC
-- `20240103000007_coins.sql` — `profiles.coins`, `coin_log` table, `increment_user_coins` RPC, adds `profiles` to realtime publication
-- `20240103000008_signup_bonus_and_retroactive_coins.sql` — updates `handle_new_user` trigger to grant 50-coin signup bonus on account creation; one-time retroactive award for all existing users (50 signup + 1 per message sent); idempotent via `coin_log` source = `'signup_bonus'` guard
-- `20240103000009_app_invites.sql` — `app_invites` table + RLS (inviter reads own, inviter inserts own)
-- `20240103000011_reserved_users.sql` — `reserved_users` table (invite-only waitlist); RLS: public insert, service-role-only select/update
-- `20240103000012_reactions.sql` — `messages.reactions` JSONB column (default `'{}'`) + `toggle_reaction` row-locking Postgres function
-- `20240103000013_avatar_upload.sql` — `profiles.custom_avatar` boolean (default false) + `avatars` storage bucket + RLS policies (public read, user writes own folder)
-- `20240103000015_fix_chat_images_rls.sql` — **security**: tightened `chat-images` INSERT policy to validate `auth.uid()::text = storage.foldername(name)[2]`; old policy allowed any authenticated user to write anywhere in the bucket
-- `20240103000016_avatar_bucket_limits.sql` — raised `avatars` bucket `file_size_limit` to 10 MB (was 300 KB); added `image/heic`, `image/heic-sequence`, `image/heif` to `allowed_mime_types`
-- `20240103000017_avatar_storage_key.sql` — adds `profiles.avatar_storage_key text`; backfills `{userId}/{ts}` prefix from existing `avatar_url` values for bulk variant cleanup
-- `20240103000018_crew_image.sql` — adds `crews.image_url text` + `crews.image_storage_key text`; creates `crew-images` storage bucket (public, 10 MB limit, JPEG/PNG/WebP/HEIC); RLS: public read, crew members insert/delete own folder (`{crewId}/{userId}/`). Applied 2026-06-10.
-- `20240103000019_announcements.sql` — `announcements` table (id, text 1–500 chars, active bool default true, created_at); RLS: public SELECT on `active = true` only; all writes are service-role via server actions. Applied 2026-06-10.
-- `20240103000020_name_fields.sql` — adds `first_name text` and `last_name text` (both nullable) to `profiles` and `reserved_users`. Applied 2026-06-11.
-- `20240103000021_profile_status.sql` — adds `profiles.status text` (nullable, max 100 chars via check constraint). Applied 2026-06-11.
-- `20240103000022_polls.sql` — drops and recreates `messages_message_type_check` to include `'poll'`; creates `polls` table with RLS (crew members SELECT only; writes via SECURITY DEFINER RPCs); adds `polls` to `supabase_realtime` publication; creates `create_poll`, `vote_on_poll`, `close_poll` RPCs. Applied 2026-06-11.
-- `20240103000023_squad_definitions.sql` — creates `squad_definitions` table; RLS: crew members SELECT + INSERT (creator_id = auth.uid()), creator DELETE; expression index `squad_definitions_crew_word_uq ON (crew_id, lower(word))` for case-insensitive uniqueness per crew; adds `squad_definitions` to `supabase_realtime` publication. Applied 2026-06-11.
-- `20240103000024_squad_definitions_update_policy.sql` — adds missing `FOR UPDATE` RLS policy on `squad_definitions` (creator-only); without it the `updateDefinitionAction` returned "Failed to update definition" because the query matched 0 rows. Applied 2026-06-11.
+- `20240101000000` — initial schema, RLS, indexes, seed bosses
+- `20240101000001` — push_subscriptions table
+- `20240101000002` — crew_members.last_seen, damage_raid fn, increment_crew_xp fn
+- `20240101000003` — push_subscriptions: crew_id nullable, endpoint UNIQUE, expiry_notif_sent
+- `20240101000004` — leave_crew fn
+- `20240101000005` — profiles.avatar_url, storage bucket
+- `20240102000001` — notification_preferences table
+- `20240102000002` — username unique via lower()
+- `20240103000001` — ⚠ MUST BE APPLIED: supabase_realtime for messages + active_raids; insert_message fn
+- `20240103000002` — UPDATE policy on push_subscriptions (needed for upsert)
+- `20240103000003` — profiles.birthday date column
+- `20240103000004` — crew_notification_preferences table
+- `20240103000005` — get_unread_counts + get_crew_member_msg_counts RPCs
+- `20240103000006` — get_member_crew_stats RPC
+- `20240103000007` — profiles.coins, coin_log, increment_user_coins RPC, profiles in realtime
+- `20240103000008` — handle_new_user signup bonus; retroactive coin award for existing users
+- `20240103000009` — app_invites table + RLS
+- `20240103000011` — reserved_users table
+- `20240103000012` — messages.reactions JSONB + toggle_reaction fn
+- `20240103000013` — profiles.custom_avatar + avatars storage bucket + RLS
+- `20240103000015` — security: tightened chat-images INSERT policy
+- `20240103000016` — avatars bucket 10MB limit, HEIC mime types
+- `20240103000017` — profiles.avatar_storage_key
+- `20240103000018` — crews.image_url + image_storage_key, crew-images bucket
+- `20240103000019` — announcements table
+- `20240103000020` — profiles.first_name + last_name; reserved_users same
+- `20240103000021` — profiles.status (nullable, max 100 chars)
+- `20240103000022` — polls table + RPCs; polls in realtime
+- `20240103000023` — squad_definitions table + RLS; squad_definitions in realtime
+- `20240103000024` — squad_definitions UPDATE policy (creator-only)
 
-### Manual SQL applied directly (no migration file)
+### Manual SQL applied directly
 ```sql
--- profiles.is_dev — dev mode flag
+-- Dev mode flag
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS is_dev boolean NOT NULL DEFAULT false;
+UPDATE profiles SET is_dev = true WHERE id IN (SELECT id FROM auth.users WHERE email IN ('shenraymonds@gmail.com', 'legaspi.riley@gmail.com'));
 
--- Dev mode access
-UPDATE profiles SET is_dev = true WHERE id IN (
-  SELECT id FROM auth.users WHERE email IN ('shenraymonds@gmail.com', 'legaspi.riley@gmail.com')
-);
-
--- DM channel support (applied 2026-06-04)
+-- DM channel columns (2026-06-04)
 ALTER TABLE crews ADD COLUMN IF NOT EXISTS is_dm boolean NOT NULL DEFAULT false;
 ALTER TABLE crews ADD COLUMN IF NOT EXISTS dm_partner_1 uuid REFERENCES auth.users(id);
 ALTER TABLE crews ADD COLUMN IF NOT EXISTS dm_partner_2 uuid REFERENCES auth.users(id);
-
-CREATE OR REPLACE FUNCTION get_or_create_dm(other_user_id uuid)
-RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER AS $$
-DECLARE
-  v_user_id uuid := auth.uid(); v_crew_id uuid; v_p1 uuid; v_p2 uuid;
-BEGIN
-  IF v_user_id IS NULL THEN RAISE EXCEPTION 'Not authenticated'; END IF;
-  IF v_user_id = other_user_id THEN RAISE EXCEPTION 'Cannot DM yourself'; END IF;
-  IF NOT EXISTS (
-    SELECT 1 FROM friendships WHERE status = 'accepted'
-    AND ((requester_id = v_user_id AND addressee_id = other_user_id)
-      OR (requester_id = other_user_id AND addressee_id = v_user_id))
-  ) THEN RAISE EXCEPTION 'Not friends'; END IF;
-  IF v_user_id < other_user_id THEN v_p1 := v_user_id; v_p2 := other_user_id;
-  ELSE v_p1 := other_user_id; v_p2 := v_user_id; END IF;
-  SELECT id INTO v_crew_id FROM crews
-    WHERE is_dm = true AND dm_partner_1 = v_p1 AND dm_partner_2 = v_p2 LIMIT 1;
-  IF v_crew_id IS NOT NULL THEN RETURN v_crew_id; END IF;
-  INSERT INTO crews (name, invite_code, is_dm, dm_partner_1, dm_partner_2, level, total_xp)
-  VALUES ('dm:'||v_p1::text||':'||v_p2::text,
-    'dm'||substr(md5(gen_random_uuid()::text),1,6), true, v_p1, v_p2, 1, 0)
-  RETURNING id INTO v_crew_id;
-  INSERT INTO crew_members (crew_id, user_id, class)
-  VALUES (v_crew_id, v_p1, 'berserker'), (v_crew_id, v_p2, 'berserker')
-  ON CONFLICT DO NOTHING;
-  RETURN v_crew_id;
-END; $$;
-
--- friendships table (applied 2026-06-04)
-create table if not exists friendships (
-  id           uuid primary key default gen_random_uuid(),
-  requester_id uuid not null references auth.users(id) on delete cascade,
-  addressee_id uuid not null references auth.users(id) on delete cascade,
-  status       text not null default 'pending' check (status in ('pending', 'accepted')),
-  created_at   timestamptz not null default now(),
-  unique (requester_id, addressee_id),
-  check (requester_id <> addressee_id)
-);
-alter table friendships enable row level security;
-create policy "friendships: users see own"
-  on friendships for select using (auth.uid() = requester_id or auth.uid() = addressee_id);
-create policy "friendships: users can send requests"
-  on friendships for insert with check (auth.uid() = requester_id);
-create policy "friendships: addressee can accept"
-  on friendships for update using (auth.uid() = addressee_id) with check (auth.uid() = addressee_id);
-create policy "friendships: either party can delete"
-  on friendships for delete using (auth.uid() = requester_id or auth.uid() = addressee_id);
+-- get_or_create_dm fn + friendships table full DDL: see git history 2026-06-04
 ```
 
 ## Supabase Type System Rules
-- All row interfaces **must** extend `Record<string, unknown>` — without it, `Database['public'] extends GenericSchema` evaluates to `never` and every `.from()` / `.rpc()` returns `never`
-- All table definitions in `Database` must include `Relationships: []`
-- All RPC calls must be declared in `Database.public.Functions` with `Args` + `Returns` before use
-- `supabase/` directory must be excluded from `tsconfig.json` — Deno imports + globals incompatible with Next.js compiler
-- Property access on `Record<string, unknown>` types resolves to `unknown` — use `as` casts when assigning to narrower types (e.g. `row.last_seen as string | null`)
-- Supabase query builder returns `PromiseLike` not `Promise` — do NOT chain `.catch()` / `.finally()`; use `async/await` with try/catch
+- All row interfaces **must** extend `Record<string, unknown>` — without it, `.from()` / `.rpc()` returns `never`
+- All table definitions must include `Relationships: []`
+- All RPCs must be declared in `Database.public.Functions` with `Args` + `Returns` before use
+- `supabase/` directory must be excluded from `tsconfig.json` — Deno imports incompatible with Next.js compiler
+- `Record<string, unknown>` property access → `unknown`; use `as` casts when assigning narrower types
+- Supabase query builder returns `PromiseLike` not `Promise` — use `async/await` with try/catch; no `.catch()` chaining
 
 ## Code Rules
-- TypeScript strict throughout; server components by default; `'use client'` only when interactivity needed
+- TypeScript strict; server components by default; `'use client'` only when interactivity needed
 - All game logic in Supabase Edge Functions; Realtime for all live state
-- Mobile-first, 390px (iPhone 14); three font roles — `font-pixel` (Press Start 2P) for game UI/logos/level badges, `font-body` (DM Sans) for names/messages/timestamps, `font-silkscreen` (Silkscreen) for XP stats/labels
+- Mobile-first, 390px (iPhone 14); fonts: `font-pixel` (Press Start 2P), `font-body` (DM Sans), `font-silkscreen` (Silkscreen)
 - Never hardcode constants; never expose `SUPABASE_SERVICE_ROLE_KEY` client-side
 - Always handle loading + error states; add `loading.tsx` alongside every data-fetching `page.tsx`
-- **Loading skeleton conventions** — wrap skeleton content in `<DelayedSkeleton>` (`src/components/ui/DelayedSkeleton.tsx`) so it only renders after 300ms; fast loads never flash. Use `bg-border animate-pulse` blocks on `bg-black` (home/chat) background. Structure must mirror the real page layout precisely:
-  - `home/loading.tsx`: header (logo + 2 icons) → account preview container (48×48 avatar + text rows + AFK XP bar) → Squads label + 3 crew card rows (40×40 avatar, XP/level row, name+timestamp row, preview row, `pr-2`)
-  - `chat/[crewId]/loading.tsx`: header (back + crew name | 3 right icons) → message rows (avatar shown on group-start, `pl-10` offset on continuations) → input (member avatar row + XP stats/bar + h-12 input box). **No BottomNav.**
-  - `dm/[friendId]/loading.tsx`: header (back + 32×32 avatar + username + label) → message rows (all left-aligned, same grouping pattern) → input (2-avatar row + XP stats/bar + h-12 input box)
+- **Loading skeleton conventions**: wrap in `<DelayedSkeleton>` (300ms delay). `bg-border animate-pulse` on `bg-black`. Mirror real page layout precisely.
 - Clean up Realtime subscriptions on unmount; use `cancelled` flag in async effects
 - RLS on every table from day one
-- Server data fetching: `Promise.all` for independent queries; stages — (1) `getSession()` + params, (2) queries needing userId/crewId, (3) queries depending on stage 2
+- Server data fetching: `Promise.all` for independent queries; staged — session first, then queries
 - Logout from `/profile` only — `signOut()` then `router.push('/login')`
-- Server actions creating/joining crews must call `revalidatePath('/home')` before redirect
-- Edge Function notifications: use a **single batch fetch** to `send-notification` with `user_ids[]` — never loop per member
-- `unstable_cache`: always `createServiceClient()` inside the function; verify auth first with cookie client
+- Server actions creating/joining crews: call `revalidatePath('/home')` before redirect
+- Edge Function notifications: single batch call to `send-notification` with `user_ids[]` — never loop per member
+- `unstable_cache`: always `createServiceClient()` inside; verify auth first with cookie client
 
 ## Image Rules
-- Upload with `cacheControl: '31536000'` for CDN cache hit rate
-- Always `next/image` — never raw `<img>`; whitelist hostnames in `next.config.ts` under `images.remotePatterns`
-- **`unoptimized` flag**: every `<Image>` whose `src` can be a Supabase storage URL must pass `unoptimized={isSupabaseStorage(url)}`. Supabase already serves CDN-cached WebP; routing it through Vercel's optimizer adds a proxy hop, bills against Vercel's image quota, and re-compresses an already-compressed file. `isSupabaseStorage` and `resolveAvatarUrl` are exported from `src/components/ui/Avatar.tsx`.
-- **Thumbnail resolution**: call `resolveAvatarUrl(url, displaySize)` on every avatar `src`. For display sizes ≤ 64 CSS px it swaps `-256.ext` → `-128.ext`, halving transfer bytes for all chat/card avatar slots. URLs that don't match the pattern (legacy single-file, Google OAuth) pass through unchanged.
-- **Exception**: pixel art sprites in `PixelSprite.tsx` use plain `<img>` with `imageRendering: pixelated` — next/image interferes with pixel-perfect rendering on iOS PWA
-- **Exception**: `AvatarUploadModal` crop target uses plain `<img>` — `next/image` interferes with `react-image-crop`'s overlay positioning
-- **Exception**: hero background images (`/img/default_image.png`) in `ProfileClient.tsx` use plain `<img>` with inline CSS — `next/image` with `fill` silently fails to render in iOS PWA standalone mode even with `unoptimized`; use `position:absolute; inset:0; width:100%; height:100%; objectFit:cover` instead
-- Profile pictures from `profiles.avatar_url` (synced on every Google login); fall back to initials; use `Avatar.tsx` everywhere
-- Chat images: `chat-images` bucket, path `{crewId}/{userId}/{timestamp}.webp`
+- Always `next/image`; whitelist hostnames in `next.config.ts` under `images.remotePatterns`
+- `unoptimized={isSupabaseStorage(url)}` on every Supabase image — avoids double-compression and Vercel image quota billing
+- `resolveAvatarUrl(url, displaySize)` on every avatar src — swaps `-256` → `-128` for sizes ≤ 64px
+- **Exceptions using plain `<img>`**: pixel sprites (`imageRendering: pixelated`), `AvatarUploadModal` crop target, hero background images in `ProfileClient.tsx` (`next/image fill` silently fails in iOS PWA standalone mode)
+- Upload with `cacheControl: '31536000'`
 
 ### Avatar Upload
-- **Component**: `src/components/ui/AvatarUploadModal.tsx` — bottom sheet with `react-image-crop` (aspect=1) + canvas crop to **two** WebP variants (128px @ 0.82q, 256px @ 0.85q) uploaded in parallel
-- **Fallback chain** (Safari can't encode WebP from canvas): WebP → JPEG (0.87/0.90q) → PNG. The `ext` variable is derived from `blob.type` so the correct extension is always stored.
-- **Accepted input**: JPEG, PNG, WebP, HEIC/HEIF; max 10 MB (validated client-side and enforced by bucket policy)
-- **Bucket**: `avatars` (public, 10 MB input limit); paths `{userId}/{ts}-128.{ext}` and `{userId}/{ts}-256.{ext}`; `cacheControl: '31536000'`
-- **DB field `avatar_url`**: always points to the 256px variant (canonical URL stored in DB, used by all avatar renders)
-- **DB field `avatar_storage_key`**: `{userId}/{ts}` prefix (no size or ext); used by `updateAvatarAction` and `resetAvatarAction` to list + bulk-delete all variants via `storage.list(folder, { search: ts })` + `remove()`
-- **Flow**: tap avatar on `/profile` → file picker → `AvatarUploadModal` slides up → user crops → canvas renders 128+256px → upload both to `avatars` bucket → `updateAvatarAction` (server action) → fire-and-forget `process-avatar` edge function for AVIF variants
-- **`updateAvatarAction`** (`profile/actions.ts`): fetches old `avatar_url` + `avatar_storage_key` + crew list in parallel; writes new URL + storage key + `custom_avatar: true`; bulk-deletes old variants via storage key (falls back to single-file delete for legacy uploads without a stored key); fires `process-avatar` fire-and-forget; revalidates profile + crew-member caches
-- **`resetAvatarAction`** (`profile/actions.ts`): reads `user_metadata.avatar_url` (Google photo) from session; sets `custom_avatar: false`, `avatar_storage_key: null`, `avatar_url` = Google URL; bulk-deletes all stored variants; revalidates caches. Exposed as "Use Google photo" button in `ProfileClient` — only visible when `customAvatar === true`
-- **`process-avatar` edge function**: downloads the 256px WebP, uses `npm:sharp` to generate 64/128/256px AVIF variants, uploads them back with `upsert: true`. Called fire-and-forget (no auth header, deployed `--no-verify-jwt`). Failure has no impact on the user.
-- **Google sync guard**: `profiles.custom_avatar = true` prevents the auth callback from overwriting a user-uploaded photo on next Google login. Set automatically by `updateAvatarAction`; cleared by `resetAvatarAction`.
-- **Realtime propagation**: `MessageList` subscribes to `postgres_changes UPDATE` on `profiles` (no filter — all members). Patches `localProfiles` state on any matching member update → avatar changes appear in active chats within ~1 second without a page reload.
+- `AvatarUploadModal`: `react-image-crop` (aspect=1) + canvas → 128px + 256px WebP (fallback JPEG → PNG) uploaded in parallel
+- Bucket `avatars`: paths `{userId}/{ts}-128.{ext}` and `{userId}/{ts}-256.{ext}`; `cacheControl: '31536000'`
+- `avatar_url` always points to 256px variant; `avatar_storage_key` is `{userId}/{ts}` prefix for bulk delete
+- `updateAvatarAction`: writes URL + key + `custom_avatar:true`; bulk-deletes old variants; fires `process-avatar` fire-and-forget; revalidates caches
+- `resetAvatarAction`: sets `custom_avatar:false`, restores Google URL, deletes stored variants
+- `process-avatar` edge function: uses `npm:sharp` → 64/128/256px AVIF; deployed `--no-verify-jwt`
+- `custom_avatar = true` prevents auth callback from overwriting with Google photo on next login
 
 ## Design Language
 
-### Color Tokens (Figma variables → CSS custom properties → Tailwind utilities)
-Defined in `:root` in `globals.css` and mirrored in the `@theme` block for Tailwind utility generation (e.g. `bg-surface`, `text-muted`, `border-border`).
-
-**Font size tokens** — `globals.css` `:root` defines `--text-mini` (8px) through `--text-xxl` (24px). **Always use hardcoded pixel values** (`text-[14px]`, `text-[18px]`, etc.) or the correct `--text-*` variable names in component code. The Figma shorthand aliases (`--mini`, `--md`, `--xxl`, etc.) are now defined in `globals.css` and resolve correctly, but prefer `--text-*` names in new code for clarity. The additional token `--color-border-hover: #3f3f46` is available as `border-border-hover`.
-
-| Font size token | CSS var | Figma alias | Value |
-|---|---|---|---|
-| mini | `--text-mini` | `--mini` | 8px |
-| xxs | `--text-xxs` | `--xxs` | 11px |
-| xs | `--text-xs` | `--xs` | 12px |
-| sm | `--text-sm` | `--sm` | 14px |
-| md | `--text-md` | `--md` | 16px |
-| lg | `--text-lg` | `--lg` | 18px |
-| xl | `--text-xl` | `--xl` | 20px |
-| xxl | `--text-xxl` | `--xxl` | 24px |
+### Color Tokens
+Defined in `globals.css :root` + `@theme` block for Tailwind utilities (e.g. `bg-surface`, `text-muted`, `border-border`).
 
 | Token | CSS var | Value | Tailwind |
 |---|---|---|---|
-| Paper | `--color-paper` | `#f6f6f6` | `bg-paper`, `text-paper` |
 | Primary (text) | `--color-primary` | `#fafafa` | `text-primary` |
 | Secondary | `--color-secondary` | `#e4e4e7` | `text-secondary` |
 | Tertiary | `--color-tertiary` | `#a1a1aa` | `text-tertiary` |
 | Muted | `--color-muted` | `#71717a` | `text-muted` |
 | Border | `--color-border` | `#27272a` | `border-border` |
+| Border hover | `--color-border-hover` | `#3f3f46` | `border-border-hover` |
 | Surface (cards) | `--color-surface` | `#111111` | `bg-surface` |
 | Purple (accent) | `--color-purple` | `#a855f7` | `bg-purple`, `text-purple` |
 | Blue (definitions) | `--color-blue` | `#60a5fa` | `text-blue` |
 
-`globals.css` also defines Figma spacing aliases `--x2` (4px) through `--x7` (24px) and color shorthands (`--background`, `--border`, `--purple`, `--red`, `--green`, `--surface`, etc.) so Figma-generated code resolves without fallbacks.
+Font size tokens: `--text-mini` (8px) → `--text-xxl` (24px). Figma shorthand aliases (`--mini`, `--md`, etc.) also resolve. Prefer hardcoded pixel values or `--text-*` names in new code.
 
-Chat/game accent colors (used inline, not tokenized):
+Chat/game accent colors (inline, not tokenized):
 | Role | Value |
 |---|---|
 | Background | `#000000` (home), `#0a0612` (chat) |
 | Primary accent | `#bf5fff` (chat purple) |
-| Secondary accent | `#00e5ff` (cyan) |
 | XP / gold | `#ffd700` |
-| Danger/boss | `#ff4444` |
+| Amber (coins) | `#f59e0b` |
+| Danger | `#ff4444` |
 | Success/heal | `#66bb6a` |
 
 ### Font Roles
@@ -973,44 +509,34 @@ Chat/game accent colors (used inline, not tokenized):
 |---|---|---|---|
 | `font-pixel` | Press Start 2P | `--font-press-start-2p` | Game UI, logos, level badges, buttons |
 | `font-body` | DM Sans | `--font-dm-sans` | Names, messages, timestamps |
-| `font-silkscreen` | Silkscreen | `--font-silk` (`@theme`: `--font-silkscreen`) | XP stats, labels, secondary game text |
+| `font-silkscreen` | Silkscreen | `--font-silk` | XP stats, labels |
 
 Note: next/font variable for Silkscreen is `--font-silk` (not `--font-silkscreen`) to avoid a circular reference with the `@theme` entry `--font-silkscreen: var(--font-silk)`.
 
 ### Icon Library — pixelarticons
-- **Package**: `pixelarticons` — pixel art SVG React components on 24×24 grid; no CSS import needed
-- **Usage**: `import { ComponentName } from 'pixelarticons/react/ComponentName'` → `<ComponentName style={{ width: N, height: N, color: 'X' }} aria-hidden="true" />`; all icons use `fill: currentColor` so Tailwind `text-*` classes also work
-- **Named exports only**: `import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'` — do NOT use default imports
-- **Icons in use**:
-  | Location | Component | Import path | Size |
-  |---|---|---|---|
-  | ChatHeader — back button | `ChevronLeft` | `pixelarticons/react/ChevronLeft` | 24×24, `color: var(--color-tertiary)` |
-  | ChatHeader — crew dropdown | `ChevronRight` rotated 90° | `pixelarticons/react/ChevronRight` | 24×24, `color: var(--color-primary)` |
-  | ChatHeader — notifications | `Bell` / `BellOff` | `pixelarticons/react/Bell`, `BellOff` | 24×24 |
-  | ChatHeader — invite | `UserPlus` | `pixelarticons/react/UserPlus` | 24×24 |
-  | ChatInput — send | `Send` | `pixelarticons/react/Send` | 16×16 |
-  | ChatInput — create poll | `Chart` | `pixelarticons/react/Chart` | 16×16, `text-tertiary active:text-purple` |
-  | ChatInput — expand members (collapsed row) | `ChevronRight` rotate(-90deg) | `pixelarticons/react/ChevronRight` | 24×24, `color: var(--color-tertiary)` |
-  | ChatInput — collapse members (expanded sheet) | `ChevronRight` rotate(90deg) | `pixelarticons/react/ChevronRight` | 24×24, `color: var(--color-tertiary)` |
-  | ChatInput — crew creator badge | `Crown` | `pixelarticons/react/Crown` | `var(--text-xs)` (12px), `color: #f59e0b` (amber) |
-  | ChatInput — invite code copy button | `Copy` | `pixelarticons/react/Copy` | 12×12, white |
-  | ChatHeader — invite sheet copy button | `Copy` / `Check` | `pixelarticons/react/Copy`, `Check` | 12×12, white |
-  | Home bottom bar — Direct Messages | `Notebook` | `pixelarticons/react/Notebook` | 24×24, `color: var(--color-primary)` |
-  | Home bottom bar — Squad button | `PlusBox` | `pixelarticons/react/PlusBox` | 16×16, `color: var(--color-primary)` |
-  | Home AccountPreviewContainer — edit | `MagicEdit` | `pixelarticons/react/MagicEdit` | 16×16 |
-  | Home AccountPreviewContainer — coin badge | `TokeCircle` | `pixelarticons/react/TokeCircle` | **24×16** (amber pill badge) |
-  | Profile — Edit Profile / Notification rows — left icons | `MagicEdit` / `Bell` | `pixelarticons/react/MagicEdit`, `Bell` | 16×16, `color: var(--color-secondary)` |
-  | InviteArsenal — coins | `Coins` | `pixelarticons/react/Coins` | 16px |
-  | Home — crew card leave (swipe-reveal) | `Logout` | `pixelarticons/react/Logout` | 16×16, white |
-  | Friends — back chevron | `ChevronLeft` | `pixelarticons/react/ChevronLeft` | 24×24, `color: var(--color-tertiary)` |
-  | Friends — search | `Search` | `pixelarticons/react/Search` | 16×16, `color: var(--color-muted)` |
-  | Friends — requests chevron | `ChevronRight` | `pixelarticons/react/ChevronRight` | 18×18, animated rotate 0°/90° |
-  | Friends — accept request | `Check` | `pixelarticons/react/Check` | 16×16, `color: #22c55e` |
-  | Friends — decline request | `Close` | `pixelarticons/react/Close` | 12×12, `color: #ef4444` |
-  | Friends — remove friend | `UserMinus` | `pixelarticons/react/UserMinus` | 16×16 |
-  | DMOverlayBack — back chevron | `ChevronLeft` | `pixelarticons/react/ChevronLeft` | 24×24, `color: var(--color-tertiary)` |
-  | Profile — back chevron | `ChevronLeft` | `pixelarticons/react/ChevronLeft` | 24×24, `color: var(--color-tertiary)` |
-  | SquadDetailsSheet — glossary nav | `Braces` | `pixelarticons/react/Braces` | 24×24, `text-primary` |
-- **Do not use lucide-react** for chat or home UI icons — lucide-react is only used for `X` (close) in modals/sheets
+- **Package**: `pixelarticons` — pixel art SVG React components; no CSS import needed
+- **Usage**: `import { ComponentName } from 'pixelarticons/react/ComponentName'` → `<ComponentName style={{ width: N, height: N, color: 'X' }} aria-hidden="true" />`
+- **Named exports only** — do NOT use default imports
+- **Do not use lucide-react** for chat or home UI icons
+
+| Location | Component | Import path | Size |
+|---|---|---|---|
+| Back buttons (all screens) | `ChevronLeft` | `pixelarticons/react/ChevronLeft` | 24×24, `color: var(--color-tertiary)` |
+| Expand/collapse chevrons | `ChevronRight` (rotated) | `pixelarticons/react/ChevronRight` | 24×24 |
+| ChatHeader — notifications | `Bell` / `BellOff` | `pixelarticons/react/Bell`, `BellOff` | 24×24 |
+| ChatHeader — invite | `UserPlus` | `pixelarticons/react/UserPlus` | 24×24 |
+| ChatInput — send | `Send` | `pixelarticons/react/Send` | 16×16 |
+| ChatInput — create poll | `Chart` | `pixelarticons/react/Chart` | 16×16 |
+| ChatInput — crew creator | `Crown` | `pixelarticons/react/Crown` | 12×12, `#f59e0b` |
+| Copy / confirm | `Copy`, `Check` | respective paths | 12×12 |
+| Home bottom bar — DMs | `Notebook` | `pixelarticons/react/Notebook` | 24×24 |
+| Home bottom bar — Squad | `PlusBox` | `pixelarticons/react/PlusBox` | 16×16 |
+| Home coin badge | `TokeCircle` | `pixelarticons/react/TokeCircle` | 24×16 (not square) |
+| Home leave button | `Logout` | `pixelarticons/react/Logout` | 16×16, white |
+| Profile menu icons | `MagicEdit`, `Bell` | respective paths | 16×16, `color: var(--color-secondary)` |
+| InviteArsenal | `Coins` | `pixelarticons/react/Coins` | 16px |
+| Friends — search | `Search` | `pixelarticons/react/Search` | 16×16 |
+| Friends — accept/decline/remove | `Check`, `Close`, `UserMinus` | respective paths | 16/12/12px |
+| SquadDetailsSheet — glossary | `Braces` | `pixelarticons/react/Braces` | 24×24, `text-primary` |
 
 Framer Motion for all animations. Scanline overlay on game screens for RotMG feel.
