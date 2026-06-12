@@ -15,7 +15,7 @@ import { MessageBubble } from './MessageBubble'
 import { LevelUpBanner } from '@/components/game/LevelUpBanner'
 import { parseBossSpawnRaidId } from '@/lib/game/boss'
 import { parseArtifactDropId, parseLevelUp } from '@/lib/game/artifacts'
-import type { MessageWithProfile, Message, Profile, ActiveRaid, AvatarClass } from '@/types'
+import type { MessageWithProfile, Message, Profile, ActiveRaid, AvatarClass, SquadDefinition } from '@/types'
 
 const BossCard = dynamic(
   () => import('@/components/game/BossCard').then((m) => m.BossCard),
@@ -129,6 +129,8 @@ export function MessageList({
       return raw !== null && Array.isArray(JSON.parse(raw))
     } catch { return false }
   })
+
+  const [definitions, setDefinitions] = useState<SquadDefinition[]>([])
 
   const scrollRef    = useRef<HTMLDivElement>(null)
   const bottomRef    = useRef<HTMLDivElement>(null)
@@ -333,6 +335,43 @@ export function MessageList({
 
     return () => { supabase.removeChannel(channel) }
   }, [crewId, addMessage, updateMessage, resolveProfile])
+
+  // Fetch squad definitions on mount + subscribe to live changes
+  useEffect(() => {
+    const supabase = createClient()
+    let cancelled  = false
+
+    supabase
+      .from('squad_definitions')
+      .select('*')
+      .eq('crew_id', crewId)
+      .order('created_at', { ascending: false })
+      .then(({ data }) => {
+        if (!cancelled) setDefinitions((data ?? []) as SquadDefinition[])
+      })
+
+    const defChannel = supabase
+      .channel(`ml-defs:${crewId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'squad_definitions', filter: `crew_id=eq.${crewId}` },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            const incoming = payload.new as SquadDefinition
+            setDefinitions((prev) => prev.some((d) => d.id === incoming.id) ? prev : [incoming, ...prev])
+          } else if (payload.eventType === 'DELETE') {
+            const gone = payload.old as { id: string }
+            setDefinitions((prev) => prev.filter((d) => d.id !== gone.id))
+          }
+        }
+      )
+      .subscribe()
+
+    return () => {
+      cancelled = true
+      supabase.removeChannel(defChannel)
+    }
+  }, [crewId])
 
   // Show skeleton while the initial history fetch is in flight
   if (!historyLoaded) {
@@ -569,6 +608,7 @@ export function MessageList({
             xpOverride={item.xpOverride}
             coinOverride={item.coinOverride}
             onAvatarTap={onAvatarTap}
+            definitions={definitions}
           />
         )
       })}

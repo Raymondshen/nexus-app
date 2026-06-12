@@ -8,7 +8,7 @@ import { format } from 'date-fns'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useChatStore } from '@/store/chatStore'
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/config'
-import type { MessageWithProfile, AvatarClass } from '@/types'
+import type { MessageWithProfile, AvatarClass, SquadDefinition } from '@/types'
 import { PollCard } from '@/components/chat/PollCard'
 
 const CLASS_NAMES: Record<AvatarClass, string> = {
@@ -52,6 +52,52 @@ interface MessageBubbleProps {
   xpOverride?:   number
   coinOverride?:  number
   onAvatarTap?:  (userId: string) => void
+  definitions?:  SquadDefinition[]
+}
+
+// ─── Definition highlight renderer ──────────────────────────────────────────
+
+function renderWithDefinitions(
+  content: string,
+  definitions: SquadDefinition[],
+  onTap: (def: SquadDefinition) => void,
+): React.ReactNode {
+  if (!definitions.length) return content
+
+  const sorted  = [...definitions].sort((a, b) => b.word.length - a.word.length)
+  const escaped = sorted.map((d) => d.word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+  let regex: RegExp
+  try {
+    regex = new RegExp(`\\b(${escaped.join('|')})\\b`, 'gi')
+  } catch {
+    return content
+  }
+
+  const parts: React.ReactNode[] = []
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+
+  while ((match = regex.exec(content)) !== null) {
+    if (match.index > lastIndex) parts.push(content.slice(lastIndex, match.index))
+    const hit = match[1]
+    const def = sorted.find((d) => d.word.toLowerCase() === hit.toLowerCase())
+    if (def) {
+      parts.push(
+        <span
+          key={`${def.id}-${match.index}`}
+          style={{ color: '#60a5fa' }}
+          onClick={(e) => { e.stopPropagation(); onTap(def) }}
+        >
+          {hit}
+        </span>
+      )
+    } else {
+      parts.push(hit)
+    }
+    lastIndex = match.index + match[0].length
+  }
+  if (lastIndex < content.length) parts.push(content.slice(lastIndex))
+  return parts.length ? parts : content
 }
 
 export function MessageBubble({
@@ -62,11 +108,13 @@ export function MessageBubble({
   xpOverride,
   coinOverride,
   onAvatarTap,
+  definitions = [],
 }: MessageBubbleProps) {
-  const [sheetOpen,  setSheetOpen]  = useState(false)
-  const [copied,     setCopied]     = useState(false)
-  const [healFloat,  setHealFloat]  = useState<{ id: number; amount: number } | null>(null)
-  const [mounted,    setMounted]    = useState(false)
+  const [sheetOpen,        setSheetOpen]        = useState(false)
+  const [copied,           setCopied]           = useState(false)
+  const [healFloat,        setHealFloat]        = useState<{ id: number; amount: number } | null>(null)
+  const [mounted,          setMounted]          = useState(false)
+  const [activeDefinition, setActiveDefinition] = useState<SquadDefinition | null>(null)
 
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hasMoved       = useRef(false)
@@ -375,7 +423,10 @@ export function MessageBubble({
               className="font-body font-normal text-[14px] text-white leading-[normal] w-full select-none"
               style={{ fontVariationSettings: '"opsz" 14', WebkitUserSelect: 'none' }}
             >
-              {message.content}
+              {message.message_type === 'text' && definitions.length
+                ? renderWithDefinitions(message.content, definitions, setActiveDefinition)
+                : message.content
+              }
             </p>
           )}
 
@@ -428,6 +479,55 @@ export function MessageBubble({
           )}
         </div>
       </div>
+
+      {/* ── Definition view sheet ─────────────────────────────────────────── */}
+      {mounted && createPortal(
+        <AnimatePresence>
+          {activeDefinition && (
+            <>
+              <motion.div
+                key="def-backdrop"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.18 }}
+                className="fixed inset-0 z-[70] bg-black/60"
+                onClick={() => setActiveDefinition(null)}
+              />
+              <motion.div
+                key="def-sheet"
+                initial={{ y: '100%' }}
+                animate={{ y: 0 }}
+                exit={{ y: '100%' }}
+                transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+                className="fixed bottom-0 left-0 right-0 z-[80] bg-black border-t border-border flex flex-col gap-4 px-4 pt-5"
+                style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 24px)' }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex flex-col gap-1">
+                  <p className="font-pixel text-[8px] text-tertiary leading-none">SQUAD DEFINITION</p>
+                  <p className="font-silkscreen text-[18px] text-purple leading-tight">
+                    {activeDefinition.word}
+                  </p>
+                </div>
+                <p
+                  className="font-body text-[15px] text-secondary leading-normal"
+                  style={{ fontVariationSettings: '"opsz" 14' }}
+                >
+                  {activeDefinition.definition}
+                </p>
+                <button
+                  onClick={() => setActiveDefinition(null)}
+                  className="h-12 w-full font-pixel text-[8px] text-tertiary flex items-center justify-center transition-colors active:text-primary"
+                >
+                  CLOSE
+                </button>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
 
       {/* ── Reaction / action bottom sheet (Discord-style) ──────────────────── */}
       {mounted && createPortal(

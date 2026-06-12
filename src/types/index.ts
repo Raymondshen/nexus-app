@@ -176,6 +176,15 @@ export interface Announcement extends Record<string, unknown> {
   created_at: string
 }
 
+export interface SquadDefinition extends Record<string, unknown> {
+  id:          string
+  crew_id:     string
+  creator_id:  string
+  word:        string
+  definition:  string
+  created_at:  string
+}
+
 export interface Poll extends Record<string, unknown> {
   id:         string
   message_id: string | null
@@ -337,6 +346,12 @@ export type Database = {
         Row: ReservedUser
         Insert: Omit<ReservedUser, 'id' | 'created_at' | 'converted'> & { id?: string; created_at?: string; converted?: boolean }
         Update: Partial<Omit<ReservedUser, 'id'>>
+        Relationships: []
+      }
+      squad_definitions: {
+        Row: SquadDefinition
+        Insert: Omit<SquadDefinition, 'id' | 'created_at'> & { id?: string; created_at?: string }
+        Update: Partial<Omit<SquadDefinition, 'id' | 'created_at'>>
         Relationships: []
       }
     }
