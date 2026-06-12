@@ -27,19 +27,19 @@ function BackButton() {
 // Handles both create and edit modes (Figma 130:1239)
 
 interface CreateDefinitionSheetProps {
-  crewId:            string
-  mode:              'create' | 'edit'
-  initialWord?:      string
+  crewId:             string
+  mode:               'create' | 'edit'
+  initialWord?:       string
   initialDefinition?: string
-  definitionId?:     string
-  onClose:           () => void
-  onSaved:           (def: SquadDefinition) => void
+  definitionId?:      string
+  onClose:            () => void
+  onSaved:            (def: SquadDefinition) => void
 }
 
 function CreateDefinitionSheet({
   crewId,
   mode,
-  initialWord      = '',
+  initialWord       = '',
   initialDefinition = '',
   definitionId,
   onClose,
@@ -68,6 +68,7 @@ function CreateDefinitionSheet({
 
   return (
     <>
+      {/* Backdrop */}
       <motion.div
         className="fixed inset-0 z-[60] bg-black/60"
         initial={{ opacity: 0 }}
@@ -75,89 +76,98 @@ function CreateDefinitionSheet({
         exit={{ opacity: 0 }}
         onClick={onClose}
       />
+
+      {/* Sheet — Figma: bg-black border-t border-[#27272a] flex-col gap-[24px] pt-[24px] pb-[16px] px-[16px] */}
       <motion.div
-        className="fixed bottom-0 left-0 right-0 z-[70] bg-black border-t border-border flex flex-col gap-6 px-4 pt-6"
+        className="fixed bottom-0 left-0 right-0 z-[70] bg-black border-t border-border flex flex-col gap-6 px-4 pt-6 overflow-y-auto"
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
         transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 16px)' }}
+        style={{ maxHeight: '90vh', paddingBottom: 'max(env(safe-area-inset-bottom), 16px)' }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Title */}
+        {/* Title — Figma: DM Sans Bold 18px text-primary leading-none */}
         <h2
-          className="font-body font-bold text-[length:var(--lg)] text-primary leading-none"
+          className="font-body font-bold text-[18px] text-primary leading-none"
           style={{ fontVariationSettings: '"opsz" 14' }}
         >
           Squad Definition
         </h2>
 
-        {/* Words field */}
-        <div className="flex flex-col gap-2">
+        {/* Words field — Figma: flex-col gap-[8px] items-start */}
+        <div className="flex flex-col gap-2 items-start w-full">
+          {/* Label — Figma: DM Sans Medium 14px text-primary tracking-[0.2px] */}
           <p
-            className="font-body font-medium text-[length:var(--sm)] text-primary tracking-[0.2px] leading-none"
+            className="font-body font-medium text-[14px] text-primary tracking-[0.2px] leading-normal"
             style={{ fontVariationSettings: '"opsz" 14' }}
           >
             Words
           </p>
+          {/* Input — Figma: bg-black border border-[#3f3f46] p-[12px] overflow-clip */}
           <input
             value={word}
             onChange={(e) => setWord(e.target.value)}
             maxLength={100}
             placeholder="e.g. GG, gg, good game"
-            className="w-full bg-black border border-[#3f3f46] px-3 py-3 font-body text-[length:var(--sm)] text-primary placeholder:text-muted focus:outline-none focus:border-purple transition-colors"
+            className="w-full bg-black border border-border-hover px-3 py-3 font-body text-[14px] text-primary placeholder:text-muted focus:outline-none focus:border-purple transition-colors overflow-hidden"
             style={{ fontVariationSettings: '"opsz" 14' }}
             autoComplete="off"
             autoCapitalize="off"
           />
+          {/* Hint — Figma: DM Sans Regular 11px text-tertiary tracking-[0.2px] */}
           <p
-            className="font-body text-[length:var(--xxs)] text-tertiary tracking-[0.2px] leading-normal"
+            className="font-body text-[11px] text-tertiary tracking-[0.2px] leading-normal w-full"
             style={{ fontVariationSettings: '"opsz" 14' }}
           >
             Putting commas separates the word but will tie back to this definition when used. (e.g. GG, gg, good game will be the same definition.)
           </p>
         </div>
 
-        {/* Definition field */}
-        <div className="flex flex-col gap-2">
+        {/* Definition field — Figma: flex-col gap-[8px] items-start */}
+        <div className="flex flex-col gap-2 items-start w-full">
+          {/* Label — same style as Words label */}
           <p
-            className="font-body font-medium text-[length:var(--sm)] text-primary tracking-[0.2px] leading-none"
+            className="font-body font-medium text-[14px] text-primary tracking-[0.2px] leading-normal"
             style={{ fontVariationSettings: '"opsz" 14' }}
           >
             Definition
           </p>
+          {/* Textarea — Figma: bg-black border border-[#3f3f46] h-[78px] p-[12px] overflow-clip */}
           <textarea
             value={definition}
             onChange={(e) => setDefinition(e.target.value)}
             maxLength={500}
             placeholder="What does it mean in your squad?"
-            className="w-full h-[78px] bg-black border border-[#3f3f46] px-3 py-3 font-body text-[length:var(--sm)] text-primary placeholder:text-muted focus:outline-none focus:border-purple transition-colors resize-none"
+            className="w-full h-[78px] bg-black border border-border-hover px-3 py-3 font-body text-[14px] text-primary placeholder:text-muted focus:outline-none focus:border-purple transition-colors resize-none overflow-hidden"
             style={{ fontVariationSettings: '"opsz" 14' }}
           />
         </div>
 
         {/* Error */}
         {error && (
-          <p className="font-silkscreen text-[8px] text-[#ef4444] leading-relaxed -mt-4">{error}</p>
+          <p className="font-silkscreen text-[8px] text-[#ef4444] leading-relaxed">{error}</p>
         )}
 
-        {/* Buttons */}
-        <div className="flex flex-col gap-4">
+        {/* Buttons — Figma: flex-col gap-[16px] */}
+        <div className="flex flex-col gap-4 w-full">
+          {/* Save — Figma: bg-purple h-[48px] px-[16px] py-[8px] overflow-clip */}
           <button
             onClick={handleSave}
             disabled={saving}
-            className="w-full h-12 bg-purple flex items-center justify-center disabled:opacity-40 active:opacity-80 transition-opacity"
+            className="w-full h-12 bg-purple overflow-hidden flex items-center justify-center px-4 py-2 disabled:opacity-40 active:opacity-80 transition-opacity"
           >
-            <span className="font-silkscreen text-[length:var(--sm)] text-primary leading-none">
+            <span className="font-silkscreen text-[14px] text-primary leading-none whitespace-nowrap">
               {saving ? 'Saving...' : 'Save definition'}
             </span>
           </button>
+          {/* Cancel — Figma: border border-[#ef4444] h-[48px] px-[16px] py-[8px] overflow-clip */}
           <button
             onClick={onClose}
             disabled={saving}
-            className="w-full h-12 flex items-center justify-center border border-[#ef4444] active:opacity-70 transition-opacity disabled:opacity-40"
+            className="w-full h-12 border border-[#ef4444] overflow-hidden flex items-center justify-center px-4 py-2 active:opacity-70 transition-opacity disabled:opacity-40"
           >
-            <span className="font-silkscreen text-[length:var(--sm)] text-[#ef4444] leading-none">Cancel</span>
+            <span className="font-silkscreen text-[14px] text-[#ef4444] leading-none whitespace-nowrap">Cancel</span>
           </button>
         </div>
       </motion.div>
@@ -197,33 +207,36 @@ function DefinitionActionSheet({ definition, onClose, onEdit, onDelete, deleting
         style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 16px)' }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Title */}
+        {/* Title — DM Sans Bold 18px */}
         <h2
-          className="font-body font-bold text-[length:var(--lg)] text-primary leading-none"
+          className="font-body font-bold text-[18px] text-primary leading-none"
           style={{ fontVariationSettings: '"opsz" 14' }}
         >
           Squad Definition
         </h2>
 
-        {/* Content preview */}
-        <div className="flex flex-col gap-4">
+        {/* Content preview — flex-col gap-[16px] */}
+        <div className="flex flex-col gap-4 w-full">
           <div className="flex flex-col gap-2">
+            {/* Word — DM Sans Bold 16px */}
             <p
-              className="font-body font-bold text-[length:var(--md)] text-primary leading-none"
+              className="font-body font-bold text-[16px] text-primary leading-none"
               style={{ fontVariationSettings: '"opsz" 14' }}
             >
               {aliases}
             </p>
+            {/* Definition — DM Sans Regular 14px text-secondary */}
             <p
-              className="font-body text-[length:var(--sm)] text-secondary leading-normal line-clamp-4 overflow-hidden"
+              className="font-body text-[14px] text-secondary leading-normal line-clamp-4 overflow-hidden"
               style={{ fontVariationSettings: '"opsz" 14' }}
             >
               {definition.definition}
             </p>
           </div>
+          {/* Created by — DM Sans Regular 11px text-tertiary */}
           {definition.creator_username && (
             <p
-              className="font-body text-[length:var(--xxs)] text-tertiary leading-none"
+              className="font-body text-[11px] text-tertiary leading-none"
               style={{ fontVariationSettings: '"opsz" 14' }}
             >
               Created by : {definition.creator_username}
@@ -231,22 +244,24 @@ function DefinitionActionSheet({ definition, onClose, onEdit, onDelete, deleting
           )}
         </div>
 
-        {/* Action buttons */}
-        <div className="flex flex-col gap-4">
+        {/* Action buttons — flex-col gap-[16px] */}
+        <div className="flex flex-col gap-4 w-full">
+          {/* Edit — border-purple */}
           <button
             onClick={onEdit}
-            className="w-full h-12 flex items-center justify-center border border-purple active:opacity-70 transition-opacity"
+            className="w-full h-12 border border-purple overflow-hidden flex items-center justify-center px-4 py-2 active:opacity-70 transition-opacity"
           >
-            <span className="font-silkscreen text-[length:var(--sm)] text-purple leading-none">
+            <span className="font-silkscreen text-[14px] text-purple leading-none whitespace-nowrap">
               Edit definition
             </span>
           </button>
+          {/* Delete — border-red */}
           <button
             onClick={onDelete}
             disabled={deleting}
-            className="w-full h-12 flex items-center justify-center border border-[#ef4444] active:opacity-70 transition-opacity disabled:opacity-40"
+            className="w-full h-12 border border-[#ef4444] overflow-hidden flex items-center justify-center px-4 py-2 active:opacity-70 transition-opacity disabled:opacity-40"
           >
-            <span className="font-silkscreen text-[length:var(--sm)] text-[#ef4444] leading-none">
+            <span className="font-silkscreen text-[14px] text-[#ef4444] leading-none whitespace-nowrap">
               {deleting ? 'Deleting...' : 'Delete definition'}
             </span>
           </button>
@@ -288,12 +303,7 @@ export function DefinitionsClient({
         async (payload) => {
           if (payload.eventType === 'INSERT') {
             const incoming = payload.new as SquadDefinition
-            // Skip if already added optimistically
-            setDefinitions((prev) => {
-              if (prev.some((d) => d.id === incoming.id)) return prev
-              return prev // will be resolved below
-            })
-            // Resolve creator username
+            // Resolve creator username before inserting
             const { data: profile } = await supabase
               .from('profiles')
               .select('username')
@@ -354,7 +364,7 @@ export function DefinitionsClient({
       className="min-h-screen bg-black flex flex-col"
       style={{ position: 'fixed', top: 0, bottom: 0, left: 0, right: 0, maxWidth: 480, marginLeft: 'auto', marginRight: 'auto', overflow: 'hidden' }}
     >
-      {/* Header — matches ChatHeader pattern, no border-b */}
+      {/* Header */}
       <div
         className="px-4 pb-2 flex-shrink-0"
         style={{ paddingTop: 'max(env(safe-area-inset-top), 8px)' }}
@@ -369,8 +379,9 @@ export function DefinitionsClient({
 
       {/* Scrollable body */}
       <div className="flex-1 overflow-y-auto nexus-scroll px-4 py-4 flex flex-col gap-6 min-h-0">
+        {/* Subtitle — DM Sans Regular 14px text-primary */}
         <p
-          className="font-body text-[length:var(--sm)] text-primary leading-normal flex-shrink-0"
+          className="font-body text-[14px] text-primary leading-normal flex-shrink-0"
           style={{ fontVariationSettings: '"opsz" 14' }}
         >
           Words and phrases defined by your squad.
@@ -382,7 +393,7 @@ export function DefinitionsClient({
               NO DEFINITIONS YET
             </p>
             <p
-              className="font-body text-[length:var(--sm)] text-muted text-center"
+              className="font-body text-[14px] text-muted text-center"
               style={{ fontVariationSettings: '"opsz" 14' }}
             >
               Create the first squad definition.
@@ -391,7 +402,7 @@ export function DefinitionsClient({
         ) : (
           <div className="flex flex-col gap-4 flex-shrink-0">
             {definitions.map((def) => {
-              const aliases  = def.word.split(',').map((w) => w.trim()).filter(Boolean).join(', ')
+              const aliases   = def.word.split(',').map((w) => w.trim()).filter(Boolean).join(', ')
               const isCreator = def.creator_id === currentUserId
               return (
                 <button
@@ -401,22 +412,25 @@ export function DefinitionsClient({
                   className="w-full text-left bg-[rgba(17,17,17,0.5)] border border-[#111111] rounded-[8px] p-4 flex flex-col gap-4 active:opacity-80 transition-opacity disabled:active:opacity-100"
                 >
                   <div className="flex flex-col gap-2">
+                    {/* Word — DM Sans Bold 16px */}
                     <p
-                      className="font-body font-bold text-[length:var(--md)] text-primary leading-none"
+                      className="font-body font-bold text-[16px] text-primary leading-none"
                       style={{ fontVariationSettings: '"opsz" 14' }}
                     >
                       {aliases}
                     </p>
+                    {/* Definition — DM Sans Regular 14px text-secondary */}
                     <p
-                      className="font-body text-[length:var(--sm)] text-secondary leading-normal line-clamp-3 overflow-hidden"
+                      className="font-body text-[14px] text-secondary leading-normal line-clamp-3 overflow-hidden"
                       style={{ fontVariationSettings: '"opsz" 14' }}
                     >
                       {def.definition}
                     </p>
                   </div>
+                  {/* Created by — DM Sans Regular 11px text-tertiary */}
                   {def.creator_username && (
                     <p
-                      className="font-body text-[length:var(--xxs)] text-tertiary leading-none"
+                      className="font-body text-[11px] text-tertiary leading-none"
                       style={{ fontVariationSettings: '"opsz" 14' }}
                     >
                       Created by : {def.creator_username}
@@ -436,10 +450,10 @@ export function DefinitionsClient({
       >
         <button
           onClick={() => setShowCreate(true)}
-          className="w-full h-12 bg-purple flex items-center justify-center gap-1 active:opacity-80 transition-opacity"
+          className="w-full h-12 bg-purple overflow-hidden flex items-center justify-center gap-1 active:opacity-80 transition-opacity"
         >
           <PlusBox style={{ width: 16, height: 16, color: 'var(--color-primary)' }} aria-hidden="true" />
-          <span className="font-silkscreen text-[length:var(--sm)] text-primary leading-none">
+          <span className="font-silkscreen text-[14px] text-primary leading-none whitespace-nowrap">
             Add a squad definition
           </span>
         </button>
