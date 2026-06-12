@@ -537,8 +537,11 @@ export function MessageBubble({
                   </div>
                   {activeDefinition.creator_username && (
                     <p
-                      className="font-body text-[11px] text-tertiary leading-none"
-                      style={{ fontVariationSettings: '"opsz" 14' }}
+                      className="font-body text-[11px] leading-none"
+                      style={{
+                        color: activeDefinition.creator_id === currentUserId ? 'var(--color-purple)' : 'var(--color-tertiary)',
+                        fontVariationSettings: '"opsz" 14',
+                      }}
                     >
                       Created by : {activeDefinition.creator_username}
                     </p>
