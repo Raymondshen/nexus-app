@@ -984,6 +984,19 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
         )}
       </AnimatePresence>
 
+      {/* File input outside any transformed container — iOS Safari drops .click() inside transforms */}
+      <input
+        ref={crewImageInputRef}
+        type="file"
+        accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif"
+        style={{ position: 'fixed', top: -1, left: -1, width: 1, height: 1, opacity: 0, pointerEvents: 'none' }}
+        onChange={(e) => {
+          const f = e.target.files?.[0]
+          if (f) setCrewImageFile(f)
+          e.target.value = ''
+        }}
+      />
+
       <CrewImageUploadModal
         file={crewImageFile}
         crewId={crewId}
