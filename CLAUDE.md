@@ -35,6 +35,7 @@ app_invites    id, code (text unique), inviter_id (uuid → profiles), used (boo
 reserved_users id, email (text unique), username, class (text nullable), first_name (text nullable), last_name (text nullable), created_at, converted (bool default false)
 announcements  id, text (1–500 chars), active (bool default true), created_at
 polls          id, message_id (uuid → messages nullable), crew_id, creator_id, question (text 1–200 chars), options (jsonb string array), votes (jsonb default '{}' — `{ "0": ["userId",...] }`), expires_at (timestamptz), closed_at (timestamptz nullable), created_at
+squad_definitions  id, crew_id, creator_id, word (text 1–100 chars — stores comma-separated aliases, e.g. "abg, ABG"), definition (text 1–500 chars), created_at — UNIQUE INDEX on (crew_id, lower(word))
 ```
 
 ### DM Channels
@@ -649,6 +650,48 @@ Polls are a message type that lets any crew member create a question with up to 
 
 **Poll expiry duration options**: 5, 10, 15, 20 minutes (segmented picker in PollCreatorSheet). `expires_at` is a timestamptz; the server-side RPC stores it as provided and enforces no edits after creation.
 
+### Squad Glossary — `/chat/[crewId]/definitions`
+Crew members can define squad-specific words/phrases. Defined words are highlighted blue in chat messages; tapping a highlight shows the definition in a bottom sheet.
+
+**Data model**: `squad_definitions` table. The `word` column stores comma-separated aliases (e.g. `"abg, ABG"`) in a single text field — no separate aliases column needed. Uniqueness is enforced by a separate expression index `squad_definitions_crew_word_uq ON (crew_id, lower(word))` (PostgreSQL does not allow expression-based unique constraints inline in `CREATE TABLE`).
+
+**Page** (`src/app/(app)/chat/[crewId]/definitions/`):
+- `page.tsx` — server component; auth + membership check; fetches initial definitions; renders `<DefinitionsClient>`
+- `DefinitionsClient.tsx` — follows `FriendsClient` pattern: `<SlidePage>` wrapper with inline `BackButton` (calls `useSlideBack()` from inside the SlidePage context). Realtime subscription on channel `squad-defs:{crewId}` handles INSERT (dedup by id) + DELETE.
+- `actions.ts` — `createDefinitionAction(crewId, word, definition)` + `deleteDefinitionAction(definitionId)`; both use server-side auth
+- Aliases are displayed with `·` separator: `def.word.split(',').map(w => w.trim()).filter(Boolean).join(' · ')`
+- Creator's DELETE button visible only when `def.creator_id === currentUserId`
+
+**`CreateDefinitionSheet`** (inline in `DefinitionsClient.tsx`):
+- Bottom sheet (spring 320/32, z-[60]); fields: WORD(S) input (maxLength 100) with hint "Comma-separate multiple aliases, e.g. 'abg, ABG'", definition textarea (maxLength 500), SAVE DEFINITION + CANCEL buttons
+
+**`FloatingBackButton`** (`src/components/chat/FloatingBackButton.tsx`):
+- Accepts a required `crewId: string` prop (used by the chat page)
+- Renders two side-by-side pill buttons in an `absolute left-4 z-[60] flex items-center gap-2` container:
+  1. **Back pill** — crew image + back chevron (existing behavior)
+  2. **Glossary pill** — `Braces` icon (24×24 purple) navigates to `/chat/${crewId}/definitions`
+- Both buttons have `pointer-events-auto`; container has `pointer-events-none`
+
+**`MessageList`** word highlighting:
+- Fetches `squad_definitions` for the crew on mount; then fetches creator profiles in a second `.in()` query to resolve `creator_username`. Result stored as `SquadDefinitionWithCreator[]`.
+- Realtime subscription on channel `ml-defs:{crewId}` — INSERT handler resolves `creator_username` from `profilesRef.current` first (no extra round-trip); falls back to a direct DB fetch if creator isn't in member profiles.
+- Passes `definitions` prop to each `<MessageBubble>`
+
+**`MessageBubble`** word rendering:
+- `parseAliases(word: string): string[]` — splits by comma, trims, filters empty
+- `renderWithDefinitions(text, definitions)`:
+  - Expands each `SquadDefinitionWithCreator` into `(alias, def)` pairs via `parseAliases`
+  - Sorts pairs by alias length descending (prevents short alias shadowing a longer one in the same message)
+  - Builds a single combined regex with `\b` word boundaries + `gi` flag
+  - On match: renders a blue `<span>` (`text-[#60a5fa] cursor-pointer`) with `onClick` that calls `setActiveDefinition`
+- Used only for `message_type === 'text'` messages when `definitions.length > 0`
+
+**Definition tap sheet** (portal on `document.body`, z-[80]):
+- Shows aliases joined with `·` in purple Silkscreen 18px
+- Shows definition text in DM Sans 15px secondary
+- Shows `by @{creator_username}` in Silkscreen 8px muted (when `creator_username` is present)
+- CLOSE button
+
 ### Pixel Sprites
 - Component: `src/components/game/PixelSprite.tsx`
 - Sprites: `public/sprites/{spriteId}/{direction}.png` — 8 directions: south, south-east, east, north-east, north, north-west, west, south-west
@@ -732,6 +775,7 @@ Always use `createServiceClient()` inside cache functions (service role, no cook
 - `20240103000020_name_fields.sql` — adds `first_name text` and `last_name text` (both nullable) to `profiles` and `reserved_users`. Applied 2026-06-11.
 - `20240103000021_profile_status.sql` — adds `profiles.status text` (nullable, max 100 chars via check constraint). Applied 2026-06-11.
 - `20240103000022_polls.sql` — drops and recreates `messages_message_type_check` to include `'poll'`; creates `polls` table with RLS (crew members SELECT only; writes via SECURITY DEFINER RPCs); adds `polls` to `supabase_realtime` publication; creates `create_poll`, `vote_on_poll`, `close_poll` RPCs. Applied 2026-06-11.
+- `20240103000023_squad_definitions.sql` — creates `squad_definitions` table; RLS: crew members SELECT + INSERT (creator_id = auth.uid()), creator DELETE; expression index `squad_definitions_crew_word_uq ON (crew_id, lower(word))` for case-insensitive uniqueness per crew; adds `squad_definitions` to `supabase_realtime` publication. Applied 2026-06-11.
 
 ### Manual SQL applied directly (no migration file)
 ```sql
@@ -915,6 +959,7 @@ Note: next/font variable for Silkscreen is `--font-silk` (not `--font-silkscreen
   | Friends — remove friend | `UserMinus` | `pixelarticons/react/UserMinus` | 16×16 |
   | DMOverlayBack — back chevron | `ChevronLeft` | `pixelarticons/react/ChevronLeft` | 24×24, `color: var(--color-tertiary)` |
   | Profile — back chevron | `ChevronLeft` | `pixelarticons/react/ChevronLeft` | 24×24, `color: var(--color-tertiary)` |
+  | FloatingBackButton — squad glossary | `Braces` | `pixelarticons/react/Braces` | 24×24, `color: var(--color-purple)` |
 - **Do not use lucide-react** for chat or home UI icons — lucide-react is only used for `X` (close) in modals/sheets
 
 Framer Motion for all animations. Scanline overlay on game screens for RotMG feel.
