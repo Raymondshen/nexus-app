@@ -79,7 +79,7 @@ function StatusTicker({ status }: { status: string }) {
     setAnimPx(iw * (n / 2))
   }, [status])
 
-  const duration = Math.max(6, status.length * 0.28)
+  const duration = Math.max(11, status.length * 0.28 + 5)
 
   return (
     <div ref={containerRef} className="overflow-hidden">
