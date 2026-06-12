@@ -514,30 +514,39 @@ export function MessageBubble({
                 animate={{ y: 0 }}
                 exit={{ y: '100%' }}
                 transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-                className="fixed bottom-0 left-0 right-0 z-[80] bg-black border-t border-border flex flex-col gap-4 px-4 pt-5"
-                style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 24px)' }}
+                className="fixed bottom-0 left-0 right-0 z-[80] bg-black border-t border-border flex flex-col px-4 pt-6"
+                style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 16px)' }}
                 onClick={(e) => e.stopPropagation()}
               >
-                <div className="flex flex-col gap-1">
-                  <p className="font-pixel text-[8px] text-tertiary leading-none">SQUAD DEFINITION</p>
-                  <p className="font-silkscreen text-[18px] text-purple leading-tight">
-                    {parseAliases(activeDefinition.word).join(' · ')}
-                  </p>
+                {/* Content — matches Figma 130:1287 */}
+                <div className="flex flex-col gap-4 w-full">
+                  {/* Word/aliases + definition */}
+                  <div className="flex flex-col gap-2">
+                    <p
+                      className="font-body font-bold text-[16px] leading-none w-full"
+                      style={{ color: '#60a5fa', fontVariationSettings: '"opsz" 14' }}
+                    >
+                      {parseAliases(activeDefinition.word).join(', ')}
+                    </p>
+                    <p
+                      className="font-body text-[14px] text-secondary leading-normal w-full"
+                      style={{ fontVariationSettings: '"opsz" 14' }}
+                    >
+                      {activeDefinition.definition}
+                    </p>
+                  </div>
+                  {activeDefinition.creator_username && (
+                    <p
+                      className="font-body text-[11px] text-tertiary leading-none"
+                      style={{ fontVariationSettings: '"opsz" 14' }}
+                    >
+                      Created by : {activeDefinition.creator_username}
+                    </p>
+                  )}
                 </div>
-                <p
-                  className="font-body text-[15px] text-secondary leading-normal"
-                  style={{ fontVariationSettings: '"opsz" 14' }}
-                >
-                  {activeDefinition.definition}
-                </p>
-                {activeDefinition.creator_username && (
-                  <p className="font-silkscreen text-[8px] text-muted leading-none">
-                    by @{activeDefinition.creator_username}
-                  </p>
-                )}
                 <button
                   onClick={() => setActiveDefinition(null)}
-                  className="h-12 w-full font-pixel text-[8px] text-tertiary flex items-center justify-center transition-colors active:text-primary"
+                  className="h-12 w-full font-pixel text-[8px] text-tertiary flex items-center justify-center transition-colors active:text-primary mt-4"
                 >
                   CLOSE
                 </button>

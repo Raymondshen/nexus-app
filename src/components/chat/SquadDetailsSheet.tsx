@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
+import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { isSupabaseStorage, resolveAvatarUrl } from '@/components/ui/Avatar'
 import { XP_PER_LEVEL } from '@/lib/game/xp'
@@ -14,6 +15,7 @@ import { Crown } from 'pixelarticons/react/Crown'
 import { Copy } from 'pixelarticons/react/Copy'
 import { Check } from 'pixelarticons/react/Check'
 import { UserMinus } from 'pixelarticons/react/UserMinus'
+import { Braces } from 'pixelarticons/react/Braces'
 
 const CLASS_LABELS: Record<string, string> = {
   berserker: 'Berserker', sage: 'Sage', ghost: 'Ghost', hype_man: 'Hype Man',
@@ -29,6 +31,7 @@ export type MiniMember = {
 }
 
 interface SquadDetailsSheetProps {
+  crewId:          string
   crewName:        string
   memberCount:     number
   crewImageUrl:    string | null
@@ -64,7 +67,7 @@ function MemberListRow({
 
   return (
     <div
-      className="flex items-center gap-3 active:bg-surface/50 transition-colors"
+      className="flex items-center gap-3 active:opacity-70 transition-opacity"
       onClick={onTap}
       style={onTap ? { cursor: 'pointer' } : undefined}
     >
@@ -96,7 +99,7 @@ function MemberListRow({
       {/* Name + class · msg count */}
       <div className="flex flex-col gap-1 justify-center min-w-0 flex-1">
         <div className="flex items-center gap-1">
-          <p className="font-body font-bold text-[16px] text-white truncate leading-none">{profile.username}</p>
+          <p className="font-body font-bold text-[16px] text-white truncate leading-none" style={{ fontVariationSettings: '"opsz" 14' }}>{profile.username}</p>
           {isCreator && (
             <Crown style={{ width: 12, height: 12, color: '#f59e0b' }} aria-hidden="true" />
           )}
@@ -121,19 +124,20 @@ function MemberListRow({
 }
 
 export function SquadDetailsSheet({
-  crewName, memberCount, crewImageUrl, members, onlineUserIds,
+  crewId, crewName, memberCount, crewImageUrl, members, onlineUserIds,
   crewXP, crewLevel, xpProgress, totalMessages, inviteCode, creatorId,
   currentUserId, memberMsgCounts, loadingCounts,
   onUploadPhoto, onNotifPress, onSave, onTapMember, onRemoveMember, onClose,
 }: SquadDetailsSheetProps) {
-  const [copied,       setCopied]       = useState(false)
+  const router = useRouter()
+  const [copied,        setCopied]        = useState(false)
   const [isEditingName, setIsEditingName] = useState(false)
   const [editNameValue, setEditNameValue] = useState('')
-  const memberListRef  = useRef<HTMLDivElement>(null)
+  const memberListRef    = useRef<HTMLDivElement>(null)
   const editNameInputRef = useRef<HTMLInputElement>(null)
-  const pullToCloseRef = useRef({ startY: 0, atTop: false })
-  const crewNameRef    = useRef(crewName)
-  crewNameRef.current  = crewName
+  const pullToCloseRef   = useRef({ startY: 0, atTop: false })
+  const crewNameRef      = useRef(crewName)
+  crewNameRef.current    = crewName
 
   // Pull-to-close: drag down from scroll-top dismisses the sheet
   useEffect(() => {
@@ -207,13 +211,15 @@ export function SquadDetailsSheet({
         onPanEnd={handlePanelPanEnd}
       >
         {/* ── Fixed header ── */}
-        <div className="flex-shrink-0 flex flex-col gap-4 px-4 pt-[var(--space-7)]">
-          {/* Content block: title row + avatar/XP bar, with 56px gap */}
-          <div className="flex flex-col gap-14">
+        <div className="flex-shrink-0 flex flex-col gap-4 px-4 pt-6">
+
+          {/* group_header — 200px tall, title row at top, avatar+XP at bottom */}
+          <div className="flex flex-col justify-between" style={{ height: 200 }}>
 
             {/* Title row: crew image + name/count | action buttons */}
             <div className="flex items-start justify-between">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                {/* 32×32 crew image — creator taps to upload */}
                 <button
                   onClick={currentUserId === creatorId ? onUploadPhoto : undefined}
                   className="relative flex-shrink-0 w-8 h-8 overflow-hidden"
@@ -229,7 +235,8 @@ export function SquadDetailsSheet({
                   )}
                 </button>
 
-                <div className="flex flex-col min-w-0">
+                {/* Name + member count */}
+                <div className="flex flex-col gap-1 min-w-0">
                   {isEditingName ? (
                     <input
                       ref={editNameInputRef}
@@ -241,21 +248,21 @@ export function SquadDetailsSheet({
                       }}
                       onBlur={confirmRename}
                       maxLength={30}
-                      className="font-silkscreen text-[length:var(--text-md)] text-purple bg-transparent border-b border-purple focus:outline-none leading-none w-full py-1 uppercase"
+                      className="font-silkscreen text-[16px] text-purple bg-transparent border-b border-purple focus:outline-none leading-none w-full py-1 uppercase"
                       aria-label="Edit squad name"
                     />
                   ) : (
-                    <p className="font-silkscreen text-[length:var(--text-md)] text-purple leading-none truncate">
-                      {crewName.toUpperCase()}
+                    <p className="font-silkscreen text-[16px] text-purple leading-none truncate uppercase">
+                      {crewName}
                     </p>
                   )}
-                  <p className="font-silkscreen text-[8px] text-tertiary leading-none mt-1">
+                  <p className="font-silkscreen text-[8px] text-tertiary leading-none">
                     {memberCount} {memberCount === 1 ? 'member' : 'members'}
                   </p>
                 </div>
               </div>
 
-              {/* Action buttons */}
+              {/* Action buttons — Edit (creator) | Braces | Bell | Collapse */}
               <div className="flex items-center gap-4 flex-shrink-0">
                 {currentUserId === creatorId && (
                   <button
@@ -267,6 +274,14 @@ export function SquadDetailsSheet({
                     <MagicEdit style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
                   </button>
                 )}
+                <button
+                  onClick={() => { onClose(); router.push(`/chat/${crewId}/definitions`) }}
+                  className="flex items-center justify-center"
+                  style={{ width: 24, height: 24 }}
+                  aria-label="Squad glossary"
+                >
+                  <Braces style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+                </button>
                 <button
                   onClick={onNotifPress}
                   className="flex items-center justify-center"
@@ -289,7 +304,7 @@ export function SquadDetailsSheet({
               </div>
             </div>
 
-            {/* Avatar list + XP bar */}
+            {/* Avatar list + XP bar (pinned to bottom of 200px block) */}
             <div className="flex flex-col gap-2">
               <div className="flex items-center gap-3">
                 {members.slice(0, 8).map((m) => {
@@ -315,9 +330,10 @@ export function SquadDetailsSheet({
                 })}
               </div>
 
-              <div className="h-6 flex flex-col gap-2 justify-center w-full">
-                <div className="flex items-center gap-2 w-full font-silkscreen text-tertiary">
-                  <p className="flex-1 min-w-0 leading-[0] text-[0px]">
+              {/* XP stats + bar */}
+              <div className="flex flex-col gap-2 w-full">
+                <div className="flex items-center w-full">
+                  <p className="flex-1 min-w-0 leading-[0] text-[0px] font-silkscreen">
                     <span className="text-[8px] leading-none text-[#fafafa]">Level {crewLevel}</span>
                     <span className="text-[8px] leading-none text-tertiary">
                       {` · ${crewXP % XP_PER_LEVEL} / ${XP_PER_LEVEL}XP`}
@@ -328,7 +344,7 @@ export function SquadDetailsSheet({
                       </span>
                     )}
                   </p>
-                  <p className="text-[8px] leading-none whitespace-nowrap text-tertiary">Next Boss</p>
+                  <p className="font-silkscreen text-[8px] leading-none whitespace-nowrap text-tertiary">Next Boss</p>
                 </div>
                 <div className="bg-surface h-1 overflow-hidden w-full relative">
                   <motion.div
@@ -343,7 +359,7 @@ export function SquadDetailsSheet({
 
           {/* Invite code block — group chats only */}
           {inviteCode && (
-            <div className="flex items-center justify-between bg-[rgba(168,85,247,0.1)] border border-purple p-4 overflow-hidden">
+            <div className="flex items-center justify-between bg-[rgba(168,85,247,0.1)] border border-purple p-3 overflow-hidden">
               <div className="flex flex-col gap-1">
                 <p className="font-silkscreen text-[8px] text-secondary leading-none tracking-[0.2px]">
                   Invite your squad
@@ -381,7 +397,7 @@ export function SquadDetailsSheet({
 
         {/* ── Scrollable member list ── */}
         <div ref={memberListRef} className="flex-1 overflow-y-auto nexus-scroll px-4 min-h-0 mt-4">
-          <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-4">
             {members.flatMap((m, i) => {
               const row = (
                 <MemberListRow

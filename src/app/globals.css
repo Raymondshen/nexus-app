@@ -14,6 +14,7 @@
   --color-border:    #27272a;
   --color-surface:   #111111;
   --color-purple:    #a855f7;
+  --color-blue:      #60a5fa;
   --color-paper-150: #b3b3b3;
   --color-paper-200: #9a9a9a;
   --color-border-hover: #3f3f46;
@@ -22,6 +23,7 @@
   --space-1:  0px;
   --space-2:  4px;
   --space-3:  8px;
+  --space-4:  12px;
   --space-5:  16px;
   --space-6:  20px;
   --space-7:  24px;
@@ -37,6 +39,40 @@
   --text-md:   16px;
   --text-lg:   18px;
   --text-xl:   20px;
+  --text-xxl:  24px;
+
+  /* ── Figma variable aliases ──────────────────────────────────────────────
+     The Figma file references these names directly in generated code.
+     They map to the canonical project tokens above.
+     ──────────────────────────────────────────────────────────────────────── */
+  /* Colors */
+  --background: #000000;
+  --border:     var(--color-border);
+  --primary:    var(--color-primary);
+  --secondary:  var(--color-secondary);
+  --tertiary:   var(--color-tertiary);
+  --surface:    var(--color-surface);
+  --purple:     var(--color-purple);
+  --blue:       var(--color-blue);
+  --red:        #ef4444;
+  --green:      #22c55e;
+  /* Spacing (--xN) */
+  --x1: 2px;
+  --x2: var(--space-2);   /* 4px  */
+  --x3: var(--space-3);   /* 8px  */
+  --x4: var(--space-4);   /* 12px */
+  --x5: var(--space-5);   /* 16px */
+  --x6: var(--space-6);   /* 20px */
+  --x7: var(--space-7);   /* 24px */
+  /* Font sizes */
+  --mini: var(--text-mini);  /* 8px  */
+  --xxs:  var(--text-xxs);   /* 11px */
+  --xs:   var(--text-xs);    /* 12px */
+  --sm:   var(--text-sm);    /* 14px */
+  --md:   var(--text-md);    /* 16px */
+  --lg:   var(--text-lg);    /* 18px */
+  --xl:   var(--text-xl);    /* 20px */
+  --xxl:  var(--text-xxl);   /* 24px */
 }
 
 @theme {
@@ -55,6 +91,7 @@
   --color-border:    #27272a;
   --color-surface:   #111111;
   --color-purple:    #a855f7;
+  --color-blue:      #60a5fa;
   --color-paper-150: #b3b3b3;
   --color-paper-200: #9a9a9a;
   --color-border-hover: #3f3f46;

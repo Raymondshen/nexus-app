@@ -683,6 +683,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       <AnimatePresence>
         {isExpanded && !isDM && (
           <SquadDetailsSheet
+            crewId={crewId}
             crewName={liveCrewName}
             memberCount={memberCount}
             crewImageUrl={crewImageUrl}
