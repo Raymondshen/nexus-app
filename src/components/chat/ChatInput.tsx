@@ -824,13 +824,13 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
             >
               <Chart style={{ width: 16, height: 16 }} aria-hidden="true" />
             </button>
-            <div className="relative flex-1 min-w-0 overflow-hidden">
+            <div className="relative flex-1 min-w-0 overflow-hidden self-stretch">
               {/* Overlay renders @mention highlights behind the transparent textarea */}
               <div
                 ref={overlayRef}
                 aria-hidden="true"
-                className="pointer-events-none absolute inset-0 font-body text-[14px] leading-normal py-3 overflow-hidden"
-                style={{ fontVariationSettings: '"opsz" 14', whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: 'var(--color-primary)' }}
+                className="pointer-events-none absolute inset-0 font-body text-[14px] leading-normal overflow-hidden"
+                style={{ paddingTop: 14, paddingBottom: 14, fontVariationSettings: '"opsz" 14', whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: 'var(--color-primary)' }}
               >
                 {renderHighlightedInput(text)}
               </div>
@@ -843,8 +843,8 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                 placeholder={inRaid ? 'Attack The Void...' : 'Send a message...'}
                 rows={1}
                 onFocus={() => setIsFocused(true)}
-                className="relative w-full bg-transparent font-body text-[14px] placeholder:text-muted resize-none focus:outline-none leading-normal py-3"
-                style={{ maxHeight: 120, fontVariationSettings: '"opsz" 14', color: 'transparent', caretColor: 'var(--color-primary)' }}
+                className="relative w-full h-full bg-transparent font-body text-[14px] placeholder:text-muted resize-none focus:outline-none leading-normal"
+                style={{ paddingTop: 14, paddingBottom: 14, maxHeight: 120, fontVariationSettings: '"opsz" 14', color: 'transparent', caretColor: 'var(--color-primary)' }}
               />
             </div>
             {(() => {
