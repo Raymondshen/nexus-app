@@ -82,7 +82,11 @@ function StatusTicker({ status }: { status: string }) {
   const duration = Math.max(11, status.length * 0.28 + 5)
 
   return (
-    <div ref={containerRef} className="overflow-hidden">
+    <div
+      ref={containerRef}
+      className="overflow-hidden border-t border-b border-border px-2"
+      style={{ paddingTop: 7, paddingBottom: 7 }}
+    >
       <motion.div
         key={status}
         className="flex"
@@ -94,10 +98,11 @@ function StatusTicker({ status }: { status: string }) {
           <span
             key={i}
             ref={i === 0 ? itemRef : undefined}
-            className="inline-flex items-center gap-1 pr-6 flex-shrink-0 whitespace-nowrap"
+            className="inline-flex items-center flex-shrink-0 whitespace-nowrap pr-2"
+            style={{ gap: 4 }}
           >
             <Message style={{ width: 8, height: 8, color: 'var(--color-tertiary)' }} aria-hidden="true" />
-            <span className="font-silkscreen text-[8px] text-tertiary leading-none">
+            <span className="font-silkscreen text-[length:var(--text-mini)] text-tertiary leading-none">
               &ldquo;{status}&rdquo;
             </span>
           </span>
@@ -119,7 +124,7 @@ function MemberListRow({
   const classLabel = profile.avatar_class ? (CLASS_LABELS[profile.avatar_class] ?? profile.avatar_class) : 'Unknown'
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-[var(--space-3)]">
       <div
         className="flex items-center gap-3 active:opacity-70 transition-opacity"
         onClick={onTap}
@@ -176,11 +181,7 @@ function MemberListRow({
       </div>
 
       {/* Status ticker — only renders when the member has a status */}
-      {profile.status && (
-        <div className="bg-surface rounded-[4px] px-2 py-[7px]">
-          <StatusTicker status={profile.status} />
-        </div>
-      )}
+      {profile.status && <StatusTicker status={profile.status} />}
     </div>
   )
 }
@@ -669,7 +670,7 @@ export function SquadDetailsSheet({
 
         {/* ── Scrollable member list ── */}
         <div ref={memberListRef} className="flex-1 overflow-y-auto nexus-scroll px-4 min-h-0 mt-4">
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-[var(--space-6)]">
             {members.map((m) => (
               <MemberListRow
                 key={m.id}
