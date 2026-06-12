@@ -8,7 +8,7 @@ import { format } from 'date-fns'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useChatStore } from '@/store/chatStore'
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/config'
-import type { MessageWithProfile, AvatarClass, SquadDefinition } from '@/types'
+import type { MessageWithProfile, AvatarClass, SquadDefinitionWithCreator } from '@/types'
 import { PollCard } from '@/components/chat/PollCard'
 
 const CLASS_NAMES: Record<AvatarClass, string> = {
@@ -52,15 +52,15 @@ interface MessageBubbleProps {
   xpOverride?:   number
   coinOverride?:  number
   onAvatarTap?:  (userId: string) => void
-  definitions?:  SquadDefinition[]
+  definitions?:  SquadDefinitionWithCreator[]
 }
 
 // ─── Definition highlight renderer ──────────────────────────────────────────
 
 function renderWithDefinitions(
   content: string,
-  definitions: SquadDefinition[],
-  onTap: (def: SquadDefinition) => void,
+  definitions: SquadDefinitionWithCreator[],
+  onTap: (def: SquadDefinitionWithCreator) => void,
 ): React.ReactNode {
   if (!definitions.length) return content
 
@@ -80,7 +80,7 @@ function renderWithDefinitions(
   while ((match = regex.exec(content)) !== null) {
     if (match.index > lastIndex) parts.push(content.slice(lastIndex, match.index))
     const hit = match[1]
-    const def = sorted.find((d) => d.word.toLowerCase() === hit.toLowerCase())
+    const def = sorted.find((d) => d.word.toLowerCase() === hit.toLowerCase()) as SquadDefinitionWithCreator | undefined
     if (def) {
       parts.push(
         <span
@@ -108,13 +108,13 @@ export function MessageBubble({
   xpOverride,
   coinOverride,
   onAvatarTap,
-  definitions = [],
+  definitions = [] as SquadDefinitionWithCreator[],
 }: MessageBubbleProps) {
   const [sheetOpen,        setSheetOpen]        = useState(false)
   const [copied,           setCopied]           = useState(false)
   const [healFloat,        setHealFloat]        = useState<{ id: number; amount: number } | null>(null)
   const [mounted,          setMounted]          = useState(false)
-  const [activeDefinition, setActiveDefinition] = useState<SquadDefinition | null>(null)
+  const [activeDefinition, setActiveDefinition] = useState<SquadDefinitionWithCreator | null>(null)
 
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hasMoved       = useRef(false)
@@ -516,6 +516,11 @@ export function MessageBubble({
                 >
                   {activeDefinition.definition}
                 </p>
+                {activeDefinition.creator_username && (
+                  <p className="font-silkscreen text-[8px] text-muted leading-none">
+                    by @{activeDefinition.creator_username}
+                  </p>
+                )}
                 <button
                   onClick={() => setActiveDefinition(null)}
                   className="h-12 w-full font-pixel text-[8px] text-tertiary flex items-center justify-center transition-colors active:text-primary"

@@ -15,7 +15,7 @@ import { MessageBubble } from './MessageBubble'
 import { LevelUpBanner } from '@/components/game/LevelUpBanner'
 import { parseBossSpawnRaidId } from '@/lib/game/boss'
 import { parseArtifactDropId, parseLevelUp } from '@/lib/game/artifacts'
-import type { MessageWithProfile, Message, Profile, ActiveRaid, AvatarClass, SquadDefinition } from '@/types'
+import type { MessageWithProfile, Message, Profile, ActiveRaid, AvatarClass, SquadDefinition, SquadDefinitionWithCreator } from '@/types'
 
 const BossCard = dynamic(
   () => import('@/components/game/BossCard').then((m) => m.BossCard),
@@ -130,7 +130,7 @@ export function MessageList({
     } catch { return false }
   })
 
-  const [definitions, setDefinitions] = useState<SquadDefinition[]>([])
+  const [definitions, setDefinitions] = useState<SquadDefinitionWithCreator[]>([])
 
   const scrollRef    = useRef<HTMLDivElement>(null)
   const bottomRef    = useRef<HTMLDivElement>(null)
@@ -341,24 +341,58 @@ export function MessageList({
     const supabase = createClient()
     let cancelled  = false
 
-    supabase
-      .from('squad_definitions')
-      .select('*')
-      .eq('crew_id', crewId)
-      .order('created_at', { ascending: false })
-      .then(({ data }) => {
-        if (!cancelled) setDefinitions((data ?? []) as SquadDefinition[])
-      })
+    async function fetchDefs() {
+      const { data } = await supabase
+        .from('squad_definitions')
+        .select('*')
+        .eq('crew_id', crewId)
+        .order('created_at', { ascending: false })
+      if (cancelled) return
+
+      const defs = (data ?? []) as SquadDefinition[]
+      const creatorIds = [...new Set(defs.map((d) => d.creator_id))]
+      const creatorMap: Record<string, string> = {}
+
+      if (creatorIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, username')
+          .in('id', creatorIds)
+        for (const p of (profiles ?? []) as { id: string; username: string }[]) {
+          creatorMap[p.id] = p.username
+        }
+      }
+
+      if (!cancelled) {
+        setDefinitions(defs.map((d) => ({ ...d, creator_username: creatorMap[d.creator_id] })))
+      }
+    }
+
+    fetchDefs()
 
     const defChannel = supabase
       .channel(`ml-defs:${crewId}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'squad_definitions', filter: `crew_id=eq.${crewId}` },
-        (payload) => {
+        async (payload) => {
           if (payload.eventType === 'INSERT') {
             const incoming = payload.new as SquadDefinition
-            setDefinitions((prev) => prev.some((d) => d.id === incoming.id) ? prev : [incoming, ...prev])
+            // Resolve username from in-memory profiles first; fall back to a DB fetch
+            let creator_username: string | undefined = profilesRef.current[incoming.creator_id]?.username
+            if (!creator_username) {
+              const { data } = await supabase
+                .from('profiles')
+                .select('username')
+                .eq('id', incoming.creator_id)
+                .maybeSingle()
+              creator_username = (data as { username: string } | null)?.username ?? undefined
+            }
+            setDefinitions((prev) =>
+              prev.some((d) => d.id === incoming.id)
+                ? prev
+                : [{ ...incoming, creator_username }, ...prev]
+            )
           } else if (payload.eventType === 'DELETE') {
             const gone = payload.old as { id: string }
             setDefinitions((prev) => prev.filter((d) => d.id !== gone.id))
