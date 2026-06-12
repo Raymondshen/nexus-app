@@ -57,6 +57,10 @@ interface MessageBubbleProps {
 
 // ─── Definition highlight renderer ──────────────────────────────────────────
 
+function parseAliases(word: string): string[] {
+  return word.split(',').map((w) => w.trim()).filter(Boolean)
+}
+
 function renderWithDefinitions(
   content: string,
   definitions: SquadDefinitionWithCreator[],
@@ -64,8 +68,18 @@ function renderWithDefinitions(
 ): React.ReactNode {
   if (!definitions.length) return content
 
-  const sorted  = [...definitions].sort((a, b) => b.word.length - a.word.length)
-  const escaped = sorted.map((d) => d.word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+  // Expand each definition into (alias, def) pairs; sort by alias length desc
+  // so longer aliases are matched before shorter substrings.
+  const pairs: { alias: string; def: SquadDefinitionWithCreator }[] = []
+  for (const def of definitions) {
+    for (const alias of parseAliases(def.word)) {
+      pairs.push({ alias, def })
+    }
+  }
+  if (!pairs.length) return content
+  pairs.sort((a, b) => b.alias.length - a.alias.length)
+
+  const escaped = pairs.map((p) => p.alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
   let regex: RegExp
   try {
     regex = new RegExp(`\\b(${escaped.join('|')})\\b`, 'gi')
@@ -80,13 +94,13 @@ function renderWithDefinitions(
   while ((match = regex.exec(content)) !== null) {
     if (match.index > lastIndex) parts.push(content.slice(lastIndex, match.index))
     const hit = match[1]
-    const def = sorted.find((d) => d.word.toLowerCase() === hit.toLowerCase()) as SquadDefinitionWithCreator | undefined
-    if (def) {
+    const pair = pairs.find((p) => p.alias.toLowerCase() === hit.toLowerCase())
+    if (pair) {
       parts.push(
         <span
-          key={`${def.id}-${match.index}`}
+          key={`${pair.def.id}-${match.index}`}
           style={{ color: '#60a5fa' }}
-          onClick={(e) => { e.stopPropagation(); onTap(def) }}
+          onClick={(e) => { e.stopPropagation(); onTap(pair.def) }}
         >
           {hit}
         </span>
@@ -507,7 +521,7 @@ export function MessageBubble({
                 <div className="flex flex-col gap-1">
                   <p className="font-pixel text-[8px] text-tertiary leading-none">SQUAD DEFINITION</p>
                   <p className="font-silkscreen text-[18px] text-purple leading-tight">
-                    {activeDefinition.word}
+                    {parseAliases(activeDefinition.word).join(' · ')}
                   </p>
                 </div>
                 <p

@@ -14,7 +14,7 @@ export async function createDefinitionAction(
 
   const trimWord = word.trim()
   const trimDef  = definition.trim()
-  if (!trimWord || trimWord.length > 50)  return { error: 'Word must be 1–50 characters.' }
+  if (!trimWord || trimWord.length > 100) return { error: 'Word(s) must be 1–100 characters.' }
   if (!trimDef  || trimDef.length  > 500) return { error: 'Definition must be 1–500 characters.' }
 
   const { data, error } = await supabase

@@ -80,18 +80,21 @@ function CreateDefinitionSheet({
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
             <label className="font-body font-medium text-[12px] text-secondary leading-none" style={{ fontVariationSettings: '"opsz" 14' }}>
-              WORD
+              WORD(S)
             </label>
             <input
               value={word}
               onChange={(e) => setWord(e.target.value)}
-              maxLength={50}
-              placeholder="e.g. no scope"
+              maxLength={100}
+              placeholder="e.g. abg, ABG"
               className="h-[48px] px-3 bg-black border border-border font-body text-[14px] text-primary placeholder:text-muted outline-none focus:border-purple transition-colors"
               style={{ fontVariationSettings: '"opsz" 14' }}
               autoComplete="off"
               autoCapitalize="off"
             />
+            <p className="font-body text-[11px] text-muted leading-none" style={{ fontVariationSettings: '"opsz" 14' }}>
+              Comma-separate multiple aliases, e.g. "abg, ABG"
+            </p>
           </div>
 
           <div className="flex flex-col gap-2">
@@ -239,7 +242,7 @@ export function DefinitionsClient({
               >
                 <div className="flex items-start justify-between gap-3">
                   <p className="font-silkscreen text-[14px] text-purple leading-none">
-                    {def.word}
+                    {def.word.split(',').map((w) => w.trim()).filter(Boolean).join(' · ')}
                   </p>
                   {def.creator_id === currentUserId && (
                     <button
