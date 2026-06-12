@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
 import { useRouter } from 'next/navigation'
@@ -57,26 +57,53 @@ interface SquadDetailsSheetProps {
 }
 
 function StatusTicker({ status }: { status: string }) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const itemRef      = useRef<HTMLSpanElement>(null)
+  const [numCopies, setNumCopies] = useState(6)
+  const [animPx,    setAnimPx]    = useState(0)
+
+  // Measure after each status change so we always fill the full container width.
+  // useLayoutEffect runs before paint → no visible flash on first render.
+  useLayoutEffect(() => {
+    const container = containerRef.current
+    const item      = itemRef.current
+    if (!container || !item) return
+    const cw = container.clientWidth
+    const iw = item.offsetWidth
+    if (iw <= 0) return
+    // Need track ≥ 2× container so ticker fills the visible area.
+    // Keep copy count even so the -half animation is seamless.
+    const halfNeeded = Math.ceil(cw / iw) + 1
+    const n          = Math.max(4, halfNeeded % 2 === 0 ? halfNeeded * 2 : (halfNeeded + 1) * 2)
+    setNumCopies(n)
+    setAnimPx(iw * (n / 2))
+  }, [status])
+
   const duration = Math.max(6, status.length * 0.28)
-  // Each item includes its own trailing gap so 4 copies animate cleanly at -50%
-  const item = (key: number) => (
-    <span key={key} className="inline-flex items-center gap-1 pr-6 flex-shrink-0">
-      <Message style={{ width: 8, height: 8, color: 'var(--color-tertiary)' }} aria-hidden="true" />
-      <span className="font-silkscreen text-[8px] text-tertiary leading-none whitespace-nowrap">
-        &ldquo;{status}&rdquo;
-      </span>
-    </span>
-  )
 
   return (
-    <motion.div
-      className="flex"
-      style={{ width: 'fit-content' }}
-      animate={{ x: ['0%', '-50%'] }}
-      transition={{ duration, repeat: Infinity, ease: 'linear', repeatType: 'loop' }}
-    >
-      {item(0)}{item(1)}{item(2)}{item(3)}
-    </motion.div>
+    <div ref={containerRef} className="overflow-hidden">
+      <motion.div
+        key={status}
+        className="flex"
+        initial={{ x: 0 }}
+        animate={{ x: animPx > 0 ? [0, -animPx] : 0 }}
+        transition={{ duration, repeat: Infinity, ease: 'linear', repeatType: 'loop' }}
+      >
+        {Array.from({ length: numCopies }, (_, i) => (
+          <span
+            key={i}
+            ref={i === 0 ? itemRef : undefined}
+            className="inline-flex items-center gap-1 pr-6 flex-shrink-0 whitespace-nowrap"
+          >
+            <Message style={{ width: 8, height: 8, color: 'var(--color-tertiary)' }} aria-hidden="true" />
+            <span className="font-silkscreen text-[8px] text-tertiary leading-none">
+              &ldquo;{status}&rdquo;
+            </span>
+          </span>
+        ))}
+      </motion.div>
+    </div>
   )
 }
 
@@ -150,7 +177,7 @@ function MemberListRow({
 
       {/* Status ticker — only renders when the member has a status */}
       {profile.status && (
-        <div className="overflow-hidden bg-surface rounded-[4px] px-2 py-[7px]">
+        <div className="bg-surface rounded-[4px] px-2 py-[7px]">
           <StatusTicker status={profile.status} />
         </div>
       )}
@@ -643,27 +670,22 @@ export function SquadDetailsSheet({
         {/* ── Scrollable member list ── */}
         <div ref={memberListRef} className="flex-1 overflow-y-auto nexus-scroll px-4 min-h-0 mt-4">
           <div className="flex flex-col gap-4">
-            {members.flatMap((m, i) => {
-              const row = (
-                <MemberListRow
-                  key={m.id}
-                  profile={m}
-                  msgCount={memberMsgCounts.get(m.id) ?? 0}
-                  loading={loadingCounts}
-                  isOnline={onlineUserIds.has(m.id)}
-                  isCreator={m.id === creatorId}
-                  onTap={() => onTapMember(m.id)}
-                  onRemove={
-                    currentUserId === creatorId && m.id !== currentUserId && !!inviteCode && onRemoveMember
-                      ? () => onRemoveMember(m)
-                      : undefined
-                  }
-                />
-              )
-              return i < members.length - 1
-                ? [row, <div key={`div-${i}`} className="h-px w-full bg-border" />]
-                : [row]
-            })}
+            {members.map((m) => (
+              <MemberListRow
+                key={m.id}
+                profile={m}
+                msgCount={memberMsgCounts.get(m.id) ?? 0}
+                loading={loadingCounts}
+                isOnline={onlineUserIds.has(m.id)}
+                isCreator={m.id === creatorId}
+                onTap={() => onTapMember(m.id)}
+                onRemove={
+                  currentUserId === creatorId && m.id !== currentUserId && !!inviteCode && onRemoveMember
+                    ? () => onRemoveMember(m)
+                    : undefined
+                }
+              />
+            ))}
           </div>
         </div>
 
