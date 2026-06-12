@@ -3,7 +3,13 @@
 import { useEffect, useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 
-const STORAGE_KEY   = 'nexus_install_prompted'
+// Written to localStorage only when the app is actually installed (appinstalled event).
+// Checked on every mount so we never prompt someone who already installed.
+const INSTALLED_KEY = 'nexus_install_prompted'
+// Written to sessionStorage on dismiss / after Chrome dialog resolves.
+// Cleared automatically when the browser tab/session ends — so the prompt
+// reappears on every fresh browser launch.
+const SESSION_KEY   = 'nexus_install_shown'
 const FIRST_MSG_KEY = 'nexus_first_message'
 const DELAY_MS      = 10_000
 
@@ -34,8 +40,10 @@ export function InstallPrompt() {
   const promptRef = useRef<any>(null)
 
   useEffect(() => {
-    // Never show if previously dismissed or already running as installed PWA
-    if (localStorage.getItem(STORAGE_KEY)) return
+    // Never show if app was actually installed (confirmed via appinstalled event)
+    if (localStorage.getItem(INSTALLED_KEY)) return
+    // Never show more than once per browser session (dismissed earlier this session)
+    if (sessionStorage.getItem(SESSION_KEY)) return
     if (
       window.matchMedia('(display-mode: standalone)').matches ||
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -55,7 +63,7 @@ export function InstallPrompt() {
       if (!firstMsg) return
       const remaining = Math.max(0, DELAY_MS - (Date.now() - parseInt(firstMsg, 10)))
       setTimeout(() => {
-        if (localStorage.getItem(STORAGE_KEY)) return
+        if (sessionStorage.getItem(SESSION_KEY)) return
         setPlatform(plat)
         setVisible(true)
       }, remaining)
@@ -73,7 +81,7 @@ export function InstallPrompt() {
     // Browser fires this when the user installs via the OS-level dialog
     const handleInstalled = () => {
       setVisible(false)
-      localStorage.setItem(STORAGE_KEY, '1')
+      localStorage.setItem(INSTALLED_KEY, '1')  // permanent: app is installed
       promptRef.current = null
       _earlyPrompt      = null
     }
@@ -100,7 +108,7 @@ export function InstallPrompt() {
 
   function dismiss() {
     setVisible(false)
-    localStorage.setItem(STORAGE_KEY, '1')
+    sessionStorage.setItem(SESSION_KEY, '1')  // suppress only for this session
   }
 
   async function handleInstall() {
@@ -109,7 +117,8 @@ export function InstallPrompt() {
     const { outcome } = await promptRef.current.userChoice
     promptRef.current = null
     _earlyPrompt      = null
-    if (outcome === 'accepted') localStorage.setItem(STORAGE_KEY, '1')
+    sessionStorage.setItem(SESSION_KEY, '1')           // suppress for rest of session
+    if (outcome === 'accepted') localStorage.setItem(INSTALLED_KEY, '1')  // permanent
     setVisible(false)
   }
 
