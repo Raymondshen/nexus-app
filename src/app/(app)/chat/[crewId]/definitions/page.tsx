@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { DefinitionsClient } from './DefinitionsClient'
-import type { SquadDefinition } from '@/types'
+import type { SquadDefinition, SquadDefinitionWithCreator } from '@/types'
 
 interface DefinitionsPageProps {
   params: Promise<{ crewId: string }>
@@ -30,11 +30,29 @@ export default async function DefinitionsPage({ params }: DefinitionsPageProps) 
 
   if (!memberResult.data) redirect('/home')
 
+  const defs = (defsResult.data ?? []) as SquadDefinition[]
+
+  // Resolve creator usernames in a single batch query
+  const creatorIds = [...new Set([session.user.id, ...defs.map((d) => d.creator_id)])]
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('id, username')
+    .in('id', creatorIds)
+
+  const usernameMap = Object.fromEntries((profiles ?? []).map((p) => [p.id as string, p.username as string]))
+  const currentUsername = usernameMap[session.user.id] ?? ''
+
+  const enrichedDefs: SquadDefinitionWithCreator[] = defs.map((d) => ({
+    ...d,
+    creator_username: usernameMap[d.creator_id],
+  }))
+
   return (
     <DefinitionsClient
       crewId={crewId}
       currentUserId={session.user.id}
-      initialDefinitions={(defsResult.data ?? []) as SquadDefinition[]}
+      currentUsername={currentUsername}
+      initialDefinitions={enrichedDefs}
     />
   )
 }

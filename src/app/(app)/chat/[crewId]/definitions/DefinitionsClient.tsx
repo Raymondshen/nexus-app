@@ -4,9 +4,10 @@ import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { SlidePage, useSlideBack } from '@/components/ui/SlidePage'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
+import { PlusBox } from 'pixelarticons/react/PlusBox'
 import { createClient } from '@/lib/supabase/client'
-import { createDefinitionAction, deleteDefinitionAction } from './actions'
-import type { SquadDefinition } from '@/types'
+import { createDefinitionAction, updateDefinitionAction, deleteDefinitionAction } from './actions'
+import type { SquadDefinition, SquadDefinitionWithCreator } from '@/types'
 
 function BackButton() {
   const goBack = useSlideBack()
@@ -22,19 +23,30 @@ function BackButton() {
   )
 }
 
-// ─── Create Definition Sheet ──────────────────────────────────────────────────
+// ─── CreateDefinitionSheet ────────────────────────────────────────────────────
+// Handles both create and edit modes (Figma 130:1239)
+
+interface CreateDefinitionSheetProps {
+  crewId:            string
+  mode:              'create' | 'edit'
+  initialWord?:      string
+  initialDefinition?: string
+  definitionId?:     string
+  onClose:           () => void
+  onSaved:           (def: SquadDefinition) => void
+}
 
 function CreateDefinitionSheet({
   crewId,
+  mode,
+  initialWord      = '',
+  initialDefinition = '',
+  definitionId,
   onClose,
-  onCreated,
-}: {
-  crewId:    string
-  onClose:   () => void
-  onCreated: (def: SquadDefinition) => void
-}) {
-  const [word,       setWord]       = useState('')
-  const [definition, setDefinition] = useState('')
+  onSaved,
+}: CreateDefinitionSheetProps) {
+  const [word,       setWord]       = useState(initialWord)
+  const [definition, setDefinition] = useState(initialDefinition)
   const [error,      setError]      = useState('')
   const [saving,     setSaving]     = useState(false)
 
@@ -43,101 +55,204 @@ function CreateDefinitionSheet({
     if (!definition.trim()) { setError('Definition is required.'); return }
     setSaving(true)
     setError('')
-    const result = await createDefinitionAction(crewId, word, definition)
+
+    const result = mode === 'edit' && definitionId
+      ? await updateDefinitionAction(definitionId, word, definition)
+      : await createDefinitionAction(crewId, word, definition)
+
     setSaving(false)
     if (result.error) { setError(result.error); return }
-    if (result.data) onCreated(result.data)
+    if (result.data) onSaved(result.data)
     onClose()
   }
 
   return (
-    <motion.div
-      className="fixed inset-0 z-[60] flex items-end justify-center"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      onClick={onClose}
-    >
-      <div className="absolute inset-0 bg-black/60" />
+    <>
       <motion.div
+        className="fixed inset-0 z-[60] bg-black/60"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+      />
+      <motion.div
+        className="fixed bottom-0 left-0 right-0 z-[70] bg-black border-t border-border flex flex-col gap-6 px-4 pt-6"
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
         transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-        className="relative w-full max-w-[480px] bg-black border-t border-border flex flex-col gap-6 px-4 pt-6"
-        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 24px)' }}
+        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 16px)' }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="flex flex-col gap-1">
-          <p className="font-pixel text-[8px] text-tertiary leading-none">NEW DEFINITION</p>
-          <h2 className="font-body font-bold text-[18px] text-primary leading-none" style={{ fontVariationSettings: '"opsz" 14' }}>
-            Create Squad Definition
-          </h2>
+        {/* Title */}
+        <h2
+          className="font-body font-bold text-[length:var(--lg)] text-primary leading-none"
+          style={{ fontVariationSettings: '"opsz" 14' }}
+        >
+          Squad Definition
+        </h2>
+
+        {/* Words field */}
+        <div className="flex flex-col gap-2">
+          <p
+            className="font-body font-medium text-[length:var(--sm)] text-primary tracking-[0.2px] leading-none"
+            style={{ fontVariationSettings: '"opsz" 14' }}
+          >
+            Words
+          </p>
+          <input
+            value={word}
+            onChange={(e) => setWord(e.target.value)}
+            maxLength={100}
+            placeholder="e.g. GG, gg, good game"
+            className="w-full bg-black border border-[#3f3f46] px-3 py-3 font-body text-[length:var(--sm)] text-primary placeholder:text-muted focus:outline-none focus:border-purple transition-colors"
+            style={{ fontVariationSettings: '"opsz" 14' }}
+            autoComplete="off"
+            autoCapitalize="off"
+          />
+          <p
+            className="font-body text-[length:var(--xxs)] text-tertiary tracking-[0.2px] leading-normal"
+            style={{ fontVariationSettings: '"opsz" 14' }}
+          >
+            Putting commas separates the word but will tie back to this definition when used. (e.g. GG, gg, good game will be the same definition.)
+          </p>
         </div>
 
-        {/* Fields */}
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-2">
-            <label className="font-body font-medium text-[12px] text-secondary leading-none" style={{ fontVariationSettings: '"opsz" 14' }}>
-              WORD(S)
-            </label>
-            <input
-              value={word}
-              onChange={(e) => setWord(e.target.value)}
-              maxLength={100}
-              placeholder="e.g. abg, ABG"
-              className="h-[48px] px-3 bg-black border border-border font-body text-[14px] text-primary placeholder:text-muted outline-none focus:border-purple transition-colors"
-              style={{ fontVariationSettings: '"opsz" 14' }}
-              autoComplete="off"
-              autoCapitalize="off"
-            />
-            <p className="font-body text-[11px] text-muted leading-none" style={{ fontVariationSettings: '"opsz" 14' }}>
-              Comma-separate multiple aliases, e.g. "abg, ABG"
-            </p>
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <label className="font-body font-medium text-[12px] text-secondary leading-none" style={{ fontVariationSettings: '"opsz" 14' }}>
-              DEFINITION
-            </label>
-            <textarea
-              value={definition}
-              onChange={(e) => setDefinition(e.target.value)}
-              maxLength={500}
-              placeholder="What does it mean in your squad?"
-              rows={3}
-              className="px-3 py-2 bg-black border border-border font-body text-[14px] text-primary placeholder:text-muted outline-none focus:border-purple transition-colors resize-none"
-              style={{ fontVariationSettings: '"opsz" 14' }}
-            />
-            <p className="font-silkscreen text-[8px] text-muted leading-none self-end">
-              {definition.length}/500
-            </p>
-          </div>
-
-          {error && (
-            <p className="font-pixel text-[8px] text-[#ef4444] leading-relaxed">{error}</p>
-          )}
+        {/* Definition field */}
+        <div className="flex flex-col gap-2">
+          <p
+            className="font-body font-medium text-[length:var(--sm)] text-primary tracking-[0.2px] leading-none"
+            style={{ fontVariationSettings: '"opsz" 14' }}
+          >
+            Definition
+          </p>
+          <textarea
+            value={definition}
+            onChange={(e) => setDefinition(e.target.value)}
+            maxLength={500}
+            placeholder="What does it mean in your squad?"
+            className="w-full h-[78px] bg-black border border-[#3f3f46] px-3 py-3 font-body text-[length:var(--sm)] text-primary placeholder:text-muted focus:outline-none focus:border-purple transition-colors resize-none"
+            style={{ fontVariationSettings: '"opsz" 14' }}
+          />
         </div>
+
+        {/* Error */}
+        {error && (
+          <p className="font-silkscreen text-[8px] text-[#ef4444] leading-relaxed -mt-4">{error}</p>
+        )}
 
         {/* Buttons */}
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-4">
           <button
             onClick={handleSave}
             disabled={saving}
-            className="h-12 w-full bg-purple font-pixel text-[8px] text-primary flex items-center justify-center disabled:opacity-50 transition-opacity"
+            className="w-full h-12 bg-purple flex items-center justify-center disabled:opacity-40 active:opacity-80 transition-opacity"
           >
-            {saving ? '...' : 'SAVE DEFINITION'}
+            <span className="font-silkscreen text-[length:var(--sm)] text-primary leading-none">
+              {saving ? 'Saving...' : 'Save definition'}
+            </span>
           </button>
           <button
             onClick={onClose}
-            className="h-12 w-full font-pixel text-[8px] text-[#ef4444] flex items-center justify-center"
+            disabled={saving}
+            className="w-full h-12 flex items-center justify-center border border-[#ef4444] active:opacity-70 transition-opacity disabled:opacity-40"
           >
-            CANCEL
+            <span className="font-silkscreen text-[length:var(--sm)] text-[#ef4444] leading-none">Cancel</span>
           </button>
         </div>
       </motion.div>
-    </motion.div>
+    </>
+  )
+}
+
+// ─── DefinitionActionSheet ────────────────────────────────────────────────────
+// Creator-only tap sheet (Figma 130:902)
+
+interface DefinitionActionSheetProps {
+  definition: SquadDefinitionWithCreator
+  onClose:    () => void
+  onEdit:     () => void
+  onDelete:   () => void
+  deleting:   boolean
+}
+
+function DefinitionActionSheet({ definition, onClose, onEdit, onDelete, deleting }: DefinitionActionSheetProps) {
+  const aliases = definition.word.split(',').map((w) => w.trim()).filter(Boolean).join(', ')
+
+  return (
+    <>
+      <motion.div
+        className="fixed inset-0 z-[60] bg-black/60"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+      />
+      <motion.div
+        className="fixed bottom-0 left-0 right-0 z-[70] bg-black border-t border-border flex flex-col gap-6 px-4 pt-6"
+        initial={{ y: '100%' }}
+        animate={{ y: 0 }}
+        exit={{ y: '100%' }}
+        transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 16px)' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Title */}
+        <h2
+          className="font-body font-bold text-[length:var(--lg)] text-primary leading-none"
+          style={{ fontVariationSettings: '"opsz" 14' }}
+        >
+          Squad Definition
+        </h2>
+
+        {/* Content preview */}
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-2">
+            <p
+              className="font-body font-bold text-[length:var(--md)] text-primary leading-none"
+              style={{ fontVariationSettings: '"opsz" 14' }}
+            >
+              {aliases}
+            </p>
+            <p
+              className="font-body text-[length:var(--sm)] text-secondary leading-normal line-clamp-4 overflow-hidden"
+              style={{ fontVariationSettings: '"opsz" 14' }}
+            >
+              {definition.definition}
+            </p>
+          </div>
+          {definition.creator_username && (
+            <p
+              className="font-body text-[length:var(--xxs)] text-tertiary leading-none"
+              style={{ fontVariationSettings: '"opsz" 14' }}
+            >
+              Created by : {definition.creator_username}
+            </p>
+          )}
+        </div>
+
+        {/* Action buttons */}
+        <div className="flex flex-col gap-4">
+          <button
+            onClick={onEdit}
+            className="w-full h-12 flex items-center justify-center border border-purple active:opacity-70 transition-opacity"
+          >
+            <span className="font-silkscreen text-[length:var(--sm)] text-purple leading-none">
+              Edit definition
+            </span>
+          </button>
+          <button
+            onClick={onDelete}
+            disabled={deleting}
+            className="w-full h-12 flex items-center justify-center border border-[#ef4444] active:opacity-70 transition-opacity disabled:opacity-40"
+          >
+            <span className="font-silkscreen text-[length:var(--sm)] text-[#ef4444] leading-none">
+              {deleting ? 'Deleting...' : 'Delete definition'}
+            </span>
+          </button>
+        </div>
+      </motion.div>
+    </>
   )
 }
 
@@ -146,19 +261,23 @@ function CreateDefinitionSheet({
 interface DefinitionsClientProps {
   crewId:             string
   currentUserId:      string
-  initialDefinitions: SquadDefinition[]
+  currentUsername:    string
+  initialDefinitions: SquadDefinitionWithCreator[]
 }
 
 export function DefinitionsClient({
   crewId,
   currentUserId,
+  currentUsername,
   initialDefinitions,
 }: DefinitionsClientProps) {
-  const [definitions, setDefinitions] = useState(initialDefinitions)
-  const [showCreate,  setShowCreate]  = useState(false)
-  const [deleting,    setDeleting]    = useState<string | null>(null)
+  const [definitions,  setDefinitions]  = useState<SquadDefinitionWithCreator[]>(initialDefinitions)
+  const [showCreate,   setShowCreate]   = useState(false)
+  const [actionTarget, setActionTarget] = useState<SquadDefinitionWithCreator | null>(null)
+  const [editTarget,   setEditTarget]   = useState<SquadDefinitionWithCreator | null>(null)
+  const [deleting,     setDeleting]     = useState<string | null>(null)
 
-  // Realtime subscription for live definition changes
+  // Realtime subscription
   useEffect(() => {
     const supabase = createClient()
     const channel  = supabase
@@ -166,16 +285,32 @@ export function DefinitionsClient({
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'squad_definitions', filter: `crew_id=eq.${crewId}` },
-        (payload) => {
+        async (payload) => {
           if (payload.eventType === 'INSERT') {
             const incoming = payload.new as SquadDefinition
+            // Skip if already added optimistically
             setDefinitions((prev) => {
               if (prev.some((d) => d.id === incoming.id)) return prev
-              return [incoming, ...prev]
+              return prev // will be resolved below
+            })
+            // Resolve creator username
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('username')
+              .eq('id', incoming.creator_id)
+              .single()
+            setDefinitions((prev) => {
+              if (prev.some((d) => d.id === incoming.id)) return prev
+              return [{ ...incoming, creator_username: profile?.username as string | undefined }, ...prev]
             })
           } else if (payload.eventType === 'DELETE') {
             const gone = payload.old as { id: string }
             setDefinitions((prev) => prev.filter((d) => d.id !== gone.id))
+          } else if (payload.eventType === 'UPDATE') {
+            const updated = payload.new as SquadDefinition
+            setDefinitions((prev) =>
+              prev.map((d) => d.id === updated.id ? { ...d, word: updated.word, definition: updated.definition } : d)
+            )
           }
         }
       )
@@ -186,105 +321,160 @@ export function DefinitionsClient({
   const handleCreated = useCallback((def: SquadDefinition) => {
     setDefinitions((prev) => {
       if (prev.some((d) => d.id === def.id)) return prev
-      return [def, ...prev]
+      return [{ ...def, creator_username: currentUsername }, ...prev]
     })
+  }, [currentUsername])
+
+  const handleUpdated = useCallback((def: SquadDefinition) => {
+    setDefinitions((prev) =>
+      prev.map((d) => d.id === def.id ? { ...d, word: def.word, definition: def.definition } : d)
+    )
   }, [])
 
   const handleDelete = useCallback(async (id: string) => {
     setDeleting(id)
     await deleteDefinitionAction(id)
-    // Realtime will handle removal; optimistically remove too
     setDefinitions((prev) => prev.filter((d) => d.id !== id))
+    setActionTarget(null)
     setDeleting(null)
   }, [])
+
+  function handleCardTap(def: SquadDefinitionWithCreator) {
+    if (def.creator_id === currentUserId) setActionTarget(def)
+  }
+
+  function handleEditPress() {
+    if (!actionTarget) return
+    setEditTarget(actionTarget)
+    setActionTarget(null)
+  }
 
   return (
     <SlidePage
       className="min-h-screen bg-black flex flex-col"
       style={{ position: 'fixed', top: 0, bottom: 0, left: 0, right: 0, maxWidth: 480, marginLeft: 'auto', marginRight: 'auto', overflow: 'hidden' }}
     >
-      {/* Header */}
+      {/* Header — matches ChatHeader pattern, no border-b */}
       <div
-        className="bg-black border-b border-border px-4 pb-2 flex-shrink-0"
+        className="px-4 pb-2 flex-shrink-0"
         style={{ paddingTop: 'max(env(safe-area-inset-top), 8px)' }}
       >
         <div className="flex items-center h-10 gap-2">
           <BackButton />
-          <h1 className="font-pixel text-[18px] text-primary leading-none whitespace-nowrap">
-            SQUAD GLOSSARY
+          <h1 className="font-silkscreen text-[24px] text-primary leading-none uppercase whitespace-nowrap">
+            Glossary
           </h1>
         </div>
-        <p className="font-body text-[12px] text-muted mt-[2px]" style={{ fontVariationSettings: '"opsz" 14' }}>
-          Words and phrases defined by your squad
-        </p>
       </div>
 
-      {/* Definition list */}
-      <div className="flex-1 overflow-y-auto nexus-scroll px-4 py-4 min-h-0">
+      {/* Scrollable body */}
+      <div className="flex-1 overflow-y-auto nexus-scroll px-4 py-4 flex flex-col gap-6 min-h-0">
+        <p
+          className="font-body text-[length:var(--sm)] text-primary leading-normal flex-shrink-0"
+          style={{ fontVariationSettings: '"opsz" 14' }}
+        >
+          Words and phrases defined by your squad.
+        </p>
+
         {definitions.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full gap-3 py-20">
-            <p className="font-pixel text-[8px] text-tertiary text-center leading-relaxed">
+          <div className="flex flex-col items-center justify-center flex-1 gap-3 py-16">
+            <p className="font-silkscreen text-[8px] text-tertiary text-center leading-relaxed">
               NO DEFINITIONS YET
             </p>
             <p
-              className="font-body text-[13px] text-muted text-center"
+              className="font-body text-[length:var(--sm)] text-muted text-center"
               style={{ fontVariationSettings: '"opsz" 14' }}
             >
               Create the first squad definition.
             </p>
           </div>
         ) : (
-          <div className="flex flex-col gap-3">
-            {definitions.map((def) => (
-              <div
-                key={def.id}
-                className="bg-surface border border-border p-4 flex flex-col gap-2"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <p className="font-silkscreen text-[14px] text-purple leading-none">
-                    {def.word.split(',').map((w) => w.trim()).filter(Boolean).join(' · ')}
-                  </p>
-                  {def.creator_id === currentUserId && (
-                    <button
-                      onClick={() => handleDelete(def.id)}
-                      disabled={deleting === def.id}
-                      className="flex-shrink-0 font-pixel text-[7px] text-[#ef4444] leading-none disabled:opacity-40 transition-opacity"
-                    >
-                      {deleting === def.id ? '...' : 'DELETE'}
-                    </button>
-                  )}
-                </div>
-                <p
-                  className="font-body text-[14px] text-secondary leading-normal"
-                  style={{ fontVariationSettings: '"opsz" 14' }}
+          <div className="flex flex-col gap-4 flex-shrink-0">
+            {definitions.map((def) => {
+              const aliases  = def.word.split(',').map((w) => w.trim()).filter(Boolean).join(', ')
+              const isCreator = def.creator_id === currentUserId
+              return (
+                <button
+                  key={def.id}
+                  onClick={() => handleCardTap(def)}
+                  disabled={!isCreator}
+                  className="w-full text-left bg-[rgba(17,17,17,0.5)] border border-[#111111] rounded-[8px] p-4 flex flex-col gap-4 active:opacity-80 transition-opacity disabled:active:opacity-100"
                 >
-                  {def.definition}
-                </p>
-              </div>
-            ))}
+                  <div className="flex flex-col gap-2">
+                    <p
+                      className="font-body font-bold text-[length:var(--md)] text-primary leading-none"
+                      style={{ fontVariationSettings: '"opsz" 14' }}
+                    >
+                      {aliases}
+                    </p>
+                    <p
+                      className="font-body text-[length:var(--sm)] text-secondary leading-normal line-clamp-3 overflow-hidden"
+                      style={{ fontVariationSettings: '"opsz" 14' }}
+                    >
+                      {def.definition}
+                    </p>
+                  </div>
+                  {def.creator_username && (
+                    <p
+                      className="font-body text-[length:var(--xxs)] text-tertiary leading-none"
+                      style={{ fontVariationSettings: '"opsz" 14' }}
+                    >
+                      Created by : {def.creator_username}
+                    </p>
+                  )}
+                </button>
+              )
+            })}
           </div>
         )}
       </div>
 
-      {/* Create button */}
+      {/* Footer — Add button */}
       <div
-        className="flex-shrink-0 px-4 pt-3 border-t border-border"
-        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 24px)' }}
+        className="flex-shrink-0 px-4"
+        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 16px)', paddingTop: 8 }}
       >
         <button
           onClick={() => setShowCreate(true)}
-          className="h-12 w-full bg-purple font-pixel text-[8px] text-primary flex items-center justify-center gap-2"
+          className="w-full h-12 bg-purple flex items-center justify-center gap-1 active:opacity-80 transition-opacity"
         >
-          + CREATE SQUAD DEFINITION
+          <PlusBox style={{ width: 16, height: 16, color: 'var(--color-primary)' }} aria-hidden="true" />
+          <span className="font-silkscreen text-[length:var(--sm)] text-primary leading-none">
+            Add a squad definition
+          </span>
         </button>
       </div>
 
       <AnimatePresence>
         {showCreate && (
           <CreateDefinitionSheet
+            key="create"
             crewId={crewId}
+            mode="create"
             onClose={() => setShowCreate(false)}
-            onCreated={handleCreated}
+            onSaved={handleCreated}
+          />
+        )}
+        {editTarget && (
+          <CreateDefinitionSheet
+            key="edit"
+            crewId={crewId}
+            mode="edit"
+            initialWord={editTarget.word}
+            initialDefinition={editTarget.definition}
+            definitionId={editTarget.id}
+            onClose={() => setEditTarget(null)}
+            onSaved={(def) => { handleUpdated(def); setEditTarget(null) }}
+          />
+        )}
+        {actionTarget && (
+          <DefinitionActionSheet
+            key="action"
+            definition={actionTarget}
+            onClose={() => setActionTarget(null)}
+            onEdit={handleEditPress}
+            onDelete={() => handleDelete(actionTarget.id)}
+            deleting={deleting === actionTarget.id}
           />
         )}
       </AnimatePresence>
