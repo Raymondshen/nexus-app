@@ -542,9 +542,7 @@ export function MessageList({
         lastUserId  = null
         lastMsgTime = 0
       } else if (msg.message_type === 'system') {
-        if (devMode) {
-          items.push({ kind: 'message', message: msg as MessageWithProfile, isOwn: false, showHeader: false })
-        }
+        items.push({ kind: 'message', message: msg as MessageWithProfile, isOwn: false, showHeader: false })
         lastUserId  = null
         lastMsgTime = 0
       } else {

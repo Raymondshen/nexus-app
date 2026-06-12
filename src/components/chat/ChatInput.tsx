@@ -16,7 +16,7 @@ import { haptic } from '@/lib/sounds'
 import { Send } from 'pixelarticons/react/Send'
 import { Chart } from 'pixelarticons/react/Chart'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
-import { kickMemberAction, renameCrewAction } from '@/app/(app)/chat/actions'
+import { kickMemberAction, renameCrewAction, birthdaysCommandAction } from '@/app/(app)/chat/actions'
 import { CrewImageUploadModal } from '@/components/chat/CrewImageUploadModal'
 import { NotifSheet, type NotifPrefs } from '@/components/chat/NotifSheet'
 import { SquadDetailsSheet, type MiniMember } from '@/components/chat/SquadDetailsSheet'
@@ -28,6 +28,11 @@ const RATE_LIMIT_MAX     = 30
 const RATE_LIMIT_WINDOW  = 60_000
 
 const CREW_AVATAR_COLORS = ['#bf5fff', '#00e5ff', '#ffd700', '#ff4444', '#66bb6a', '#ff9800']
+
+const SLASH_COMMANDS = [
+  { name: 'birthdays', icon: '🎂', description: 'See upcoming squad birthdays' },
+] as const
+type SlashCommandName = typeof SLASH_COMMANDS[number]['name']
 
 
 type MemberProfile = Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url'>
@@ -369,7 +374,21 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() }
+    if (e.key === 'Escape' && text.startsWith('/') && !text.includes(' ')) {
+      e.preventDefault()
+      setText('')
+      return
+    }
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      const isCmd = text.startsWith('/') && !text.includes(' ')
+      if (isCmd) {
+        const filter   = text.slice(1).toLowerCase()
+        const matches  = SLASH_COMMANDS.filter((c) => c.name.startsWith(filter))
+        if (matches.length === 1) { executeCommand(matches[0].name); return }
+      }
+      send()
+    }
   }
 
   function handleInput(e: React.ChangeEvent<HTMLTextAreaElement>) {
@@ -388,6 +407,37 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   function handleBlur() {
     broadcastTyping(false)
     if (typingTimerRef.current) clearTimeout(typingTimerRef.current)
+  }
+
+  async function executeCommand(name: SlashCommandName) {
+    setText('')
+    if (textareaRef.current) textareaRef.current.style.height = 'auto'
+    textareaRef.current?.focus()
+
+    if (name === 'birthdays') {
+      setSending(true)
+      setSendError(null)
+      try {
+        const result = await birthdaysCommandAction(crewId)
+        if (result.error) {
+          setSendError(result.error)
+        } else if (result.message) {
+          const msgWithProfile = { ...result.message, profile: userProfile }
+          addMessage(msgWithProfile)
+          msgChannelRef.current?.send({
+            type: 'broadcast', event: 'new_message',
+            payload: {
+              id: msgWithProfile.id, crew_id: msgWithProfile.crew_id, user_id: msgWithProfile.user_id,
+              content: msgWithProfile.content, message_type: msgWithProfile.message_type,
+              element_type: msgWithProfile.element_type, xp_awarded: msgWithProfile.xp_awarded,
+              created_at: msgWithProfile.created_at,
+            },
+          })
+        }
+      } finally {
+        setSending(false)
+      }
+    }
   }
 
   function handlePollCreated(message: MessageWithProfile) {
@@ -582,6 +632,40 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
           </div>
         )}
 
+        {/* ── Slash command menu ── */}
+        {(() => {
+          const isCmd = text.startsWith('/') && !text.includes(' ')
+          const filter = isCmd ? text.slice(1).toLowerCase() : ''
+          const matches = isCmd ? SLASH_COMMANDS.filter((c) => c.name.startsWith(filter)) : []
+          if (!isCmd || matches.length === 0) return null
+          return (
+            <AnimatePresence>
+              <motion.div
+                key="cmd-menu"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 6 }}
+                transition={{ duration: 0.12 }}
+                className="mb-2 border border-border bg-black overflow-hidden"
+              >
+                {matches.map((cmd) => (
+                  <button
+                    key={cmd.name}
+                    onMouseDown={(e) => { e.preventDefault(); executeCommand(cmd.name) }}
+                    className="w-full flex items-center gap-3 px-3 py-2 active:bg-surface text-left"
+                  >
+                    <span className="text-[16px] leading-none flex-shrink-0">{cmd.icon}</span>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="font-silkscreen text-[11px] text-purple leading-none">/{cmd.name}</span>
+                      <span className="font-body text-[12px] text-tertiary leading-none">{cmd.description}</span>
+                    </div>
+                  </button>
+                ))}
+              </motion.div>
+            </AnimatePresence>
+          )
+        })()}
+
         <div
           className="border border-border h-12 flex items-center overflow-hidden"
           style={{ borderColor: inRaid ? 'rgba(255,34,0,0.4)' : undefined, paddingLeft: 8, paddingRight: 'var(--space-5)', paddingTop: 12, paddingBottom: 12, gap: 8 }}
@@ -604,14 +688,20 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
             className="flex-1 bg-transparent text-white font-body text-[14px] placeholder:text-muted resize-none focus:outline-none leading-normal py-3"
             style={{ maxHeight: 120, fontVariationSettings: '"opsz" 14' }}
           />
-          <button
-            onClick={send}
-            disabled={!text.trim() || sending}
-            className={`flex-shrink-0 flex items-center justify-center w-4 h-4 transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${text.trim() ? 'text-primary' : 'text-muted'}`}
-            aria-label="Send message"
-          >
-            <Send style={{ width: 16, height: 16 }} aria-hidden="true" />
-          </button>
+          {(() => {
+            const isCmd = text.startsWith('/') && !text.includes(' ')
+            const hasMatch = isCmd && SLASH_COMMANDS.some((c) => c.name.startsWith(text.slice(1).toLowerCase()))
+            return (
+              <button
+                onClick={send}
+                disabled={!text.trim() || sending || hasMatch}
+                className={`flex-shrink-0 flex items-center justify-center w-4 h-4 transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${text.trim() && !hasMatch ? 'text-primary' : 'text-muted'}`}
+                aria-label="Send message"
+              >
+                <Send style={{ width: 16, height: 16 }} aria-hidden="true" />
+              </button>
+            )
+          })()}
         </div>
       </motion.div>
 

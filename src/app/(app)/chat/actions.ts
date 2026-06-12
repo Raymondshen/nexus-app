@@ -2,6 +2,7 @@
 
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
+import type { MessageType } from '@/types'
 
 export async function updateCrewImageAction(
   crewId: string,
@@ -137,4 +138,105 @@ export async function renameCrewAction(
   revalidateTag(`crew-members:${crewId}`, 'max')
   revalidatePath('/home')
   return {}
+}
+
+export async function birthdaysCommandAction(crewId: string): Promise<{
+  message?: {
+    id: string; crew_id: string; user_id: string; content: string
+    message_type: MessageType; element_type: null; xp_awarded: number
+    reactions: Record<string, string[]>; created_at: string
+  }
+  error?: string
+}> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  const { data: membership } = await supabase
+    .from('crew_members')
+    .select('id')
+    .eq('crew_id', crewId)
+    .eq('user_id', user.id)
+    .maybeSingle()
+  if (!membership) return { error: 'Not a crew member' }
+
+  const service = createServiceClient()
+
+  const { data: memberRows } = await service
+    .from('crew_members')
+    .select('user_id')
+    .eq('crew_id', crewId)
+
+  const userIds = (memberRows ?? []).map((r) => (r as { user_id: string }).user_id)
+
+  const { data: profileRows } = await service
+    .from('profiles')
+    .select('id, username, birthday')
+    .in('id', userIds)
+
+  type ProfileRow = { id: string; username: string; birthday: string | null }
+  const profiles = (profileRows ?? []) as ProfileRow[]
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  const withBirthdays = profiles.filter((p) => p.birthday)
+  let content: string
+
+  if (withBirthdays.length === 0) {
+    content = '🎂 No squad members have set their birthday yet.'
+  } else {
+    const upcoming = withBirthdays.map((p) => {
+      const [, bMonth, bDay] = p.birthday!.split('-').map(Number)
+      const thisYear     = new Date(today.getFullYear(), bMonth - 1, bDay)
+      const nextBirthday = thisYear >= today
+        ? thisYear
+        : new Date(today.getFullYear() + 1, bMonth - 1, bDay)
+      const daysUntil = Math.round((nextBirthday.getTime() - today.getTime()) / 86_400_000)
+      return { username: p.username, daysUntil, date: nextBirthday }
+    })
+    upcoming.sort((a, b) => a.daysUntil - b.daysUntil)
+    const next = upcoming[0]
+
+    const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    const monthStr = MONTHS[next.date.getMonth()]
+    const dayStr   = next.date.getDate()
+
+    if (next.daysUntil === 0) {
+      content = `🎂 Today is ${next.username}'s birthday! 🎉`
+    } else if (next.daysUntil === 1) {
+      content = `🎂 ${next.username}'s birthday is tomorrow! (${monthStr} ${dayStr})`
+    } else {
+      content = `🎂 Next squad birthday: ${next.username} · ${monthStr} ${dayStr} · ${next.daysUntil} days away`
+    }
+  }
+
+  const { data: msg, error } = await service
+    .from('messages')
+    .insert({
+      crew_id:      crewId,
+      user_id:      user.id,
+      content,
+      message_type: 'system',
+      element_type: null,
+      xp_awarded:   0,
+    })
+    .select()
+    .single()
+
+  if (error) return { error: error.message }
+
+  return {
+    message: {
+      id:           (msg as { id: string }).id,
+      crew_id:      crewId,
+      user_id:      user.id,
+      content,
+      message_type: 'system' as MessageType,
+      element_type: null,
+      xp_awarded:   0,
+      reactions:    {},
+      created_at:   (msg as { created_at: string }).created_at,
+    },
+  }
 }

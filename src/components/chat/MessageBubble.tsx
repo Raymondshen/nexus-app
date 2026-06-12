@@ -652,13 +652,14 @@ function SystemMessage({ message }: { message: MessageWithProfile }) {
   const content = message.content
   let bg   = 'bg-surface border-border'
   let icon = '⚙️'
-  if (content.includes('VOID') || content.includes('BOSS') || content.includes('boss')) { bg = 'bg-[#2d0a0a] border-[#ff4444]/40'; icon = '💀' }
+  if (content.startsWith('🎂'))                                                          { bg = 'bg-[#1a0d2e] border-[#a855f7]/30'; icon = '' }
+  else if (content.includes('VOID') || content.includes('BOSS') || content.includes('boss')) { bg = 'bg-[#2d0a0a] border-[#ff4444]/40'; icon = '💀' }
   else if (content.includes('XP') || content.includes('xp'))                            { bg = 'bg-[#1a1400] border-[#ffd700]/40'; icon = '⭐' }
   else if (content.includes('artifact') || content.includes('ARTIFACT'))                { bg = 'bg-[#1a0d2e] border-[#bf5fff]/40'; icon = '💎' }
   return (
     <div className="flex justify-center my-2">
       <div className={`border px-4 py-2 max-w-[85%] text-center ${bg}`}>
-        <p className="font-pixel text-[9px] text-tertiary leading-relaxed">{icon} {content}</p>
+        <p className="font-pixel text-[9px] text-tertiary leading-relaxed">{icon ? `${icon} ` : ''}{content}</p>
       </div>
     </div>
   )
