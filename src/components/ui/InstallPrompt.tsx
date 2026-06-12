@@ -60,8 +60,8 @@ export function InstallPrompt() {
     // Guard re-checked inside the timeout to handle dismissal in the interim.
     function schedule(plat: Platform) {
       const firstMsg = localStorage.getItem(FIRST_MSG_KEY)
-      if (!firstMsg) return
-      const remaining = Math.max(0, DELAY_MS - (Date.now() - parseInt(firstMsg, 10)))
+      const anchor   = firstMsg ? parseInt(firstMsg, 10) : Date.now()
+      const remaining = Math.max(0, DELAY_MS - (Date.now() - anchor))
       setTimeout(() => {
         if (sessionStorage.getItem(SESSION_KEY)) return
         setPlatform(plat)
