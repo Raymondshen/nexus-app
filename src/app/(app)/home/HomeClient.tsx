@@ -297,8 +297,8 @@ function HomeActionSheet({
     // Menu view
     return (
       <>
-        <div className="flex flex-col gap-2">
-          <p className="font-pixel text-[8px] text-tertiary leading-none">SQUAD SH**!</p>
+        <div className="flex flex-col gap-[var(--space-3)]">
+          <p className="font-silkscreen text-[length:var(--text-mini)] text-tertiary leading-none whitespace-nowrap">SQUAD SH**!</p>
           <h2
             className="font-body font-bold text-[length:var(--text-lg)] text-primary leading-none"
             style={{ fontVariationSettings: '"opsz" 14' }}
@@ -307,32 +307,32 @@ function HomeActionSheet({
           </h2>
         </div>
 
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-[var(--space-7)]">
           <button
             onClick={() => setView('create')}
-            className="w-full h-[48px] flex items-center justify-center bg-purple overflow-hidden"
+            className="w-full flex items-center justify-center bg-purple overflow-hidden px-[20px] py-[16px]"
             style={{ boxShadow: '4px 4px 0px 0px rgba(168,85,247,0.5)' }}
           >
-            <span className="font-silkscreen leading-none whitespace-nowrap text-primary" style={{ fontSize: 'var(--text-sm)' }}>CREATE A SQUAD</span>
+            <span className="font-silkscreen leading-none whitespace-nowrap text-primary" style={{ fontSize: 'var(--text-xs)' }}>CREATE A SQUAD</span>
           </button>
 
           <button
             onClick={() => setView('join')}
-            className="w-full h-[48px] flex items-center justify-center bg-surface border border-purple overflow-hidden"
+            className="w-full h-[48px] flex items-center justify-center bg-black border border-purple overflow-hidden"
             style={{ boxShadow: '4px 4px 0px 0px rgba(168,85,247,0.5)' }}
           >
-            <span className="font-silkscreen leading-none whitespace-nowrap text-purple" style={{ fontSize: 'var(--text-sm)' }}>JOIN A SQUAD</span>
+            <span className="font-silkscreen leading-none whitespace-nowrap text-purple" style={{ fontSize: 'var(--text-xs)' }}>JOIN A SQUAD</span>
           </button>
 
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-[var(--space-3)]">
             <button
               onClick={onOpenArsenal}
-              className="w-full h-[48px] flex items-center justify-center bg-surface border overflow-hidden"
+              className="w-full h-[48px] flex items-center justify-center bg-black border overflow-hidden"
               style={{ borderColor: '#f59e0b', boxShadow: '4px 4px 0px 0px rgba(245,158,11,0.5)' }}
             >
-              <span className="font-silkscreen leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-sm)', color: '#f59e0b' }}>INVITE A FRIEND</span>
+              <span className="font-silkscreen leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-xs)', color: '#f59e0b' }}>INVITE A FRIEND</span>
             </button>
-            <p className="font-silkscreen text-[8px] tracking-[0.2px] leading-normal" style={{ color: '#f59e0b' }}>
+            <p className="font-silkscreen text-[length:var(--text-mini)] tracking-[0.2px] leading-none" style={{ color: '#f59e0b' }}>
               <span className="text-tertiary">Cost 25 COINS Per INVITE</span>
               {` · ${infiniteCoins ? '∞' : coins.toLocaleString()} coins available`}
             </p>
@@ -363,8 +363,8 @@ function HomeActionSheet({
         animate={{ y: 0,  opacity: 1 }}
         exit={{   y: 80, opacity: 0 }}
         transition={{ type: 'spring', stiffness: 280, damping: 26 }}
-        className="relative w-full max-w-[480px] bg-surface border-t border-border-hover flex flex-col gap-6 p-4 overflow-hidden"
-        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 24px)' }}
+        className="relative w-full max-w-[480px] bg-black border-t border-border flex flex-col gap-[var(--space-7)] pt-[24px] px-[16px] overflow-hidden"
+        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 28px)' }}
         onClick={(e) => e.stopPropagation()}
       >
         {sheetContent}
@@ -404,45 +404,50 @@ function LeaveConfirmSheet({
         animate={{ y: 0,  opacity: 1 }}
         exit={{   y: 80, opacity: 0 }}
         transition={{ type: 'spring', stiffness: 280, damping: 26 }}
-        className="relative w-full max-w-[480px] bg-surface border-t border-border-hover flex flex-col gap-6 p-4"
-        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 24px)' }}
+        className="relative w-full max-w-[480px] bg-black border-t border-border flex flex-col gap-[var(--space-7)] pt-[24px] px-[16px]"
+        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 28px)' }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex flex-col gap-2">
-          <p className="font-pixel text-[8px] text-tertiary leading-none">
-            {isLast ? 'DELETE CREW' : 'LEAVE CREW'}
+        <div className="flex flex-col gap-[var(--space-2)]">
+          <h2
+            className="font-body font-bold text-[length:var(--text-lg)] text-primary leading-none"
+            style={{ fontVariationSettings: '"opsz" 14' }}
+          >
+            {isLast ? `Delete ${summary.crew.name}?` : `Leave ${summary.crew.name}?`}
+          </h2>
+          <p
+            className="font-body text-[length:var(--text-xs)] text-tertiary leading-normal"
+            style={{ fontVariationSettings: '"opsz" 14' }}
+          >
+            {isLast
+              ? 'You are the last member. This will permanently delete the crew and all its history.'
+              : 'Your XP and artifact gains will be redistributed to the remaining members.'}
           </p>
-          <div className="flex flex-col gap-1">
-            <h2 className="font-body font-bold text-[18px] text-primary leading-none">
-              {summary.crew.name}
-            </h2>
-            <p className="font-body text-[12px] text-secondary leading-normal">
-              {isLast
-                ? 'You are the last member. This will permanently delete the crew and all its history.'
-                : 'Your XP and artifact gains will be redistributed to the remaining members.'}
-            </p>
-          </div>
         </div>
 
         {/* Buttons */}
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-[var(--space-3)]">
           {leaveError && (
-            <p className="font-pixel text-[8px] text-[#ef4444]">{leaveError}</p>
+            <p className="font-silkscreen text-[length:var(--text-mini)] text-[#ef4444]">{leaveError}</p>
           )}
           <button
             onClick={onConfirm}
             disabled={pending}
-            className="w-full h-[48px] font-pixel text-[8px] text-primary bg-[#ef4444] active:opacity-80 transition-opacity disabled:opacity-50"
+            className="w-full h-[48px] flex items-center justify-center bg-[#ef4444] overflow-hidden px-[var(--space-5)] py-[var(--space-3)] active:opacity-80 transition-opacity disabled:opacity-50"
           >
-            {pending ? '...' : isLast ? 'DELETE CREW' : 'LEAVE CREW'}
+            <span className="font-silkscreen leading-none whitespace-nowrap text-primary" style={{ fontSize: 'var(--text-xs)' }}>
+              {pending ? '...' : isLast ? 'Delete crew' : 'Leave squad'}
+            </span>
           </button>
           <button
             onClick={onClose}
             disabled={pending}
-            className="w-full h-[48px] font-pixel text-[8px] text-tertiary transition-colors active:text-secondary disabled:opacity-50"
+            className="w-full h-[48px] flex items-center justify-center border border-purple overflow-hidden px-[var(--space-5)] py-[var(--space-3)] disabled:opacity-50"
           >
-            CANCEL
+            <span className="font-silkscreen leading-none whitespace-nowrap text-purple" style={{ fontSize: 'var(--text-xs)' }}>
+              Never mind
+            </span>
           </button>
         </div>
       </motion.div>
