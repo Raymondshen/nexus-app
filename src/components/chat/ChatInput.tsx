@@ -563,7 +563,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   }
 
   const mentionMatches = mentionQuery !== null
-    ? members.filter((m) => m.id !== userId && m.username.toLowerCase().startsWith(mentionQuery.toLowerCase())).slice(0, 5)
+    ? members.filter((m) => m.id !== userId && m.username.toLowerCase().startsWith(mentionQuery.toLowerCase()))
     : []
 
   const typingLabel = typingUsers.length === 1
@@ -742,7 +742,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 6 }}
               transition={{ duration: 0.12 }}
-              className="mb-2 border border-border bg-black overflow-hidden"
+              className="mb-2 border border-border bg-black flex flex-col w-full max-h-[220px] overflow-y-auto nexus-scroll"
             >
               {mentionMatches.map((m, i) => {
                 const url     = m.avatar_url as string | null | undefined
@@ -751,7 +751,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                   <button
                     key={m.id}
                     onMouseDown={(e) => { e.preventDefault(); completeMention(m.username) }}
-                    className={`w-full flex items-center gap-3 px-3 py-2 active:bg-surface text-left ${i === mentionIndex ? 'bg-surface' : ''}`}
+                    className={`w-full border border-border flex items-center gap-2 overflow-hidden p-2 text-left ${i === mentionIndex ? 'bg-surface' : 'active:bg-surface'}`}
                   >
                     <div className="w-6 h-6 flex-shrink-0 overflow-hidden bg-surface flex items-center justify-center">
                       {url ? (
@@ -759,10 +759,13 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                           <Image src={resolveAvatarUrl(url, 24)} alt={m.username} fill sizes="24px" className="object-cover" unoptimized={isSupabaseStorage(url)} />
                         </div>
                       ) : (
-                        <span className="font-pixel text-[8px] text-purple">{initial}</span>
+                        <span className="font-pixel text-[length:var(--text-mini)] text-purple">{initial}</span>
                       )}
                     </div>
-                    <span className="font-silkscreen text-[11px] text-purple leading-none">@{m.username}</span>
+                    <div className="flex flex-col flex-1 min-w-0">
+                      <span className="font-silkscreen text-[length:var(--text-mini)] text-purple leading-normal w-full">@mention</span>
+                      <span className="font-body font-normal text-[length:var(--text-xs)] text-primary leading-normal w-full" style={{ fontVariationSettings: '"opsz" 14' }}>{m.username}</span>
+                    </div>
                   </button>
                 )
               })}
@@ -784,19 +787,16 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 6 }}
                 transition={{ duration: 0.12 }}
-                className="mb-2 border border-border bg-black overflow-hidden"
+                className="mb-2 border border-border bg-black flex flex-col w-full max-h-[220px] overflow-y-auto nexus-scroll"
               >
                 {matches.map((cmd) => (
                   <button
                     key={cmd.name}
                     onMouseDown={(e) => { e.preventDefault(); executeCommand(cmd.name) }}
-                    className="w-full flex items-center gap-3 px-3 py-2 active:bg-surface text-left"
+                    className="w-full border border-border flex flex-col items-start overflow-hidden p-2 text-left active:bg-surface"
                   >
-                    <span className="text-[16px] leading-none flex-shrink-0">{cmd.icon}</span>
-                    <div className="flex flex-col gap-0.5">
-                      <span className="font-silkscreen text-[11px] text-purple leading-none">/{cmd.name}</span>
-                      <span className="font-body text-[12px] text-tertiary leading-none">{cmd.description}</span>
-                    </div>
+                    <span className="font-silkscreen text-[length:var(--text-mini)] text-purple leading-normal w-full">/{cmd.name}</span>
+                    <span className="font-body font-normal text-[length:var(--text-xs)] text-tertiary leading-normal w-full" style={{ fontVariationSettings: '"opsz" 14' }}>{cmd.description}</span>
                   </button>
                 ))}
               </motion.div>
