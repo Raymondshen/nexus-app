@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { SlidePage, useSlideBack } from '@/components/ui/SlidePage'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
+import { Message } from 'pixelarticons/react/Message'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
 import { MagicEdit } from 'pixelarticons/react/MagicEdit'
 import { Bell } from 'pixelarticons/react/Bell'
@@ -38,6 +39,59 @@ interface ProfileClientProps {
   groupChats:      number
   inviterUsername: string | null
   initialStatus:   string | null
+}
+
+// ─── Profile status ticker ────────────────────────────────────────────────────
+
+function ProfileStatusTicker({ status }: { status: string }) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const itemRef      = useRef<HTMLSpanElement>(null)
+  const [numCopies, setNumCopies] = useState(6)
+  const [animPx,    setAnimPx]    = useState(0)
+
+  useLayoutEffect(() => {
+    const container = containerRef.current
+    const item      = itemRef.current
+    if (!container || !item) return
+    const cw = container.clientWidth
+    const iw = item.offsetWidth
+    if (iw <= 0) return
+    const halfNeeded = Math.ceil(cw / iw) + 1
+    const n          = Math.max(4, halfNeeded % 2 === 0 ? halfNeeded * 2 : (halfNeeded + 1) * 2)
+    setNumCopies(n)
+    setAnimPx(iw * (n / 2))
+  }, [status])
+
+  const duration = Math.max(11, status.length * 0.28 + 5)
+
+  return (
+    <div
+      ref={containerRef}
+      className="overflow-hidden border-t border-b border-border bg-black px-2"
+      style={{ paddingTop: 12, paddingBottom: 12 }}
+    >
+      <motion.div
+        key={status}
+        className="flex"
+        initial={{ x: 0 }}
+        animate={{ x: animPx > 0 ? [0, -animPx] : 0 }}
+        transition={{ duration, repeat: Infinity, ease: 'linear', repeatType: 'loop' }}
+      >
+        {Array.from({ length: numCopies }, (_, i) => (
+          <span
+            key={i}
+            ref={i === 0 ? itemRef : undefined}
+            className="inline-flex items-center gap-1 pr-6 flex-shrink-0 whitespace-nowrap"
+          >
+            <Message style={{ width: 8, height: 8, color: 'var(--color-tertiary)' }} aria-hidden="true" />
+            <span className="font-silkscreen text-tertiary leading-none" style={{ fontSize: 'var(--text-xxs)' }}>
+              &ldquo;{status}&rdquo;
+            </span>
+          </span>
+        ))}
+      </motion.div>
+    </div>
+  )
 }
 
 // ─── Shared section label ─────────────────────────────────────────────────────
@@ -566,16 +620,6 @@ export function ProfileClient({
             </div>
           </div>
 
-          {/* Status line — shown when set */}
-          {localStatus && (
-            <p
-              className="font-body font-normal leading-none w-full"
-              style={{ fontSize: 'var(--text-xxs)', fontVariationSettings: '"opsz" 14', color: 'var(--color-secondary)' }}
-            >
-              &ldquo;{localStatus}&rdquo;
-            </p>
-          )}
-
           {/* AFK EXP row — dev-only */}
           {afkExp && (
             <div className="flex items-center gap-2 w-full">
@@ -614,6 +658,9 @@ export function ProfileClient({
           </div>
         </div>
       </div>
+
+      {/* ── Status ticker — full-width row between hero and body ──────────── */}
+      {localStatus && <ProfileStatusTicker status={localStatus} />}
 
       {/* ── Scrollable body ─────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto flex flex-col gap-[var(--space-7)] nexus-scroll" style={{ padding: 'var(--space-5)' }}>
