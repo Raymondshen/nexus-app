@@ -6,15 +6,10 @@ import { motion, AnimatePresence } from 'framer-motion'
 // Written to localStorage only when the app is actually installed (appinstalled event).
 // Checked on every mount so we never prompt someone who already installed.
 const INSTALLED_KEY = 'nexus_install_prompted'
-// Written to sessionStorage on dismiss / after Chrome dialog resolves.
-// Cleared automatically when the browser tab/session ends — so the prompt
-// reappears on every fresh browser launch.
-const SESSION_KEY   = 'nexus_install_shown'
 const FIRST_MSG_KEY = 'nexus_first_message'
 const DELAY_MS      = 10_000
 
 // Capture beforeinstallprompt even if it fires before this component mounts.
-// The component useEffect also listens and will pick it up via _earlyPrompt.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let _earlyPrompt: any = null
 if (typeof window !== 'undefined') {
@@ -24,13 +19,19 @@ if (typeof window !== 'undefined') {
   })
 }
 
-type Platform = 'ios' | 'android' | 'none'
+type Platform = 'ios' | 'android' | 'desktop' | 'none'
 
 const IOS_STEPS = [
   'Tap the Share icon at the bottom of the screen',
   'Scroll down in the Share menu',
   'Tap "Add to Home Screen"',
   'Tap "Add" in the top right to confirm',
+]
+
+const DESKTOP_STEPS = [
+  'Look for the install icon in your browser\'s address bar',
+  'Click "Install Nexus" or "Add to Home Screen"',
+  'Follow the prompts to complete installation',
 ]
 
 export function InstallPrompt() {
@@ -42,8 +43,7 @@ export function InstallPrompt() {
   useEffect(() => {
     // Never show if app was actually installed (confirmed via appinstalled event)
     if (localStorage.getItem(INSTALLED_KEY)) return
-    // Never show more than once per browser session (dismissed earlier this session)
-    if (sessionStorage.getItem(SESSION_KEY)) return
+    // Never show in standalone PWA mode
     if (
       window.matchMedia('(display-mode: standalone)').matches ||
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -56,59 +56,46 @@ export function InstallPrompt() {
     const ua          = navigator.userAgent
     const isIOSSafari = /iPhone|iPad|iPod/i.test(ua) && !/CriOS/i.test(ua)
 
-    // Schedule the sheet to appear 10s after first message was sent.
-    // Guard re-checked inside the timeout to handle dismissal in the interim.
-    function schedule(plat: Platform) {
-      const firstMsg = localStorage.getItem(FIRST_MSG_KEY)
-      const anchor   = firstMsg ? parseInt(firstMsg, 10) : Date.now()
-      const remaining = Math.max(0, DELAY_MS - (Date.now() - anchor))
-      setTimeout(() => {
-        if (sessionStorage.getItem(SESSION_KEY)) return
-        setPlatform(plat)
-        setVisible(true)
-      }, remaining)
-    }
+    // Use first-message timestamp as anchor if available, otherwise count from now.
+    // This means: show 10s after first message was ever sent, or 10s after page load.
+    const firstMsg  = localStorage.getItem(FIRST_MSG_KEY)
+    const anchor    = firstMsg ? parseInt(firstMsg, 10) : Date.now()
+    const delay     = Math.max(0, DELAY_MS - (Date.now() - anchor))
 
-    // Android / Chromium: capture the deferred install prompt and schedule
+    const timer = setTimeout(() => {
+      const plat: Platform = promptRef.current ? 'android' : isIOSSafari ? 'ios' : 'desktop'
+      setPlatform(plat)
+      setVisible(true)
+    }, delay)
+
+    // If beforeinstallprompt fires after mount (e.g. Chrome delays it), upgrade to android
     const handleBeforeInstall = (e: Event) => {
       e.preventDefault()
       promptRef.current = e
       _earlyPrompt      = e
-      schedule('android')
+      setPlatform('android')
     }
     window.addEventListener('beforeinstallprompt', handleBeforeInstall)
 
     // Browser fires this when the user installs via the OS-level dialog
     const handleInstalled = () => {
       setVisible(false)
-      localStorage.setItem(INSTALLED_KEY, '1')  // permanent: app is installed
+      localStorage.setItem(INSTALLED_KEY, '1')
       promptRef.current = null
       _earlyPrompt      = null
     }
     window.addEventListener('appinstalled', handleInstalled)
 
-    // Kick off schedule based on what's already available
-    if (isIOSSafari)       schedule('ios')
-    if (promptRef.current) schedule('android')
-
-    // Cross-tab: first message written while this tab is open in the background
-    const handleStorage = (e: StorageEvent) => {
-      if (e.key !== FIRST_MSG_KEY || !e.newValue) return
-      if (promptRef.current)  schedule('android')
-      else if (isIOSSafari)   schedule('ios')
-    }
-    window.addEventListener('storage', handleStorage)
-
     return () => {
+      clearTimeout(timer)
       window.removeEventListener('beforeinstallprompt', handleBeforeInstall)
       window.removeEventListener('appinstalled',        handleInstalled)
-      window.removeEventListener('storage',             handleStorage)
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   function dismiss() {
     setVisible(false)
-    sessionStorage.setItem(SESSION_KEY, '1')  // suppress only for this session
+    // No session suppression — prompt reappears on every page load / refresh
   }
 
   async function handleInstall() {
@@ -117,8 +104,7 @@ export function InstallPrompt() {
     const { outcome } = await promptRef.current.userChoice
     promptRef.current = null
     _earlyPrompt      = null
-    sessionStorage.setItem(SESSION_KEY, '1')           // suppress for rest of session
-    if (outcome === 'accepted') localStorage.setItem(INSTALLED_KEY, '1')  // permanent
+    if (outcome === 'accepted') localStorage.setItem(INSTALLED_KEY, '1')
     setVisible(false)
   }
 
@@ -135,13 +121,12 @@ export function InstallPrompt() {
           style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 32px)' }}
           role="dialog"
           aria-modal="true"
-          aria-label={platform === 'ios' ? 'Install Nexus on iOS' : 'Install Nexus'}
+          aria-label="Install Nexus"
         >
           <div className="w-full max-w-[480px] mx-auto flex flex-col gap-6 px-4 pt-6">
-            {platform === 'ios'
-              ? <IOSContent  onDismiss={dismiss} />
-              : <AndroidContent onInstall={handleInstall} onDismiss={dismiss} />
-            }
+            {platform === 'ios'     && <IOSContent     onDismiss={dismiss} />}
+            {platform === 'android' && <AndroidContent onInstall={handleInstall} onDismiss={dismiss} />}
+            {platform === 'desktop' && <DesktopContent onDismiss={dismiss} />}
           </div>
         </motion.div>
       )}
@@ -179,6 +164,23 @@ function AndroidContent({ onInstall, onDismiss }: { onInstall: () => void; onDis
         <SheetButton onClick={onInstall} label="INSTALL APP" filled />
         <SheetButton onClick={onDismiss} label="I'LL DO IT LATER" />
       </div>
+    </>
+  )
+}
+
+function DesktopContent({ onDismiss }: { onDismiss: () => void }) {
+  return (
+    <>
+      <SheetHeader
+        title="Install the app"
+        subtitle="Install Nexus on your desktop for the best experience."
+      />
+      <div className="flex flex-col gap-4 w-full overflow-hidden">
+        {DESKTOP_STEPS.map((text, i) => (
+          <StepRow key={i} num={i + 1} text={text} />
+        ))}
+      </div>
+      <SheetButton onClick={onDismiss} label="I'LL DO IT LATER" />
     </>
   )
 }
