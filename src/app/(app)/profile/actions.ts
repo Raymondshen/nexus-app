@@ -12,10 +12,15 @@ export async function revalidateProfileAction() {
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-const AVATAR_BUCKET = 'avatars'
+const AVATAR_BUCKET      = 'avatars'
+const BACKGROUND_BUCKET  = 'backgrounds'
 
 function avatarPrefix() {
   return `${process.env.NEXT_PUBLIC_SUPABASE_URL!}/storage/v1/object/public/${AVATAR_BUCKET}/`
+}
+
+function backgroundPrefix() {
+  return `${process.env.NEXT_PUBLIC_SUPABASE_URL!}/storage/v1/object/public/${BACKGROUND_BUCKET}/`
 }
 
 /** Derive {userId}/{ts} storage key from a full avatar CDN URL. */
@@ -29,20 +34,32 @@ function storageKeyFromUrl(url: string): string | null {
     .replace(/\.(webp|jpg|png)$/, '')
 }
 
-/** Bulk-delete all storage variants for a given {userId}/{ts} key. */
-async function deleteStorageVariants(storageKey: string) {
-  const slash   = storageKey.lastIndexOf('/')
-  const folder  = storageKey.slice(0, slash)   // userId
-  const tsPrefix = storageKey.slice(slash + 1)  // timestamp
-  const service = createServiceClient()
+/** Derive {userId}/{ts} storage key from a full background CDN URL. */
+function backgroundKeyFromUrl(url: string): string | null {
+  const prefix = backgroundPrefix()
+  if (!url.startsWith(prefix)) return null
+  return url.slice(prefix.length).replace(/\.(webp|jpg|png)$/, '')
+}
+
+/** Bulk-delete all storage variants for a given {userId}/{ts} key in a bucket. */
+async function deleteStorageFiles(bucket: string, storageKey: string) {
+  const slash    = storageKey.lastIndexOf('/')
+  const folder   = storageKey.slice(0, slash)
+  const tsPrefix = storageKey.slice(slash + 1)
+  const service  = createServiceClient()
   const { data: files } = await service.storage
-    .from(AVATAR_BUCKET)
+    .from(bucket)
     .list(folder, { search: tsPrefix })
   if (files && files.length > 0) {
     await service.storage
-      .from(AVATAR_BUCKET)
+      .from(bucket)
       .remove(files.map((f) => `${folder}/${f.name}`))
   }
+}
+
+/** @deprecated Use deleteStorageFiles with explicit bucket */
+async function deleteStorageVariants(storageKey: string) {
+  return deleteStorageFiles(AVATAR_BUCKET, storageKey)
 }
 
 /** Invalidate profile + all crew-member caches for a user. */
@@ -166,4 +183,65 @@ export async function resetAvatarAction(): Promise<{ error: string | null; avata
   const crewIds = ((memberships ?? []) as { crew_id: string }[]).map((r) => r.crew_id)
   await revalidateUserCaches(userId, crewIds)
   return { error: null, avatarUrl: googleAvatarUrl }
+}
+
+export async function updateBackgroundAction(newBackgroundUrl: string): Promise<{ error: string | null }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+  const userId = user.id
+
+  const storageKey = backgroundKeyFromUrl(newBackgroundUrl)
+
+  const [{ data: profile }, { data: memberships }] = await Promise.all([
+    supabase.from('profiles').select('background_url, background_storage_key').eq('id', userId).single(),
+    supabase.from('crew_members').select('crew_id').eq('user_id', userId),
+  ])
+  type OldBg = { background_url?: string | null; background_storage_key?: string | null }
+  const oldStorageKey = (profile as OldBg | null)?.background_storage_key ?? null
+  const oldUrl        = (profile as OldBg | null)?.background_url ?? null
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({ background_url: newBackgroundUrl, background_storage_key: storageKey })
+    .eq('id', userId)
+  if (error) return { error: error.message }
+
+  if (oldStorageKey) {
+    await deleteStorageFiles(BACKGROUND_BUCKET, oldStorageKey)
+  } else if (oldUrl?.startsWith(backgroundPrefix())) {
+    const service = createServiceClient()
+    await service.storage.from(BACKGROUND_BUCKET).remove([oldUrl.slice(backgroundPrefix().length)])
+  }
+
+  const crewIds = ((memberships ?? []) as { crew_id: string }[]).map((r) => r.crew_id)
+  await revalidateUserCaches(userId, crewIds)
+  return { error: null }
+}
+
+export async function resetBackgroundAction(): Promise<{ error: string | null }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+  const userId = user.id
+
+  const [{ data: profile }, { data: memberships }] = await Promise.all([
+    supabase.from('profiles').select('background_storage_key').eq('id', userId).single(),
+    supabase.from('crew_members').select('crew_id').eq('user_id', userId),
+  ])
+  const oldStorageKey = (profile as { background_storage_key?: string | null } | null)?.background_storage_key ?? null
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({ background_url: null, background_storage_key: null })
+    .eq('id', userId)
+  if (error) return { error: error.message }
+
+  if (oldStorageKey) {
+    await deleteStorageFiles(BACKGROUND_BUCKET, oldStorageKey)
+  }
+
+  const crewIds = ((memberships ?? []) as { crew_id: string }[]).map((r) => r.crew_id)
+  await revalidateUserCaches(userId, crewIds)
+  return { error: null }
 }

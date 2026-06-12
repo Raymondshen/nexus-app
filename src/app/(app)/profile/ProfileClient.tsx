@@ -13,7 +13,7 @@ import Image from 'next/image'
 import { isSupabaseStorage, resolveAvatarUrl } from '@/components/ui/Avatar'
 import { createClient } from '@/lib/supabase/client'
 import { signOut } from '@/lib/supabase/auth'
-import { revalidateProfileAction, resetAvatarAction, updateProfileDetailsAction } from './actions'
+import { revalidateProfileAction, resetAvatarAction, resetBackgroundAction, updateProfileDetailsAction } from './actions'
 import { NotifSheet, type NotifPrefs } from '@/components/chat/NotifSheet'
 import {
   getAllAnnouncementsAction,
@@ -23,6 +23,7 @@ import {
   deleteAnnouncementAction,
 } from '@/app/(app)/home/actions'
 import { AvatarUploadModal } from '@/components/ui/AvatarUploadModal'
+import { BackgroundUploadModal } from '@/components/ui/BackgroundUploadModal'
 import type { Announcement } from '@/types'
 
 interface ProfileClientProps {
@@ -32,6 +33,7 @@ interface ProfileClientProps {
   avatarUrl:       string | null
   avatarClass:     string | null
   customAvatar:    boolean
+  backgroundUrl:   string | null
   isDev:           boolean
   isGuest:         boolean
   memberSinceYear: string
@@ -142,6 +144,9 @@ function EditProfileSheet({
   initialDisplayName,
   initialStatus,
   avatarUrl,
+  backgroundUrl,
+  onBgUpload,
+  onBgReset,
   userId,
   isDev,
   memberSinceYear,
@@ -155,6 +160,9 @@ function EditProfileSheet({
   initialDisplayName: string
   initialStatus:      string
   avatarUrl:          string | null
+  backgroundUrl:      string | null
+  onBgUpload:         () => void
+  onBgReset:          () => void
   userId:             string
   isDev:              boolean
   memberSinceYear:    string
@@ -239,8 +247,9 @@ function EditProfileSheet({
                 style={{ height: 180, padding: 'var(--space-5)' }}
               >
                 {/* Background image — plain img avoids next/image iOS PWA rendering issues */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src="/img/default_image.png"
+                  src={backgroundUrl ?? '/img/default_image.png'}
                   alt=""
                   aria-hidden
                   style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }}
@@ -328,6 +337,46 @@ function EditProfileSheet({
                     }}
                   />
                 </div>
+              </div>
+
+              {/* Background Image */}
+              <div className="flex flex-col gap-2">
+                <p
+                  className="font-body font-medium text-primary tracking-[0.2px] leading-normal"
+                  style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
+                >
+                  Background Image
+                </p>
+                <div className="flex items-center gap-[var(--space-5)]">
+                  <div className="relative flex-shrink-0 overflow-hidden bg-border" style={{ width: 72, height: 40 }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={backgroundUrl ?? '/img/default_image.png'}
+                      alt=""
+                      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+                    />
+                  </div>
+                  <button
+                    onClick={onBgUpload}
+                    className="flex-1 h-[var(--space-13)] border border-purple flex items-center justify-center overflow-hidden transition-opacity active:opacity-70"
+                  >
+                    <span
+                      className="font-silkscreen leading-none whitespace-nowrap text-purple"
+                      style={{ fontSize: 'var(--text-sm)' }}
+                    >
+                      upload cover
+                    </span>
+                  </button>
+                </div>
+                {backgroundUrl && (
+                  <button
+                    onClick={onBgReset}
+                    className="font-silkscreen text-muted leading-none whitespace-nowrap self-start"
+                    style={{ fontSize: 7 }}
+                  >
+                    Use default cover
+                  </button>
+                )}
               </div>
 
               {/* Display Name input */}
@@ -438,8 +487,8 @@ function BackButton() {
 // ─── ProfileClient ────────────────────────────────────────────────────────────
 
 export function ProfileClient({
-  userId, userEmail, initialUsername, avatarUrl, avatarClass, customAvatar, isDev, isGuest,
-  memberSinceYear, totalMessages, groupChats, inviterUsername, initialStatus,
+  userId, userEmail, initialUsername, avatarUrl, avatarClass, customAvatar, backgroundUrl,
+  isDev, isGuest, memberSinceYear, totalMessages, groupChats, inviterUsername, initialStatus,
 }: ProfileClientProps) {
   const router = useRouter()
 
@@ -461,6 +510,23 @@ export function ProfileClient({
       }
     } finally {
       setResettingAvatar(false)
+    }
+  }
+
+  // ── Background upload + reset ─────────────────────────────────────────────
+  const [localBackgroundUrl, setLocalBackgroundUrl] = useState(backgroundUrl)
+  const [pendingBgFile,      setPendingBgFile]      = useState<File | null>(null)
+  const [resettingBg,        setResettingBg]        = useState(false)
+  const bgFileInputRef                              = useRef<HTMLInputElement>(null)
+
+  async function handleResetBackground() {
+    if (resettingBg) return
+    setResettingBg(true)
+    try {
+      const result = await resetBackgroundAction()
+      if (!result.error) setLocalBackgroundUrl(null)
+    } finally {
+      setResettingBg(false)
     }
   }
 
@@ -534,8 +600,9 @@ export function ProfileClient({
       <div className="relative flex-shrink-0 w-full bg-black overflow-hidden" style={{ height: 'calc(280px + env(safe-area-inset-top, 0px))' }}>
 
         {/* Background image — plain img avoids next/image iOS PWA rendering issues */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src="/img/default_image.png"
+          src={localBackgroundUrl ?? '/img/default_image.png'}
           alt=""
           aria-hidden
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }}
@@ -657,6 +724,42 @@ export function ProfileClient({
             <BackButton />
           </div>
         </div>
+
+        {/* Edit cover button — top-right, mirrors back button position */}
+        {!isGuest && (
+          <div className="absolute z-20 pointer-events-none flex flex-col items-end gap-1" style={{ top: 'calc(env(safe-area-inset-top, 0px) + 18px)', right: 16 }}>
+            <button
+              className="pointer-events-auto flex items-center bg-surface border border-purple p-2 overflow-hidden"
+              style={{ boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)' }}
+              onClick={() => bgFileInputRef.current?.click()}
+            >
+              <span className="font-pixel leading-none" style={{ fontSize: 6, color: 'var(--color-purple)' }}>EDIT COVER</span>
+            </button>
+            {localBackgroundUrl && (
+              <button
+                onClick={handleResetBackground}
+                disabled={resettingBg}
+                className="pointer-events-auto font-silkscreen text-muted leading-none whitespace-nowrap disabled:opacity-40"
+                style={{ fontSize: 7 }}
+              >
+                {resettingBg ? '...' : 'Use default'}
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Hidden background file input */}
+        <input
+          ref={bgFileInputRef}
+          type="file"
+          accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0]
+            if (f) setPendingBgFile(f)
+            e.target.value = ''
+          }}
+        />
       </div>
 
       {/* ── Status ticker — full-width row between hero and body ──────────── */}
@@ -749,6 +852,9 @@ export function ProfileClient({
         initialDisplayName={localUsername}
         initialStatus={localStatus}
         avatarUrl={localAvatarUrl}
+        backgroundUrl={localBackgroundUrl}
+        onBgUpload={() => bgFileInputRef.current?.click()}
+        onBgReset={handleResetBackground}
         userId={userId}
         isDev={isDev}
         memberSinceYear={memberSinceYear}
@@ -766,6 +872,31 @@ export function ProfileClient({
           />
         )}
       </AnimatePresence>
+
+      {/* Avatar upload — hero avatar button */}
+      <AvatarUploadModal
+        file={pendingFile}
+        userId={userId}
+        isDev={isDev}
+        onClose={() => setPendingFile(null)}
+        onSuccess={(url) => {
+          setLocalAvatarUrl(url)
+          setLocalCustomAvatar(true)
+          setPendingFile(null)
+        }}
+      />
+
+      {/* Background upload */}
+      <BackgroundUploadModal
+        file={pendingBgFile}
+        userId={userId}
+        isDev={isDev}
+        onClose={() => setPendingBgFile(null)}
+        onSuccess={(url) => {
+          setLocalBackgroundUrl(url)
+          setPendingBgFile(null)
+        }}
+      />
     </SlidePage>
   )
 }
