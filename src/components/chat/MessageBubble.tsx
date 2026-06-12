@@ -520,24 +520,32 @@ export function MessageBubble({
               >
                 {/* Content — matches Figma 130:1287 */}
                 <div className="flex flex-col gap-4 w-full">
-                  {/* Word/aliases + definition */}
+                  {/* Details section — gap-2 (8px) */}
                   <div className="flex flex-col gap-2">
-                    <p
-                      className="font-body font-bold text-[16px] leading-none w-full"
-                      style={{ color: '#60a5fa', fontVariationSettings: '"opsz" 14' }}
-                    >
+                    {/* Aliases label — Silkscreen 8px tertiary */}
+                    <p className="font-silkscreen text-[length:var(--text-mini)] text-tertiary leading-none w-full">
                       {parseAliases(activeDefinition.word).join(', ')}
                     </p>
-                    <p
-                      className="font-body text-[14px] text-secondary leading-normal w-full"
-                      style={{ fontVariationSettings: '"opsz" 14' }}
-                    >
-                      {activeDefinition.definition}
-                    </p>
+                    {/* Primary word + definition — gap-1 (4px) */}
+                    <div className="flex flex-col gap-1">
+                      <p
+                        className="font-body font-bold text-[16px] leading-none w-full"
+                        style={{ color: '#60a5fa', fontVariationSettings: '"opsz" 14' }}
+                      >
+                        {parseAliases(activeDefinition.word)[0]}
+                      </p>
+                      <p
+                        className="font-body text-[14px] text-secondary leading-normal w-full"
+                        style={{ fontVariationSettings: '"opsz" 14' }}
+                      >
+                        {activeDefinition.definition}
+                      </p>
+                    </div>
                   </div>
+                  {/* Creator line */}
                   {activeDefinition.creator_username && (
                     <p
-                      className="font-body text-[11px] leading-none"
+                      className="font-body text-[length:var(--text-xxs)] leading-none"
                       style={{
                         color: activeDefinition.creator_id === currentUserId ? 'var(--color-purple)' : 'var(--color-tertiary)',
                         fontVariationSettings: '"opsz" 14',
@@ -549,7 +557,7 @@ export function MessageBubble({
                 </div>
                 <button
                   onClick={() => setActiveDefinition(null)}
-                  className="h-12 w-full font-pixel text-[8px] text-tertiary flex items-center justify-center transition-colors active:text-primary mt-4"
+                  className="h-12 w-full font-pixel text-[8px] text-tertiary flex items-center justify-center transition-colors active:text-primary mt-6"
                 >
                   CLOSE
                 </button>

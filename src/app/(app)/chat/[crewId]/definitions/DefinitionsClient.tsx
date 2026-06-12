@@ -217,26 +217,32 @@ function DefinitionActionSheet({ definition, onClose, onEdit, onDelete, deleting
 
         {/* Content preview — flex-col gap-[16px] */}
         <div className="flex flex-col gap-4 w-full">
+          {/* Details section — gap-2 (8px) */}
           <div className="flex flex-col gap-2">
-            {/* Word — DM Sans Bold 16px */}
-            <p
-              className="font-body font-bold text-[16px] text-primary leading-none"
-              style={{ fontVariationSettings: '"opsz" 14' }}
-            >
+            {/* Aliases label — Silkscreen 8px tertiary */}
+            <p className="font-silkscreen text-[length:var(--text-mini)] text-tertiary leading-none w-full">
               {aliases}
             </p>
-            {/* Definition — DM Sans Regular 14px text-secondary */}
-            <p
-              className="font-body text-[14px] text-secondary leading-normal line-clamp-4 overflow-hidden"
-              style={{ fontVariationSettings: '"opsz" 14' }}
-            >
-              {definition.definition}
-            </p>
+            {/* Primary word + definition — gap-1 (4px) */}
+            <div className="flex flex-col gap-1">
+              <p
+                className="font-body font-bold text-[16px] leading-none w-full"
+                style={{ color: '#60a5fa', fontVariationSettings: '"opsz" 14' }}
+              >
+                {definition.word.split(',')[0].trim()}
+              </p>
+              <p
+                className="font-body text-[14px] text-secondary leading-normal line-clamp-4 overflow-hidden"
+                style={{ fontVariationSettings: '"opsz" 14' }}
+              >
+                {definition.definition}
+              </p>
+            </div>
           </div>
           {/* Created by — DM Sans Regular 11px text-tertiary */}
           {definition.creator_username && (
             <p
-              className="font-body text-[11px] text-tertiary leading-none"
+              className="font-body text-[length:var(--text-xxs)] text-tertiary leading-none"
               style={{ fontVariationSettings: '"opsz" 14' }}
             >
               Created by : {definition.creator_username}
@@ -411,26 +417,32 @@ export function DefinitionsClient({
                   disabled={!isCreator}
                   className="w-full text-left bg-[rgba(17,17,17,0.5)] border border-[#111111] rounded-[8px] p-4 flex flex-col gap-4 active:opacity-80 transition-opacity disabled:active:opacity-100"
                 >
+                  {/* Details section — gap-2 (8px) */}
                   <div className="flex flex-col gap-2">
-                    {/* Word — DM Sans Bold 16px */}
-                    <p
-                      className="font-body font-bold text-[16px] text-primary leading-none"
-                      style={{ fontVariationSettings: '"opsz" 14' }}
-                    >
+                    {/* Aliases label — Silkscreen 8px tertiary */}
+                    <p className="font-silkscreen text-[length:var(--text-mini)] text-tertiary leading-none w-full">
                       {aliases}
                     </p>
-                    {/* Definition — DM Sans Regular 14px text-secondary */}
-                    <p
-                      className="font-body text-[14px] text-secondary leading-normal line-clamp-3 overflow-hidden"
-                      style={{ fontVariationSettings: '"opsz" 14' }}
-                    >
-                      {def.definition}
-                    </p>
+                    {/* Primary word + definition — gap-1 (4px) */}
+                    <div className="flex flex-col gap-1">
+                      <p
+                        className="font-body font-bold text-[16px] leading-none w-full"
+                        style={{ color: '#60a5fa', fontVariationSettings: '"opsz" 14' }}
+                      >
+                        {def.word.split(',')[0].trim()}
+                      </p>
+                      <p
+                        className="font-body text-[14px] text-secondary leading-normal line-clamp-3 overflow-hidden"
+                        style={{ fontVariationSettings: '"opsz" 14' }}
+                      >
+                        {def.definition}
+                      </p>
+                    </div>
                   </div>
                   {/* Created by — DM Sans Regular 11px text-tertiary */}
                   {def.creator_username && (
                     <p
-                      className="font-body text-[11px] text-tertiary leading-none"
+                      className="font-body text-[length:var(--text-xxs)] text-tertiary leading-none"
                       style={{ fontVariationSettings: '"opsz" 14' }}
                     >
                       Created by : {def.creator_username}
