@@ -526,7 +526,7 @@ export function MessageBubble({
                     <p className="font-silkscreen text-[length:var(--text-mini)] text-tertiary leading-none w-full">
                       {parseAliases(activeDefinition.word).join(', ')}
                     </p>
-                    {/* Primary word + definition — gap-1 (4px) */}
+                    {/* Primary word + actual word + definition — gap-1 (4px) */}
                     <div className="flex flex-col gap-1">
                       <p
                         className="font-body font-bold text-[16px] leading-none w-full"
@@ -534,6 +534,14 @@ export function MessageBubble({
                       >
                         {parseAliases(activeDefinition.word)[0]}
                       </p>
+                      {activeDefinition.actual_word && (
+                        <p
+                          className="font-body text-[12px] text-tertiary leading-normal w-full"
+                          style={{ fontVariationSettings: '"opsz" 14' }}
+                        >
+                          {activeDefinition.actual_word as string}
+                        </p>
+                      )}
                       <p
                         className="font-body text-[14px] text-secondary leading-normal w-full"
                         style={{ fontVariationSettings: '"opsz" 14' }}

@@ -7,19 +7,21 @@ export async function createDefinitionAction(
   crewId: string,
   word: string,
   definition: string,
+  actualWord?: string,
 ): Promise<{ data?: SquadDefinition; error?: string }> {
   const supabase = await createClient()
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) return { error: 'Not authenticated.' }
 
-  const trimWord = word.trim()
-  const trimDef  = definition.trim()
+  const trimWord       = word.trim()
+  const trimDef        = definition.trim()
+  const trimActualWord = actualWord?.trim() || null
   if (!trimWord || trimWord.length > 100) return { error: 'Word(s) must be 1–100 characters.' }
   if (!trimDef  || trimDef.length  > 500) return { error: 'Definition must be 1–500 characters.' }
 
   const { data, error } = await supabase
     .from('squad_definitions')
-    .insert({ crew_id: crewId, creator_id: session.user.id, word: trimWord, definition: trimDef })
+    .insert({ crew_id: crewId, creator_id: session.user.id, word: trimWord, actual_word: trimActualWord, definition: trimDef })
     .select()
     .single()
 
@@ -35,19 +37,21 @@ export async function updateDefinitionAction(
   definitionId: string,
   word: string,
   definition: string,
+  actualWord?: string,
 ): Promise<{ data?: SquadDefinition; error?: string }> {
   const supabase = await createClient()
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) return { error: 'Not authenticated.' }
 
-  const trimWord = word.trim()
-  const trimDef  = definition.trim()
+  const trimWord       = word.trim()
+  const trimDef        = definition.trim()
+  const trimActualWord = actualWord?.trim() || null
   if (!trimWord || trimWord.length > 100) return { error: 'Word(s) must be 1–100 characters.' }
   if (!trimDef  || trimDef.length  > 500) return { error: 'Definition must be 1–500 characters.' }
 
   const { data, error } = await supabase
     .from('squad_definitions')
-    .update({ word: trimWord, definition: trimDef })
+    .update({ word: trimWord, actual_word: trimActualWord, definition: trimDef })
     .eq('id', definitionId)
     .eq('creator_id', session.user.id)
     .select()

@@ -181,6 +181,7 @@ export interface SquadDefinition extends Record<string, unknown> {
   crew_id:     string
   creator_id:  string
   word:        string
+  actual_word: string | null
   definition:  string
   created_at:  string
 }

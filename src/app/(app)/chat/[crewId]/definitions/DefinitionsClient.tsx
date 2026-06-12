@@ -27,25 +27,28 @@ function BackButton() {
 // Handles both create and edit modes (Figma 130:1239)
 
 interface CreateDefinitionSheetProps {
-  crewId:             string
-  mode:               'create' | 'edit'
-  initialWord?:       string
-  initialDefinition?: string
-  definitionId?:      string
-  onClose:            () => void
-  onSaved:            (def: SquadDefinition) => void
+  crewId:              string
+  mode:                'create' | 'edit'
+  initialWord?:        string
+  initialActualWord?:  string
+  initialDefinition?:  string
+  definitionId?:       string
+  onClose:             () => void
+  onSaved:             (def: SquadDefinition) => void
 }
 
 function CreateDefinitionSheet({
   crewId,
   mode,
   initialWord       = '',
+  initialActualWord = '',
   initialDefinition = '',
   definitionId,
   onClose,
   onSaved,
 }: CreateDefinitionSheetProps) {
   const [word,       setWord]       = useState(initialWord)
+  const [actualWord, setActualWord] = useState(initialActualWord)
   const [definition, setDefinition] = useState(initialDefinition)
   const [error,      setError]      = useState('')
   const [saving,     setSaving]     = useState(false)
@@ -57,8 +60,8 @@ function CreateDefinitionSheet({
     setError('')
 
     const result = mode === 'edit' && definitionId
-      ? await updateDefinitionAction(definitionId, word, definition)
-      : await createDefinitionAction(crewId, word, definition)
+      ? await updateDefinitionAction(definitionId, word, definition, actualWord)
+      : await createDefinitionAction(crewId, word, definition, actualWord)
 
     setSaving(false)
     if (result.error) { setError(result.error); return }
@@ -77,7 +80,7 @@ function CreateDefinitionSheet({
         onClick={onClose}
       />
 
-      {/* Sheet — Figma: bg-black border-t border-[#27272a] flex-col gap-[24px] pt-[24px] pb-[16px] px-[16px] */}
+      {/* Sheet — Figma 130:1239 */}
       <motion.div
         className="fixed bottom-0 left-0 right-0 z-[70] bg-black border-t border-border flex flex-col gap-6 px-4 pt-6 overflow-y-auto"
         initial={{ y: '100%' }}
@@ -87,7 +90,7 @@ function CreateDefinitionSheet({
         style={{ maxHeight: '90vh', paddingBottom: 'max(env(safe-area-inset-bottom), 16px)' }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Title — Figma: DM Sans Bold 18px text-primary leading-none */}
+        {/* Title — DM Sans Bold 18px text-primary */}
         <h2
           className="font-body font-bold text-[18px] text-primary leading-none"
           style={{ fontVariationSettings: '"opsz" 14' }}
@@ -95,16 +98,14 @@ function CreateDefinitionSheet({
           Squad Definition
         </h2>
 
-        {/* Words field — Figma: flex-col gap-[8px] items-start */}
+        {/* Words attached to definition — Figma: flex-col gap-[8px] */}
         <div className="flex flex-col gap-2 items-start w-full">
-          {/* Label — Figma: DM Sans Medium 14px text-primary tracking-[0.2px] */}
           <p
             className="font-body font-medium text-[14px] text-primary tracking-[0.2px] leading-normal"
             style={{ fontVariationSettings: '"opsz" 14' }}
           >
-            Words
+            Words attached to definition
           </p>
-          {/* Input — Figma: bg-black border border-[#3f3f46] p-[12px] overflow-clip */}
           <input
             value={word}
             onChange={(e) => setWord(e.target.value)}
@@ -115,7 +116,6 @@ function CreateDefinitionSheet({
             autoComplete="off"
             autoCapitalize="off"
           />
-          {/* Hint — Figma: DM Sans Regular 11px text-tertiary tracking-[0.2px] */}
           <p
             className="font-body text-[11px] text-tertiary tracking-[0.2px] leading-normal w-full"
             style={{ fontVariationSettings: '"opsz" 14' }}
@@ -124,16 +124,39 @@ function CreateDefinitionSheet({
           </p>
         </div>
 
-        {/* Definition field — Figma: flex-col gap-[8px] items-start */}
+        {/* Actual Word — Figma 130:1307 */}
         <div className="flex flex-col gap-2 items-start w-full">
-          {/* Label — same style as Words label */}
+          <p
+            className="font-body font-medium text-[14px] text-primary tracking-[0.2px] leading-normal"
+            style={{ fontVariationSettings: '"opsz" 14' }}
+          >
+            Actual Word
+          </p>
+          <input
+            value={actualWord}
+            onChange={(e) => setActualWord(e.target.value)}
+            maxLength={100}
+            placeholder="e.g. Good Game"
+            className="w-full bg-black border border-border-hover px-3 py-3 font-body text-[14px] text-primary placeholder:text-muted focus:outline-none focus:border-purple transition-colors overflow-hidden"
+            style={{ fontVariationSettings: '"opsz" 14' }}
+            autoComplete="off"
+          />
+          <p
+            className="font-body text-[11px] text-tertiary tracking-[0.2px] leading-normal w-full"
+            style={{ fontVariationSettings: '"opsz" 14' }}
+          >
+            What the actual full word mean. (e.g. GG is &quot;Good Game&quot;)
+          </p>
+        </div>
+
+        {/* Definition field */}
+        <div className="flex flex-col gap-2 items-start w-full">
           <p
             className="font-body font-medium text-[14px] text-primary tracking-[0.2px] leading-normal"
             style={{ fontVariationSettings: '"opsz" 14' }}
           >
             Definition
           </p>
-          {/* Textarea — Figma: bg-black border border-[#3f3f46] h-[78px] p-[12px] overflow-clip */}
           <textarea
             value={definition}
             onChange={(e) => setDefinition(e.target.value)}
@@ -149,9 +172,8 @@ function CreateDefinitionSheet({
           <p className="font-silkscreen text-[8px] text-[#ef4444] leading-relaxed">{error}</p>
         )}
 
-        {/* Buttons — Figma: flex-col gap-[16px] */}
+        {/* Buttons */}
         <div className="flex flex-col gap-4 w-full">
-          {/* Save — Figma: bg-purple h-[48px] px-[16px] py-[8px] overflow-clip */}
           <button
             onClick={handleSave}
             disabled={saving}
@@ -161,7 +183,6 @@ function CreateDefinitionSheet({
               {saving ? 'Saving...' : 'Save definition'}
             </span>
           </button>
-          {/* Cancel — Figma: border border-[#ef4444] h-[48px] px-[16px] py-[8px] overflow-clip */}
           <button
             onClick={onClose}
             disabled={saving}
@@ -223,7 +244,7 @@ function DefinitionActionSheet({ definition, onClose, onEdit, onDelete, deleting
             <p className="font-silkscreen text-[length:var(--text-mini)] text-tertiary leading-none w-full">
               {aliases}
             </p>
-            {/* Primary word + definition — gap-1 (4px) */}
+            {/* Primary word + actual word + definition — gap-1 (4px) */}
             <div className="flex flex-col gap-1">
               <p
                 className="font-body font-bold text-[16px] leading-none w-full"
@@ -231,6 +252,14 @@ function DefinitionActionSheet({ definition, onClose, onEdit, onDelete, deleting
               >
                 {definition.word.split(',')[0].trim()}
               </p>
+              {definition.actual_word && (
+                <p
+                  className="font-body text-[12px] text-tertiary leading-normal"
+                  style={{ fontVariationSettings: '"opsz" 14' }}
+                >
+                  {definition.actual_word}
+                </p>
+              )}
               <p
                 className="font-body text-[14px] text-secondary leading-normal line-clamp-4 overflow-hidden"
                 style={{ fontVariationSettings: '"opsz" 14' }}
@@ -325,7 +354,7 @@ export function DefinitionsClient({
           } else if (payload.eventType === 'UPDATE') {
             const updated = payload.new as SquadDefinition
             setDefinitions((prev) =>
-              prev.map((d) => d.id === updated.id ? { ...d, word: updated.word, definition: updated.definition } : d)
+              prev.map((d) => d.id === updated.id ? { ...d, word: updated.word, actual_word: updated.actual_word, definition: updated.definition } : d)
             )
           }
         }
@@ -343,7 +372,7 @@ export function DefinitionsClient({
 
   const handleUpdated = useCallback((def: SquadDefinition) => {
     setDefinitions((prev) =>
-      prev.map((d) => d.id === def.id ? { ...d, word: def.word, definition: def.definition } : d)
+      prev.map((d) => d.id === def.id ? { ...d, word: def.word, actual_word: def.actual_word, definition: def.definition } : d)
     )
   }, [])
 
@@ -423,7 +452,7 @@ export function DefinitionsClient({
                     <p className="font-silkscreen text-[length:var(--text-mini)] text-tertiary leading-none w-full">
                       {aliases}
                     </p>
-                    {/* Primary word + definition — gap-1 (4px) */}
+                    {/* Primary word + actual word + definition — gap-1 (4px) */}
                     <div className="flex flex-col gap-1">
                       <p
                         className="font-body font-bold text-[16px] leading-none w-full"
@@ -431,6 +460,14 @@ export function DefinitionsClient({
                       >
                         {def.word.split(',')[0].trim()}
                       </p>
+                      {def.actual_word && (
+                        <p
+                          className="font-body text-[12px] text-tertiary leading-normal"
+                          style={{ fontVariationSettings: '"opsz" 14' }}
+                        >
+                          {def.actual_word}
+                        </p>
+                      )}
                       <p
                         className="font-body text-[14px] text-secondary leading-normal line-clamp-3 overflow-hidden"
                         style={{ fontVariationSettings: '"opsz" 14' }}
@@ -487,6 +524,7 @@ export function DefinitionsClient({
             crewId={crewId}
             mode="edit"
             initialWord={editTarget.word}
+            initialActualWord={editTarget.actual_word ?? ''}
             initialDefinition={editTarget.definition}
             definitionId={editTarget.id}
             onClose={() => setEditTarget(null)}
