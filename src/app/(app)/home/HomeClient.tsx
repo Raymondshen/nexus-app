@@ -520,7 +520,7 @@ function LeaveConfirmSheet({
 
 const CREW_AVATAR_COLORS = ['#bf5fff', '#00e5ff', '#ffd700', '#ff4444', '#66bb6a', '#ff9800']
 
-function CrewCardContent({ summary }: { summary: CrewSummary }) {
+function CrewCardContent({ summary, onAvatarTap }: { summary: CrewSummary; onAvatarTap?: () => void }) {
   const { crew, lastMessage, unreadCount } = summary
   const hasUnread   = unreadCount > 0
   const xpInLevel   = crew.total_xp % XP_PER_LEVEL
@@ -531,16 +531,18 @@ function CrewCardContent({ summary }: { summary: CrewSummary }) {
   return (
     <div className="w-full text-left flex items-center gap-4 pr-2">
       {/* Crew avatar — 40×40px per Figma node 50:465 */}
-      <div
-        className="flex-shrink-0 w-10 h-10 overflow-hidden flex items-center justify-center font-pixel text-[10px]"
+      <button
+        className="flex-shrink-0 w-10 h-10 overflow-hidden flex items-center justify-center font-pixel text-[10px] active:opacity-70 transition-opacity"
         style={!imageUrl ? {
           background:  avatarColor + '22',
           border:      `1px solid ${avatarColor}60`,
           color:       avatarColor,
         } : undefined}
+        onClick={(e) => { e.stopPropagation(); onAvatarTap?.() }}
+        aria-label={`View ${crew.name} info`}
       >
         {imageUrl ? (
-          <div className="relative w-full h-full">
+          <div className="relative w-full h-full pointer-events-none">
             <Image
               src={resolveAvatarUrl(imageUrl, 40)}
               alt={crew.name}
@@ -553,7 +555,7 @@ function CrewCardContent({ summary }: { summary: CrewSummary }) {
         ) : (
           crew.name[0]?.toUpperCase()
         )}
-      </div>
+      </button>
 
       {/* Content — leading-none on container matches Figma node 4:62 */}
       <div className="flex-1 min-w-0 flex flex-col gap-2 justify-center leading-none">
@@ -604,7 +606,7 @@ function CrewCardContent({ summary }: { summary: CrewSummary }) {
 
 // ─── Friend card ─────────────────────────────────────────────────────────────
 
-function FriendCard({ friend, onTap }: { friend: FriendSummary; onTap: () => void }) {
+function FriendCard({ friend, onTap, onAvatarTap }: { friend: FriendSummary; onTap: () => void; onAvatarTap: () => void }) {
   const colorIndex  = friend.username.charCodeAt(0) % CREW_AVATAR_COLORS.length
   const avatarColor = CREW_AVATAR_COLORS[colorIndex]
   const preview     = friend.lastDMMessage?.content ?? 'Send a message'
@@ -616,16 +618,18 @@ function FriendCard({ friend, onTap }: { friend: FriendSummary; onTap: () => voi
       whileTap={{ scale: 0.98 }}
     >
       {/* Avatar — 40×40px per Figma node 50:483 */}
-      <div
-        className="flex-shrink-0 w-10 h-10 flex items-center justify-center font-pixel text-[10px] overflow-hidden"
+      <button
+        className="flex-shrink-0 w-10 h-10 flex items-center justify-center font-pixel text-[10px] overflow-hidden active:opacity-70 transition-opacity"
         style={{ background: avatarColor + '22', border: `1px solid ${avatarColor}60`, color: avatarColor }}
+        onClick={(e) => { e.stopPropagation(); onAvatarTap() }}
+        aria-label={`View ${friend.username}'s profile`}
       >
         {friend.avatarUrl ? (
-          <Image src={resolveAvatarUrl(friend.avatarUrl, 40)} alt={friend.username} width={40} height={40} className="object-cover w-full h-full" unoptimized={isSupabaseStorage(friend.avatarUrl)} />
+          <Image src={resolveAvatarUrl(friend.avatarUrl, 40)} alt={friend.username} width={40} height={40} className="object-cover w-full h-full pointer-events-none" unoptimized={isSupabaseStorage(friend.avatarUrl)} />
         ) : (
           friend.username[0]?.toUpperCase()
         )}
-      </div>
+      </button>
 
       {/* Content — matches Figma node 50:484/485: name+timestamp row then preview */}
       <div className="flex-1 min-w-0 flex flex-col gap-1 justify-center leading-none">
@@ -726,7 +730,7 @@ function SwipeableCrewCard({
           onClick={handleClick}
           whileTap={{ scale: open ? 1 : 0.98 }}
         >
-          <CrewCardContent summary={summary} />
+          <CrewCardContent summary={summary} onAvatarTap={onTap} />
         </motion.div>
 
         <button
@@ -1018,6 +1022,13 @@ export function HomeClient({
                 key={friend.id}
                 friend={friend}
                 onTap={() => router.push(`/dm/${friend.id}`)}
+                onAvatarTap={() => {
+                  if (friend.dmChannelId) {
+                    router.push(`/chat/${friend.dmChannelId}/member/${friend.id}`)
+                  } else {
+                    router.push(`/dm/${friend.id}`)
+                  }
+                }}
               />
             ))}
           </div>
