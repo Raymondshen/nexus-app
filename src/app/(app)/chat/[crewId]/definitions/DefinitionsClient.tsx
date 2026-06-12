@@ -236,46 +236,49 @@ function DefinitionActionSheet({ definition, onClose, onEdit, onDelete, deleting
           Squad Definition
         </h2>
 
-        {/* Content preview — flex-col gap-[16px] */}
-        <div className="flex flex-col gap-4 w-full">
-          {/* Details section — gap-2 (8px) */}
-          <div className="flex flex-col gap-2">
-            {/* Aliases label — Silkscreen 8px tertiary */}
-            <p className="font-silkscreen text-[length:var(--text-mini)] text-tertiary leading-none w-full">
+        {/* Content preview — Figma 130:1289: flex-col gap-[--space-5] items-start */}
+        <div className="flex flex-col items-start w-full" style={{ gap: 'var(--space-5)' }}>
+          {/* Details — Figma 130:1290: flex-col gap-[--space-3] items-start justify-center */}
+          <div className="flex flex-col items-start justify-center w-full" style={{ gap: 'var(--space-3)' }}>
+            {/* Aliases — Figma 130:1291: Silkscreen --mini tertiary leading-none */}
+            <p
+              className="font-silkscreen text-tertiary leading-none w-full"
+              style={{ fontSize: 'var(--text-mini)' }}
+            >
               {aliases}
             </p>
-            {/* Primary word + actual word + definition */}
-            <div className="flex flex-col gap-2">
+            {/* Inner — Figma 130:1315: flex-col gap-[--space-2] */}
+            <div className="flex flex-col w-full" style={{ gap: 'var(--space-2)' }}>
+              {/* Primary word — Figma 130:1316: DM Sans Bold --md blue leading-none */}
               <p
-                className="font-silkscreen leading-none w-full"
-                style={{ fontSize: 'var(--text-md)', color: '#60a5fa' }}
+                className="font-body font-bold leading-none w-full"
+                style={{ fontSize: 'var(--text-md)', color: 'var(--color-blue)', fontVariationSettings: '"opsz" 14' }}
               >
                 {definition.word.split(',')[0].trim()}
               </p>
+              {/* Actual word — blue DM Sans Regular --xs */}
               {definition.actual_word && (
                 <p
-                  className="font-body leading-normal"
-                  style={{ fontSize: 'var(--text-xs)', color: '#60a5fa', fontVariationSettings: '"opsz" 14' }}
+                  className="font-body leading-normal w-full"
+                  style={{ fontSize: 'var(--text-xs)', color: 'var(--color-blue)', fontVariationSettings: '"opsz" 14' }}
                 >
                   {definition.actual_word}
                 </p>
               )}
-              {/* Definition body — input style */}
-              <div className="w-full bg-black border border-border-hover" style={{ padding: 'var(--space-4)' }}>
-                <p
-                  className="font-body text-primary leading-normal line-clamp-4 overflow-hidden"
-                  style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
-                >
-                  {definition.definition}
-                </p>
-              </div>
+              {/* Definition — Figma 130:1292: DM Sans Regular 14px secondary leading-normal overflow-hidden */}
+              <p
+                className="font-body text-secondary leading-normal overflow-hidden line-clamp-4 w-full"
+                style={{ fontSize: '14px', fontVariationSettings: '"opsz" 14' }}
+              >
+                {definition.definition}
+              </p>
             </div>
           </div>
-          {/* Created by — DM Sans Regular 11px text-tertiary */}
+          {/* Created by — Figma 130:1293: DM Sans Regular --xxs tertiary leading-none */}
           {definition.creator_username && (
             <p
-              className="font-body text-[length:var(--text-xxs)] text-tertiary leading-none"
-              style={{ fontVariationSettings: '"opsz" 14' }}
+              className="font-body text-tertiary leading-none"
+              style={{ fontSize: 'var(--text-xxs)', fontVariationSettings: '"opsz" 14' }}
             >
               Created by : {definition.creator_username}
             </p>
@@ -449,41 +452,47 @@ export function DefinitionsClient({
                   disabled={!isCreator}
                   className="w-full text-left bg-[rgba(17,17,17,0.5)] border border-[#111111] rounded-[8px] p-4 flex flex-col gap-4 active:opacity-80 transition-opacity disabled:active:opacity-100"
                 >
-                  {/* Details section — gap-2 (8px) */}
-                  <div className="flex flex-col gap-2">
-                    {/* Aliases label — Silkscreen 8px tertiary */}
-                    <p className="font-silkscreen text-[length:var(--text-mini)] text-tertiary leading-none w-full">
+                  {/* Details — Figma 130:1290: flex-col gap-[--space-3] items-start justify-center */}
+                  <div className="flex flex-col items-start justify-center w-full" style={{ gap: 'var(--space-3)' }}>
+                    {/* Aliases — Figma 130:1291: Silkscreen --mini tertiary leading-none */}
+                    <p
+                      className="font-silkscreen text-tertiary leading-none w-full"
+                      style={{ fontSize: 'var(--text-mini)' }}
+                    >
                       {aliases}
                     </p>
-                    {/* Primary word + actual word + definition */}
-                    <div className="flex flex-col gap-1">
+                    {/* Inner — Figma 130:1315: flex-col gap-[--space-2] */}
+                    <div className="flex flex-col w-full" style={{ gap: 'var(--space-2)' }}>
+                      {/* Primary word — Figma 130:1316: DM Sans Bold --md blue leading-none */}
                       <p
-                        className="font-silkscreen leading-none w-full"
-                        style={{ fontSize: 'var(--text-md)', color: '#60a5fa' }}
+                        className="font-body font-bold leading-none w-full"
+                        style={{ fontSize: 'var(--text-md)', color: 'var(--color-blue)', fontVariationSettings: '"opsz" 14' }}
                       >
                         {def.word.split(',')[0].trim()}
                       </p>
+                      {/* Actual word — blue DM Sans Regular --xs */}
                       {def.actual_word && (
                         <p
-                          className="font-body leading-normal"
-                          style={{ fontSize: 'var(--text-xs)', color: '#60a5fa', fontVariationSettings: '"opsz" 14' }}
+                          className="font-body leading-normal w-full"
+                          style={{ fontSize: 'var(--text-xs)', color: 'var(--color-blue)', fontVariationSettings: '"opsz" 14' }}
                         >
                           {def.actual_word}
                         </p>
                       )}
+                      {/* Definition — Figma 130:1292: DM Sans Regular 14px secondary leading-normal overflow-hidden */}
                       <p
-                        className="font-body text-primary leading-normal line-clamp-3 overflow-hidden"
-                        style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
+                        className="font-body text-secondary leading-normal overflow-hidden line-clamp-3 w-full"
+                        style={{ fontSize: '14px', fontVariationSettings: '"opsz" 14' }}
                       >
                         {def.definition}
                       </p>
                     </div>
                   </div>
-                  {/* Created by — DM Sans Regular 11px text-tertiary */}
+                  {/* Created by — Figma 130:1293: DM Sans Regular --xxs tertiary leading-none */}
                   {def.creator_username && (
                     <p
-                      className="font-body text-[length:var(--text-xxs)] text-tertiary leading-none"
-                      style={{ fontVariationSettings: '"opsz" 14' }}
+                      className="font-body text-tertiary leading-none"
+                      style={{ fontSize: 'var(--text-xxs)', fontVariationSettings: '"opsz" 14' }}
                     >
                       Created by : {def.creator_username}
                     </p>

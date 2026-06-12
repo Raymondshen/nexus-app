@@ -518,46 +518,50 @@ export function MessageBubble({
                 style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 16px)' }}
                 onClick={(e) => e.stopPropagation()}
               >
-                {/* Content — matches Figma 130:1287 */}
-                <div className="flex flex-col gap-4 w-full">
-                  {/* Details section — gap-2 (8px) */}
-                  <div className="flex flex-col gap-2">
-                    {/* Aliases label — Silkscreen 8px tertiary */}
-                    <p className="font-silkscreen text-[length:var(--text-mini)] text-tertiary leading-none w-full">
+                {/* Content — Figma 130:1289: flex-col gap-[--space-5] items-start */}
+                <div className="flex flex-col items-start w-full" style={{ gap: 'var(--space-5)' }}>
+                  {/* Details — Figma 130:1290: flex-col gap-[--space-3] items-start justify-center */}
+                  <div className="flex flex-col items-start justify-center w-full" style={{ gap: 'var(--space-3)' }}>
+                    {/* Aliases — Figma 130:1291: Silkscreen --mini tertiary leading-none */}
+                    <p
+                      className="font-silkscreen text-tertiary leading-none w-full"
+                      style={{ fontSize: 'var(--text-mini)' }}
+                    >
                       {parseAliases(activeDefinition.word).join(', ')}
                     </p>
-                    {/* Primary word + actual word + definition */}
-                    <div className="flex flex-col gap-2">
+                    {/* Inner — Figma 130:1315: flex-col gap-[--space-2] */}
+                    <div className="flex flex-col w-full" style={{ gap: 'var(--space-2)' }}>
+                      {/* Primary word — Figma 130:1316: DM Sans Bold --md blue leading-none */}
                       <p
-                        className="font-silkscreen leading-none w-full"
-                        style={{ fontSize: 'var(--text-md)', color: '#60a5fa' }}
+                        className="font-body font-bold leading-none w-full"
+                        style={{ fontSize: 'var(--text-md)', color: 'var(--color-blue)', fontVariationSettings: '"opsz" 14' }}
                       >
                         {parseAliases(activeDefinition.word)[0]}
                       </p>
+                      {/* Actual word — blue DM Sans Regular --xs */}
                       {activeDefinition.actual_word && (
                         <p
                           className="font-body leading-normal w-full"
-                          style={{ fontSize: 'var(--text-xs)', color: '#60a5fa', fontVariationSettings: '"opsz" 14' }}
+                          style={{ fontSize: 'var(--text-xs)', color: 'var(--color-blue)', fontVariationSettings: '"opsz" 14' }}
                         >
                           {activeDefinition.actual_word as string}
                         </p>
                       )}
-                      {/* Definition body — input style */}
-                      <div className="w-full bg-black border border-border-hover" style={{ padding: 'var(--space-4)' }}>
-                        <p
-                          className="font-body text-primary leading-normal w-full"
-                          style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
-                        >
-                          {activeDefinition.definition}
-                        </p>
-                      </div>
+                      {/* Definition — Figma 130:1292: DM Sans Regular 14px secondary leading-normal overflow-hidden */}
+                      <p
+                        className="font-body text-secondary leading-normal overflow-hidden w-full"
+                        style={{ fontSize: '14px', fontVariationSettings: '"opsz" 14' }}
+                      >
+                        {activeDefinition.definition}
+                      </p>
                     </div>
                   </div>
-                  {/* Creator line */}
+                  {/* Creator — Figma 130:1293: DM Sans Regular --xxs tertiary; purple when own */}
                   {activeDefinition.creator_username && (
                     <p
-                      className="font-body text-[length:var(--text-xxs)] leading-none"
+                      className="font-body leading-none"
                       style={{
+                        fontSize: 'var(--text-xxs)',
                         color: activeDefinition.creator_id === currentUserId ? 'var(--color-purple)' : 'var(--color-tertiary)',
                         fontVariationSettings: '"opsz" 14',
                       }}
