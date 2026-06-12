@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { createDefinitionAction } from '@/app/(app)/chat/[crewId]/definitions/actions'
+import { suggestDefinitionAction } from '@/app/(app)/chat/[crewId]/definitions/actions'
 import type { SquadDefinition, SquadDefinitionWithCreator } from '@/types'
 
 interface SuggestDefinitionSheetProps {
@@ -32,7 +32,7 @@ export function SuggestDefinitionSheet({
     if (!suggestion.trim()) { setError('Please write your suggestion.'); return }
     setSaving(true)
     setError('')
-    const result = await createDefinitionAction(crewId, definition.word, suggestion)
+    const result = await suggestDefinitionAction(definition.id, crewId, suggestion)
     setSaving(false)
     if (result.error) { setError(result.error); return }
     if (result.data) onSaved?.(result.data)

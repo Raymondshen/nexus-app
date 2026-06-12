@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 import type { SquadDefinition } from '@/types'
 
 export async function createDefinitionAction(
@@ -62,6 +62,39 @@ export async function updateDefinitionAction(
     return { error: 'Failed to update definition.' }
   }
 
+  return { data: data as SquadDefinition }
+}
+
+export async function suggestDefinitionAction(
+  definitionId: string,
+  crewId: string,
+  definition: string,
+): Promise<{ data?: SquadDefinition; error?: string }> {
+  const supabase = await createClient()
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) return { error: 'Not authenticated.' }
+
+  const trimDef = definition.trim()
+  if (!trimDef || trimDef.length > 500) return { error: 'Definition must be 1–500 characters.' }
+
+  // Verify crew membership before bypassing creator-only RLS
+  const { data: member } = await supabase
+    .from('crew_members')
+    .select('id')
+    .eq('crew_id', crewId)
+    .eq('user_id', session.user.id)
+    .single()
+  if (!member) return { error: 'Not a member of this squad.' }
+
+  const service = createServiceClient()
+  const { data, error } = await service
+    .from('squad_definitions')
+    .update({ definition: trimDef })
+    .eq('id', definitionId)
+    .select()
+    .single()
+
+  if (error) return { error: 'Failed to submit suggestion.' }
   return { data: data as SquadDefinition }
 }
 
