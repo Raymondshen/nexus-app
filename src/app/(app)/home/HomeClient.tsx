@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback, useActionState } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useActionState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence, useMotionValue, animate } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
@@ -10,6 +10,7 @@ import { TokeCircle } from 'pixelarticons/react/TokeCircle'
 import { Logout } from 'pixelarticons/react/Logout'
 import { Notebook } from 'pixelarticons/react/Notebook'
 import { PlusBox } from 'pixelarticons/react/PlusBox'
+import { Message as MessageIcon } from 'pixelarticons/react/Message'
 import Image from 'next/image'
 import { isSupabaseStorage, resolveAvatarUrl } from '@/components/ui/Avatar'
 import { createClient } from '@/lib/supabase/client'
@@ -67,6 +68,60 @@ function relativeTime(iso: string): string {
   }
 }
 
+// ─── Home status ticker ───────────────────────────────────────────────────────
+
+function HomeStatusTicker({ status }: { status: string }) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const itemRef      = useRef<HTMLSpanElement>(null)
+  const [numCopies, setNumCopies] = useState(6)
+  const [animPx,    setAnimPx]    = useState(0)
+
+  useLayoutEffect(() => {
+    const container = containerRef.current
+    const item      = itemRef.current
+    if (!container || !item) return
+    const cw = container.clientWidth
+    const iw = item.offsetWidth
+    if (iw <= 0) return
+    const halfNeeded = Math.ceil(cw / iw) + 1
+    const n          = Math.max(4, halfNeeded % 2 === 0 ? halfNeeded * 2 : (halfNeeded + 1) * 2)
+    setNumCopies(n)
+    setAnimPx(iw * (n / 2))
+  }, [status])
+
+  const duration = Math.max(21, status.length * 0.28 + 15)
+
+  return (
+    <div
+      ref={containerRef}
+      className="overflow-hidden border-t border-b border-border px-2"
+      style={{ paddingTop: 7, paddingBottom: 7 }}
+    >
+      <motion.div
+        key={status}
+        className="flex"
+        initial={{ x: 0 }}
+        animate={{ x: animPx > 0 ? [0, -animPx] : 0 }}
+        transition={{ duration, repeat: Infinity, ease: 'linear', repeatType: 'loop' }}
+      >
+        {Array.from({ length: numCopies }, (_, i) => (
+          <span
+            key={i}
+            ref={i === 0 ? itemRef : undefined}
+            className="inline-flex items-center flex-shrink-0 whitespace-nowrap pr-2"
+            style={{ gap: 4 }}
+          >
+            <MessageIcon style={{ width: 8, height: 8, color: 'var(--color-tertiary)' }} aria-hidden="true" />
+            <span className="font-silkscreen text-[length:var(--text-mini)] text-tertiary leading-none">
+              &ldquo;{status}&rdquo;
+            </span>
+          </span>
+        ))}
+      </motion.div>
+    </div>
+  )
+}
+
 // ─── Account preview container ───────────────────────────────────────────────
 
 function AccountPreviewContainer({
@@ -98,15 +153,16 @@ function AccountPreviewContainer({
 }) {
   return (
     <div
-      className="bg-[rgba(17,17,17,0.5)] border border-border rounded-[8px] p-4 flex flex-col gap-4 cursor-pointer active:opacity-80 transition-opacity"
+      className="bg-[rgba(17,17,17,0.5)] border border-[var(--color-surface)] rounded-[8px] overflow-hidden flex flex-col gap-[var(--space-5)] cursor-pointer active:opacity-80 transition-opacity"
+      style={{ padding: 'var(--space-5)' }}
       onClick={onEditProfile}
       role="button"
       aria-label="Edit profile"
     >
       {/* Details row */}
-      <div className="flex items-start gap-4">
+      <div className="flex items-start gap-[var(--space-5)]">
         {/* Avatar + text */}
-        <div className="flex gap-4 items-center flex-1 min-w-0">
+        <div className="flex gap-[var(--space-5)] items-center flex-1 min-w-0">
           {/* Avatar 48×48 */}
           <div className="w-12 h-12 flex-shrink-0 overflow-hidden relative bg-primary">
             {avatarUrl ? (
@@ -119,16 +175,16 @@ function AccountPreviewContainer({
           </div>
 
           {/* Name + stats */}
-          <div className="flex-1 min-w-0 flex flex-col gap-1 justify-center leading-none">
+          <div className="flex-1 min-w-0 flex flex-col gap-[var(--space-2)] justify-center leading-none">
             {memberSince && (
-              <span className="font-silkscreen text-[8px] text-secondary leading-none">
+              <span className="font-silkscreen text-[length:var(--text-mini)] text-secondary leading-none">
                 Member Since {memberSince}
               </span>
             )}
-            <span className="font-body font-bold text-[20px] text-primary leading-tight truncate" style={{ fontVariationSettings: '"opsz" 14' }}>
+            <span className="font-body font-bold text-[length:var(--text-xl)] text-primary leading-none truncate" style={{ fontVariationSettings: '"opsz" 14' }}>
               {username}
             </span>
-            <span className="font-silkscreen text-[8px] text-secondary leading-none">
+            <span className="font-silkscreen text-[length:var(--text-mini)] text-secondary leading-none">
               {crewCount} group chat{crewCount !== 1 ? 's' : ''} · {totalMessages.toLocaleString()} msg
             </span>
           </div>
@@ -139,9 +195,10 @@ function AccountPreviewContainer({
           <button
             onClick={(e) => { e.stopPropagation(); onCoinTap() }}
             aria-label={`${infiniteCoins ? '∞' : coins} coins`}
-            className="flex items-center gap-1 bg-[rgba(245,158,11,0.25)] rounded-[4px] p-1"
+            className="flex items-center bg-[rgba(245,158,11,0.25)] rounded-[4px]"
+            style={{ gap: 'var(--space-2)', padding: 'var(--space-2)' }}
           >
-            <TokeCircle style={{ width: 24, height: 16, color: '#f59e0b' }} aria-hidden="true" />
+            <TokeCircle style={{ width: 16, height: 16, color: '#f59e0b' }} aria-hidden="true" />
             <span className="font-silkscreen leading-none w-[26px] pb-[2px]" style={{ fontSize: 'var(--text-xs)', color: '#f59e0b' }}>
               {infiniteCoins ? '∞' : coins.toLocaleString()}
             </span>
@@ -162,13 +219,17 @@ function AccountPreviewContainer({
         </div>
       </div>
 
-      {/* Status quote */}
-      <p
-        className="font-body font-normal leading-none text-secondary"
-        style={{ fontSize: 'var(--text-xxs)', fontVariationSettings: '"opsz" 14' }}
-      >
-        {status ? `"${status}"` : '"Whats the mood today..."'}
-      </p>
+      {/* Status ticker — animated when status set, static placeholder otherwise */}
+      {status
+        ? <HomeStatusTicker status={status} />
+        : (
+          <p
+            className="font-silkscreen text-[length:var(--text-mini)] text-tertiary leading-none"
+          >
+            &ldquo;Whats the mood today...&rdquo;
+          </p>
+        )
+      }
 
       {/* AFK XP bar — dev-only feature flag: nexus_afk_exp */}
       {afkExpEnabled && (
