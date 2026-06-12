@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import Image from 'next/image'
 import { isSupabaseStorage, resolveAvatarUrl } from '@/components/ui/Avatar'
@@ -45,14 +45,15 @@ function getFirstGrapheme(str: string): string {
 }
 
 interface MessageBubbleProps {
-  message:       MessageWithProfile
-  isOwn:         boolean
-  showHeader:    boolean
-  currentUserId: string
-  xpOverride?:   number
-  coinOverride?:  number
-  onAvatarTap?:  (userId: string) => void
-  definitions?:  SquadDefinitionWithCreator[]
+  message:          MessageWithProfile
+  isOwn:            boolean
+  showHeader:       boolean
+  currentUserId:    string
+  xpOverride?:      number
+  coinOverride?:    number
+  onAvatarTap?:     (userId: string) => void
+  definitions?:     SquadDefinitionWithCreator[]
+  memberUsernames?: Set<string>
 }
 
 // ─── Definition highlight renderer ──────────────────────────────────────────
@@ -114,6 +115,52 @@ function renderWithDefinitions(
   return parts.length ? parts : content
 }
 
+// ─── Combined mentions + definition renderer ─────────────────────────────────
+
+function renderMessageContent(
+  content: string,
+  definitions: SquadDefinitionWithCreator[],
+  memberUsernames: Set<string>,
+  onTapDef: (def: SquadDefinitionWithCreator) => void,
+): React.ReactNode {
+  // Pass 1: split on @mention tokens, preserving non-mention text as strings
+  const mentionRx = /@(\w+)/g
+  const pass1: Array<{ kind: 'text'; value: string } | { kind: 'mention'; value: string }> = []
+  let lastIdx = 0
+  let mx: RegExpExecArray | null
+  while ((mx = mentionRx.exec(content)) !== null) {
+    if (memberUsernames.has(mx[1].toLowerCase())) {
+      if (mx.index > lastIdx) pass1.push({ kind: 'text', value: content.slice(lastIdx, mx.index) })
+      pass1.push({ kind: 'mention', value: mx[1] })
+      lastIdx = mx.index + mx[0].length
+    }
+  }
+  if (lastIdx < content.length) pass1.push({ kind: 'text', value: content.slice(lastIdx) })
+  if (!pass1.length) pass1.push({ kind: 'text', value: content })
+
+  // Pass 2: apply definition highlights to each text segment
+  const result: React.ReactNode[] = []
+  for (let i = 0; i < pass1.length; i++) {
+    const part = pass1[i]
+    if (part.kind === 'mention') {
+      result.push(
+        <span key={`mn-${i}`} style={{ color: 'var(--color-purple)' }}>
+          @{part.value}
+        </span>
+      )
+    } else {
+      if (definitions.length && part.value) {
+        const nodes = renderWithDefinitions(part.value, definitions, onTapDef)
+        if (Array.isArray(nodes)) result.push(...nodes.map((n, j) => <React.Fragment key={`df-${i}-${j}`}>{n}</React.Fragment>))
+        else result.push(nodes)
+      } else {
+        result.push(part.value)
+      }
+    }
+  }
+  return result.length ? result : content
+}
+
 export function MessageBubble({
   message,
   isOwn,
@@ -123,6 +170,7 @@ export function MessageBubble({
   coinOverride,
   onAvatarTap,
   definitions = [] as SquadDefinitionWithCreator[],
+  memberUsernames = new Set<string>(),
 }: MessageBubbleProps) {
   const [sheetOpen,        setSheetOpen]        = useState(false)
   const [copied,           setCopied]           = useState(false)
@@ -437,8 +485,8 @@ export function MessageBubble({
               className="font-body font-normal text-[14px] text-white leading-[normal] w-full select-none"
               style={{ fontVariationSettings: '"opsz" 14', WebkitUserSelect: 'none' }}
             >
-              {message.message_type === 'text' && definitions.length
-                ? renderWithDefinitions(message.content, definitions, setActiveDefinition)
+              {message.message_type === 'text' && (definitions.length || memberUsernames.size)
+                ? renderMessageContent(message.content, definitions, memberUsernames, setActiveDefinition)
                 : message.content
               }
             </p>

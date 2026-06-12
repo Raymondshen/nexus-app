@@ -17,12 +17,13 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-type NotificationType = 'boss_spawned' | 'boss_defeated' | 'raid_expiring' | 'crew_silent' | 'message_received' | 'friend_request' | 'recruit_arrived'
+type NotificationType = 'boss_spawned' | 'boss_defeated' | 'raid_expiring' | 'crew_silent' | 'message_received' | 'mention_received' | 'friend_request' | 'recruit_arrived'
 
 // Maps each notification type to its preference column in notification_preferences.
 // null = always deliver (no preference gate).
 const PREF_COLUMN: Record<NotificationType, 'notif_messages' | 'notif_raids' | 'notif_victory' | null> = {
   message_received: 'notif_messages',
+  mention_received: 'notif_messages',
   boss_spawned:     'notif_raids',
   raid_expiring:    'notif_raids',
   crew_silent:      'notif_raids',
@@ -37,6 +38,14 @@ function buildPayload(type: NotificationType, data: Record<string, unknown>) {
     case 'message_received':
       return {
         title: `${data.sender_name ?? 'Someone'} from ${data.crew_name ?? 'your crew'}`,
+        body:  String(data.content_preview || 'sent'),
+        icon:  '/icons/icon-192.png',
+        badge: '/icons/icon-192.png',
+        data:  { url: `/chat/${data.crew_id}` },
+      }
+    case 'mention_received':
+      return {
+        title: `${data.sender_name ?? 'Someone'} mentioned you in ${data.crew_name ?? 'your crew'}`,
         body:  String(data.content_preview || 'sent'),
         icon:  '/icons/icon-192.png',
         badge: '/icons/icon-192.png',

@@ -132,6 +132,11 @@ export function MessageList({
 
   const [definitions, setDefinitions] = useState<SquadDefinitionWithCreator[]>([])
 
+  const memberUsernames = useMemo(
+    () => new Set(Object.values(localProfiles).map((p) => p.username.toLowerCase())),
+    [localProfiles],
+  )
+
   const scrollRef    = useRef<HTMLDivElement>(null)
   const bottomRef    = useRef<HTMLDivElement>(null)
   const profilesRef  = useRef(memberProfiles)
@@ -639,6 +644,7 @@ export function MessageList({
             coinOverride={item.coinOverride}
             onAvatarTap={onAvatarTap}
             definitions={definitions}
+            memberUsernames={memberUsernames}
           />
         )
       })}

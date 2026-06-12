@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback, useEffect } from 'react'
+import React, { useState, useRef, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
@@ -78,8 +78,11 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   const [showNotif,       setShowNotif]       = useState(false)
   const [notifPrefs,      setNotifPrefs]      = useState<NotifPrefs>({ messages: true, raids: true, victory: true })
   const [showPollCreator,   setShowPollCreator]   = useState(false)
+  const [mentionQuery,    setMentionQuery]    = useState<string | null>(null)
+  const [mentionIndex,    setMentionIndex]    = useState(0)
 
   const textareaRef       = useRef<HTMLTextAreaElement>(null)
+  const overlayRef        = useRef<HTMLDivElement>(null)
   const crewImageInputRef = useRef<HTMLInputElement>(null)
   const rateRef           = useRef({ count: 0, resetAt: Date.now() + RATE_LIMIT_WINDOW })
   const typingTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -187,6 +190,16 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       )
   }, [notifPrefs, userId, crewId]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Sync overlay scroll with textarea scroll so highlighted text stays aligned
+  useEffect(() => {
+    const ta = textareaRef.current
+    const ov = overlayRef.current
+    if (!ta || !ov) return
+    const sync = () => { if (overlayRef.current && textareaRef.current) overlayRef.current.scrollTop = textareaRef.current.scrollTop }
+    ta.addEventListener('scroll', sync)
+    return () => ta.removeEventListener('scroll', sync)
+  }, [])
+
   function handleTopPanEnd(_: PointerEvent, info: PanInfo) {
     if (info.offset.y < -50 || info.velocity.y < -300) setIsExpanded(true)
   }
@@ -271,6 +284,18 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     const content = sanitizeMessage(text)
     if (!content || sending) return
 
+    // Detect mentioned user IDs from @username patterns in the message
+    const currentProfiles = profilesRef.current
+    const usernameToId    = new Map(Object.values(currentProfiles).map((m) => [m.username.toLowerCase(), m.id]))
+    const mentionedSet    = new Set<string>()
+    const mentionRx       = /@(\w+)/g
+    let mx: RegExpExecArray | null
+    while ((mx = mentionRx.exec(content)) !== null) {
+      const uid = usernameToId.get(mx[1].toLowerCase())
+      if (uid && uid !== userId) mentionedSet.add(uid)
+    }
+    const mentionedUserIds = [...mentionedSet]
+
     const now = Date.now()
     if (now >= rateRef.current.resetAt) rateRef.current = { count: 0, resetAt: now + RATE_LIMIT_WINDOW }
     rateRef.current.count++
@@ -316,7 +341,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       fetch(`${SUPABASE_URL}/functions/v1/award-xp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
-        body: JSON.stringify({ message_id: msgId, crew_id: crewId, user_id: userId, username: userProfile.username, message_type: 'text', content }),
+        body: JSON.stringify({ message_id: msgId, crew_id: crewId, user_id: userId, username: userProfile.username, message_type: 'text', content, mentioned_user_ids: mentionedUserIds }),
       })
         .then((r) => r.json())
         .then((data: { xp_earned?: number; new_total_xp?: number; coins_earned?: number; notif_count?: number; notif_results?: unknown[] }) => {
@@ -374,6 +399,14 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    // @mention picker navigation
+    if (mentionQuery !== null && mentionMatches.length > 0) {
+      if (e.key === 'Escape')    { e.preventDefault(); setMentionQuery(null); return }
+      if (e.key === 'ArrowUp')   { e.preventDefault(); setMentionIndex((i) => (i - 1 + mentionMatches.length) % mentionMatches.length); return }
+      if (e.key === 'ArrowDown') { e.preventDefault(); setMentionIndex((i) => (i + 1) % mentionMatches.length); return }
+      if (e.key === 'Enter')     { e.preventDefault(); completeMention(mentionMatches[mentionIndex].username); return }
+    }
+
     if (e.key === 'Escape' && text.startsWith('/') && !text.includes(' ')) {
       e.preventDefault()
       setText('')
@@ -402,6 +435,11 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       if (typingTimerRef.current) clearTimeout(typingTimerRef.current)
       typingTimerRef.current = setTimeout(() => broadcastTyping(false), 3000)
     } else { broadcastTyping(false) }
+    // Detect @mention query at cursor position
+    const pos = e.target.selectionStart ?? val.length
+    const q   = getMentionQuery(val, pos)
+    setMentionQuery(q)
+    if (q !== null) setMentionIndex(0)
   }
 
   function handleBlur() {
@@ -464,6 +502,63 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     setKickedIds(prev => new Set([...prev, removeTarget.id]))
     setRemoveTarget(null)
   }
+
+  // ─── @mention helpers ───────────────────────────────────────────────────────
+
+  function getMentionQuery(val: string, cursorPos: number): string | null {
+    const before = val.slice(0, cursorPos)
+    const atIdx  = before.lastIndexOf('@')
+    if (atIdx === -1) return null
+    const query = before.slice(atIdx + 1)
+    if (/[\s\n]/.test(query)) return null
+    return query
+  }
+
+  function completeMention(username: string) {
+    if (!textareaRef.current) return
+    const pos    = textareaRef.current.selectionStart ?? text.length
+    const before = text.slice(0, pos)
+    const after  = text.slice(pos)
+    const atIdx  = before.lastIndexOf('@')
+    if (atIdx === -1) return
+    const newText = before.slice(0, atIdx) + '@' + username + ' ' + after
+    setText(newText)
+    setMentionQuery(null)
+    setMentionIndex(0)
+    requestAnimationFrame(() => {
+      if (textareaRef.current) {
+        const cur = atIdx + username.length + 2
+        textareaRef.current.focus()
+        textareaRef.current.setSelectionRange(cur, cur)
+      }
+    })
+  }
+
+  function renderHighlightedInput(val: string): React.ReactNode {
+    const memberSet = new Set(members.map((m) => m.username.toLowerCase()))
+    const regex     = /@(\w+)/g
+    const parts: React.ReactNode[] = []
+    let lastIdx = 0
+    let match: RegExpExecArray | null
+    while ((match = regex.exec(val)) !== null) {
+      if (memberSet.has(match[1].toLowerCase())) {
+        if (match.index > lastIdx) parts.push(val.slice(lastIdx, match.index))
+        parts.push(
+          <mark key={match.index} style={{ background: 'transparent', color: 'var(--color-purple)' }}>
+            @{match[1]}
+          </mark>
+        )
+        lastIdx = match.index + match[0].length
+      }
+    }
+    if (lastIdx < val.length) parts.push(val.slice(lastIdx))
+    parts.push('​')
+    return parts
+  }
+
+  const mentionMatches = mentionQuery !== null
+    ? members.filter((m) => m.id !== userId && m.username.toLowerCase().startsWith(mentionQuery.toLowerCase())).slice(0, 5)
+    : []
 
   const typingLabel = typingUsers.length === 1
     ? `${typingUsers[0]} is typing...`
@@ -632,6 +727,43 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
           </div>
         )}
 
+        {/* ── @mention picker ── */}
+        <AnimatePresence>
+          {mentionQuery !== null && mentionMatches.length > 0 && (
+            <motion.div
+              key="mention-menu"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 6 }}
+              transition={{ duration: 0.12 }}
+              className="mb-2 border border-border bg-black overflow-hidden"
+            >
+              {mentionMatches.map((m, i) => {
+                const url     = m.avatar_url as string | null | undefined
+                const initial = m.username[0]?.toUpperCase() ?? '?'
+                return (
+                  <button
+                    key={m.id}
+                    onMouseDown={(e) => { e.preventDefault(); completeMention(m.username) }}
+                    className={`w-full flex items-center gap-3 px-3 py-2 active:bg-surface text-left ${i === mentionIndex ? 'bg-surface' : ''}`}
+                  >
+                    <div className="w-6 h-6 flex-shrink-0 overflow-hidden bg-surface flex items-center justify-center">
+                      {url ? (
+                        <div className="relative w-full h-full">
+                          <Image src={resolveAvatarUrl(url, 24)} alt={m.username} fill sizes="24px" className="object-cover" unoptimized={isSupabaseStorage(url)} />
+                        </div>
+                      ) : (
+                        <span className="font-pixel text-[8px] text-purple">{initial}</span>
+                      )}
+                    </div>
+                    <span className="font-silkscreen text-[11px] text-purple leading-none">@{m.username}</span>
+                  </button>
+                )
+              })}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* ── Slash command menu ── */}
         {(() => {
           const isCmd = text.startsWith('/') && !text.includes(' ')
@@ -677,17 +809,28 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
           >
             <Chart style={{ width: 16, height: 16 }} aria-hidden="true" />
           </button>
-          <textarea
-            ref={textareaRef}
-            value={text}
-            onChange={handleInput}
-            onKeyDown={handleKeyDown}
-            onBlur={handleBlur}
-            placeholder={inRaid ? 'Attack The Void...' : 'Send a message...'}
-            rows={1}
-            className="flex-1 bg-transparent text-white font-body text-[14px] placeholder:text-muted resize-none focus:outline-none leading-normal py-3"
-            style={{ maxHeight: 120, fontVariationSettings: '"opsz" 14' }}
-          />
+          <div className="relative flex-1 min-w-0 overflow-hidden">
+            {/* Overlay renders @mention highlights behind the transparent textarea */}
+            <div
+              ref={overlayRef}
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 font-body text-[14px] leading-normal py-3 overflow-hidden"
+              style={{ fontVariationSettings: '"opsz" 14', whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: 'white' }}
+            >
+              {renderHighlightedInput(text)}
+            </div>
+            <textarea
+              ref={textareaRef}
+              value={text}
+              onChange={handleInput}
+              onKeyDown={handleKeyDown}
+              onBlur={handleBlur}
+              placeholder={inRaid ? 'Attack The Void...' : 'Send a message...'}
+              rows={1}
+              className="relative w-full bg-transparent font-body text-[14px] placeholder:text-muted resize-none focus:outline-none leading-normal py-3"
+              style={{ maxHeight: 120, fontVariationSettings: '"opsz" 14', color: 'transparent', caretColor: 'white' }}
+            />
+          </div>
           {(() => {
             const isCmd = text.startsWith('/') && !text.includes(' ')
             const hasMatch = isCmd && SLASH_COMMANDS.some((c) => c.name.startsWith(text.slice(1).toLowerCase()))

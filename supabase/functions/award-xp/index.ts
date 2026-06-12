@@ -81,7 +81,8 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { message_id, crew_id, user_id, username, message_type, content } = await req.json()
+    const { message_id, crew_id, user_id, username, message_type, content, mentioned_user_ids } = await req.json()
+    const mentionedIds: string[] = Array.isArray(mentioned_user_ids) ? mentioned_user_ids : []
 
     if (!message_id || !crew_id || !user_id || !message_type) {
       return new Response(
@@ -146,25 +147,39 @@ Deno.serve(async (req: Request) => {
     // Notifications don't need to wait for XP writes. Firing here saves ~300ms
     // vs firing after XP calculation and DB writes.
     if (message_type !== 'reaction') {
-      const otherUserIds = (membersResult.data ?? []).map((m: { user_id: string }) => m.user_id)
-      if (otherUserIds.length > 0) {
-        const fnUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/send-notification`
+      const otherUserIds   = (membersResult.data ?? []).map((m: { user_id: string }) => m.user_id)
+      const mentionedSet   = new Set(mentionedIds)
+      const fnUrl          = `${Deno.env.get('SUPABASE_URL')}/functions/v1/send-notification`
+      const notifPayload   = {
+        sender_name:     username ?? 'Someone',
+        content_preview: (content ?? '').slice(0, 80),
+        crew_name:       crewResult.data?.name ?? '',
+        crew_id,
+      }
+
+      // Send mention_received to explicitly mentioned users
+      if (mentionedSet.size > 0) {
+        const validMentioned = otherUserIds.filter((id: string) => mentionedSet.has(id))
+        if (validMentioned.length > 0) {
+          fetch(fnUrl, {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_ids: validMentioned, type: 'mention_received', payload: notifPayload }),
+          }).catch(() => {})
+        }
+      }
+
+      // Send message_received to non-mentioned other members
+      const nonMentionedIds = otherUserIds.filter((id: string) => !mentionedSet.has(id))
+      if (nonMentionedIds.length > 0) {
         fetch(fnUrl, {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            user_ids:        otherUserIds,
-            type:            'message_received',
-            payload:         {
-              sender_name:     username ?? 'Someone',
-              content_preview: (content ?? '').slice(0, 80),
-              crew_name:       crewResult.data?.name ?? '',
-              crew_id,
-            },
-          }),
+          body: JSON.stringify({ user_ids: nonMentionedIds, type: 'message_received', payload: notifPayload }),
         }).catch(() => {})
-        console.log(`[award-xp] notification fired early for ${otherUserIds.length} members (message ${message_id})`)
       }
+
+      console.log(`[award-xp] notifications fired: ${nonMentionedIds.length} message_received, ${mentionedIds.length} mention_received (message ${message_id})`)
     }
 
     // ─── LAYER 1: CONSECUTIVE COOLDOWN ──────────────────────────────────────
