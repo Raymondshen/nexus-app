@@ -526,28 +526,31 @@ export function MessageBubble({
                     <p className="font-silkscreen text-[length:var(--text-mini)] text-tertiary leading-none w-full">
                       {parseAliases(activeDefinition.word).join(', ')}
                     </p>
-                    {/* Primary word + actual word + definition — gap-1 (4px) */}
-                    <div className="flex flex-col gap-1">
+                    {/* Primary word + actual word + definition */}
+                    <div className="flex flex-col gap-2">
                       <p
-                        className="font-body font-bold text-[16px] leading-none w-full"
-                        style={{ color: '#60a5fa', fontVariationSettings: '"opsz" 14' }}
+                        className="font-silkscreen leading-none w-full"
+                        style={{ fontSize: 'var(--text-md)', color: '#60a5fa' }}
                       >
                         {parseAliases(activeDefinition.word)[0]}
                       </p>
                       {activeDefinition.actual_word && (
                         <p
-                          className="font-body text-[12px] text-tertiary leading-normal w-full"
-                          style={{ fontVariationSettings: '"opsz" 14' }}
+                          className="font-body leading-normal w-full"
+                          style={{ fontSize: 'var(--text-xs)', color: '#60a5fa', fontVariationSettings: '"opsz" 14' }}
                         >
                           {activeDefinition.actual_word as string}
                         </p>
                       )}
-                      <p
-                        className="font-body text-[14px] text-secondary leading-normal w-full"
-                        style={{ fontVariationSettings: '"opsz" 14' }}
-                      >
-                        {activeDefinition.definition}
-                      </p>
+                      {/* Definition body — input style */}
+                      <div className="w-full bg-black border border-border-hover" style={{ padding: 'var(--space-4)' }}>
+                        <p
+                          className="font-body text-primary leading-normal w-full"
+                          style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
+                        >
+                          {activeDefinition.definition}
+                        </p>
+                      </div>
                     </div>
                   </div>
                   {/* Creator line */}

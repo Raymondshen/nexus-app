@@ -244,28 +244,31 @@ function DefinitionActionSheet({ definition, onClose, onEdit, onDelete, deleting
             <p className="font-silkscreen text-[length:var(--text-mini)] text-tertiary leading-none w-full">
               {aliases}
             </p>
-            {/* Primary word + actual word + definition — gap-1 (4px) */}
-            <div className="flex flex-col gap-1">
+            {/* Primary word + actual word + definition */}
+            <div className="flex flex-col gap-2">
               <p
-                className="font-body font-bold text-[16px] leading-none w-full"
-                style={{ color: '#60a5fa', fontVariationSettings: '"opsz" 14' }}
+                className="font-silkscreen leading-none w-full"
+                style={{ fontSize: 'var(--text-md)', color: '#60a5fa' }}
               >
                 {definition.word.split(',')[0].trim()}
               </p>
               {definition.actual_word && (
                 <p
-                  className="font-body text-[12px] text-tertiary leading-normal"
-                  style={{ fontVariationSettings: '"opsz" 14' }}
+                  className="font-body leading-normal"
+                  style={{ fontSize: 'var(--text-xs)', color: '#60a5fa', fontVariationSettings: '"opsz" 14' }}
                 >
                   {definition.actual_word}
                 </p>
               )}
-              <p
-                className="font-body text-[14px] text-secondary leading-normal line-clamp-4 overflow-hidden"
-                style={{ fontVariationSettings: '"opsz" 14' }}
-              >
-                {definition.definition}
-              </p>
+              {/* Definition body — input style */}
+              <div className="w-full bg-black border border-border-hover" style={{ padding: 'var(--space-4)' }}>
+                <p
+                  className="font-body text-primary leading-normal line-clamp-4 overflow-hidden"
+                  style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
+                >
+                  {definition.definition}
+                </p>
+              </div>
             </div>
           </div>
           {/* Created by — DM Sans Regular 11px text-tertiary */}
@@ -452,25 +455,25 @@ export function DefinitionsClient({
                     <p className="font-silkscreen text-[length:var(--text-mini)] text-tertiary leading-none w-full">
                       {aliases}
                     </p>
-                    {/* Primary word + actual word + definition — gap-1 (4px) */}
+                    {/* Primary word + actual word + definition */}
                     <div className="flex flex-col gap-1">
                       <p
-                        className="font-body font-bold text-[16px] leading-none w-full"
-                        style={{ color: '#60a5fa', fontVariationSettings: '"opsz" 14' }}
+                        className="font-silkscreen leading-none w-full"
+                        style={{ fontSize: 'var(--text-md)', color: '#60a5fa' }}
                       >
                         {def.word.split(',')[0].trim()}
                       </p>
                       {def.actual_word && (
                         <p
-                          className="font-body text-[12px] text-tertiary leading-normal"
-                          style={{ fontVariationSettings: '"opsz" 14' }}
+                          className="font-body leading-normal"
+                          style={{ fontSize: 'var(--text-xs)', color: '#60a5fa', fontVariationSettings: '"opsz" 14' }}
                         >
                           {def.actual_word}
                         </p>
                       )}
                       <p
-                        className="font-body text-[14px] text-secondary leading-normal line-clamp-3 overflow-hidden"
-                        style={{ fontVariationSettings: '"opsz" 14' }}
+                        className="font-body text-primary leading-normal line-clamp-3 overflow-hidden"
+                        style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
                       >
                         {def.definition}
                       </p>
