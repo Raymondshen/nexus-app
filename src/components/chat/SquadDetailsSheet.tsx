@@ -234,7 +234,7 @@ function SquadDetailsEditSheet({
 
       {/* Sheet — Figma 113:516: bg-black border-t border-border flex-col gap-[--x7] pt-[--x7] pb-[--md] px-[--md] */}
       <motion.div
-        className="fixed bottom-0 left-0 right-0 z-[59] bg-black border-t border-border flex flex-col overflow-y-auto nexus-scroll"
+        className="fixed bottom-0 left-0 right-0 z-[59] bg-[var(--background)] border-t border-border flex flex-col overflow-y-auto nexus-scroll"
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
@@ -496,7 +496,7 @@ export function SquadDetailsSheet({
 
       {/* Sheet */}
       <motion.div
-        className="absolute bottom-0 left-0 right-0 z-[50] bg-black border-t border-border flex flex-col"
+        className="absolute bottom-0 left-0 right-0 z-[50] bg-[var(--background)] border-t border-border flex flex-col"
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
@@ -669,7 +669,7 @@ export function SquadDetailsSheet({
         </div>
 
         {/* ── Scrollable member list ── */}
-        <div ref={memberListRef} className="flex-1 overflow-y-auto nexus-scroll px-4 min-h-0 mt-4">
+        <div ref={memberListRef} className="flex-1 overflow-y-auto nexus-scroll px-4 min-h-0 mt-4" style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 24px)' }}>
           <div className="flex flex-col gap-[var(--space-6)]">
             {members.map((m) => (
               <MemberListRow
@@ -690,18 +690,6 @@ export function SquadDetailsSheet({
           </div>
         </div>
 
-        {/* ── Fixed close footer ── */}
-        <div
-          className="flex-shrink-0 px-4"
-          style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 32px)' }}
-        >
-          <button
-            onClick={onClose}
-            className="h-12 w-full flex items-center justify-center font-pixel text-[8px] text-[#ef4444] transition-colors active:opacity-70"
-          >
-            CLOSE
-          </button>
-        </div>
       </motion.div>
 
       {/* ── Squad Details edit sheet — slides above the squad panel ── */}

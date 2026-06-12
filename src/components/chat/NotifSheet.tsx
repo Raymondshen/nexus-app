@@ -60,7 +60,7 @@ export function NotifSheet({
         animate={{ y: 0,  opacity: 1 }}
         exit={{   y: 80, opacity: 0 }}
         transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-        className="relative w-full max-w-[480px] bg-surface border-t border-border-hover flex flex-col gap-6 p-4 overflow-hidden"
+        className="relative w-full max-w-[480px] bg-[var(--background)] border-t border-border flex flex-col gap-6 p-4 overflow-hidden"
         style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 24px)' }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -99,12 +99,6 @@ export function NotifSheet({
           />
         </div>
 
-        <button
-          onClick={onClose}
-          className="w-full h-[var(--space-13)] flex items-center justify-center font-pixel text-[length:var(--text-mini)] text-tertiary leading-none overflow-hidden transition-colors active:text-muted"
-        >
-          CLOSE
-        </button>
       </motion.div>
     </motion.div>
   )
