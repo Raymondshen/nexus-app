@@ -11,21 +11,18 @@ import 'react-image-crop/dist/ReactCrop.css'
 import { AnimatePresence, motion } from 'framer-motion'
 import { createClient } from '@/lib/supabase/client'
 import { updateBackgroundAction } from '@/app/(app)/profile/actions'
+import { compressCanvas, MAX_OUT_BYTES } from '@/lib/imageCompress'
 
-const ASPECT       = 1080 / 608 // 16:9
-const MAX_OUT_BYTES = 200 * 1024  // 200 KB hard limit
+const ASPECT    = 1080 / 608 // 16:9
+const MAX_BYTES = 15 * 1024 * 1024 // 15 MB input limit
+
+// Canvas sizes tried in order — compressCanvas is called for each until ≤200 KB
+const CANVAS_SIZES: [number, number][] = [[1080, 608], [800, 450], [540, 304]]
 
 const ACCEPTED_TYPES = new Set([
   'image/jpeg', 'image/jpg', 'image/png', 'image/webp',
   'image/heic', 'image/heic-sequence', 'image/heif',
 ])
-const MAX_BYTES = 15 * 1024 * 1024
-
-// Canvas sizes tried in order — fall to smaller if the budget isn't met
-const CANVAS_SIZES: [number, number][] = [[1080, 608], [800, 450], [540, 304]]
-// Quality steps tried for each size before moving to next size
-const WEBP_QUALITIES  = [0.85, 0.70, 0.55, 0.40, 0.25, 0.10]
-const JPEG_QUALITIES  = [0.90, 0.75, 0.60, 0.45, 0.30]
 
 function initCrop(width: number, height: number): Crop {
   return centerCrop(
@@ -35,18 +32,13 @@ function initCrop(width: number, height: number): Crop {
   )
 }
 
-function blobAsync(canvas: HTMLCanvasElement, type: string, quality?: number): Promise<Blob | null> {
-  return new Promise((resolve) => canvas.toBlob(resolve, type, quality))
-}
-
 function drawCanvas(img: HTMLImageElement, crop: PixelCrop, w: number, h: number): HTMLCanvasElement {
   const scaleX = img.naturalWidth  / img.width
   const scaleY = img.naturalHeight / img.height
   const canvas = document.createElement('canvas')
   canvas.width  = w
   canvas.height = h
-  const ctx = canvas.getContext('2d')!
-  ctx.drawImage(
+  canvas.getContext('2d')!.drawImage(
     img,
     crop.x * scaleX, crop.y * scaleY,
     crop.width * scaleX, crop.height * scaleY,
@@ -55,44 +47,15 @@ function drawCanvas(img: HTMLImageElement, crop: PixelCrop, w: number, h: number
   return canvas
 }
 
-// Returns the smallest-quality blob ≤ 200 KB, trying progressively smaller
-// sizes/qualities. Falls back to the smallest result if nothing fits.
+// Tries progressively smaller canvas sizes until compressCanvas finds a blob ≤200 KB.
 async function cropToBlob(img: HTMLImageElement, crop: PixelCrop): Promise<Blob> {
   let smallest: Blob | null = null
-
   for (const [w, h] of CANVAS_SIZES) {
-    const canvas = drawCanvas(img, crop, w, h)
-
-    // WebP first (Safari silently returns null — treated as "not supported")
-    let webpSupported = true
-    for (const q of WEBP_QUALITIES) {
-      const blob = await blobAsync(canvas, 'image/webp', q)
-      if (!blob) { webpSupported = false; break }       // Safari: skip WebP entirely
-      if (!smallest || blob.size < smallest.size) smallest = blob
-      if (blob.size <= MAX_OUT_BYTES) return blob
-    }
-
-    // JPEG fallback (or primary on Safari)
-    if (!webpSupported) {
-      for (const q of JPEG_QUALITIES) {
-        const blob = await blobAsync(canvas, 'image/jpeg', q)
-        if (!blob) break
-        if (!smallest || blob.size < smallest.size) smallest = blob
-        if (blob.size <= MAX_OUT_BYTES) return blob
-      }
-    }
+    const blob = await compressCanvas(drawCanvas(img, crop, w, h))
+    if (!smallest || blob.size < smallest.size) smallest = blob
+    if (blob.size <= MAX_OUT_BYTES) return blob
   }
-
-  // PNG last resort (lossless — likely over limit, but best effort)
-  if (!smallest) {
-    const canvas = drawCanvas(img, crop, 540, 304)
-    const blob = await blobAsync(canvas, 'image/png')
-    if (blob) return blob
-    throw new Error('canvas.toBlob failed')
-  }
-
-  // Return the closest-to-limit result we found
-  return smallest
+  return smallest!
 }
 
 type StepStatus = 'idle' | 'running' | 'ok' | 'fail'

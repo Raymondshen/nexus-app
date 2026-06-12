@@ -11,6 +11,7 @@ import 'react-image-crop/dist/ReactCrop.css'
 import { AnimatePresence, motion } from 'framer-motion'
 import { createClient } from '@/lib/supabase/client'
 import { updateAvatarAction } from '@/app/(app)/profile/actions'
+import { compressCanvas } from '@/lib/imageCompress'
 
 const SIZES = [128, 256] as const
 type VariantSize = typeof SIZES[number]
@@ -19,7 +20,7 @@ const ACCEPTED_TYPES = new Set([
   'image/jpeg', 'image/jpg', 'image/png', 'image/webp',
   'image/heic', 'image/heic-sequence', 'image/heif',
 ])
-const MAX_BYTES = 10 * 1024 * 1024 // 10 MB
+const MAX_BYTES = 10 * 1024 * 1024 // 10 MB input limit
 
 function initCrop(width: number, height: number): Crop {
   return centerCrop(
@@ -36,42 +37,19 @@ async function cropToBlobs(
   const scaleX = img.naturalWidth / img.width
   const scaleY = img.naturalHeight / img.height
   return Promise.all(
-    SIZES.map((size) =>
-      new Promise<{ size: VariantSize; blob: Blob }>((resolve, reject) => {
-        const canvas = document.createElement('canvas')
-        canvas.width = size
-        canvas.height = size
-        const ctx = canvas.getContext('2d')!
-        ctx.drawImage(
-          img,
-          crop.x * scaleX, crop.y * scaleY,
-          crop.width * scaleX, crop.height * scaleY,
-          0, 0, size, size,
-        )
-        canvas.toBlob(
-          (blob) => {
-            if (blob) { resolve({ size, blob }); return }
-            // Safari can't produce WebP from canvas — try JPEG before PNG.
-            // JPEG photos are 5-20× smaller than PNG at comparable quality.
-            canvas.toBlob(
-              (jpegBlob) => {
-                if (jpegBlob) { resolve({ size, blob: jpegBlob }); return }
-                canvas.toBlob(
-                  (pngBlob) => pngBlob
-                    ? resolve({ size, blob: pngBlob })
-                    : reject(new Error(`canvas.toBlob failed at ${size}px`)),
-                  'image/png',
-                )
-              },
-              'image/jpeg',
-              size === 256 ? 0.90 : 0.87,
-            )
-          },
-          'image/webp',
-          size === 256 ? 0.85 : 0.82,
-        )
-      }),
-    ),
+    SIZES.map(async (size) => {
+      const canvas = document.createElement('canvas')
+      canvas.width  = size
+      canvas.height = size
+      canvas.getContext('2d')!.drawImage(
+        img,
+        crop.x * scaleX, crop.y * scaleY,
+        crop.width * scaleX, crop.height * scaleY,
+        0, 0, size, size,
+      )
+      const blob = await compressCanvas(canvas)
+      return { size, blob }
+    }),
   )
 }
 
