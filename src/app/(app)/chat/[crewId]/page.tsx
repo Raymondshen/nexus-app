@@ -11,7 +11,7 @@ import type { Profile, Crew, ActiveRaid, AvatarClass } from "@/types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type MemberProfile = Pick<Profile, "id" | "username" | "avatar_class" | "avatar_url">
+type MemberProfile = Pick<Profile, "id" | "username" | "avatar_class" | "avatar_url" | "status">
 type MemberProfileMap = Record<string, MemberProfile>
 // class is the crew-specific class; last_seen is fetched fresh (not cached)
 type MemberRow = { user_id: string; last_seen: string | null; class: AvatarClass | null; joined_at: string | null }
@@ -27,7 +27,7 @@ function getCachedMemberProfiles(crewId: string) {
       const supabase = createServiceClient()
       const { data } = await supabase
         .from("crew_members")
-        .select("user_id, class, profile:profiles(id, username, avatar_url, birthday)")
+        .select("user_id, class, profile:profiles(id, username, avatar_url, status, birthday)")
         .eq("crew_id", crewId)
       type RawRow = { user_id: string; class: string | null; profile: (Omit<MemberProfile, 'avatar_class'> & { birthday: string | null }) | null }
       return (data ?? []).map((r) => {
@@ -148,7 +148,7 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
           userId={user.id}
           userProfile={
             memberProfiles[user.id] ?? {
-              id: user.id, username: "???", avatar_class: null, avatar_url: null,
+              id: user.id, username: "???", avatar_class: null, avatar_url: null, status: null,
             }
           }
           memberProfiles={memberProfiles}

@@ -640,6 +640,7 @@ export function MessageList({
             isOwn={item.isOwn}
             showHeader={item.showHeader}
             currentUserId={currentUserId}
+            crewId={crewId}
             xpOverride={item.xpOverride}
             coinOverride={item.coinOverride}
             onAvatarTap={onAvatarTap}

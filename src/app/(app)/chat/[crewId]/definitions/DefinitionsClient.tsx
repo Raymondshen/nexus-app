@@ -7,6 +7,7 @@ import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { PlusBox } from 'pixelarticons/react/PlusBox'
 import { createClient } from '@/lib/supabase/client'
 import { createDefinitionAction, updateDefinitionAction, deleteDefinitionAction } from './actions'
+import { DefinitionCreateSheet } from '@/components/chat/DefinitionCreateSheet'
 import type { SquadDefinition, SquadDefinitionWithCreator } from '@/types'
 
 function BackButton() {
@@ -303,6 +304,98 @@ function DefinitionActionSheet({ definition, onClose, onEdit, onDelete, deleting
   )
 }
 
+// ─── DefinitionViewSheet ─────────────────────────────────────────────────────
+// Shown when a non-creator taps a glossary card (Figma 130:1213)
+
+interface DefinitionViewSheetProps {
+  definition: SquadDefinitionWithCreator
+  onClose:    () => void
+  onSuggest:  () => void
+}
+
+function DefinitionViewSheet({ definition, onClose, onSuggest }: DefinitionViewSheetProps) {
+  const aliases = definition.word.split(',').map((w) => w.trim()).filter(Boolean).join(', ')
+
+  return (
+    <>
+      <motion.div
+        className="fixed inset-0 z-[60] bg-black/60"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+      />
+      <motion.div
+        className="fixed bottom-0 left-0 right-0 z-[70] bg-black border-t border-border flex flex-col px-4 pt-6"
+        initial={{ y: '100%' }}
+        animate={{ y: 0 }}
+        exit={{ y: '100%' }}
+        transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+        style={{ gap: 'var(--space-7)', paddingBottom: 'max(env(safe-area-inset-bottom), 28px)' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Title — DM Sans Bold 18px text-primary */}
+        <h2
+          className="font-body font-bold text-[18px] text-primary leading-none"
+          style={{ fontVariationSettings: '"opsz" 14' }}
+        >
+          Squad Definition
+        </h2>
+
+        {/* Content — flex-col gap-[--space-5] items-start */}
+        <div className="flex flex-col items-start w-full" style={{ gap: 'var(--space-5)' }}>
+          {/* Details — flex-col gap-[--space-3] */}
+          <div className="flex flex-col items-start justify-center w-full" style={{ gap: 'var(--space-3)' }}>
+            {/* Aliases — Silkscreen --mini tertiary */}
+            <p
+              className="font-silkscreen text-tertiary leading-none w-full"
+              style={{ fontSize: 'var(--text-mini)' }}
+            >
+              {aliases}
+            </p>
+            {/* Inner — flex-col gap-[--space-2] */}
+            <div className="flex flex-col w-full" style={{ gap: 'var(--space-2)' }}>
+              {/* Word — DM Sans Bold --md blue */}
+              <p
+                className="font-body font-bold leading-none w-full"
+                style={{ fontSize: 'var(--text-md)', color: 'var(--color-blue)', fontVariationSettings: '"opsz" 14' }}
+              >
+                {definition.actual_word || definition.word.split(',')[0].trim()}
+              </p>
+              {/* Definition body — DM Sans Regular 14px secondary */}
+              <p
+                className="font-body text-secondary leading-normal overflow-hidden w-full"
+                style={{ fontSize: '14px', fontVariationSettings: '"opsz" 14' }}
+              >
+                {definition.definition}
+              </p>
+            </div>
+          </div>
+          {/* Creator — DM Sans Regular --xxs tertiary */}
+          {definition.creator_username && (
+            <p
+              className="font-body text-tertiary leading-none"
+              style={{ fontSize: 'var(--text-xxs)', fontVariationSettings: '"opsz" 14' }}
+            >
+              Created by : {definition.creator_username}
+            </p>
+          )}
+        </div>
+
+        {/* Suggest button — bg-purple Silkscreen --xs primary */}
+        <button
+          onClick={onSuggest}
+          className="w-full h-12 bg-purple overflow-hidden flex items-center justify-center px-4 py-2 active:opacity-80 transition-opacity"
+        >
+          <span className="font-silkscreen text-primary leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-xs)' }}>
+            Suggest new definition
+          </span>
+        </button>
+      </motion.div>
+    </>
+  )
+}
+
 // ─── DefinitionsClient ────────────────────────────────────────────────────────
 
 interface DefinitionsClientProps {
@@ -321,8 +414,11 @@ export function DefinitionsClient({
   const [definitions,  setDefinitions]  = useState<SquadDefinitionWithCreator[]>(initialDefinitions)
   const [showCreate,   setShowCreate]   = useState(false)
   const [actionTarget, setActionTarget] = useState<SquadDefinitionWithCreator | null>(null)
+  const [viewTarget,   setViewTarget]   = useState<SquadDefinitionWithCreator | null>(null)
   const [editTarget,   setEditTarget]   = useState<SquadDefinitionWithCreator | null>(null)
   const [deleting,     setDeleting]     = useState<string | null>(null)
+  const [showSuggest,  setShowSuggest]  = useState(false)
+  const [suggestWord,  setSuggestWord]  = useState('')
 
   // Realtime subscription
   useEffect(() => {
@@ -383,6 +479,7 @@ export function DefinitionsClient({
 
   function handleCardTap(def: SquadDefinitionWithCreator) {
     if (def.creator_id === currentUserId) setActionTarget(def)
+    else setViewTarget(def)
   }
 
   function handleEditPress() {
@@ -440,8 +537,7 @@ export function DefinitionsClient({
                 <button
                   key={def.id}
                   onClick={() => handleCardTap(def)}
-                  disabled={!isCreator}
-                  className="w-full text-left bg-[rgba(17,17,17,0.5)] border border-[#111111] rounded-[8px] p-4 flex flex-col gap-4 active:opacity-80 transition-opacity disabled:active:opacity-100"
+                  className="w-full text-left bg-[rgba(17,17,17,0.5)] border border-[#111111] rounded-[8px] p-4 flex flex-col gap-4 active:opacity-80 transition-opacity"
                 >
                   {/* Details — Figma 130:1290: flex-col gap-[--space-3] items-start justify-center */}
                   <div className="flex flex-col items-start justify-center w-full" style={{ gap: 'var(--space-3)' }}>
@@ -533,6 +629,28 @@ export function DefinitionsClient({
             onEdit={handleEditPress}
             onDelete={() => handleDelete(actionTarget.id)}
             deleting={deleting === actionTarget.id}
+          />
+        )}
+        {viewTarget && (
+          <DefinitionViewSheet
+            key="view"
+            definition={viewTarget}
+            onClose={() => setViewTarget(null)}
+            onSuggest={() => {
+              const word = viewTarget.word.split(',')[0].trim()
+              setViewTarget(null)
+              setSuggestWord(word)
+              setShowSuggest(true)
+            }}
+          />
+        )}
+        {showSuggest && (
+          <DefinitionCreateSheet
+            key="suggest"
+            crewId={crewId}
+            initialWord={suggestWord}
+            onClose={() => { setShowSuggest(false); setSuggestWord('') }}
+            onSaved={handleCreated}
           />
         )}
       </AnimatePresence>

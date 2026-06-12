@@ -16,6 +16,7 @@ import { Copy } from 'pixelarticons/react/Copy'
 import { Check } from 'pixelarticons/react/Check'
 import { UserMinus } from 'pixelarticons/react/UserMinus'
 import { Braces } from 'pixelarticons/react/Braces'
+import { Message } from 'pixelarticons/react/Message'
 
 const CLASS_LABELS: Record<string, string> = {
   berserker: 'Berserker', sage: 'Sage', ghost: 'Ghost', hype_man: 'Hype Man',
@@ -28,6 +29,7 @@ export type MiniMember = {
   username:     string
   avatar_url:   string | null
   avatar_class: string | null | undefined
+  status?:      string | null
 }
 
 interface SquadDetailsSheetProps {
@@ -54,6 +56,30 @@ interface SquadDetailsSheetProps {
   onClose:         () => void
 }
 
+function StatusTicker({ status }: { status: string }) {
+  const duration = Math.max(6, status.length * 0.28)
+  // Each item includes its own trailing gap so 4 copies animate cleanly at -50%
+  const item = (key: number) => (
+    <span key={key} className="inline-flex items-center gap-1 pr-6 flex-shrink-0">
+      <Message style={{ width: 8, height: 8, color: 'var(--color-tertiary)' }} aria-hidden="true" />
+      <span className="font-silkscreen text-[8px] text-tertiary leading-none whitespace-nowrap">
+        &ldquo;{status}&rdquo;
+      </span>
+    </span>
+  )
+
+  return (
+    <motion.div
+      className="flex"
+      style={{ width: 'fit-content' }}
+      animate={{ x: ['0%', '-50%'] }}
+      transition={{ duration, repeat: Infinity, ease: 'linear', repeatType: 'loop' }}
+    >
+      {item(0)}{item(1)}{item(2)}{item(3)}
+    </motion.div>
+  )
+}
+
 function MemberListRow({
   profile, msgCount, loading, isOnline, isCreator, onTap, onRemove,
 }: {
@@ -66,58 +92,67 @@ function MemberListRow({
   const classLabel = profile.avatar_class ? (CLASS_LABELS[profile.avatar_class] ?? profile.avatar_class) : 'Unknown'
 
   return (
-    <div
-      className="flex items-center gap-3 active:opacity-70 transition-opacity"
-      onClick={onTap}
-      style={onTap ? { cursor: 'pointer' } : undefined}
-    >
-      {/* Profile photo + online dot */}
-      <div className="relative flex-shrink-0">
-        <div className="w-8 h-8 overflow-hidden bg-surface flex items-center justify-center">
-          {url ? (
-            <div className="relative w-full h-full">
-              <Image src={resolveAvatarUrl(url, 32)} alt={profile.username} fill sizes="32px" className="object-cover" unoptimized={isSupabaseStorage(url)} />
-            </div>
+    <div className="flex flex-col gap-2">
+      <div
+        className="flex items-center gap-3 active:opacity-70 transition-opacity"
+        onClick={onTap}
+        style={onTap ? { cursor: 'pointer' } : undefined}
+      >
+        {/* Profile photo + online dot */}
+        <div className="relative flex-shrink-0">
+          <div className="w-8 h-8 overflow-hidden bg-surface flex items-center justify-center">
+            {url ? (
+              <div className="relative w-full h-full">
+                <Image src={resolveAvatarUrl(url, 32)} alt={profile.username} fill sizes="32px" className="object-cover" unoptimized={isSupabaseStorage(url)} />
+              </div>
+            ) : (
+              <span className="font-pixel text-[8px] text-purple">{initial}</span>
+            )}
+          </div>
+          {isOnline && (
+            <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#66bb6a] border-[1.5px] border-black" />
+          )}
+        </div>
+
+        {/* Pixel sprite — no background, overflow clips */}
+        <div className="w-8 h-8 flex-shrink-0 flex items-center justify-center overflow-hidden">
+          {spriteInfo ? (
+            <PixelSprite spriteId={spriteInfo.id} nativePx={spriteInfo.nativePx} scale={1.5} animate />
           ) : (
             <span className="font-pixel text-[8px] text-purple">{initial}</span>
           )}
         </div>
-        {isOnline && (
-          <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#66bb6a] border-[1.5px] border-black" />
-        )}
-      </div>
 
-      {/* Pixel sprite — no background, overflow clips */}
-      <div className="w-8 h-8 flex-shrink-0 flex items-center justify-center overflow-hidden">
-        {spriteInfo ? (
-          <PixelSprite spriteId={spriteInfo.id} nativePx={spriteInfo.nativePx} scale={1.5} animate />
-        ) : (
-          <span className="font-pixel text-[8px] text-purple">{initial}</span>
-        )}
-      </div>
-
-      {/* Name + class · msg count */}
-      <div className="flex flex-col gap-1 justify-center min-w-0 flex-1">
-        <div className="flex items-center gap-1">
-          <p className="font-body font-bold text-[16px] text-white truncate leading-none" style={{ fontVariationSettings: '"opsz" 14' }}>{profile.username}</p>
-          {isCreator && (
-            <Crown style={{ width: 12, height: 12, color: '#f59e0b' }} aria-hidden="true" />
-          )}
+        {/* Name + class · msg count */}
+        <div className="flex flex-col gap-1 justify-center min-w-0 flex-1">
+          <div className="flex items-center gap-1">
+            <p className="font-body font-bold text-[16px] text-white truncate leading-none" style={{ fontVariationSettings: '"opsz" 14' }}>{profile.username}</p>
+            {isCreator && (
+              <Crown style={{ width: 12, height: 12, color: '#f59e0b' }} aria-hidden="true" />
+            )}
+          </div>
+          <p className="font-silkscreen text-[8px] text-secondary leading-none">
+            {loading ? '...' : `${classLabel} · ${msgCount.toLocaleString()} msg.`}
+          </p>
         </div>
-        <p className="font-silkscreen text-[8px] text-secondary leading-none">
-          {loading ? '...' : `${classLabel} · ${msgCount.toLocaleString()} msg.`}
-        </p>
+
+        {/* Remove button — creator only */}
+        {onRemove && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onRemove() }}
+            className="flex-shrink-0 flex items-center justify-center w-8 h-8 text-[#ef4444] active:opacity-70 transition-opacity"
+            aria-label={`Remove ${profile.username}`}
+          >
+            <UserMinus style={{ width: 16, height: 16 }} aria-hidden="true" />
+          </button>
+        )}
       </div>
 
-      {/* Remove button — creator only */}
-      {onRemove && (
-        <button
-          onClick={(e) => { e.stopPropagation(); onRemove() }}
-          className="flex-shrink-0 flex items-center justify-center w-8 h-8 text-[#ef4444] active:opacity-70 transition-opacity"
-          aria-label={`Remove ${profile.username}`}
-        >
-          <UserMinus style={{ width: 16, height: 16 }} aria-hidden="true" />
-        </button>
+      {/* Status ticker — only renders when the member has a status */}
+      {profile.status && (
+        <div className="overflow-hidden bg-surface rounded-[4px] px-2 py-[7px]">
+          <StatusTicker status={profile.status} />
+        </div>
       )}
     </div>
   )

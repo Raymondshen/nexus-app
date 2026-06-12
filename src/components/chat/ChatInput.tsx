@@ -35,7 +35,7 @@ const SLASH_COMMANDS = [
 type SlashCommandName = typeof SLASH_COMMANDS[number]['name']
 
 
-type MemberProfile = Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url'>
+type MemberProfile = Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url' | 'status'>
 
 interface ChatInputProps {
   crewId:         string
@@ -942,6 +942,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
               username:     m.username,
               avatar_url:   m.avatar_url as string | null,
               avatar_class: m.avatar_class,
+              status:       m.status,
             }))}
             onlineUserIds={onlineUserIds}
             crewXP={crewXP}

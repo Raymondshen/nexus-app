@@ -10,6 +10,7 @@ import { useChatStore } from '@/store/chatStore'
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/config'
 import type { MessageWithProfile, AvatarClass, SquadDefinitionWithCreator } from '@/types'
 import { PollCard } from '@/components/chat/PollCard'
+import { DefinitionCreateSheet } from '@/components/chat/DefinitionCreateSheet'
 
 const CLASS_NAMES: Record<AvatarClass, string> = {
   berserker: 'Berserker',
@@ -49,6 +50,7 @@ interface MessageBubbleProps {
   isOwn:            boolean
   showHeader:       boolean
   currentUserId:    string
+  crewId?:          string
   xpOverride?:      number
   coinOverride?:    number
   onAvatarTap?:     (userId: string) => void
@@ -166,6 +168,7 @@ export function MessageBubble({
   isOwn,
   showHeader,
   currentUserId,
+  crewId,
   xpOverride,
   coinOverride,
   onAvatarTap,
@@ -177,6 +180,8 @@ export function MessageBubble({
   const [healFloat,        setHealFloat]        = useState<{ id: number; amount: number } | null>(null)
   const [mounted,          setMounted]          = useState(false)
   const [activeDefinition, setActiveDefinition] = useState<SquadDefinitionWithCreator | null>(null)
+  const [suggestWord,      setSuggestWord]      = useState('')
+  const [showSuggest,      setShowSuggest]      = useState(false)
 
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hasMoved       = useRef(false)
@@ -563,30 +568,38 @@ export function MessageBubble({
                 exit={{ y: '100%' }}
                 transition={{ type: 'spring', stiffness: 320, damping: 32 }}
                 className="fixed bottom-0 left-0 right-0 z-[80] bg-black border-t border-border flex flex-col px-4 pt-6"
-                style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 16px)' }}
+                style={{ gap: 'var(--space-7)', paddingBottom: 'max(env(safe-area-inset-bottom), 28px)' }}
                 onClick={(e) => e.stopPropagation()}
               >
-                {/* Content — Figma 130:1289: flex-col gap-[--space-5] items-start */}
+                {/* Title — DM Sans Bold 18px text-primary */}
+                <h2
+                  className="font-body font-bold text-[18px] text-primary leading-none"
+                  style={{ fontVariationSettings: '"opsz" 14' }}
+                >
+                  Squad Definition
+                </h2>
+
+                {/* Content — flex-col gap-[--space-5] items-start */}
                 <div className="flex flex-col items-start w-full" style={{ gap: 'var(--space-5)' }}>
-                  {/* Details — Figma 130:1290: flex-col gap-[--space-3] items-start justify-center */}
+                  {/* Details — flex-col gap-[--space-3] items-start justify-center */}
                   <div className="flex flex-col items-start justify-center w-full" style={{ gap: 'var(--space-3)' }}>
-                    {/* Aliases — Figma 130:1291: Silkscreen --mini tertiary leading-none */}
+                    {/* Aliases — Silkscreen --mini tertiary */}
                     <p
                       className="font-silkscreen text-tertiary leading-none w-full"
                       style={{ fontSize: 'var(--text-mini)' }}
                     >
                       {parseAliases(activeDefinition.word).join(', ')}
                     </p>
-                    {/* Inner — Figma 130:1315: flex-col gap-[--space-2] */}
+                    {/* Inner — flex-col gap-[--space-2] */}
                     <div className="flex flex-col w-full" style={{ gap: 'var(--space-2)' }}>
-                      {/* Actual word — Figma 130:1316: DM Sans Bold --md blue leading-none */}
+                      {/* Word — DM Sans Bold --md blue */}
                       <p
                         className="font-body font-bold leading-none w-full"
                         style={{ fontSize: 'var(--text-md)', color: 'var(--color-blue)', fontVariationSettings: '"opsz" 14' }}
                       >
                         {(activeDefinition.actual_word as string | null) || parseAliases(activeDefinition.word)[0]}
                       </p>
-                      {/* Definition — Figma 130:1292: DM Sans Regular 14px secondary leading-normal overflow-hidden */}
+                      {/* Definition body — DM Sans Regular 14px secondary */}
                       <p
                         className="font-body text-secondary leading-normal overflow-hidden w-full"
                         style={{ fontSize: '14px', fontVariationSettings: '"opsz" 14' }}
@@ -595,7 +608,7 @@ export function MessageBubble({
                       </p>
                     </div>
                   </div>
-                  {/* Creator — Figma 130:1293: DM Sans Regular --xxs tertiary; purple when own */}
+                  {/* Creator — DM Sans Regular --xxs; purple when own, tertiary otherwise */}
                   {activeDefinition.creator_username && (
                     <p
                       className="font-body leading-none"
@@ -609,14 +622,46 @@ export function MessageBubble({
                     </p>
                   )}
                 </div>
-                <button
-                  onClick={() => setActiveDefinition(null)}
-                  className="h-12 w-full font-pixel text-[8px] text-tertiary flex items-center justify-center transition-colors active:text-primary mt-6"
-                >
-                  CLOSE
-                </button>
+
+                {/* Bottom action */}
+                {activeDefinition.creator_id !== currentUserId && crewId ? (
+                  <button
+                    onClick={() => {
+                      const word = parseAliases(activeDefinition.word)[0]
+                      setActiveDefinition(null)
+                      setSuggestWord(word)
+                      setShowSuggest(true)
+                    }}
+                    className="w-full h-12 bg-purple overflow-hidden flex items-center justify-center px-4 py-2 active:opacity-80 transition-opacity"
+                  >
+                    <span className="font-silkscreen text-primary leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-xs)' }}>
+                      Suggest new definition
+                    </span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setActiveDefinition(null)}
+                    className="h-12 w-full font-pixel text-[8px] text-tertiary flex items-center justify-center transition-colors active:text-primary"
+                  >
+                    CLOSE
+                  </button>
+                )}
               </motion.div>
             </>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
+
+      {/* ── Suggest new definition sheet ────────────────────────────────────── */}
+      {mounted && crewId && createPortal(
+        <AnimatePresence>
+          {showSuggest && (
+            <DefinitionCreateSheet
+              crewId={crewId}
+              initialWord={suggestWord}
+              onClose={() => { setShowSuggest(false); setSuggestWord('') }}
+            />
           )}
         </AnimatePresence>,
         document.body
