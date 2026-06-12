@@ -631,8 +631,9 @@ Polls are a message type that lets any crew member create a question with up to 
 
 **Creating a poll** (`src/components/chat/PollCreatorSheet.tsx`):
 - Opens when the user taps the `Chart` icon (16×16, left of textarea in ChatInput)
-- Bottom sheet with spring 320/32; fields: question textarea (200 chars), up to 5 option inputs (min 2 required), duration picker (5/10/15/20 min segmented), date picker (min = today)
-- `expires_at` = selected date at current time + duration minutes
+- Bottom sheet with spring 320/32; fields: question textarea (200 chars), up to 5 option inputs (min 2 required), duration segmented picker (3 options: **30 min / 6 hours / 1 day**). No date picker.
+- `expires_at` = `Date.now() + duration_minutes * 60_000` (relative from submission time)
+- Sheet design: "Create a poll" DM Sans Bold 18px title; section labels DM Sans Medium 14px; inputs `border-border-hover`; "Launch poll" Silkscreen 14px purple; "Cancel" Silkscreen 14px red-border
 - Calls `create_poll` RPC on submit; returns a `MessageWithProfile` via `onCreated` callback to `ChatInput`
 - `ChatInput` calls `addMessage` + broadcasts `new_message` event (same path as text messages)
 
@@ -648,7 +649,7 @@ Polls are a message type that lets any crew member create a question with up to 
 
 **XP / element**: polls earn 0 XP; no special element type (content-length rules apply to the `POLL:{id}` string, which resolves to `fire`). Polls always force `showHeader = true` and reset message grouping.
 
-**Poll expiry duration options**: 5, 10, 15, 20 minutes (segmented picker in PollCreatorSheet). `expires_at` is a timestamptz; the server-side RPC stores it as provided and enforces no edits after creation.
+**Poll expiry duration options**: 30 min, 6 hours, 1 day (segmented picker in PollCreatorSheet; stored as 30, 360, 1440 minutes). `expires_at` is a timestamptz calculated relative from submission time; the server-side RPC stores it as provided and enforces no edits after creation.
 
 ### Squad Glossary — `/chat/[crewId]/definitions`
 Crew members can define squad-specific words/phrases. Defined words are highlighted blue in chat messages; tapping a highlight shows the definition in a bottom sheet.
@@ -656,14 +657,34 @@ Crew members can define squad-specific words/phrases. Defined words are highligh
 **Data model**: `squad_definitions` table. The `word` column stores comma-separated aliases (e.g. `"abg, ABG"`) in a single text field — no separate aliases column needed. Uniqueness is enforced by a separate expression index `squad_definitions_crew_word_uq ON (crew_id, lower(word))` (PostgreSQL does not allow expression-based unique constraints inline in `CREATE TABLE`).
 
 **Page** (`src/app/(app)/chat/[crewId]/definitions/`):
-- `page.tsx` — server component; auth + membership check; fetches initial definitions; renders `<DefinitionsClient>`
-- `DefinitionsClient.tsx` — follows `FriendsClient` pattern: `<SlidePage>` wrapper with inline `BackButton` (calls `useSlideBack()` from inside the SlidePage context). Realtime subscription on channel `squad-defs:{crewId}` handles INSERT (dedup by id) + DELETE.
-- `actions.ts` — `createDefinitionAction(crewId, word, definition)` + `deleteDefinitionAction(definitionId)`; both use server-side auth
-- Aliases are displayed with `·` separator: `def.word.split(',').map(w => w.trim()).filter(Boolean).join(' · ')`
-- Creator's DELETE button visible only when `def.creator_id === currentUserId`
+- `page.tsx` — server component; auth + membership check; fetches initial definitions; resolves all creator usernames in a single batch `.in()` query (including current user); passes `SquadDefinitionWithCreator[]` + `currentUsername` to `<DefinitionsClient>`
+- `DefinitionsClient.tsx` — `<SlidePage>` wrapper with inline `BackButton`. Realtime on `squad-defs:{crewId}` handles INSERT (resolves `creator_username` via profile fetch) + DELETE + UPDATE.
+- `actions.ts` — `createDefinitionAction(crewId, word, definition)` + `updateDefinitionAction(definitionId, word, definition)` + `deleteDefinitionAction(definitionId)`; all use server-side auth + creator guard
 
-**`CreateDefinitionSheet`** (inline in `DefinitionsClient.tsx`):
-- Bottom sheet (spring 320/32, z-[60]); fields: WORD(S) input (maxLength 100) with hint "Comma-separate multiple aliases, e.g. 'abg, ABG'", definition textarea (maxLength 500), SAVE DEFINITION + CANCEL buttons
+**Glossary page UI**:
+- Header: `px-4 py-2`, h-10 row, purple `ChevronLeft` 24×24 + "Glossary" `font-silkscreen text-[24px]` uppercase; **no** `border-b`
+- Subtitle: "Words and phrases defined by your squad." DM Sans Regular 14px `text-primary`
+- Definition cards: `bg-[rgba(17,17,17,0.5)] border border-[#111111] rounded-[8px] p-4 flex-col gap-4`
+  - Word aliases joined with `, ` — DM Sans Bold 16px `text-primary`
+  - Definition body — DM Sans Regular 14px `text-secondary`, `line-clamp-3`
+  - "Created by : {username}" — DM Sans Regular 11px `text-tertiary`
+  - **Creator cards are tappable** (`active:opacity-80`); non-creator cards have `disabled` and are visually non-interactive
+- Footer: full-width `bg-purple h-12` button — `PlusBox` 16×16 + "Add a squad definition" `font-silkscreen text-[14px]`
+
+**`CreateDefinitionSheet`** (inline in `DefinitionsClient.tsx`, supports create + edit modes):
+- Sheet: `bg-black border-t border-border flex-col gap-6 px-4 pt-6`, `paddingBottom: max(safe-area, 16px)`, `maxHeight: 90vh overflow-y-auto`
+- Title: "Squad Definition" DM Sans Bold 18px `text-primary`
+- **Words** field: label DM Sans Medium 14px; input `border-border-hover px-3 py-3`, placeholder "e.g. GG, gg, good game"; hint DM Sans Regular 11px `text-tertiary` below
+- **Definition** field: label DM Sans Medium 14px; textarea `h-[78px] border-border-hover px-3 py-3`, placeholder "What does it mean in your squad?"
+- Buttons: "Save definition" `bg-purple h-12 font-silkscreen text-[14px]` + "Cancel" `border-[#ef4444] h-12 font-silkscreen text-[14px] text-[#ef4444]`; both have `overflow-hidden px-4 py-2`
+- In **edit** mode: pre-fills `initialWord` / `initialDefinition`, calls `updateDefinitionAction` instead of `createDefinitionAction`
+
+**`DefinitionActionSheet`** (inline in `DefinitionsClient.tsx`, creator-only tap sheet):
+- Opens when a creator taps their own definition card
+- Same sheet container as `CreateDefinitionSheet`
+- Shows word (DM Sans Bold 16px), definition preview `line-clamp-4` (DM Sans Regular 14px secondary), "Created by : {username}" (DM Sans Regular 11px tertiary)
+- **"Edit definition"** — `border border-purple h-12 font-silkscreen text-[14px] text-purple`; tapping closes action sheet and opens `CreateDefinitionSheet` in edit mode pre-filled
+- **"Delete definition"** — `border border-[#ef4444] h-12 font-silkscreen text-[14px] text-[#ef4444]`; calls `deleteDefinitionAction` then removes from state
 
 **`FloatingBackButton`** (`src/components/chat/FloatingBackButton.tsx`):
 - Accepts a required `crewId: string` prop (used by the chat page)
@@ -895,6 +916,18 @@ create policy "friendships: either party can delete"
 
 ### Color Tokens (Figma variables → CSS custom properties → Tailwind utilities)
 Defined in `:root` in `globals.css` and mirrored in the `@theme` block for Tailwind utility generation (e.g. `bg-surface`, `text-muted`, `border-border`).
+
+**Font size tokens** — `globals.css` `:root` defines `--text-mini` (8px) through `--text-xl` (20px). The Figma file uses shorthand names (`--sm`, `--lg`, `--xxs`) that differ from the project variable names. **Always use hardcoded pixel values** (`text-[14px]`, `text-[18px]`, etc.) or the correct `--text-*` variable names — never `var(--sm)` or `var(--lg)`, which resolve to nothing and silently break font rendering. The additional token `--color-border-hover: #3f3f46` is available as `border-border-hover`.
+
+| Font size token | CSS var | Value |
+|---|---|---|
+| mini | `--text-mini` | 8px |
+| xxs | `--text-xxs` | 11px |
+| xs | `--text-xs` | 12px |
+| sm | `--text-sm` | 14px |
+| md | `--text-md` | 16px |
+| lg | `--text-lg` | 18px |
+| xl | `--text-xl` | 20px |
 
 | Token | CSS var | Value | Tailwind |
 |---|---|---|---|
