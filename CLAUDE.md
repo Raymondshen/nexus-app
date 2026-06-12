@@ -293,7 +293,7 @@ Consecutive messages from the same user within 60 seconds are visually grouped (
 ### ChatInput — expanded member panel
 Triggered by swipe-up (`onPanEnd` offset.y < -50 or velocity.y < -300) or tapping the chevron-up button. Renders `<SquadDetailsSheet>` (`src/components/chat/SquadDetailsSheet.tsx`) — the entire expanded panel is extracted into that component. The ChatInput wrapper carries `relative z-[40]`; the sheet is `absolute bottom-0 left-0 right-0 z-[50]` so `y: '100%' → 0` originates from within the container. Backdrop: `fixed inset-0 z-[38] bg-black/60`. Sheet: `bg-black border-t border-border`, `maxHeight: 85vh`, `flex flex-col` (fixed header + scrollable list + fixed footer).
 
-`ChatInput` passes these props to `SquadDetailsSheet`: `crewName`, `memberCount`, `crewImageUrl`, `members` (includes `avatar_class`), `onlineUserIds`, `crewXP`, `crewLevel`, `xpProgress`, `totalMessages`, `inviteCode?`, `creatorId?`, `currentUserId`, `memberMsgCounts`, `loadingCounts`, `onUploadPhoto`, `onNotifPress` (opens `showNotif` in ChatInput), `onSave` (calls `renameCrewAction`), `onTapMember` (navigates to member profile), `onRemoveMember` (sets `removeTarget` for kick confirmation), `onClose`.
+`ChatInput` passes these props to `SquadDetailsSheet`: `crewId`, `crewName`, `memberCount`, `crewImageUrl`, `members` (includes `avatar_class`), `onlineUserIds`, `crewXP`, `crewLevel`, `xpProgress`, `totalMessages`, `inviteCode?`, `creatorId?`, `currentUserId`, `memberMsgCounts`, `loadingCounts`, `onUploadPhoto`, `onNotifPress` (opens `showNotif` in ChatInput), `onSave` (calls `renameCrewAction`), `onTapMember` (navigates to member profile), `onRemoveMember` (sets `removeTarget` for kick confirmation), `onClose`.
 
 **Pull-to-dismiss**: non-passive `touchmove` listener on the scrollable member list div (internal `memberListRef` in `SquadDetailsSheet`). `touchstart` records `atTop = (scrollTop === 0)`. While `atTop` and dragging down, `e.preventDefault()` is called (non-passive, prevents native scroll from consuming the gesture). `touchend` closes the sheet if displacement > 60px.
 
@@ -302,13 +302,13 @@ Triggered by swipe-up (`onPanEnd` offset.y < -50 or velocity.y < -300) or tappin
 **Notification sheet**: `ChatInput` owns the notification prefs state — loads from `crew_notification_preferences` on mount, upserts on toggle. `showNotif` state gates `<NotifSheet>` inside its own `<AnimatePresence>`. `SquadDetailsSheet` receives `onNotifPress` callback that sets `showNotif = true` in ChatInput. The `NotifSheet` component lives in `src/components/chat/NotifSheet.tsx` and is shared between `ChatInput` and `ChatHeader`.
 
 **Sheet layout** (`motion.div` is `flex flex-col`):
-- **Fixed header** (`flex-shrink-0 flex flex-col gap-4 pt-[var(--space-7)] px-4`, 24px top padding via `--space-7`):
-  - *Content block* (`flex flex-col gap-14` = 56px gap):
-    - *Title row* (`flex items-start justify-between`): left group — 32×32 group profile image (solid `bg-purple` default; creator taps to upload via `CrewImageUploadModal`) + crew name in Silkscreen `var(--text-md)` (16px) `text-purple` + member count in Silkscreen 8px `text-tertiary` below. Right group — `flex items-center gap-4`: `MagicEdit` 24×24 `text-primary` (creator-only, enters inline rename), `Bell` 24×24 `text-primary` (calls `onNotifPress`), `ChevronRight` rotated `90deg` 24×24 `text-tertiary` — taps to collapse.
-    - *Avatar + XP bar* (`flex flex-col gap-2`): same 24×24 avatar row with online dots, then Silkscreen 8px stats row `"Level N · X/YXPXP · N total msg."` (`text-[#fafafa]` for Level, `text-tertiary` for the rest) + "Next Boss" label right-aligned + 4px purple progress bar. Total messages only shown when counts have loaded (> 0).
-  - *Invite code block* (group chats only, not shown for DMs): `bg-[rgba(168,85,247,0.1)] border border-purple p-4`. Left: "Invite your squad" (Silkscreen 8px `text-secondary`) + crew code (Silkscreen 24px `text-purple`, `textShadow: '0px 0px 3px #a855f7'`). Right: copy button that transitions: default `bg-purple px-4 py-3` with `Copy` icon 12px + "Copy Code" Silkscreen 11px; tapped state `bg-[#22c55e]` + `boxShadow: '2px 2px 0px 0px rgba(34,197,94,0.5)'` + `Check` icon 12px + "copied" (lowercase) Silkscreen 11px for 1s. Tapping copies `"Come join my squad on Nexus app {code}"` to clipboard.
+- **Fixed header** (`flex-shrink-0 flex flex-col gap-4 pt-6 px-4`):
+  - *group_header* (`h-[200px] flex flex-col justify-between`) — title row pinned to top, avatar+XP bar pinned to bottom:
+    - *Title row* (`flex items-start justify-between`): left group — 32×32 group profile image (solid `bg-purple` default; creator taps to upload via `CrewImageUploadModal`) + crew name Silkscreen 16px `text-purple` uppercase + member count Silkscreen 8px `text-tertiary` below. Right group — `flex items-center gap-4`: `MagicEdit` 24×24 `text-primary` (creator-only, enters inline rename), `Braces` 24×24 `text-primary` (navigates to `/chat/${crewId}/definitions`, closes sheet first), `Bell` 24×24 `text-primary` (calls `onNotifPress`), `ChevronRight` rotated `90deg` 24×24 `text-tertiary` — taps to collapse.
+    - *Avatar + XP bar* (`flex flex-col gap-2`): 24×24 avatar row with online dots, then Silkscreen 8px stats row `"Level N · X/YXPXP · N total msg."` (`text-[#fafafa]` for Level, `text-tertiary` for the rest) + "Next Boss" label right-aligned + 4px purple progress bar. Total messages only shown when counts have loaded (> 0).
+  - *Invite code block* (group chats only, not shown for DMs): `bg-[rgba(168,85,247,0.1)] border border-purple p-3`. Left: "Invite your squad" (Silkscreen 8px `text-secondary`) + crew code (Silkscreen 24px `text-purple`, `textShadow: '0px 0px 3px #a855f7'`). Right: copy button that transitions: default `bg-purple px-4 py-3` with `Copy` icon 12px + "Copy Code" Silkscreen 11px; tapped state `bg-[#22c55e]` + `boxShadow: '2px 2px 0px 0px rgba(34,197,94,0.5)'` + `Check` icon 12px + "copied" (lowercase) Silkscreen 11px for 1s. Tapping copies `"Come join my squad on Nexus app {code}"` to clipboard.
 - **Scrollable member list** (`flex-1 overflow-y-auto nexus-scroll px-4 min-h-0 mt-4`; `min-h-0` is critical — without it flex children won't shrink below content height):
-  - `flex flex-col gap-6` — rows and dividers are interleaved via `flatMap`; `h-px bg-border` divider between each row (not after last). No `py-*` or `border-b` on rows.
+  - `flex flex-col gap-4` (16px) — rows and dividers are interleaved via `flatMap`; `h-px bg-border` divider between each row (not after last). No `py-*` or `border-b` on rows.
   - Left 32×32: profile photo (or initial fallback) with online dot
   - Center 32×32: `PixelSprite scale={1.5}` in `overflow-hidden` container, no background (sprite clips at edges); initial fallback if no sprite available
   - Right text: `flex flex-col gap-1` — DM Sans Bold 16px `text-white` name with `Crown` icon 12×12 `#f59e0b` (amber) inline to the right when `isCreator` is true; Silkscreen 8px `text-secondary` subtitle `"Class · N msg."`. Name+icon row uses `gap-1` (4px). **Icon size rule**: all icons placed inline beside the username in this row must be 12×12px.
@@ -687,11 +687,9 @@ Crew members can define squad-specific words/phrases. Defined words are highligh
 - **"Delete definition"** — `border border-[#ef4444] h-12 font-silkscreen text-[14px] text-[#ef4444]`; calls `deleteDefinitionAction` then removes from state
 
 **`FloatingBackButton`** (`src/components/chat/FloatingBackButton.tsx`):
-- Accepts a required `crewId: string` prop (used by the chat page)
-- Renders two side-by-side pill buttons in an `absolute left-4 z-[60] flex items-center gap-2` container:
-  1. **Back pill** — crew image + back chevron (existing behavior)
-  2. **Glossary pill** — `Braces` icon (24×24 purple) navigates to `/chat/${crewId}/definitions`
-- Both buttons have `pointer-events-auto`; container has `pointer-events-none`
+- Accepts `crewId: string` prop (unused at render time, kept for the page API)
+- Renders a single `ChevronLeft` pill (`bg-surface border border-purple p-[var(--space-3)]`, `boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.8)'`) in an `absolute left-4 z-[60]` container; calls `useSlideBack()` on tap
+- The glossary (`Braces`) button was moved into `SquadDetailsSheet`'s action button row — no longer a separate floating pill
 
 **`MessageList`** word highlighting:
 - Fetches `squad_definitions` for the crew on mount; then fetches creator profiles in a second `.in()` query to resolve `creator_username`. Result stored as `SquadDefinitionWithCreator[]`.
@@ -707,11 +705,12 @@ Crew members can define squad-specific words/phrases. Defined words are highligh
   - On match: renders a blue `<span>` (`text-[#60a5fa] cursor-pointer`) with `onClick` that calls `setActiveDefinition`
 - Used only for `message_type === 'text'` messages when `definitions.length > 0`
 
-**Definition tap sheet** (portal on `document.body`, z-[80]):
-- Shows aliases joined with `·` in purple Silkscreen 18px
-- Shows definition text in DM Sans 15px secondary
-- Shows `by @{creator_username}` in Silkscreen 8px muted (when `creator_username` is present)
-- CLOSE button
+**Definition tap sheet** (portal on `document.body`, z-[80]); matches Figma 130:1287:
+- Container: `bg-black border-t border-border flex flex-col pt-6 px-4 pb-[max(safe-area,16px)]`
+- Content wrapper (`flex flex-col gap-4`):
+  - Word block (`flex flex-col gap-2`): aliases joined with `, ` — DM Sans Bold 16px `#60a5fa` (blue); definition body DM Sans Regular 14px `text-secondary`
+  - Creator line: DM Sans Regular 11px, `"Created by : {username}"` — **purple** (`var(--color-purple)`) when `creator_id === currentUserId`, **tertiary** otherwise
+- CLOSE button: `h-12 w-full font-pixel text-[8px] text-tertiary mt-4`
 
 ### Pixel Sprites
 - Component: `src/components/game/PixelSprite.tsx`
@@ -797,6 +796,7 @@ Always use `createServiceClient()` inside cache functions (service role, no cook
 - `20240103000021_profile_status.sql` — adds `profiles.status text` (nullable, max 100 chars via check constraint). Applied 2026-06-11.
 - `20240103000022_polls.sql` — drops and recreates `messages_message_type_check` to include `'poll'`; creates `polls` table with RLS (crew members SELECT only; writes via SECURITY DEFINER RPCs); adds `polls` to `supabase_realtime` publication; creates `create_poll`, `vote_on_poll`, `close_poll` RPCs. Applied 2026-06-11.
 - `20240103000023_squad_definitions.sql` — creates `squad_definitions` table; RLS: crew members SELECT + INSERT (creator_id = auth.uid()), creator DELETE; expression index `squad_definitions_crew_word_uq ON (crew_id, lower(word))` for case-insensitive uniqueness per crew; adds `squad_definitions` to `supabase_realtime` publication. Applied 2026-06-11.
+- `20240103000024_squad_definitions_update_policy.sql` — adds missing `FOR UPDATE` RLS policy on `squad_definitions` (creator-only); without it the `updateDefinitionAction` returned "Failed to update definition" because the query matched 0 rows. Applied 2026-06-11.
 
 ### Manual SQL applied directly (no migration file)
 ```sql
@@ -917,17 +917,18 @@ create policy "friendships: either party can delete"
 ### Color Tokens (Figma variables → CSS custom properties → Tailwind utilities)
 Defined in `:root` in `globals.css` and mirrored in the `@theme` block for Tailwind utility generation (e.g. `bg-surface`, `text-muted`, `border-border`).
 
-**Font size tokens** — `globals.css` `:root` defines `--text-mini` (8px) through `--text-xl` (20px). The Figma file uses shorthand names (`--sm`, `--lg`, `--xxs`) that differ from the project variable names. **Always use hardcoded pixel values** (`text-[14px]`, `text-[18px]`, etc.) or the correct `--text-*` variable names — never `var(--sm)` or `var(--lg)`, which resolve to nothing and silently break font rendering. The additional token `--color-border-hover: #3f3f46` is available as `border-border-hover`.
+**Font size tokens** — `globals.css` `:root` defines `--text-mini` (8px) through `--text-xxl` (24px). **Always use hardcoded pixel values** (`text-[14px]`, `text-[18px]`, etc.) or the correct `--text-*` variable names in component code. The Figma shorthand aliases (`--mini`, `--md`, `--xxl`, etc.) are now defined in `globals.css` and resolve correctly, but prefer `--text-*` names in new code for clarity. The additional token `--color-border-hover: #3f3f46` is available as `border-border-hover`.
 
-| Font size token | CSS var | Value |
-|---|---|---|
-| mini | `--text-mini` | 8px |
-| xxs | `--text-xxs` | 11px |
-| xs | `--text-xs` | 12px |
-| sm | `--text-sm` | 14px |
-| md | `--text-md` | 16px |
-| lg | `--text-lg` | 18px |
-| xl | `--text-xl` | 20px |
+| Font size token | CSS var | Figma alias | Value |
+|---|---|---|---|
+| mini | `--text-mini` | `--mini` | 8px |
+| xxs | `--text-xxs` | `--xxs` | 11px |
+| xs | `--text-xs` | `--xs` | 12px |
+| sm | `--text-sm` | `--sm` | 14px |
+| md | `--text-md` | `--md` | 16px |
+| lg | `--text-lg` | `--lg` | 18px |
+| xl | `--text-xl` | `--xl` | 20px |
+| xxl | `--text-xxl` | `--xxl` | 24px |
 
 | Token | CSS var | Value | Tailwind |
 |---|---|---|---|
@@ -939,6 +940,9 @@ Defined in `:root` in `globals.css` and mirrored in the `@theme` block for Tailw
 | Border | `--color-border` | `#27272a` | `border-border` |
 | Surface (cards) | `--color-surface` | `#111111` | `bg-surface` |
 | Purple (accent) | `--color-purple` | `#a855f7` | `bg-purple`, `text-purple` |
+| Blue (definitions) | `--color-blue` | `#60a5fa` | `text-blue` |
+
+`globals.css` also defines Figma spacing aliases `--x2` (4px) through `--x7` (24px) and color shorthands (`--background`, `--border`, `--purple`, `--red`, `--green`, `--surface`, etc.) so Figma-generated code resolves without fallbacks.
 
 Chat/game accent colors (used inline, not tokenized):
 | Role | Value |
@@ -992,7 +996,7 @@ Note: next/font variable for Silkscreen is `--font-silk` (not `--font-silkscreen
   | Friends — remove friend | `UserMinus` | `pixelarticons/react/UserMinus` | 16×16 |
   | DMOverlayBack — back chevron | `ChevronLeft` | `pixelarticons/react/ChevronLeft` | 24×24, `color: var(--color-tertiary)` |
   | Profile — back chevron | `ChevronLeft` | `pixelarticons/react/ChevronLeft` | 24×24, `color: var(--color-tertiary)` |
-  | FloatingBackButton — squad glossary | `Braces` | `pixelarticons/react/Braces` | 24×24, `color: var(--color-purple)` |
+  | SquadDetailsSheet — glossary nav | `Braces` | `pixelarticons/react/Braces` | 24×24, `text-primary` |
 - **Do not use lucide-react** for chat or home UI icons — lucide-react is only used for `X` (close) in modals/sheets
 
 Framer Motion for all animations. Scanline overlay on game screens for RotMG feel.
