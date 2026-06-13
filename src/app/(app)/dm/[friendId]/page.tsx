@@ -98,6 +98,8 @@ export default async function DMPage({ params }: DMPageProps) {
   return (
     <SlidePage
       className="flex flex-col bg-black"
+      backHref="/home"
+      nativeSwipe
       style={{
         position:     'fixed',
         top:          0,

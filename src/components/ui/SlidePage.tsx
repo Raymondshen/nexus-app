@@ -23,13 +23,17 @@ export function clearSkipNextSlideEnter() {
 }
 
 interface SlidePageProps {
-  children:  React.ReactNode
-  className?: string
-  style?:    React.CSSProperties
-  backHref?: string
+  children:    React.ReactNode
+  className?:  string
+  style?:      React.CSSProperties
+  backHref?:   string
+  // When true: goBack() still uses router.replace(backHref) for the back button,
+  // but custom touch handlers are NOT registered — native iOS swipe handles the
+  // gesture and shows the real previous page in the background.
+  nativeSwipe?: boolean
 }
 
-export function SlidePage({ children, className, style, backHref }: SlidePageProps) {
+export function SlidePage({ children, className, style, backHref, nativeSwipe }: SlidePageProps) {
   const router       = useRouter()
   const controls     = useAnimation()
   const exiting      = useRef(false)
@@ -66,10 +70,11 @@ export function SlidePage({ children, className, style, backHref }: SlidePagePro
     if (backHref) router.prefetch(backHref)
   }, [backHref, router])
 
-  // Interactive swipe-to-close: page follows finger from the left edge.
-  // Uses non-passive listeners so preventDefault() blocks the native iOS edge-swipe.
+  // Custom swipe-to-close: page follows finger from the left edge.
+  // Skipped when nativeSwipe=true so the iOS native gesture handles it instead,
+  // which renders the real previous page (home) in the background during the drag.
   useEffect(() => {
-    if (!backHref) return
+    if (!backHref || nativeSwipe) return
     const el = containerRef.current
     if (!el) return
 
@@ -87,7 +92,7 @@ export function SlidePage({ children, className, style, backHref }: SlidePagePro
       if (startX < 40) {
         active = true
         e.preventDefault()
-        controls.stop() // stop any in-progress enter animation to avoid jitter
+        controls.stop()
       }
     }
 
@@ -116,7 +121,6 @@ export function SlidePage({ children, className, style, backHref }: SlidePagePro
 
       if (dx > 80 || vel > 400) {
         exiting.current = true
-        // Fire navigation immediately so home renders during the final snap animation
         router.replace(backHref!)
         controls.start({
           x: window.innerWidth,
@@ -135,7 +139,7 @@ export function SlidePage({ children, className, style, backHref }: SlidePagePro
       el.removeEventListener('touchmove',  onTouchMove)
       el.removeEventListener('touchend',   onTouchEnd)
     }
-  }, [backHref, controls, router])
+  }, [backHref, nativeSwipe, controls, router])
 
   return (
     <SlideBackContext.Provider value={goBack}>
