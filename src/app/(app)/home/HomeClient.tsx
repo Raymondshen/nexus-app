@@ -8,8 +8,9 @@ import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
 import { TokeCircle } from 'pixelarticons/react/TokeCircle'
 import { Logout } from 'pixelarticons/react/Logout'
-import { Notebook } from 'pixelarticons/react/Notebook'
 import { PlusBox } from 'pixelarticons/react/PlusBox'
+import { UserPlus } from 'pixelarticons/react/UserPlus'
+import { Copy } from 'pixelarticons/react/Copy'
 import { Message as MessageIcon } from 'pixelarticons/react/Message'
 import Image from 'next/image'
 import { isSupabaseStorage, resolveAvatarUrl } from '@/components/ui/Avatar'
@@ -138,6 +139,8 @@ function AccountPreviewContainer({
   infiniteCoins,
   showCoinTip,
   onCoinTap,
+  onFriends,
+  onInviteSquad,
 }: {
   username:      string
   avatarUrl:     string | null
@@ -151,6 +154,8 @@ function AccountPreviewContainer({
   infiniteCoins: boolean
   showCoinTip:   boolean
   onCoinTap:     () => void
+  onFriends:     () => void
+  onInviteSquad: () => void
 }) {
   return (
     <div
@@ -246,6 +251,26 @@ function AccountPreviewContainer({
           </button>
         </div>
       )}
+
+      {/* Action buttons */}
+      <div className="flex" style={{ gap: 'var(--space-5)' }}>
+        <button
+          onClick={(e) => { e.stopPropagation(); onFriends() }}
+          className="flex-1 flex items-center justify-center font-silkscreen text-[length:var(--text-mini)] text-purple leading-none border border-purple bg-black active:opacity-70 transition-opacity"
+          style={{ gap: 'var(--space-2)', padding: '8px 16px', boxShadow: '2px 2px 0px 0px rgba(168,85,247,0.5)' }}
+        >
+          <UserPlus style={{ width: 12, height: 12, color: 'var(--color-purple)' }} aria-hidden="true" />
+          friends
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); onInviteSquad() }}
+          className="flex-1 flex items-center justify-center font-silkscreen text-[length:var(--text-mini)] text-primary leading-none bg-purple active:opacity-70 transition-opacity"
+          style={{ gap: 'var(--space-2)', padding: '8px 16px', boxShadow: '2px 2px 0px 0px rgba(168,85,247,0.5)' }}
+        >
+          <Copy style={{ width: 12, height: 12, color: 'var(--color-primary)' }} aria-hidden="true" />
+          Invite squad
+        </button>
+      </div>
     </div>
   )
 }
@@ -988,6 +1013,8 @@ export function HomeClient({
             setShowCoinTip(true)
             setTimeout(() => setShowCoinTip(false), 2000)
           }}
+          onFriends={() => router.push('/friends')}
+          onInviteSquad={handleOpenArsenal}
         />
         <AnnouncementBanner announcements={announcements} />
       </div>
@@ -997,13 +1024,18 @@ export function HomeClient({
         className="flex-1 overflow-y-auto min-h-0 px-4 flex flex-col gap-6"
         style={{
           paddingTop:    'var(--space-5)',
-          paddingBottom: 'calc(max(env(safe-area-inset-bottom), 16px) + 72px)',
+          paddingBottom: 'max(env(safe-area-inset-bottom), 24px)',
         }}
       >
 
         {/* Squads section */}
         <div className="flex flex-col gap-4 w-full">
-          <p className="font-body font-medium text-[14px] text-primary tracking-[0.2px] leading-normal">Squads</p>
+          <div className="flex items-center justify-between">
+            <p className="font-body font-medium text-[14px] text-primary tracking-[0.2px] leading-normal">Squads</p>
+            <button onClick={() => setShowCreate(true)} aria-label="Create or join a squad" className="flex items-center justify-center active:opacity-70 transition-opacity">
+              <PlusBox style={{ width: 16, height: 16, color: 'var(--color-tertiary)' }} aria-hidden="true" />
+            </button>
+          </div>
           {crews.length === 0 ? (
             <EmptyState onCreate={() => setShowCreate(true)} />
           ) : (
@@ -1045,33 +1077,6 @@ export function HomeClient({
             ))}
           </div>
         )}
-      </div>
-
-      {/* ── Fixed bottom action bar ── */}
-      <div
-        className="fixed bottom-0 left-0 right-0 z-30 flex items-center justify-end gap-4 px-4"
-        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 24px)', paddingTop: 24 }}
-      >
-        {/* Friends */}
-        <button
-          onClick={() => router.push('/friends')}
-          aria-label="Friends"
-          className="bg-black border border-secondary flex items-center justify-center p-3"
-          style={{ boxShadow: '4px 4px 0px 0px rgba(228,228,231,0.5)' }}
-        >
-          <Notebook style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
-        </button>
-
-        {/* Create squad */}
-        <button
-          onClick={() => setShowCreate(true)}
-          aria-label="Create a squad"
-          className="bg-purple flex items-center justify-center gap-1 px-5 py-4"
-          style={{ boxShadow: '4px 4px 0px 0px rgba(168,85,247,0.5)' }}
-        >
-          <PlusBox style={{ width: 16, height: 16, color: 'var(--color-primary)' }} aria-hidden="true" />
-          <span className="font-silkscreen text-[14px] text-primary leading-none whitespace-nowrap">Squad</span>
-        </button>
       </div>
 
       {/* ── Modals ── */}

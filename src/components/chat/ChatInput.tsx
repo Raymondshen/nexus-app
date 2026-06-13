@@ -595,7 +595,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     <div
       className="bg-black border-t border-border flex flex-col flex-shrink-0 relative z-[40]"
       style={{
-        paddingTop:    'var(--space-5)',
+        paddingTop:    'var(--space-4)',
         paddingLeft:   'var(--space-5)',
         paddingRight:  'var(--space-5)',
         paddingBottom: 'max(env(safe-area-inset-bottom), 32px)',
@@ -849,7 +849,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                 rows={1}
                 onFocus={() => setIsFocused(true)}
                 className="relative w-full bg-transparent font-body text-[14px] placeholder:text-muted resize-none focus:outline-none leading-normal"
-                style={{ paddingTop: 14, paddingBottom: 14, maxHeight: 91, fontVariationSettings: '"opsz" 14', color: 'transparent', caretColor: 'var(--color-primary)' }}
+                style={{ paddingTop: 14, paddingBottom: 14, maxHeight: 91, fontVariationSettings: '"opsz" 14', color: 'transparent', caretColor: 'var(--color-primary)', overflowY: 'auto', overflowX: 'hidden' }}
               />
             </div>
             {(() => {
