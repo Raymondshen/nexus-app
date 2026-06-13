@@ -1014,7 +1014,7 @@ export function HomeClient({
             setTimeout(() => setShowCoinTip(false), 2000)
           }}
           onFriends={() => router.push('/friends')}
-          onInviteSquad={handleOpenArsenal}
+          onInviteSquad={() => setShowCreate(true)}
         />
         <AnnouncementBanner announcements={announcements} />
       </div>
