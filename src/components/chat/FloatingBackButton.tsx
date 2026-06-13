@@ -12,11 +12,10 @@ export function FloatingBackButton({ crewId: _crewId }: FloatingBackButtonProps)
   const goBack = useSlideBack()
 
   useEffect(() => {
-    // Normalize history so native iOS swipe-back always goes to /home.
-    // Must use null state (not the existing Next.js state) so Next.js
-    // navigates to the URL rather than re-applying the chat URL from state.
+    // Normalize history so native iOS swipe-back always goes to /home,
+    // regardless of whether the user arrived from onboarding or home.
     const current = window.location.pathname + window.location.search
-    window.history.replaceState(null, '', '/home')
+    window.history.replaceState(window.history.state, '', '/home')
     window.history.pushState(null, '', current)
   }, [])
 
