@@ -88,13 +88,9 @@ export function SlidePage({ children, className, style, backHref }: SlidePagePro
     }
 
     function onTouchEnd(e: TouchEvent) {
-      if (exiting.current) return
       const dx = e.changedTouches[0].clientX - startX
       const dy = Math.abs(e.changedTouches[0].clientY - startY)
-      if (startX < 35 && dx > 80 && dy < dx) {
-        exiting.current = true
-        router.replace(backHref)
-      }
+      if (startX < 35 && dx > 80 && dy < dx) goBack()
     }
 
     el.addEventListener('touchstart', onTouchStart, { passive: false })
@@ -103,7 +99,7 @@ export function SlidePage({ children, className, style, backHref }: SlidePagePro
       el.removeEventListener('touchstart', onTouchStart)
       el.removeEventListener('touchend', onTouchEnd)
     }
-  }, [backHref, router])
+  }, [backHref, goBack])
 
   return (
     <SlideBackContext.Provider value={goBack}>
