@@ -46,7 +46,7 @@ export function DefinitionCreateSheet({
         onClick={onClose}
       />
       <motion.div
-        className="fixed bottom-0 left-0 right-0 z-[100] bg-black border-t border-border flex flex-col gap-6 px-4 pt-6 overflow-y-auto"
+        className="fixed bottom-0 left-0 right-0 z-[100] bg-black border-t border-border flex flex-col gap-[var(--space-7)] px-4 pt-6 overflow-y-auto"
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
@@ -61,70 +61,74 @@ export function DefinitionCreateSheet({
           Squad Definition
         </h2>
 
-        <div className="flex flex-col gap-2 items-start w-full">
-          <p
-            className="font-body font-medium text-[14px] text-primary tracking-[0.2px] leading-normal"
-            style={{ fontVariationSettings: '"opsz" 14' }}
-          >
-            Words attached to definition
-          </p>
-          <input
-            value={word}
-            onChange={(e) => setWord(e.target.value)}
-            maxLength={100}
-            placeholder="e.g. GG, gg, good game"
-            className="w-full bg-black border border-border-hover px-3 py-3 font-body text-[14px] text-primary placeholder:text-muted focus:outline-none focus:border-purple transition-colors overflow-hidden"
-            style={{ fontVariationSettings: '"opsz" 14' }}
-            autoComplete="off"
-            autoCapitalize="off"
-          />
-          <p
-            className="font-body text-[11px] text-tertiary tracking-[0.2px] leading-normal w-full"
-            style={{ fontVariationSettings: '"opsz" 14' }}
-          >
-            Putting commas separates the word but will tie back to this definition when used. (e.g. GG, gg, good game will be the same definition.)
-          </p>
-        </div>
+        <div className="flex flex-col gap-[var(--space-5)] items-start w-full">
 
-        <div className="flex flex-col gap-2 items-start w-full">
-          <p
-            className="font-body font-medium text-[14px] text-primary tracking-[0.2px] leading-normal"
-            style={{ fontVariationSettings: '"opsz" 14' }}
-          >
-            Actual Word
-          </p>
-          <input
-            value={actualWord}
-            onChange={(e) => setActualWord(e.target.value)}
-            maxLength={100}
-            placeholder="e.g. Good Game"
-            className="w-full bg-black border border-border-hover px-3 py-3 font-body text-[14px] text-primary placeholder:text-muted focus:outline-none focus:border-purple transition-colors overflow-hidden"
-            style={{ fontVariationSettings: '"opsz" 14' }}
-            autoComplete="off"
-          />
-          <p
-            className="font-body text-[11px] text-tertiary tracking-[0.2px] leading-normal w-full"
-            style={{ fontVariationSettings: '"opsz" 14' }}
-          >
-            What the actual full word means. (e.g. GG is &quot;Good Game&quot;)
-          </p>
-        </div>
+          <div className="flex flex-col gap-[var(--space-3)] items-start w-full">
+            <p
+              className="font-body font-medium text-[14px] text-primary tracking-[0.2px] leading-normal"
+              style={{ fontVariationSettings: '"opsz" 14' }}
+            >
+              Words attached to definition
+            </p>
+            <input
+              value={word}
+              onChange={(e) => setWord(e.target.value)}
+              maxLength={100}
+              placeholder="e.g. GG, gg, good game"
+              className="w-full bg-black border border-border-hover px-3 py-3 font-body text-[14px] text-primary placeholder:text-muted focus:outline-none focus:border-purple transition-colors overflow-hidden"
+              style={{ fontVariationSettings: '"opsz" 14' }}
+              autoComplete="off"
+              autoCapitalize="off"
+            />
+            <p
+              className="font-body text-[11px] text-tertiary tracking-[0.2px] leading-normal w-full"
+              style={{ fontVariationSettings: '"opsz" 14' }}
+            >
+              Putting commas separates the word but will tie back to this definition when used. (e.g. GG, gg, good game will be the same definition.)
+            </p>
+          </div>
 
-        <div className="flex flex-col gap-2 items-start w-full">
-          <p
-            className="font-body font-medium text-[14px] text-primary tracking-[0.2px] leading-normal"
-            style={{ fontVariationSettings: '"opsz" 14' }}
-          >
-            Definition
-          </p>
-          <textarea
-            value={definition}
-            onChange={(e) => setDefinition(e.target.value)}
-            maxLength={500}
-            placeholder="What does it mean in your squad?"
-            className="w-full h-[78px] bg-black border border-border-hover px-3 py-3 font-body text-[14px] text-primary placeholder:text-muted focus:outline-none focus:border-purple transition-colors resize-none overflow-hidden"
-            style={{ fontVariationSettings: '"opsz" 14' }}
-          />
+          <div className="flex flex-col gap-[var(--space-3)] items-start w-full">
+            <p
+              className="font-body font-medium text-[14px] text-primary tracking-[0.2px] leading-normal"
+              style={{ fontVariationSettings: '"opsz" 14' }}
+            >
+              Actual Word
+            </p>
+            <input
+              value={actualWord}
+              onChange={(e) => setActualWord(e.target.value)}
+              maxLength={100}
+              placeholder="e.g. Good Game"
+              className="w-full bg-black border border-border-hover px-3 py-3 font-body text-[14px] text-primary placeholder:text-muted focus:outline-none focus:border-purple transition-colors overflow-hidden"
+              style={{ fontVariationSettings: '"opsz" 14' }}
+              autoComplete="off"
+            />
+            <p
+              className="font-body text-[11px] text-tertiary tracking-[0.2px] leading-normal w-full"
+              style={{ fontVariationSettings: '"opsz" 14' }}
+            >
+              What the actual full word means. (e.g. GG is &quot;Good Game&quot;)
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-[var(--space-3)] items-start w-full">
+            <p
+              className="font-body font-medium text-[14px] text-primary tracking-[0.2px] leading-normal"
+              style={{ fontVariationSettings: '"opsz" 14' }}
+            >
+              Definition
+            </p>
+            <textarea
+              value={definition}
+              onChange={(e) => setDefinition(e.target.value)}
+              maxLength={500}
+              placeholder="What does it mean in your squad?"
+              className="w-full h-[78px] bg-black border border-border-hover px-3 py-3 font-body text-[14px] text-primary placeholder:text-muted focus:outline-none focus:border-purple transition-colors resize-none overflow-hidden"
+              style={{ fontVariationSettings: '"opsz" 14' }}
+            />
+          </div>
+
         </div>
 
         {error && (

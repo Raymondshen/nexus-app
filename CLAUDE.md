@@ -256,6 +256,7 @@ Used when `definitions.length > 0` or `memberUsernames.size > 0`. `memberUsernam
 - One `messages:{crewId}` broadcast channel per crew for live preview (no `postgres_changes` on messages)
 - One `postgres_changes` UPDATE on `profiles` (channel `home-profile-coins:{userId}`) for live coin balance
 - `router.refresh()` on every mount syncs stale preview data; `useEffect([initialCrews])` applies refreshed props into state
+- **Squad auto-sort**: `applyNewMessage` re-sorts `crews` by `lastMessage.created_at` descending on every broadcast — the most recently active squad always floats to the top instantly. Framer Motion `layout` on each card wrapper animates the reorder with a spring. Subscription dependency uses `[...crewIds].sort().join(',')` (set-stable, not order-stable) so sorting never triggers a channel teardown/rebuild.
 
 ### Page Transitions — SlidePage + useSlideBack
 All detail pages (chat, DM, profile, friends, vault) slide in from right on mount, slide back out on close.
@@ -349,6 +350,8 @@ Defined words highlighted blue in chat messages; tapping shows definition sheet.
 **Definition tap sheet** (portal, z-[80]): aliases label (Silkscreen 8px tertiary) + primary word (DM Sans Bold 16px `#60a5fa`) + definition body (DM Sans Regular 14px secondary) + "Created by : {username}" (purple if own, tertiary otherwise) + CLOSE button.
 
 **Glossary page**: `FloatingBackButton` (absolute left-4 z-60 pill using `useSlideBack()`). Accessed via `Braces` icon in `SquadDetailsSheet` action row.
+
+**Bottom sheet spacing convention** (`PollCreatorSheet`, `DefinitionCreateSheet`): outer container `gap-[var(--space-7)]` (24px) between title / fields block / buttons; field groups wrapper `gap-[var(--space-5)]` (16px) between each group; within each group `gap-[var(--space-3)]` (8px) between label and input. Always use design token CSS variables, never bare Tailwind `gap-N` utilities in these sheets.
 
 ### Pixel Sprites
 - Component: `src/components/game/PixelSprite.tsx`; sprites in `public/sprites/{spriteId}/{direction}.png` — 8 directions; 24×24px native

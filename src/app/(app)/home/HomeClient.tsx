@@ -906,7 +906,7 @@ export function HomeClient({
     )
 
     return () => { channels.forEach((ch) => supabase.removeChannel(ch)) }
-  }, [crewIds.join(',')]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [[...crewIds].sort().join(',')]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Navigation: mark as read on tap ──────────────────────────────────────
   const handleCrewTap = useCallback(
@@ -1001,14 +1001,19 @@ export function HomeClient({
             <EmptyState onCreate={() => setShowCreate(true)} />
           ) : (
             crews.map((summary) => (
-              <SwipeableCrewCard
+              <motion.div
                 key={summary.crew.id}
-                summary={summary}
-                onTap={() => handleCrewTap(summary.crew.id)}
-                onLeaveRequest={() => { setLeaveTarget(summary); setLeaveError(null) }}
-                openCardId={openCardId}
-                onOpen={setOpenCardId}
-              />
+                layout
+                transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+              >
+                <SwipeableCrewCard
+                  summary={summary}
+                  onTap={() => handleCrewTap(summary.crew.id)}
+                  onLeaveRequest={() => { setLeaveTarget(summary); setLeaveError(null) }}
+                  openCardId={openCardId}
+                  onOpen={setOpenCardId}
+                />
+              </motion.div>
             ))
           )}
         </div>

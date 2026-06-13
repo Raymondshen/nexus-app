@@ -105,7 +105,7 @@ export function PollCreatorSheet({ crewId, userProfile, onClose, onCreated }: Po
         onClick={(e) => e.stopPropagation()}
       >
         {/* Scrollable content */}
-        <div className="flex-1 overflow-y-auto nexus-scroll px-4 pt-6 flex flex-col gap-6 min-h-0">
+        <div className="flex-1 overflow-y-auto nexus-scroll px-4 pt-6 flex flex-col gap-[var(--space-7)] min-h-0">
 
           {/* Title */}
           <h2
@@ -115,94 +115,99 @@ export function PollCreatorSheet({ crewId, userProfile, onClose, onCreated }: Po
             Create a poll
           </h2>
 
-          {/* Question */}
-          <div className="flex flex-col gap-2 flex-shrink-0">
-            <p
-              className="font-body font-medium text-[14px] text-primary tracking-[0.2px] leading-none"
-              style={{ fontVariationSettings: '"opsz" 14' }}
-            >
-              Question
-            </p>
-            <textarea
-              value={question}
-              onChange={(e) => setQuestion(e.target.value.slice(0, 200))}
-              placeholder="What do you want to ask?"
-              className="w-full h-[60px] bg-black border border-[#3f3f46] px-3 py-3 font-body text-[14px] text-primary placeholder:text-muted resize-none focus:outline-none focus:border-purple transition-colors leading-normal"
-              style={{ fontVariationSettings: '"opsz" 14' }}
-            />
-          </div>
+          {/* Field groups */}
+          <div className="flex flex-col gap-[var(--space-5)] flex-shrink-0">
 
-          {/* Options */}
-          <div className="flex flex-col gap-2 flex-shrink-0">
-            <p
-              className="font-body font-medium text-[14px] text-primary tracking-[0.2px] leading-none"
-              style={{ fontVariationSettings: '"opsz" 14' }}
-            >
-              Options {options.length} of 5
-            </p>
-
-            {options.map((opt, idx) => (
-              <div key={idx} className="flex items-center gap-2">
-                <input
-                  value={opt}
-                  onChange={(e) => updateOption(idx, e.target.value)}
-                  placeholder={`Option ${idx + 1}...`}
-                  className="flex-1 bg-black border border-[#3f3f46] px-3 py-3 font-body text-[14px] text-primary placeholder:text-muted focus:outline-none focus:border-purple transition-colors"
-                  style={{ fontVariationSettings: '"opsz" 14' }}
-                />
-                {options.length > 2 && (
-                  <button
-                    onClick={() => removeOption(idx)}
-                    className="flex-shrink-0 w-8 h-8 flex items-center justify-center text-tertiary active:text-[#ef4444] transition-colors"
-                    aria-label="Remove option"
-                  >
-                    <Close style={{ width: 14, height: 14 }} aria-hidden="true" />
-                  </button>
-                )}
-              </div>
-            ))}
-
-            {options.length < 5 && (
-              <button
-                onClick={addOption}
-                className="self-start flex items-center gap-1 border border-purple px-1 py-1 active:opacity-70 transition-opacity"
+            {/* Question */}
+            <div className="flex flex-col gap-[var(--space-3)]">
+              <p
+                className="font-body font-medium text-[14px] text-primary tracking-[0.2px] leading-none"
+                style={{ fontVariationSettings: '"opsz" 14' }}
               >
-                <PlusBox style={{ width: 12, height: 12, color: 'var(--color-purple)' }} aria-hidden="true" />
-                <span className="font-silkscreen text-[11px] text-purple leading-none">Add option</span>
-              </button>
-            )}
-          </div>
-
-          {/* Duration */}
-          <div className="flex flex-col gap-2 flex-shrink-0">
-            <p
-              className="font-body font-medium text-[14px] text-primary tracking-[0.2px] leading-none"
-              style={{ fontVariationSettings: '"opsz" 14' }}
-            >
-              Duration until it closes.
-            </p>
-            <div className="flex gap-2">
-              {DURATION_OPTIONS.map(({ value, label }) => (
-                <button
-                  key={value}
-                  onClick={() => setDuration(value)}
-                  className={`flex-1 py-3 flex items-center justify-center transition-colors font-body text-[14px] ${
-                    duration === value
-                      ? 'bg-purple text-primary'
-                      : 'bg-black border border-[#3f3f46] text-muted'
-                  }`}
-                  style={{ fontVariationSettings: '"opsz" 14' }}
-                >
-                  {label}
-                </button>
-              ))}
+                Question
+              </p>
+              <textarea
+                value={question}
+                onChange={(e) => setQuestion(e.target.value.slice(0, 200))}
+                placeholder="What do you want to ask?"
+                className="w-full h-[60px] bg-black border border-[#3f3f46] px-3 py-3 font-body text-[14px] text-primary placeholder:text-muted resize-none focus:outline-none focus:border-purple transition-colors leading-normal"
+                style={{ fontVariationSettings: '"opsz" 14' }}
+              />
             </div>
-            <p
-              className="font-body text-[11px] text-tertiary tracking-[0.2px] leading-normal"
-              style={{ fontVariationSettings: '"opsz" 14' }}
-            >
-              {activeHint}
-            </p>
+
+            {/* Options */}
+            <div className="flex flex-col gap-[var(--space-3)]">
+              <p
+                className="font-body font-medium text-[14px] text-primary tracking-[0.2px] leading-none"
+                style={{ fontVariationSettings: '"opsz" 14' }}
+              >
+                Options {options.length} of 5
+              </p>
+
+              {options.map((opt, idx) => (
+                <div key={idx} className="flex items-center gap-2">
+                  <input
+                    value={opt}
+                    onChange={(e) => updateOption(idx, e.target.value)}
+                    placeholder={`Option ${idx + 1}...`}
+                    className="flex-1 bg-black border border-[#3f3f46] px-3 py-3 font-body text-[14px] text-primary placeholder:text-muted focus:outline-none focus:border-purple transition-colors"
+                    style={{ fontVariationSettings: '"opsz" 14' }}
+                  />
+                  {options.length > 2 && (
+                    <button
+                      onClick={() => removeOption(idx)}
+                      className="flex-shrink-0 w-8 h-8 flex items-center justify-center text-tertiary active:text-[#ef4444] transition-colors"
+                      aria-label="Remove option"
+                    >
+                      <Close style={{ width: 14, height: 14 }} aria-hidden="true" />
+                    </button>
+                  )}
+                </div>
+              ))}
+
+              {options.length < 5 && (
+                <button
+                  onClick={addOption}
+                  className="self-start flex items-center gap-1 border border-purple px-1 py-1 active:opacity-70 transition-opacity"
+                >
+                  <PlusBox style={{ width: 12, height: 12, color: 'var(--color-purple)' }} aria-hidden="true" />
+                  <span className="font-silkscreen text-[11px] text-purple leading-none">Add option</span>
+                </button>
+              )}
+            </div>
+
+            {/* Duration */}
+            <div className="flex flex-col gap-[var(--space-3)]">
+              <p
+                className="font-body font-medium text-[14px] text-primary tracking-[0.2px] leading-none"
+                style={{ fontVariationSettings: '"opsz" 14' }}
+              >
+                Duration until it closes.
+              </p>
+              <div className="flex gap-2">
+                {DURATION_OPTIONS.map(({ value, label }) => (
+                  <button
+                    key={value}
+                    onClick={() => setDuration(value)}
+                    className={`flex-1 py-3 flex items-center justify-center transition-colors font-body text-[14px] ${
+                      duration === value
+                        ? 'bg-purple text-primary'
+                        : 'bg-black border border-[#3f3f46] text-muted'
+                    }`}
+                    style={{ fontVariationSettings: '"opsz" 14' }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <p
+                className="font-body text-[11px] text-tertiary tracking-[0.2px] leading-normal"
+                style={{ fontVariationSettings: '"opsz" 14' }}
+              >
+                {activeHint}
+              </p>
+            </div>
+
           </div>
 
           {/* Error */}
