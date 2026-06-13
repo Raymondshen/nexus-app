@@ -115,7 +115,6 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
   return (
     <SlidePage
       className="flex flex-col bg-black"
-      backHref="/home"
       style={{
         position: 'fixed',
         top: 0,
