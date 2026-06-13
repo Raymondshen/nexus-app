@@ -38,15 +38,10 @@ export function SlidePage({ children, className, style, backHref }: SlidePagePro
   const goBack = useCallback(() => {
     if (exiting.current) return
     exiting.current = true
-    // Only skip the next enter animation when going back via router.back() — the
-    // previous page in history is another SlidePage that should not re-animate.
-    // When backHref is set (destination is /home, which has no SlidePage), skip
-    // setting the flag so it doesn't linger and incorrectly suppress the next
-    // forward navigation's slide-in.
     if (!backHref) _skipNextSlideEnter = true
     controls.start({
       x: '100%',
-      transition: { type: 'tween', ease: [0.32, 0, 0.67, 0], duration: 0.28 },
+      transition: { type: 'tween', ease: [0.32, 0, 0.67, 0], duration: 0.15 },
     }).then(() => {
       if (backHref) router.replace(backHref)
       else          router.back()
@@ -56,22 +51,21 @@ export function SlidePage({ children, className, style, backHref }: SlidePagePro
   useEffect(() => {
     if (_skipNextSlideEnter) {
       _skipNextSlideEnter = false
-      controls.set({ x: 0 })           // instant — no slide-in on back-nav
+      controls.set({ x: 0 })
     } else {
-      controls.start({                   // normal forward-nav slide-in
+      controls.start({
         x: 0,
         transition: { type: 'spring', stiffness: 380, damping: 36, mass: 0.9 },
       })
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Pre-fetch the back destination so it renders instantly when goBack fires.
   useEffect(() => {
     if (backHref) router.prefetch(backHref)
   }, [backHref, router])
 
-  // Left-edge swipe-back: non-passive touchstart so preventDefault() blocks the
-  // native iOS edge-swipe gesture, preventing both from firing simultaneously.
+  // Interactive swipe-to-close: page follows finger from the left edge.
+  // Uses non-passive listeners so preventDefault() blocks the native iOS edge-swipe.
   useEffect(() => {
     if (!backHref) return
     const el = containerRef.current
@@ -79,27 +73,65 @@ export function SlidePage({ children, className, style, backHref }: SlidePagePro
 
     let startX = 0
     let startY = 0
+    let lastX  = 0
+    let lastT  = 0
+    let active = false
 
     function onTouchStart(e: TouchEvent) {
       startX = e.touches[0].clientX
       startY = e.touches[0].clientY
-      // Block iOS native edge-swipe when the touch originates near the left edge
-      if (startX < 35) e.preventDefault()
+      lastX  = startX
+      lastT  = Date.now()
+      active = startX < 40
+      if (active) e.preventDefault()
+    }
+
+    function onTouchMove(e: TouchEvent) {
+      if (!active) return
+      const dx = e.touches[0].clientX - startX
+      const dy = Math.abs(e.touches[0].clientY - startY)
+      // Cancel if the gesture becomes more vertical than horizontal
+      if (dy > dx || dx < 0) {
+        active = false
+        controls.start({ x: 0, transition: { type: 'spring', stiffness: 400, damping: 40 } })
+        return
+      }
+      e.preventDefault()
+      lastX = e.touches[0].clientX
+      lastT = Date.now()
+      controls.set({ x: dx })
     }
 
     function onTouchEnd(e: TouchEvent) {
-      const dx = e.changedTouches[0].clientX - startX
-      const dy = Math.abs(e.changedTouches[0].clientY - startY)
-      if (startX < 35 && dx > 80 && dy < dx) goBack()
+      if (!active || exiting.current) return
+      active = false
+      const endX = e.changedTouches[0].clientX
+      const dx   = endX - startX
+      const dt   = Date.now() - lastT
+      const vel  = dt > 0 ? (endX - lastX) / dt * 1000 : 0
+
+      if (dx > 80 || vel > 400) {
+        // Commit close — animate from current pixel position off-screen
+        exiting.current = true
+        controls.start({
+          x: window.innerWidth,
+          transition: { type: 'tween', ease: [0.32, 0, 0.67, 0], duration: 0.22 },
+        }).then(() => router.replace(backHref!))
+      } else {
+        // Snap back
+        controls.start({ x: 0, transition: { type: 'spring', stiffness: 400, damping: 40 } })
+      }
     }
 
     el.addEventListener('touchstart', onTouchStart, { passive: false })
-    el.addEventListener('touchend', onTouchEnd)
+    el.addEventListener('touchmove',  onTouchMove,  { passive: false })
+    el.addEventListener('touchend',   onTouchEnd)
     return () => {
       el.removeEventListener('touchstart', onTouchStart)
-      el.removeEventListener('touchend', onTouchEnd)
+      el.removeEventListener('touchmove',  onTouchMove)
+      el.removeEventListener('touchend',   onTouchEnd)
     }
-  }, [backHref, goBack])
+  }, [backHref, controls, router])
 
   return (
     <SlideBackContext.Provider value={goBack}>
