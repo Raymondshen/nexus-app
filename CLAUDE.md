@@ -215,6 +215,12 @@ Typing `/` triggers a command picker. Filtered as you type; Escape clears; Enter
 - **Row anatomy**: command name in Silkscreen `var(--text-mini)` purple (`/name`); description in DM Sans `var(--text-xs)` tertiary; `p-2` padding; no icon
 - `birthdaysCommandAction` (`chat/actions.ts`): inserts a `message_type: 'system'` message with upcoming birthday info. Birthday system messages get purple-tinted styling (`bg-[#1a0d2e] border-[#a855f7]/30`).
 
+### ChatInput — input bar behavior
+- **Poll icon**: wrapped in `motion.div`; animates `width` 32→0, `opacity` 1→0, `x` 0→-8 when `isFocused`; spring stiffness 320, damping 28; `pointerEvents: none` when hidden. Slides back in on blur.
+- **Textarea auto-expand**: `handleInput` sets `height: auto` then `min(scrollHeight, 91)px` — max 3 lines (DM Sans 14px × 1.5 line-height = 21px/line; 3×21 + 14+14 padding = 91px). `rows={1}` baseline.
+- **Input bar**: `minHeight: 48`, `items-end` alignment (not `items-center`) so poll icon + send button sit at bottom when textarea grows.
+- **Send button**: `self-end mb-2` so it stays pinned to the bottom of the bar.
+
 ### ChatInput — send flow
 `insert_message` RPC → `addMessage` (optimistic) → broadcast slim payload → `award-xp` edge function → `attack-boss` (if raid active)
 

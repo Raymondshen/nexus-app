@@ -436,7 +436,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     setText(val)
     const el = e.target
     el.style.height = 'auto'
-    el.style.height = Math.min(el.scrollHeight, 120) + 'px'
+    el.style.height = Math.min(el.scrollHeight, 91) + 'px'
     if (val.trim()) {
       broadcastTyping(true)
       if (typingTimerRef.current) clearTimeout(typingTimerRef.current)
@@ -797,17 +797,24 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
           })()}
 
           <div
-            className="border h-12 flex items-center overflow-hidden transition-colors"
-            style={{ borderColor: inRaid ? 'rgba(255,34,0,0.4)' : isFocused ? 'var(--color-purple)' : 'var(--color-border)', paddingLeft: 8, paddingRight: 'var(--space-5)', gap: 8 }}
+            className="border flex items-end overflow-hidden transition-colors"
+            style={{ borderColor: inRaid ? 'rgba(255,34,0,0.4)' : isFocused ? 'var(--color-purple)' : 'var(--color-border)', paddingLeft: 8, paddingRight: 'var(--space-5)', gap: 8, minHeight: 48 }}
           >
-            <button
-              onClick={() => setShowPollCreator(true)}
-              className="flex-shrink-0 flex items-center justify-center w-8 h-8 text-tertiary active:text-purple transition-colors"
-              aria-label="Create poll"
+            <motion.div
+              className="flex-shrink-0 overflow-hidden flex items-center mb-2"
+              animate={{ width: isFocused ? 0 : 32, opacity: isFocused ? 0 : 1, x: isFocused ? -8 : 0 }}
+              transition={{ type: 'spring', stiffness: 320, damping: 28 }}
+              style={{ pointerEvents: isFocused ? 'none' : 'auto' }}
             >
-              <Chart style={{ width: 16, height: 16 }} aria-hidden="true" />
-            </button>
-            <div className="relative flex-1 min-w-0 overflow-hidden self-stretch">
+              <button
+                onClick={() => setShowPollCreator(true)}
+                className="flex-shrink-0 flex items-center justify-center w-8 h-8 text-tertiary active:text-purple"
+                aria-label="Create poll"
+              >
+                <Chart style={{ width: 16, height: 16 }} aria-hidden="true" />
+              </button>
+            </motion.div>
+            <div className="relative flex-1 min-w-0 overflow-hidden">
               {/* Overlay renders @mention highlights behind the transparent textarea */}
               <div
                 ref={overlayRef}
@@ -826,8 +833,8 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                 placeholder={inRaid ? 'Attack The Void...' : 'Send a message...'}
                 rows={1}
                 onFocus={() => setIsFocused(true)}
-                className="relative w-full h-full bg-transparent font-body text-[14px] placeholder:text-muted resize-none focus:outline-none leading-normal"
-                style={{ paddingTop: 14, paddingBottom: 14, maxHeight: 120, fontVariationSettings: '"opsz" 14', color: 'transparent', caretColor: 'var(--color-primary)' }}
+                className="relative w-full bg-transparent font-body text-[14px] placeholder:text-muted resize-none focus:outline-none leading-normal"
+                style={{ paddingTop: 14, paddingBottom: 14, maxHeight: 91, fontVariationSettings: '"opsz" 14', color: 'transparent', caretColor: 'var(--color-primary)' }}
               />
             </div>
             {(() => {
@@ -837,7 +844,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                 <button
                   onClick={send}
                   disabled={!text.trim() || sending || hasMatch}
-                  className={`flex-shrink-0 flex items-center justify-center w-4 h-4 transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${isFocused ? 'text-purple' : text.trim() && !hasMatch ? 'text-primary' : 'text-muted'}`}
+                  className={`flex-shrink-0 flex items-center justify-center w-4 h-4 transition-colors disabled:opacity-30 disabled:cursor-not-allowed self-end mb-2 ${isFocused ? 'text-purple' : text.trim() && !hasMatch ? 'text-primary' : 'text-muted'}`}
                   aria-label="Send message"
                 >
                   <Send style={{ width: 16, height: 16 }} aria-hidden="true" />
