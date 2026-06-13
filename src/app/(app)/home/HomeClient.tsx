@@ -445,14 +445,24 @@ function HomeActionSheet({
     >
       <div className="absolute inset-0 bg-black/70" />
       <motion.div
-        initial={{ y: 80, opacity: 0 }}
-        animate={{ y: 0,  opacity: 1 }}
-        exit={{   y: 80, opacity: 0 }}
+        initial={{ y: '100%' }}
+        animate={{ y: 0 }}
+        exit={{ y: '100%' }}
         transition={{ type: 'spring', stiffness: 280, damping: 26 }}
-        className="relative w-full max-w-[480px] bg-[var(--background)] border-t border-border flex flex-col gap-[var(--space-7)] pt-[24px] px-[16px] overflow-hidden"
-        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 28px)' }}
+        drag="y"
+        dragConstraints={{ top: 0, bottom: 0 }}
+        dragElastic={{ top: 0, bottom: 1 }}
+        onDragEnd={(_, info) => {
+          if (info.offset.y > 80 || info.velocity.y > 400) onClose()
+        }}
+        className="relative w-full max-w-[480px] bg-[var(--background)] border-t border-border flex flex-col gap-[var(--space-7)] px-[16px] overflow-hidden"
+        style={{ paddingTop: 12, paddingBottom: 'max(env(safe-area-inset-bottom), 28px)' }}
         onClick={(e) => e.stopPropagation()}
       >
+        {/* drag handle */}
+        <div className="flex justify-center pb-2">
+          <div className="w-10 h-[4px] rounded-full bg-border" />
+        </div>
         {sheetContent}
       </motion.div>
     </motion.div>
