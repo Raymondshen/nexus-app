@@ -30,10 +30,10 @@ interface SlidePageProps {
 }
 
 export function SlidePage({ children, className, style, backHref }: SlidePageProps) {
-  const router   = useRouter()
-  const controls = useAnimation()
-  const exiting  = useRef(false)
-  const touchStart = useRef<{ x: number; y: number } | null>(null)
+  const router       = useRouter()
+  const controls     = useAnimation()
+  const exiting      = useRef(false)
+  const containerRef = useRef<HTMLDivElement>(null)
 
   const goBack = useCallback(() => {
     if (exiting.current) return
@@ -66,38 +66,53 @@ export function SlidePage({ children, className, style, backHref }: SlidePagePro
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Pre-fetch the back destination so it renders instantly when goBack fires.
-  // Without this, navigating after the slide-out animation leaves a blank gap
-  // while the server component page is fetched.
   useEffect(() => {
     if (backHref) router.prefetch(backHref)
   }, [backHref, router])
 
-  function handleTouchStart(e: React.TouchEvent) {
+  // Left-edge swipe-back: non-passive touchstart so preventDefault() blocks the
+  // native iOS edge-swipe gesture, preventing both from firing simultaneously.
+  useEffect(() => {
     if (!backHref) return
-    touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
-  }
+    const el = containerRef.current
+    if (!el) return
 
-  function handleTouchEnd(e: React.TouchEvent) {
-    if (!backHref || !touchStart.current || exiting.current) return
-    const dx = e.changedTouches[0].clientX - touchStart.current.x
-    const dy = Math.abs(e.changedTouches[0].clientY - touchStart.current.y)
-    // Left-edge origin, significant rightward swipe, mostly horizontal — instant nav
-    if (touchStart.current.x < 35 && dx > 80 && dy < dx) {
-      exiting.current = true
-      router.replace(backHref)
+    let startX = 0
+    let startY = 0
+
+    function onTouchStart(e: TouchEvent) {
+      startX = e.touches[0].clientX
+      startY = e.touches[0].clientY
+      // Block iOS native edge-swipe when the touch originates near the left edge
+      if (startX < 35) e.preventDefault()
     }
-    touchStart.current = null
-  }
+
+    function onTouchEnd(e: TouchEvent) {
+      if (exiting.current) return
+      const dx = e.changedTouches[0].clientX - startX
+      const dy = Math.abs(e.changedTouches[0].clientY - startY)
+      if (startX < 35 && dx > 80 && dy < dx) {
+        exiting.current = true
+        router.replace(backHref)
+      }
+    }
+
+    el.addEventListener('touchstart', onTouchStart, { passive: false })
+    el.addEventListener('touchend', onTouchEnd)
+    return () => {
+      el.removeEventListener('touchstart', onTouchStart)
+      el.removeEventListener('touchend', onTouchEnd)
+    }
+  }, [backHref, router])
 
   return (
     <SlideBackContext.Provider value={goBack}>
       <motion.div
+        ref={containerRef}
         className={className}
         style={style}
         initial={{ x: '100%' }}
         animate={controls}
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
       >
         {children}
       </motion.div>
