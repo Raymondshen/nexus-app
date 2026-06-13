@@ -142,7 +142,7 @@ Two paths on the login page:
 ## Dev Mode
 - Controlled by `profiles.is_dev` boolean — **not hardcoded emails**
 - To grant: `UPDATE profiles SET is_dev = true WHERE id IN (SELECT id FROM auth.users WHERE email = '...')`
-- Dev section in `/profile`: **Spawn Boss Mode** (`nexus_dev_mode`), **Push Diagnostics** (`nexus_push_diag`), **Infinite Coins** (`nexus_infinite_coins`), **Feat: AFK Exp** (`nexus_afk_exp`), **Announcements** management, User ID/Email copy rows, Local Flags reset
+- Dev section in `/profile`: **Spawn Boss Mode** (`nexus_dev_mode`), **Push Diagnostics** (`nexus_push_diag`), **Infinite Coins** (`nexus_infinite_coins`), **Feat: AFK Exp** (`nexus_afk_exp`), **Announcements** management
 
 ### Game Events — Dev-Only Gate
 **Server-side (`award-xp`)**: boss spawn + `LEVEL_UP:` message only run when `isDevUser = true`.
@@ -150,7 +150,7 @@ Two paths on the login page:
 **Client-side** (gated by `localStorage.getItem('nexus_dev_mode') === '1'`):
 - `MessageList`: hides boss cards, artifact drops, level-up banners, game-event system messages (BOSS_SPAWN:, ARTIFACT_DROP:, LEVEL_UP:). Non-game system messages (e.g. birthdays) render for all users.
 - `ChatHeader` / `DMOverlayBack`: hides boss HP bar + countdown
-- `ChatInput`: hides DamageFloat, "Next Boss" label, RAID ACTIVE indicator. XP stats row is visible to all users.
+- `ChatInput`: hides DamageFloat, "Next Boss" label, RAID ACTIVE indicator. XP bar (level + count, no float animation) is visible to all users.
 
 ## Routing — Next.js 16 Proxy
 - `src/proxy.ts` — **DO NOT add `src/middleware.ts`** (Next.js 16 errors if both exist)
@@ -221,7 +221,6 @@ Typing `/` triggers a command picker. Filtered as you type; Escape clears; Enter
 - **Props**: `{ crewId, userId, userProfile, memberProfiles, crewName, inviteCode?, creatorId?, isDM? }`
 - **DM mode**: member avatars + XP bar replaced by `"Chatting with [name]"` label; expanded panel hidden
 - **Single channel**: `messages:{crewId}` handles broadcast, typing presence, and online presence
-- **XP floats**: `opacity: [0,1,1,0]`, `y: [0,-12,-26,-42]` over 1.4s; anchored inline after member count text
 - **XP progress bar spring**: `stiffness: 300, damping: 28` — do not drop below ~280
 
 ### ChatInput — expanded member panel (`SquadDetailsSheet`)

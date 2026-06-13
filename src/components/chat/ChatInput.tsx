@@ -94,7 +94,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   const {
     addMessage, updateMessage, setCrewXP, receiveXP, addXP,
     activeRaid, setActiveRaid, damageFloats, addDamageFloat, dismissDamageFloat,
-    crewXP, crewLevel, xpFloats, dismissXPFloat,
+    crewXP, crewLevel,
     onlineUserIds, setOnlineUserIds, addUserCoins,
     crewName: storeCrewName, setCrewName,
   } = useChatStore()
@@ -660,23 +660,6 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
               <span className="text-[length:var(--text-mini)] leading-none text-secondary">Level {crewLevel}</span>
               <span className="text-[length:var(--text-mini)] leading-none">
                 {` · ${crewXP % XP_PER_LEVEL} / ${XP_PER_LEVEL}XP`}
-              </span>
-              <span className="relative inline-block">
-                <AnimatePresence>
-                  {xpFloats.map((f) => (
-                    <motion.span
-                      key={f.id}
-                      initial={{ opacity: 0, y: 0 }}
-                      animate={{ opacity: [0, 1, 1, 0], y: [0, -12, -26, -42] }}
-                      transition={{ duration: 1.4, ease: 'easeOut', times: [0, 0.15, 0.65, 1] }}
-                      onAnimationComplete={() => dismissXPFloat(f.id)}
-                      className="pointer-events-none absolute bottom-0 left-0 font-pixel text-[length:var(--text-mini)] text-[#ffd700] whitespace-nowrap z-10"
-                      style={{ textShadow: '0 0 8px rgba(255,215,0,0.8)' }}
-                    >
-                      +{f.amount} XP
-                    </motion.span>
-                  ))}
-                </AnimatePresence>
               </span>
             </p>
             <p className="text-[length:var(--text-mini)] leading-none whitespace-nowrap text-tertiary">Next Boss</p>
