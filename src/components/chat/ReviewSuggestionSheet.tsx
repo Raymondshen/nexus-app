@@ -95,14 +95,19 @@ export function ReviewSuggestionSheet({
 
       {/* Sheet — Figma 143:714 */}
       <motion.div
-        className="fixed bottom-0 left-0 right-0 bg-black border-t border-border flex flex-col px-4 pt-6 overflow-y-auto"
-        style={{ zIndex: 70, gap: 'var(--space-7)', maxHeight: '90vh', paddingBottom: 'max(env(safe-area-inset-bottom), 28px)' }}
+        className="fixed bottom-0 left-0 right-0 bg-black border-t border-border flex flex-col px-4 overflow-y-auto"
+        style={{ zIndex: 70, gap: 'var(--space-7)', maxHeight: '90vh', paddingTop: 12, paddingBottom: 'max(env(safe-area-inset-bottom), 28px)' }}
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
         transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+        drag="y"
+        dragConstraints={{ top: 0, bottom: 0 }}
+        dragElastic={{ top: 0, bottom: 1 }}
+        onDragEnd={(_, info) => { if (info.offset.y > 80 || info.velocity.y > 400) onClose() }}
         onClick={(e) => e.stopPropagation()}
       >
+        <div className="flex justify-center pb-2"><div className="w-10 h-[4px] rounded-full bg-border" /></div>
         {/* Title — DM Sans Bold 18px text-primary */}
         <h2
           className="font-body font-bold text-[18px] text-primary leading-none flex-shrink-0"
