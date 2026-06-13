@@ -56,14 +56,19 @@ export function NotifSheet({
     >
       <div className="absolute inset-0 bg-black/60" />
       <motion.div
-        initial={{ y: 80, opacity: 0 }}
-        animate={{ y: 0,  opacity: 1 }}
-        exit={{   y: 80, opacity: 0 }}
+        initial={{ y: '100%' }}
+        animate={{ y: 0 }}
+        exit={{ y: '100%' }}
         transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-        className="relative w-full max-w-[480px] bg-[var(--background)] border-t border-border flex flex-col gap-6 p-4 overflow-hidden"
-        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 24px)' }}
+        drag="y"
+        dragConstraints={{ top: 0, bottom: 0 }}
+        dragElastic={{ top: 0, bottom: 1 }}
+        onDragEnd={(_, info) => { if (info.offset.y > 80 || info.velocity.y > 400) onClose() }}
+        className="relative w-full max-w-[480px] bg-[var(--background)] border-t border-border flex flex-col gap-6 px-4 overflow-hidden"
+        style={{ paddingTop: 12, paddingBottom: 'max(env(safe-area-inset-bottom), 24px)' }}
         onClick={(e) => e.stopPropagation()}
       >
+        <div className="flex justify-center pb-2"><div className="w-10 h-[4px] rounded-full bg-border" /></div>
         <div className="flex flex-col gap-1">
           <h2 className="font-body font-bold text-[length:var(--text-lg)] text-primary leading-none">Notifications</h2>
           <p className="font-body text-[length:var(--text-xs)] text-secondary leading-normal">Control what pulls you back into the chat.</p>
