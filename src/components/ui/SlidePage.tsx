@@ -43,14 +43,12 @@ export function SlidePage({ children, className, style, backHref, nativeSwipe }:
     if (exiting.current) return
     exiting.current = true
     if (!backHref) _skipNextSlideEnter = true
-    // Fire navigation immediately so the destination renders from prefetch cache
-    // during the animation — no blank gap when the slide finishes.
-    if (backHref) router.replace(backHref)
     controls.start({
       x: '100%',
       transition: { type: 'tween', ease: [0.32, 0, 0.67, 0], duration: 0.15 },
     }).then(() => {
-      if (!backHref) router.back()
+      if (backHref) router.replace(backHref)
+      else router.back()
     })
   }, [controls, router, backHref]) // eslint-disable-line react-hooks/exhaustive-deps
 
