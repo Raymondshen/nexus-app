@@ -84,18 +84,20 @@ export function SlidePage({ children, className, style, backHref }: SlidePagePro
       startY = e.touches[0].clientY
       lastX  = startX
       lastT  = Date.now()
-      active = startX < 40
-      if (active) e.preventDefault()
+      if (startX < 40) {
+        active = true
+        e.preventDefault()
+        controls.stop() // stop any in-progress enter animation to avoid jitter
+      }
     }
 
     function onTouchMove(e: TouchEvent) {
       if (!active) return
       const dx = e.touches[0].clientX - startX
       const dy = Math.abs(e.touches[0].clientY - startY)
-      // Cancel if the gesture becomes more vertical than horizontal
       if (dy > dx || dx < 0) {
         active = false
-        controls.start({ x: 0, transition: { type: 'spring', stiffness: 400, damping: 40 } })
+        controls.start({ x: 0, transition: { type: 'spring', stiffness: 500, damping: 40 } })
         return
       }
       e.preventDefault()
@@ -113,15 +115,15 @@ export function SlidePage({ children, className, style, backHref }: SlidePagePro
       const vel  = dt > 0 ? (endX - lastX) / dt * 1000 : 0
 
       if (dx > 80 || vel > 400) {
-        // Commit close — animate from current pixel position off-screen
         exiting.current = true
+        // Fire navigation immediately so home renders during the final snap animation
+        router.replace(backHref!)
         controls.start({
           x: window.innerWidth,
-          transition: { type: 'tween', ease: [0.32, 0, 0.67, 0], duration: 0.22 },
-        }).then(() => router.replace(backHref!))
+          transition: { type: 'tween', ease: [0.32, 0, 0.67, 0], duration: 0.12 },
+        })
       } else {
-        // Snap back
-        controls.start({ x: 0, transition: { type: 'spring', stiffness: 400, damping: 40 } })
+        controls.start({ x: 0, transition: { type: 'spring', stiffness: 500, damping: 40 } })
       }
     }
 
