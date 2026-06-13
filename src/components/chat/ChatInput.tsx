@@ -812,11 +812,11 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
           })()}
 
           <div
-            className="border flex items-end overflow-hidden transition-colors"
+            className="border flex items-center overflow-hidden transition-colors"
             style={{ borderColor: inRaid ? 'rgba(255,34,0,0.4)' : isFocused ? 'var(--color-purple)' : 'var(--color-border)', paddingLeft: 8, paddingRight: 'var(--space-5)', gap: 8, minHeight: 48 }}
           >
             <motion.div
-              className="flex-shrink-0 overflow-hidden flex items-center mb-2"
+              className="flex-shrink-0 overflow-hidden flex items-center"
               animate={{ width: isFocused ? 0 : 32, opacity: isFocused ? 0 : 1, x: isFocused ? -8 : 0 }}
               transition={{ type: 'spring', stiffness: 320, damping: 28 }}
               style={{ pointerEvents: isFocused ? 'none' : 'auto' }}
@@ -859,7 +859,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                 <button
                   onClick={send}
                   disabled={!text.trim() || sending || hasMatch}
-                  className={`flex-shrink-0 flex items-center justify-center w-4 h-4 transition-colors disabled:opacity-30 disabled:cursor-not-allowed self-end mb-2 ${isFocused ? 'text-purple' : text.trim() && !hasMatch ? 'text-primary' : 'text-muted'}`}
+                  className={`flex-shrink-0 flex items-center justify-center w-4 h-4 transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${isFocused ? 'text-purple' : text.trim() && !hasMatch ? 'text-primary' : 'text-muted'}`}
                   aria-label="Send message"
                 >
                   <Send style={{ width: 16, height: 16 }} aria-hidden="true" />
