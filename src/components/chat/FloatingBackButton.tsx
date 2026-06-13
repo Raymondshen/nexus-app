@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect } from 'react'
 import { useSlideBack } from '@/components/ui/SlidePage'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 
@@ -9,6 +10,14 @@ interface FloatingBackButtonProps {
 
 export function FloatingBackButton({ crewId: _crewId }: FloatingBackButtonProps) {
   const goBack = useSlideBack()
+
+  useEffect(() => {
+    // Normalize history so native iOS swipe-back always goes to /home,
+    // regardless of whether the user arrived from onboarding or home.
+    const current = window.location.pathname + window.location.search
+    window.history.replaceState(window.history.state, '', '/home')
+    window.history.pushState(null, '', current)
+  }, [])
 
   return (
     <div
