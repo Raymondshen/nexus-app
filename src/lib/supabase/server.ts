@@ -29,9 +29,10 @@ export async function createClient() {
           return cookieStore.getAll()
         },
         setAll(cookiesToSet) {
+          const SESSION_MAX_AGE = 60 * 60 * 24 * 30 // 30 days in seconds
           try {
             cookiesToSet.forEach(({ name, value, options }) => {
-              cookieStore.set(name, value, options)
+              cookieStore.set(name, value, { ...options, maxAge: SESSION_MAX_AGE })
             })
           } catch {
             // Called from a Server Component — session refresh handled by middleware

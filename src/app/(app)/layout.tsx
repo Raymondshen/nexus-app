@@ -3,6 +3,7 @@ import { GuestBanner } from '@/components/ui/GuestBanner'
 import { InstallPrompt } from '@/components/ui/InstallPrompt'
 import { NotificationPrompt } from '@/components/ui/NotificationPrompt'
 import { PushRefresh } from '@/components/ui/PushRefresh'
+import { SessionRefresher } from '@/components/ui/SessionRefresher'
 import { BadgeClear } from '@/components/ui/BadgeClear'
 import { PushDebugFAB } from '@/components/ui/PushDebugFAB'
 
@@ -15,6 +16,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       <InstallPrompt />
       <NotificationPrompt />
       <PushRefresh />
+      <SessionRefresher />
       <BadgeClear />
       <PushDebugFAB />
     </div>
