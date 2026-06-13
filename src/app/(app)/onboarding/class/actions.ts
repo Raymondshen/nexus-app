@@ -17,8 +17,6 @@ export async function selectClassAction(
 
   const selectedClass = formData.get('class') as AvatarClass
   const crewId        = formData.get('crewId') as string
-  const welcome       = formData.get('welcome') === '1'
-  const invite        = (formData.get('invite') as string) || null
 
   if (!SELECTABLE_CLASSES.includes(selectedClass)) return { error: 'Select a class to continue.' }
   if (!crewId) redirect('/home')
@@ -41,18 +39,5 @@ export async function selectClassAction(
   revalidateTag(`profile:${user.id}`, 'max')
   revalidateTag(`crew-members:${crewId}`, 'max')
 
-  if (welcome) {
-    // Show the welcome screen only for the user's very first crew
-    const { count } = await supabase
-      .from('crew_members')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', user.id)
-
-    if ((count ?? 0) === 1) {
-      const inviteParam = invite ? `&invite=${invite}` : ''
-      redirect(`/onboarding/welcome?crew=${crewId}${inviteParam}`)
-    }
-  }
-
-  redirect(`/chat/${crewId}?welcome=1`)
+  redirect(`/chat/${crewId}`)
 }

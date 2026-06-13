@@ -53,6 +53,21 @@ export function SlidePage({ children, className, style, backHref }: SlidePagePro
     if (backHref) router.prefetch(backHref)
   }, [backHref, router])
 
+  // Intercept the native swipe-back gesture (iOS/Android PWA) when backHref is
+  // set. We push a sentinel history entry so the swipe has something to pop;
+  // the resulting popstate fires our animated goBack instead of browser history.
+  useEffect(() => {
+    if (!backHref) return
+    window.history.pushState({ nexusSwipeGuard: true }, '')
+    function onPopState() {
+      // Re-push so a second swipe while the animation runs is also caught.
+      window.history.pushState({ nexusSwipeGuard: true }, '')
+      goBack()
+    }
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [backHref, goBack])
+
   const goBack = useCallback(() => {
     if (exiting.current) return
     exiting.current = true
