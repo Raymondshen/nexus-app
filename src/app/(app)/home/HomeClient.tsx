@@ -8,7 +8,6 @@ import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
 import { TokeCircle } from 'pixelarticons/react/TokeCircle'
 import { Logout } from 'pixelarticons/react/Logout'
-import { PlusBox } from 'pixelarticons/react/PlusBox'
 import { UserPlus } from 'pixelarticons/react/UserPlus'
 import { Copy } from 'pixelarticons/react/Copy'
 import { Message as MessageIcon } from 'pixelarticons/react/Message'
@@ -1031,12 +1030,7 @@ export function HomeClient({
 
         {/* Squads section */}
         <div className="flex flex-col gap-4 w-full">
-          <div className="flex items-center justify-between">
-            <p className="font-body font-medium text-[14px] text-primary tracking-[0.2px] leading-normal">Squads</p>
-            <button onClick={() => setShowCreate(true)} aria-label="Create or join a squad" className="flex items-center justify-center active:opacity-70 transition-opacity">
-              <PlusBox style={{ width: 16, height: 16, color: 'var(--color-tertiary)' }} aria-hidden="true" />
-            </button>
-          </div>
+          <p className="font-body font-medium text-[14px] text-primary tracking-[0.2px] leading-normal">Squads</p>
           {crews.length === 0 ? (
             <EmptyState onCreate={() => setShowCreate(true)} />
           ) : (

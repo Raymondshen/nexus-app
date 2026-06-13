@@ -260,7 +260,7 @@ Used when `definitions.length > 0` or `memberUsernames.size > 0`. `memberUsernam
 ### HomeClient — layout
 - **Scroll structure**: outer container is `h-screen overflow-hidden flex flex-col`. Account card + announcement banner are in a `flex-shrink-0` static header (never scrolls). Squads + DMs list is `flex-1 overflow-y-auto min-h-0` — the only scrollable region. No fixed bottom action bar.
 - **`AccountPreviewContainer` buttons**: two full-width buttons below the AFK XP bar in a `flex` row with `gap: var(--space-5)`. "friends" (outlined purple, `border border-purple bg-black`, `UserPlus` 12×12 icon) and "Invite squad" (filled purple, `bg-purple`, `Copy` 12×12 icon). Both use Silkscreen `--text-mini`. Clicking "friends" routes to `/friends`; clicking "Invite squad" opens `HomeActionSheet` (the create/join/invite bottom sheet) via `setShowCreate(true)`.
-- **Squads section header**: flex row (`justify-between`) with the "Squads" label and a `PlusBox` 16×16 button that opens the same `HomeActionSheet`. `handleCrewTap` sets `sessionStorage.setItem('nexus_chat_from', '/home')` before pushing to `/chat/{crewId}` so `FloatingBackButton` can skip history normalization.
+- **Squads section header**: plain "Squads" label — no `+` button (the "Invite squad" button in `AccountPreviewContainer` already opens `HomeActionSheet`). `handleCrewTap` sets `sessionStorage.setItem('nexus_chat_from', '/home')` before pushing to `/chat/{crewId}` so `FloatingBackButton` can skip history normalization.
 
 ### HomeClient — realtime
 - One `messages:{crewId}` broadcast channel per crew for live preview (no `postgres_changes` on messages)
@@ -571,7 +571,6 @@ Note: next/font variable for Silkscreen is `--font-silk` (not `--font-silkscreen
 | Copy / confirm | `Copy`, `Check` | respective paths | 12×12 |
 | AccountPreviewContainer — friends button | `UserPlus` | `pixelarticons/react/UserPlus` | 12×12, `var(--color-purple)` |
 | AccountPreviewContainer — Invite squad button | `Copy` | `pixelarticons/react/Copy` | 12×12, `var(--color-primary)` |
-| Squads section header — create/join | `PlusBox` | `pixelarticons/react/PlusBox` | 16×16, `var(--color-tertiary)` |
 | Home coin badge | `TokeCircle` | `pixelarticons/react/TokeCircle` | 24×16 (not square) |
 | Home leave button | `Logout` | `pixelarticons/react/Logout` | 16×16, white |
 | Profile menu icons | `MagicEdit`, `Bell` | respective paths | 16×16, `color: var(--color-secondary)` |
