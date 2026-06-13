@@ -217,8 +217,9 @@ Typing `/` triggers a command picker. Filtered as you type; Escape clears; Enter
 
 ### ChatInput — input bar behavior
 - **Poll icon**: wrapped in `motion.div`; animates `width` 32→0, `opacity` 1→0, `x` 0→-8 when `isFocused`; spring stiffness 320, damping 28; `pointerEvents: none` when hidden. Slides back in on blur.
-- **Textarea auto-expand**: `handleInput` sets `height: auto` then `min(scrollHeight, 91)px` — max 3 lines (DM Sans 14px × 1.5 line-height = 21px/line; 3×21 + 14+14 padding = 91px). `rows={1}` baseline.
+- **Textarea auto-expand**: `handleInput` sets `height: auto` then `min(scrollHeight, 91)px` — max 3 lines (DM Sans 14px × 1.5 line-height = 21px/line; 3×21 + 14+14 padding = 91px). `rows={1}` baseline. `overflowY: 'auto', overflowX: 'hidden'` on textarea — content beyond 3 lines scrolls within the 91px cap.
 - **Input bar**: `minHeight: 48`, `items-center` — vertically centers poll icon, textarea, and send button so placeholder aligns with adjacent icons at single-line height.
+- **Outer container padding**: `paddingTop: var(--space-4)` (12px) to match Figma spec.
 
 ### ChatInput — send flow
 `insert_message` RPC → `addMessage` (optimistic) → broadcast slim payload → `award-xp` edge function → `attack-boss` (if raid active)
@@ -257,7 +258,9 @@ Props passed to `SquadDetailsSheet`: `crewId`, `crewName`, `memberCount`, `crewI
 Used when `definitions.length > 0` or `memberUsernames.size > 0`. `memberUsernames` derived in `MessageList` via `useMemo` from `localProfiles`.
 
 ### HomeClient — layout
-- **Scroll structure**: outer container is `h-screen overflow-hidden flex flex-col`. Account card + announcement banner are in a `flex-shrink-0` static header (never scrolls). Squads + DMs list is `flex-1 overflow-y-auto min-h-0` — the only scrollable region. Bottom action bar (Friends + Squad buttons) is `fixed bottom-0`.
+- **Scroll structure**: outer container is `h-screen overflow-hidden flex flex-col`. Account card + announcement banner are in a `flex-shrink-0` static header (never scrolls). Squads + DMs list is `flex-1 overflow-y-auto min-h-0` — the only scrollable region. No fixed bottom action bar.
+- **`AccountPreviewContainer` buttons**: two full-width buttons below the AFK XP bar in a `flex` row with `gap: var(--space-5)`. "friends" (outlined purple, `border border-purple bg-black`, `UserPlus` 12×12 icon) and "Invite squad" (filled purple, `bg-purple`, `Copy` 12×12 icon). Both use Silkscreen `--text-mini`. Clicking "friends" routes to `/friends`; clicking "Invite squad" opens `HomeActionSheet` (the create/join/invite bottom sheet) via `setShowCreate(true)`.
+- **Squads section header**: flex row (`justify-between`) with the "Squads" label and a `PlusBox` 16×16 button that opens the same `HomeActionSheet`. `handleCrewTap` sets `sessionStorage.setItem('nexus_chat_from', '/home')` before pushing to `/chat/{crewId}` so `FloatingBackButton` can skip history normalization.
 
 ### HomeClient — realtime
 - One `messages:{crewId}` broadcast channel per crew for live preview (no `postgres_changes` on messages)
@@ -267,12 +270,14 @@ Used when `definitions.length > 0` or `memberUsernames.size > 0`. `memberUsernam
 
 ### Page Transitions — SlidePage + useSlideBack
 All detail pages (chat, DM, profile, friends, vault) slide in from right on mount, slide back out on close.
-- **`SlidePage`** (`src/components/ui/SlidePage.tsx`): uses `useAnimation` controls. Enter: spring 380/36 on forward-nav; skipped (instant `controls.set({ x: 0 })`) on back-nav. Exit: ease-in tween 280ms, navigation fires in `.then()`.
+- **`SlidePage`** (`src/components/ui/SlidePage.tsx`): uses `useAnimation` controls. Enter: spring 380/36 on forward-nav; skipped (instant `controls.set({ x: 0 })`) on back-nav. Exit: ease-in tween **150ms**; navigation (`router.replace(backHref)` or `router.back()`) always fires in `.then()` after animation completes — never before.
 - **Back-nav flicker fix**: module-level `_skipNextSlideEnter` flag. The exiting page sets it before navigating; the next SlidePage that mounts reads it in `useEffect`, skips the slide-in, and clears it. Prevents the destination page re-animating from the right on back-navigation.
 - **`backHref` prop**: always `/home` for chat pages and `ProfileClient` — back from a crew chat must never walk browser history (which would expose the class picker or onboarding steps)
+- **`nativeSwipe` prop**: when true, `goBack()` still calls `router.replace(backHref)` for the back button, but custom touch handlers are NOT registered — iOS native swipe handles the gesture and renders the real previous page in the background. Used on group chat and DM pages.
 - **`useSlideBack()`**: hook returning `goBack` — use instead of `router.back()` in all back buttons on slide pages
 - **Context scoping**: `ProfileClient` + `FriendsClient` define a local `BackButton` inside `<SlidePage>` (hook must be inside the context they provide)
 - `WelcomeDetector` strips `?welcome=1` from URL via `window.history.replaceState`
+- **`FloatingBackButton` history normalization** (`src/components/chat/FloatingBackButton.tsx`): on mount, reads `sessionStorage.nexus_chat_from`. If `'/home'`, skips normalization entirely (history is already correct). Otherwise, injects a proper `/home` entry via `window.history.replaceState({ __NA: true }, '', '/home')` then `pushState(null, '', current)` so swipe-back always lands on home. `{ __NA: true }` is the Next.js App Router popstate marker — without it, the browser does a hard reload instead of SPA navigation.
 
 ### DM Page — `/dm/[friendId]`
 - Server: verifies friendship → `get_or_create_dm(friendId)` RPC (idempotent) → renders chat UI
@@ -390,6 +395,12 @@ Always use `createServiceClient()` inside cache functions — `createClient()` r
 ### Client
 - Message history: `nexus-msgs-{crewId}` in sessionStorage (50 msg cap, stale-while-revalidate)
 - Service worker: `sw-push.js` handles push/notificationclick only (no caching routes)
+
+## sessionStorage Keys
+| Key | Value | Purpose |
+|---|---|---|
+| `nexus-msgs-{crewId}` | JSON message array | stale-while-revalidate message cache (50 msg cap) |
+| `nexus_chat_from` | `'/home'` | set by `handleCrewTap` before pushing to chat; read by `FloatingBackButton` to skip history normalization when arriving from home |
 
 ## localStorage Keys
 | Key | Value | Purpose |
@@ -558,8 +569,9 @@ Note: next/font variable for Silkscreen is `--font-silk` (not `--font-silkscreen
 | ChatInput — create poll | `Chart` | `pixelarticons/react/Chart` | 16×16 |
 | ChatInput — crew creator | `Crown` | `pixelarticons/react/Crown` | 12×12, `#f59e0b` |
 | Copy / confirm | `Copy`, `Check` | respective paths | 12×12 |
-| Home bottom bar — DMs | `Notebook` | `pixelarticons/react/Notebook` | 24×24 |
-| Home bottom bar — Squad | `PlusBox` | `pixelarticons/react/PlusBox` | 16×16 |
+| AccountPreviewContainer — friends button | `UserPlus` | `pixelarticons/react/UserPlus` | 12×12, `var(--color-purple)` |
+| AccountPreviewContainer — Invite squad button | `Copy` | `pixelarticons/react/Copy` | 12×12, `var(--color-primary)` |
+| Squads section header — create/join | `PlusBox` | `pixelarticons/react/PlusBox` | 16×16, `var(--color-tertiary)` |
 | Home coin badge | `TokeCircle` | `pixelarticons/react/TokeCircle` | 24×16 (not square) |
 | Home leave button | `Logout` | `pixelarticons/react/Logout` | 16×16, white |
 | Profile menu icons | `MagicEdit`, `Bell` | respective paths | 16×16, `color: var(--color-secondary)` |
