@@ -950,6 +950,7 @@ export function HomeClient({
         .eq('crew_id', crewId)
         .eq('user_id', userId)
         .then(() => {})
+      sessionStorage.setItem('nexus_chat_from', '/home')
       router.push(`/chat/${crewId}`)
     },
     [userId, router],

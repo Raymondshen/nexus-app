@@ -12,10 +12,19 @@ export function FloatingBackButton({ crewId: _crewId }: FloatingBackButtonProps)
   const goBack = useSlideBack()
 
   useEffect(() => {
-    // Normalize history so native iOS swipe-back always goes to /home,
-    // regardless of whether the user arrived from onboarding or home.
+    // If the user tapped a crew card from /home, history is already
+    // /home → /chat and native swipe-back is correct — skip normalization.
+    // Otherwise (onboarding redirect, deep link) inject a proper /home entry
+    // so swipe-back always lands on home.
+    const from = sessionStorage.getItem('nexus_chat_from')
+    sessionStorage.removeItem('nexus_chat_from')
+    if (from === '/home') return
+
     const current = window.location.pathname + window.location.search
-    window.history.replaceState(window.history.state, '', '/home')
+    // Use { __NA: true } (Next.js App Router marker, no component tree) so
+    // Next.js intercepts the popstate and renders /home from prefetch cache
+    // rather than re-applying the chat tree (which caused the double-swipe).
+    window.history.replaceState({ __NA: true }, '', '/home')
     window.history.pushState(null, '', current)
   }, [])
 
