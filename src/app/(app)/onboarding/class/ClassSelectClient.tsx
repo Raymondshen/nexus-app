@@ -1,10 +1,12 @@
 'use client'
 
 import { useState, useActionState } from 'react'
+import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { PixelSprite, spriteInfoFor } from '@/components/game/PixelSprite'
 import { Button } from '@/components/ui/Button'
 import { selectClassAction } from './actions'
+import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import type { AvatarClass } from '@/types'
 
 const CLASSES: { id: AvatarClass; name: string; flavor: string; color: string }[] = [
@@ -76,6 +78,7 @@ export default function ClassSelectClient({
   welcome: boolean
   invite: string | null
 }) {
+  const router = useRouter()
   const [selected, setSelected] = useState<AvatarClass | null>(null)
   const [state, action, isPending] = useActionState(selectClassAction, null)
 
@@ -88,6 +91,14 @@ export default function ClassSelectClient({
             'repeating-linear-gradient(to bottom, transparent 0px, transparent 2px, rgba(0,0,0,0.10) 2px, rgba(0,0,0,0.10) 4px)',
         }}
       />
+
+      <button
+        onClick={() => router.replace('/home')}
+        className="absolute top-4 left-4 z-20 p-1"
+        aria-label="Back"
+      >
+        <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
+      </button>
 
       <div className="relative z-10 w-full max-w-[390px]">
         <div className="text-center mb-8">

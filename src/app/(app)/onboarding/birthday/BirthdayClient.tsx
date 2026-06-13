@@ -1,8 +1,10 @@
 'use client'
 
 import { useState, useActionState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/Button'
 import { saveBirthdayAction } from './actions'
+import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -56,6 +58,7 @@ export default function BirthdayClient({
   welcome: boolean
   invite: string | null
 }) {
+  const router = useRouter()
   const [month, setMonth] = useState('')
   const [day,   setDay]   = useState('')
   const [year,  setYear]  = useState('')
@@ -94,6 +97,14 @@ export default function BirthdayClient({
             'repeating-linear-gradient(to bottom, transparent 0px, transparent 2px, rgba(0,0,0,0.10) 2px, rgba(0,0,0,0.10) 4px)',
         }}
       />
+
+      <button
+        onClick={() => router.replace('/home')}
+        className="absolute top-4 left-4 z-20 p-1"
+        aria-label="Back"
+      >
+        <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
+      </button>
 
       <div className="relative z-10 w-full max-w-[390px]">
         <div className="text-center mb-8">

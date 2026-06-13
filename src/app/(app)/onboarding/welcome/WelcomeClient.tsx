@@ -34,6 +34,13 @@ export default function WelcomeClient({
   return (
     <div className="min-h-screen bg-[#0a0612] flex flex-col items-center justify-center px-4 py-12 relative overflow-hidden">
       {/* Scanlines */}
+      <button
+        onClick={() => router.replace('/home')}
+        className="absolute top-4 left-4 z-20 p-1"
+        aria-label="Back"
+      >
+        <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
+      </button>
       <div
         className="pointer-events-none fixed inset-0 z-0"
         style={{
