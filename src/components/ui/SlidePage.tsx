@@ -12,7 +12,15 @@ export function useSlideBack() {
 // Set by the exiting page before it calls router.back/replace.
 // Consumed by the next SlidePage that mounts — skips the slide-in animation
 // so the destination page doesn't re-animate from the right on back-navigation.
+// Only set when the back-destination is another SlidePage (router.back()).
+// Never set when backHref is provided (destination is /home, which has no SlidePage).
 let _skipNextSlideEnter = false
+
+// Called by HomeClient on every home mount to clear any stale flag that
+// wasn't consumed (e.g. friends/vault/DM used router.back() to reach home).
+export function clearSkipNextSlideEnter() {
+  _skipNextSlideEnter = false
+}
 
 interface SlidePageProps {
   children:  React.ReactNode
@@ -47,8 +55,13 @@ export function SlidePage({ children, className, style, backHref }: SlidePagePro
 
   const goBack = useCallback(() => {
     if (exiting.current) return
-    exiting.current    = true
-    _skipNextSlideEnter = true
+    exiting.current = true
+    // Only skip the next enter animation when going back via router.back() — the
+    // previous page in history is another SlidePage that should not re-animate.
+    // When backHref is set (destination is /home, which has no SlidePage), skip
+    // setting the flag so it doesn't linger and incorrectly suppress the next
+    // forward navigation's slide-in.
+    if (!backHref) _skipNextSlideEnter = true
     controls.start({
       x: '100%',
       transition: { type: 'tween', ease: [0.32, 0, 0.67, 0], duration: 0.28 },

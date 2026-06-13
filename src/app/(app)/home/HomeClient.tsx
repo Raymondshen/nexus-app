@@ -23,6 +23,7 @@ import { Input } from '@/components/ui/Input'
 import type { CrewSummary } from './page'
 import type { Message, MessageWithProfile } from '@/types'
 import { useChatStore } from '@/store/chatStore'
+import { clearSkipNextSlideEnter } from '@/components/ui/SlidePage'
 import { AnnouncementBanner } from '@/components/ui/AnnouncementBanner'
 import type { AnnouncementItem } from '@/components/ui/AnnouncementBanner'
 
@@ -835,6 +836,11 @@ export function HomeClient({
 
   useEffect(() => {
     router.refresh()
+    // Clear any stale _skipNextSlideEnter flag from a previous back-navigation.
+    // Pages that use router.back() to return here (friends, vault, DM) set the
+    // flag but home has no SlidePage to consume it, so it must be cleared here
+    // to prevent the next forward-navigation's slide-in from being suppressed.
+    clearSkipNextSlideEnter()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Realtime: live coin balance updates from profiles table
