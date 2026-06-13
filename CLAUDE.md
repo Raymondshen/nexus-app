@@ -251,6 +251,9 @@ Props passed to `SquadDetailsSheet`: `crewId`, `crewName`, `memberCount`, `crewI
 
 Used when `definitions.length > 0` or `memberUsernames.size > 0`. `memberUsernames` derived in `MessageList` via `useMemo` from `localProfiles`.
 
+### HomeClient — layout
+- **Scroll structure**: outer container is `h-screen overflow-hidden flex flex-col`. Account card + announcement banner are in a `flex-shrink-0` static header (never scrolls). Squads + DMs list is `flex-1 overflow-y-auto min-h-0` — the only scrollable region. Bottom action bar (Friends + Squad buttons) is `fixed bottom-0`.
+
 ### HomeClient — realtime
 - One `messages:{crewId}` broadcast channel per crew for live preview (no `postgres_changes` on messages)
 - One `postgres_changes` UPDATE on `profiles` (channel `home-profile-coins:{userId}`) for live coin balance

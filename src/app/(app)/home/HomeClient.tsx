@@ -959,40 +959,41 @@ export function HomeClient({
   }, [leaving])
 
   return (
-    <div className="min-h-screen bg-black flex flex-col">
+    <div className="h-screen bg-black flex flex-col overflow-hidden">
 
-      {/* ── Body ── */}
+      {/* ── Static header: account card + announcements ── */}
       <div
-        className="flex-1 overflow-y-auto px-4 flex flex-col gap-6"
+        className="flex-shrink-0 px-4 flex flex-col gap-6"
+        style={{ paddingTop: 'max(env(safe-area-inset-top), 16px)', marginTop: 'var(--space-5)' }}
+      >
+        <AccountPreviewContainer
+          username={username}
+          avatarUrl={avatarUrl}
+          memberSince={memberSince}
+          crewCount={crews.length}
+          totalMessages={totalMessages}
+          status={status}
+          onEditProfile={() => router.push('/profile')}
+          afkExpEnabled={afkExpEnabled}
+          coins={coins}
+          infiniteCoins={infiniteCoins}
+          showCoinTip={showCoinTip}
+          onCoinTap={() => {
+            setShowCoinTip(true)
+            setTimeout(() => setShowCoinTip(false), 2000)
+          }}
+        />
+        <AnnouncementBanner announcements={announcements} />
+      </div>
+
+      {/* ── Scrollable list: squads + DMs ── */}
+      <div
+        className="flex-1 overflow-y-auto min-h-0 px-4 flex flex-col gap-6"
         style={{
-          paddingTop:    'max(env(safe-area-inset-top), 16px)',
+          paddingTop:    'var(--space-5)',
           paddingBottom: 'calc(max(env(safe-area-inset-bottom), 16px) + 72px)',
         }}
       >
-
-        {/* Account preview container */}
-        <div style={{ marginTop: 'var(--space-5)' }}>
-          <AccountPreviewContainer
-            username={username}
-            avatarUrl={avatarUrl}
-            memberSince={memberSince}
-            crewCount={crews.length}
-            totalMessages={totalMessages}
-            status={status}
-            onEditProfile={() => router.push('/profile')}
-            afkExpEnabled={afkExpEnabled}
-            coins={coins}
-            infiniteCoins={infiniteCoins}
-            showCoinTip={showCoinTip}
-            onCoinTap={() => {
-              setShowCoinTip(true)
-              setTimeout(() => setShowCoinTip(false), 2000)
-            }}
-          />
-        </div>
-
-        {/* Announcements — below account card */}
-        <AnnouncementBanner announcements={announcements} />
 
         {/* Squads section */}
         <div className="flex flex-col gap-4 w-full">
