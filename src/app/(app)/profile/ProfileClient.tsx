@@ -835,7 +835,7 @@ export function ProfileClient({
         </div>
 
         {/* Dev */}
-        {isDev && <DevSection userId={userId} userEmail={userEmail} />}
+        {isDev && <DevSection userId={userId} />}
 
         <div style={{ height: 'max(env(safe-area-inset-bottom), 16px)' }} />
       </div>
@@ -904,10 +904,8 @@ export function ProfileClient({
 
 // ─── Dev section ──────────────────────────────────────────────────────────────
 
-function DevSection({ userId, userEmail }: { userId: string; userEmail: string }) {
-  const [copiedId,     setCopiedId]     = useState(false)
-  const [copiedEmail,  setCopiedEmail]  = useState(false)
-  const [flagsCleared, setFlagsCleared] = useState(false)
+function DevSection({ userId }: { userId: string }) {
+
   const [devMode,      setDevMode]      = useState(false)
   const [showPush,     setShowPush]     = useState(false)
   const [infiniteCoins, setInfiniteCoins] = useState(false)
@@ -1008,19 +1006,6 @@ function DevSection({ userId, userEmail }: { userId: string; userEmail: string }
     window.dispatchEvent(new CustomEvent('nexus-afk-exp-change', { detail: { on: next } }))
   }
 
-  function copyToClipboard(text: string, setCopied: (v: boolean) => void) {
-    navigator.clipboard.writeText(text).then(() => {
-      setCopied(true); setTimeout(() => setCopied(false), 2000)
-    }).catch(() => {})
-  }
-
-  function clearLocalFlags() {
-    ['nexus_first_message','nexus_install_prompted','nexus_crew_created','nexus_notif_prompted','nexus_notif_state']
-      .forEach((k) => localStorage.removeItem(k))
-    setFlagsCleared(true)
-    setTimeout(() => setFlagsCleared(false), 2000)
-  }
-
   const rowClass  = 'flex items-center justify-between px-4 py-4 gap-4'
   const labelClass = 'font-body font-medium text-[14px] tracking-[0.2px] leading-normal'
 
@@ -1061,45 +1046,6 @@ function DevSection({ userId, userEmail }: { userId: string; userEmail: string }
             <p className="font-body font-normal text-[12px] text-tertiary leading-normal" style={{ fontVariationSettings: '"opsz" 14' }}>Show AFK XP bar and Claim button on home screen</p>
           </div>
           <ToggleSwitch enabled={afkExp} onChange={toggleAfkExp} />
-        </div>
-
-        <div className="px-4 py-4 flex flex-col gap-2">
-          <p className="font-body font-medium text-[14px] text-secondary leading-normal tracking-[0.2px]" style={{ fontVariationSettings: '"opsz" 14' }}>User ID</p>
-          <div className="flex items-center gap-2">
-            <code className="flex-1 font-sans text-[11px] text-[#ffd700] truncate select-all">{userId}</code>
-            <button
-              onClick={() => copyToClipboard(userId, setCopiedId)}
-              className="flex-shrink-0 font-pixel text-[7px] px-2 py-1.5 border transition-colors"
-              style={{ color: copiedId ? '#66bb6a' : '#ffd700', borderColor: copiedId ? 'rgba(102,187,106,0.4)' : 'rgba(255,215,0,0.3)', background: copiedId ? 'rgba(102,187,106,0.08)' : 'rgba(255,215,0,0.06)' }}
-            >
-              {copiedId ? '✓' : 'COPY'}
-            </button>
-          </div>
-        </div>
-
-        <div className="px-4 py-4 flex flex-col gap-2">
-          <p className="font-body font-medium text-[14px] text-secondary leading-normal tracking-[0.2px]" style={{ fontVariationSettings: '"opsz" 14' }}>Email</p>
-          <div className="flex items-center gap-2">
-            <code className="flex-1 font-sans text-[11px] text-[#ffd700] truncate select-all">{userEmail}</code>
-            <button
-              onClick={() => copyToClipboard(userEmail, setCopiedEmail)}
-              className="flex-shrink-0 font-pixel text-[7px] px-2 py-1.5 border transition-colors"
-              style={{ color: copiedEmail ? '#66bb6a' : '#ffd700', borderColor: copiedEmail ? 'rgba(102,187,106,0.4)' : 'rgba(255,215,0,0.3)', background: copiedEmail ? 'rgba(102,187,106,0.08)' : 'rgba(255,215,0,0.06)' }}
-            >
-              {copiedEmail ? '✓' : 'COPY'}
-            </button>
-          </div>
-        </div>
-
-        <div className="px-4 py-4 flex flex-col gap-2">
-          <p className="font-body font-medium text-[14px] text-secondary leading-normal tracking-[0.2px]" style={{ fontVariationSettings: '"opsz" 14' }}>Local Flags</p>
-          <p className="font-body font-normal text-[12px] text-tertiary leading-normal" style={{ fontVariationSettings: '"opsz" 14' }}>
-            Clears install prompt, notification prompt, and first-message flags for retesting onboarding.
-          </p>
-          <button onClick={clearLocalFlags} className="w-full h-9 font-pixel text-[8px] border transition-colors"
-            style={{ color: flagsCleared ? '#66bb6a' : '#ffd700', borderColor: flagsCleared ? 'rgba(102,187,106,0.4)' : 'rgba(255,215,0,0.3)', background: flagsCleared ? 'rgba(102,187,106,0.08)' : 'rgba(255,215,0,0.06)' }}>
-            {flagsCleared ? '✓ CLEARED' : 'RESET FLAGS'}
-          </button>
         </div>
 
         <div className="px-4 py-4 flex flex-col gap-3">
