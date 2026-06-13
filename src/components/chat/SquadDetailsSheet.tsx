@@ -706,7 +706,7 @@ export function SquadDetailsSheet({
             crewLevel={crewLevel}
             xpProgress={xpProgress}
             totalMessages={totalMessages}
-            onUploadPhoto={() => { onUploadPhoto(); setShowSquadEdit(false) }}
+            onUploadPhoto={onUploadPhoto}
             onSave={onSave}
             onClose={() => setShowSquadEdit(false)}
           />
