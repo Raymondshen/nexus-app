@@ -425,12 +425,6 @@ function HomeActionSheet({
           </div>
         </div>
 
-        <button
-          onClick={onClose}
-          className="w-full h-[48px] flex items-center justify-center overflow-hidden"
-        >
-          <span className="font-pixel text-[8px] text-tertiary leading-none">CLOSE</span>
-        </button>
       </>
     )
   })()
