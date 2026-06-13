@@ -38,18 +38,23 @@ export function SlidePage({ children, className, style, backHref }: SlidePagePro
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Pre-fetch the back destination so it renders instantly when goBack fires.
+  // Without this, navigating after the slide-out animation leaves a blank gap
+  // while the server component page is fetched.
+  useEffect(() => {
+    if (backHref) router.prefetch(backHref)
+  }, [backHref, router])
+
   const goBack = useCallback(() => {
     if (exiting.current) return
     exiting.current    = true
     _skipNextSlideEnter = true
-    // Navigate immediately so Next.js renders the destination in parallel with the
-    // slide-out animation. Waiting until after the animation leaves a blank gap on
-    // iOS PWA because the server component page isn't cached in the back-stack.
-    if (backHref) router.replace(backHref)
-    else          router.back()
     controls.start({
       x: '100%',
       transition: { type: 'tween', ease: [0.32, 0, 0.67, 0], duration: 0.28 },
+    }).then(() => {
+      if (backHref) router.replace(backHref)
+      else          router.back()
     })
   }, [controls, router, backHref]) // eslint-disable-line react-hooks/exhaustive-deps
 
