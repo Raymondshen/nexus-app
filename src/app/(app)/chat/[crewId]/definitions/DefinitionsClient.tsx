@@ -8,7 +8,8 @@ import { PlusBox } from 'pixelarticons/react/PlusBox'
 import { createClient } from '@/lib/supabase/client'
 import { createDefinitionAction, updateDefinitionAction, deleteDefinitionAction } from './actions'
 import { SuggestDefinitionSheet } from '@/components/chat/SuggestDefinitionSheet'
-import type { SquadDefinition, SquadDefinitionWithCreator } from '@/types'
+import { ReviewSuggestionSheet } from '@/components/chat/ReviewSuggestionSheet'
+import type { SquadDefinition, SquadDefinitionWithCreator, DefinitionSuggestion } from '@/types'
 
 function BackButton() {
   const goBack = useSlideBack()
@@ -418,11 +419,13 @@ export function DefinitionsClient({
   const [editTarget,    setEditTarget]    = useState<SquadDefinitionWithCreator | null>(null)
   const [deleting,      setDeleting]      = useState<string | null>(null)
   const [suggestTarget, setSuggestTarget] = useState<SquadDefinitionWithCreator | null>(null)
+  const [reviewTarget,  setReviewTarget]  = useState<SquadDefinitionWithCreator | null>(null)
 
-  // Realtime subscription
+  // Realtime subscriptions — definitions + suggestion counts
   useEffect(() => {
     const supabase = createClient()
-    const channel  = supabase
+
+    const defsChannel = supabase
       .channel(`squad-defs:${crewId}`)
       .on(
         'postgres_changes',
@@ -430,7 +433,6 @@ export function DefinitionsClient({
         async (payload) => {
           if (payload.eventType === 'INSERT') {
             const incoming = payload.new as SquadDefinition
-            // Resolve creator username before inserting
             const { data: profile } = await supabase
               .from('profiles')
               .select('username')
@@ -452,7 +454,39 @@ export function DefinitionsClient({
         }
       )
       .subscribe()
-    return () => { supabase.removeChannel(channel) }
+
+    // Track suggestion count changes live (REPLICA IDENTITY FULL on the table gives us definition_id on DELETE)
+    const sugChannel = supabase
+      .channel(`def-suggestions:${crewId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'definition_suggestions', filter: `crew_id=eq.${crewId}` },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            const row = payload.new as DefinitionSuggestion
+            setDefinitions((prev) =>
+              prev.map((d) => d.id === row.definition_id
+                ? { ...d, suggestion_count: (d.suggestion_count ?? 0) + 1 }
+                : d
+              )
+            )
+          } else if (payload.eventType === 'DELETE') {
+            const row = payload.old as DefinitionSuggestion
+            setDefinitions((prev) =>
+              prev.map((d) => d.id === row.definition_id
+                ? { ...d, suggestion_count: Math.max(0, (d.suggestion_count ?? 0) - 1) }
+                : d
+              )
+            )
+          }
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(defsChannel)
+      supabase.removeChannel(sugChannel)
+    }
   }, [crewId])
 
   const handleCreated = useCallback((def: SquadDefinition) => {
@@ -477,8 +511,12 @@ export function DefinitionsClient({
   }, [])
 
   function handleCardTap(def: SquadDefinitionWithCreator) {
-    if (def.creator_id === currentUserId) setActionTarget(def)
-    else setViewTarget(def)
+    if (def.creator_id === currentUserId) {
+      if ((def.suggestion_count ?? 0) > 0) setReviewTarget(def)
+      else setActionTarget(def)
+    } else {
+      setViewTarget(def)
+    }
   }
 
   function handleEditPress() {
@@ -487,33 +525,54 @@ export function DefinitionsClient({
     setActionTarget(null)
   }
 
+  const handleSuggestionApproved = useCallback((definitionId: string, newDefinition: string) => {
+    setDefinitions((prev) =>
+      prev.map((d) => d.id === definitionId
+        ? { ...d, definition: newDefinition, suggestion_count: Math.max(0, (d.suggestion_count ?? 0) - 1) }
+        : d
+      )
+    )
+  }, [])
+
+  const handleSuggestionDenied = useCallback(() => {
+    if (!reviewTarget) return
+    setDefinitions((prev) =>
+      prev.map((d) => d.id === reviewTarget.id
+        ? { ...d, suggestion_count: Math.max(0, (d.suggestion_count ?? 0) - 1) }
+        : d
+      )
+    )
+  }, [reviewTarget])
+
   return (
     <SlidePage
       className="min-h-screen bg-black flex flex-col"
       style={{ position: 'fixed', top: 0, bottom: 0, left: 0, right: 0, maxWidth: 480, marginLeft: 'auto', marginRight: 'auto', overflow: 'hidden' }}
     >
-      {/* Header */}
+      {/* Header — Figma 130:1115/1116 */}
       <div
-        className="px-4 pb-2 flex-shrink-0"
+        className="px-4 py-2 flex-shrink-0"
         style={{ paddingTop: 'max(env(safe-area-inset-top), 8px)' }}
       >
         <div className="flex items-center h-10 gap-2">
           <BackButton />
-          <h1 className="font-silkscreen text-[24px] text-primary leading-none uppercase whitespace-nowrap">
-            Glossary
-          </h1>
+          {/* Title + subtitle stacked — Figma 135:1370 */}
+          <div className="flex flex-col">
+            <h1 className="font-silkscreen text-[24px] text-primary leading-none uppercase whitespace-nowrap">
+              Glossary
+            </h1>
+            <p
+              className="font-body text-tertiary leading-none whitespace-nowrap"
+              style={{ fontSize: 'var(--text-xxs)', fontVariationSettings: '"opsz" 14' }}
+            >
+              Words and phrases defined by your squad.
+            </p>
+          </div>
         </div>
       </div>
 
       {/* Scrollable body */}
       <div className="flex-1 overflow-y-auto nexus-scroll px-4 py-4 flex flex-col gap-6 min-h-0">
-        {/* Subtitle — DM Sans Regular 14px text-primary */}
-        <p
-          className="font-body text-[14px] text-primary leading-normal flex-shrink-0"
-          style={{ fontVariationSettings: '"opsz" 14' }}
-        >
-          Words and phrases defined by your squad.
-        </p>
 
         {definitions.length === 0 ? (
           <div className="flex flex-col items-center justify-center flex-1 gap-3 py-16">
@@ -657,7 +716,24 @@ export function DefinitionsClient({
             crewId={crewId}
             definition={suggestTarget}
             onClose={() => setSuggestTarget(null)}
-            onSaved={(def) => { handleCreated(def); setSuggestTarget(null) }}
+            onSaved={() => {
+              setDefinitions((prev) =>
+                prev.map((d) => d.id === suggestTarget.id
+                  ? { ...d, suggestion_count: (d.suggestion_count ?? 0) + 1 }
+                  : d
+                )
+              )
+              setSuggestTarget(null)
+            }}
+          />
+        )}
+        {reviewTarget && (
+          <ReviewSuggestionSheet
+            key="review"
+            definition={reviewTarget}
+            onClose={() => setReviewTarget(null)}
+            onApproved={handleSuggestionApproved}
+            onDenied={handleSuggestionDenied}
           />
         )}
       </AnimatePresence>

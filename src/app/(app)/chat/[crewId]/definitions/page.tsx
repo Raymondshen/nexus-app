@@ -32,19 +32,30 @@ export default async function DefinitionsPage({ params }: DefinitionsPageProps) 
 
   const defs = (defsResult.data ?? []) as SquadDefinition[]
 
-  // Resolve creator usernames in a single batch query
+  // Batch: creator usernames + suggestion counts
+  const defIds    = defs.map((d) => d.id)
   const creatorIds = [...new Set([session.user.id, ...defs.map((d) => d.creator_id)])]
-  const { data: profiles } = await supabase
-    .from('profiles')
-    .select('id, username')
-    .in('id', creatorIds)
 
-  const usernameMap = Object.fromEntries((profiles ?? []).map((p) => [p.id as string, p.username as string]))
+  const [profilesResult, suggestionsResult] = await Promise.all([
+    supabase.from('profiles').select('id, username').in('id', creatorIds),
+    defIds.length > 0
+      ? supabase.from('definition_suggestions').select('definition_id').in('definition_id', defIds)
+      : Promise.resolve({ data: [] }),
+  ])
+
+  const usernameMap = Object.fromEntries((profilesResult.data ?? []).map((p) => [p.id as string, p.username as string]))
   const currentUsername = usernameMap[session.user.id] ?? ''
+
+  const countMap: Record<string, number> = {}
+  for (const row of (suggestionsResult.data ?? [])) {
+    const id = row.definition_id as string
+    countMap[id] = (countMap[id] ?? 0) + 1
+  }
 
   const enrichedDefs: SquadDefinitionWithCreator[] = defs.map((d) => ({
     ...d,
     creator_username: usernameMap[d.creator_id],
+    suggestion_count: countMap[d.id] ?? 0,
   }))
 
   return (

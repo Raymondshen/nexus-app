@@ -192,6 +192,15 @@ export interface SquadDefinition extends Record<string, unknown> {
 
 export type SquadDefinitionWithCreator = SquadDefinition & { creator_username?: string; suggestion_count?: number }
 
+export interface DefinitionSuggestion extends Record<string, unknown> {
+  id:                   string
+  definition_id:        string
+  crew_id:              string
+  suggester_id:         string
+  suggested_definition: string
+  created_at:           string
+}
+
 export interface Poll extends Record<string, unknown> {
   id:         string
   message_id: string | null
@@ -359,6 +368,12 @@ export type Database = {
         Row: SquadDefinition
         Insert: Omit<SquadDefinition, 'id' | 'created_at'> & { id?: string; created_at?: string }
         Update: Partial<Omit<SquadDefinition, 'id' | 'created_at'>>
+        Relationships: []
+      }
+      definition_suggestions: {
+        Row: DefinitionSuggestion
+        Insert: Omit<DefinitionSuggestion, 'id' | 'created_at'> & { id?: string; created_at?: string }
+        Update: Partial<Omit<DefinitionSuggestion, 'id' | 'created_at'>>
         Relationships: []
       }
     }

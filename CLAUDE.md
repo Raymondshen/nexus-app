@@ -36,6 +36,7 @@ reserved_users id, email (text unique), username, class (text nullable), first_n
 announcements  id, text (1–500 chars), active (bool default true), created_at
 polls          id, message_id (uuid → messages nullable), crew_id, creator_id, question (text 1–200 chars), options (jsonb string array), votes (jsonb default '{}' — `{ "0": ["userId",...] }`), expires_at (timestamptz), closed_at (timestamptz nullable), created_at
 squad_definitions  id, crew_id, creator_id, word (text 1–100 chars — stores comma-separated aliases, e.g. "abg, ABG"), definition (text 1–500 chars), created_at — UNIQUE INDEX on (crew_id, lower(word))
+definition_suggestions  id, definition_id (uuid → squad_definitions CASCADE), crew_id, suggester_id (uuid → auth.users), suggested_definition (text 1–500 chars), created_at — UNIQUE(definition_id, suggester_id); REPLICA IDENTITY FULL
 ```
 
 ### DM Channels
@@ -333,7 +334,9 @@ Defined words highlighted blue in chat messages; tapping shows definition sheet.
 
 **Data model**: `squad_definitions`. `word` stores comma-separated aliases (e.g. `"abg, ABG"`). Uniqueness via expression index `squad_definitions_crew_word_uq ON (crew_id, lower(word))`.
 
-**Actions** (`definitions/actions.ts`): `createDefinitionAction` / `updateDefinitionAction` / `deleteDefinitionAction` — server-side auth + creator guard.
+**Actions** (`definitions/actions.ts`): `createDefinitionAction` / `updateDefinitionAction` / `deleteDefinitionAction` — server-side auth + creator guard. `suggestDefinitionAction` — inserts into `definition_suggestions` (pending review, does NOT overwrite). `approveSuggestionAction` — creator overwrites definition + deletes suggestion. `denySuggestionAction` — creator deletes suggestion, original unchanged.
+
+**Suggestion review flow**: non-creator taps card → `DefinitionViewSheet` → `SuggestDefinitionSheet` → inserts `definition_suggestions` row. Creator taps card with `suggestion_count > 0` → `ReviewSuggestionSheet` (`src/components/chat/ReviewSuggestionSheet.tsx`, Figma 143:714) showing original vs proposed, Approve/Deny buttons. Realtime on `definition_suggestions` (crew_id filter, REPLICA IDENTITY FULL) updates suggestion_count live. Server-side batches suggestion count query.
 
 **`MessageList`** word highlighting: fetches definitions on mount; realtime on `ml-defs:{crewId}`. Passes `definitions` prop to each `<MessageBubble>`.
 
@@ -391,6 +394,15 @@ Always use `createServiceClient()` inside cache functions — `createClient()` r
 | `nexus_afk_exp` | `'1'` | AFK XP bar + CLAIM in AccountPreviewContainer; dev-only |
 | `nexus_dismissed_banners` | JSON array of IDs | dismissed announcement IDs; filtered on mount |
 
+## AnnouncementBanner
+- Component: `src/components/ui/AnnouncementBanner.tsx`
+- **Position**: inside home scrollable body, below `AccountPreviewContainer` (not at top of page)
+- **Design**: blue card — `bg-[rgba(96,165,250,0.1)]` + `border border-[#60a5fa]` + `rounded-[8px]` (Figma 146:1702)
+- **Icons**: `Megaphone` (left, `#60a5fa`) + `Close` (right, secondary) from pixelarticons
+- **Label**: "NEW UPDATES" Silkscreen `--text-mini` secondary; text DM Sans Regular `--text-xs` secondary
+- **Pagination dots**: shown when 2+ active; active dot `#60a5fa` 12px wide, inactive `rgba(96,165,250,0.3)` 4px; spring-animated width; clickable
+- **Swipe**: drag `'x'` with Framer Motion when 2+ announcements; `dragElastic 0.15`, 40px threshold
+
 ## Disabled Features (wired for future)
 - Voice notes: UI button removed; `XP_VALUES['voice']` + element type `lightning` still defined server-side
 - Image upload: UI button removed; upload logic + `chat-images` bucket still exist
@@ -426,6 +438,8 @@ Always use `createServiceClient()` inside cache functions — `createClient()` r
 - `20240103000022` — polls table + RPCs; polls in realtime
 - `20240103000023` — squad_definitions table + RLS; squad_definitions in realtime
 - `20240103000024` — squad_definitions UPDATE policy (creator-only)
+- `20240103000025` — squad_definitions actual_word column
+- `20240103000026` — definition_suggestions table + RLS + realtime (REPLICA IDENTITY FULL)
 
 ### Manual SQL applied directly
 ```sql

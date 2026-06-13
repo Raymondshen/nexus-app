@@ -3,13 +3,13 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { suggestDefinitionAction } from '@/app/(app)/chat/[crewId]/definitions/actions'
-import type { SquadDefinition, SquadDefinitionWithCreator } from '@/types'
+import type { SquadDefinitionWithCreator } from '@/types'
 
 interface SuggestDefinitionSheetProps {
   crewId:     string
   definition: SquadDefinitionWithCreator
   onClose:    () => void
-  onSaved?:   (def: SquadDefinition) => void
+  onSaved?:   () => void
   /** z-index base — defaults to 90/100 to sit above chat portals */
   zBase?:     number
 }
@@ -35,7 +35,7 @@ export function SuggestDefinitionSheet({
     const result = await suggestDefinitionAction(definition.id, crewId, suggestion)
     setSaving(false)
     if (result.error) { setError(result.error); return }
-    if (result.data) onSaved?.(result.data)
+    onSaved?.()
     onClose()
   }
 

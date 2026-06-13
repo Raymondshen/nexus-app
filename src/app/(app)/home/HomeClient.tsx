@@ -961,9 +961,6 @@ export function HomeClient({
   return (
     <div className="min-h-screen bg-black flex flex-col">
 
-      {/* ── Announcement banners ── */}
-      <AnnouncementBanner announcements={announcements} />
-
       {/* ── Body ── */}
       <div
         className="flex-1 overflow-y-auto px-4 flex flex-col gap-6"
@@ -993,6 +990,9 @@ export function HomeClient({
             }}
           />
         </div>
+
+        {/* Announcements — below account card */}
+        <AnnouncementBanner announcements={announcements} />
 
         {/* Squads section */}
         <div className="flex flex-col gap-4 w-full">

@@ -1,7 +1,7 @@
 'use server'
 
-import { createClient, createServiceClient } from '@/lib/supabase/server'
-import type { SquadDefinition } from '@/types'
+import { createClient } from '@/lib/supabase/server'
+import type { SquadDefinition, DefinitionSuggestion } from '@/types'
 
 export async function createDefinitionAction(
   crewId: string,
@@ -68,34 +68,75 @@ export async function updateDefinitionAction(
 export async function suggestDefinitionAction(
   definitionId: string,
   crewId: string,
-  definition: string,
-): Promise<{ data?: SquadDefinition; error?: string }> {
+  suggestion: string,
+): Promise<{ data?: DefinitionSuggestion; error?: string }> {
   const supabase = await createClient()
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) return { error: 'Not authenticated.' }
 
-  const trimDef = definition.trim()
+  const trimDef = suggestion.trim()
   if (!trimDef || trimDef.length > 500) return { error: 'Definition must be 1–500 characters.' }
 
-  // Verify crew membership before bypassing creator-only RLS
-  const { data: member } = await supabase
-    .from('crew_members')
-    .select('id')
-    .eq('crew_id', crewId)
-    .eq('user_id', session.user.id)
-    .single()
-  if (!member) return { error: 'Not a member of this squad.' }
-
-  const service = createServiceClient()
-  const { data, error } = await service
-    .from('squad_definitions')
-    .update({ definition: trimDef })
-    .eq('id', definitionId)
+  const { data, error } = await supabase
+    .from('definition_suggestions')
+    .insert({
+      definition_id:        definitionId,
+      crew_id:              crewId,
+      suggester_id:         session.user.id,
+      suggested_definition: trimDef,
+    })
     .select()
     .single()
 
-  if (error) return { error: 'Failed to submit suggestion.' }
-  return { data: data as SquadDefinition }
+  if (error) {
+    if (error.code === '23505') return { error: 'You already have a pending suggestion for this definition.' }
+    return { error: 'Failed to submit suggestion.' }
+  }
+
+  return { data: data as DefinitionSuggestion }
+}
+
+export async function approveSuggestionAction(
+  suggestionId: string,
+  definitionId: string,
+  newDefinition: string,
+): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) return { error: 'Not authenticated.' }
+
+  // Update the definition — creator_id guard enforces ownership
+  const { error: updateError } = await supabase
+    .from('squad_definitions')
+    .update({ definition: newDefinition })
+    .eq('id', definitionId)
+    .eq('creator_id', session.user.id)
+
+  if (updateError) return { error: 'Failed to update definition.' }
+
+  // Delete the approved suggestion (RLS allows creator to delete)
+  await supabase
+    .from('definition_suggestions')
+    .delete()
+    .eq('id', suggestionId)
+
+  return {}
+}
+
+export async function denySuggestionAction(
+  suggestionId: string,
+): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) return { error: 'Not authenticated.' }
+
+  const { error } = await supabase
+    .from('definition_suggestions')
+    .delete()
+    .eq('id', suggestionId)
+
+  if (error) return { error: 'Failed to deny suggestion.' }
+  return {}
 }
 
 export async function deleteDefinitionAction(
