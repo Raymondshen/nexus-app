@@ -81,8 +81,11 @@ export function SlidePage({ children, className, style, backHref }: SlidePagePro
     if (!backHref || !touchStart.current || exiting.current) return
     const dx = e.changedTouches[0].clientX - touchStart.current.x
     const dy = Math.abs(e.changedTouches[0].clientY - touchStart.current.y)
-    // Left-edge origin, significant rightward swipe, mostly horizontal
-    if (touchStart.current.x < 35 && dx > 80 && dy < dx) goBack()
+    // Left-edge origin, significant rightward swipe, mostly horizontal — instant nav
+    if (touchStart.current.x < 35 && dx > 80 && dy < dx) {
+      exiting.current = true
+      router.replace(backHref)
+    }
     touchStart.current = null
   }
 
