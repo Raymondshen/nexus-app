@@ -33,6 +33,25 @@ export function SlidePage({ children, className, style, backHref }: SlidePagePro
   const router   = useRouter()
   const controls = useAnimation()
   const exiting  = useRef(false)
+  const touchStart = useRef<{ x: number; y: number } | null>(null)
+
+  const goBack = useCallback(() => {
+    if (exiting.current) return
+    exiting.current = true
+    // Only skip the next enter animation when going back via router.back() — the
+    // previous page in history is another SlidePage that should not re-animate.
+    // When backHref is set (destination is /home, which has no SlidePage), skip
+    // setting the flag so it doesn't linger and incorrectly suppress the next
+    // forward navigation's slide-in.
+    if (!backHref) _skipNextSlideEnter = true
+    controls.start({
+      x: '100%',
+      transition: { type: 'tween', ease: [0.32, 0, 0.67, 0], duration: 0.28 },
+    }).then(() => {
+      if (backHref) router.replace(backHref)
+      else          router.back()
+    })
+  }, [controls, router, backHref]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (_skipNextSlideEnter) {
@@ -53,38 +72,19 @@ export function SlidePage({ children, className, style, backHref }: SlidePagePro
     if (backHref) router.prefetch(backHref)
   }, [backHref, router])
 
-  // Intercept the native swipe-back gesture (iOS/Android PWA) when backHref is
-  // set. We push a sentinel history entry so the swipe has something to pop;
-  // the resulting popstate fires our animated goBack instead of browser history.
-  useEffect(() => {
+  function handleTouchStart(e: React.TouchEvent) {
     if (!backHref) return
-    window.history.pushState({ nexusSwipeGuard: true }, '')
-    function onPopState() {
-      // Re-push so a second swipe while the animation runs is also caught.
-      window.history.pushState({ nexusSwipeGuard: true }, '')
-      goBack()
-    }
-    window.addEventListener('popstate', onPopState)
-    return () => window.removeEventListener('popstate', onPopState)
-  }, [backHref, goBack])
+    touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+  }
 
-  const goBack = useCallback(() => {
-    if (exiting.current) return
-    exiting.current = true
-    // Only skip the next enter animation when going back via router.back() — the
-    // previous page in history is another SlidePage that should not re-animate.
-    // When backHref is set (destination is /home, which has no SlidePage), skip
-    // setting the flag so it doesn't linger and incorrectly suppress the next
-    // forward navigation's slide-in.
-    if (!backHref) _skipNextSlideEnter = true
-    controls.start({
-      x: '100%',
-      transition: { type: 'tween', ease: [0.32, 0, 0.67, 0], duration: 0.28 },
-    }).then(() => {
-      if (backHref) router.replace(backHref)
-      else          router.back()
-    })
-  }, [controls, router, backHref]) // eslint-disable-line react-hooks/exhaustive-deps
+  function handleTouchEnd(e: React.TouchEvent) {
+    if (!backHref || !touchStart.current || exiting.current) return
+    const dx = e.changedTouches[0].clientX - touchStart.current.x
+    const dy = Math.abs(e.changedTouches[0].clientY - touchStart.current.y)
+    // Left-edge origin, significant rightward swipe, mostly horizontal
+    if (touchStart.current.x < 35 && dx > 80 && dy < dx) goBack()
+    touchStart.current = null
+  }
 
   return (
     <SlideBackContext.Provider value={goBack}>
@@ -93,6 +93,8 @@ export function SlidePage({ children, className, style, backHref }: SlidePagePro
         style={style}
         initial={{ x: '100%' }}
         animate={controls}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
       >
         {children}
       </motion.div>
