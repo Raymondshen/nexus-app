@@ -21,6 +21,7 @@ interface ChatStore {
 
   setMessages:       (messages: Message[]) => void
   addMessage:        (message: Message) => void
+  removeMessage:     (id: string) => void
   updateMessage:     (id: string, patch: Partial<Message>) => void
   setCrewXP:         (xp: number) => void
   addXP:             (amount: number) => void
@@ -55,6 +56,9 @@ export const useChatStore = create<ChatStore>((set) => ({
       if (s.messages.some((m) => m.id === message.id)) return {}
       return { messages: [...s.messages, message] }
     }),
+
+  removeMessage: (id) =>
+    set((s) => ({ messages: s.messages.filter((m) => m.id !== id) })),
 
   updateMessage: (id, patch) =>
     set((s) => ({

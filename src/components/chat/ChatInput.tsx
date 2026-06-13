@@ -92,7 +92,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   const channelReadyRef   = useRef(false)
 
   const {
-    addMessage, updateMessage, setCrewXP, receiveXP, addXP,
+    addMessage, removeMessage, updateMessage, setCrewXP, receiveXP, addXP,
     activeRaid, setActiveRaid, damageFloats, addDamageFloat, dismissDamageFloat,
     crewXP, crewLevel,
     onlineUserIds, setOnlineUserIds, addUserCoins,
@@ -318,29 +318,43 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
     haptic(10)
 
+    const supabase    = createClient()
+    const elementType = getElementType(content, 'text')
+
+    // Optimistic: add the message instantly so it appears before the RPC round-trip.
+    const tempId = `opt_${Date.now()}`
+    const optimisticMsg: MessageWithProfile = {
+      id: tempId, crew_id: crewId, user_id: userId, content,
+      message_type: 'text', element_type: elementType,
+      xp_awarded: 0, reactions: {}, created_at: new Date().toISOString(),
+      profile: userProfile,
+    }
+    addMessage(optimisticMsg)
+    addXP(10)
+
     try {
-      const supabase    = createClient()
-      const elementType = getElementType(content, 'text')
       const { data: raw, error } = await supabase.rpc('insert_message', {
         p_crew_id: crewId, p_content: content, p_message_type: 'text',
       })
       if (error) throw error
 
-      const newMessage: MessageWithProfile = {
-        id: raw.id, crew_id: raw.crew_id, user_id: raw.user_id, content: raw.content,
-        message_type: raw.message_type, element_type: raw.element_type,
-        xp_awarded: raw.xp_awarded, reactions: {}, created_at: raw.created_at, profile: userProfile,
+      // Replace the optimistic message with the confirmed server row.
+      // Guard against a Postgres Changes INSERT arriving first — if raw.id is
+      // already in the store, just remove the temp entry to avoid a duplicate.
+      const alreadyAdded = useChatStore.getState().messages.some((m) => m.id === raw.id)
+      if (alreadyAdded) {
+        removeMessage(tempId)
+      } else {
+        updateMessage(tempId, { id: raw.id, created_at: raw.created_at, element_type: raw.element_type })
       }
-      addMessage(newMessage)
-      addXP(10) // optimistic: show float + advance bar immediately; server syncs authoritative total below
 
       if (channelReadyRef.current) msgChannelRef.current?.send({
         type: 'broadcast', event: 'new_message',
         payload: {
-          id: newMessage.id, crew_id: newMessage.crew_id, user_id: newMessage.user_id,
-          content: newMessage.content, message_type: newMessage.message_type,
-          element_type: newMessage.element_type, xp_awarded: newMessage.xp_awarded,
-          created_at: newMessage.created_at,
+          id: raw.id, crew_id: raw.crew_id, user_id: raw.user_id,
+          content: raw.content, message_type: raw.message_type,
+          element_type: raw.element_type, xp_awarded: raw.xp_awarded,
+          created_at: raw.created_at,
         },
       })
 
@@ -378,13 +392,14 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
           .catch(() => {})
       }
     } catch (err) {
+      removeMessage(tempId)
       setText(content)
       setSendError(err instanceof Error ? err.message : 'Failed to send. Tap to retry.')
     } finally {
       setSending(false)
       textareaRef.current?.focus()
     }
-  }, [text, sending, crewId, userId, userProfile, addMessage, updateMessage, activeRaid, addDamageFloat]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [text, sending, crewId, userId, userProfile, addMessage, removeMessage, updateMessage, activeRaid, addDamageFloat]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleSpawnBoss() {
     if (spawning || inRaid) return
