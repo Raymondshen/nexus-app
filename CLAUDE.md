@@ -263,7 +263,7 @@ Used when `definitions.length > 0` or `memberUsernames.size > 0`. `memberUsernam
 ### Page Transitions — SlidePage + useSlideBack
 All detail pages (chat, DM, profile, friends, vault) slide in from right on mount, slide back out on close.
 - **`SlidePage`** (`src/components/ui/SlidePage.tsx`): enter spring 380/36 (~280ms); exit ease-in tween 280ms then `router.back()` or `router.replace(backHref)`
-- **`backHref` prop**: used by `ProfileClient` (always `/home`) and chat when `?welcome=1` present
+- **`backHref` prop**: always `/home` for chat pages and `ProfileClient` — back from a crew chat must never walk browser history (which would expose the class picker or onboarding steps)
 - **`useSlideBack()`**: hook returning `goBack` — use instead of `router.back()` in all back buttons on slide pages
 - **Context scoping**: `ProfileClient` + `FriendsClient` define a local `BackButton` inside `<SlidePage>` (hook must be inside the context they provide)
 - `WelcomeDetector` strips `?welcome=1` from URL via `window.history.replaceState`
