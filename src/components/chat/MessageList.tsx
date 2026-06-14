@@ -476,7 +476,7 @@ export function MessageList({
       const msgXP        = msg.xp_awarded ?? 0
       const msgCoins     = msgXP > 0 ? 1 : 0
 
-      if (!withinMinute) {
+      if (!withinMinute || !!msg.reply_to_id) {
         preGroupLeaderId = msg.id
         groupXPMap.set(msg.id, msgXP)
         groupCoinMap.set(msg.id, msgCoins)
@@ -554,7 +554,7 @@ export function MessageList({
       } else {
         const sameUser     = msg.user_id === lastUserId
         const withinMinute = sameUser && (msgTime - lastMsgTime) < 60_000
-        const showHeader   = !withinMinute
+        const showHeader   = !withinMinute || !!msg.reply_to_id
         const xpOverride   = showHeader ? groupXPMap.get(msg.id)   : undefined
         const coinOverride = showHeader ? groupCoinMap.get(msg.id) : undefined
         items.push({ kind: 'message', message: msg as MessageWithProfile, isOwn: msg.user_id === currentUserId, showHeader, xpOverride, coinOverride })

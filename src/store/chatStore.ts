@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Message, ActiveRaid, ElementType } from '@/types'
+import type { Message, MessageWithProfile, ActiveRaid, ElementType } from '@/types'
 import { getLevelFromXP, XP_PER_LEVEL } from '@/lib/game/xp'
 
 export interface DamageFloatItem {
@@ -18,6 +18,7 @@ interface ChatStore {
   onlineUserIds: Set<string>
   userCoins:     number
   crewName:      string
+  replyTo:       MessageWithProfile | null
 
   setMessages:       (messages: Message[]) => void
   addMessage:        (message: Message) => void
@@ -34,6 +35,7 @@ interface ChatStore {
   setUserCoins:      (coins: number) => void
   addUserCoins:      (amount: number) => void
   setCrewName:       (name: string) => void
+  setReplyTo:        (msg: MessageWithProfile | null) => void
 }
 
 let floatCounter = 0
@@ -48,6 +50,7 @@ export const useChatStore = create<ChatStore>((set) => ({
   onlineUserIds: new Set<string>(),
   userCoins:     0,
   crewName:      '',
+  replyTo:       null,
 
   setMessages: (messages) => set({ messages }),
 
@@ -108,6 +111,8 @@ export const useChatStore = create<ChatStore>((set) => ({
     set((s) => ({ userCoins: s.userCoins + amount })),
 
   setCrewName: (name) => set({ crewName: name }),
+
+  setReplyTo: (msg) => set({ replyTo: msg }),
 }))
 
 export { XP_PER_LEVEL }

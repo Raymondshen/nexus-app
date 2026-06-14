@@ -97,6 +97,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     crewXP, crewLevel,
     onlineUserIds, setOnlineUserIds, addUserCoins,
     crewName: storeCrewName, setCrewName,
+    replyTo, setReplyTo,
   } = useChatStore()
 
   const liveCrewName = storeCrewName || crewName
@@ -114,6 +115,10 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   useEffect(() => {
     setDevMode(localStorage.getItem('nexus_dev_mode') === '1')
   }, [])
+
+  useEffect(() => {
+    if (replyTo) textareaRef.current?.focus()
+  }, [replyTo])
 
   // Seed store with server-fetched values (previously handled by ChatHeader)
   useEffect(() => {
@@ -310,9 +315,13 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
 
     if (!localStorage.getItem('nexus_first_message')) localStorage.setItem('nexus_first_message', String(Date.now()))
 
+    // Capture reply context before clearing state
+    const currentReply = useChatStore.getState().replyTo
+
     setSending(true)
     setSendError(null)
     setText('')
+    setReplyTo(null)
     broadcastTyping(false)
     if (typingTimerRef.current) clearTimeout(typingTimerRef.current)
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
@@ -321,6 +330,10 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     const supabase    = createClient()
     const elementType = getElementType(content, 'text')
 
+    const replyToId       = currentReply?.id ?? null
+    const replyPreview    = currentReply ? currentReply.content.slice(0, 100) : null
+    const replyUsername   = currentReply?.profile?.username ?? null
+
     // Optimistic: add the message instantly so it appears before the RPC round-trip.
     const tempId = `opt_${Date.now()}`
     const optimisticMsg: MessageWithProfile = {
@@ -328,6 +341,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       message_type: 'text', element_type: elementType,
       xp_awarded: 0, reactions: {}, created_at: new Date().toISOString(),
       profile: userProfile,
+      reply_to_id: replyToId, reply_preview: replyPreview, reply_username: replyUsername,
     }
     addMessage(optimisticMsg)
     addXP(10)
@@ -335,6 +349,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     try {
       const { data: raw, error } = await supabase.rpc('insert_message', {
         p_crew_id: crewId, p_content: content, p_message_type: 'text',
+        p_reply_to_id: replyToId, p_reply_preview: replyPreview, p_reply_username: replyUsername,
       })
       if (error) throw error
 
@@ -355,6 +370,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
           content: raw.content, message_type: raw.message_type,
           element_type: raw.element_type, xp_awarded: raw.xp_awarded,
           created_at: raw.created_at,
+          reply_to_id: raw.reply_to_id, reply_preview: raw.reply_preview, reply_username: raw.reply_username,
         },
       })
 
@@ -394,6 +410,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     } catch (err) {
       removeMessage(tempId)
       setText(content)
+      if (currentReply) setReplyTo(currentReply)
       setSendError(err instanceof Error ? err.message : 'Failed to send. Tap to retry.')
     } finally {
       setSending(false)
@@ -730,6 +747,33 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
               {spawning ? 'SPAWNING...' : '⚔ SPAWN BOSS'}
             </button>
             {spawnError && <span className="font-pixel text-[7px] text-[#ff4444]/60">{spawnError}</span>}
+          </div>
+        )}
+
+        {/* ── Reply preview bar ── */}
+        {replyTo && (
+          <div
+            className="flex items-center overflow-hidden"
+            style={{ borderLeft: '2px solid var(--color-purple)', background: 'rgba(191,95,255,0.06)', paddingLeft: 'var(--space-4)', paddingRight: 'var(--space-3)', paddingTop: 'var(--space-3)', paddingBottom: 'var(--space-3)', gap: 'var(--space-3)', marginBottom: 'var(--space-2)' }}
+          >
+            <div className="flex-1 min-w-0 flex flex-col" style={{ gap: 2 }}>
+              <span className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-purple)' }}>
+                ↩ Replying to @{replyTo.profile?.username ?? replyTo.reply_username ?? '???'}
+              </span>
+              <span
+                className="font-body font-normal leading-snug text-ellipsis overflow-hidden whitespace-nowrap"
+                style={{ fontSize: 'var(--text-xxs)', color: 'var(--color-tertiary)', fontVariationSettings: '"opsz" 14' }}
+              >
+                {replyTo.content.slice(0, 80)}
+              </span>
+            </div>
+            <button
+              onClick={() => setReplyTo(null)}
+              className="flex-shrink-0 flex items-center justify-center w-6 h-6 text-tertiary active:text-primary"
+              aria-label="Cancel reply"
+            >
+              <span style={{ fontSize: 14, lineHeight: 1 }}>✕</span>
+            </button>
           </div>
         )}
 

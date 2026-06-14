@@ -189,6 +189,7 @@ export function MessageBubble({
 
   const onlineUserIds = useChatStore((s) => s.onlineUserIds)
   const updateMessage = useChatStore((s) => s.updateMessage)
+  const setReplyTo    = useChatStore((s) => s.setReplyTo)
 
   useEffect(() => { setMounted(true) }, [])
 
@@ -480,6 +481,45 @@ export function MessageBubble({
             </div>
           )}
 
+          {/* Reply quote — shown when this message is a reply */}
+          {message.reply_to_id && (message.reply_preview || message.reply_username) && (
+            <div
+              className="flex items-start gap-[6px] mt-[2px] mb-[2px] overflow-hidden"
+              style={{ opacity: 0.75 }}
+            >
+              <div
+                className="flex-shrink-0 self-stretch"
+                style={{ width: 2, borderRadius: 2, background: 'var(--color-purple)', minHeight: 20 }}
+              />
+              <div className="flex flex-col gap-[1px] min-w-0 overflow-hidden">
+                {message.reply_username && (
+                  <span
+                    className="font-silkscreen leading-none whitespace-nowrap overflow-hidden text-ellipsis"
+                    style={{ fontSize: 'var(--text-mini)', color: 'var(--color-purple)' }}
+                  >
+                    @{message.reply_username}
+                  </span>
+                )}
+                {message.reply_preview && (
+                  <span
+                    className="font-body font-normal leading-snug overflow-hidden"
+                    style={{
+                      fontSize: 'var(--text-xxs)',
+                      color: 'var(--color-tertiary)',
+                      fontVariationSettings: '"opsz" 14',
+                      display: '-webkit-box',
+                      WebkitLineClamp: 1,
+                      WebkitBoxOrient: 'vertical',
+                      wordBreak: 'break-word',
+                    }}
+                  >
+                    {message.reply_preview}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Message body */}
           {message.message_type === 'image' ? (
             <div className="relative w-[220px] h-[165px] mt-1">
@@ -716,6 +756,20 @@ export function MessageBubble({
                     </span>
                   </button>
                 </div>
+
+                <div className="border-t border-border" />
+
+                {/* ── Reply ──────────────────────────────────────────────── */}
+                <button
+                  onClick={() => {
+                    setSheetOpen(false)
+                    setReplyTo({ ...message })
+                  }}
+                  className="w-full flex items-center gap-4 px-5 min-h-[52px] active:bg-[#111111] transition-colors"
+                >
+                  <span className="text-[20px]">↩️</span>
+                  <span className="font-body text-[15px] text-primary">Reply</span>
+                </button>
 
                 <div className="border-t border-border" />
 

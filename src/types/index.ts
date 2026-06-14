@@ -76,6 +76,9 @@ export interface Message extends Record<string, unknown> {
   xp_awarded: number | null
   reactions: Record<string, string[]>
   created_at: string
+  reply_to_id?:    string | null
+  reply_preview?:  string | null
+  reply_username?: string | null
 }
 
 export interface CrewXPLog extends Record<string, unknown> {
@@ -419,9 +422,12 @@ export type Database = {
       }
       insert_message: {
         Args: {
-          p_crew_id: string
-          p_content: string
-          p_message_type: string
+          p_crew_id:        string
+          p_content:        string
+          p_message_type:   string
+          p_reply_to_id?:   string | null
+          p_reply_preview?:  string | null
+          p_reply_username?: string | null
         }
         Returns: Message
       }
