@@ -10,6 +10,7 @@ import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { Search } from 'pixelarticons/react/Search'
 import { Inbox } from 'pixelarticons/react/Inbox'
 import { Message as MessageIcon } from 'pixelarticons/react/Message'
+import { MailRight } from 'pixelarticons/react/MailRight'
 import { createClient } from '@/lib/supabase/client'
 import { signInWithGoogle } from '@/lib/supabase/auth'
 import { sendFriendRequestAction } from './actions'
@@ -170,7 +171,7 @@ function FriendCard({
           className="flex-shrink-0 active:opacity-70"
           aria-label={`Message ${entry.profile?.username}`}
         >
-          <MessageIcon style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+          <MailRight style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
         </button>
       </div>
 

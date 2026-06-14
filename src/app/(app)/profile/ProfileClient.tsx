@@ -10,6 +10,7 @@ import { ChevronRight } from 'pixelarticons/react/ChevronRight'
 import { MagicEdit } from 'pixelarticons/react/MagicEdit'
 import { Bell } from 'pixelarticons/react/Bell'
 import { User } from 'pixelarticons/react/User'
+import { Terminal } from 'pixelarticons/react/Terminal'
 import Image from 'next/image'
 import { isSupabaseStorage, resolveAvatarUrl } from '@/components/ui/Avatar'
 import { createClient } from '@/lib/supabase/client'
@@ -229,27 +230,18 @@ function EditProfileSheet({
             transition={{ type: 'spring', stiffness: 320, damping: 32 }}
           >
             <div
-              className="bg-surface border-t overflow-hidden flex flex-col gap-[var(--space-7)]"
+              className="bg-black border-t flex flex-col overflow-hidden"
               style={{
-                borderColor: 'var(--color-border-hover)',
-                padding: 'var(--space-7) var(--space-5)',
-                paddingBottom: 'max(env(safe-area-inset-bottom), var(--space-5))',
+                borderColor: 'var(--color-border)',
+                paddingBottom: 'max(28px, env(safe-area-inset-bottom))',
               }}
             >
-              {/* Title */}
-              <p
-                className="font-body font-bold text-primary leading-none"
-                style={{ fontSize: 'var(--text-lg)', fontVariationSettings: '"opsz" 14' }}
-              >
-                Account Details
-              </p>
-
-              {/* Mini profile hero — live preview */}
+              {/* Profile hero — 280px full-bleed */}
               <div
-                className="relative w-full overflow-hidden flex flex-col gap-[var(--space-5)] items-start justify-end"
-                style={{ height: 180, padding: 'var(--space-5)' }}
+                className="relative flex flex-col items-end justify-between overflow-hidden shrink-0 w-full"
+                style={{ height: 280, padding: 16 }}
               >
-                {/* Background image — plain img avoids next/image iOS PWA rendering issues */}
+                {/* Background image */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={backgroundUrl ?? '/img/default_image.png'}
@@ -261,166 +253,117 @@ function EditProfileSheet({
                   className="absolute inset-0 pointer-events-none"
                   style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.5) 48.668%, rgba(0,0,0,0.8) 82.216%, rgb(0,0,0) 100%)' }}
                 />
-                <div className="relative flex gap-[var(--space-5)] items-center w-full">
-                  <div className="flex-shrink-0 bg-border overflow-hidden relative" style={{ width: 56, height: 56 }}>
-                    {avatarUrl ? (
-                      <Image src={resolveAvatarUrl(avatarUrl, 56)} alt={previewName} fill sizes="56px" className="object-cover" unoptimized={isSupabaseStorage(avatarUrl)} />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <span className="font-pixel text-[12px] text-purple">{initial}</span>
+
+                {/* Top-right: background edit button */}
+                <button
+                  onClick={onBgUpload}
+                  className="relative bg-surface border border-primary flex items-center overflow-hidden p-2"
+                  style={{ boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)' }}
+                  aria-label="Edit cover"
+                >
+                  <MagicEdit style={{ width: 12, height: 12, color: 'var(--color-primary)' }} />
+                </button>
+
+                {/* Bottom: profile details */}
+                <div className="relative flex flex-col items-start w-full" style={{ gap: 8 }}>
+                  {/* Avatar + name row */}
+                  <div className="flex items-center w-full" style={{ gap: 16 }}>
+                    {/* Avatar 56×56 with edit badge */}
+                    <div className="relative flex-shrink-0" style={{ width: 56, height: 56 }}>
+                      <div className="w-full h-full overflow-hidden" style={{ background: 'var(--color-primary)' }}>
+                        {avatarUrl ? (
+                          <Image src={resolveAvatarUrl(avatarUrl, 56)} alt={previewName} fill sizes="56px" className="object-cover" unoptimized={isSupabaseStorage(avatarUrl)} />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <span className="font-pixel text-[12px] text-purple">{initial}</span>
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0 flex flex-col gap-[var(--space-2)] justify-center leading-none">
-                    {memberSinceYear && (
-                      <p className="font-silkscreen" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}>
-                        Member Since {memberSinceYear}
+                      {/* Avatar edit badge — top-right of avatar, overflows upward */}
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="absolute bg-surface border border-primary flex items-center overflow-hidden p-2"
+                        style={{ top: -8, left: 36, boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)' }}
+                        aria-label="Change photo"
+                      >
+                        <MagicEdit style={{ width: 12, height: 12, color: 'var(--color-primary)' }} />
+                      </button>
+                    </div>
+
+                    {/* Name / stats */}
+                    <div className="flex-1 min-w-0 flex flex-col justify-center leading-none" style={{ gap: 4 }}>
+                      {memberSinceYear && (
+                        <p className="font-silkscreen" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>
+                          Member Since {memberSinceYear}
+                        </p>
+                      )}
+                      <p className="font-body font-bold truncate" style={{ fontSize: 'var(--text-xl)', fontVariationSettings: '"opsz" 14', color: 'var(--color-primary)' }}>
+                        {previewName}
                       </p>
-                    )}
-                    <p className="font-body font-bold truncate" style={{ fontSize: 'var(--text-xl)', fontVariationSettings: '"opsz" 14', color: 'var(--color-primary)' }}>
-                      {previewName}
-                    </p>
-                    <p className="font-silkscreen" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>
-                      {groupChats} group chat{groupChats !== 1 ? 's' : ''} · {msgFormatted} msg
-                    </p>
+                      <p className="font-silkscreen" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>
+                        {groupChats} group chat{groupChats !== 1 ? 's' : ''} · {msgFormatted} msg
+                      </p>
+                    </div>
                   </div>
+
+                  {/* Status text */}
+                  <p className="font-silkscreen leading-none w-full" style={{ fontSize: 'var(--text-xxs)', color: 'var(--color-secondary)' }}>
+                    &ldquo;{status.trim() || 'Whats the mood today...'}&rdquo;
+                  </p>
                 </div>
-                <p
-                  className="relative font-body font-normal leading-none w-full"
-                  style={{ fontSize: 'var(--text-xxs)', fontVariationSettings: '"opsz" 14', color: status.trim() ? 'var(--color-secondary)' : 'var(--color-tertiary)' }}
-                >
-                  &ldquo;{status.trim() || 'Whats the mood today...'}&rdquo;
-                </p>
               </div>
 
-              {/* Editable fields */}
-              <div className="flex flex-col gap-[var(--space-5)]">
+              {/* Status ticker — live updates as user types */}
+              <ProfileStatusTicker status={status.trim() || 'Whats the mood today...'} />
 
-              {/* Profile Picture */}
-              <div className="flex flex-col gap-2">
-                <p
-                  className="font-body font-medium text-primary tracking-[0.2px] leading-normal"
-                  style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
-                >
-                  Profile Picture
-                </p>
-                <div className="flex items-center gap-[var(--space-5)]">
-                  <div className="relative flex-shrink-0 w-12 h-12 overflow-hidden bg-purple">
-                    {avatarUrl && (
-                      <Image
-                        src={resolveAvatarUrl(avatarUrl, 48)}
-                        alt={initialDisplayName}
-                        fill
-                        sizes="48px"
-                        className="object-cover"
-                        unoptimized={isSupabaseStorage(avatarUrl)}
+              {/* Form section */}
+              <div className="flex flex-col items-start w-full" style={{ gap: 24, paddingTop: 16, paddingLeft: 16, paddingRight: 16 }}>
+                {/* Fields */}
+                <div className="flex flex-col items-start w-full" style={{ gap: 16 }}>
+
+                  {/* Display Name */}
+                  <div className="flex flex-col w-full" style={{ gap: 8 }}>
+                    <p className="font-body font-medium text-primary tracking-[0.2px] leading-normal" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}>
+                      Display Name
+                    </p>
+                    <div className="bg-black border h-[48px] flex items-center overflow-hidden px-3 w-full" style={{ borderColor: 'var(--color-border-hover)' }}>
+                      <input
+                        value={displayName}
+                        onChange={(e) => { setDisplayName(e.target.value); setSaveError(null) }}
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleSave() }}
+                        minLength={3}
+                        maxLength={20}
+                        placeholder="your display name"
+                        className="flex-1 bg-transparent font-body font-normal text-primary placeholder:text-tertiary focus:outline-none leading-normal"
+                        style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
                       />
-                    )}
+                    </div>
                   </div>
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="flex-1 h-[var(--space-13)] border border-purple flex items-center justify-center overflow-hidden transition-opacity active:opacity-70"
-                  >
-                    <span
-                      className="font-silkscreen leading-none whitespace-nowrap text-purple"
-                      style={{ fontSize: 'var(--text-sm)' }}
-                    >
-                      upload photo
-                    </span>
-                  </button>
-                </div>
-              </div>
 
-              {/* Background Image */}
-              <div className="flex flex-col gap-2">
-                <p
-                  className="font-body font-medium text-primary tracking-[0.2px] leading-normal"
-                  style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
-                >
-                  Background Image
-                </p>
-                <div className="flex items-center gap-[var(--space-5)]">
-                  <div className="relative flex-shrink-0 overflow-hidden bg-border" style={{ width: 72, height: 40 }}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={backgroundUrl ?? '/img/default_image.png'}
-                      alt=""
-                      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
-                    />
+                  {/* Status */}
+                  <div className="flex flex-col w-full" style={{ gap: 8 }}>
+                    <p className="font-body font-medium text-primary tracking-[0.2px] leading-normal" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}>
+                      Status
+                    </p>
+                    <div className="bg-black border h-[48px] flex items-center overflow-hidden px-3 w-full" style={{ borderColor: 'var(--color-border-hover)' }}>
+                      <input
+                        value={status}
+                        onChange={(e) => setStatus(e.target.value.slice(0, 100))}
+                        placeholder="Whats the mood today..."
+                        className="flex-1 bg-transparent font-body font-normal text-primary placeholder:text-tertiary focus:outline-none leading-normal"
+                        style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
+                      />
+                    </div>
                   </div>
-                  <button
-                    onClick={onBgUpload}
-                    className="flex-1 h-[var(--space-13)] border border-purple flex items-center justify-center overflow-hidden transition-opacity active:opacity-70"
-                  >
-                    <span
-                      className="font-silkscreen leading-none whitespace-nowrap text-purple"
-                      style={{ fontSize: 'var(--text-sm)' }}
-                    >
-                      upload cover
-                    </span>
-                  </button>
+
                 </div>
-                {backgroundUrl && (
-                  <button
-                    onClick={onBgReset}
-                    className="font-silkscreen text-muted leading-none whitespace-nowrap self-start"
-                    style={{ fontSize: 7 }}
-                  >
-                    Use default cover
-                  </button>
+
+                {/* Save error */}
+                {saveError && (
+                  <p className="font-pixel text-[8px] text-[#ef4444] -mt-4">{saveError}</p>
                 )}
-              </div>
 
-              {/* Display Name input */}
-              <div className="flex flex-col gap-[var(--space-3)] w-full">
-                <p className="font-body font-medium text-primary tracking-[0.2px] leading-normal" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}>
-                  Display Name
-                </p>
-                <div
-                  className="bg-black border h-[48px] flex items-center overflow-hidden px-3 w-full"
-                  style={{ borderColor: 'var(--color-border-hover)' }}
-                >
-                  <input
-                    value={displayName}
-                    onChange={(e) => { setDisplayName(e.target.value); setSaveError(null) }}
-                    onKeyDown={(e) => { if (e.key === 'Enter') handleSave() }}
-                    minLength={3}
-                    maxLength={20}
-                    placeholder="your display name"
-                    className="flex-1 bg-transparent font-body font-normal text-primary placeholder:text-tertiary focus:outline-none leading-normal"
-                    style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
-                  />
-                </div>
-              </div>
-
-              {/* Status input */}
-              <div className="flex flex-col gap-[var(--space-3)] w-full">
-                <p className="font-body font-medium text-primary tracking-[0.2px] leading-normal" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}>
-                  Status
-                </p>
-                <div
-                  className="bg-black border h-[48px] flex items-center overflow-hidden px-3 w-full"
-                  style={{ borderColor: 'var(--color-border-hover)' }}
-                >
-                  <input
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value.slice(0, 100))}
-                    placeholder="Whats the mood today..."
-                    className="flex-1 bg-transparent font-body font-normal text-primary placeholder:text-tertiary focus:outline-none leading-normal"
-                    style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
-                  />
-                </div>
-              </div>
-
-              </div>{/* end editable fields */}
-
-              {/* Save error */}
-              {saveError && (
-                <p className="font-pixel text-[8px] text-[#ef4444] -mt-4">{saveError}</p>
-              )}
-
-              {/* Action buttons */}
-              <div className="flex flex-col gap-[var(--space-5)] w-full">
+                {/* Save Changes button */}
                 <Button
                   onClick={handleSave}
                   disabled={saving || !displayName.trim() || displayName.trim().length < 3}
@@ -428,9 +371,6 @@ function EditProfileSheet({
                   className="w-full"
                 >
                   Save Changes
-                </Button>
-                <Button variant="outlined" color="red" onClick={onClose} disabled={saving} className="w-full">
-                  Cancel
                 </Button>
               </div>
             </div>
@@ -749,6 +689,7 @@ export function ProfileClient({
 
   // ── Notifications ─────────────────────────────────────────────────────────
   const [showNotifSheet, setShowNotifSheet] = useState(false)
+  const [showDevSheet,   setShowDevSheet]   = useState(false)
   const [prefs,          setPrefs]          = useState<NotifPrefs>({ messages: true, raids: true, victory: true, mentions: true })
 
   const fetchPrefs = useCallback(async () => {
@@ -865,52 +806,16 @@ export function ProfileClient({
 
           {/* Details row */}
           <div className="flex items-center gap-[var(--space-5)] w-full">
-            {/* Avatar 56×56 — tappable */}
-            <div className="flex-shrink-0 flex flex-col items-center gap-1">
-              <button
-                onClick={() => !isGuest && fileInputRef.current?.click()}
-                disabled={isGuest}
-                className="relative overflow-hidden group bg-border"
-                style={{ width: 56, height: 56 }}
-                aria-label="Change photo"
-              >
-                {localAvatarUrl ? (
-                  <Image src={resolveAvatarUrl(localAvatarUrl, 56)} alt={localUsername} fill sizes="56px" className="object-cover" priority unoptimized={isSupabaseStorage(localAvatarUrl)} />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <span className="font-pixel text-[12px] text-purple">{initial}</span>
-                  </div>
-                )}
-                {!isGuest && (
-                  <div className="absolute inset-0 bg-black/55 flex items-center justify-center opacity-0 group-hover:opacity-100 group-active:opacity-100 transition-opacity pointer-events-none">
-                    <span className="font-pixel text-[6px] text-white text-center leading-relaxed">CHANGE<br />PHOTO</span>
-                  </div>
-                )}
-              </button>
-              {localCustomAvatar && !isGuest && (
-                <button
-                  onClick={handleResetAvatar}
-                  disabled={resettingAvatar}
-                  className="font-silkscreen text-muted leading-none whitespace-nowrap disabled:opacity-40"
-                  style={{ fontSize: 7 }}
-                >
-                  {resettingAvatar ? '...' : 'Use Google photo'}
-                </button>
+            {/* Avatar 56×56 — display only */}
+            <div className="flex-shrink-0 relative overflow-hidden bg-border" style={{ width: 56, height: 56 }}>
+              {localAvatarUrl ? (
+                <Image src={resolveAvatarUrl(localAvatarUrl, 56)} alt={localUsername} fill sizes="56px" className="object-cover" priority unoptimized={isSupabaseStorage(localAvatarUrl)} />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <span className="font-pixel text-[12px] text-purple">{initial}</span>
+                </div>
               )}
             </div>
-
-            {/* Hidden file input */}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0]
-                if (f) setPendingFile(f)
-                e.target.value = ''
-              }}
-            />
 
             {/* Name + stats */}
             <div className="flex-1 min-w-0 flex flex-col gap-[var(--space-2)] justify-center leading-none">
@@ -971,51 +876,17 @@ export function ProfileClient({
           </div>
         </div>
 
-        {/* Edit cover button — top-right, mirrors back button position */}
-        {!isGuest && (
-          <div className="absolute z-20 pointer-events-none flex flex-col items-end gap-1" style={{ top: 'calc(env(safe-area-inset-top, 0px) + 18px)', right: 16 }}>
-            <button
-              className="pointer-events-auto flex items-center bg-surface border border-purple p-2 overflow-hidden"
-              style={{ boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)' }}
-              onClick={() => bgFileInputRef.current?.click()}
-            >
-              <span className="font-pixel leading-none" style={{ fontSize: 6, color: 'var(--color-purple)' }}>EDIT COVER</span>
-            </button>
-            {localBackgroundUrl && (
-              <button
-                onClick={handleResetBackground}
-                disabled={resettingBg}
-                className="pointer-events-auto font-silkscreen text-muted leading-none whitespace-nowrap disabled:opacity-40"
-                style={{ fontSize: 7 }}
-              >
-                {resettingBg ? '...' : 'Use default'}
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* Hidden background file input */}
-        <input
-          ref={bgFileInputRef}
-          type="file"
-          accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif"
-          className="hidden"
-          onChange={(e) => {
-            const f = e.target.files?.[0]
-            if (f) setPendingBgFile(f)
-            e.target.value = ''
-          }}
-        />
       </div>
 
       {/* ── Status ticker — full-width row between hero and body ──────────── */}
       {localStatus && <ProfileStatusTicker status={localStatus} />}
 
       {/* ── Scrollable body ─────────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto flex flex-col gap-[var(--space-7)] nexus-scroll" style={{ padding: 'var(--space-7) var(--space-5)' }}>
-
-        {/* Menu rows */}
-        <div className="flex flex-col" style={{ gap: 'var(--space-7)' }}>
+      <div
+        className="flex-1 overflow-y-auto flex flex-col nexus-scroll"
+        style={{ padding: '24px 16px', paddingBottom: 'max(env(safe-area-inset-bottom), 24px)' }}
+      >
+        <div className="flex flex-col" style={{ gap: 24 }}>
 
           {/* Edit Profile */}
           <button
@@ -1069,12 +940,26 @@ export function ProfileClient({
             <ChevronRight style={{ width: 16, height: 16, color: 'var(--color-tertiary)', flexShrink: 0 }} aria-hidden="true" />
           </button>
 
+          {/* Developer Page — dev users only */}
+          {isDev && (
+            <button
+              onClick={() => setShowDevSheet(true)}
+              className="w-full flex gap-3 items-center text-left"
+            >
+              <Terminal style={{ width: 16, height: 16, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
+              <div className="flex-1 min-w-0 flex flex-col gap-0 leading-[0] tracking-[0.2px]">
+                <p className="font-body font-semibold text-secondary leading-normal" style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}>
+                  Developer Page
+                </p>
+                <p className="font-body font-normal text-tertiary leading-normal" style={{ fontSize: 'var(--text-xxs)', fontVariationSettings: '"opsz" 14' }}>
+                  Debug, Manage, and Test new features
+                </p>
+              </div>
+              <ChevronRight style={{ width: 16, height: 16, color: 'var(--color-tertiary)', flexShrink: 0 }} aria-hidden="true" />
+            </button>
+          )}
+
         </div>
-
-        {/* Dev */}
-        {isDev && <DevSection userId={userId} />}
-
-        <div style={{ height: 'max(env(safe-area-inset-bottom), 16px)' }} />
       </div>
 
       {/* Edit Profile bottom sheet */}
@@ -1139,6 +1024,19 @@ export function ProfileClient({
         }}
       />
 
+      {/* Hidden background file input — used by EditProfileSheet's cover upload */}
+      <input
+        ref={bgFileInputRef}
+        type="file"
+        accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif"
+        style={{ position: 'fixed', top: -1, left: -1, width: 1, height: 1, opacity: 0, pointerEvents: 'none' }}
+        onChange={(e) => {
+          const f = e.target.files?.[0]
+          if (f) setPendingBgFile(f)
+          e.target.value = ''
+        }}
+      />
+
       {/* Background upload */}
       <BackgroundUploadModal
         file={pendingBgFile}
@@ -1158,6 +1056,46 @@ export function ProfileClient({
         onConfirm={handleDeleteAccount}
         confirming={deletingAccount}
       />
+
+      {/* Developer Page bottom sheet */}
+      <AnimatePresence>
+        {showDevSheet && (
+          <>
+            <motion.div
+              className="fixed inset-0 z-[48] bg-black/60"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowDevSheet(false)}
+            />
+            <motion.div
+              className="fixed bottom-0 left-0 right-0 z-[50] max-w-[480px] mx-auto"
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+            >
+              <div
+                className="bg-surface border-t overflow-y-auto nexus-scroll flex flex-col"
+                style={{
+                  borderColor: 'var(--color-border-hover)',
+                  maxHeight: '85vh',
+                  padding: 'var(--space-7) var(--space-5)',
+                  paddingBottom: 'max(env(safe-area-inset-bottom), var(--space-5))',
+                }}
+              >
+                <p
+                  className="font-body font-bold text-primary leading-none mb-6"
+                  style={{ fontSize: 'var(--text-lg)', fontVariationSettings: '"opsz" 14' }}
+                >
+                  Developer
+                </p>
+                <DevSection userId={userId} />
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </SlidePage>
   )
 }
