@@ -17,17 +17,9 @@ import { createClient } from '@/lib/supabase/client'
 import { signOut } from '@/lib/supabase/auth'
 import { revalidateProfileAction, resetAvatarAction, resetBackgroundAction, updateProfileDetailsAction, requestAccountDeletionAction, cancelAccountDeletionAction } from './actions'
 import { NotifSheet, type NotifPrefs } from '@/components/chat/NotifSheet'
-import {
-  getAllAnnouncementsAction,
-  createAnnouncementAction,
-  updateAnnouncementAction,
-  toggleAnnouncementAction,
-  deleteAnnouncementAction,
-} from '@/app/(app)/home/actions'
 import { AvatarUploadModal } from '@/components/ui/AvatarUploadModal'
 import { BackgroundUploadModal } from '@/components/ui/BackgroundUploadModal'
 import { Button } from '@/components/ui/Button'
-import type { Announcement } from '@/types'
 
 interface ProfileClientProps {
   userId:          string
@@ -689,7 +681,6 @@ export function ProfileClient({
 
   // ── Notifications ─────────────────────────────────────────────────────────
   const [showNotifSheet, setShowNotifSheet] = useState(false)
-  const [showDevSheet,   setShowDevSheet]   = useState(false)
   const [prefs,          setPrefs]          = useState<NotifPrefs>({ messages: true, raids: true, victory: true, mentions: true })
 
   const fetchPrefs = useCallback(async () => {
@@ -943,7 +934,7 @@ export function ProfileClient({
           {/* Developer Page — dev users only */}
           {isDev && (
             <button
-              onClick={() => setShowDevSheet(true)}
+              onClick={() => router.push('/profile/developer')}
               className="w-full flex gap-3 items-center text-left"
             >
               <Terminal style={{ width: 16, height: 16, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
@@ -1057,259 +1048,7 @@ export function ProfileClient({
         confirming={deletingAccount}
       />
 
-      {/* Developer Page bottom sheet */}
-      <AnimatePresence>
-        {showDevSheet && (
-          <>
-            <motion.div
-              className="fixed inset-0 z-[48] bg-black/60"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowDevSheet(false)}
-            />
-            <motion.div
-              className="fixed bottom-0 left-0 right-0 z-[50] max-w-[480px] mx-auto"
-              initial={{ y: '100%' }}
-              animate={{ y: 0 }}
-              exit={{ y: '100%' }}
-              transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-            >
-              <div
-                className="bg-surface border-t overflow-y-auto nexus-scroll flex flex-col"
-                style={{
-                  borderColor: 'var(--color-border-hover)',
-                  maxHeight: '85vh',
-                  padding: 'var(--space-7) var(--space-5)',
-                  paddingBottom: 'max(env(safe-area-inset-bottom), var(--space-5))',
-                }}
-              >
-                <p
-                  className="font-body font-bold text-primary leading-none mb-6"
-                  style={{ fontSize: 'var(--text-lg)', fontVariationSettings: '"opsz" 14' }}
-                >
-                  Developer
-                </p>
-                <DevSection userId={userId} />
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
     </SlidePage>
   )
 }
 
-// ─── Dev section ──────────────────────────────────────────────────────────────
-
-function DevSection({ userId }: { userId: string }) {
-  const router = useRouter()
-
-  const [devMode,      setDevMode]      = useState(false)
-  const [showPush,     setShowPush]     = useState(false)
-  const [infiniteCoins, setInfiniteCoins] = useState(false)
-  const [afkExp,        setAfkExp]        = useState(false)
-  const [actualCoins,  setActualCoins]  = useState<number | null>(null)
-  const [showBanners,  setShowBanners]  = useState(false)
-  const [banners,      setBanners]      = useState<Announcement[]>([])
-  const [bannersLoading, setBannersLoading] = useState(false)
-  const [editingId,    setEditingId]    = useState<string | null>(null)
-  const [editingText,  setEditingText]  = useState('')
-  const [newText,      setNewText]      = useState('')
-  const [addingBanner, setAddingBanner] = useState(false)
-  const [bannerError,  setBannerError]  = useState<string | null>(null)
-
-  async function loadBanners() {
-    setBannersLoading(true)
-    const result = await getAllAnnouncementsAction()
-    setBannersLoading(false)
-    if ('data' in result) setBanners(result.data ?? [])
-  }
-
-  async function handleCreateBanner() {
-    if (!newText.trim() || addingBanner) return
-    setAddingBanner(true)
-    setBannerError(null)
-    const result = await createAnnouncementAction(newText.trim())
-    setAddingBanner(false)
-    if (result.error) { setBannerError(result.error); return }
-    setNewText('')
-    loadBanners()
-  }
-
-  async function handleUpdateBanner(id: string) {
-    if (!editingText.trim()) return
-    const result = await updateAnnouncementAction(id, editingText.trim())
-    if (result.error) { setBannerError(result.error); return }
-    setEditingId(null)
-    loadBanners()
-  }
-
-  async function handleToggleBanner(id: string, active: boolean) {
-    const result = await toggleAnnouncementAction(id, !active)
-    if (result.error) setBannerError(result.error)
-    else loadBanners()
-  }
-
-  async function handleDeleteBanner(id: string) {
-    const result = await deleteAnnouncementAction(id)
-    if (result.error) setBannerError(result.error)
-    else {
-      setBanners(prev => prev.filter(b => b.id !== id))
-    }
-  }
-
-  useEffect(() => {
-    setDevMode(localStorage.getItem('nexus_dev_mode') === '1')
-    setShowPush(localStorage.getItem('nexus_push_diag') === '1')
-    setInfiniteCoins(localStorage.getItem('nexus_infinite_coins') === '1')
-    setAfkExp(localStorage.getItem('nexus_afk_exp') === '1')
-    const supabase = createClient()
-    supabase.from('profiles').select('coins').eq('id', userId).maybeSingle().then(({ data }) => {
-      if (data) setActualCoins((data as { coins: number }).coins)
-    })
-  }, [userId])
-
-  useEffect(() => {
-    if (showBanners) loadBanners()
-  }, [showBanners]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  function toggleDevMode() {
-    const next = !devMode
-    setDevMode(next)
-    if (next) localStorage.setItem('nexus_dev_mode', '1')
-    else localStorage.removeItem('nexus_dev_mode')
-  }
-
-  function toggleShowPush() {
-    const next = !showPush
-    setShowPush(next)
-    if (next) localStorage.setItem('nexus_push_diag', '1')
-    else localStorage.removeItem('nexus_push_diag')
-    window.dispatchEvent(new CustomEvent('nexus-push-diag-change', { detail: { on: next } }))
-  }
-
-  function toggleInfiniteCoins() {
-    const next = !infiniteCoins
-    setInfiniteCoins(next)
-    if (next) localStorage.setItem('nexus_infinite_coins', '1')
-    else localStorage.removeItem('nexus_infinite_coins')
-    window.dispatchEvent(new CustomEvent('nexus-infinite-coins-change', { detail: { on: next } }))
-  }
-
-  function toggleAfkExp() {
-    const next = !afkExp
-    setAfkExp(next)
-    if (next) localStorage.setItem('nexus_afk_exp', '1')
-    else localStorage.removeItem('nexus_afk_exp')
-    window.dispatchEvent(new CustomEvent('nexus-afk-exp-change', { detail: { on: next } }))
-  }
-
-  const rowClass  = 'flex items-center justify-between px-4 py-4 gap-4'
-  const labelClass = 'font-body font-medium text-[14px] tracking-[0.2px] leading-normal'
-
-  return (
-    <div className="flex flex-col gap-2">
-      <p className={labelClass} style={{ color: '#ffd700', fontVariationSettings: '"opsz" 14' }}>Dev</p>
-      <div className="bg-surface border border-[rgba(255,215,0,0.25)] overflow-hidden divide-y divide-border">
-
-        <div className={rowClass}>
-          <div className="flex-1 min-w-0 flex flex-col gap-0 leading-[0] tracking-[0.2px]">
-            <p className="font-body font-medium text-[14px] text-secondary leading-normal" style={{ fontVariationSettings: '"opsz" 14' }}>Spawn Boss Mode</p>
-            <p className="font-body font-normal text-[12px] text-tertiary leading-normal" style={{ fontVariationSettings: '"opsz" 14' }}>Shows boss spawn button in chat for testing</p>
-          </div>
-          <ToggleSwitch enabled={devMode} onChange={toggleDevMode} />
-        </div>
-
-        <div className={rowClass}>
-          <div className="flex-1 min-w-0 flex flex-col gap-0 leading-[0] tracking-[0.2px]">
-            <p className="font-body font-medium text-[14px] text-secondary leading-normal" style={{ fontVariationSettings: '"opsz" 14' }}>Push Diagnostics</p>
-            <p className="font-body font-normal text-[12px] text-tertiary leading-normal" style={{ fontVariationSettings: '"opsz" 14' }}>Show push subscription tools below</p>
-          </div>
-          <ToggleSwitch enabled={showPush} onChange={toggleShowPush} />
-        </div>
-
-        <div className={rowClass}>
-          <div className="flex-1 min-w-0 flex flex-col gap-0 leading-[0] tracking-[0.2px]">
-            <p className="font-body font-medium text-[14px] text-secondary leading-normal" style={{ fontVariationSettings: '"opsz" 14' }}>Infinite Coins</p>
-            <p className="font-body font-normal text-[12px] text-tertiary leading-normal" style={{ fontVariationSettings: '"opsz" 14' }}>
-              {infiniteCoins ? 'Unlimited coins (testing only)' : `Balance: ${actualCoins === null ? '...' : actualCoins.toLocaleString()} coins`}
-            </p>
-          </div>
-          <ToggleSwitch enabled={infiniteCoins} onChange={toggleInfiniteCoins} />
-        </div>
-
-        <div className={rowClass}>
-          <div className="flex-1 min-w-0 flex flex-col gap-0 leading-[0] tracking-[0.2px]">
-            <p className="font-body font-medium text-[14px] text-secondary leading-normal" style={{ fontVariationSettings: '"opsz" 14' }}>Feat: AFK Exp</p>
-            <p className="font-body font-normal text-[12px] text-tertiary leading-normal" style={{ fontVariationSettings: '"opsz" 14' }}>Show AFK XP bar and Claim button on home screen</p>
-          </div>
-          <ToggleSwitch enabled={afkExp} onChange={toggleAfkExp} />
-        </div>
-
-        <button
-          onClick={() => router.push('/profile/error-logs')}
-          className={`${rowClass} border-b border-border w-full text-left`}
-        >
-          <div className="flex-1 min-w-0 flex flex-col gap-0 leading-[0] tracking-[0.2px]">
-            <p className="font-body font-medium text-[14px] text-secondary leading-normal" style={{ fontVariationSettings: '"opsz" 14' }}>Error Logs</p>
-            <p className="font-body font-normal text-[12px] text-tertiary leading-normal" style={{ fontVariationSettings: '"opsz" 14' }}>View client errors from all Google users</p>
-          </div>
-          <ChevronRight style={{ width: 16, height: 16, color: 'var(--color-tertiary)', flexShrink: 0 }} aria-hidden="true" />
-        </button>
-
-        <div className="px-4 py-4 flex flex-col gap-3">
-          <button onClick={() => setShowBanners(v => !v)} className="flex items-center justify-between w-full">
-            <p className="font-body font-medium text-[14px] text-secondary leading-normal tracking-[0.2px]" style={{ fontVariationSettings: '"opsz" 14' }}>Announcements</p>
-            <span className="font-pixel text-[8px] transition-colors" style={{ color: '#ffd700' }}>
-              {showBanners ? '▲ HIDE' : '▼ MANAGE'}
-            </span>
-          </button>
-
-          {showBanners && (
-            <div className="flex flex-col gap-3">
-              {bannerError && <p className="font-pixel text-[7px] text-[#ff4444] leading-none">{bannerError}</p>}
-              {bannersLoading ? (
-                <p className="font-pixel text-[7px] text-muted">Loading...</p>
-              ) : banners.length === 0 ? (
-                <p className="font-pixel text-[7px] text-muted">No announcements yet.</p>
-              ) : (
-                <div className="flex flex-col gap-2">
-                  {banners.map((b) => (
-                    <div key={b.id} className="border flex flex-col gap-2 p-3" style={{ borderColor: b.active ? 'rgba(168,85,247,0.4)' : 'rgba(255,255,255,0.1)', background: b.active ? 'rgba(168,85,247,0.06)' : 'rgba(255,255,255,0.02)' }}>
-                      {editingId === b.id ? (
-                        <div className="flex flex-col gap-2">
-                          <textarea value={editingText} onChange={(e) => setEditingText(e.target.value.slice(0, 500))} className="w-full bg-black border border-border px-3 py-2 font-body text-[13px] text-primary resize-none focus:outline-none focus:border-purple" rows={3} maxLength={500} autoFocus />
-                          <div className="flex gap-2">
-                            <button onClick={() => handleUpdateBanner(b.id)} className="flex-1 h-8 font-pixel text-[7px] border" style={{ color: '#66bb6a', borderColor: 'rgba(102,187,106,0.4)', background: 'rgba(102,187,106,0.08)' }}>SAVE</button>
-                            <button onClick={() => { setEditingId(null); setBannerError(null) }} className="flex-1 h-8 font-pixel text-[7px] border" style={{ color: '#ffd700', borderColor: 'rgba(255,215,0,0.3)', background: 'rgba(255,215,0,0.06)' }}>CANCEL</button>
-                          </div>
-                        </div>
-                      ) : (
-                        <>
-                          <p className="font-body text-[13px] leading-snug" style={{ color: b.active ? 'var(--color-primary)' : 'var(--color-muted)', fontVariationSettings: '"opsz" 14' }}>{b.text}</p>
-                          <div className="flex items-center gap-2">
-                            <button onClick={() => handleToggleBanner(b.id, b.active)} className="font-pixel text-[7px] px-2 py-1 border transition-colors" style={{ color: b.active ? '#66bb6a' : '#a1a1aa', borderColor: b.active ? 'rgba(102,187,106,0.4)' : 'rgba(161,161,170,0.3)', background: b.active ? 'rgba(102,187,106,0.08)' : 'rgba(161,161,170,0.06)' }}>{b.active ? 'ACTIVE' : 'INACTIVE'}</button>
-                            <button onClick={() => { setEditingId(b.id); setEditingText(b.text); setBannerError(null) }} className="font-pixel text-[7px] px-2 py-1 border" style={{ color: '#ffd700', borderColor: 'rgba(255,215,0,0.3)', background: 'rgba(255,215,0,0.06)' }}>EDIT</button>
-                            <button onClick={() => handleDeleteBanner(b.id)} className="font-pixel text-[7px] px-2 py-1 border ml-auto" style={{ color: '#ef4444', borderColor: 'rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.06)' }}>DELETE</button>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-              <div className="flex flex-col gap-2">
-                <textarea value={newText} onChange={(e) => setNewText(e.target.value.slice(0, 500))} placeholder="New announcement text..." className="w-full bg-black border border-border px-3 py-2 font-body text-[13px] text-primary placeholder:text-muted resize-none focus:outline-none focus:border-purple" rows={2} maxLength={500} />
-                <button onClick={handleCreateBanner} disabled={!newText.trim() || addingBanner} className="w-full h-9 font-pixel text-[8px] border transition-colors disabled:opacity-40" style={{ color: '#ffd700', borderColor: 'rgba(255,215,0,0.3)', background: 'rgba(255,215,0,0.06)' }}>
-                  {addingBanner ? '...' : '+ ADD ANNOUNCEMENT'}
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-
-      </div>
-    </div>
-  )
-}
