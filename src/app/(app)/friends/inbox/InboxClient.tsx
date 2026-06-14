@@ -105,7 +105,7 @@ export function InboxClient({ incomingRequests: initialIncoming, outgoingRequest
 
       {/* ── Header ── */}
       <div
-        className="bg-black border-b border-border flex-shrink-0"
+        className="bg-black flex-shrink-0"
         style={{
           paddingLeft: 'var(--space-5)',
           paddingRight: 'var(--space-5)',
@@ -147,11 +147,11 @@ export function InboxClient({ incomingRequests: initialIncoming, outgoingRequest
               return (
                 <div
                   key={entry.friendship.id}
-                  className="flex flex-col"
+                  className="flex flex-col overflow-hidden"
                   style={{
                     background: 'rgba(17,17,17,0.5)',
                     border: '1px solid var(--color-surface)',
-                    borderRadius: 8,
+                    borderRadius: 'var(--space-3)',
                     padding: 'var(--space-5)',
                     gap: 'var(--space-5)',
                   }}
@@ -179,7 +179,7 @@ export function InboxClient({ incomingRequests: initialIncoming, outgoingRequest
                       onClick={() => handleAccept(entry)}
                       className="flex-1 flex items-center justify-center overflow-hidden disabled:opacity-50 active:opacity-70"
                       style={{
-                        background: '#22c55e',
+                        background: 'var(--green)',
                         boxShadow: '4px 4px 0px 0px rgba(34,197,94,0.5)',
                         gap: 'var(--space-2)',
                         paddingLeft: 'var(--space-5)',
@@ -198,7 +198,7 @@ export function InboxClient({ incomingRequests: initialIncoming, outgoingRequest
                       onClick={() => handleDecline(entry)}
                       className="flex-1 flex items-center justify-center overflow-hidden disabled:opacity-50 active:opacity-70"
                       style={{
-                        background: '#ef4444',
+                        background: 'var(--red)',
                         boxShadow: '4px 4px 0px 0px rgba(239,68,68,0.5)',
                         gap: 'var(--space-2)',
                         paddingLeft: 'var(--space-5)',
@@ -223,11 +223,11 @@ export function InboxClient({ incomingRequests: initialIncoming, outgoingRequest
               return (
                 <div
                   key={entry.friendship.id}
-                  className="flex flex-col"
+                  className="flex flex-col overflow-hidden"
                   style={{
                     background: 'rgba(17,17,17,0.5)',
                     border: '1px solid var(--color-surface)',
-                    borderRadius: 8,
+                    borderRadius: 'var(--space-3)',
                     padding: 'var(--space-5)',
                     gap: 'var(--space-5)',
                   }}
@@ -242,7 +242,7 @@ export function InboxClient({ incomingRequests: initialIncoming, outgoingRequest
                       >
                         {entry.profile?.username ?? '—'}
                       </span>
-                      <span className="font-silkscreen text-[length:var(--text-xxs)] leading-normal" style={{ color: 'var(--color-blue)' }}>
+                      <span className="font-silkscreen text-[length:var(--text-xxs)] leading-normal" style={{ color: 'var(--blue)' }}>
                         Sent Friend REQUEST
                       </span>
                     </div>
@@ -254,8 +254,8 @@ export function InboxClient({ incomingRequests: initialIncoming, outgoingRequest
                     onClick={() => handleCancel(entry)}
                     className="w-full flex items-center justify-center overflow-hidden disabled:opacity-50 active:opacity-70"
                     style={{
-                      background: 'black',
-                      border: '1px solid var(--color-purple)',
+                      background: 'var(--background)',
+                      border: '1px solid var(--purple)',
                       boxShadow: '4px 4px 0px 0px rgba(168,85,247,0.5)',
                       gap: 'var(--space-2)',
                       paddingLeft: 'var(--space-5)',
@@ -264,8 +264,8 @@ export function InboxClient({ incomingRequests: initialIncoming, outgoingRequest
                       paddingBottom: 'var(--space-4)',
                     }}
                   >
-                    <Close style={{ width: 12, height: 12, color: 'var(--color-purple)', flexShrink: 0 }} aria-hidden="true" />
-                    <span className="font-silkscreen text-[length:var(--text-xxs)] text-purple whitespace-nowrap leading-none">
+                    <Close style={{ width: 12, height: 12, color: 'var(--purple)', flexShrink: 0 }} aria-hidden="true" />
+                    <span className="font-silkscreen text-[length:var(--text-xxs)] whitespace-nowrap leading-none" style={{ color: 'var(--purple)' }}>
                       {loading ? '...' : 'Cancel request'}
                     </span>
                   </button>
