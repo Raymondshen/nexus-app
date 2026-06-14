@@ -38,6 +38,8 @@ export function SlidePage({ children, className, style, backHref, nativeSwipe }:
   const controls     = useAnimation()
   const exiting      = useRef(false)
   const containerRef = useRef<HTMLDivElement>(null)
+  // Read synchronously at render time so initial= is correct on first paint.
+  const skipEnter    = _skipNextSlideEnter
 
   const goBack = useCallback(() => {
     if (exiting.current) return
@@ -53,9 +55,8 @@ export function SlidePage({ children, className, style, backHref, nativeSwipe }:
   }, [controls, router, backHref]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (_skipNextSlideEnter) {
+    if (skipEnter) {
       _skipNextSlideEnter = false
-      controls.set({ x: 0 })
     } else {
       controls.start({
         x: 0,
@@ -145,7 +146,7 @@ export function SlidePage({ children, className, style, backHref, nativeSwipe }:
         ref={containerRef}
         className={className}
         style={style}
-        initial={{ x: '100%' }}
+        initial={{ x: skipEnter ? 0 : '100%' }}
         animate={controls}
       >
         {children}
