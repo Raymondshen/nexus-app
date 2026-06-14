@@ -216,10 +216,11 @@ Typing `/` triggers a command picker. Filtered as you type; Escape clears; Enter
 - `birthdaysCommandAction` (`chat/actions.ts`): inserts a `message_type: 'system'` message with upcoming birthday info. Birthday system messages get purple-tinted styling (`bg-[#1a0d2e] border-[#a855f7]/30`).
 
 ### ChatInput — input bar behavior
-- **Poll icon**: wrapped in `motion.div`; animates `width` 32→0, `opacity` 1→0, `x` 0→-8 when `isFocused`; spring stiffness 320, damping 28; `pointerEvents: none` when hidden. Slides back in on blur.
+- **Poll icon**: wrapped in `motion.div`; animates `width` 16→0, `opacity` 1→0, `marginRight` 0→-16 when `isFocused` (negative margin cancels the flex gap so active left padding stays 16px); spring stiffness 320, damping 28; `pointerEvents: none` when hidden. Slides back in on blur.
 - **Textarea auto-expand**: `handleInput` sets `height: auto` then `min(scrollHeight, 91)px` — max 3 lines (DM Sans 14px × 1.5 line-height = 21px/line; 3×21 + 14+14 padding = 91px). `rows={1}` baseline. `overflowY: 'auto', overflowX: 'hidden'` on textarea — content beyond 3 lines scrolls within the 91px cap.
-- **Input bar**: `minHeight: 48`, `items-center` — vertically centers poll icon, textarea, and send button so placeholder aligns with adjacent icons at single-line height.
-- **Outer container padding**: `paddingTop: var(--space-4)` (12px) to match Figma spec.
+- **Input bar**: two visual states — inactive (`border-border`) and active/focused (`border-purple`); no raid-specific border color. `paddingLeft/Right: var(--space-5)` (16px), `gap: var(--space-5)` (16px), `minHeight: 48`. Icons are 16×16 on both sides.
+- **Placeholder text**: group chat → `'Message the squad...'`; DM → `'Send a message...'`; raid → `'Attack The Void...'`.
+- **Outer container padding**: `paddingTop: var(--space-4)` (12px).
 
 ### ChatInput — send flow
 `insert_message` RPC → `addMessage` (optimistic) → broadcast slim payload → `award-xp` edge function → `attack-boss` (if raid active)

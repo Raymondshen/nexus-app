@@ -817,17 +817,17 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
 
           <div
             className="border flex items-center overflow-hidden transition-colors"
-            style={{ borderColor: inRaid ? 'rgba(255,34,0,0.4)' : isFocused ? 'var(--color-purple)' : 'var(--color-border)', paddingLeft: 8, paddingRight: 'var(--space-5)', gap: 8, minHeight: 48 }}
+            style={{ borderColor: isFocused ? 'var(--color-purple)' : 'var(--color-border)', paddingLeft: 'var(--space-5)', paddingRight: 'var(--space-5)', gap: 'var(--space-5)', minHeight: 48 }}
           >
             <motion.div
               className="flex-shrink-0 overflow-hidden flex items-center"
-              animate={{ width: isFocused ? 0 : 32, opacity: isFocused ? 0 : 1, x: isFocused ? -8 : 0 }}
+              animate={{ width: isFocused ? 0 : 16, opacity: isFocused ? 0 : 1, marginRight: isFocused ? -16 : 0 }}
               transition={{ type: 'spring', stiffness: 320, damping: 28 }}
               style={{ pointerEvents: isFocused ? 'none' : 'auto' }}
             >
               <button
                 onClick={() => setShowPollCreator(true)}
-                className="flex-shrink-0 flex items-center justify-center w-8 h-8 text-tertiary active:text-purple"
+                className="flex-shrink-0 flex items-center justify-center w-4 h-4 text-tertiary active:text-purple"
                 aria-label="Create poll"
               >
                 <Chart style={{ width: 16, height: 16 }} aria-hidden="true" />
@@ -849,7 +849,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                 onChange={handleInput}
                 onKeyDown={handleKeyDown}
                 onBlur={handleBlur}
-                placeholder={inRaid ? 'Attack The Void...' : 'Send a message...'}
+                placeholder={inRaid ? 'Attack The Void...' : isDM ? 'Send a message...' : 'Message the squad...'}
                 rows={1}
                 onFocus={() => setIsFocused(true)}
                 className="relative w-full bg-transparent font-body text-[14px] placeholder:text-muted resize-none focus:outline-none leading-normal"

@@ -255,16 +255,16 @@ function AccountPreviewContainer({
       <div className="flex" style={{ gap: 'var(--space-5)' }}>
         <button
           onClick={(e) => { e.stopPropagation(); onFriends() }}
-          className="flex-1 flex items-center justify-center font-silkscreen text-[length:var(--text-mini)] text-purple leading-none border border-purple bg-black active:opacity-70 transition-opacity"
-          style={{ gap: 'var(--space-2)', padding: '8px 16px', boxShadow: '2px 2px 0px 0px rgba(168,85,247,0.5)' }}
+          className="flex-1 flex items-center justify-center font-silkscreen text-[length:var(--text-xxs)] text-purple leading-none border border-purple bg-black active:opacity-70 transition-opacity"
+          style={{ gap: 'var(--space-2)', padding: '12px 16px', boxShadow: '2px 2px 0px 0px rgba(168,85,247,0.5)' }}
         >
           <UserPlus style={{ width: 12, height: 12, color: 'var(--color-purple)' }} aria-hidden="true" />
           friends
         </button>
         <button
           onClick={(e) => { e.stopPropagation(); onInviteSquad() }}
-          className="flex-1 flex items-center justify-center font-silkscreen text-[length:var(--text-mini)] text-primary leading-none bg-purple active:opacity-70 transition-opacity"
-          style={{ gap: 'var(--space-2)', padding: '8px 16px', boxShadow: '2px 2px 0px 0px rgba(168,85,247,0.5)' }}
+          className="flex-1 flex items-center justify-center font-silkscreen text-[length:var(--text-xxs)] text-primary leading-none bg-purple active:opacity-70 transition-opacity"
+          style={{ gap: 'var(--space-2)', padding: '12px 16px', boxShadow: '2px 2px 0px 0px rgba(168,85,247,0.5)' }}
         >
           <Copy style={{ width: 12, height: 12, color: 'var(--color-primary)' }} aria-hidden="true" />
           Invite squad
