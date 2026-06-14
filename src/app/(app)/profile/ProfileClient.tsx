@@ -9,6 +9,7 @@ import { Message } from 'pixelarticons/react/Message'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
 import { MagicEdit } from 'pixelarticons/react/MagicEdit'
 import { Bell } from 'pixelarticons/react/Bell'
+import { User } from 'pixelarticons/react/User'
 import Image from 'next/image'
 import { isSupabaseStorage, resolveAvatarUrl } from '@/components/ui/Avatar'
 import { createClient } from '@/lib/supabase/client'
@@ -551,6 +552,133 @@ function DeleteAccountSheet({
   )
 }
 
+// ─── Account Details bottom sheet ────────────────────────────────────────────
+
+function AccountDetailsSheet({
+  isOpen,
+  onClose,
+  userEmail,
+  isGuest,
+  deletePending,
+  localDeleteAt,
+  loggingOut,
+  onLogout,
+  cancellingDelete,
+  onCancelDeletion,
+  onOpenDeleteSheet,
+}: {
+  isOpen:            boolean
+  onClose:           () => void
+  userEmail:         string
+  isGuest:           boolean
+  deletePending:     boolean
+  localDeleteAt:     string | null
+  loggingOut:        boolean
+  onLogout:          () => void
+  cancellingDelete:  boolean
+  onCancelDeletion:  () => void
+  onOpenDeleteSheet: () => void
+}) {
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <>
+          <motion.div
+            className="fixed inset-0 z-[48] bg-black/60"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+          />
+          <motion.div
+            className="fixed bottom-0 left-0 right-0 z-[50] max-w-[480px] mx-auto"
+            initial={{ y: '100%' }}
+            animate={{ y: 0 }}
+            exit={{ y: '100%' }}
+            transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+          >
+            <div
+              className="bg-surface border-t overflow-hidden flex flex-col gap-[var(--space-7)]"
+              style={{
+                borderColor: 'var(--color-border-hover)',
+                padding: 'var(--space-7) var(--space-5)',
+                paddingBottom: 'max(env(safe-area-inset-bottom), var(--space-5))',
+              }}
+            >
+              <p
+                className="font-body font-bold text-primary leading-none"
+                style={{ fontSize: 'var(--text-lg)', fontVariationSettings: '"opsz" 14' }}
+              >
+                Account
+              </p>
+
+              <div className="flex flex-col gap-[var(--space-2)]">
+                <SectionLabel>Signed in as</SectionLabel>
+                <p
+                  className="font-body font-normal leading-normal tracking-[0.2px]"
+                  style={{ fontSize: 'var(--text-xs)', color: 'var(--color-paper-200)', fontVariationSettings: '"opsz" 14' }}
+                >
+                  {'Signed in with '}
+                  <span style={{ color: 'var(--color-primary)' }}>{userEmail}</span>
+                </p>
+              </div>
+
+              {deletePending && localDeleteAt && (
+                <div
+                  className="flex flex-col gap-[var(--space-2)] p-[var(--space-4)]"
+                  style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 4 }}
+                >
+                  <p className="font-silkscreen leading-relaxed" style={{ fontSize: 'var(--text-mini)', color: '#ef4444' }}>
+                    Account deletion scheduled
+                  </p>
+                  <p className="font-body font-normal leading-normal tracking-[0.2px]" style={{ fontSize: 'var(--text-xxs)', color: 'var(--color-secondary)', fontVariationSettings: '"opsz" 14' }}>
+                    Permanent deletion on{' '}
+                    <span style={{ color: 'var(--color-primary)' }}>
+                      {new Date(localDeleteAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </span>
+                    . All data will be erased.
+                  </p>
+                  <button
+                    onClick={onCancelDeletion}
+                    disabled={cancellingDelete}
+                    className="self-start font-pixel leading-none disabled:opacity-50 transition-opacity hover:opacity-70"
+                    style={{ fontSize: 'var(--text-mini)', color: 'var(--color-primary)' }}
+                  >
+                    {cancellingDelete ? '...' : 'Cancel deletion'}
+                  </button>
+                </div>
+              )}
+
+              <div className="flex flex-col gap-[var(--space-5)]">
+                <button
+                  onClick={onLogout}
+                  disabled={loggingOut}
+                  className="w-full h-12 border border-[#ef4444] flex items-center justify-center transition-colors hover:bg-[#ef4444]/8 disabled:opacity-50 overflow-hidden"
+                >
+                  <span className="font-pixel leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-mini)', color: '#ef4444' }}>
+                    {loggingOut ? '...' : 'LOG OUT'}
+                  </span>
+                </button>
+
+                {!isGuest && !deletePending && (
+                  <button
+                    onClick={onOpenDeleteSheet}
+                    className="w-full h-12 border border-[#ef4444] flex items-center justify-center transition-colors hover:bg-[#ef4444]/8 overflow-hidden"
+                  >
+                    <span className="font-pixel leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-mini)', color: '#ef4444' }}>
+                      DELETE ACCOUNT
+                    </span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  )
+}
+
 // ─── BackButton (inside SlidePage context) ────────────────────────────────────
 
 function BackButton() {
@@ -614,9 +742,10 @@ export function ProfileClient({
   }
 
   // ── Profile edit sheet ────────────────────────────────────────────────────
-  const [showEditSheet,   setShowEditSheet]   = useState(false)
-  const [localUsername,   setLocalUsername]   = useState(initialUsername)
-  const [localStatus,     setLocalStatus]     = useState(initialStatus ?? '')
+  const [showEditSheet,    setShowEditSheet]    = useState(false)
+  const [showAccountSheet, setShowAccountSheet] = useState(false)
+  const [localUsername,    setLocalUsername]    = useState(initialUsername)
+  const [localStatus,      setLocalStatus]      = useState(initialStatus ?? '')
 
   // ── Notifications ─────────────────────────────────────────────────────────
   const [showNotifSheet, setShowNotifSheet] = useState(false)
@@ -883,17 +1012,16 @@ export function ProfileClient({
       {localStatus && <ProfileStatusTicker status={localStatus} />}
 
       {/* ── Scrollable body ─────────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto flex flex-col gap-[var(--space-7)] nexus-scroll" style={{ padding: 'var(--space-5)' }}>
+      <div className="flex-1 overflow-y-auto flex flex-col gap-[var(--space-7)] nexus-scroll" style={{ padding: 'var(--space-7) var(--space-5)' }}>
 
-        {/* Menu rows: Edit Profile + Notification */}
-        <div className="flex flex-col gap-4">
+        {/* Menu rows */}
+        <div className="flex flex-col" style={{ gap: 'var(--space-7)' }}>
 
           {/* Edit Profile */}
           <button
             onClick={() => setShowEditSheet(true)}
             disabled={isGuest}
-            className="w-full bg-surface border flex gap-3 items-center px-[var(--space-5)] py-3 text-left disabled:opacity-50"
-            style={{ borderColor: 'var(--color-border-hover)' }}
+            className="w-full flex gap-3 items-center text-left disabled:opacity-50"
           >
             <MagicEdit style={{ width: 16, height: 16, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
             <div className="flex-1 min-w-0 flex flex-col gap-0 leading-[0] tracking-[0.2px]">
@@ -907,11 +1035,27 @@ export function ProfileClient({
             <ChevronRight style={{ width: 16, height: 16, color: 'var(--color-tertiary)', flexShrink: 0 }} aria-hidden="true" />
           </button>
 
+          {/* Account Details */}
+          <button
+            onClick={() => setShowAccountSheet(true)}
+            className="w-full flex gap-3 items-center text-left"
+          >
+            <User style={{ width: 16, height: 16, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
+            <div className="flex-1 min-w-0 flex flex-col gap-0 leading-[0] tracking-[0.2px]">
+              <p className="font-body font-semibold text-secondary leading-normal" style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}>
+                Account Details
+              </p>
+              <p className="font-body font-normal text-tertiary leading-normal" style={{ fontSize: 'var(--text-xxs)', fontVariationSettings: '"opsz" 14' }}>
+                Signed in with {userEmail}
+              </p>
+            </div>
+            <ChevronRight style={{ width: 16, height: 16, color: 'var(--color-tertiary)', flexShrink: 0 }} aria-hidden="true" />
+          </button>
+
           {/* Notification */}
           <button
             onClick={() => setShowNotifSheet(true)}
-            className="w-full bg-surface border flex gap-3 items-center px-[var(--space-5)] py-3 text-left"
-            style={{ borderColor: 'var(--color-border-hover)' }}
+            className="w-full flex gap-3 items-center text-left"
           >
             <Bell style={{ width: 16, height: 16, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
             <div className="flex-1 min-w-0 flex flex-col gap-0 leading-[0] tracking-[0.2px]">
@@ -925,69 +1069,6 @@ export function ProfileClient({
             <ChevronRight style={{ width: 16, height: 16, color: 'var(--color-tertiary)', flexShrink: 0 }} aria-hidden="true" />
           </button>
 
-        </div>
-
-        {/* Account */}
-        <div className="flex flex-col gap-[var(--space-3)]">
-          <div className="flex flex-col gap-[var(--space-2)]">
-            <SectionLabel>Account</SectionLabel>
-            <p
-              className="font-body font-normal leading-normal tracking-[0.2px]"
-              style={{ fontSize: 'var(--text-xs)', color: 'var(--color-paper-200)', fontVariationSettings: '"opsz" 14' }}
-            >
-              {'Signed in with '}
-              <span style={{ color: 'var(--color-primary)' }}>{userEmail}</span>
-            </p>
-          </div>
-
-          {/* Pending deletion warning banner */}
-          {deletePending && localDeleteAt && (
-            <div
-              className="flex flex-col gap-[var(--space-2)] p-[var(--space-4)]"
-              style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 4 }}
-            >
-              <p className="font-silkscreen leading-relaxed" style={{ fontSize: 'var(--text-mini)', color: '#ef4444' }}>
-                Account deletion scheduled
-              </p>
-              <p className="font-body font-normal leading-normal tracking-[0.2px]" style={{ fontSize: 'var(--text-xxs)', color: 'var(--color-secondary)', fontVariationSettings: '"opsz" 14' }}>
-                Permanent deletion on{' '}
-                <span style={{ color: 'var(--color-primary)' }}>
-                  {new Date(localDeleteAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                </span>
-                . All data will be erased.
-              </p>
-              <button
-                onClick={handleCancelDeletion}
-                disabled={cancellingDelete}
-                className="self-start font-pixel leading-none disabled:opacity-50 transition-opacity hover:opacity-70"
-                style={{ fontSize: 'var(--text-mini)', color: 'var(--color-primary)' }}
-              >
-                {cancellingDelete ? '...' : 'Cancel deletion'}
-              </button>
-            </div>
-          )}
-
-          <button
-            onClick={handleLogout}
-            disabled={loggingOut}
-            className="w-full h-12 border border-[#ef4444] flex items-center justify-center transition-colors hover:bg-[#ef4444]/8 disabled:opacity-50 overflow-hidden"
-          >
-            <span className="font-pixel leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-mini)', color: '#ef4444' }}>
-              {loggingOut ? '...' : 'LOG OUT'}
-            </span>
-          </button>
-
-          {!isGuest && !deletePending && (
-            <button
-              onClick={() => setShowDeleteSheet(true)}
-              className="w-full h-12 border border-[#ef4444] flex items-center justify-center transition-colors hover:bg-[#ef4444]/8 overflow-hidden"
-              style={{ background: 'transparent' }}
-            >
-              <span className="font-pixel leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-mini)', color: '#ef4444' }}>
-                DELETE ACCOUNT
-              </span>
-            </button>
-          )}
         </div>
 
         {/* Dev */}
@@ -1017,6 +1098,21 @@ export function ProfileClient({
         memberSinceYear={memberSinceYear}
         groupChats={groupChats}
         totalMessages={totalMessages}
+      />
+
+      {/* Account Details bottom sheet */}
+      <AccountDetailsSheet
+        isOpen={showAccountSheet}
+        onClose={() => setShowAccountSheet(false)}
+        userEmail={userEmail}
+        isGuest={isGuest}
+        deletePending={deletePending}
+        localDeleteAt={localDeleteAt}
+        loggingOut={loggingOut}
+        onLogout={handleLogout}
+        cancellingDelete={cancellingDelete}
+        onCancelDeletion={handleCancelDeletion}
+        onOpenDeleteSheet={() => { setShowAccountSheet(false); setShowDeleteSheet(true) }}
       />
 
       {/* Notification bottom sheet */}

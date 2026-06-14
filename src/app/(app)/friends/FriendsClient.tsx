@@ -9,11 +9,10 @@ import { SlidePage, useSlideBack } from '@/components/ui/SlidePage'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { Search } from 'pixelarticons/react/Search'
 import { Inbox } from 'pixelarticons/react/Inbox'
-import { UserX } from 'pixelarticons/react/UserX'
 import { Message as MessageIcon } from 'pixelarticons/react/Message'
 import { createClient } from '@/lib/supabase/client'
 import { signInWithGoogle } from '@/lib/supabase/auth'
-import { sendFriendRequestAction, deleteFriendshipAction } from './actions'
+import { sendFriendRequestAction } from './actions'
 import type { Friendship, FriendProfile } from '@/types'
 
 function BackButton() {
@@ -25,7 +24,7 @@ function BackButton() {
       className="flex-shrink-0 flex items-center justify-center"
       style={{ width: 24, height: 40 }}
     >
-      <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-purple)' }} aria-hidden="true" />
+      <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
     </button>
   )
 }
@@ -131,27 +130,14 @@ function UserAvatar({ profile, size = 40 }: { profile: FriendProfile | null; siz
 function FriendCard({
   entry,
   onTap,
-  onRemove,
-  loading,
 }: {
-  entry:    FriendEntry
-  onTap:    () => void
-  onRemove: () => void
-  loading:  boolean
+  entry:   FriendEntry
+  onTap:   () => void
 }) {
   const status = entry.profile?.status
 
   return (
-    <div
-      className="flex flex-col overflow-hidden"
-      style={{
-        background: 'rgba(17,17,17,0.5)',
-        border: '1px solid var(--color-surface)',
-        borderRadius: 'var(--space-3)',
-        padding: 'var(--space-5)',
-        gap: 'var(--space-5)',
-      }}
-    >
+    <div className="flex flex-col overflow-hidden" style={{ gap: 'var(--space-3)' }}>
       {/* Details row */}
       <div className="flex items-center overflow-hidden" style={{ gap: 'var(--space-5)' }}>
         <button
@@ -178,24 +164,14 @@ function FriendCard({
           </span>
         </button>
 
-        {/* Action icons: unfriend + DM */}
-        <div className="flex items-center flex-shrink-0" style={{ gap: 'var(--space-6)' }}>
-          <button
-            onClick={onRemove}
-            disabled={loading}
-            className="disabled:opacity-50 active:opacity-70"
-            aria-label={`Unfriend ${entry.profile?.username}`}
-          >
-            <UserX style={{ width: 24, height: 24, color: 'var(--color-danger)' }} aria-hidden="true" />
-          </button>
-          <button
-            onClick={onTap}
-            className="active:opacity-70"
-            aria-label={`Message ${entry.profile?.username}`}
-          >
-            <MessageIcon style={{ width: 24, height: 24, color: 'var(--color-purple)' }} aria-hidden="true" />
-          </button>
-        </div>
+        {/* DM icon */}
+        <button
+          onClick={onTap}
+          className="flex-shrink-0 active:opacity-70"
+          aria-label={`Message ${entry.profile?.username}`}
+        >
+          <MessageIcon style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+        </button>
       </div>
 
       {/* Status ticker */}
@@ -263,18 +239,6 @@ export function FriendsClient({
     }
   }, [isGuest]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleRemoveFriend = useCallback(async (entry: FriendEntry) => {
-    addLoading(entry.friendship.id)
-    try {
-      const result = await deleteFriendshipAction(entry.friendship.id)
-      if (!result.error) {
-        setFriends((prev) => prev.filter((e) => e.friendship.id !== entry.friendship.id))
-      }
-    } finally {
-      removeLoading(entry.friendship.id)
-    }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
   const handleGoogleSignIn = useCallback(async () => {
     setGoogleLoading(true)
     try { await signInWithGoogle() } catch { setGoogleLoading(false) }
@@ -285,7 +249,7 @@ export function FriendsClient({
 
       {/* ── Header ── */}
       <div
-        className="bg-black border-b border-border flex-shrink-0"
+        className="bg-black flex-shrink-0"
         style={{ paddingLeft: 'var(--space-5)', paddingRight: 'var(--space-5)', paddingBottom: 'var(--space-3)', paddingTop: 'max(env(safe-area-inset-top), var(--space-3))' }}
       >
         <div className="flex items-center justify-between h-10">
@@ -332,7 +296,7 @@ export function FriendsClient({
       {/* ── Body ── */}
       <div
         className="flex-1 overflow-y-auto nexus-scroll flex flex-col"
-        style={{ paddingLeft: 'var(--space-5)', paddingRight: 'var(--space-5)', paddingTop: 'var(--space-5)', paddingBottom: 'var(--space-5)', gap: 'var(--space-7)' }}
+        style={{ paddingLeft: 'var(--space-5)', paddingRight: 'var(--space-5)', paddingTop: 'var(--space-5)', paddingBottom: 'var(--space-5)', gap: 'var(--space-5)' }}
       >
 
         {/* Search input */}
@@ -364,13 +328,7 @@ export function FriendsClient({
                   <div
                     key={profile.id}
                     className="flex flex-col overflow-hidden"
-                    style={{
-                      background: 'rgba(17,17,17,0.5)',
-                      border: '1px solid var(--color-surface)',
-                      borderRadius: 'var(--space-3)',
-                      padding: 'var(--space-5)',
-                      gap: 'var(--space-5)',
-                    }}
+                    style={{ gap: 'var(--space-3)' }}
                   >
                     <div className="flex items-center overflow-hidden" style={{ gap: 'var(--space-5)' }}>
                       <UserAvatar profile={profile} size={40} />
@@ -422,8 +380,6 @@ export function FriendsClient({
                   key={entry.friendship.id}
                   entry={entry}
                   onTap={() => { if (entry.profile) router.push(`/dm/${entry.profile.id}`) }}
-                  onRemove={() => handleRemoveFriend(entry)}
-                  loading={loadingIds.has(entry.friendship.id)}
                 />
               ))
             )}

@@ -20,7 +20,7 @@ function BackButton() {
       className="flex-shrink-0 flex items-center justify-center"
       style={{ width: 24, height: 40 }}
     >
-      <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-purple)' }} aria-hidden="true" />
+      <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
     </button>
   )
 }
@@ -148,13 +148,7 @@ export function InboxClient({ incomingRequests: initialIncoming, outgoingRequest
                 <div
                   key={entry.friendship.id}
                   className="flex flex-col overflow-hidden"
-                  style={{
-                    background: 'rgba(17,17,17,0.5)',
-                    border: '1px solid var(--color-surface)',
-                    borderRadius: 'var(--space-3)',
-                    padding: 'var(--space-5)',
-                    gap: 'var(--space-5)',
-                  }}
+                  style={{ gap: 'var(--space-3)' }}
                 >
                   {/* Profile details */}
                   <div className="flex items-center overflow-hidden" style={{ gap: 'var(--space-5)' }}>
@@ -166,8 +160,8 @@ export function InboxClient({ incomingRequests: initialIncoming, outgoingRequest
                       >
                         {entry.profile?.username ?? '—'}
                       </span>
-                      <span className="font-silkscreen text-[length:var(--text-xxs)] leading-normal" style={{ color: 'var(--color-coins)' }}>
-                        wants to be your friend
+                      <span className="font-silkscreen text-[length:var(--text-xxs)] leading-normal" style={{ color: 'var(--color-blue)' }}>
+                        Wants to be your friend
                       </span>
                     </div>
                   </div>
@@ -217,6 +211,11 @@ export function InboxClient({ incomingRequests: initialIncoming, outgoingRequest
               )
             })}
 
+            {/* ── Divider between sections ── */}
+            {incoming.length > 0 && outgoing.length > 0 && (
+              <div className="border-t border-border" />
+            )}
+
             {/* ── Outgoing requests ── */}
             {outgoing.map((entry) => {
               const loading = loadingIds.has(entry.friendship.id)
@@ -224,13 +223,7 @@ export function InboxClient({ incomingRequests: initialIncoming, outgoingRequest
                 <div
                   key={entry.friendship.id}
                   className="flex flex-col overflow-hidden"
-                  style={{
-                    background: 'rgba(17,17,17,0.5)',
-                    border: '1px solid var(--color-surface)',
-                    borderRadius: 'var(--space-3)',
-                    padding: 'var(--space-5)',
-                    gap: 'var(--space-5)',
-                  }}
+                  style={{ gap: 'var(--space-3)' }}
                 >
                   {/* Profile details */}
                   <div className="flex items-center overflow-hidden" style={{ gap: 'var(--space-5)' }}>
@@ -242,8 +235,8 @@ export function InboxClient({ incomingRequests: initialIncoming, outgoingRequest
                       >
                         {entry.profile?.username ?? '—'}
                       </span>
-                      <span className="font-silkscreen text-[length:var(--text-xxs)] leading-normal" style={{ color: 'var(--blue)' }}>
-                        Sent Friend REQUEST
+                      <span className="font-silkscreen text-[length:var(--text-xxs)] leading-normal" style={{ color: 'var(--color-coins)' }}>
+                        Sent friend request
                       </span>
                     </div>
                   </div>
