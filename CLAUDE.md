@@ -90,7 +90,7 @@ Coins are the invite currency. Earned by sending messages; spent to invite new m
 - New users receive 50-coin signup bonus from `handle_new_user` DB trigger; logged as `source='signup_bonus'`
 - Invite generation: costs 25 coins, server-validated; alphabet `ABCDEFGHJKLMNPQRSTUVWXYZ23456789`; up to 10 uniqueness retries
 - Seed coins: idempotent via `coin_log source='seed'` check
-- Balance in `profiles.coins`; displayed in home `AccountPreviewContainer` only (amber pill: `TokeCircle` 24×16px + Silkscreen 12px `#f59e0b`). Not shown in chat.
+- Balance in `profiles.coins`; displayed in home `AccountPreviewContainer` only (amber pill: `TokeCircle` 24×16px + Silkscreen 12px `var(--color-coins)`). Not shown in chat.
 - `chatStore` holds `userCoins`, `setUserCoins`, `addUserCoins`. `HomeClient` seeds from `Math.max(initialCoins, chatStore.userCoins)` on mount to prevent snapback. Realtime `postgres_changes` UPDATE on `profiles` keeps balance live.
 - Anti-spam: coins only awarded when `xpBlocked = false`
 
@@ -195,7 +195,7 @@ Consecutive messages from same user within 60 seconds are grouped (no repeated a
 - **Spacing**: first in group → `pt-[var(--space-6)] pb-0`; continuation → `pt-[var(--space-2)] pb-0`
 - **Avatar**: rendered for first in group only; continuations use `pl-10` offset
 - Pre-pass loop builds `groupXPMap` + `groupCoinMap`; group-leader bubble gets `xpOverride` prop
-- **Bubble header format**: `username · [dot] · class · [dot] · +XP XP` — class `#b3b3b3`, XP `#f59e0b`
+- **Bubble header format**: `username · [dot] · class · [dot] · +XP XP` — class `var(--color-paper-150)`, XP `var(--color-coins)`
 
 ### ChatInput — @mention system
 Typing `@` in the textarea triggers a member picker overlay (same visual pattern as `/` command picker).
@@ -213,7 +213,7 @@ Typing `/` triggers a command picker. Filtered as you type; Escape clears; Enter
 - **`SLASH_COMMANDS`**: `[{ name: 'birthdays', description: 'See upcoming squad birthdays' }]` — no emoji icon in picker UI
 - **Picker layout**: `absolute bottom-full left-0 right-0` inside the same `relative` input wrapper as the mention picker — overlays group details; outer container has `border border-border`; rows have `border-b border-border` except the last; `max-h-[220px]` scrollable
 - **Row anatomy**: command name in Silkscreen `var(--text-mini)` purple (`/name`); description in DM Sans `var(--text-xs)` tertiary; `p-2` padding; no icon
-- `birthdaysCommandAction` (`chat/actions.ts`): inserts a `message_type: 'system'` message with upcoming birthday info. Birthday system messages get purple-tinted styling (`bg-[#1a0d2e] border-[#a855f7]/30`).
+- `birthdaysCommandAction` (`chat/actions.ts`): inserts a `message_type: 'system'` message with upcoming birthday info. Birthday system messages get purple-tinted styling (`bg-[var(--color-system-msg)] border-[var(--color-purple)]/30`).
 
 ### ChatInput — input bar behavior
 - **Poll icon**: wrapped in `motion.div`; animates `width` 16→0, `opacity` 1→0, `marginRight` 0→-16 when `isFocused` (negative margin cancels the flex gap so active left padding stays 16px); spring stiffness 320, damping 28; `pointerEvents: none` when hidden. Slides back in on blur.
@@ -260,7 +260,7 @@ Used when `definitions.length > 0` or `memberUsernames.size > 0`. `memberUsernam
 
 ### HomeClient — layout
 - **Scroll structure**: outer container is `h-screen overflow-hidden flex flex-col`. Account card + announcement banner are in a `flex-shrink-0` static header (never scrolls). Squads + DMs list is `flex-1 overflow-y-auto min-h-0` — the only scrollable region. No fixed bottom action bar.
-- **`AccountPreviewContainer` buttons**: two full-width buttons below the AFK XP bar in a `flex` row with `gap: var(--space-5)`. "friends" (outlined purple, `border border-purple bg-black`, `UserPlus` 12×12 icon) and "Invite squad" (filled purple, `bg-purple`, `Copy` 12×12 icon). Both use Silkscreen `--text-mini`. Clicking "friends" routes to `/friends`; clicking "Invite squad" opens `HomeActionSheet` (the create/join/invite bottom sheet) via `setShowCreate(true)`.
+- **`AccountPreviewContainer` buttons**: two full-width buttons below the AFK XP bar in a `flex` row with `gap: var(--space-5)`. "friends" (outlined purple, `border border-purple bg-black`, `Notebook` 12×12 icon) and "Invite squad" (filled purple, `bg-purple`, `Plus` 12×12 icon). Both use Silkscreen `--text-mini`. Clicking "friends" routes to `/friends`; clicking "Invite squad" opens `HomeActionSheet` (the create/join/invite bottom sheet) via `setShowCreate(true)`.
 - **Squads section header**: plain "Squads" label — no `+` button (the "Invite squad" button in `AccountPreviewContainer` already opens `HomeActionSheet`). `handleCrewTap` sets `sessionStorage.setItem('nexus_chat_from', '/home')` before pushing to `/chat/{crewId}` so `FloatingBackButton` can skip history normalization.
 
 ### HomeClient — realtime
@@ -333,8 +333,8 @@ fetch(fnUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, 
 - **Text selection disabled**: `select-none` + `e.preventDefault()` on outer `touchstart` to suppress iOS callout
 - **Optimistic update + rollback** via `updateMessage` in store
 - **Edge function** (`react-to-message`): verifies membership, calls `toggle_reaction`, returns `{ reactions, hype_man_heal, heal_amount }`
-- **Reaction chips**: sorted by count desc; own active chip `bg-[rgba(191,95,255,0.15)] border-[#bf5fff]`
-- **Hype Man passive**: adding (not removing) a reaction awards 5 XP to crew; `MessageBubble` shows `+5 HEAL` float `#66bb6a`
+- **Reaction chips**: sorted by count desc; own active chip `bg-[var(--color-chat-purple)]/15 border-[var(--color-chat-purple)]`
+- **Hype Man passive**: adding (not removing) a reaction awards 5 XP to crew; `MessageBubble` shows `+5 HEAL` float `var(--color-success)`
 - **Race-condition guard**: if DB UPDATE carries `reactions:{}` but local has reactions, preserve local until react-to-message UPDATE arrives
 
 ### Poll Feature
@@ -358,10 +358,10 @@ Defined words highlighted blue in chat messages; tapping shows definition sheet.
 **`MessageBubble`** rendering via `renderWithDefinitions`:
 - Expands aliases via `parseAliases`, sorts by length desc (prevents short alias shadowing longer one)
 - Builds combined regex with `\b` word boundaries + `gi` flag
-- Renders blue `<span>` (`text-[#60a5fa] cursor-pointer`) with `onClick → setActiveDefinition`
+- Renders blue `<span>` (`text-blue cursor-pointer`) with `onClick → setActiveDefinition`
 - Composed inside `renderMessageContent` as pass 2 — applied to text segments after @mentions are extracted
 
-**Definition tap sheet** (portal, z-[80]): aliases label (Silkscreen 8px tertiary) + primary word (DM Sans Bold 16px `#60a5fa`) + definition body (DM Sans Regular 14px secondary) + "Created by : {username}" (purple if own, tertiary otherwise) + CLOSE button.
+**Definition tap sheet** (portal, z-[80]): aliases label (Silkscreen 8px tertiary) + primary word (DM Sans Bold 16px `var(--color-blue)`) + definition body (DM Sans Regular 14px secondary) + "Created by : {username}" (purple if own, tertiary otherwise) + CLOSE button.
 
 **Glossary page**: `FloatingBackButton` (absolute left-4 z-60 pill using `useSlideBack()`). Accessed via `Braces` icon in `SquadDetailsSheet` action row.
 
@@ -420,10 +420,10 @@ Always use `createServiceClient()` inside cache functions — `createClient()` r
 ## AnnouncementBanner
 - Component: `src/components/ui/AnnouncementBanner.tsx`
 - **Position**: inside home scrollable body, below `AccountPreviewContainer` (not at top of page)
-- **Design**: blue card — `bg-[rgba(96,165,250,0.1)]` + `border border-[#60a5fa]` + `rounded-[8px]` (Figma 146:1702)
-- **Icons**: `Megaphone` (left, `#60a5fa`) + `Close` (right, secondary) from pixelarticons
+- **Design**: blue card — `bg-[var(--color-blue)]/10` + `border border-[var(--color-blue)]` + `rounded-[8px]` (Figma 146:1702)
+- **Icons**: `Megaphone` (left, `var(--color-blue)`) + `Close` (right, secondary) from pixelarticons
 - **Label**: "NEW UPDATES" Silkscreen `--text-mini` secondary; text DM Sans Regular `--text-xs` secondary
-- **Pagination dots**: shown when 2+ active; active dot `#60a5fa` 12px wide, inactive `rgba(96,165,250,0.3)` 4px; spring-animated width; clickable
+- **Pagination dots**: shown when 2+ active; active dot `var(--color-blue)` 12px wide, inactive `var(--color-blue)`/30 4px; spring-animated width; clickable
 - **Swipe**: drag `'x'` with Framer Motion when 2+ announcements; `dragElastic 0.15`, 40px threshold
 
 ## Disabled Features (wired for future)
@@ -518,41 +518,19 @@ ALTER TABLE crews ADD COLUMN IF NOT EXISTS dm_partner_2 uuid REFERENCES auth.use
 
 ## Design Language
 
-### Color Tokens
-Defined in `globals.css :root` + `@theme` block for Tailwind utilities (e.g. `bg-surface`, `text-muted`, `border-border`).
+### Design Tokens
+All tokens are in `src/app/globals.css` (`:root` + `@theme`). Use CSS vars and Tailwind utilities — e.g. `--color-primary`/`text-primary`, `--color-surface`/`bg-surface`, `--color-border`/`border-border`, `--color-purple`/`text-purple`, `--color-blue`/`text-blue`. Spacing: `--space-*`. Font sizes: `--text-mini` (8px) → `--text-xxl` (24px); Figma aliases `--mini`, `--md`, etc. also resolve.
 
-| Token | CSS var | Value | Tailwind |
-|---|---|---|---|
-| Primary (text) | `--color-primary` | `#fafafa` | `text-primary` |
-| Secondary | `--color-secondary` | `#e4e4e7` | `text-secondary` |
-| Tertiary | `--color-tertiary` | `#a1a1aa` | `text-tertiary` |
-| Muted | `--color-muted` | `#71717a` | `text-muted` |
-| Border | `--color-border` | `#27272a` | `border-border` |
-| Border hover | `--color-border-hover` | `#3f3f46` | `border-border-hover` |
-| Surface (cards) | `--color-surface` | `#111111` | `bg-surface` |
-| Purple (accent) | `--color-purple` | `#a855f7` | `bg-purple`, `text-purple` |
-| Blue (definitions) | `--color-blue` | `#60a5fa` | `text-blue` |
-
-Font size tokens: `--text-mini` (8px) → `--text-xxl` (24px). Figma shorthand aliases (`--mini`, `--md`, etc.) also resolve. Prefer hardcoded pixel values or `--text-*` names in new code.
-
-Chat/game accent colors (inline, not tokenized):
-| Role | Value |
-|---|---|
-| Background | `#000000` (home), `#0a0612` (chat) |
-| Primary accent | `#bf5fff` (chat purple) |
-| XP / gold | `#ffd700` |
-| Amber (coins) | `#f59e0b` |
-| Danger | `#ff4444` |
-| Success/heal | `#66bb6a` |
+Game/chat accent vars (defined in globals.css): `--color-bg-chat` (#0a0612), `--color-chat-purple` (#bf5fff), `--color-xp` (#ffd700), `--color-coins` (#f59e0b), `--color-danger` (#ff4444), `--color-success` (#66bb6a), `--color-system-msg` (#1a0d2e).
 
 ### Font Roles
-| Role | Font | Variable | Use |
+| Role | Font | Tailwind class | Use |
 |---|---|---|---|
-| `font-pixel` | Press Start 2P | `--font-press-start-2p` | Game UI, logos, level badges, buttons |
-| `font-body` | DM Sans | `--font-dm-sans` | Names, messages, timestamps |
-| `font-silkscreen` | Silkscreen | `--font-silk` | XP stats, labels |
+| `font-pixel` | Press Start 2P | `font-pixel` | Game UI, logos, level badges, buttons |
+| `font-body` | DM Sans | `font-body` | Names, messages, timestamps |
+| `font-silkscreen` | Silkscreen | `font-silkscreen` | XP stats, labels |
 
-Note: next/font variable for Silkscreen is `--font-silk` (not `--font-silkscreen`) to avoid a circular reference with the `@theme` entry `--font-silkscreen: var(--font-silk)`.
+Note: next/font variable for Silkscreen is `--font-silk` (not `--font-silkscreen`) — avoids circular reference with `@theme`.
 
 ### Icon Library — pixelarticons
 - **Package**: `pixelarticons` — pixel art SVG React components; no CSS import needed
@@ -568,10 +546,10 @@ Note: next/font variable for Silkscreen is `--font-silk` (not `--font-silkscreen
 | ChatHeader — invite | `UserPlus` | `pixelarticons/react/UserPlus` | 24×24 |
 | ChatInput — send | `Send` | `pixelarticons/react/Send` | 16×16 |
 | ChatInput — create poll | `Chart` | `pixelarticons/react/Chart` | 16×16 |
-| ChatInput — crew creator | `Crown` | `pixelarticons/react/Crown` | 12×12, `#f59e0b` |
+| ChatInput — crew creator | `Crown` | `pixelarticons/react/Crown` | 12×12, `var(--color-coins)` |
 | Copy / confirm | `Copy`, `Check` | respective paths | 12×12 |
-| AccountPreviewContainer — friends button | `UserPlus` | `pixelarticons/react/UserPlus` | 12×12, `var(--color-purple)` |
-| AccountPreviewContainer — Invite squad button | `Copy` | `pixelarticons/react/Copy` | 12×12, `var(--color-primary)` |
+| AccountPreviewContainer — friends button | `Notebook` | `pixelarticons/react/Notebook` | 12×12, `var(--color-purple)` |
+| AccountPreviewContainer — Invite squad button | `Plus` | `pixelarticons/react/Plus` | 12×12, `var(--color-primary)` |
 | Home coin badge | `TokeCircle` | `pixelarticons/react/TokeCircle` | 24×16 (not square) |
 | Home leave button | `Logout` | `pixelarticons/react/Logout` | 16×16, white |
 | Profile menu icons | `MagicEdit`, `Bell` | respective paths | 16×16, `color: var(--color-secondary)` |

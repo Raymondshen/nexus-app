@@ -18,6 +18,14 @@
   --color-paper-150: #b3b3b3;
   --color-paper-200: #9a9a9a;
   --color-border-hover: #3f3f46;
+  /* Game / chat accent colors */
+  --color-bg-chat:     #0a0612;
+  --color-chat-purple: #bf5fff;
+  --color-xp:          #ffd700;
+  --color-coins:       #f59e0b;
+  --color-danger:      #ff4444;
+  --color-success:     #66bb6a;
+  --color-system-msg:  #1a0d2e;
 
   /* Spacing */
   --space-1:  0px;
@@ -95,6 +103,14 @@
   --color-paper-150: #b3b3b3;
   --color-paper-200: #9a9a9a;
   --color-border-hover: #3f3f46;
+  /* Game / chat accent colors */
+  --color-bg-chat:     #0a0612;
+  --color-chat-purple: #bf5fff;
+  --color-xp:          #ffd700;
+  --color-coins:       #f59e0b;
+  --color-danger:      #ff4444;
+  --color-success:     #66bb6a;
+  --color-system-msg:  #1a0d2e;
 }
 
 /* ─── Utility class for border-hover color ───────────────────────────────── */
