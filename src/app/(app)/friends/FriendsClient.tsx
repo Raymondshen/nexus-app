@@ -4,15 +4,12 @@ import { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { isSupabaseStorage, resolveAvatarUrl } from '@/components/ui/Avatar'
-import { motion, AnimatePresence, useMotionValue, animate } from 'framer-motion'
-import type { PanInfo } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { SlidePage, useSlideBack } from '@/components/ui/SlidePage'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { Search } from 'pixelarticons/react/Search'
-import { Check } from 'pixelarticons/react/Check'
-import { Close } from 'pixelarticons/react/Close'
-import { UserMinus } from 'pixelarticons/react/UserMinus'
 import { Inbox } from 'pixelarticons/react/Inbox'
+import { UserX } from 'pixelarticons/react/UserX'
 import { Message as MessageIcon } from 'pixelarticons/react/Message'
 import { createClient } from '@/lib/supabase/client'
 import { signInWithGoogle } from '@/lib/supabase/auth'
@@ -129,116 +126,80 @@ function UserAvatar({ profile, size = 40 }: { profile: FriendProfile | null; siz
   )
 }
 
-// ─── Swipeable friend row ─────────────────────────────────────────────────────
+// ─── Friend card ─────────────────────────────────────────────────────────────
 
-const REMOVE_REVEAL = 116
-
-function SwipeableFriendRow({
+function FriendCard({
   entry,
   onTap,
   onRemove,
-  openRowId,
-  onOpen,
   loading,
 }: {
-  entry:     FriendEntry
-  onTap:     () => void
-  onRemove:  () => void
-  openRowId: string | null
-  onOpen:    (id: string) => void
-  loading:   boolean
+  entry:    FriendEntry
+  onTap:    () => void
+  onRemove: () => void
+  loading:  boolean
 }) {
-  const x           = useMotionValue(0)
-  const [open, setOpen] = useState(false)
-  const wasDragging = useRef(false)
-  const rowId       = entry.friendship.id
-  const status      = entry.profile?.status
-
-  useEffect(() => {
-    if (openRowId !== rowId) {
-      animate(x, 0, { type: 'spring', stiffness: 300, damping: 28 })
-      setOpen(false)
-    }
-  }, [openRowId]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  function snapTo(target: number, isOpen: boolean) {
-    animate(x, target, { type: 'spring', stiffness: 300, damping: 28 })
-    setOpen(isOpen)
-  }
-
-  function handleDragEnd(_: unknown, info: PanInfo) {
-    setTimeout(() => { wasDragging.current = false }, 50)
-    if (info.offset.x < -(REMOVE_REVEAL / 2)) {
-      snapTo(-REMOVE_REVEAL, true)
-    } else {
-      snapTo(0, false)
-    }
-  }
-
-  function handleDetailsClick() {
-    if (wasDragging.current) return
-    if (open) { snapTo(0, false) } else { onTap() }
-  }
+  const status = entry.profile?.status
 
   return (
-    <div className="relative">
-      {/* Unfriend button — sits behind the card, revealed when card slides left */}
-      <div className="absolute inset-y-0 right-0 flex" style={{ width: REMOVE_REVEAL }}>
+    <div
+      className="flex flex-col overflow-hidden"
+      style={{
+        background: 'rgba(17,17,17,0.5)',
+        border: '1px solid var(--color-surface)',
+        borderRadius: 'var(--space-3)',
+        padding: 'var(--space-5)',
+        gap: 'var(--space-5)',
+      }}
+    >
+      {/* Details row */}
+      <div className="flex items-center overflow-hidden" style={{ gap: 'var(--space-5)' }}>
         <button
-          className="flex-1 flex items-center justify-center gap-1 overflow-hidden disabled:opacity-50 active:opacity-80"
-          style={{ background: '#ef4444', boxShadow: '4px 4px 0px 0px rgba(239,68,68,0.5)' }}
-          onClick={(e) => { e.stopPropagation(); snapTo(0, false); onRemove() }}
-          tabIndex={open ? 0 : -1}
-          disabled={loading}
-          aria-label={`Unfriend ${entry.profile?.username}`}
-        >
-          <UserMinus style={{ width: 16, height: 16, color: 'white', flexShrink: 0 }} aria-hidden="true" />
-          <span className="font-silkscreen text-[length:var(--text-xs)] text-primary whitespace-nowrap leading-none pb-[2px]">
-            unfriend
-          </span>
-        </button>
-      </div>
-
-      {/* Card — drags left to reveal unfriend button */}
-      <motion.div
-        drag="x"
-        dragConstraints={{ left: -REMOVE_REVEAL, right: 0 }}
-        dragElastic={{ left: 0.05, right: 0.1 }}
-        style={{ x, boxShadow: '4px 4px 0px var(--color-border)' }}
-        className="relative z-10 bg-surface flex flex-col"
-        onDragStart={() => { wasDragging.current = true; onOpen(rowId) }}
-        onDragEnd={handleDragEnd}
-      >
-        {/* Details row */}
-        <div
-          className="flex items-center overflow-hidden cursor-pointer select-none"
-          style={{ gap: 'var(--space-5)', padding: 'var(--space-5)' }}
-          onClick={handleDetailsClick}
+          className="flex-shrink-0 active:opacity-70"
+          onClick={onTap}
+          aria-label={`Open DM with ${entry.profile?.username}`}
         >
           <UserAvatar profile={entry.profile} size={40} />
-          <div
-            className="flex-1 min-w-0 flex flex-col"
-            style={{ gap: 'var(--space-2)', letterSpacing: '0.2px' }}
-          >
-            <span
-              className="font-body font-semibold text-[length:var(--text-md)] text-primary leading-normal truncate"
-              style={{ fontVariationSettings: '"opsz" 14' }}
-            >
-              {entry.profile?.username ?? '—'}
-            </span>
-            <span className="font-silkscreen text-[length:var(--text-xxs)] text-tertiary leading-normal">
-              est.{friendshipYear(entry.friendship.created_at)}
-            </span>
-          </div>
-          <MessageIcon
-            style={{ width: 24, height: 24, color: 'var(--color-purple)', flexShrink: 0 }}
-            aria-hidden="true"
-          />
-        </div>
+        </button>
 
-        {/* Status ticker */}
-        {status && <StatusTicker status={status} />}
-      </motion.div>
+        <button
+          className="flex-1 min-w-0 flex flex-col text-left active:opacity-70"
+          style={{ gap: 'var(--space-2)', letterSpacing: '0.2px' }}
+          onClick={onTap}
+        >
+          <span
+            className="font-body font-semibold text-[length:var(--text-md)] text-primary leading-normal truncate"
+            style={{ fontVariationSettings: '"opsz" 14' }}
+          >
+            {entry.profile?.username ?? '—'}
+          </span>
+          <span className="font-silkscreen text-[length:var(--text-xxs)] text-tertiary leading-normal">
+            est.{friendshipYear(entry.friendship.created_at)}
+          </span>
+        </button>
+
+        {/* Action icons: unfriend + DM */}
+        <div className="flex items-center flex-shrink-0" style={{ gap: 'var(--space-6)' }}>
+          <button
+            onClick={onRemove}
+            disabled={loading}
+            className="disabled:opacity-50 active:opacity-70"
+            aria-label={`Unfriend ${entry.profile?.username}`}
+          >
+            <UserX style={{ width: 24, height: 24, color: 'var(--color-danger)' }} aria-hidden="true" />
+          </button>
+          <button
+            onClick={onTap}
+            className="active:opacity-70"
+            aria-label={`Message ${entry.profile?.username}`}
+          >
+            <MessageIcon style={{ width: 24, height: 24, color: 'var(--color-purple)' }} aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+
+      {/* Status ticker */}
+      {status && <StatusTicker status={status} />}
     </div>
   )
 }
@@ -254,7 +215,6 @@ export function FriendsClient({
   const router = useRouter()
 
   const [friends,       setFriends]       = useState<FriendEntry[]>(initialFriends)
-  const [openRowId,     setOpenRowId]     = useState<string | null>(null)
   const [searchQuery,   setSearchQuery]   = useState('')
   const [searchResults, setSearchResults] = useState<FriendProfile[]>([])
   const [isSearching,   setIsSearching]   = useState(false)
@@ -403,13 +363,16 @@ export function FriendsClient({
                 return (
                   <div
                     key={profile.id}
-                    className="bg-surface flex flex-col"
-                    style={{ boxShadow: '4px 4px 0px var(--color-border)' }}
+                    className="flex flex-col overflow-hidden"
+                    style={{
+                      background: 'rgba(17,17,17,0.5)',
+                      border: '1px solid var(--color-surface)',
+                      borderRadius: 'var(--space-3)',
+                      padding: 'var(--space-5)',
+                      gap: 'var(--space-5)',
+                    }}
                   >
-                    <div
-                      className="flex items-center overflow-hidden"
-                      style={{ gap: 'var(--space-5)', padding: 'var(--space-5)' }}
-                    >
+                    <div className="flex items-center overflow-hidden" style={{ gap: 'var(--space-5)' }}>
                       <UserAvatar profile={profile} size={40} />
                       <div className="flex-1 min-w-0 flex flex-col" style={{ gap: 'var(--space-2)', letterSpacing: '0.2px' }}>
                         <span
@@ -455,13 +418,11 @@ export function FriendsClient({
               </div>
             ) : (
               friends.map((entry) => (
-                <SwipeableFriendRow
+                <FriendCard
                   key={entry.friendship.id}
                   entry={entry}
                   onTap={() => { if (entry.profile) router.push(`/dm/${entry.profile.id}`) }}
                   onRemove={() => handleRemoveFriend(entry)}
-                  openRowId={openRowId}
-                  onOpen={setOpenRowId}
                   loading={loadingIds.has(entry.friendship.id)}
                 />
               ))
