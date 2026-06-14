@@ -12,6 +12,7 @@ import type { MessageWithProfile, AvatarClass, SquadDefinitionWithCreator } from
 import { PollCard } from '@/components/chat/PollCard'
 import { SuggestDefinitionSheet } from '@/components/chat/SuggestDefinitionSheet'
 import { Button } from '@/components/ui/Button'
+import { Cake } from 'pixelarticons/react/Cake'
 
 const CLASS_NAMES: Record<AvatarClass, string> = {
   berserker: 'Berserker',
@@ -819,8 +820,38 @@ export function MessageBubble({
   )
 }
 
+function BirthdayMessage({ content }: { content: string }) {
+  const parts    = content.slice('BIRTHDAY:'.length).split(':')
+  const username = parts[0] ?? ''
+  const dateStr  = parts[1] ?? ''
+  const label    = parts.slice(2).join(':')
+  return (
+    <div className="flex justify-center my-2 px-4">
+      <div
+        className="border border-[#a855f7] flex gap-2 items-center w-full"
+        style={{ background: 'var(--color-system-msg)', padding: '12px 16px' }}
+      >
+        <Cake style={{ width: 24, height: 24, color: '#a855f7', flexShrink: 0 }} aria-hidden="true" />
+        <div className="flex flex-col gap-1 min-w-0">
+          <p
+            className="font-silkscreen leading-none tracking-[0.1px]"
+            style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}
+          >
+            {label}
+          </p>
+          <p className="font-body leading-none" style={{ fontSize: 'var(--text-sm)' }}>
+            <span style={{ color: '#a855f7' }}>@{username}</span>
+            {dateStr && <span style={{ color: 'var(--color-primary)' }}> · {dateStr}</span>}
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function SystemMessage({ message }: { message: MessageWithProfile }) {
   const content = message.content
+  if (content.startsWith('BIRTHDAY:')) return <BirthdayMessage content={content} />
   let bg   = 'bg-surface border-border'
   let icon = '⚙️'
   if (content.startsWith('🎂'))                                                          { bg = 'bg-[#1a0d2e] border-[#a855f7]/30'; icon = '' }

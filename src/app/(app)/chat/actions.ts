@@ -183,6 +183,14 @@ export async function birthdaysCommandAction(crewId: string): Promise<{
   const withBirthdays = profiles.filter((p) => p.birthday)
   let content: string
 
+  function humanDays(days: number): string {
+    if (days < 30) return `${days} day${days !== 1 ? 's' : ''}`
+    const months    = Math.floor(days / 30)
+    const remaining = days % 30
+    if (remaining === 0) return `${months} month${months !== 1 ? 's' : ''}`
+    return `${months} month${months !== 1 ? 's' : ''} and ${remaining} day${remaining !== 1 ? 's' : ''}`
+  }
+
   if (withBirthdays.length === 0) {
     content = '🎂 No squad members have set their birthday yet.'
   } else {
@@ -198,16 +206,17 @@ export async function birthdaysCommandAction(crewId: string): Promise<{
     upcoming.sort((a, b) => a.daysUntil - b.daysUntil)
     const next = upcoming[0]
 
-    const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
     const monthStr = MONTHS[next.date.getMonth()]
     const dayStr   = next.date.getDate()
+    const dateLabel = `${monthStr} ${dayStr}`
 
     if (next.daysUntil === 0) {
-      content = `🎂 Today is ${next.username}'s birthday! 🎉`
+      content = `BIRTHDAY:${next.username}:${dateLabel}:Today is their birthday! 🎉`
     } else if (next.daysUntil === 1) {
-      content = `🎂 ${next.username}'s birthday is tomorrow! (${monthStr} ${dayStr})`
+      content = `BIRTHDAY:${next.username}:${dateLabel}:Next squad birthday · tomorrow`
     } else {
-      content = `🎂 Next squad birthday: ${next.username} · ${monthStr} ${dayStr} · ${next.daysUntil} days away`
+      content = `BIRTHDAY:${next.username}:${dateLabel}:Next squad birthday · ${humanDays(next.daysUntil)}`
     }
   }
 
