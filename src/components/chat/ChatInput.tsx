@@ -744,9 +744,9 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 4 }}
                 transition={{ duration: 0.12 }}
-                className="absolute bottom-full left-0 right-0 border border-border bg-black flex flex-col nexus-scroll"
-                style={{ maxHeight: 220, overflowY: 'auto' }}
+                className="absolute bottom-full left-0 right-0 border border-border bg-black"
               >
+                <div className="nexus-scroll" style={{ maxHeight: 220, overflowY: 'scroll' }}>
                 {mentionMatches.map((m, i) => {
                   const url     = m.avatar_url as string | null | undefined
                   const initial = m.username[0]?.toUpperCase() ?? '?'
@@ -774,6 +774,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                     </button>
                   )
                 })}
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
@@ -792,9 +793,9 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: 4 }}
                   transition={{ duration: 0.12 }}
-                  className="absolute bottom-full left-0 right-0 border border-border bg-black flex flex-col nexus-scroll"
-                  style={{ maxHeight: 220, overflowY: 'auto' }}
+                  className="absolute bottom-full left-0 right-0 border border-border bg-black"
                 >
+                  <div className="nexus-scroll" style={{ maxHeight: 220, overflowY: 'scroll' }}>
                   {matches.map((cmd, i) => {
                     const isLast = i === matches.length - 1
                     return (
@@ -808,6 +809,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                       </button>
                     )
                   })}
+                  </div>
                 </motion.div>
               </AnimatePresence>
             )
