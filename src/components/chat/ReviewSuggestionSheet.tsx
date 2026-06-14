@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { createClient } from '@/lib/supabase/client'
 import { approveSuggestionAction, denySuggestionAction } from '@/app/(app)/chat/[crewId]/definitions/actions'
+import { Button } from '@/components/ui/Button'
 import type { DefinitionSuggestion, SquadDefinitionWithCreator } from '@/types'
 
 type SuggestionWithUsername = DefinitionSuggestion & { suggester_username?: string }
@@ -190,24 +191,23 @@ export function ReviewSuggestionSheet({
 
             {/* Buttons — Figma 143:728 */}
             <div className="flex flex-col w-full flex-shrink-0" style={{ gap: 'var(--space-5)' }}>
-              <button
+              <Button
                 onClick={handleApprove}
                 disabled={!!acting}
-                className="w-full h-12 bg-purple overflow-hidden flex items-center justify-center px-4 py-2 disabled:opacity-40 active:opacity-80 transition-opacity"
+                loading={acting === 'approve'}
+                className="w-full"
               >
-                <span className="font-silkscreen text-[12px] text-primary leading-none whitespace-nowrap">
-                  {acting === 'approve' ? 'Approving...' : 'Approve changes'}
-                </span>
-              </button>
-              <button
+                Approve changes
+              </Button>
+              <Button
+                variant="danger"
                 onClick={handleDeny}
                 disabled={!!acting}
-                className="w-full h-12 bg-[#ef4444] overflow-hidden flex items-center justify-center px-4 py-2 disabled:opacity-40 active:opacity-70 transition-opacity"
+                loading={acting === 'deny'}
+                className="w-full"
               >
-                <span className="font-silkscreen text-[12px] text-primary leading-none whitespace-nowrap">
-                  {acting === 'deny' ? 'Denying...' : 'Deny changes'}
-                </span>
-              </button>
+                Deny changes
+              </Button>
             </div>
           </>
         )}

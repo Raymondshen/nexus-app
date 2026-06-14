@@ -394,21 +394,13 @@ function HomeActionSheet({
         </div>
 
         <div className="flex flex-col gap-[var(--space-7)]">
-          <button
-            onClick={() => setView('create')}
-            className="w-full flex items-center justify-center bg-purple overflow-hidden px-[20px] py-[16px]"
-            style={{ boxShadow: '4px 4px 0px 0px rgba(168,85,247,0.5)' }}
-          >
-            <span className="font-silkscreen leading-none whitespace-nowrap text-primary" style={{ fontSize: 'var(--text-xs)' }}>CREATE A SQUAD</span>
-          </button>
+          <Button shadow className="w-full" onClick={() => setView('create')}>
+            CREATE A SQUAD
+          </Button>
 
-          <button
-            onClick={() => setView('join')}
-            className="w-full h-[48px] flex items-center justify-center bg-black border border-purple overflow-hidden"
-            style={{ boxShadow: '4px 4px 0px 0px rgba(168,85,247,0.5)' }}
-          >
-            <span className="font-silkscreen leading-none whitespace-nowrap text-purple" style={{ fontSize: 'var(--text-xs)' }}>JOIN A SQUAD</span>
-          </button>
+          <Button variant="outlined" shadow className="w-full" onClick={() => setView('join')}>
+            JOIN A SQUAD
+          </Button>
 
           <div className="flex flex-col gap-[var(--space-3)]">
             <button
@@ -521,24 +513,18 @@ function LeaveConfirmSheet({
           {leaveError && (
             <p className="font-silkscreen text-[length:var(--text-mini)] text-[#ef4444]">{leaveError}</p>
           )}
-          <button
+          <Button
+            variant="danger"
             onClick={onConfirm}
             disabled={pending}
-            className="w-full h-[48px] flex items-center justify-center bg-[#ef4444] overflow-hidden px-[var(--space-5)] py-[var(--space-3)] active:opacity-80 transition-opacity disabled:opacity-50"
+            loading={pending}
+            className="w-full"
           >
-            <span className="font-silkscreen leading-none whitespace-nowrap text-primary" style={{ fontSize: 'var(--text-xs)' }}>
-              {pending ? '...' : isLast ? 'Delete crew' : 'Leave squad'}
-            </span>
-          </button>
-          <button
-            onClick={onClose}
-            disabled={pending}
-            className="w-full h-[48px] flex items-center justify-center border border-purple overflow-hidden px-[var(--space-5)] py-[var(--space-3)] disabled:opacity-50"
-          >
-            <span className="font-silkscreen leading-none whitespace-nowrap text-purple" style={{ fontSize: 'var(--text-xs)' }}>
-              Never mind
-            </span>
-          </button>
+            {isLast ? 'Delete crew' : 'Leave squad'}
+          </Button>
+          <Button variant="outlined" onClick={onClose} disabled={pending} className="w-full">
+            Never mind
+          </Button>
         </div>
       </motion.div>
     </motion.div>

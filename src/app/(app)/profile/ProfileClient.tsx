@@ -24,6 +24,7 @@ import {
 } from '@/app/(app)/home/actions'
 import { AvatarUploadModal } from '@/components/ui/AvatarUploadModal'
 import { BackgroundUploadModal } from '@/components/ui/BackgroundUploadModal'
+import { Button } from '@/components/ui/Button'
 import type { Announcement } from '@/types'
 
 interface ProfileClientProps {
@@ -418,25 +419,17 @@ function EditProfileSheet({
 
               {/* Action buttons */}
               <div className="flex flex-col gap-[var(--space-5)] w-full">
-                <button
+                <Button
                   onClick={handleSave}
                   disabled={saving || !displayName.trim() || displayName.trim().length < 3}
-                  className="w-full h-[48px] bg-purple flex items-center justify-center overflow-hidden disabled:opacity-50"
+                  loading={saving}
+                  className="w-full"
                 >
-                  <span className="font-silkscreen leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-sm)', color: 'var(--color-primary)' }}>
-                    {saving ? '...' : 'Save Changes'}
-                  </span>
-                </button>
-                <button
-                  onClick={onClose}
-                  disabled={saving}
-                  className="w-full h-[48px] border flex items-center justify-center overflow-hidden"
-                  style={{ borderColor: '#ef4444' }}
-                >
-                  <span className="font-silkscreen leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-sm)', color: '#ef4444' }}>
-                    Cancel
-                  </span>
-                </button>
+                  Save Changes
+                </Button>
+                <Button variant="outlined" color="red" onClick={onClose} disabled={saving} className="w-full">
+                  Cancel
+                </Button>
               </div>
             </div>
           </motion.div>

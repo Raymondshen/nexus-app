@@ -5,6 +5,7 @@ import { motion } from 'framer-motion'
 import { Close } from 'pixelarticons/react/Close'
 import { PlusBox } from 'pixelarticons/react/PlusBox'
 import { createClient } from '@/lib/supabase/client'
+import { Button } from '@/components/ui/Button'
 import type { Message, MessageWithProfile, Profile } from '@/types'
 
 const DURATION_OPTIONS = [
@@ -218,22 +219,17 @@ export function PollCreatorSheet({ crewId, userProfile, onClose, onCreated }: Po
 
         {/* Footer buttons */}
         <div className="flex-shrink-0 px-4 pt-6 flex flex-col gap-4">
-          <button
+          <Button
             onClick={handleSubmit}
             disabled={!canSubmit}
-            className="w-full h-12 bg-purple flex items-center justify-center disabled:opacity-40 active:opacity-80 transition-opacity"
+            loading={submitting}
+            className="w-full"
           >
-            <span className="font-silkscreen text-[14px] text-primary leading-none">
-              {submitting ? 'Launching...' : 'Launch poll'}
-            </span>
-          </button>
-          <button
-            onClick={onClose}
-            disabled={submitting}
-            className="w-full h-12 flex items-center justify-center border border-[#ef4444] active:opacity-70 transition-opacity disabled:opacity-40"
-          >
-            <span className="font-silkscreen text-[14px] text-[#ef4444] leading-none">Cancel</span>
-          </button>
+            Launch poll
+          </Button>
+          <Button variant="outlined" color="red" onClick={onClose} disabled={submitting} className="w-full">
+            Cancel
+          </Button>
         </div>
       </motion.div>
     </>

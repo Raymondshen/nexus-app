@@ -6,6 +6,7 @@ import type { PanInfo } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { isSupabaseStorage, resolveAvatarUrl } from '@/components/ui/Avatar'
+import { Button } from '@/components/ui/Button'
 import { XP_PER_LEVEL } from '@/lib/game/xp'
 import { PixelSprite, spriteInfoFor } from '@/components/game/PixelSprite'
 import { MagicEdit } from 'pixelarticons/react/MagicEdit'
@@ -356,18 +357,13 @@ function SquadDetailsEditSheet({
                 )}
               </div>
               {/* Upload button — Figma 113:592: border-purple h-[48px] Silkscreen --sm text-purple */}
-              <button
+              <Button
+                variant="outlined"
                 onClick={onUploadPhoto}
-                className="flex-1 h-12 border border-purple flex items-center justify-center overflow-hidden active:opacity-70 transition-opacity"
-                style={{ padding: 'var(--space-3) var(--space-5)' }}
+                className="flex-1"
               >
-                <span
-                  className="font-silkscreen text-purple leading-none whitespace-nowrap uppercase"
-                  style={{ fontSize: 'var(--text-sm)' }}
-                >
-                  upload photo
-                </span>
-              </button>
+                upload photo
+              </Button>
             </div>
           </div>
 
@@ -396,34 +392,12 @@ function SquadDetailsEditSheet({
 
         {/* Buttons — Figma 113:541: flex-col gap-[--x5] */}
         <div className="flex flex-col flex-shrink-0" style={{ gap: 'var(--space-5)' }}>
-          {/* Save Changes — Figma 113:616: bg-purple h-[48px] Silkscreen --sm text-primary */}
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="w-full h-12 bg-purple flex items-center justify-center overflow-hidden disabled:opacity-40 active:opacity-80 transition-opacity"
-            style={{ padding: 'var(--space-3) var(--space-5)' }}
-          >
-            <span
-              className="font-silkscreen text-primary leading-none whitespace-nowrap"
-              style={{ fontSize: 'var(--text-sm)' }}
-            >
-              {saving ? 'Saving...' : 'Save Changes'}
-            </span>
-          </button>
-          {/* Cancel — Figma 113:620: border-red h-[48px] Silkscreen --sm text-red */}
-          <button
-            onClick={onClose}
-            disabled={saving}
-            className="w-full h-12 border flex items-center justify-center overflow-hidden disabled:opacity-40 active:opacity-70 transition-opacity"
-            style={{ borderColor: 'var(--red, #ef4444)', padding: 'var(--space-3) var(--space-5)' }}
-          >
-            <span
-              className="font-silkscreen leading-none whitespace-nowrap"
-              style={{ fontSize: 'var(--text-sm)', color: 'var(--red, #ef4444)' }}
-            >
-              Cancel
-            </span>
-          </button>
+          <Button onClick={handleSave} disabled={saving} loading={saving} className="w-full">
+            Save Changes
+          </Button>
+          <Button variant="outlined" color="red" onClick={onClose} disabled={saving} className="w-full">
+            Cancel
+          </Button>
         </div>
       </motion.div>
     </>

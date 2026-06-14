@@ -9,6 +9,7 @@ import { createClient } from '@/lib/supabase/client'
 import { createDefinitionAction, updateDefinitionAction, deleteDefinitionAction } from './actions'
 import { SuggestDefinitionSheet } from '@/components/chat/SuggestDefinitionSheet'
 import { ReviewSuggestionSheet } from '@/components/chat/ReviewSuggestionSheet'
+import { Button } from '@/components/ui/Button'
 import type { SquadDefinition, SquadDefinitionWithCreator, DefinitionSuggestion } from '@/types'
 
 function BackButton() {
@@ -181,22 +182,12 @@ function CreateDefinitionSheet({
 
         {/* Buttons */}
         <div className="flex flex-col gap-4 w-full">
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="w-full h-12 bg-purple overflow-hidden flex items-center justify-center px-4 py-2 disabled:opacity-40 active:opacity-80 transition-opacity"
-          >
-            <span className="font-silkscreen text-[14px] text-primary leading-none whitespace-nowrap">
-              {saving ? 'Saving...' : 'Save definition'}
-            </span>
-          </button>
-          <button
-            onClick={onClose}
-            disabled={saving}
-            className="w-full h-12 border border-[#ef4444] overflow-hidden flex items-center justify-center px-4 py-2 active:opacity-70 transition-opacity disabled:opacity-40"
-          >
-            <span className="font-silkscreen text-[14px] text-[#ef4444] leading-none whitespace-nowrap">Cancel</span>
-          </button>
+          <Button onClick={handleSave} disabled={saving} loading={saving} className="w-full">
+            Save definition
+          </Button>
+          <Button variant="outlined" color="red" onClick={onClose} disabled={saving} className="w-full">
+            Cancel
+          </Button>
         </div>
       </motion.div>
     </>
@@ -240,14 +231,6 @@ function DefinitionActionSheet({ definition, onClose, onEdit, onDelete, deleting
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex justify-center pb-2"><div className="w-10 h-[4px] rounded-full bg-border" /></div>
-        {/* Title — DM Sans Bold 18px */}
-        <h2
-          className="font-body font-bold text-[18px] text-primary leading-none"
-          style={{ fontVariationSettings: '"opsz" 14' }}
-        >
-          Squad Definition
-        </h2>
-
         {/* Content preview — Figma 130:1289: flex-col gap-[--space-5] items-start */}
         <div className="flex flex-col items-start w-full" style={{ gap: 'var(--space-5)' }}>
           {/* Details — Figma 130:1290: flex-col gap-[--space-3] items-start justify-center */}
@@ -290,25 +273,12 @@ function DefinitionActionSheet({ definition, onClose, onEdit, onDelete, deleting
 
         {/* Action buttons — flex-col gap-[16px] */}
         <div className="flex flex-col gap-4 w-full">
-          {/* Edit — border-purple */}
-          <button
-            onClick={onEdit}
-            className="w-full h-12 border border-purple overflow-hidden flex items-center justify-center px-4 py-2 active:opacity-70 transition-opacity"
-          >
-            <span className="font-silkscreen text-[14px] text-purple leading-none whitespace-nowrap">
-              Edit definition
-            </span>
-          </button>
-          {/* Delete — border-red */}
-          <button
-            onClick={onDelete}
-            disabled={deleting}
-            className="w-full h-12 border border-[#ef4444] overflow-hidden flex items-center justify-center px-4 py-2 active:opacity-70 transition-opacity disabled:opacity-40"
-          >
-            <span className="font-silkscreen text-[14px] text-[#ef4444] leading-none whitespace-nowrap">
-              {deleting ? 'Deleting...' : 'Delete definition'}
-            </span>
-          </button>
+          <Button variant="outlined" onClick={onEdit} className="w-full">
+            Edit definition
+          </Button>
+          <Button variant="outlined" color="red" onClick={onDelete} disabled={!!deleting} loading={!!deleting} className="w-full">
+            Delete definition
+          </Button>
         </div>
       </motion.div>
     </>
@@ -350,14 +320,6 @@ function DefinitionViewSheet({ definition, onClose, onSuggest }: DefinitionViewS
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex justify-center"><div className="w-10 h-[4px] rounded-full bg-border" /></div>
-        {/* Title — DM Sans Bold 18px text-primary */}
-        <h2
-          className="font-body font-bold text-[18px] text-primary leading-none"
-          style={{ fontVariationSettings: '"opsz" 14' }}
-        >
-          Squad Definition
-        </h2>
-
         {/* Content — flex-col gap-[--space-5] items-start */}
         <div className="flex flex-col items-start w-full" style={{ gap: 'var(--space-5)' }}>
           {/* Details — flex-col gap-[--space-3] */}
@@ -398,15 +360,10 @@ function DefinitionViewSheet({ definition, onClose, onSuggest }: DefinitionViewS
           )}
         </div>
 
-        {/* Suggest button — bg-purple Silkscreen --xs primary */}
-        <button
-          onClick={onSuggest}
-          className="w-full h-12 bg-purple overflow-hidden flex items-center justify-center px-4 py-2 active:opacity-80 transition-opacity"
-        >
-          <span className="font-silkscreen text-primary leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-xs)' }}>
-            Suggest new definition
-          </span>
-        </button>
+        {/* Suggest button */}
+        <Button onClick={onSuggest} className="w-full">
+          Suggest new definition
+        </Button>
       </motion.div>
     </>
   )
@@ -670,15 +627,13 @@ export function DefinitionsClient({
         className="flex-shrink-0 px-4"
         style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 16px)', paddingTop: 8 }}
       >
-        <button
+        <Button
           onClick={() => setShowCreate(true)}
-          className="w-full h-12 bg-purple overflow-hidden flex items-center justify-center gap-1 active:opacity-80 transition-opacity"
+          icon={<PlusBox style={{ width: 16, height: 16, color: 'var(--color-primary)' }} aria-hidden="true" />}
+          className="w-full"
         >
-          <PlusBox style={{ width: 16, height: 16, color: 'var(--color-primary)' }} aria-hidden="true" />
-          <span className="font-silkscreen text-[14px] text-primary leading-none whitespace-nowrap">
-            Add a squad definition
-          </span>
-        </button>
+          Add a squad definition
+        </Button>
       </div>
 
       <AnimatePresence>

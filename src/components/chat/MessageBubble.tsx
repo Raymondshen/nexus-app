@@ -11,6 +11,7 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/config'
 import type { MessageWithProfile, AvatarClass, SquadDefinitionWithCreator } from '@/types'
 import { PollCard } from '@/components/chat/PollCard'
 import { SuggestDefinitionSheet } from '@/components/chat/SuggestDefinitionSheet'
+import { Button } from '@/components/ui/Button'
 
 const CLASS_NAMES: Record<AvatarClass, string> = {
   berserker: 'Berserker',
@@ -575,14 +576,6 @@ export function MessageBubble({
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="flex justify-center pb-2"><div className="w-10 h-[4px] rounded-full bg-border" /></div>
-                {/* Title — DM Sans Bold 18px text-primary */}
-                <h2
-                  className="font-body font-bold text-[18px] text-primary leading-none"
-                  style={{ fontVariationSettings: '"opsz" 14' }}
-                >
-                  Squad Definition
-                </h2>
-
                 {/* Content — flex-col gap-[--space-5] items-start */}
                 <div className="flex flex-col items-start w-full" style={{ gap: 'var(--space-5)' }}>
                   {/* Details — flex-col gap-[--space-3] items-start justify-center */}
@@ -629,17 +622,15 @@ export function MessageBubble({
 
                 {/* Bottom action */}
                 {activeDefinition.creator_id !== currentUserId && crewId ? (
-                  <button
+                  <Button
                     onClick={() => {
                       setSuggestTarget(activeDefinition)
                       setActiveDefinition(null)
                     }}
-                    className="w-full h-12 bg-purple overflow-hidden flex items-center justify-center px-4 py-2 active:opacity-80 transition-opacity"
+                    className="w-full"
                   >
-                    <span className="font-silkscreen text-primary leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-xs)' }}>
-                      Suggest new definition
-                    </span>
-                  </button>
+                    Suggest new definition
+                  </Button>
                 ) : (
                   <button
                     onClick={() => setActiveDefinition(null)}

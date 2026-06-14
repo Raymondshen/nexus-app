@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { createDefinitionAction } from '@/app/(app)/chat/[crewId]/definitions/actions'
+import { Button } from '@/components/ui/Button'
 import type { SquadDefinition } from '@/types'
 
 interface DefinitionCreateSheetProps {
@@ -136,24 +137,12 @@ export function DefinitionCreateSheet({
         )}
 
         <div className="flex flex-col gap-4 w-full">
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="w-full h-12 bg-purple overflow-hidden flex items-center justify-center px-4 py-2 disabled:opacity-40 active:opacity-80 transition-opacity"
-          >
-            <span className="font-silkscreen text-[12px] text-primary leading-none whitespace-nowrap">
-              {saving ? 'Saving...' : 'Save definition'}
-            </span>
-          </button>
-          <button
-            onClick={onClose}
-            disabled={saving}
-            className="w-full h-12 border border-[#ef4444] overflow-hidden flex items-center justify-center px-4 py-2 active:opacity-70 transition-opacity disabled:opacity-40"
-          >
-            <span className="font-silkscreen text-[12px] text-[#ef4444] leading-none whitespace-nowrap">
-              Cancel
-            </span>
-          </button>
+          <Button onClick={handleSave} disabled={saving} loading={saving} className="w-full">
+            Save definition
+          </Button>
+          <Button variant="outlined" color="red" onClick={onClose} disabled={saving} className="w-full">
+            Cancel
+          </Button>
         </div>
       </motion.div>
     </>
