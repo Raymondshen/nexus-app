@@ -744,7 +744,8 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 4 }}
                 transition={{ duration: 0.12 }}
-                className="absolute bottom-full left-0 right-0 border border-border bg-black flex flex-col max-h-[220px] overflow-y-auto nexus-scroll"
+                className="absolute bottom-full left-0 right-0 border border-border bg-black flex flex-col nexus-scroll"
+                style={{ maxHeight: 220, overflowY: 'auto' }}
               >
                 {mentionMatches.map((m, i) => {
                   const url     = m.avatar_url as string | null | undefined
@@ -791,7 +792,8 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: 4 }}
                   transition={{ duration: 0.12 }}
-                  className="absolute bottom-full left-0 right-0 border border-border bg-black flex flex-col max-h-[220px] overflow-y-auto nexus-scroll"
+                  className="absolute bottom-full left-0 right-0 border border-border bg-black flex flex-col nexus-scroll"
+                  style={{ maxHeight: 220, overflowY: 'auto' }}
                 >
                   {matches.map((cmd, i) => {
                     const isLast = i === matches.length - 1
