@@ -43,7 +43,7 @@ export default async function ProfilePage() {
   if (!session) redirect('/login')
   const user = session.user
 
-  const [profile, messagesResult, crewsResult, inviterUsername] = await Promise.all([
+  const [profile, messagesResult, crewsResult, inviterUsername, pendingDeletion] = await Promise.all([
     getCachedProfile(user.id),
     supabase
       .from('messages')
@@ -55,7 +55,14 @@ export default async function ProfilePage() {
       .select('id', { count: 'estimated', head: true })
       .eq('user_id', user.id),
     fetchInviterUsername(user.id),
+    supabase
+      .from('pending_deletions')
+      .select('delete_at')
+      .eq('user_id', user.id)
+      .maybeSingle(),
   ])
+
+  const pendingDeleteAt = (pendingDeletion.data as { delete_at?: string } | null)?.delete_at ?? null
 
   const memberSinceYear = profile?.created_at
     ? new Date(profile.created_at).getFullYear().toString()
@@ -79,6 +86,7 @@ export default async function ProfilePage() {
       groupChats={groupChats}
       inviterUsername={inviterUsername}
       initialStatus={profile?.status ?? null}
+      pendingDeleteAt={pendingDeleteAt}
     />
   )
 }

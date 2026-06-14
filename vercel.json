@@ -4,6 +4,12 @@
   "devCommand": "next dev",
   "installCommand": "npm install",
   "regions": ["iad1"],
+  "crons": [
+    {
+      "path": "/api/cron/process-deletions",
+      "schedule": "0 3 * * *"
+    }
+  ],
   "headers": [
     {
       "source": "/sw.js",

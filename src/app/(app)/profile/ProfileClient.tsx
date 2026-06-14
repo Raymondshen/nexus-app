@@ -13,7 +13,7 @@ import Image from 'next/image'
 import { isSupabaseStorage, resolveAvatarUrl } from '@/components/ui/Avatar'
 import { createClient } from '@/lib/supabase/client'
 import { signOut } from '@/lib/supabase/auth'
-import { revalidateProfileAction, resetAvatarAction, resetBackgroundAction, updateProfileDetailsAction } from './actions'
+import { revalidateProfileAction, resetAvatarAction, resetBackgroundAction, updateProfileDetailsAction, requestAccountDeletionAction, cancelAccountDeletionAction } from './actions'
 import { NotifSheet, type NotifPrefs } from '@/components/chat/NotifSheet'
 import {
   getAllAnnouncementsAction,
@@ -42,6 +42,7 @@ interface ProfileClientProps {
   groupChats:      number
   inviterUsername: string | null
   initialStatus:   string | null
+  pendingDeleteAt: string | null
 }
 
 // ─── Profile status ticker ────────────────────────────────────────────────────
@@ -462,6 +463,94 @@ function EditProfileSheet({
   )
 }
 
+// ─── Delete Account confirmation sheet ───────────────────────────────────────
+
+function DeleteAccountSheet({
+  isOpen,
+  onClose,
+  onConfirm,
+  confirming,
+}: {
+  isOpen:     boolean
+  onClose:    () => void
+  onConfirm:  () => void
+  confirming: boolean
+}) {
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <>
+          <motion.div
+            className="fixed inset-0 z-[48] bg-black/60"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+          />
+          <motion.div
+            className="fixed bottom-0 left-0 right-0 z-[50] max-w-[480px] mx-auto"
+            initial={{ y: '100%' }}
+            animate={{ y: 0 }}
+            exit={{ y: '100%' }}
+            transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+          >
+            <div
+              className="bg-surface border-t overflow-hidden flex flex-col gap-[var(--space-7)]"
+              style={{
+                borderColor: '#ef4444',
+                padding: 'var(--space-7) var(--space-5)',
+                paddingBottom: 'max(env(safe-area-inset-bottom), var(--space-5))',
+              }}
+            >
+              <div className="flex flex-col gap-[var(--space-3)]">
+                <p
+                  className="font-body font-bold leading-none"
+                  style={{ fontSize: 'var(--text-lg)', color: '#ef4444', fontVariationSettings: '"opsz" 14' }}
+                >
+                  Delete Account
+                </p>
+                <p
+                  className="font-body font-normal leading-relaxed tracking-[0.2px]"
+                  style={{ fontSize: 'var(--text-xs)', color: 'var(--color-secondary)', fontVariationSettings: '"opsz" 14' }}
+                >
+                  Your account will be permanently deleted in <span style={{ color: 'var(--color-primary)' }}>7 days</span>. All your messages, XP, crew memberships, friends, and profile data will be erased and cannot be recovered.
+                </p>
+                <p
+                  className="font-body font-normal leading-relaxed tracking-[0.2px]"
+                  style={{ fontSize: 'var(--text-xs)', color: 'var(--color-tertiary)', fontVariationSettings: '"opsz" 14' }}
+                >
+                  You can cancel this at any time before the grace period ends by logging back in.
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-[var(--space-5)]">
+                <button
+                  onClick={onConfirm}
+                  disabled={confirming}
+                  className="w-full h-12 border border-[#ef4444] flex items-center justify-center disabled:opacity-50 overflow-hidden transition-colors hover:bg-[#ef4444]/10"
+                >
+                  <span className="font-pixel leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-mini)', color: '#ef4444' }}>
+                    {confirming ? '...' : 'DELETE MY ACCOUNT'}
+                  </span>
+                </button>
+                <button
+                  onClick={onClose}
+                  disabled={confirming}
+                  className="w-full h-12 border border-border flex items-center justify-center disabled:opacity-50 overflow-hidden transition-colors hover:bg-surface"
+                >
+                  <span className="font-pixel leading-none whitespace-nowrap text-secondary" style={{ fontSize: 'var(--text-mini)' }}>
+                    CANCEL
+                  </span>
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  )
+}
+
 // ─── BackButton (inside SlidePage context) ────────────────────────────────────
 
 function BackButton() {
@@ -482,7 +571,7 @@ function BackButton() {
 
 export function ProfileClient({
   userId, userEmail, initialUsername, avatarUrl, avatarClass, customAvatar, backgroundUrl,
-  isDev, isGuest, memberSinceYear, totalMessages, groupChats, inviterUsername, initialStatus,
+  isDev, isGuest, memberSinceYear, totalMessages, groupChats, inviterUsername, initialStatus, pendingDeleteAt,
 }: ProfileClientProps) {
   const router = useRouter()
 
@@ -570,6 +659,40 @@ export function ProfileClient({
     setLoggingOut(true)
     try { await signOut(); router.push('/login') }
     catch { setLoggingOut(false) }
+  }
+
+  // ── Delete account ────────────────────────────────────────────────────────
+  const [showDeleteSheet,  setShowDeleteSheet]  = useState(false)
+  const [deletePending,    setDeletePending]    = useState(!!pendingDeleteAt)
+  const [localDeleteAt,    setLocalDeleteAt]    = useState(pendingDeleteAt)
+  const [deletingAccount,  setDeletingAccount]  = useState(false)
+  const [cancellingDelete, setCancellingDelete] = useState(false)
+
+  async function handleDeleteAccount() {
+    if (deletingAccount) return
+    setDeletingAccount(true)
+    try {
+      const result = await requestAccountDeletionAction()
+      if (!result.error) {
+        router.push('/login')
+      }
+    } finally {
+      setDeletingAccount(false)
+    }
+  }
+
+  async function handleCancelDeletion() {
+    if (cancellingDelete) return
+    setCancellingDelete(true)
+    try {
+      const result = await cancelAccountDeletionAction()
+      if (!result.error) {
+        setDeletePending(false)
+        setLocalDeleteAt(null)
+      }
+    } finally {
+      setCancellingDelete(false)
+    }
   }
 
   // ── AFK EXP (dev feature flag) ───────────────────────────────────────────
@@ -816,6 +939,34 @@ export function ProfileClient({
               <span style={{ color: 'var(--color-primary)' }}>{userEmail}</span>
             </p>
           </div>
+
+          {/* Pending deletion warning banner */}
+          {deletePending && localDeleteAt && (
+            <div
+              className="flex flex-col gap-[var(--space-2)] p-[var(--space-4)]"
+              style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 4 }}
+            >
+              <p className="font-silkscreen leading-relaxed" style={{ fontSize: 'var(--text-mini)', color: '#ef4444' }}>
+                Account deletion scheduled
+              </p>
+              <p className="font-body font-normal leading-normal tracking-[0.2px]" style={{ fontSize: 'var(--text-xxs)', color: 'var(--color-secondary)', fontVariationSettings: '"opsz" 14' }}>
+                Permanent deletion on{' '}
+                <span style={{ color: 'var(--color-primary)' }}>
+                  {new Date(localDeleteAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                </span>
+                . All data will be erased.
+              </p>
+              <button
+                onClick={handleCancelDeletion}
+                disabled={cancellingDelete}
+                className="self-start font-pixel leading-none disabled:opacity-50 transition-opacity hover:opacity-70"
+                style={{ fontSize: 'var(--text-mini)', color: 'var(--color-primary)' }}
+              >
+                {cancellingDelete ? '...' : 'Cancel deletion'}
+              </button>
+            </div>
+          )}
+
           <button
             onClick={handleLogout}
             disabled={loggingOut}
@@ -825,6 +976,18 @@ export function ProfileClient({
               {loggingOut ? '...' : 'LOG OUT'}
             </span>
           </button>
+
+          {!isGuest && !deletePending && (
+            <button
+              onClick={() => setShowDeleteSheet(true)}
+              className="w-full h-12 border border-[#ef4444] flex items-center justify-center transition-colors hover:bg-[#ef4444]/8 overflow-hidden"
+              style={{ background: 'transparent' }}
+            >
+              <span className="font-pixel leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-mini)', color: '#ef4444' }}>
+                DELETE ACCOUNT
+              </span>
+            </button>
+          )}
         </div>
 
         {/* Dev */}
@@ -890,6 +1053,14 @@ export function ProfileClient({
           setLocalBackgroundUrl(url)
           setPendingBgFile(null)
         }}
+      />
+
+      {/* Delete account confirmation */}
+      <DeleteAccountSheet
+        isOpen={showDeleteSheet}
+        onClose={() => setShowDeleteSheet(false)}
+        onConfirm={handleDeleteAccount}
+        confirming={deletingAccount}
       />
     </SlidePage>
   )

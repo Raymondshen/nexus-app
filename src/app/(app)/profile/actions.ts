@@ -219,6 +219,35 @@ export async function updateBackgroundAction(newBackgroundUrl: string): Promise<
   return { error: null }
 }
 
+export async function requestAccountDeletionAction(): Promise<{ error: string | null; deleteAt?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+  if (user.is_anonymous) return { error: 'Guest accounts cannot be deleted this way' }
+
+  const deleteAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+  const { error } = await supabase
+    .from('pending_deletions')
+    .upsert({ user_id: user.id, requested_at: new Date().toISOString(), delete_at: deleteAt }, { onConflict: 'user_id' })
+  if (error) return { error: error.message }
+
+  await supabase.auth.signOut()
+  return { error: null, deleteAt }
+}
+
+export async function cancelAccountDeletionAction(): Promise<{ error: string | null }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  const { error } = await supabase
+    .from('pending_deletions')
+    .delete()
+    .eq('user_id', user.id)
+  if (error) return { error: error.message }
+  return { error: null }
+}
+
 export async function resetBackgroundAction(): Promise<{ error: string | null }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()

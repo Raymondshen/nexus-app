@@ -224,6 +224,12 @@ export interface AppInvite extends Record<string, unknown> {
   created_at: string
 }
 
+export interface PendingDeletion extends Record<string, unknown> {
+  user_id:      string
+  requested_at: string
+  delete_at:    string
+}
+
 export type FriendshipStatus = 'pending' | 'accepted'
 
 export interface Friendship extends Record<string, unknown> {
@@ -375,6 +381,12 @@ export type Database = {
         Row: DefinitionSuggestion
         Insert: Omit<DefinitionSuggestion, 'id' | 'created_at'> & { id?: string; created_at?: string }
         Update: Partial<Omit<DefinitionSuggestion, 'id' | 'created_at'>>
+        Relationships: []
+      }
+      pending_deletions: {
+        Row: PendingDeletion
+        Insert: Omit<PendingDeletion, 'requested_at' | 'delete_at'> & { requested_at?: string; delete_at?: string }
+        Update: Partial<PendingDeletion>
         Relationships: []
       }
     }
