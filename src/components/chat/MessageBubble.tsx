@@ -13,6 +13,7 @@ import { PollCard } from '@/components/chat/PollCard'
 import { SuggestDefinitionSheet } from '@/components/chat/SuggestDefinitionSheet'
 import { Button } from '@/components/ui/Button'
 import { Cake } from 'pixelarticons/react/Cake'
+import { UserPlus } from 'pixelarticons/react/UserPlus'
 
 const CLASS_NAMES: Record<AvatarClass, string> = {
   berserker: 'Berserker',
@@ -826,22 +827,48 @@ function BirthdayMessage({ content }: { content: string }) {
   const dateStr  = parts[1] ?? ''
   const label    = parts.slice(2).join(':')
   return (
-    <div className="flex justify-center my-2 px-4">
+    <div className="my-2">
       <div
-        className="border border-[#a855f7] flex gap-2 items-center w-full"
-        style={{ background: 'var(--color-system-msg)', padding: '12px 16px' }}
+        className="border border-[#a855f7] flex items-center w-full"
+        style={{ background: 'var(--color-system-msg)', padding: 16, gap: 8 }}
       >
         <Cake style={{ width: 24, height: 24, color: '#a855f7', flexShrink: 0 }} aria-hidden="true" />
-        <div className="flex flex-col gap-1 min-w-0">
+        <div className="flex flex-col min-w-0" style={{ gap: 0 }}>
           <p
-            className="font-silkscreen leading-none tracking-[0.1px]"
+            className="font-silkscreen leading-normal tracking-[0.1px] whitespace-nowrap"
             style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}
           >
             {label}
           </p>
-          <p className="font-body leading-none" style={{ fontSize: 'var(--text-sm)' }}>
+          <p className="font-body w-full" style={{ fontSize: 'var(--text-sm)', lineHeight: 'normal', fontVariationSettings: '"opsz" 14' }}>
             <span style={{ color: '#a855f7' }}>@{username}</span>
             {dateStr && <span style={{ color: 'var(--color-primary)' }}> · {dateStr}</span>}
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function JoinMessage({ content }: { content: string }) {
+  const username = content.slice('JOIN:'.length)
+  return (
+    <div className="my-2">
+      <div
+        className="border border-[var(--color-border)] flex items-center w-full"
+        style={{ padding: 16, gap: 8 }}
+      >
+        <UserPlus style={{ width: 24, height: 24, color: 'var(--color-primary)', flexShrink: 0 }} aria-hidden="true" />
+        <div className="flex flex-col min-w-0" style={{ gap: 0 }}>
+          <p
+            className="font-silkscreen leading-normal tracking-[0.1px] whitespace-nowrap"
+            style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}
+          >
+            New squad member joined
+          </p>
+          <p className="font-body w-full" style={{ fontSize: 'var(--text-sm)', lineHeight: 'normal', fontVariationSettings: '"opsz" 14' }}>
+            <span style={{ color: 'var(--color-primary)' }}>Welcome a new member ·</span>
+            <span style={{ color: '#a855f7' }}> @{username}</span>
           </p>
         </div>
       </div>
@@ -852,6 +879,7 @@ function BirthdayMessage({ content }: { content: string }) {
 function SystemMessage({ message }: { message: MessageWithProfile }) {
   const content = message.content
   if (content.startsWith('BIRTHDAY:')) return <BirthdayMessage content={content} />
+  if (content.startsWith('JOIN:'))     return <JoinMessage content={content} />
   let bg   = 'bg-surface border-border'
   let icon = '⚙️'
   if (content.startsWith('🎂'))                                                          { bg = 'bg-[#1a0d2e] border-[#a855f7]/30'; icon = '' }

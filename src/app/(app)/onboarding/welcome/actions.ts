@@ -36,7 +36,7 @@ export async function joinCrewFromWelcomeAction(
   await supabase.from('messages').insert({
     crew_id:      crewId,
     user_id:      user.id,
-    content:      `⚔️ ${profile?.username ?? 'A warrior'} has entered the Nexus. The crew grows stronger.`,
+    content:      `JOIN:${profile?.username ?? 'warrior'}`,
     message_type: 'system',
     element_type: null,
     xp_awarded:   0,
