@@ -262,57 +262,52 @@ function EditProfileSheet({
                 </button>
 
                 {/* Bottom: profile details */}
-                <div className="relative flex flex-col items-start w-full" style={{ gap: 8 }}>
-                  {/* Avatar + name row */}
-                  <div className="flex items-center w-full" style={{ gap: 16 }}>
-                    {/* Avatar 56×56 — tappable to change photo */}
-                    <div className="relative flex-shrink-0" style={{ width: 56, height: 56 }}>
-                      <button
-                        onClick={() => fileInputRef.current?.click()}
-                        className="relative w-full h-full overflow-hidden"
-                        style={{ background: 'var(--color-primary)' }}
-                        aria-label="Change photo"
-                      >
-                        {avatarUrl ? (
-                          <Image src={resolveAvatarUrl(avatarUrl, 56)} alt={previewName} fill sizes="56px" className="object-cover" unoptimized={isSupabaseStorage(avatarUrl)} />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <span className="font-pixel text-[12px] text-purple">{initial}</span>
-                          </div>
-                        )}
-                      </button>
-                      {/* Edit badge — decorative, positioned relative to outer div */}
-                      <div
-                        className="absolute bg-surface border border-primary flex items-center overflow-hidden p-2 pointer-events-none"
-                        style={{ top: -8, left: 36, boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)' }}
-                        aria-hidden="true"
-                      >
-                        <MagicEdit style={{ width: 12, height: 12, color: 'var(--color-primary)' }} />
-                      </div>
-                    </div>
-
-                    {/* Name / stats */}
-                    <div className="flex-1 min-w-0 flex flex-col justify-center leading-none" style={{ gap: 4 }}>
-                      {memberSinceYear && (
-                        <p className="font-silkscreen" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>
-                          Member Since {memberSinceYear}
-                        </p>
+                <div className="relative flex items-center w-full" style={{ gap: 16 }}>
+                  {/* Avatar 56×56 — tappable to change photo */}
+                  <div className="relative flex-shrink-0" style={{ width: 56, height: 56 }}>
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="relative w-full h-full overflow-hidden"
+                      style={{ background: 'var(--color-primary)' }}
+                      aria-label="Change photo"
+                    >
+                      {avatarUrl ? (
+                        <Image src={resolveAvatarUrl(avatarUrl, 56)} alt={previewName} fill sizes="56px" className="object-cover" unoptimized={isSupabaseStorage(avatarUrl)} />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <span className="font-pixel text-[12px] text-purple">{initial}</span>
+                        </div>
                       )}
-                      <p className="font-body font-bold truncate" style={{ fontSize: 'var(--text-xl)', fontVariationSettings: '"opsz" 14', color: 'var(--color-primary)' }}>
-                        {previewName}
-                      </p>
-                      <p className="font-silkscreen" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>
-                        {groupChats} group chat{groupChats !== 1 ? 's' : ''} · {msgFormatted} msg
-                      </p>
+                    </button>
+                    {/* Edit badge — decorative, positioned relative to outer div */}
+                    <div
+                      className="absolute bg-surface border border-primary flex items-center overflow-hidden p-2 pointer-events-none"
+                      style={{ top: -8, left: 36, boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)' }}
+                      aria-hidden="true"
+                    >
+                      <MagicEdit style={{ width: 12, height: 12, color: 'var(--color-primary)' }} />
                     </div>
                   </div>
 
-                  {/* Status text */}
-                  <p className="font-silkscreen leading-none w-full" style={{ fontSize: 'var(--text-xxs)', color: 'var(--color-secondary)' }}>
-                    &ldquo;{status.trim() || 'Whats the mood today...'}&rdquo;
-                  </p>
+                  {/* Name / stats */}
+                  <div className="flex-1 min-w-0 flex flex-col justify-center leading-none" style={{ gap: 4 }}>
+                    {memberSinceYear && (
+                      <p className="font-silkscreen" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>
+                        Member Since {memberSinceYear}
+                      </p>
+                    )}
+                    <p className="font-body font-bold truncate" style={{ fontSize: 'var(--text-xl)', fontVariationSettings: '"opsz" 14', color: 'var(--color-primary)' }}>
+                      {previewName}
+                    </p>
+                    <p className="font-silkscreen" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>
+                      {groupChats} group chat{groupChats !== 1 ? 's' : ''} · {msgFormatted} msg
+                    </p>
+                  </div>
                 </div>
               </div>
+
+              {/* Status ticker — live preview of status field */}
+              <ProfileStatusTicker status={status.trim() || 'Whats the mood today...'} />
 
               {/* Form section */}
               <div className="flex flex-col items-start w-full" style={{ gap: 24, paddingTop: 16, paddingLeft: 16, paddingRight: 16 }}>
