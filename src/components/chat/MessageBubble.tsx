@@ -539,7 +539,7 @@ export function MessageBubble({
 
           {/* ── Reaction chips ────────────────────────────────────────────────── */}
           {sortedReactions.length > 0 && (
-            <div className="relative flex flex-wrap gap-1 mt-1">
+            <div className="relative flex flex-wrap gap-[6px] mt-[6px]">
 
               {/* Hype Man heal float */}
               <AnimatePresence>
@@ -569,14 +569,25 @@ export function MessageBubble({
                     key={emoji}
                     onTouchStart={(e) => e.stopPropagation()}
                     onClick={() => void handleReaction(emoji)}
-                    className={`flex items-center gap-1 px-2 py-0.5 border text-[13px] leading-none transition-colors select-none ${
-                      active
-                        ? 'bg-[rgba(191,95,255,0.15)] border-[#bf5fff]'
-                        : 'bg-surface border-border'
-                    }`}
+                    className="flex items-center select-none active:opacity-70 transition-opacity"
+                    style={{
+                      gap: 6,
+                      height: 28,
+                      paddingLeft: 10,
+                      paddingRight: 10,
+                      border: `1px solid ${active ? '#bf5fff' : 'rgba(255,255,255,0.15)'}`,
+                      background: active ? 'rgba(191,95,255,0.18)' : 'rgba(255,255,255,0.06)',
+                    }}
                   >
-                    <span>{emoji}</span>
-                    <span className={`font-silkscreen text-[9px] leading-none ${active ? 'text-[#bf5fff]' : 'text-tertiary'}`}>
+                    <span style={{ fontSize: 15, lineHeight: 1 }}>{emoji}</span>
+                    <span
+                      className="font-body font-semibold tabular-nums leading-none"
+                      style={{
+                        fontSize: 12,
+                        color: active ? '#bf5fff' : 'rgba(255,255,255,0.75)',
+                        fontVariationSettings: '"opsz" 14',
+                      }}
+                    >
                       {users.length}
                     </span>
                   </button>
