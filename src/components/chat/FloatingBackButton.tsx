@@ -18,7 +18,7 @@ export function FloatingBackButton({ crewId: _crewId }: FloatingBackButtonProps)
     // so swipe-back always lands on home.
     const from = sessionStorage.getItem('nexus_chat_from')
     sessionStorage.removeItem('nexus_chat_from')
-    if (from === '/home') return
+    if (from) return
 
     const current = window.location.pathname + window.location.search
     // Use { __NA: true } (Next.js App Router marker, no component tree) so

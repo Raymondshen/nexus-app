@@ -971,6 +971,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
             }}
             onTapMember={(memberId) => {
               setIsExpanded(false)
+              sessionStorage.setItem('nexus_chat_from', 'chat')
               router.push(`/chat/${crewId}/member/${memberId}`)
             }}
             onRemoveMember={(member) => setRemoveTarget(member as MemberProfile)}

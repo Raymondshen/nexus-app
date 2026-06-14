@@ -106,7 +106,10 @@ export function MessageList({
 }: MessageListProps) {
   const router = useRouter()
   const onAvatarTap = useMemo(
-    () => (userId: string) => router.push(`/chat/${crewId}/member/${userId}`),
+    () => (userId: string) => {
+      sessionStorage.setItem('nexus_chat_from', 'chat')
+      router.push(`/chat/${crewId}/member/${userId}`)
+    },
     [crewId, router],
   )
 

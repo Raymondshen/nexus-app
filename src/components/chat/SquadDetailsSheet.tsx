@@ -548,7 +548,7 @@ export function SquadDetailsSheet({
                   </button>
                 )}
                 <button
-                  onClick={() => { onClose(); router.push(`/chat/${crewId}/definitions`) }}
+                  onClick={() => { onClose(); sessionStorage.setItem('nexus_chat_from', 'chat'); router.push(`/chat/${crewId}/definitions`) }}
                   className="flex items-center justify-center"
                   style={{ width: 24, height: 24 }}
                   aria-label="Squad glossary"
