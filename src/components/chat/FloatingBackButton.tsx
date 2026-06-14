@@ -104,7 +104,7 @@ export function FloatingBackButton({ crewId, currentUserId }: FloatingBackButton
               boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)',
             }}
           >
-            <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-purple)' }} aria-hidden="true" />
+            <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
           </button>
 
           {/* Right actions */}

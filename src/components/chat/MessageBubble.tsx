@@ -830,19 +830,19 @@ function BirthdayMessage({ content }: { content: string }) {
     <div className="my-2">
       <div
         className="border border-[#a855f7] flex items-center w-full"
-        style={{ background: 'var(--color-system-msg)', padding: 16, gap: 8 }}
+        style={{ padding: 16, gap: 8 }}
       >
-        <Cake style={{ width: 24, height: 24, color: '#a855f7', flexShrink: 0 }} aria-hidden="true" />
-        <div className="flex flex-col min-w-0" style={{ gap: 0 }}>
+        <Cake style={{ width: 24, height: 24, color: 'var(--color-primary)', flexShrink: 0 }} aria-hidden="true" />
+        <div className="flex flex-1 flex-col" style={{ gap: 0, minWidth: 1 }}>
           <p
             className="font-silkscreen leading-normal tracking-[0.1px] whitespace-nowrap"
             style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}
           >
             {label}
           </p>
-          <p className="font-body w-full" style={{ fontSize: 'var(--text-sm)', lineHeight: 'normal', fontVariationSettings: '"opsz" 14' }}>
-            <span style={{ color: '#a855f7' }}>@{username}</span>
-            {dateStr && <span style={{ color: 'var(--color-primary)' }}> · {dateStr}</span>}
+          <p className="font-body w-full" style={{ fontSize: 'var(--text-sm)', lineHeight: 0, fontVariationSettings: '"opsz" 14' }}>
+            <span className="leading-normal" style={{ color: '#a855f7' }}>@{username}</span>
+            {dateStr && <span className="leading-normal" style={{ color: 'var(--color-primary)' }}> · {dateStr}</span>}
           </p>
         </div>
       </div>

@@ -23,12 +23,14 @@ export function NotifToggleRow({
       </div>
       <button
         onClick={onToggle}
+        role="switch"
+        aria-checked={enabled}
         aria-label={`${enabled ? 'Disable' : 'Enable'} ${label} notifications`}
-        className="relative w-[40px] h-[24px] flex-shrink-0 p-1 transition-colors"
-        style={{ background: enabled ? 'var(--color-purple)' : '#27272a' }}
+        className="relative flex-shrink-0 overflow-hidden"
+        style={{ width: 40, height: 24, borderRadius: 40, background: enabled ? 'var(--color-purple)' : '#27272a' }}
       >
         <motion.span
-          className="absolute top-1 w-4 h-4 bg-white pointer-events-none"
+          className="absolute top-[4px] w-4 h-4 rounded-full bg-white pointer-events-none"
           animate={{ left: enabled ? 20 : 4 }}
           transition={{ type: 'spring', stiffness: 400, damping: 30 }}
         />

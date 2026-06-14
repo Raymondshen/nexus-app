@@ -678,8 +678,7 @@ export function ProfileClient({
   }
 
   // ── Profile edit sheet ────────────────────────────────────────────────────
-  const [showEditSheet,    setShowEditSheet]    = useState(false)
-  const [showAccountSheet, setShowAccountSheet] = useState(false)
+  const [showEditSheet, setShowEditSheet] = useState(false)
   const [localUsername,    setLocalUsername]    = useState(initialUsername)
   const [localStatus,      setLocalStatus]      = useState(initialStatus ?? '')
 
@@ -901,23 +900,6 @@ export function ProfileClient({
             <ChevronRight style={{ width: 16, height: 16, color: 'var(--color-tertiary)', flexShrink: 0 }} aria-hidden="true" />
           </button>
 
-          {/* Account Details */}
-          <button
-            onClick={() => setShowAccountSheet(true)}
-            className="w-full flex gap-3 items-center text-left"
-          >
-            <User style={{ width: 16, height: 16, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
-            <div className="flex-1 min-w-0 flex flex-col gap-0 leading-[0] tracking-[0.2px]">
-              <p className="font-body font-semibold text-secondary leading-normal" style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}>
-                Account Details
-              </p>
-              <p className="font-body font-normal text-tertiary leading-normal" style={{ fontSize: 'var(--text-xxs)', fontVariationSettings: '"opsz" 14' }}>
-                Signed in with {userEmail}
-              </p>
-            </div>
-            <ChevronRight style={{ width: 16, height: 16, color: 'var(--color-tertiary)', flexShrink: 0 }} aria-hidden="true" />
-          </button>
-
           {/* Notification */}
           <button
             onClick={() => setShowNotifSheet(true)}
@@ -978,21 +960,6 @@ export function ProfileClient({
         memberSinceYear={memberSinceYear}
         groupChats={groupChats}
         totalMessages={totalMessages}
-      />
-
-      {/* Account Details bottom sheet */}
-      <AccountDetailsSheet
-        isOpen={showAccountSheet}
-        onClose={() => setShowAccountSheet(false)}
-        userEmail={userEmail}
-        isGuest={isGuest}
-        deletePending={deletePending}
-        localDeleteAt={localDeleteAt}
-        loggingOut={loggingOut}
-        onLogout={handleLogout}
-        cancellingDelete={cancellingDelete}
-        onCancelDeletion={handleCancelDeletion}
-        onOpenDeleteSheet={() => { setShowAccountSheet(false); setShowDeleteSheet(true) }}
       />
 
       {/* Notification bottom sheet */}
