@@ -1069,6 +1069,7 @@ export function ProfileClient({
 // ─── Dev section ──────────────────────────────────────────────────────────────
 
 function DevSection({ userId }: { userId: string }) {
+  const router = useRouter()
 
   const [devMode,      setDevMode]      = useState(false)
   const [showPush,     setShowPush]     = useState(false)
@@ -1211,6 +1212,17 @@ function DevSection({ userId }: { userId: string }) {
           </div>
           <ToggleSwitch enabled={afkExp} onChange={toggleAfkExp} />
         </div>
+
+        <button
+          onClick={() => router.push('/profile/error-logs')}
+          className={`${rowClass} border-b border-border w-full text-left`}
+        >
+          <div className="flex-1 min-w-0 flex flex-col gap-0 leading-[0] tracking-[0.2px]">
+            <p className="font-body font-medium text-[14px] text-secondary leading-normal" style={{ fontVariationSettings: '"opsz" 14' }}>Error Logs</p>
+            <p className="font-body font-normal text-[12px] text-tertiary leading-normal" style={{ fontVariationSettings: '"opsz" 14' }}>View client errors from all Google users</p>
+          </div>
+          <ChevronRight style={{ width: 16, height: 16, color: 'var(--color-tertiary)', flexShrink: 0 }} aria-hidden="true" />
+        </button>
 
         <div className="px-4 py-4 flex flex-col gap-3">
           <button onClick={() => setShowBanners(v => !v)} className="flex items-center justify-between w-full">

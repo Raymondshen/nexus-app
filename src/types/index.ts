@@ -224,6 +224,17 @@ export interface AppInvite extends Record<string, unknown> {
   created_at: string
 }
 
+export interface ClientError extends Record<string, unknown> {
+  id:         string
+  user_id:    string | null
+  username:   string | null
+  email:      string | null
+  message:    string
+  stack:      string | null
+  url:        string | null
+  created_at: string
+}
+
 export interface PendingDeletion extends Record<string, unknown> {
   user_id:      string
   requested_at: string
@@ -381,6 +392,12 @@ export type Database = {
         Row: DefinitionSuggestion
         Insert: Omit<DefinitionSuggestion, 'id' | 'created_at'> & { id?: string; created_at?: string }
         Update: Partial<Omit<DefinitionSuggestion, 'id' | 'created_at'>>
+        Relationships: []
+      }
+      client_errors: {
+        Row: ClientError
+        Insert: Omit<ClientError, 'id' | 'created_at'> & { id?: string; created_at?: string }
+        Update: never
         Relationships: []
       }
       pending_deletions: {

@@ -6,6 +6,7 @@ import { PushRefresh } from '@/components/ui/PushRefresh'
 import { SessionRefresher } from '@/components/ui/SessionRefresher'
 import { BadgeClear } from '@/components/ui/BadgeClear'
 import { PushDebugFAB } from '@/components/ui/PushDebugFAB'
+import { ErrorLogger } from '@/components/ui/ErrorLogger'
 
 // Auth protection is handled by middleware — no getUser() call needed here.
 export default function AppLayout({ children }: { children: ReactNode }) {
@@ -19,6 +20,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       <SessionRefresher />
       <BadgeClear />
       <PushDebugFAB />
+      <ErrorLogger />
     </div>
   )
 }
