@@ -99,8 +99,8 @@ export function FloatingBackButton({ crewId, currentUserId }: FloatingBackButton
             style={{
               padding: 8,
               background: 'rgba(0,0,0,0.5)',
-              backdropFilter: 'blur(10px)',
-              WebkitBackdropFilter: 'blur(10px)',
+              backdropFilter: 'blur(4px)',
+              WebkitBackdropFilter: 'blur(4px)',
               boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)',
             }}
           >

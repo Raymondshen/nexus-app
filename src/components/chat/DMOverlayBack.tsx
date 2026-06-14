@@ -61,8 +61,8 @@ export function DMOverlayBack({
         className="pointer-events-auto flex items-center gap-2 border border-purple p-2 overflow-hidden"
         style={{
           background: 'rgba(0,0,0,0.5)',
-          backdropFilter: 'blur(10px)',
-          WebkitBackdropFilter: 'blur(10px)',
+          backdropFilter: 'blur(4px)',
+          WebkitBackdropFilter: 'blur(4px)',
           boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)',
         }}
       >
