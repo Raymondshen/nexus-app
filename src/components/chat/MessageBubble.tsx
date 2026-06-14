@@ -827,7 +827,7 @@ function BirthdayMessage({ content }: { content: string }) {
   const dateStr  = parts[1] ?? ''
   const label    = parts.slice(2).join(':')
   return (
-    <div className="my-2">
+    <div style={{ marginTop: 'var(--space-6)', marginBottom: 'var(--space-6)' }}>
       <div
         className="border border-[#a855f7] flex items-center w-full"
         style={{ padding: 16, gap: 8 }}
@@ -853,7 +853,7 @@ function BirthdayMessage({ content }: { content: string }) {
 function JoinMessage({ content }: { content: string }) {
   const username = content.slice('JOIN:'.length)
   return (
-    <div className="my-2">
+    <div style={{ marginTop: 'var(--space-6)', marginBottom: 'var(--space-6)' }}>
       <div
         className="border border-[var(--color-border)] flex items-center w-full"
         style={{ padding: 16, gap: 8 }}
@@ -887,7 +887,7 @@ function SystemMessage({ message }: { message: MessageWithProfile }) {
   else if (content.includes('XP') || content.includes('xp'))                            { bg = 'bg-[#1a1400] border-[#ffd700]/40'; icon = '⭐' }
   else if (content.includes('artifact') || content.includes('ARTIFACT'))                { bg = 'bg-[#1a0d2e] border-[#bf5fff]/40'; icon = '💎' }
   return (
-    <div className="flex justify-center my-2">
+    <div className="flex justify-center" style={{ marginTop: 'var(--space-6)', marginBottom: 'var(--space-6)' }}>
       <div className={`border px-4 py-2 max-w-[85%] text-center ${bg}`}>
         <p className="font-pixel text-[9px] text-tertiary leading-relaxed">{icon ? `${icon} ` : ''}{content}</p>
       </div>

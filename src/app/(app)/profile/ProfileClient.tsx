@@ -626,7 +626,7 @@ function BackButton() {
       className="flex items-center justify-center flex-shrink-0"
       style={{ width: 24, height: 24 }}
     >
-      <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-purple)' }} aria-hidden="true" />
+      <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
     </button>
   )
 }
@@ -863,7 +863,7 @@ export function ProfileClient({
         {/* Floating back button box — positioned below safe area */}
         <div className="absolute z-20 pointer-events-none" style={{ top: 'calc(env(safe-area-inset-top, 0px) + 18px)', left: 16 }}>
           <div
-            className="pointer-events-auto flex items-center bg-surface border border-purple p-2 overflow-hidden"
+            className="pointer-events-auto flex items-center bg-black border border-primary p-2 overflow-hidden"
             style={{ boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)' }}
           >
             <BackButton />
