@@ -306,17 +306,21 @@ export function MessageList({
           const raw = payload.new as Message
           if (!raw?.id) return
 
-          // Guard against award-xp race: that edge function patches xp_awarded on the
-          // message row BEFORE react-to-message runs, so its Postgres UPDATE event can
-          // carry reactions:{} and wipe an optimistic local reaction. Only apply the
-          // DB reactions value when it is non-empty OR when local is already empty.
-          const dbReactions  = (raw.reactions  ?? {}) as Record<string, string[]>
-          const localMsg     = useChatStore.getState().messages.find((m) => m.id === raw.id)
-          const localReactions = ((localMsg?.reactions ?? {}) as Record<string, string[]>)
+          // Guard: award-xp UPDATEs the message row (setting xp_awarded/element_type)
+          // BEFORE react-to-message commits the reaction, so the Postgres Changes UPDATE
+          // event for award-xp carries reactions:{} from the DB — which would wipe any
+          // optimistic reaction the user already applied locally. Only overwrite local
+          // reactions when the DB value is non-empty (authoritative) OR when local is
+          // already empty (safe to sync). Never apply an empty DB snapshot over a
+          // non-empty local state.
+          const dbReactions    = (raw.reactions  ?? {}) as Record<string, string[]>
+          const localMsg       = useChatStore.getState().messages.find((m) => m.id === raw.id)
+          const localReactions = (localMsg?.reactions  ?? {}) as Record<string, string[]>
           const hasDbReactions    = Object.keys(dbReactions).length > 0
           const hasLocalReactions = Object.keys(localReactions).length > 0
 
           const patch: Partial<Message> = { xp_awarded: raw.xp_awarded, element_type: raw.element_type }
+          // Apply DB reactions only when non-empty (authoritative) OR both sides are empty
           if (hasDbReactions || !hasLocalReactions) patch.reactions = dbReactions
 
           updateMessage(raw.id, patch)

@@ -7,7 +7,7 @@ import { isSupabaseStorage, resolveAvatarUrl } from '@/components/ui/Avatar'
 import { format } from 'date-fns'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useChatStore } from '@/store/chatStore'
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/config'
+import { createClient } from '@/lib/supabase/client'
 import type { MessageWithProfile, AvatarClass, SquadDefinitionWithCreator } from '@/types'
 import { PollCard } from '@/components/chat/PollCard'
 import { SuggestDefinitionSheet } from '@/components/chat/SuggestDefinitionSheet'
@@ -267,7 +267,7 @@ export function MessageBubble({
     }
   }
 
-  // ─── Reaction toggle (optimistic + rollback) ─────────────────────────────────
+  // ─── Reaction toggle (optimistic + selective rollback) ───────────────────────
   const handleReaction = useCallback(async (emoji: string) => {
     setSheetOpen(false)
 
@@ -285,23 +285,28 @@ export function MessageBubble({
 
     updateMessage(message.id, { reactions: next })
 
-    try {
-      const res  = await fetch(`${SUPABASE_URL}/functions/v1/react-to-message`, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
-        body:    JSON.stringify({ message_id: message.id, emoji, user_id: currentUserId, crew_id: message.crew_id }),
-      })
-      const data = await res.json() as ReactResponse
-      if (!res.ok) throw new Error(data.error ?? 'reaction failed')
+    // Use supabase client so the user's live session JWT is sent (not the static
+    // anon key), which prevents spurious 401 rejections when JWT verification is on.
+    const supabase = createClient()
+    const { data, error } = await supabase.functions.invoke<ReactResponse>('react-to-message', {
+      body: { message_id: message.id, emoji, user_id: currentUserId, crew_id: message.crew_id },
+    })
 
-      updateMessage(message.id, { reactions: data.reactions })
-
-      if (data.hype_man_heal && data.heal_amount > 0) {
-        setHealFloat({ id: Date.now(), amount: data.heal_amount })
+    if (error) {
+      console.error('[react-to-message]', error)
+      // Only rollback on a confirmed HTTP rejection (4xx/5xx from the server).
+      // Network failures keep the optimistic state; Postgres Changes will sync.
+      if (error.name === 'FunctionsHttpError') {
+        updateMessage(message.id, { reactions: prev })
       }
-    } catch (err) {
-      console.error('[react-to-message]', err)
-      updateMessage(message.id, { reactions: prev })
+      return
+    }
+
+    if (data?.reactions != null) {
+      updateMessage(message.id, { reactions: data.reactions })
+    }
+    if (data?.hype_man_heal && data.heal_amount > 0) {
+      setHealFloat({ id: Date.now(), amount: data.heal_amount })
     }
   }, [message.id, message.crew_id, message.reactions, currentUserId, updateMessage])
 
