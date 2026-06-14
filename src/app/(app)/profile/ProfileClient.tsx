@@ -208,26 +208,31 @@ function EditProfileSheet({
       {isOpen && (
         <>
           <motion.div
-            className="fixed inset-0 z-[48] bg-black/60"
+            className="fixed inset-0 z-[48] flex items-end justify-center"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-          />
-          <motion.div
-            className="fixed bottom-0 left-0 right-0 z-[50] max-w-[480px] mx-auto"
-            initial={{ y: '100%' }}
-            animate={{ y: 0 }}
-            exit={{ y: '100%' }}
-            transition={{ type: 'spring', stiffness: 320, damping: 32 }}
           >
-            <div
-              className="bg-black border-t flex flex-col overflow-hidden"
-              style={{
-                borderColor: 'var(--color-border)',
-                paddingBottom: 'max(28px, env(safe-area-inset-bottom))',
-              }}
+            <div className="absolute inset-0 bg-black/60" />
+            <motion.div
+              className="relative w-full max-w-[480px] bg-black border-t border-[var(--color-border)] flex flex-col overflow-hidden"
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+              drag="y"
+              dragConstraints={{ top: 0, bottom: 0 }}
+              dragElastic={{ top: 0, bottom: 1 }}
+              onDragEnd={(_, info) => { if (info.offset.y > 80 || info.velocity.y > 400) onClose() }}
+              style={{ paddingBottom: 'max(28px, env(safe-area-inset-bottom))' }}
+              onClick={(e) => e.stopPropagation()}
             >
+              {/* Pill handle */}
+              <div className="flex justify-center pt-3 pb-2">
+                <div className="w-10 h-[4px] rounded-full bg-border" />
+              </div>
+
               {/* Profile hero — 280px full-bleed */}
               <div
                 className="relative flex flex-col items-end justify-between overflow-hidden shrink-0 w-full"
@@ -260,9 +265,14 @@ function EditProfileSheet({
                 <div className="relative flex flex-col items-start w-full" style={{ gap: 8 }}>
                   {/* Avatar + name row */}
                   <div className="flex items-center w-full" style={{ gap: 16 }}>
-                    {/* Avatar 56×56 with edit badge */}
+                    {/* Avatar 56×56 — tappable to change photo */}
                     <div className="relative flex-shrink-0" style={{ width: 56, height: 56 }}>
-                      <div className="w-full h-full overflow-hidden" style={{ background: 'var(--color-primary)' }}>
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="relative w-full h-full overflow-hidden"
+                        style={{ background: 'var(--color-primary)' }}
+                        aria-label="Change photo"
+                      >
                         {avatarUrl ? (
                           <Image src={resolveAvatarUrl(avatarUrl, 56)} alt={previewName} fill sizes="56px" className="object-cover" unoptimized={isSupabaseStorage(avatarUrl)} />
                         ) : (
@@ -270,16 +280,15 @@ function EditProfileSheet({
                             <span className="font-pixel text-[12px] text-purple">{initial}</span>
                           </div>
                         )}
-                      </div>
-                      {/* Avatar edit badge — top-right of avatar, overflows upward */}
-                      <button
-                        onClick={() => fileInputRef.current?.click()}
-                        className="absolute bg-surface border border-primary flex items-center overflow-hidden p-2"
+                      </button>
+                      {/* Edit badge — decorative, positioned relative to outer div */}
+                      <div
+                        className="absolute bg-surface border border-primary flex items-center overflow-hidden p-2 pointer-events-none"
                         style={{ top: -8, left: 36, boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)' }}
-                        aria-label="Change photo"
+                        aria-hidden="true"
                       >
                         <MagicEdit style={{ width: 12, height: 12, color: 'var(--color-primary)' }} />
-                      </button>
+                      </div>
                     </div>
 
                     {/* Name / stats */}
@@ -362,7 +371,7 @@ function EditProfileSheet({
                   Save Changes
                 </Button>
               </div>
-            </div>
+            </motion.div>
           </motion.div>
 
           {/* File input outside the transformed motion.div — iOS Safari drops .click() inside transforms */}
