@@ -3,20 +3,17 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
-import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { isSupabaseStorage, resolveAvatarUrl } from '@/components/ui/Avatar'
 import { Button } from '@/components/ui/Button'
 import { XP_PER_LEVEL } from '@/lib/game/xp'
 import { PixelSprite, spriteInfoFor } from '@/components/game/PixelSprite'
 import { MagicEdit } from 'pixelarticons/react/MagicEdit'
-import { Bell } from 'pixelarticons/react/Bell'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
 import { Crown } from 'pixelarticons/react/Crown'
 import { Copy } from 'pixelarticons/react/Copy'
 import { Check } from 'pixelarticons/react/Check'
 import { UserMinus } from 'pixelarticons/react/UserMinus'
-import { Braces } from 'pixelarticons/react/Braces'
 import { Message } from 'pixelarticons/react/Message'
 
 const CLASS_LABELS: Record<string, string> = {
@@ -412,7 +409,6 @@ export function SquadDetailsSheet({
   currentUserId, memberMsgCounts, loadingCounts,
   onUploadPhoto, onNotifPress, onSave, onTapMember, onRemoveMember, onClose,
 }: SquadDetailsSheetProps) {
-  const router = useRouter()
   const [copied,         setCopied]         = useState(false)
   const [showSquadEdit,  setShowSquadEdit]  = useState(false)
   const memberListRef  = useRef<HTMLDivElement>(null)
@@ -509,7 +505,7 @@ export function SquadDetailsSheet({
                 </div>
               </div>
 
-              {/* Action buttons — Edit (creator) | Braces | Bell | Collapse */}
+              {/* Action buttons — Edit (creator) | Collapse */}
               <div className="flex items-center gap-4 flex-shrink-0">
                 {currentUserId === creatorId && (
                   <button
@@ -521,22 +517,6 @@ export function SquadDetailsSheet({
                     <MagicEdit style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
                   </button>
                 )}
-                <button
-                  onClick={() => { onClose(); sessionStorage.setItem('nexus_chat_from', 'chat'); router.push(`/chat/${crewId}/definitions`) }}
-                  className="flex items-center justify-center"
-                  style={{ width: 24, height: 24 }}
-                  aria-label="Squad glossary"
-                >
-                  <Braces style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
-                </button>
-                <button
-                  onClick={onNotifPress}
-                  className="flex items-center justify-center"
-                  style={{ width: 24, height: 24 }}
-                  aria-label="Notification settings"
-                >
-                  <Bell style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
-                </button>
                 <button
                   onClick={onClose}
                   className="flex items-center justify-center"

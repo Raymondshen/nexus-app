@@ -1,27 +1,25 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { useSlideBack } from '@/components/ui/SlidePage'
 import { AnimatePresence } from 'framer-motion'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { Bell } from 'pixelarticons/react/Bell'
 import { BellOff } from 'pixelarticons/react/BellOff'
-import { UserPlus } from 'pixelarticons/react/UserPlus'
+import { Braces } from 'pixelarticons/react/Braces'
 import { createClient } from '@/lib/supabase/client'
 import { NotifSheet, type NotifPrefs } from '@/components/chat/NotifSheet'
-import { ShareModal } from '@/components/chat/ShareModal'
-import type { Crew } from '@/types'
 
 interface FloatingBackButtonProps {
   crewId:        string
-  crew:          Pick<Crew, 'name' | 'invite_code'>
   currentUserId: string
 }
 
-export function FloatingBackButton({ crewId, crew, currentUserId }: FloatingBackButtonProps) {
+export function FloatingBackButton({ crewId, currentUserId }: FloatingBackButtonProps) {
   const goBack = useSlideBack()
+  const router = useRouter()
 
-  const [showShare,  setShowShare]  = useState(false)
   const [showNotif,  setShowNotif]  = useState(false)
   const [notifPrefs, setNotifPrefs] = useState<NotifPrefs>({ messages: true, raids: true, victory: true, mentions: true })
 
@@ -130,8 +128,8 @@ export function FloatingBackButton({ crewId, crew, currentUserId }: FloatingBack
             </button>
 
             <button
-              onClick={() => setShowShare(true)}
-              aria-label="Invite members"
+              onClick={() => { sessionStorage.setItem('nexus_chat_from', 'chat'); router.push(`/chat/${crewId}/definitions`) }}
+              aria-label="Squad glossary"
               className="flex items-center justify-center border border-border overflow-hidden flex-shrink-0"
               style={{
                 padding: 8,
@@ -141,14 +139,13 @@ export function FloatingBackButton({ crewId, crew, currentUserId }: FloatingBack
                 boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)',
               }}
             >
-              <UserPlus style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+              <Braces style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
             </button>
           </div>
         </div>
       </div>
 
       <AnimatePresence>
-        {showShare && <ShareModal crew={crew} onClose={() => setShowShare(false)} />}
         {showNotif && (
           <NotifSheet
             prefs={notifPrefs}

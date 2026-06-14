@@ -131,7 +131,7 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
     >
       {welcome === "1" && <WelcomeDetector crewId={crewId} />}
 
-      <FloatingBackButton crewId={crewId} crew={crew} currentUserId={user.id} />
+      <FloatingBackButton crewId={crewId} currentUserId={user.id} />
 
       <ErrorBoundary>
         <MessageList
