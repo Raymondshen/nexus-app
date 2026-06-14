@@ -37,7 +37,7 @@ export default async function FriendsPage() {
   if (allUserIds.length > 0) {
     const { data: profiles } = await supabase
       .from('profiles')
-      .select('id, username, avatar_url, avatar_class')
+      .select('id, username, avatar_url, avatar_class, status')
       .in('id', allUserIds)
     for (const p of profiles ?? []) {
       profileMap[(p as FriendProfile).id] = p as FriendProfile
@@ -64,8 +64,7 @@ export default async function FriendsPage() {
       userId={user.id}
       isGuest={user.is_anonymous === true}
       friends={friends}
-      incomingRequests={incoming}
-      outgoingRequests={outgoing}
+      pendingCount={incoming.length}
     />
   )
 }

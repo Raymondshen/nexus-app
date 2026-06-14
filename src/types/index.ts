@@ -239,6 +239,7 @@ export interface FriendProfile {
   username: string
   avatar_url: string | null
   avatar_class: AvatarClass | null
+  status?: string | null
 }
 
 // ─── Supabase Database type ───────────────────────────────────────────────────

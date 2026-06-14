@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { isSupabaseStorage, resolveAvatarUrl } from '@/components/ui/Avatar'
@@ -8,6 +8,16 @@ import { motion, AnimatePresence, useMotionValue, animate } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
 import { SlidePage, useSlideBack } from '@/components/ui/SlidePage'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
+import { Search } from 'pixelarticons/react/Search'
+import { Check } from 'pixelarticons/react/Check'
+import { Close } from 'pixelarticons/react/Close'
+import { UserMinus } from 'pixelarticons/react/UserMinus'
+import { Inbox } from 'pixelarticons/react/Inbox'
+import { Message as MessageIcon } from 'pixelarticons/react/Message'
+import { createClient } from '@/lib/supabase/client'
+import { signInWithGoogle } from '@/lib/supabase/auth'
+import { sendFriendRequestAction, deleteFriendshipAction } from './actions'
+import type { Friendship, FriendProfile } from '@/types'
 
 function BackButton() {
   const goBack = useSlideBack()
@@ -22,15 +32,6 @@ function BackButton() {
     </button>
   )
 }
-import { ChevronRight } from 'pixelarticons/react/ChevronRight'
-import { Search } from 'pixelarticons/react/Search'
-import { Check } from 'pixelarticons/react/Check'
-import { Close } from 'pixelarticons/react/Close'
-import { UserMinus } from 'pixelarticons/react/UserMinus'
-import { createClient } from '@/lib/supabase/client'
-import { signInWithGoogle } from '@/lib/supabase/auth'
-import { sendFriendRequestAction, acceptFriendRequestAction, deleteFriendshipAction } from './actions'
-import type { Friendship, FriendProfile } from '@/types'
 
 export interface FriendEntry {
   friendship: Friendship
@@ -38,16 +39,71 @@ export interface FriendEntry {
 }
 
 interface FriendsClientProps {
-  userId:           string
-  isGuest:          boolean
-  friends:          FriendEntry[]
-  incomingRequests: FriendEntry[]
-  outgoingRequests: FriendEntry[]
+  userId:       string
+  isGuest:      boolean
+  friends:      FriendEntry[]
+  pendingCount: number
 }
 
 function friendshipYear(iso: string): string {
   try { return new Date(iso).getFullYear().toString() } catch { return '' }
 }
+
+// ─── Status ticker — same implementation as home AccountPreviewContainer ──────
+
+function StatusTicker({ status }: { status: string }) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const itemRef      = useRef<HTMLSpanElement>(null)
+  const [numCopies, setNumCopies] = useState(6)
+  const [animPx,    setAnimPx]    = useState(0)
+
+  useLayoutEffect(() => {
+    const container = containerRef.current
+    const item      = itemRef.current
+    if (!container || !item) return
+    const cw = container.clientWidth
+    const iw = item.offsetWidth
+    if (iw <= 0) return
+    const halfNeeded = Math.ceil(cw / iw) + 1
+    const n          = Math.max(4, halfNeeded % 2 === 0 ? halfNeeded * 2 : (halfNeeded + 1) * 2)
+    setNumCopies(n)
+    setAnimPx(iw * (n / 2))
+  }, [status])
+
+  const duration = Math.max(21, status.length * 0.28 + 15)
+
+  return (
+    <div
+      ref={containerRef}
+      className="overflow-hidden border-t border-b border-border"
+      style={{ paddingTop: 7, paddingBottom: 7, paddingLeft: 8, paddingRight: 8 }}
+    >
+      <motion.div
+        key={status}
+        className="flex"
+        initial={{ x: 0 }}
+        animate={{ x: animPx > 0 ? [0, -animPx] : 0 }}
+        transition={{ duration, repeat: Infinity, ease: 'linear', repeatType: 'loop' }}
+      >
+        {Array.from({ length: numCopies }, (_, i) => (
+          <span
+            key={i}
+            ref={i === 0 ? itemRef : undefined}
+            className="inline-flex items-center flex-shrink-0 whitespace-nowrap pr-2"
+            style={{ gap: 4 }}
+          >
+            <MessageIcon style={{ width: 8, height: 8, color: 'var(--color-tertiary)' }} aria-hidden="true" />
+            <span className="font-silkscreen text-[length:var(--text-mini)] text-tertiary leading-none">
+              &ldquo;{status}&rdquo;
+            </span>
+          </span>
+        ))}
+      </motion.div>
+    </div>
+  )
+}
+
+// ─── Avatar ───────────────────────────────────────────────────────────────────
 
 function UserAvatar({ profile, size = 40 }: { profile: FriendProfile | null; size?: number }) {
   return (
@@ -75,7 +131,7 @@ function UserAvatar({ profile, size = 40 }: { profile: FriendProfile | null; siz
 
 // ─── Swipeable friend row ─────────────────────────────────────────────────────
 
-const REMOVE_REVEAL = 104
+const REMOVE_REVEAL = 116
 
 function SwipeableFriendRow({
   entry,
@@ -96,6 +152,7 @@ function SwipeableFriendRow({
   const [open, setOpen] = useState(false)
   const wasDragging = useRef(false)
   const rowId       = entry.friendship.id
+  const status      = entry.profile?.status
 
   useEffect(() => {
     if (openRowId !== rowId) {
@@ -118,60 +175,69 @@ function SwipeableFriendRow({
     }
   }
 
-  function handleClick() {
+  function handleDetailsClick() {
     if (wasDragging.current) return
-    if (open) {
-      snapTo(0, false)
-    } else {
-      onTap()
-    }
+    if (open) { snapTo(0, false) } else { onTap() }
   }
 
   return (
-    <div className="overflow-hidden">
+    <div className="relative">
+      {/* Unfriend button — sits behind the card, revealed when card slides left */}
+      <div className="absolute inset-y-0 right-0 flex" style={{ width: REMOVE_REVEAL }}>
+        <button
+          className="flex-1 flex items-center justify-center gap-1 overflow-hidden disabled:opacity-50 active:opacity-80"
+          style={{ background: '#ef4444', boxShadow: '4px 4px 0px 0px rgba(239,68,68,0.5)' }}
+          onClick={(e) => { e.stopPropagation(); snapTo(0, false); onRemove() }}
+          tabIndex={open ? 0 : -1}
+          disabled={loading}
+          aria-label={`Unfriend ${entry.profile?.username}`}
+        >
+          <UserMinus style={{ width: 16, height: 16, color: 'white', flexShrink: 0 }} aria-hidden="true" />
+          <span className="font-silkscreen text-[length:var(--text-xs)] text-primary whitespace-nowrap leading-none pb-[2px]">
+            unfriend
+          </span>
+        </button>
+      </div>
+
+      {/* Card — drags left to reveal unfriend button */}
       <motion.div
-        className="flex"
         drag="x"
         dragConstraints={{ left: -REMOVE_REVEAL, right: 0 }}
         dragElastic={{ left: 0.05, right: 0.1 }}
-        style={{ x, width: `calc(100% + ${REMOVE_REVEAL}px)` }}
+        style={{ x, boxShadow: '4px 4px 0px var(--color-border)' }}
+        className="relative z-10 bg-surface flex flex-col"
         onDragStart={() => { wasDragging.current = true; onOpen(rowId) }}
         onDragEnd={handleDragEnd}
       >
-        <motion.div
-          className="flex-1 min-w-0 cursor-pointer flex items-center gap-4 overflow-hidden"
-          onClick={handleClick}
-          whileTap={{ scale: open ? 1 : 0.98 }}
+        {/* Details row */}
+        <div
+          className="flex items-center overflow-hidden cursor-pointer select-none"
+          style={{ gap: 'var(--space-5)', padding: 'var(--space-5)' }}
+          onClick={handleDetailsClick}
         >
           <UserAvatar profile={entry.profile} size={40} />
-          <div className="flex-1 min-w-0 flex flex-col tracking-[0.2px]">
+          <div
+            className="flex-1 min-w-0 flex flex-col"
+            style={{ gap: 'var(--space-2)', letterSpacing: '0.2px' }}
+          >
             <span
-              className="font-body font-semibold text-[16px] text-primary leading-normal truncate"
+              className="font-body font-semibold text-[length:var(--text-md)] text-primary leading-normal truncate"
               style={{ fontVariationSettings: '"opsz" 14' }}
             >
               {entry.profile?.username ?? '—'}
             </span>
-            <span className="font-silkscreen text-[11px] text-tertiary leading-normal">
-              est. {friendshipYear(entry.friendship.created_at)}
+            <span className="font-silkscreen text-[length:var(--text-xxs)] text-tertiary leading-normal">
+              est.{friendshipYear(entry.friendship.created_at)}
             </span>
           </div>
-          <ChevronRight
-            style={{ width: 24, height: 24, color: 'var(--color-tertiary)', flexShrink: 0 }}
+          <MessageIcon
+            style={{ width: 24, height: 24, color: 'var(--color-purple)', flexShrink: 0 }}
             aria-hidden="true"
           />
-        </motion.div>
+        </div>
 
-        <button
-          className="flex-shrink-0 self-stretch flex flex-row items-center justify-center gap-[4px] bg-[#ef4444] px-[12px] py-[8px] overflow-hidden disabled:opacity-50"
-          style={{ width: REMOVE_REVEAL }}
-          onClick={(e) => { e.stopPropagation(); snapTo(0, false); onRemove() }}
-          tabIndex={open ? 0 : -1}
-          disabled={loading}
-          aria-label={`Remove ${entry.profile?.username}`}
-        >
-          <UserMinus style={{ width: 16, height: 16, color: 'white' }} aria-hidden="true" />
-          <span className="font-silkscreen text-[12px] text-white whitespace-nowrap leading-none">REMOVE</span>
-        </button>
+        {/* Status ticker */}
+        {status && <StatusTicker status={status} />}
       </motion.div>
     </div>
   )
@@ -182,42 +248,32 @@ function SwipeableFriendRow({
 export function FriendsClient({
   userId,
   isGuest,
-  friends:          initialFriends,
-  incomingRequests: initialIncoming,
-  outgoingRequests: initialOutgoing,
+  friends:      initialFriends,
+  pendingCount,
 }: FriendsClientProps) {
   const router = useRouter()
 
   const [friends,       setFriends]       = useState<FriendEntry[]>(initialFriends)
-  const [incoming,      setIncoming]      = useState<FriendEntry[]>(initialIncoming)
-  const [outgoing,      setOutgoing]      = useState<FriendEntry[]>(initialOutgoing)
-  const [requestsOpen,  setRequestsOpen]  = useState(true)
   const [openRowId,     setOpenRowId]     = useState<string | null>(null)
-
   const [searchQuery,   setSearchQuery]   = useState('')
   const [searchResults, setSearchResults] = useState<FriendProfile[]>([])
   const [isSearching,   setIsSearching]   = useState(false)
   const [loadingIds,    setLoadingIds]    = useState<Set<string>>(new Set())
   const [googleLoading, setGoogleLoading] = useState(false)
 
-  const hasRequests = incoming.length > 0 || outgoing.length > 0
-  const showSearch  = searchQuery.trim().length >= 2
+  const showSearch = searchQuery.trim().length >= 2
 
-  // Debounced user search
+  // Debounced username search
   useEffect(() => {
     const q = searchQuery.trim()
-    if (q.length < 2) {
-      setSearchResults([])
-      setIsSearching(false)
-      return
-    }
+    if (q.length < 2) { setSearchResults([]); setIsSearching(false); return }
     setIsSearching(true)
     const timer = setTimeout(async () => {
       try {
         const supabase = createClient()
         const { data } = await supabase
           .from('profiles')
-          .select('id, username, avatar_url, avatar_class')
+          .select('id, username, avatar_url, avatar_class, status')
           .ilike('username', `%${q}%`)
           .neq('id', userId)
           .limit(8)
@@ -229,10 +285,8 @@ export function FriendsClient({
     return () => { clearTimeout(timer); setIsSearching(false) }
   }, [searchQuery, userId])
 
-  function getRelationship(profileId: string): 'friend' | 'pending_sent' | 'pending_received' | 'none' {
-    if (friends.some((e)  => e.profile?.id === profileId)) return 'friend'
-    if (outgoing.some((e) => e.profile?.id === profileId)) return 'pending_sent'
-    if (incoming.some((e) => e.profile?.id === profileId)) return 'pending_received'
+  function getRelationship(profileId: string): 'friend' | 'none' {
+    if (friends.some((e) => e.profile?.id === profileId)) return 'friend'
     return 'none'
   }
 
@@ -243,46 +297,11 @@ export function FriendsClient({
     if (isGuest) return
     addLoading(profile.id)
     try {
-      const result = await sendFriendRequestAction(profile.id)
-      if (!result.error) {
-        const tempFriendship: Friendship = {
-          id:           `temp-${profile.id}`,
-          requester_id: userId,
-          addressee_id: profile.id,
-          status:       'pending',
-          created_at:   new Date().toISOString(),
-        }
-        setOutgoing((prev) => [...prev, { friendship: tempFriendship, profile }])
-      }
+      await sendFriendRequestAction(profile.id)
     } finally {
       removeLoading(profile.id)
     }
-  }, [isGuest, userId]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const handleAccept = useCallback(async (entry: FriendEntry) => {
-    addLoading(entry.friendship.id)
-    try {
-      const result = await acceptFriendRequestAction(entry.friendship.id)
-      if (!result.error) {
-        setIncoming((prev) => prev.filter((e) => e.friendship.id !== entry.friendship.id))
-        setFriends((prev) => [...prev, { friendship: { ...entry.friendship, status: 'accepted' }, profile: entry.profile }])
-      }
-    } finally {
-      removeLoading(entry.friendship.id)
-    }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const handleDecline = useCallback(async (entry: FriendEntry) => {
-    addLoading(entry.friendship.id)
-    try {
-      const result = await deleteFriendshipAction(entry.friendship.id)
-      if (!result.error) {
-        setIncoming((prev) => prev.filter((e) => e.friendship.id !== entry.friendship.id))
-      }
-    } finally {
-      removeLoading(entry.friendship.id)
-    }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isGuest]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleRemoveFriend = useCallback(async (entry: FriendEntry) => {
     addLoading(entry.friendship.id)
@@ -296,34 +315,41 @@ export function FriendsClient({
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleCancelOutgoing = useCallback(async (entry: FriendEntry) => {
-    addLoading(entry.friendship.id)
-    try {
-      const result = await deleteFriendshipAction(entry.friendship.id)
-      if (!result.error) {
-        setOutgoing((prev) => prev.filter((e) => e.friendship.id !== entry.friendship.id))
-      }
-    } finally {
-      removeLoading(entry.friendship.id)
-    }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
   const handleGoogleSignIn = useCallback(async () => {
     setGoogleLoading(true)
     try { await signInWithGoogle() } catch { setGoogleLoading(false) }
   }, [])
 
   return (
-    <SlidePage className="min-h-screen bg-black flex flex-col">
+    <SlidePage className="min-h-screen bg-black flex flex-col" backHref="/home">
 
-      {/* ── Header — matches ChatHeader padding/gap ── */}
+      {/* ── Header ── */}
       <div
-        className="bg-black border-b border-border px-4 pb-2 flex-shrink-0"
-        style={{ paddingTop: 'max(env(safe-area-inset-top), 8px)' }}
+        className="bg-black border-b border-border flex-shrink-0"
+        style={{ paddingLeft: 'var(--space-5)', paddingRight: 'var(--space-5)', paddingBottom: 'var(--space-3)', paddingTop: 'max(env(safe-area-inset-top), var(--space-3))' }}
       >
-        <div className="flex items-center h-10 gap-2">
-          <BackButton />
-          <h1 className="font-pixel text-[18px] text-primary leading-none whitespace-nowrap">FRIENDS</h1>
+        <div className="flex items-center justify-between h-10">
+          <div className="flex items-center" style={{ gap: 'var(--space-3)' }}>
+            <BackButton />
+            <span className="font-silkscreen text-[length:var(--text-xxl)] text-primary uppercase leading-none">
+              Friends
+            </span>
+          </div>
+          <button
+            className="relative flex-shrink-0"
+            style={{ width: 24, height: 24 }}
+            onClick={() => router.push('/friends/inbox')}
+            aria-label="Inbox"
+          >
+            <Inbox style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+            {pendingCount > 0 && (
+              <span
+                className="absolute top-0 right-0 rounded-full"
+                style={{ width: 8, height: 8, background: 'var(--color-coins)' }}
+                aria-label={`${pendingCount} pending requests`}
+              />
+            )}
+          </button>
         </div>
       </div>
 
@@ -344,16 +370,22 @@ export function FriendsClient({
       )}
 
       {/* ── Body ── */}
-      <div className="flex-1 overflow-y-auto nexus-scroll px-4 py-4 flex flex-col gap-6">
+      <div
+        className="flex-1 overflow-y-auto nexus-scroll flex flex-col"
+        style={{ paddingLeft: 'var(--space-5)', paddingRight: 'var(--space-5)', paddingTop: 'var(--space-5)', paddingBottom: 'var(--space-5)', gap: 'var(--space-7)' }}
+      >
 
         {/* Search input */}
-        <div className="border border-border h-[48px] flex items-center gap-2 px-4 py-[12px]">
+        <div
+          className="border border-border flex items-center flex-shrink-0"
+          style={{ height: 48, gap: 'var(--space-3)', paddingLeft: 'var(--space-5)', paddingRight: 'var(--space-5)', paddingTop: 12, paddingBottom: 12 }}
+        >
           <Search className="flex-shrink-0" style={{ width: 16, height: 16, color: 'var(--color-muted)' }} aria-hidden="true" />
           <input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search by @username"
-            className="flex-1 bg-transparent font-body text-[14px] text-primary placeholder:text-muted focus:outline-none"
+            className="flex-1 bg-transparent font-body text-[length:var(--text-sm)] text-primary placeholder:text-muted focus:outline-none"
             style={{ fontVariationSettings: '"opsz" 14' }}
           />
           {isSearching && <span className="font-pixel text-[7px] text-muted flex-shrink-0">...</span>}
@@ -361,201 +393,80 @@ export function FriendsClient({
 
         {/* ── Search results ── */}
         {showSearch ? (
-          <div className="flex flex-col gap-4">
-            <p className="font-silkscreen text-[14px] text-primary tracking-[0.2px] leading-normal">Results</p>
+          <div className="flex flex-col" style={{ gap: 'var(--space-5)' }}>
             {searchResults.length === 0 && !isSearching ? (
               <p className="font-pixel text-[8px] text-muted py-4 text-center">NO USERS FOUND</p>
             ) : (
-              <div className="flex flex-col gap-4">
-                {searchResults.map((profile) => {
-                  const rel     = getRelationship(profile.id)
-                  const loading = loadingIds.has(profile.id)
-                  const incomingEntry = rel === 'pending_received'
-                    ? (incoming.find((e) => e.profile?.id === profile.id) ?? null)
-                    : null
-
-                  return (
-                    <div key={profile.id} className="flex items-center gap-4 overflow-hidden">
+              searchResults.map((profile) => {
+                const rel     = getRelationship(profile.id)
+                const loading = loadingIds.has(profile.id)
+                return (
+                  <div
+                    key={profile.id}
+                    className="bg-surface flex flex-col"
+                    style={{ boxShadow: '4px 4px 0px var(--color-border)' }}
+                  >
+                    <div
+                      className="flex items-center overflow-hidden"
+                      style={{ gap: 'var(--space-5)', padding: 'var(--space-5)' }}
+                    >
                       <UserAvatar profile={profile} size={40} />
-                      <div className="flex-1 min-w-0 flex flex-col tracking-[0.2px]">
+                      <div className="flex-1 min-w-0 flex flex-col" style={{ gap: 'var(--space-2)', letterSpacing: '0.2px' }}>
                         <span
-                          className="font-body font-semibold text-[16px] text-primary leading-normal truncate"
+                          className="font-body font-semibold text-[length:var(--text-md)] text-primary leading-normal truncate"
                           style={{ fontVariationSettings: '"opsz" 14' }}
                         >
                           {profile.username}
                         </span>
-                        <span className="font-silkscreen text-[11px] text-tertiary leading-normal">
+                        <span className="font-silkscreen text-[length:var(--text-xxs)] text-tertiary leading-normal">
                           @{profile.username.toLowerCase()}
                         </span>
                       </div>
-                      {rel === 'friend' && (
+                      {rel === 'friend' ? (
                         <span className="font-pixel text-[7px] text-[#66bb6a] flex-shrink-0">FRIENDS</span>
-                      )}
-                      {rel === 'pending_sent' && (
-                        <span className="font-pixel text-[7px] text-muted flex-shrink-0">PENDING</span>
-                      )}
-                      {rel === 'pending_received' && incomingEntry && (
-                        <button
-                          disabled={loading}
-                          onClick={() => handleAccept(incomingEntry)}
-                          className="w-[32px] h-[32px] bg-[#22c55e] flex items-center justify-center flex-shrink-0 overflow-hidden disabled:opacity-50"
-                          aria-label="Accept"
-                        >
-                          <Check style={{ width: 16, height: 16, color: '#ffffff' }} aria-hidden="true" />
-                        </button>
-                      )}
-                      {rel === 'none' && (
+                      ) : (
                         <button
                           disabled={isGuest || loading}
                           onClick={() => handleSendRequest(profile)}
-                          className="bg-purple flex items-center justify-center overflow-hidden px-4 py-3 flex-shrink-0 disabled:opacity-50"
+                          className="bg-purple flex items-center justify-center overflow-hidden flex-shrink-0 disabled:opacity-50 active:opacity-70"
+                          style={{ paddingLeft: 'var(--space-5)', paddingRight: 'var(--space-5)', paddingTop: 'var(--space-4)', paddingBottom: 'var(--space-4)' }}
                         >
-                          <span className="font-silkscreen text-[11px] text-primary whitespace-nowrap leading-none">
+                          <span className="font-silkscreen text-[length:var(--text-xxs)] text-primary whitespace-nowrap leading-none">
                             {loading ? '...' : 'ADD +'}
                           </span>
                         </button>
                       )}
                     </div>
-                  )
-                })}
-              </div>
+                    {profile.status && <StatusTicker status={profile.status} />}
+                  </div>
+                )
+              })
             )}
           </div>
         ) : (
-          <>
-            {/* ── Requests section ── */}
-            {hasRequests && (
-              <div className="flex flex-col gap-4">
-                {/* Section title */}
-                <div className="flex items-center justify-between">
-                  <p className="font-silkscreen text-[14px] text-primary tracking-[0.2px] leading-normal">Requests</p>
-                  <button
-                    onClick={() => setRequestsOpen((o) => !o)}
-                    className="flex items-center justify-center"
-                    style={{ width: 24, height: 16 }}
-                    aria-label={requestsOpen ? 'Collapse requests' : 'Expand requests'}
-                  >
-                    <motion.div
-                      style={{ display: 'block', width: 24, height: 16 }}
-                      animate={{ rotate: requestsOpen ? 90 : 0 }}
-                      transition={{ duration: 0.18, ease: 'easeInOut' }}
-                    >
-                      <ChevronRight style={{ width: 24, height: 16, color: 'var(--color-muted)' }} aria-hidden="true" />
-                    </motion.div>
-                  </button>
-                </div>
-
-                {/* Collapsible content */}
-                <AnimatePresence initial={false}>
-                  {requestsOpen && (
-                    <motion.div
-                      key="requests-body"
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      exit={{ opacity: 0, height: 0 }}
-                      transition={{ duration: 0.2, ease: 'easeInOut' }}
-                      className="overflow-hidden flex flex-col gap-4"
-                    >
-                      {/* Outgoing requests */}
-                      {outgoing.map((entry) => {
-                        const loading = loadingIds.has(entry.friendship.id)
-                        return (
-                          <div key={entry.friendship.id} className="flex items-center gap-4 overflow-hidden">
-                            <UserAvatar profile={entry.profile} size={40} />
-                            <div className="flex-1 min-w-0 flex flex-col tracking-[0.2px]">
-                              <span
-                                className="font-body font-semibold text-[16px] text-primary leading-normal truncate"
-                                style={{ fontVariationSettings: '"opsz" 14' }}
-                              >
-                                {entry.profile?.username ?? '—'}
-                              </span>
-                              <span className="font-silkscreen text-[11px] text-tertiary leading-normal">
-                                Sent Friend Request
-                              </span>
-                            </div>
-                            <button
-                              disabled={loading}
-                              onClick={() => handleCancelOutgoing(entry)}
-                              className="bg-purple flex items-center justify-center gap-2 overflow-hidden px-4 py-3 flex-shrink-0 disabled:opacity-50 active:opacity-70"
-                            >
-                              <Close style={{ width: 12, height: 12, color: '#ffffff' }} aria-hidden="true" />
-                              <span className="font-silkscreen text-[11px] text-primary whitespace-nowrap leading-none">
-                                {loading ? '...' : 'CANCEL'}
-                              </span>
-                            </button>
-                          </div>
-                        )
-                      })}
-
-                      {/* Incoming requests */}
-                      {incoming.map((entry) => {
-                        const loading = loadingIds.has(entry.friendship.id)
-                        return (
-                          <div key={entry.friendship.id} className="flex items-center gap-4 overflow-hidden">
-                            <UserAvatar profile={entry.profile} size={40} />
-                            <div className="flex-1 min-w-0 flex flex-col tracking-[0.2px]">
-                              <span
-                                className="font-body font-semibold text-[16px] text-primary leading-normal truncate"
-                                style={{ fontVariationSettings: '"opsz" 14' }}
-                              >
-                                {entry.profile?.username ?? '—'}
-                              </span>
-                              <span className="font-silkscreen text-[11px] text-tertiary leading-normal">
-                                Wants to be your friend
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-4 flex-shrink-0">
-                              <button
-                                disabled={loading}
-                                onClick={() => handleAccept(entry)}
-                                className="w-[32px] h-[32px] bg-[#22c55e] flex items-center justify-center overflow-hidden disabled:opacity-50 active:opacity-70"
-                                aria-label="Accept"
-                              >
-                                <Check style={{ width: 16, height: 16, color: '#ffffff' }} aria-hidden="true" />
-                              </button>
-                              <button
-                                disabled={loading}
-                                onClick={() => handleDecline(entry)}
-                                className="w-[32px] h-[32px] bg-[#ef4444] flex items-center justify-center overflow-hidden disabled:opacity-50 active:opacity-70"
-                                aria-label="Decline"
-                              >
-                                <Close style={{ width: 12, height: 12, color: '#ffffff' }} aria-hidden="true" />
-                              </button>
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+          /* ── Friends list ── */
+          <div className="flex flex-col" style={{ gap: 'var(--space-5)' }}>
+            {friends.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <p className="font-pixel text-[9px] text-primary mb-3">NO FRIENDS YET</p>
+                <p className="font-pixel text-[7px] text-muted leading-relaxed">
+                  Search for players above<br />to add them to your party.
+                </p>
               </div>
+            ) : (
+              friends.map((entry) => (
+                <SwipeableFriendRow
+                  key={entry.friendship.id}
+                  entry={entry}
+                  onTap={() => { if (entry.profile) router.push(`/dm/${entry.profile.id}`) }}
+                  onRemove={() => handleRemoveFriend(entry)}
+                  openRowId={openRowId}
+                  onOpen={setOpenRowId}
+                  loading={loadingIds.has(entry.friendship.id)}
+                />
+              ))
             )}
-
-            {/* ── Friends section ── */}
-            <div className="flex flex-col gap-4">
-              <p className="font-silkscreen text-[14px] text-primary tracking-[0.2px] leading-normal">Friends</p>
-              {friends.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12 text-center">
-                  <p className="font-pixel text-[9px] text-primary mb-3">NO FRIENDS YET</p>
-                  <p className="font-pixel text-[7px] text-muted leading-relaxed">
-                    Search for players above<br />to add them to your party.
-                  </p>
-                </div>
-              ) : (
-                friends.map((entry) => (
-                  <SwipeableFriendRow
-                    key={entry.friendship.id}
-                    entry={entry}
-                    onTap={() => { if (entry.profile) router.push(`/dm/${entry.profile.id}`) }}
-                    onRemove={() => handleRemoveFriend(entry)}
-                    openRowId={openRowId}
-                    onOpen={setOpenRowId}
-                    loading={loadingIds.has(entry.friendship.id)}
-                  />
-                ))
-              )}
-            </div>
-          </>
+          </div>
         )}
       </div>
     </SlidePage>
