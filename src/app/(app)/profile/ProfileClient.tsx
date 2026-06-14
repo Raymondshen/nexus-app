@@ -305,9 +305,6 @@ function EditProfileSheet({
                 </div>
               </div>
 
-              {/* Status ticker — live updates as user types */}
-              <ProfileStatusTicker status={status.trim() || 'Whats the mood today...'} />
-
               {/* Form section */}
               <div className="flex flex-col items-start w-full" style={{ gap: 24, paddingTop: 16, paddingLeft: 16, paddingRight: 16 }}>
                 {/* Fields */}
@@ -530,35 +527,36 @@ function AccountDetailsSheet({
             transition={{ type: 'spring', stiffness: 320, damping: 32 }}
           >
             <div
-              className="bg-surface border-t overflow-hidden flex flex-col gap-[var(--space-7)]"
+              className="bg-black border-t border-border overflow-hidden flex flex-col gap-[var(--space-7)]"
               style={{
-                borderColor: 'var(--color-border-hover)',
-                padding: 'var(--space-7) var(--space-5)',
-                paddingBottom: 'max(env(safe-area-inset-bottom), var(--space-5))',
+                paddingTop: 'var(--space-7)',
+                paddingLeft: 'var(--space-5)',
+                paddingRight: 'var(--space-5)',
+                paddingBottom: 'max(28px, env(safe-area-inset-bottom))',
               }}
             >
-              <p
-                className="font-body font-bold text-primary leading-none"
-                style={{ fontSize: 'var(--text-lg)', fontVariationSettings: '"opsz" 14' }}
-              >
-                Account
-              </p>
-
-              <div className="flex flex-col gap-[var(--space-2)]">
-                <SectionLabel>Signed in as</SectionLabel>
+              {/* Header */}
+              <div className="flex flex-col gap-[var(--space-2)] w-full">
                 <p
-                  className="font-body font-normal leading-normal tracking-[0.2px]"
-                  style={{ fontSize: 'var(--text-xs)', color: 'var(--color-paper-200)', fontVariationSettings: '"opsz" 14' }}
+                  className="font-body font-bold text-primary leading-none w-full"
+                  style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}
+                >
+                  Account
+                </p>
+                <p
+                  className="font-body font-normal leading-normal w-full"
+                  style={{ fontSize: 'var(--text-xs)', color: 'var(--color-tertiary)', fontVariationSettings: '"opsz" 14' }}
                 >
                   {'Signed in with '}
                   <span style={{ color: 'var(--color-primary)' }}>{userEmail}</span>
                 </p>
               </div>
 
+              {/* Deletion pending notice */}
               {deletePending && localDeleteAt && (
                 <div
                   className="flex flex-col gap-[var(--space-2)] p-[var(--space-4)]"
-                  style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 4 }}
+                  style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.3)' }}
                 >
                   <p className="font-silkscreen leading-relaxed" style={{ fontSize: 'var(--text-mini)', color: '#ef4444' }}>
                     Account deletion scheduled
@@ -573,32 +571,34 @@ function AccountDetailsSheet({
                   <button
                     onClick={onCancelDeletion}
                     disabled={cancellingDelete}
-                    className="self-start font-pixel leading-none disabled:opacity-50 transition-opacity hover:opacity-70"
-                    style={{ fontSize: 'var(--text-mini)', color: 'var(--color-primary)' }}
+                    className="self-start font-silkscreen leading-none disabled:opacity-50 transition-opacity hover:opacity-70"
+                    style={{ fontSize: 'var(--text-xs)', color: 'var(--color-primary)' }}
                   >
                     {cancellingDelete ? '...' : 'Cancel deletion'}
                   </button>
                 </div>
               )}
 
-              <div className="flex flex-col gap-[var(--space-5)]">
+              {/* Buttons */}
+              <div className="flex flex-col w-full gap-[var(--space-3)]">
                 <button
                   onClick={onLogout}
                   disabled={loggingOut}
-                  className="w-full h-12 border border-[#ef4444] flex items-center justify-center transition-colors hover:bg-[#ef4444]/8 disabled:opacity-50 overflow-hidden"
+                  className="w-full h-12 flex items-center justify-center overflow-hidden disabled:opacity-50 transition-opacity"
+                  style={{ background: '#ef4444' }}
                 >
-                  <span className="font-pixel leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-mini)', color: '#ef4444' }}>
-                    {loggingOut ? '...' : 'LOG OUT'}
+                  <span className="font-silkscreen leading-none whitespace-nowrap text-primary" style={{ fontSize: 'var(--text-xs)' }}>
+                    {loggingOut ? '...' : 'Log out'}
                   </span>
                 </button>
 
                 {!isGuest && !deletePending && (
                   <button
                     onClick={onOpenDeleteSheet}
-                    className="w-full h-12 border border-[#ef4444] flex items-center justify-center transition-colors hover:bg-[#ef4444]/8 overflow-hidden"
+                    className="w-full h-12 border border-[#ef4444] flex items-center justify-center overflow-hidden transition-colors hover:bg-[#ef4444]/8"
                   >
-                    <span className="font-pixel leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-mini)', color: '#ef4444' }}>
-                      DELETE ACCOUNT
+                    <span className="font-silkscreen leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-xs)', color: '#ef4444' }}>
+                      Delete account
                     </span>
                   </button>
                 )}

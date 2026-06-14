@@ -97,8 +97,14 @@ export function FloatingBackButton({ crewId, crew, currentUserId }: FloatingBack
           <button
             onClick={goBack}
             aria-label="Go back"
-            className="pointer-events-auto flex items-center justify-center bg-black border border-border flex-shrink-0 overflow-hidden"
-            style={{ padding: 8, boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)' }}
+            className="pointer-events-auto flex items-center justify-center border border-border flex-shrink-0 overflow-hidden"
+            style={{
+              padding: 8,
+              background: 'rgba(0,0,0,0.5)',
+              backdropFilter: 'blur(10px)',
+              WebkitBackdropFilter: 'blur(10px)',
+              boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)',
+            }}
           >
             <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-purple)' }} aria-hidden="true" />
           </button>
@@ -108,8 +114,14 @@ export function FloatingBackButton({ crewId, crew, currentUserId }: FloatingBack
             <button
               onClick={() => setShowNotif(true)}
               aria-label={allMuted ? 'Notifications muted' : 'Notification settings'}
-              className="flex items-center justify-center bg-black border border-border overflow-hidden flex-shrink-0"
-              style={{ padding: 8, filter: 'drop-shadow(0px 0px 10px rgba(0,0,0,0.1))' }}
+              className="flex items-center justify-center border border-border overflow-hidden flex-shrink-0"
+              style={{
+                padding: 8,
+                background: 'rgba(0,0,0,0.5)',
+                backdropFilter: 'blur(10px)',
+                WebkitBackdropFilter: 'blur(10px)',
+                boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)',
+              }}
             >
               {allMuted
                 ? <BellOff style={{ width: 24, height: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
@@ -120,8 +132,14 @@ export function FloatingBackButton({ crewId, crew, currentUserId }: FloatingBack
             <button
               onClick={() => setShowShare(true)}
               aria-label="Invite members"
-              className="flex items-center justify-center bg-black border border-border overflow-hidden flex-shrink-0"
-              style={{ padding: 8, filter: 'drop-shadow(0px 0px 10px rgba(0,0,0,0.1))' }}
+              className="flex items-center justify-center border border-border overflow-hidden flex-shrink-0"
+              style={{
+                padding: 8,
+                background: 'rgba(0,0,0,0.5)',
+                backdropFilter: 'blur(10px)',
+                WebkitBackdropFilter: 'blur(10px)',
+                boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)',
+              }}
             >
               <UserPlus style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
             </button>

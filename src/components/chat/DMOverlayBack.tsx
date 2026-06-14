@@ -58,8 +58,13 @@ export function DMOverlayBack({
       style={{ top: 'calc(env(safe-area-inset-top, 0px) + 16px)', left: '16px' }}
     >
       <div
-        className="pointer-events-auto flex items-center gap-2 bg-surface border border-purple p-2"
-        style={{ boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)' }}
+        className="pointer-events-auto flex items-center gap-2 border border-purple p-2 overflow-hidden"
+        style={{
+          background: 'rgba(0,0,0,0.5)',
+          backdropFilter: 'blur(10px)',
+          WebkitBackdropFilter: 'blur(10px)',
+          boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)',
+        }}
       >
         <button
           onClick={goBack}
