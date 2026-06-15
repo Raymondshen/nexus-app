@@ -76,9 +76,11 @@ export interface Message extends Record<string, unknown> {
   xp_awarded: number | null
   reactions: Record<string, string[]>
   created_at: string
-  reply_to_id?:    string | null
-  reply_preview?:  string | null
-  reply_username?: string | null
+  reply_to_id?:      string | null
+  reply_preview?:    string | null
+  reply_username?:   string | null
+  image_url?:        string | null
+  image_blur_hash?:  string | null
 }
 
 export interface CrewXPLog extends Record<string, unknown> {

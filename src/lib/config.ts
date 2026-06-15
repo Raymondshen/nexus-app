@@ -48,3 +48,15 @@ export function validateConfig(): void {
 // Named exports used by client components
 export const SUPABASE_URL      = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
 export const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? ''
+
+export const IMAGE_CONFIG = {
+  MAX_UPLOAD_BYTES:          15_728_640, // 15 MB
+  MAX_GIF_BYTES:              5_242_880, //  5 MB
+  CHAT_IMAGE_MAX_WIDTH_PX:        1200,
+  CHAT_IMAGE_QUALITY:             0.80,
+  ARTIFACT_IMAGE_MAX_WIDTH_PX:     800,
+  ARTIFACT_IMAGE_QUALITY:         0.85,
+  AVATAR_IMAGE_MAX_WIDTH_PX:       256,
+  AVATAR_IMAGE_QUALITY:           0.70,
+  LQIP_SIZE_PX:                     20,
+} as const

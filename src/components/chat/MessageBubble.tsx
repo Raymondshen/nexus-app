@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useChatStore } from '@/store/chatStore'
 import { createClient } from '@/lib/supabase/client'
 import type { MessageWithProfile, AvatarClass, SquadDefinitionWithCreator } from '@/types'
+import { supabaseImageLoader } from '@/lib/supabase/imageLoader'
 import { PollCard } from '@/components/chat/PollCard'
 import { SuggestDefinitionSheet } from '@/components/chat/SuggestDefinitionSheet'
 import { Button } from '@/components/ui/Button'
@@ -311,7 +312,7 @@ export function MessageBubble({
         const cacheKey = `nexus-msgs-${message.crew_id}`
         const raw = sessionStorage.getItem(cacheKey)
         if (raw) {
-          const msgs = JSON.parse(raw) as { id: string }[]
+          const msgs = JSON.parse(raw) as { id: string; [k: string]: unknown }[]
           const idx = msgs.findIndex((m) => m.id === message.id)
           if (idx !== -1) {
             msgs[idx] = { ...msgs[idx], reactions: data.reactions }
@@ -542,8 +543,17 @@ export function MessageBubble({
 
           {/* Message body */}
           {message.message_type === 'image' ? (
-            <div className="relative w-[220px] h-[165px] mt-1">
-              <Image src={message.content} alt="shared image" fill sizes="220px" className="object-cover" />
+            <div className="relative w-[220px] h-[165px] mt-1 overflow-hidden">
+              <Image
+                src={(message.image_url as string | null | undefined) ?? message.content}
+                alt="shared image"
+                fill
+                sizes="220px"
+                className="object-cover"
+                loader={supabaseImageLoader}
+                placeholder={message.image_blur_hash ? 'blur' : 'empty'}
+                blurDataURL={(message.image_blur_hash as string | undefined) ?? undefined}
+              />
             </div>
           ) : (
             <p

@@ -331,7 +331,7 @@ export function MessageList({
               const cacheKey = `nexus-msgs-${crewId}`
               const cached = sessionStorage.getItem(cacheKey)
               if (cached) {
-                const msgs = JSON.parse(cached) as { id: string }[]
+                const msgs = JSON.parse(cached) as { id: string; [k: string]: unknown }[]
                 const idx = msgs.findIndex((m) => m.id === raw.id)
                 if (idx !== -1) {
                   msgs[idx] = { ...msgs[idx], reactions: patch.reactions }

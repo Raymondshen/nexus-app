@@ -1,3 +1,22 @@
+// Cache name for Supabase Storage chat images (cache-first strategy).
+var NEXUS_IMAGE_CACHE   = 'nexus-images-v1'
+var SUPABASE_IMAGES_RE  = /\/storage\/v1\/object\/public\/chat-images\//
+
+self.addEventListener('fetch', function(event) {
+  if (!SUPABASE_IMAGES_RE.test(event.request.url)) return
+  event.respondWith(
+    caches.open(NEXUS_IMAGE_CACHE).then(function(cache) {
+      return cache.match(event.request).then(function(cached) {
+        if (cached) return cached
+        return fetch(event.request).then(function(response) {
+          if (response.ok) cache.put(event.request, response.clone())
+          return response
+        })
+      })
+    })
+  )
+})
+
 // Minimal push-only service worker for Nexus.
 // Intentionally has zero importScripts / workbox dependencies — the
 // multi-argument importScripts call in next-pwa's generated sw.js silently

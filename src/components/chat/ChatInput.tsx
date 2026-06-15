@@ -13,8 +13,11 @@ import { useChatStore } from '@/store/chatStore'
 import { DamageFloat } from '@/components/game/DamageFloat'
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/config'
 import { haptic } from '@/lib/sounds'
+import { compressImage, generateLQIP, validateImageUpload, getNetworkQuality } from '@/lib/utils/imageProcessing'
+import { IMAGE_CONFIG } from '@/lib/config'
 import { Send } from 'pixelarticons/react/Send'
 import { Chart } from 'pixelarticons/react/Chart'
+import { Camera } from 'pixelarticons/react/Camera'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
 import { kickMemberAction, renameCrewAction, birthdaysCommandAction } from '@/app/(app)/chat/actions'
 import { CrewImageUploadModal } from '@/components/chat/CrewImageUploadModal'
@@ -82,9 +85,16 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   const [mentionIndex,    setMentionIndex]    = useState(0)
   const [isFocused,       setIsFocused]       = useState(false)
 
-  const textareaRef       = useRef<HTMLTextAreaElement>(null)
-  const overlayRef        = useRef<HTMLDivElement>(null)
-  const crewImageInputRef = useRef<HTMLInputElement>(null)
+  const [chatImageLocalUrl,  setChatImageLocalUrl]  = useState<string | null>(null)
+  const [chatImagePublicUrl, setChatImagePublicUrl] = useState<string | null>(null)
+  const [chatImageLqip,      setChatImageLqip]      = useState<string | null>(null)
+  const [chatImageUploading, setChatImageUploading] = useState(false)
+  const [chatImageError,     setChatImageError]     = useState<string | null>(null)
+
+  const textareaRef        = useRef<HTMLTextAreaElement>(null)
+  const overlayRef         = useRef<HTMLDivElement>(null)
+  const crewImageInputRef  = useRef<HTMLInputElement>(null)
+  const chatImageInputRef  = useRef<HTMLInputElement>(null)
   const rateRef           = useRef({ count: 0, resetAt: Date.now() + RATE_LIMIT_WINDOW })
   const typingTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null)
   const typingChannelRef  = useRef<RealtimeChannel | null>(null)
@@ -291,6 +301,176 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   function broadcastTyping(isTyping: boolean) {
     typingChannelRef.current?.track({ username: userProfileRef.current.username, typing: isTyping })
   }
+
+  // Revoke any existing blob URL and reset image upload state.
+  const clearChatImage = useCallback(() => {
+    setChatImageLocalUrl((prev) => {
+      if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev)
+      return null
+    })
+    setChatImagePublicUrl(null)
+    setChatImageLqip(null)
+    setChatImageUploading(false)
+    setChatImageError(null)
+  }, [])
+
+  // Revoke blob URLs when they're replaced to avoid memory leaks.
+  useEffect(() => {
+    return () => {
+      if (chatImageLocalUrl?.startsWith('blob:')) URL.revokeObjectURL(chatImageLocalUrl)
+    }
+  }, [chatImageLocalUrl])
+
+  async function handleChatImagePick(file: File) {
+    const validation = validateImageUpload(file)
+    if (!validation.ok) { setChatImageError(validation.error); return }
+
+    const localUrl = URL.createObjectURL(file)
+    setChatImageLocalUrl(localUrl)
+    setChatImageUploading(true)
+    setChatImagePublicUrl(null)
+    setChatImageLqip(null)
+    setChatImageError(null)
+
+    try {
+      const networkQuality = getNetworkQuality()
+      const qualityScale   = networkQuality === 'slow' ? 0.7 : networkQuality === 'medium' ? 0.85 : 1
+      const quality        = IMAGE_CONFIG.CHAT_IMAGE_QUALITY * qualityScale
+
+      const [lqip, compressed] = await Promise.all([
+        generateLQIP(file),
+        compressImage(file, { maxWidthOrHeight: IMAGE_CONFIG.CHAT_IMAGE_MAX_WIDTH_PX, quality }),
+      ])
+      setChatImageLqip(lqip)
+
+      const supabase = createClient()
+      const ext      = file.type === 'image/gif' ? 'gif' : 'webp'
+      const path     = `${crewId}/${userId}/${Date.now()}.${ext}`
+      const { error: uploadError } = await supabase.storage.from('chat-images').upload(path, compressed, {
+        contentType:  file.type === 'image/gif' ? 'image/gif' : 'image/webp',
+        cacheControl: '31536000',
+      })
+      if (uploadError) throw uploadError
+
+      const { data: { publicUrl } } = supabase.storage.from('chat-images').getPublicUrl(path)
+      setChatImagePublicUrl(publicUrl)
+    } catch (err) {
+      setChatImageError(err instanceof Error ? err.message : 'Upload failed. Try again.')
+    } finally {
+      setChatImageUploading(false)
+    }
+  }
+
+  const sendImage = useCallback(async () => {
+    if (!chatImagePublicUrl || chatImageUploading || sending) return
+
+    const publicUrlSnapshot = chatImagePublicUrl
+    const lqipSnapshot      = chatImageLqip
+    const tempId            = `opt_${Date.now()}`
+
+    setSending(true)
+    setSendError(null)
+    clearChatImage()
+    haptic(10)
+
+    const optimisticMsg: MessageWithProfile = {
+      id:               tempId,
+      crew_id:          crewId,
+      user_id:          userId,
+      content:          publicUrlSnapshot,
+      message_type:     'image',
+      element_type:     'nature',
+      xp_awarded:       0,
+      reactions:        {},
+      created_at:       new Date().toISOString(),
+      image_url:        publicUrlSnapshot,
+      image_blur_hash:  lqipSnapshot ?? undefined,
+      profile:          userProfile,
+    }
+    addMessage(optimisticMsg)
+    addXP(20)
+
+    try {
+      const supabase = createClient()
+      const { data: raw, error } = await supabase.rpc('insert_message', {
+        p_crew_id: crewId, p_content: publicUrlSnapshot, p_message_type: 'image',
+      })
+      if (error) throw error
+
+      const alreadyAdded = useChatStore.getState().messages.some((m) => m.id === raw.id)
+      if (alreadyAdded) {
+        removeMessage(tempId)
+      } else {
+        updateMessage(tempId, {
+          id: raw.id, created_at: raw.created_at, element_type: raw.element_type,
+          image_url: publicUrlSnapshot, image_blur_hash: lqipSnapshot ?? undefined,
+        })
+      }
+
+      // Persist blur hash to DB row (fire-and-forget).
+      if (lqipSnapshot) {
+        const msgId = raw.id
+        void (async () => {
+          try {
+            const sb = createClient()
+            await sb.from('messages').update({ image_url: publicUrlSnapshot, image_blur_hash: lqipSnapshot }).eq('id', msgId)
+          } catch {}
+        })()
+      }
+
+      if (channelReadyRef.current) msgChannelRef.current?.send({
+        type: 'broadcast', event: 'new_message',
+        payload: {
+          id: raw.id, crew_id: raw.crew_id, user_id: raw.user_id,
+          content: raw.content, message_type: raw.message_type,
+          element_type: raw.element_type, xp_awarded: raw.xp_awarded,
+          created_at: raw.created_at,
+          image_url: publicUrlSnapshot, image_blur_hash: lqipSnapshot,
+        },
+      })
+
+      const msgId = raw.id
+      fetch(`${SUPABASE_URL}/functions/v1/award-xp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
+        body: JSON.stringify({ message_id: msgId, crew_id: crewId, user_id: userId, username: userProfile.username, message_type: 'image', content: publicUrlSnapshot, mentioned_user_ids: [] }),
+      })
+        .then((r) => r.json())
+        .then((data: { xp_earned?: number; new_total_xp?: number; coins_earned?: number }) => {
+          if (typeof data.xp_earned === 'number' && data.xp_earned > 0) updateMessage(msgId, { xp_awarded: data.xp_earned })
+          if (typeof data.new_total_xp === 'number') {
+            setCrewXP(data.new_total_xp)
+            if (channelReadyRef.current) msgChannelRef.current?.send({
+              type: 'broadcast', event: 'xp_update',
+              payload: { xp_earned: data.xp_earned ?? 0, new_total_xp: data.new_total_xp, sender_id: userId },
+            })
+          }
+          if (typeof data.coins_earned === 'number' && data.coins_earned > 0) addUserCoins(data.coins_earned)
+        })
+        .catch(() => {})
+
+      if (activeRaid && !activeRaid.defeated_at) {
+        fetch(`${SUPABASE_URL}/functions/v1/attack-boss`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
+          body: JSON.stringify({ crew_id: crewId, user_id: userId, message_type: 'image', element_type: 'nature', content: publicUrlSnapshot }),
+        })
+          .then((r) => r.json())
+          .then((data) => { if (data.damage) { addDamageFloat(data.damage, 'nature'); haptic([10, 50, 10]) } })
+          .catch(() => {})
+      }
+    } catch (err) {
+      removeMessage(tempId)
+      // Restore image state so user can retry.
+      setChatImagePublicUrl(publicUrlSnapshot)
+      setChatImageLocalUrl(publicUrlSnapshot)
+      setChatImageLqip(lqipSnapshot)
+      setSendError(err instanceof Error ? err.message : 'Failed to send image.')
+    } finally {
+      setSending(false)
+      textareaRef.current?.focus()
+    }
+  }, [chatImagePublicUrl, chatImageLqip, chatImageUploading, sending, crewId, userId, userProfile, addMessage, removeMessage, updateMessage, activeRaid, addDamageFloat, addUserCoins, clearChatImage]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const send = useCallback(async () => {
     const content = sanitizeMessage(text)
@@ -777,6 +957,36 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
           </div>
         )}
 
+        {/* ── Image attachment preview ── */}
+        {chatImageLocalUrl && (
+          <div
+            className="flex items-center overflow-hidden"
+            style={{ border: '1px solid var(--color-border)', background: 'rgba(255,255,255,0.03)', padding: '8px 12px', gap: 'var(--space-3)', marginBottom: 'var(--space-2)' }}
+          >
+            <div className="relative flex-shrink-0 overflow-hidden" style={{ width: 40, height: 40 }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={chatImageLocalUrl} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+              {chatImageUploading && (
+                <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                  <span className="font-pixel text-[6px] text-white leading-none">···</span>
+                </div>
+              )}
+            </div>
+            <div className="flex-1 min-w-0 flex flex-col" style={{ gap: 2 }}>
+              <span className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: chatImageError ? 'var(--color-danger)' : chatImageUploading ? 'var(--color-tertiary)' : 'var(--color-success)' }}>
+                {chatImageError ? chatImageError : chatImageUploading ? 'Uploading...' : 'Image ready'}
+              </span>
+            </div>
+            <button
+              onClick={clearChatImage}
+              className="flex-shrink-0 flex items-center justify-center w-6 h-6 text-tertiary active:text-primary"
+              aria-label="Remove image"
+            >
+              <span style={{ fontSize: 14, lineHeight: 1 }}>✕</span>
+            </button>
+          </div>
+        )}
+
         {/* ── Input wrapper: pickers float above via absolute positioning ── */}
         <div className="relative">
           {/* @mention picker — absolute, grows upward over group details */}
@@ -865,9 +1075,9 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
           >
             <motion.div
               className="flex-shrink-0 overflow-hidden flex items-center"
-              animate={{ width: isFocused ? 0 : 16, opacity: isFocused ? 0 : 1, marginRight: isFocused ? -16 : 0 }}
+              animate={{ width: isFocused ? 0 : 40, opacity: isFocused ? 0 : 1, marginRight: isFocused ? -16 : 0 }}
               transition={{ type: 'spring', stiffness: 320, damping: 28 }}
-              style={{ pointerEvents: isFocused ? 'none' : 'auto' }}
+              style={{ pointerEvents: isFocused ? 'none' : 'auto', gap: 8 }}
             >
               <button
                 onClick={() => setShowPollCreator(true)}
@@ -875,6 +1085,14 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                 aria-label="Create poll"
               >
                 <Chart style={{ width: 16, height: 16 }} aria-hidden="true" />
+              </button>
+              <button
+                onClick={() => chatImageInputRef.current?.click()}
+                disabled={chatImageUploading}
+                className="flex-shrink-0 flex items-center justify-center w-4 h-4 text-tertiary active:text-purple disabled:opacity-40"
+                aria-label="Share image"
+              >
+                <Camera style={{ width: 16, height: 16 }} aria-hidden="true" />
               </button>
             </motion.div>
             <div className="relative flex-1 min-w-0 overflow-hidden">
@@ -901,13 +1119,16 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
               />
             </div>
             {(() => {
-              const isCmd = text.startsWith('/') && !text.includes(' ')
+              const isCmd    = text.startsWith('/') && !text.includes(' ')
               const hasMatch = isCmd && SLASH_COMMANDS.some((c) => c.name.startsWith(text.slice(1).toLowerCase()))
+              const canSendImage = !!chatImagePublicUrl && !chatImageUploading
+              const canSendText  = !!text.trim() && !hasMatch
+              const canSend      = canSendImage || canSendText
               return (
                 <button
-                  onClick={send}
-                  disabled={!text.trim() || sending || hasMatch}
-                  className={`flex-shrink-0 flex items-center justify-center w-4 h-4 transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${isFocused ? 'text-purple' : text.trim() && !hasMatch ? 'text-primary' : 'text-muted'}`}
+                  onClick={canSendImage ? sendImage : send}
+                  disabled={!canSend || sending || chatImageUploading}
+                  className={`flex-shrink-0 flex items-center justify-center w-4 h-4 transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${isFocused || canSendImage ? 'text-purple' : canSendText ? 'text-primary' : 'text-muted'}`}
                   aria-label="Send message"
                 >
                   <Send style={{ width: 16, height: 16 }} aria-hidden="true" />
@@ -1047,6 +1268,19 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
         onChange={(e) => {
           const f = e.target.files?.[0]
           if (f) setCrewImageFile(f)
+          e.target.value = ''
+        }}
+      />
+
+      {/* Chat image picker — fixed position prevents .click() issues in transforms */}
+      <input
+        ref={chatImageInputRef}
+        type="file"
+        accept="image/jpeg,image/jpg,image/png,image/webp,image/gif,image/heic,image/heif"
+        style={{ position: 'fixed', top: -1, left: -1, width: 1, height: 1, opacity: 0, pointerEvents: 'none' }}
+        onChange={(e) => {
+          const f = e.target.files?.[0]
+          if (f) void handleChatImagePick(f)
           e.target.value = ''
         }}
       />
