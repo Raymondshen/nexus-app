@@ -147,6 +147,7 @@ localStorage:
 - `setMessages([])` before cache/fetch prevents crew bleed
 - Scroll: initial → `scrollTop = scrollHeight`; new msg → `bottomRef.scrollIntoView('smooth')` only within 120px of bottom
 - Grouping: consecutive same-user within 60s · reset on day dividers / boss cards / system msgs / polls
+- System messages (`BirthdayMessage`, `JoinMessage`, generic `SystemMessage`): `marginTop/Bottom: var(--space-6)` (20px)
 - First in group: `pt-[var(--space-6)] pb-0`; continuation: `pt-[var(--space-2)] pb-0 pl-10`
 - Bubble header: `username · class · +XP XP` — class `var(--color-paper-150)`, XP `var(--color-coins)`
 - Pre-pass builds `groupXPMap` + `groupCoinMap`; leader gets `xpOverride` prop
@@ -325,7 +326,8 @@ Font sizes: `--text-mini` (8px) → `--text-xxl` (24px); Figma aliases `--mini`,
 Icons (`pixelarticons`):
 | Location | Component | Size |
 |---|---|---|
-| Back buttons | `ChevronLeft` | 24×24, `var(--color-tertiary)` |
+| Back buttons (chat/nav) | `ChevronLeft` | 24×24, `var(--color-tertiary)` |
+| Profile back button | `ChevronLeft` | 24×24, `var(--color-primary)`; container `bg-black border-primary` |
 | Expand/collapse | `ChevronRight` (rotated) | 24×24 |
 | ChatHeader — notifs | `Bell` / `BellOff` | 24×24 |
 | ChatHeader — invite | `UserPlus` | 24×24 |
