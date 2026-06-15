@@ -436,12 +436,14 @@ export type Database = {
       }
       insert_message: {
         Args: {
-          p_crew_id:        string
-          p_content:        string
-          p_message_type:   string
-          p_reply_to_id?:   string | null
-          p_reply_preview?:  string | null
-          p_reply_username?: string | null
+          p_crew_id:          string
+          p_content:          string
+          p_message_type:     string
+          p_reply_to_id?:     string | null
+          p_reply_preview?:   string | null
+          p_reply_username?:  string | null
+          p_image_url?:       string | null
+          p_image_blur_hash?: string | null
         }
         Returns: Message
       }

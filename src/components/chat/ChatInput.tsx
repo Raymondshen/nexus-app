@@ -69,6 +69,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   const [spawning,       setSpawning]       = useState(false)
   const [spawnError,     setSpawnError]     = useState<string | null>(null)
   const [devMode,        setDevMode]        = useState(false)
+  const [chatCameraEnabled, setChatCameraEnabled] = useState(false)
   const [isExpanded,     setIsExpanded]     = useState(false)
   const [memberMsgCounts, setMemberMsgCounts] = useState<Map<string, number>>(new Map())
   const [loadingCounts,  setLoadingCounts]  = useState(false)
@@ -124,6 +125,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
 
   useEffect(() => {
     setDevMode(localStorage.getItem('nexus_dev_mode') === '1')
+    setChatCameraEnabled(localStorage.getItem('nexus_chat_camera') === '1')
   }, [])
 
   useEffect(() => {
@@ -393,9 +395,14 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     try {
       const supabase = createClient()
       const { data: raw, error } = await supabase.rpc('insert_message', {
-        p_crew_id: crewId, p_content: publicUrlSnapshot, p_message_type: 'image',
+        p_crew_id:         crewId,
+        p_content:         publicUrlSnapshot,
+        p_message_type:    'image',
+        p_image_url:       publicUrlSnapshot,
+        p_image_blur_hash: lqipSnapshot ?? null,
       })
       if (error) throw error
+      if (!raw) throw new Error('No message returned from server.')
 
       const alreadyAdded = useChatStore.getState().messages.some((m) => m.id === raw.id)
       if (alreadyAdded) {
@@ -405,17 +412,6 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
           id: raw.id, created_at: raw.created_at, element_type: raw.element_type,
           image_url: publicUrlSnapshot, image_blur_hash: lqipSnapshot ?? undefined,
         })
-      }
-
-      // Persist blur hash to DB row (fire-and-forget).
-      if (lqipSnapshot) {
-        const msgId = raw.id
-        void (async () => {
-          try {
-            const sb = createClient()
-            await sb.from('messages').update({ image_url: publicUrlSnapshot, image_blur_hash: lqipSnapshot }).eq('id', msgId)
-          } catch {}
-        })()
       }
 
       if (channelReadyRef.current) msgChannelRef.current?.send({
@@ -460,12 +456,14 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
           .catch(() => {})
       }
     } catch (err) {
+      console.error('[sendImage]', err)
       removeMessage(tempId)
-      // Restore image state so user can retry.
       setChatImagePublicUrl(publicUrlSnapshot)
-      setChatImageLocalUrl(publicUrlSnapshot)
       setChatImageLqip(lqipSnapshot)
-      setSendError(err instanceof Error ? err.message : 'Failed to send image.')
+      const msg = err instanceof Error
+        ? err.message
+        : (err as { message?: string })?.message ?? 'Failed to send image.'
+      setSendError(msg)
     } finally {
       setSending(false)
       textareaRef.current?.focus()
@@ -894,7 +892,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
         style={{ pointerEvents: isExpanded ? 'none' : 'auto' }}
       >
         {sendError && (
-          <button className="w-full font-pixel text-[7px] text-[#ff4444] mb-2 text-left" onClick={send}>
+          <button className="w-full font-pixel text-[7px] text-[#ff4444] mb-2 text-left" onClick={chatImagePublicUrl ? sendImage : send}>
             ↺ {sendError}
           </button>
         )}
@@ -957,8 +955,8 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
           </div>
         )}
 
-        {/* ── Image attachment preview (dev only) ── */}
-        {devMode && chatImageLocalUrl && (
+        {/* ── Image attachment preview (dev camera only) ── */}
+        {chatCameraEnabled && chatImageLocalUrl && (
           <div
             className="flex items-center overflow-hidden"
             style={{ border: '1px solid var(--color-border)', background: 'rgba(255,255,255,0.03)', padding: '8px 12px', gap: 'var(--space-3)', marginBottom: 'var(--space-2)' }}
@@ -1086,7 +1084,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
               >
                 <Chart style={{ width: 16, height: 16 }} aria-hidden="true" />
               </button>
-              {devMode && (
+              {chatCameraEnabled && (
                 <button
                   onClick={() => chatImageInputRef.current?.click()}
                   disabled={chatImageUploading}

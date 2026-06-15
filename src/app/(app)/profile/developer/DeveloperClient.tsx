@@ -89,6 +89,7 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
   const [devMode,       setDevMode]       = useState(false)
   const [showPush,      setShowPush]      = useState(false)
   const [infiniteCoins, setInfiniteCoins] = useState(false)
+  const [chatCamera,    setChatCamera]    = useState(false)
   const [newText,       setNewText]       = useState('')
   const [addingBanner,  setAddingBanner]  = useState(false)
   const [bannerError,   setBannerError]   = useState<string | null>(null)
@@ -98,6 +99,7 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
     setDevMode(localStorage.getItem('nexus_dev_mode') === '1')
     setShowPush(localStorage.getItem('nexus_push_diag') === '1')
     setInfiniteCoins(localStorage.getItem('nexus_infinite_coins') === '1')
+    setChatCamera(localStorage.getItem('nexus_chat_camera') === '1')
   }, [])
 
   function toggleDevMode() {
@@ -121,6 +123,13 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
     if (next) localStorage.setItem('nexus_infinite_coins', '1')
     else localStorage.removeItem('nexus_infinite_coins')
     window.dispatchEvent(new CustomEvent('nexus-infinite-coins-change', { detail: { on: next } }))
+  }
+
+  function toggleChatCamera() {
+    const next = !chatCamera
+    setChatCamera(next)
+    if (next) localStorage.setItem('nexus_chat_camera', '1')
+    else localStorage.removeItem('nexus_chat_camera')
   }
 
   async function handleCreateBanner() {
@@ -279,6 +288,13 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
             description="Display boss spawn button in chat"
             enabled={devMode}
             onChange={toggleDevMode}
+          />
+
+          <ToggleRow
+            title="Chat Camera"
+            description="Enable image upload button in chat input"
+            enabled={chatCamera}
+            onChange={toggleChatCamera}
           />
         </div>
 
