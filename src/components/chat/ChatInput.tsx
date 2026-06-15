@@ -94,7 +94,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   const [chatImageLqip,      setChatImageLqip]      = useState<string | null>(null)
   const [chatImageUploading, setChatImageUploading] = useState(false)
   const [chatImageError,     setChatImageError]     = useState<string | null>(null)
-  const [friendshipToast,    setFriendshipToast]    = useState<{ totalXP: number; xpAwarded: number; partnerName: string } | null>(null)
+  const [friendshipToast,    setFriendshipToast]    = useState<{ totalXP: number; xpAwarded: number; partnerName: string; dailyCount: number } | null>(null)
 
   const textareaRef           = useRef<HTMLTextAreaElement>(null)
   const overlayRef            = useRef<HTMLDivElement>(null)
@@ -587,9 +587,9 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
         .catch(() => {})
 
       // Friendship XP — shared helper: fade-in 200ms, hold 2000ms, then exit animation (400ms) runs
-      const showFriendshipToast = (totalXP: number, xpAwarded: number, partnerName: string) => {
+      const showFriendshipToast = (totalXP: number, xpAwarded: number, partnerName: string, dailyCount: number) => {
         if (friendshipToastTimerRef.current) clearTimeout(friendshipToastTimerRef.current)
-        setFriendshipToast({ totalXP, xpAwarded, partnerName })
+        setFriendshipToast({ totalXP, xpAwarded, partnerName, dailyCount })
         friendshipToastTimerRef.current = setTimeout(() => setFriendshipToast(null), 2200)
       }
 
@@ -606,9 +606,9 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
           body:    JSON.stringify({ user_a_id: userId, user_b_id: dmPartnerId, source: 'dm', local_midnight_utc: localMidnightUTC }),
         })
           .then((r) => r.json())
-          .then((data: { total_xp?: number; xp_awarded?: number; skipped?: boolean }) => {
+          .then((data: { total_xp?: number; xp_awarded?: number; skipped?: boolean; daily_count?: number }) => {
             if (typeof data.total_xp === 'number' && (data.xp_awarded ?? 0) > 0) {
-              showFriendshipToast(data.total_xp, data.xp_awarded!, dmPartnerName)
+              showFriendshipToast(data.total_xp, data.xp_awarded!, dmPartnerName, data.daily_count ?? 1)
             }
           })
           .catch(() => {})
@@ -625,10 +625,10 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
             body:    JSON.stringify({ user_a_id: userId, user_b_id: friendId, source: 'mention', local_midnight_utc: localMidnightUTC }),
           })
             .then((r) => r.json())
-            .then((data: { total_xp?: number; xp_awarded?: number; skipped?: boolean }) => {
+            .then((data: { total_xp?: number; xp_awarded?: number; skipped?: boolean; daily_count?: number }) => {
               if (!toastShown && typeof data.total_xp === 'number' && (data.xp_awarded ?? 0) > 0) {
                 toastShown = true
-                showFriendshipToast(data.total_xp, data.xp_awarded!, partnerName)
+                showFriendshipToast(data.total_xp, data.xp_awarded!, partnerName, data.daily_count ?? 1)
               }
             })
             .catch(() => {})
@@ -865,6 +865,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
         xpAwarded={friendshipToast?.xpAwarded ?? 0}
         totalXP={friendshipToast?.totalXP ?? 0}
         partnerName={friendshipToast?.partnerName ?? ''}
+        dailyCount={friendshipToast?.dailyCount ?? 1}
       />
 
       {/* ── DM: "Chatting with" label ── */}

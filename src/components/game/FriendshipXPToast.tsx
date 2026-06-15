@@ -13,9 +13,10 @@ interface FriendshipXPToastProps {
   xpAwarded:   number
   totalXP:     number
   partnerName: string
+  dailyCount:  number
 }
 
-export function FriendshipXPToast({ visible, xpAwarded, totalXP, partnerName }: FriendshipXPToastProps) {
+export function FriendshipXPToast({ visible, xpAwarded, totalXP, partnerName, dailyCount }: FriendshipXPToastProps) {
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
   if (!mounted) return null
@@ -60,10 +61,29 @@ export function FriendshipXPToast({ visible, xpAwarded, totalXP, partnerName }: 
 
             {/* Label + message */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <p className="font-silkscreen leading-none" style={{ fontSize: 8, color: 'var(--color-tertiary)' }}>
-                <span style={{ color: 'var(--color-secondary)' }}>Friendship lv {level}</span>
-                {` · ${xpInLevel} / 100XP`}
-              </p>
+              {/* Top row: level text left, daily pip squares right */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                <p className="font-silkscreen leading-none" style={{ fontSize: 8, color: 'var(--color-tertiary)' }}>
+                  <span style={{ color: 'var(--color-secondary)' }}>Friendship lv {level}</span>
+                  {` · ${xpInLevel} / 100XP`}
+                </p>
+                {/* 10 daily-limit pips — filled = gradient, empty = muted gray */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  {Array.from({ length: 10 }, (_, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        width:      4,
+                        height:     4,
+                        flexShrink: 0,
+                        background: i < dailyCount
+                          ? 'linear-gradient(to right, #a855f7, #d946ef)'
+                          : '#71717a',
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
               <p
                 className="font-body font-normal leading-none truncate"
                 style={{ fontSize: 12, color: 'var(--color-secondary)', fontVariationSettings: '"opsz" 14' }}

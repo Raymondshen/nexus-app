@@ -114,10 +114,11 @@ Deno.serve(async (req: Request) => {
     if (xpResult.error) throw xpResult.error
     if (logResult.error) throw logResult.error
 
-    const totalXP = xpResult.data as number
+    const totalXP    = xpResult.data as number
+    const dailyCount = (dailyCountResult.count ?? 0) + 1
 
     return new Response(
-      JSON.stringify({ total_xp: totalXP, xp_awarded: XP_PER_EVENT }),
+      JSON.stringify({ total_xp: totalXP, xp_awarded: XP_PER_EVENT, daily_count: dailyCount }),
       { headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
     )
   } catch (err) {
