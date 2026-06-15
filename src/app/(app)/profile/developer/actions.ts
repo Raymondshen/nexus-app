@@ -34,11 +34,12 @@ export async function resetFriendshipXPAction(): Promise<{ ok?: boolean; error?:
   const { session, service } = auth
 
   const userId = session.user.id
-  const { error } = await service
-    .from('friendship_xp')
-    .delete()
-    .or(`user_a.eq.${userId},user_b.eq.${userId}`)
+  const [{ error: xpError }, { error: logError }] = await Promise.all([
+    service.from('friendship_xp').delete().or(`user_a.eq.${userId},user_b.eq.${userId}`),
+    service.from('friendship_xp_log').delete().eq('sender_id', userId),
+  ])
 
-  if (error) return { error: error.message }
+  if (xpError) return { error: xpError.message }
+  if (logError) return { error: logError.message }
   return { ok: true }
 }
