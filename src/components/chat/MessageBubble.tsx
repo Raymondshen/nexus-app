@@ -840,7 +840,7 @@ function BirthdayMessage({ content }: { content: string }) {
   const dateStr  = parts[1] ?? ''
   const label    = parts.slice(2).join(':')
   return (
-    <div style={{ marginTop: 'var(--space-6)', marginBottom: 'var(--space-6)' }}>
+    <div style={{ marginTop: 'var(--space-6)' }}>
       <div
         className="border border-[#a855f7] flex items-center w-full"
         style={{ padding: 16, gap: 8 }}
