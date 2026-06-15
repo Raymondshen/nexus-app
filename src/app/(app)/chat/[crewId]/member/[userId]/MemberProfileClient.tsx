@@ -4,13 +4,11 @@ import { useState, useLayoutEffect, useRef } from 'react'
 import Image from 'next/image'
 import { motion } from 'framer-motion'
 import { isSupabaseStorage, resolveAvatarUrl } from '@/components/ui/Avatar'
-import { format, parseISO } from 'date-fns'
 import { useSlideBack } from '@/components/ui/SlidePage'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { UserPlus } from 'pixelarticons/react/UserPlus'
 import { Message } from 'pixelarticons/react/Message'
 import { sendFriendRequestAction, acceptFriendRequestAction } from '@/app/(app)/friends/actions'
-import { PixelSprite, spriteInfoFor } from '@/components/game/PixelSprite'
 import type { AvatarClass } from '@/types'
 
 // ─── Status ticker ───────────────────────────────────────────────────────────
@@ -66,20 +64,6 @@ function ProfileStatusTicker({ status }: { status: string }) {
   )
 }
 
-const CLASS_LABELS: Record<string, string> = {
-  berserker: 'Berserker',
-  sage:      'Sage',
-  ghost:     'Ghost',
-  hype_man:  'Hype Man',
-  the_voice: 'The Voice',
-  meme_lord: 'Meme Lord',
-  mage:      'Mage',
-  warrior:   'Warrior',
-  rogue:     'Rogue',
-  healer:    'Healer',
-  archer:    'Archer',
-}
-
 type FriendState = 'none' | 'pending_sent' | 'pending_received' | 'accepted'
 
 interface Props {
@@ -100,6 +84,7 @@ interface Props {
   inviterUsername:  string | null
   globalGroupChats: number
   globalMessages:   number
+  friendshipXP:     number | null
 }
 
 function deriveFriendState(
@@ -129,6 +114,7 @@ export function MemberProfileClient({
   inviterUsername,
   globalGroupChats,
   globalMessages,
+  friendshipXP,
 }: Props) {
   const goBack  = useSlideBack()
   const isSelf  = userId === viewerId
@@ -140,11 +126,14 @@ export function MemberProfileClient({
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState<string | null>(null)
 
-  const classLabel  = avatarClass ? (CLASS_LABELS[avatarClass] ?? avatarClass) : '???'
-  const initial     = username[0]?.toUpperCase() ?? '?'
-  const spriteInfo  = spriteInfoFor(avatarClass)
-  const birthdayStr = birthday ? format(parseISO(birthday), 'MMM d').toLowerCase() : null
-  const joinedYear  = joinedAt ? new Date(joinedAt).getFullYear() : null
+  const initial    = username[0]?.toUpperCase() ?? '?'
+  const joinedYear = joinedAt ? new Date(joinedAt).getFullYear() : null
+
+  const BOND_XP_PER_LEVEL = 100
+  const bondTotal   = friendshipXP ?? 0
+  const bondLevel   = Math.floor(bondTotal / BOND_XP_PER_LEVEL) + 1
+  const bondXPInLvl = bondTotal % BOND_XP_PER_LEVEL
+  const bondPct     = (bondXPInLvl / BOND_XP_PER_LEVEL) * 100
 
   async function handleAddFriend() {
     if (loading) return
@@ -186,12 +175,12 @@ export function MemberProfileClient({
           style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.5) 48.668%, rgba(0,0,0,0.8) 82.216%, rgb(0,0,0) 100%)' }}
         />
 
-        {/* Content anchored to bottom */}
+        {/* Content anchored to bottom — Figma: flex-col justify-end gap-16px p-16px */}
         <div className="absolute inset-0 flex flex-col justify-end gap-[var(--space-5)] p-[var(--space-5)]">
 
-          {/* Details row */}
+          {/* Details row — Figma I105:628;105:535 */}
           <div className="flex items-center gap-[var(--space-5)] w-full">
-            {/* Avatar 56×56 */}
+            {/* Avatar 56×56 — Figma: plain square, no rounding */}
             <div className="flex-shrink-0 bg-border overflow-hidden relative" style={{ width: 56, height: 56 }}>
               {avatarUrl ? (
                 <Image
@@ -209,10 +198,10 @@ export function MemberProfileClient({
               )}
             </div>
 
-            {/* Name + stats */}
-            <div className="flex-1 min-w-0 flex flex-col gap-[var(--space-2)] justify-center leading-none">
+            {/* Name + stats — Figma I105:628;105:537: flex-col gap-4px */}
+            <div className="flex-1 min-w-0 flex flex-col justify-center leading-none" style={{ gap: 'var(--space-2)' }}>
               {joinedYear && (
-                <p className="font-silkscreen" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}>
+                <p className="font-silkscreen" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>
                   Member Since {joinedYear}
                 </p>
               )}
@@ -222,17 +211,30 @@ export function MemberProfileClient({
               <p className="font-silkscreen" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>
                 {globalGroupChats} group chat{globalGroupChats !== 1 ? 's' : ''} · {globalMessages.toLocaleString()} msg
               </p>
-              {inviterUsername && (
-                <p className="font-silkscreen" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}>
-                  Recruited by {inviterUsername}
-                </p>
-              )}
             </div>
           </div>
 
+          {/* Friendship XP indicator — Figma I105:628;177:992: flex-col gap-8px */}
+          {!isSelf && (
+            <div className="flex flex-col w-full" style={{ gap: 'var(--space-3)' }}>
+              <p className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}>
+                <span style={{ color: 'var(--color-secondary)' }}>Friendship lv {bondLevel}</span>
+                {` · ${bondXPInLvl} / 100XP`}
+              </p>
+              <div style={{ height: 4, background: 'var(--color-surface)', overflow: 'hidden', position: 'relative', width: '100%' }}>
+                <motion.div
+                  style={{ position: 'absolute', left: 0, top: 0, height: '100%', background: 'linear-gradient(to right, #a855f7, #d946ef)' }}
+                  initial={{ width: '0%' }}
+                  animate={{ width: `${bondPct}%` }}
+                  transition={{ type: 'spring', stiffness: 300, damping: 28, delay: 0.2 }}
+                />
+              </div>
+            </div>
+          )}
+
         </div>
 
-        {/* Top gradient overlay — covers safe area + 86px for back button readability */}
+        {/* Top gradient for back-button legibility */}
         <div
           className="absolute left-0 right-0 top-0 pointer-events-none"
           style={{
@@ -241,10 +243,10 @@ export function MemberProfileClient({
           }}
         />
 
-        {/* Floating back button */}
+        {/* Floating back button — Figma: bg-black border-border p-8px */}
         <div className="absolute z-20 pointer-events-none" style={{ top: 'calc(env(safe-area-inset-top, 0px) + 18px)', left: 16 }}>
           <div
-            className="pointer-events-auto flex items-center bg-surface border border-purple p-2 overflow-hidden"
+            className="pointer-events-auto flex items-center bg-black border border-border p-2 overflow-hidden"
             style={{ boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)' }}
           >
             <button
@@ -253,7 +255,7 @@ export function MemberProfileClient({
               className="flex items-center justify-center flex-shrink-0"
               style={{ width: 24, height: 24 }}
             >
-              <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-purple)' }} aria-hidden="true" />
+              <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
             </button>
           </div>
         </div>
@@ -262,122 +264,62 @@ export function MemberProfileClient({
       {/* ── Status ticker — full-width row between hero and body ──────────── */}
       {status && <ProfileStatusTicker status={status} />}
 
-      {/* ── Scrollable body ─────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto nexus-scroll">
-        <div
-          className="flex flex-col"
-          style={{ gap: 'var(--space-7)', padding: 'var(--space-5) var(--space-5)' }}
-        >
+      {/* ── Body — Figma 57:172: flex-col items-center px-16px py-16px ── */}
+      <div
+        className="flex-1 overflow-y-auto nexus-scroll flex flex-col items-center px-4 py-4"
+        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 16px)' }}
+      >
+        {/* Friend action button — Figma 57:246 */}
+        {!isSelf && (
+          <div className="w-full flex flex-col gap-3">
+            {error && (
+              <p className="font-silkscreen text-[8px] text-[#ef4444] text-center">{error}</p>
+            )}
 
-          {/* Friend action button */}
-          {!isSelf && (
-            <div className="w-full flex flex-col gap-3">
-              {error && (
-                <p className="font-silkscreen text-[8px] text-[#ef4444] text-center">{error}</p>
-              )}
+            {friendState === 'none' && (
+              <button
+                onClick={handleAddFriend}
+                disabled={loading || isGuest}
+                className="w-full h-[48px] flex items-center justify-center gap-[var(--space-3)] border border-purple overflow-hidden px-[var(--space-5)] py-[var(--space-3)] disabled:opacity-40 active:opacity-70 transition-opacity"
+              >
+                <UserPlus style={{ width: 16, height: 16, color: 'var(--color-purple)' }} aria-hidden="true" />
+                <span className="font-pixel text-[length:var(--text-mini)] text-purple leading-none whitespace-nowrap">
+                  {loading ? 'SENDING...' : 'ADD FRIEND'}
+                </span>
+              </button>
+            )}
 
-              {friendState === 'none' && (
-                <button
-                  onClick={handleAddFriend}
-                  disabled={loading || isGuest}
-                  className="w-full h-[48px] flex items-center justify-center gap-[var(--space-3)] border border-purple overflow-hidden px-[var(--space-5)] py-[var(--space-3)] disabled:opacity-40 active:opacity-70 transition-opacity"
-                >
-                  <UserPlus style={{ width: 16, height: 16, color: 'var(--color-purple)' }} aria-hidden="true" />
-                  <span className="font-pixel text-[length:var(--text-mini)] text-purple leading-none whitespace-nowrap">
-                    {loading ? 'SENDING...' : 'ADD FRIEND'}
-                  </span>
-                </button>
-              )}
+            {friendState === 'pending_sent' && (
+              <div className="w-full h-[48px] flex items-center justify-center border border-border">
+                <span className="font-silkscreen text-[9px] text-muted tracking-[0.2px]">REQUEST SENT</span>
+              </div>
+            )}
 
-              {friendState === 'pending_sent' && (
-                <div className="w-full h-[48px] flex items-center justify-center border border-border">
-                  <span className="font-silkscreen text-[9px] text-muted tracking-[0.2px]">REQUEST SENT</span>
-                </div>
-              )}
+            {friendState === 'pending_received' && (
+              <button
+                onClick={handleAccept}
+                disabled={loading}
+                className="w-full h-[48px] flex items-center justify-center gap-2 border border-[#22c55e] px-4 py-2 disabled:opacity-40 active:opacity-70 transition-opacity"
+              >
+                <span className="font-pixel text-[8px] text-[#22c55e] leading-none">
+                  {loading ? '...' : 'ACCEPT'}
+                </span>
+              </button>
+            )}
 
-              {friendState === 'pending_received' && (
-                <button
-                  onClick={handleAccept}
-                  disabled={loading}
-                  className="w-full h-[48px] flex items-center justify-center gap-2 border border-[#22c55e] px-4 py-2 disabled:opacity-40 active:opacity-70 transition-opacity"
-                >
-                  <span className="font-pixel text-[8px] text-[#22c55e] leading-none">
-                    {loading ? '...' : 'ACCEPT'}
-                  </span>
-                </button>
-              )}
+            {friendState === 'accepted' && (
+              <div className="w-full h-[48px] flex items-center justify-center border border-[#22c55e]/40">
+                <span className="font-silkscreen text-[9px] text-[#22c55e] tracking-[0.2px]">COMPANIONS ✓</span>
+              </div>
+            )}
 
-              {friendState === 'accepted' && (
-                <div className="w-full h-[48px] flex items-center justify-center border border-[#22c55e]/40">
-                  <span className="font-silkscreen text-[9px] text-[#22c55e] tracking-[0.2px]">COMPANIONS ✓</span>
-                </div>
-              )}
-
-              {isGuest && friendState === 'none' && (
-                <p className="font-silkscreen text-[8px] text-muted text-center leading-relaxed">
-                  Sign in with Google to add companions
-                </p>
-              )}
-            </div>
-          )}
-
-          {/* Sprite + stats row */}
-          <div className="flex items-center w-full" style={{ gap: 'var(--space-4)' }}>
-            {/* Sprite 56×56 */}
-            <div
-              className="flex-shrink-0 flex items-center justify-center overflow-hidden"
-              style={{ width: 56, height: 56 }}
-            >
-              {spriteInfo ? (
-                <PixelSprite
-                  spriteId={spriteInfo.id}
-                  nativePx={spriteInfo.nativePx}
-                  scale={2}
-                  animate
-                />
-              ) : (
-                <div className="w-full h-full bg-surface flex items-center justify-center">
-                  {avatarUrl ? (
-                    <Image
-                      src={resolveAvatarUrl(avatarUrl, 56)}
-                      alt={username}
-                      width={56}
-                      height={56}
-                      className="object-cover w-full h-full"
-                      unoptimized={isSupabaseStorage(avatarUrl)}
-                    />
-                  ) : (
-                    <span className="font-pixel text-[16px] text-purple">{initial}</span>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Stats column */}
-            <div className="flex-1 min-w-0 flex flex-col" style={{ gap: 'var(--space-2)' }}>
-              <p className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-xxs)' }}>
-                <span style={{ color: 'var(--color-tertiary)' }}>Class: </span>
-                <span className="text-primary">{classLabel}</span>
+            {isGuest && friendState === 'none' && (
+              <p className="font-silkscreen text-[8px] text-muted text-center leading-relaxed">
+                Sign in with Google to add companions
               </p>
-              {birthdayStr && (
-                <p className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-xxs)' }}>
-                  <span style={{ color: 'var(--color-tertiary)' }}>Born: </span>
-                  <span className="text-primary">{birthdayStr}</span>
-                </p>
-              )}
-              <p className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-xxs)' }}>
-                <span style={{ color: 'var(--color-tertiary)' }}>Messages sent: </span>
-                <span className="text-primary">{msgCount.toLocaleString()}</span>
-              </p>
-              <p className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-xxs)' }}>
-                <span style={{ color: 'var(--color-tertiary)' }}>Xp earned: </span>
-                <span className="text-primary">{totalXP.toLocaleString()}</span>
-              </p>
-            </div>
+            )}
           </div>
-
-          <div style={{ height: 'max(env(safe-area-inset-bottom), 16px)' }} />
-        </div>
+        )}
       </div>
     </>
   )

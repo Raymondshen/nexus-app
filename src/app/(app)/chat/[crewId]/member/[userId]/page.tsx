@@ -35,8 +35,12 @@ export default async function MemberProfilePage({ params }: Props) {
     return (prof as { username?: string } | null)?.username ?? null
   }
 
+  // Canonical order for friendship_xp lookup
+  const canonA = viewerId < userId ? viewerId : userId
+  const canonB = viewerId < userId ? userId : viewerId
+
   // Security: verify viewer is in the crew + target is in the crew
-  // Fetch profile, class, stats, friendship, invite origin, and global stats in parallel
+  // Fetch profile, class, stats, friendship, invite origin, global stats, and friendship XP in parallel
   const [
     viewerMembership,
     profileResult,
@@ -46,6 +50,7 @@ export default async function MemberProfilePage({ params }: Props) {
     inviterUsername,
     targetCrewCountResult,
     targetMessagesResult,
+    friendshipXPResult,
   ] = await Promise.all([
     supabase
       .from('crew_members')
@@ -85,6 +90,9 @@ export default async function MemberProfilePage({ params }: Props) {
       .select('id', { count: 'estimated', head: true })
       .eq('user_id', userId)
       .neq('message_type', 'system'),
+    viewerId !== userId
+      ? supabase.from('friendship_xp').select('total_xp').eq('user_a', canonA).eq('user_b', canonB).maybeSingle()
+      : Promise.resolve({ data: null }),
   ])
 
   // Must be a crew member viewing another crew member
@@ -98,6 +106,7 @@ export default async function MemberProfilePage({ params }: Props) {
   } | null
   const globalGroupChats = targetCrewCountResult.count ?? 0
   const globalMessages   = targetMessagesResult.count ?? 0
+  const friendshipXP     = (friendshipXPResult?.data as { total_xp?: number } | null)?.total_xp ?? null
 
   return (
     <SlidePage
@@ -132,6 +141,7 @@ export default async function MemberProfilePage({ params }: Props) {
         inviterUsername={inviterUsername}
         globalGroupChats={globalGroupChats}
         globalMessages={globalMessages}
+        friendshipXP={friendshipXP}
       />
     </SlidePage>
   )
