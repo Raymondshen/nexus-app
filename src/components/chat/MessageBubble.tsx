@@ -306,6 +306,19 @@ export function MessageBubble({
 
     if (data?.reactions != null) {
       updateMessage(message.id, { reactions: data.reactions })
+      // Persist reactions to cache so they survive navigation
+      try {
+        const cacheKey = `nexus-msgs-${message.crew_id}`
+        const raw = sessionStorage.getItem(cacheKey)
+        if (raw) {
+          const msgs = JSON.parse(raw) as { id: string }[]
+          const idx = msgs.findIndex((m) => m.id === message.id)
+          if (idx !== -1) {
+            msgs[idx] = { ...msgs[idx], reactions: data.reactions }
+            sessionStorage.setItem(cacheKey, JSON.stringify(msgs))
+          }
+        }
+      } catch {}
     }
     if (data?.hype_man_heal && data.heal_amount > 0) {
       setHealFloat({ id: Date.now(), amount: data.heal_amount })

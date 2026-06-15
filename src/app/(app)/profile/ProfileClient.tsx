@@ -683,7 +683,8 @@ export function ProfileClient({
   const [localStatus,      setLocalStatus]      = useState(initialStatus ?? '')
 
   // ── Notifications ─────────────────────────────────────────────────────────
-  const [showNotifSheet, setShowNotifSheet] = useState(false)
+  const [showNotifSheet,   setShowNotifSheet]   = useState(false)
+  const [showAccountSheet, setShowAccountSheet] = useState(false)
   const [prefs,          setPrefs]          = useState<NotifPrefs>({ messages: true, raids: true, victory: true, mentions: true })
 
   const fetchPrefs = useCallback(async () => {
@@ -917,6 +918,23 @@ export function ProfileClient({
             <ChevronRight style={{ width: 16, height: 16, color: 'var(--color-tertiary)', flexShrink: 0 }} aria-hidden="true" />
           </button>
 
+          {/* Account */}
+          <button
+            onClick={() => setShowAccountSheet(true)}
+            className="w-full flex gap-3 items-center text-left"
+          >
+            <User style={{ width: 16, height: 16, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
+            <div className="flex-1 min-w-0 flex flex-col gap-0 leading-[0] tracking-[0.2px]">
+              <p className="font-body font-semibold text-secondary leading-normal" style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}>
+                Account
+              </p>
+              <p className="font-body font-normal text-tertiary leading-normal" style={{ fontSize: 'var(--text-xxs)', fontVariationSettings: '"opsz" 14' }}>
+                Log out or manage your account.
+              </p>
+            </div>
+            <ChevronRight style={{ width: 16, height: 16, color: 'var(--color-tertiary)', flexShrink: 0 }} aria-hidden="true" />
+          </button>
+
           {/* Developer Page — dev users only */}
           {isDev && (
             <button
@@ -972,6 +990,24 @@ export function ProfileClient({
           />
         )}
       </AnimatePresence>
+
+      {/* Account details bottom sheet */}
+      <AccountDetailsSheet
+        isOpen={showAccountSheet}
+        onClose={() => setShowAccountSheet(false)}
+        userEmail={userEmail}
+        isGuest={isGuest}
+        deletePending={deletePending}
+        localDeleteAt={localDeleteAt}
+        loggingOut={loggingOut}
+        onLogout={handleLogout}
+        cancellingDelete={cancellingDelete}
+        onCancelDeletion={handleCancelDeletion}
+        onOpenDeleteSheet={() => {
+          setShowAccountSheet(false)
+          setShowDeleteSheet(true)
+        }}
+      />
 
       {/* Avatar upload — hero avatar button */}
       <AvatarUploadModal

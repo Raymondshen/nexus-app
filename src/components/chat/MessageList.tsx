@@ -324,6 +324,22 @@ export function MessageList({
           if (hasDbReactions || !hasLocalReactions) patch.reactions = dbReactions
 
           updateMessage(raw.id, patch)
+
+          // Persist reaction changes to cache so they survive navigation
+          if (patch.reactions !== undefined) {
+            try {
+              const cacheKey = `nexus-msgs-${crewId}`
+              const cached = sessionStorage.getItem(cacheKey)
+              if (cached) {
+                const msgs = JSON.parse(cached) as { id: string }[]
+                const idx = msgs.findIndex((m) => m.id === raw.id)
+                if (idx !== -1) {
+                  msgs[idx] = { ...msgs[idx], reactions: patch.reactions }
+                  sessionStorage.setItem(cacheKey, JSON.stringify(msgs))
+                }
+              }
+            } catch {}
+          }
         }
       )
       // Profile UPDATE: reflects avatar/username changes immediately for active chat members.
