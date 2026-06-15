@@ -143,6 +143,7 @@ function AccountPreviewContainer({
   onFriends,
   onInviteSquad,
   totalFriendshipXP,
+  infiniteFriendshipXP,
 }: {
   username:          string
   avatarUrl:         string | null
@@ -156,9 +157,10 @@ function AccountPreviewContainer({
   infiniteCoins:     boolean
   showCoinTip:       boolean
   onCoinTap:         () => void
-  onFriends:         () => void
-  onInviteSquad:     () => void
-  totalFriendshipXP: number
+  onFriends:            () => void
+  onInviteSquad:        () => void
+  totalFriendshipXP:    number
+  infiniteFriendshipXP: boolean
 }) {
   return (
     <div
@@ -241,7 +243,7 @@ function AccountPreviewContainer({
                 backgroundClip: 'text',
               }}
             >
-              {totalFriendshipXP}
+              {infiniteFriendshipXP ? '∞' : totalFriendshipXP}
             </span>
             <Heart style={{ width: 12, height: 12, color: '#d946ef' }} aria-hidden="true" />
           </div>
@@ -840,10 +842,11 @@ export function HomeClient({
     if (store.userCoins < base) store.setUserCoins(base)
     return base
   })
-  const [localFriendshipXP, setLocalFriendshipXP] = useState(totalFriendshipXP)
-  const [showCoinTip,       setShowCoinTip]       = useState(false)
-  const [infiniteCoins,     setInfiniteCoins]     = useState(false)
-  const [afkExpEnabled,    setAfkExpEnabled]    = useState(false)
+  const [localFriendshipXP,    setLocalFriendshipXP]    = useState(totalFriendshipXP)
+  const [showCoinTip,          setShowCoinTip]          = useState(false)
+  const [infiniteCoins,        setInfiniteCoins]        = useState(false)
+  const [infiniteFriendshipXP, setInfiniteFriendshipXP] = useState(false)
+  const [afkExpEnabled,        setAfkExpEnabled]        = useState(false)
 
   const profileCacheRef = useRef<Record<string, string>>(profileCache)
   useEffect(() => { profileCacheRef.current = profileCache }, [profileCache])
@@ -856,6 +859,16 @@ export function HomeClient({
     }
     window.addEventListener('nexus-infinite-coins-change', onFlagChange)
     return () => window.removeEventListener('nexus-infinite-coins-change', onFlagChange)
+  }, [])
+
+  // Sync infinite friendship XP flag from localStorage + listen for dev-section toggle
+  useEffect(() => {
+    setInfiniteFriendshipXP(localStorage.getItem('nexus_infinite_fxp') === '1')
+    function onFlagChange(e: Event) {
+      setInfiniteFriendshipXP((e as CustomEvent<{ on: boolean }>).detail.on)
+    }
+    window.addEventListener('nexus-infinite-fxp-change', onFlagChange)
+    return () => window.removeEventListener('nexus-infinite-fxp-change', onFlagChange)
   }, [])
 
   // Sync AFK XP feature flag from localStorage + listen for dev-section toggle
@@ -1050,6 +1063,7 @@ export function HomeClient({
           onFriends={() => router.push('/friends')}
           onInviteSquad={() => setShowCreate(true)}
           totalFriendshipXP={localFriendshipXP}
+          infiniteFriendshipXP={infiniteFriendshipXP}
         />
         <AnnouncementBanner announcements={announcements} />
       </div>
