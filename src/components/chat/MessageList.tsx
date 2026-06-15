@@ -253,25 +253,33 @@ export function MessageList({
     }
   }, [crewId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Instant jump on first load; smooth scroll for new messages while chatting
+  // Instant jump to bottom before first paint — fires once when messages are available.
+  // useBrowserLayoutEffect ensures no flash: the browser never renders the list at the top.
+  // Guard: only fire when messages are actually present (avoids premature trigger on empty store).
+  useBrowserLayoutEffect(() => {
+    if (!historyLoaded || hasInitialScrolled.current || messages.length === 0) return
+    const el = scrollRef.current
+    if (!el) return
+    el.scrollTop = el.scrollHeight
+    hasInitialScrolled.current = true
+  }, [historyLoaded, messages.length]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-scroll after initial: smooth for received messages (near-bottom only),
+  // unconditional for own sends so the user always sees their message.
   useEffect(() => {
-    if (!historyLoaded) return
-    if (!hasInitialScrolled.current) {
-      const el = scrollRef.current
-      if (el) el.scrollTop = el.scrollHeight
-      hasInitialScrolled.current = true
-      return
-    }
-    if (isNearBottomRef.current) {
+    if (!hasInitialScrolled.current) return
+    const lastMsg = messages[messages.length - 1]
+    const ownSend = !!lastMsg && lastMsg.user_id === currentUserId
+    if (ownSend || isNearBottomRef.current) {
       bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
     }
-  }, [messages.length, historyLoaded])
+  }, [messages.length]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleScroll() {
     const el = scrollRef.current
     if (!el) return
     const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
-    isNearBottomRef.current = distFromBottom < 120
+    isNearBottomRef.current = distFromBottom < 150
   }
 
   const resolveProfile = useCallback(
