@@ -5,87 +5,77 @@ import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { FRIENDSHIP_TOAST_Z_INDEX } from '@/lib/config'
 
-const BOND_XP_PER_LEVEL = 100
-
 interface FriendshipXPToastProps {
-  visible:   boolean
-  totalXP:   number
-  xpAwarded: number
+  visible:     boolean
+  xpAwarded:   number
+  totalXP:     number
+  partnerName: string
 }
 
-export function FriendshipXPToast({ visible, totalXP, xpAwarded }: FriendshipXPToastProps) {
+export function FriendshipXPToast({ visible, xpAwarded, totalXP, partnerName }: FriendshipXPToastProps) {
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
   if (!mounted) return null
 
-  const level    = Math.floor(totalXP / BOND_XP_PER_LEVEL) + 1
-  const xpInLevel = totalXP % BOND_XP_PER_LEVEL
-  const progress  = (xpInLevel / BOND_XP_PER_LEVEL) * 100
+  const initial = partnerName[0]?.toUpperCase() ?? '?'
 
   return createPortal(
     <AnimatePresence>
       {visible && (
         <motion.div
           key="friendship-toast"
-          initial={{ y: -120, opacity: 0 }}
-          animate={{ y: 0,    opacity: 1 }}
-          exit={{    y: -120, opacity: 0 }}
-          transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1, transition: { duration: 0.2, ease: 'easeOut' } }}
+          exit={{    opacity: 0, transition: { duration: 0.4, ease: 'easeIn'  } }}
           style={{
-            position:       'fixed',
-            top:            'calc(env(safe-area-inset-top, 0px) + 16px)',
-            left:           16,
-            right:          16,
-            zIndex:         FRIENDSHIP_TOAST_Z_INDEX,
-            background:     'rgba(10, 6, 18, 0.95)',
-            border:         '1px solid var(--color-purple)',
-            backdropFilter: 'blur(8px)',
-            WebkitBackdropFilter: 'blur(8px)',
-            padding:        '10px 14px',
-            display:        'flex',
-            flexDirection:  'column',
-            gap:            'var(--space-3)',
-            maxWidth:       448,
-            marginLeft:     'auto',
-            marginRight:    'auto',
+            position:    'fixed',
+            bottom:      'calc(env(safe-area-inset-bottom, 0px) + 130px)',
+            left:        16,
+            right:       16,
+            maxWidth:    448,
+            marginLeft:  'auto',
+            marginRight: 'auto',
+            zIndex:      FRIENDSHIP_TOAST_Z_INDEX,
+            display:     'flex',
+            alignItems:  'center',
+            gap:         12,
+            padding:     '10px 14px',
+            background:  '#0a0612',
+            border:      '1px solid #bf5fff',
           }}
         >
-          {/* Header row */}
-          <div className="flex items-center" style={{ gap: 'var(--space-3)' }}>
-            <span
-              className="font-silkscreen leading-none text-purple"
-              style={{ fontSize: 'var(--text-mini)' }}
-            >
-              BOND XP
-            </span>
-            <span
-              className="font-silkscreen leading-none"
-              style={{ fontSize: 'var(--text-mini)', color: 'var(--color-xp)' }}
-            >
-              +{xpAwarded} XP
+          {/* Avatar initial */}
+          <div
+            style={{
+              width:           32,
+              height:          32,
+              flexShrink:      0,
+              background:      'rgba(191, 95, 255, 0.2)',
+              border:          '1px solid rgba(191, 95, 255, 0.4)',
+              display:         'flex',
+              alignItems:      'center',
+              justifyContent:  'center',
+            }}
+          >
+            <span className="font-pixel text-purple" style={{ fontSize: 8, lineHeight: 1 }}>
+              {initial}
             </span>
           </div>
 
-          {/* Level + progress */}
-          <div className="flex flex-col w-full" style={{ gap: 'var(--space-3)' }}>
-            <div className="flex items-center w-full font-silkscreen" style={{ gap: 'var(--space-2)' }}>
-              <p className="flex-1 min-w-0 leading-[0] text-[0px]">
-                <span className="text-[length:var(--text-mini)] leading-none text-secondary">
-                  Bond Lv.{level}
-                </span>
-                <span className="text-[length:var(--text-mini)] leading-none text-tertiary">
-                  {` · ${xpInLevel} / ${BOND_XP_PER_LEVEL} XP`}
-                </span>
-              </p>
-            </div>
-
-            <div className="bg-surface h-1 overflow-hidden w-full relative">
-              <motion.div
-                className="absolute left-0 top-0 h-full bg-purple"
-                animate={{ width: `${progress}%` }}
-                transition={{ type: 'spring', stiffness: 300, damping: 28 }}
-              />
-            </div>
+          {/* Text content */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+            <span className="font-pixel leading-none" style={{ fontSize: 8, color: '#ffd700' }}>
+              +{xpAwarded} BOND XP
+            </span>
+            <span
+              className="font-body text-primary leading-none truncate"
+              style={{ fontSize: 12, fontVariationSettings: '"opsz" 14' }}
+            >
+              {partnerName}
+            </span>
+            <span className="font-silkscreen text-tertiary leading-none" style={{ fontSize: 8 }}>
+              {totalXP} Bond XP total
+            </span>
           </div>
         </motion.div>
       )}

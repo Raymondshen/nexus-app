@@ -94,7 +94,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   const [chatImageLqip,      setChatImageLqip]      = useState<string | null>(null)
   const [chatImageUploading, setChatImageUploading] = useState(false)
   const [chatImageError,     setChatImageError]     = useState<string | null>(null)
-  const [friendshipToast,    setFriendshipToast]    = useState<{ totalXP: number; xpAwarded: number } | null>(null)
+  const [friendshipToast,    setFriendshipToast]    = useState<{ totalXP: number; xpAwarded: number; partnerName: string } | null>(null)
 
   const textareaRef           = useRef<HTMLTextAreaElement>(null)
   const overlayRef            = useRef<HTMLDivElement>(null)
@@ -586,15 +586,16 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
         })
         .catch(() => {})
 
-      // Friendship XP — shared helper to show the toast
-      const showFriendshipToast = (totalXP: number, xpAwarded: number) => {
+      // Friendship XP — shared helper: fade-in 200ms, hold 2000ms, then exit animation (400ms) runs
+      const showFriendshipToast = (totalXP: number, xpAwarded: number, partnerName: string) => {
         if (friendshipToastTimerRef.current) clearTimeout(friendshipToastTimerRef.current)
-        setFriendshipToast({ totalXP, xpAwarded })
-        friendshipToastTimerRef.current = setTimeout(() => setFriendshipToast(null), 3500)
+        setFriendshipToast({ totalXP, xpAwarded, partnerName })
+        friendshipToastTimerRef.current = setTimeout(() => setFriendshipToast(null), 2200)
       }
 
       // Friendship XP — DM send
       if (isDM && dmPartnerId && friendshipXPEnabled) {
+        const dmPartnerName = liveCrewName
         fetch(`${SUPABASE_URL}/functions/v1/award-friendship-xp`, {
           method:  'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
@@ -603,16 +604,17 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
           .then((r) => r.json())
           .then((data: { total_xp?: number; xp_awarded?: number; skipped?: boolean }) => {
             if (typeof data.total_xp === 'number' && (data.xp_awarded ?? 0) > 0) {
-              showFriendshipToast(data.total_xp, data.xp_awarded!)
+              showFriendshipToast(data.total_xp, data.xp_awarded!, dmPartnerName)
             }
           })
           .catch(() => {})
       }
 
-      // Friendship XP — @mention in group chat (show toast for first awarded pair)
+      // Friendship XP — @mention in group chat (toast for first awarded pair)
       if (!isDM && friendshipXPEnabled && mentionedUserIds.length > 0) {
         let toastShown = false
         mentionedUserIds.forEach((friendId) => {
+          const partnerName = profilesRef.current[friendId]?.username ?? 'Friend'
           fetch(`${SUPABASE_URL}/functions/v1/award-friendship-xp`, {
             method:  'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
@@ -622,7 +624,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
             .then((data: { total_xp?: number; xp_awarded?: number; skipped?: boolean }) => {
               if (!toastShown && typeof data.total_xp === 'number' && (data.xp_awarded ?? 0) > 0) {
                 toastShown = true
-                showFriendshipToast(data.total_xp, data.xp_awarded!)
+                showFriendshipToast(data.total_xp, data.xp_awarded!, partnerName)
               }
             })
             .catch(() => {})
@@ -856,8 +858,9 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       {/* ── Friendship XP toast (DM send or group @mention) ── */}
       <FriendshipXPToast
         visible={!!friendshipToast}
-        totalXP={friendshipToast?.totalXP ?? 0}
         xpAwarded={friendshipToast?.xpAwarded ?? 0}
+        totalXP={friendshipToast?.totalXP ?? 0}
+        partnerName={friendshipToast?.partnerName ?? ''}
       />
 
       {/* ── DM: "Chatting with" label ── */}
