@@ -29,6 +29,8 @@ announcements       id, text (1–500 chars), active (bool default true), create
 polls               id, message_id (uuid → messages nullable), crew_id, creator_id, question (1–200 chars), options (jsonb string[]), votes (jsonb default '{}' — `{"0":["userId",...]}`), expires_at, closed_at, created_at
 squad_definitions   id, crew_id, creator_id, word (1–100 chars, comma-separated aliases), definition (1–500 chars), created_at — UNIQUE INDEX (crew_id, lower(word))
 definition_suggestions  id, definition_id (→ squad_definitions CASCADE), crew_id, suggester_id, suggested_definition (1–500 chars), created_at — UNIQUE(definition_id, suggester_id); REPLICA IDENTITY FULL
+friendship_xp       user_a (uuid), user_b (uuid), total_xp (int) — canonical order: user_a < user_b (UUID); UNIQUE(user_a, user_b)
+friendship_xp_log   id, user_a, user_b, sender_id, xp_awarded (int), source (dm|mention), awarded_at
 ```
 
 DM channels: `crews` rows with `is_dm = true` · `dm_partner_1 < dm_partner_2` (UUID order, enforced by `get_or_create_dm`) · both partners in `crew_members` class=berserker · filtered from home Squads; shown in Friends only
@@ -60,8 +62,14 @@ XP: text=10 · voice=25 (disabled) · image=20 (disabled) · reaction=5 · poll=
 Coins: text/voice/image=1 · reaction/system=0 · generate-invite=−25 · seed-to-new-user=+50
 - `handle_new_user` trigger → 50 signup bonus (source=`signup_bonus`)
 - Invite alphabet: `ABCDEFGHJKLMNPQRSTUVWXYZ23456789`, up to 10 uniqueness retries
-- Balance in `profiles.coins`; `chatStore.userCoins`; shown in `AccountPreviewContainer` only (amber pill: `TokeCircle` 24×16 + Silkscreen 12px `var(--color-coins)`)
+- Balance in `profiles.coins`; `chatStore.userCoins`; shown in `AccountPreviewContainer` (bare `TokeCircle` 24×16 + Silkscreen number, no pill background) and profile hero glass badge
 - Coins awarded only when `xpBlocked = false`
+
+Friendship XP: 1pt per DM send or @mention · 10pt daily cap (resets at local midnight, tracked in `friendship_xp_log` by `sender_id`) · `award-friendship-xp` edge function · fully launched (no per-user gate)
+- `friendship_xp` stores cumulative bilateral XP; canonical pair ordering `user_a < user_b` enforced by edge function
+- Home card: heart badge (purple→pink gradient) shows sum of all `friendship_xp` rows where user is `user_a` or `user_b`; realtime via two channels (`home-fxp-a:{userId}` + `home-fxp-b:{userId}`)
+- Profile hero: glass heart badge (same total) alongside coin badge; `backdropFilter: blur(4px)` + drop-shadow
+- Dev tools: `nexus_infinite_fxp` localStorage flag (shows ∞) · Reset button in Developer Settings wipes both `friendship_xp` and `friendship_xp_log` for sender
 
 Boss: The Void at every 500 XP · 48h fight window · 3 phases (100–60%, 60–30%, 30–0%) · defeat → artifact drop
 
@@ -101,7 +109,7 @@ Error copy: invalid → "The Nexus does not recognize this code." · used → "T
 ## Dev Mode
 `profiles.is_dev = true` — grant: `UPDATE profiles SET is_dev = true WHERE id IN (SELECT id FROM auth.users WHERE email = '...')`
 
-Dev section in `/profile/developer`: Announcements management · Push Diagnostics (`nexus_push_diag`) · Infinite Coins (`nexus_infinite_coins`) · Spawn Boss Mode (`nexus_dev_mode`) · Chat Camera (`nexus_chat_camera`) · AFK Exp (`nexus_afk_exp`)
+Dev section in `/profile/developer`: Announcements management · Push Diagnostics (`nexus_push_diag`) · Infinite Coins (`nexus_infinite_coins`) · Spawn Boss Mode (`nexus_dev_mode`) · Chat Camera (`nexus_chat_camera`) · AFK Exp (`nexus_afk_exp`) · Infinite Friendship XP (`nexus_infinite_fxp`) · Reset Friendship XP (two-step confirm, wipes `friendship_xp` + `friendship_xp_log`)
 
 Server-side (`award-xp`): boss spawn + `LEVEL_UP:` only when `isDevUser = true`
 
@@ -131,6 +139,7 @@ localStorage:
 | `nexus_infinite_coins` | `'1'` |
 | `nexus_afk_exp` | `'1'` |
 | `nexus_chat_camera` | `'1'` |
+| `nexus_infinite_fxp` | `'1'` |
 | `nexus_dismissed_banners` | JSON array of IDs |
 
 ## Architecture
@@ -192,7 +201,7 @@ Trigger: swipe-up (`offset.y < -50` or `velocity.y < -300`) or chevron-up
 - Scroll: `h-screen overflow-hidden flex flex-col`; account card + banner `flex-shrink-0`; list `flex-1 overflow-y-auto min-h-0`
 - `AccountPreviewContainer` buttons: "friends" (`border border-purple bg-black`, `Notebook` 12×12) · "Invite squad" (`bg-purple`, `Plus` 12×12); both Silkscreen `--text-mini`
 - `handleCrewTap`: `sessionStorage.nexus_chat_from = '/home'` before pushing to `/chat/{crewId}`
-- Realtime: one `messages:{crewId}` per crew (broadcast only) + `postgres_changes UPDATE` on `profiles` (`home-profile-coins:{userId}`)
+- Realtime: one `messages:{crewId}` per crew (broadcast only) + `postgres_changes UPDATE` on `profiles` (`home-profile-coins:{userId}`) + two friendship XP channels (`home-fxp-a:{userId}`, `home-fxp-b:{userId}`) — OR filter workaround, each watches one side of the pair
 - Auto-sort: `applyNewMessage` re-sorts by `lastMessage.created_at` desc; Framer Motion `layout` animates; channel dep uses `[...crewIds].sort().join(',')` (set-stable)
 
 ### Page Transitions (`src/components/ui/SlidePage.tsx`)
@@ -268,6 +277,7 @@ Deploy commands:
 ```
 supabase functions deploy send-notification --project-ref tlveyeisjbythssmocth --no-verify-jwt
 supabase functions deploy award-xp --project-ref tlveyeisjbythssmocth
+supabase functions deploy award-friendship-xp --project-ref tlveyeisjbythssmocth
 supabase functions deploy react-to-message --project-ref tlveyeisjbythssmocth
 supabase functions deploy process-avatar --project-ref tlveyeisjbythssmocth --no-verify-jwt
 ```
