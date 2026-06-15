@@ -70,8 +70,8 @@ export default async function DMPage({ params }: DMPageProps) {
 
   const dmCrewId = channelId as string
 
-  // Fetch friend profile, crew XP, raid, member profiles, and current user's friendship XP flag in parallel
-  const [friendProfileResult, cachedProfiles, crewResult, raidResult, selfProfileResult] = await Promise.all([
+  // Fetch friend profile, crew XP, raid, and member profiles in parallel
+  const [friendProfileResult, cachedProfiles, crewResult, raidResult] = await Promise.all([
     supabase.from('profiles').select('username, avatar_url').eq('id', friendId).single(),
     getCachedDMMemberProfiles(dmCrewId),
     supabase.from('crews').select('id, total_xp, level').eq('id', dmCrewId).single(),
@@ -82,16 +82,14 @@ export default async function DMPage({ params }: DMPageProps) {
       .is('defeated_at', null)
       .gt('expires_at', new Date().toISOString())
       .maybeSingle(),
-    supabase.from('profiles').select('friendship_xp_enabled').eq('id', user.id).single(),
   ])
 
   if (!crewResult.data) redirect('/home')
 
-  const friendUsername       = friendProfileResult.data?.username ?? 'Friend'
-  const friendAvatarUrl      = (friendProfileResult.data as Record<string, unknown> | null)?.avatar_url as string | null ?? null
-  const crew                 = crewResult.data as unknown as { id: string; total_xp: number; level: number }
-  const raidRow              = raidResult.data as ActiveRaid | null
-  const friendshipXPEnabled  = (selfProfileResult.data as { friendship_xp_enabled?: boolean } | null)?.friendship_xp_enabled === true
+  const friendUsername  = friendProfileResult.data?.username ?? 'Friend'
+  const friendAvatarUrl = (friendProfileResult.data as Record<string, unknown> | null)?.avatar_url as string | null ?? null
+  const crew            = crewResult.data as unknown as { id: string; total_xp: number; level: number }
+  const raidRow         = raidResult.data as ActiveRaid | null
 
   const memberProfiles: MemberProfileMap = Object.fromEntries(
     cachedProfiles.filter((r) => r.profile).map((r) => [r.user_id, r.profile!])
@@ -132,7 +130,6 @@ export default async function DMPage({ params }: DMPageProps) {
           friendUsername={friendUsername}
           friendAvatarUrl={friendAvatarUrl}
           friendId={friendId}
-          friendshipXPEnabled={friendshipXPEnabled}
         />
       </div>
 
@@ -149,7 +146,6 @@ export default async function DMPage({ params }: DMPageProps) {
           crewName={friendUsername}
           isDM
           dmPartnerId={friendId}
-          friendshipXPEnabled={friendshipXPEnabled}
         />
       </ErrorBoundary>
     </SlidePage>

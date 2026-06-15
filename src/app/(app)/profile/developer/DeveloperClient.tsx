@@ -8,7 +8,7 @@ import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
 import { Plus } from 'pixelarticons/react/Plus'
 import { createAnnouncementAction } from '@/app/(app)/home/actions'
-import { toggleFriendshipXPAction, resetFriendshipXPAction } from '@/app/(app)/profile/developer/actions'
+import { resetFriendshipXPAction } from '@/app/(app)/profile/developer/actions'
 
 function BackButton() {
   const goBack = useSlideBack()
@@ -82,17 +82,15 @@ function ToggleRow({ title, description, enabled, onChange }: { title: string; d
 interface DeveloperClientProps {
   userId: string
   initialCoins: number
-  initialFriendshipXPEnabled: boolean
 }
 
-export function DeveloperClient({ userId: _userId, initialCoins, initialFriendshipXPEnabled }: DeveloperClientProps) {
+export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClientProps) {
   const router = useRouter()
 
   const [devMode,             setDevMode]             = useState(false)
   const [showPush,            setShowPush]            = useState(false)
   const [infiniteCoins,       setInfiniteCoins]       = useState(false)
   const [chatCamera,          setChatCamera]          = useState(false)
-  const [friendshipXP,        setFriendshipXP]        = useState(initialFriendshipXPEnabled)
   const [infiniteFriendshipXP, setInfiniteFriendshipXP] = useState(false)
   const [fxpResetConfirm,     setFxpResetConfirm]     = useState(false)
   const [resettingFXP,        setResettingFXP]        = useState(false)
@@ -138,12 +136,6 @@ export function DeveloperClient({ userId: _userId, initialCoins, initialFriendsh
     setChatCamera(next)
     if (next) localStorage.setItem('nexus_chat_camera', '1')
     else localStorage.removeItem('nexus_chat_camera')
-  }
-
-  async function toggleFriendshipXP() {
-    const next = !friendshipXP
-    setFriendshipXP(next)
-    await toggleFriendshipXPAction(next)
   }
 
   function toggleInfiniteFriendshipXP() {
@@ -330,13 +322,6 @@ export function DeveloperClient({ userId: _userId, initialCoins, initialFriendsh
             description="Enable image upload button in chat input"
             enabled={chatCamera}
             onChange={toggleChatCamera}
-          />
-
-          <ToggleRow
-            title="Friendship XP — Beta"
-            description="Award bilateral XP in DMs and @mentions"
-            enabled={friendshipXP}
-            onChange={toggleFriendshipXP}
           />
 
           <ToggleRow

@@ -62,29 +62,12 @@ Deno.serve(async (req: Request) => {
       return new Date().toISOString().slice(0, 10) + 'T00:00:00.000Z'
     })()
 
-    // Beta flag check + daily XP count in parallel
-    const [senderProfileResult, dailyCountResult] = await Promise.all([
-      supabase
-        .from('profiles')
-        .select('friendship_xp_enabled')
-        .eq('id', user_a_id)
-        .single(),
-
-      supabase
-        .from('friendship_xp_log')
-        .select('id', { count: 'exact', head: true })
-        .eq('sender_id', user_a_id)
-        .gte('awarded_at', dailyStart),
-    ])
-
-    const senderEnabled = (senderProfileResult.data as { friendship_xp_enabled?: boolean } | null)?.friendship_xp_enabled === true
-
-    if (!senderEnabled) {
-      return new Response(
-        JSON.stringify({ skipped: true, reason: 'beta_not_enabled' }),
-        { headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
-      )
-    }
+    // Daily XP count
+    const dailyCountResult = await supabase
+      .from('friendship_xp_log')
+      .select('id', { count: 'exact', head: true })
+      .eq('sender_id', user_a_id)
+      .gte('awarded_at', dailyStart)
 
     // Each event is worth 1 XP, so count = total XP awarded today
     if ((dailyCountResult.count ?? 0) >= DAILY_XP_CAP) {

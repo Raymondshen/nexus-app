@@ -55,7 +55,6 @@ interface ChatInputProps {
   currentUserId?:      string
   isDM?:               boolean
   dmPartnerId?:        string
-  friendshipXPEnabled?: boolean
 }
 
 function sanitizeMessage(raw: string): string {
@@ -63,7 +62,7 @@ function sanitizeMessage(raw: string): string {
 }
 
 
-export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewName, inviteCode, creatorId, crewImageUrl: initialCrewImageUrl, initialXP, initialRaid, isDM, dmPartnerId, friendshipXPEnabled }: ChatInputProps) {
+export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewName, inviteCode, creatorId, crewImageUrl: initialCrewImageUrl, initialXP, initialRaid, isDM, dmPartnerId }: ChatInputProps) {
   const router = useRouter()
   const [text,           setText]          = useState('')
   const [sending,        setSending]        = useState(false)
@@ -598,7 +597,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       const localMidnightUTC = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).toISOString()
 
       // Friendship XP — DM send
-      if (isDM && dmPartnerId && friendshipXPEnabled) {
+      if (isDM && dmPartnerId) {
         const dmPartnerName = liveCrewName
         fetch(`${SUPABASE_URL}/functions/v1/award-friendship-xp`, {
           method:  'POST',
@@ -615,7 +614,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       }
 
       // Friendship XP — @mention in group chat (toast for first awarded pair)
-      if (!isDM && friendshipXPEnabled && mentionedUserIds.length > 0) {
+      if (!isDM && mentionedUserIds.length > 0) {
         let toastShown = false
         mentionedUserIds.forEach((friendId) => {
           const partnerName = profilesRef.current[friendId]?.username ?? 'Friend'

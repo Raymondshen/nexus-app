@@ -10,19 +10,18 @@ export default async function DeveloperPage() {
   const service = createServiceClient()
   const { data: profile } = await service
     .from('profiles')
-    .select('is_dev, coins, friendship_xp_enabled')
+    .select('is_dev, coins')
     .eq('id', session.user.id)
     .maybeSingle()
 
   if (!(profile as { is_dev?: boolean } | null)?.is_dev) redirect('/profile')
 
-  type ProfileRow = { is_dev?: boolean; coins?: number; friendship_xp_enabled?: boolean } | null
+  type ProfileRow = { is_dev?: boolean; coins?: number } | null
 
   return (
     <DeveloperClient
       userId={session.user.id}
       initialCoins={(profile as ProfileRow)?.coins ?? 0}
-      initialFriendshipXPEnabled={(profile as ProfileRow)?.friendship_xp_enabled === true}
     />
   )
 }

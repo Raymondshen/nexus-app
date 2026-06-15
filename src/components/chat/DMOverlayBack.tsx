@@ -17,7 +17,6 @@ interface DMOverlayBackProps {
   friendUsername:       string
   friendAvatarUrl:      string | null
   friendId?:            string
-  friendshipXPEnabled?: boolean
 }
 
 export function DMOverlayBack({
@@ -28,7 +27,6 @@ export function DMOverlayBack({
   friendUsername,
   friendAvatarUrl,
   friendId,
-  friendshipXPEnabled,
 }: DMOverlayBackProps) {
   const goBack = useSlideBack()
   const { setCrewXP, setActiveRaid } = useChatStore()
