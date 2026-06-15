@@ -593,13 +593,17 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
         friendshipToastTimerRef.current = setTimeout(() => setFriendshipToast(null), 2200)
       }
 
+      // Local midnight as UTC ISO string — used by the server to compute the daily limit window
+      const now = new Date()
+      const localMidnightUTC = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).toISOString()
+
       // Friendship XP — DM send
       if (isDM && dmPartnerId && friendshipXPEnabled) {
         const dmPartnerName = liveCrewName
         fetch(`${SUPABASE_URL}/functions/v1/award-friendship-xp`, {
           method:  'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
-          body:    JSON.stringify({ user_a_id: userId, user_b_id: dmPartnerId, source: 'dm' }),
+          body:    JSON.stringify({ user_a_id: userId, user_b_id: dmPartnerId, source: 'dm', local_midnight_utc: localMidnightUTC }),
         })
           .then((r) => r.json())
           .then((data: { total_xp?: number; xp_awarded?: number; skipped?: boolean }) => {
@@ -618,7 +622,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
           fetch(`${SUPABASE_URL}/functions/v1/award-friendship-xp`, {
             method:  'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
-            body:    JSON.stringify({ user_a_id: userId, user_b_id: friendId, source: 'mention' }),
+            body:    JSON.stringify({ user_a_id: userId, user_b_id: friendId, source: 'mention', local_midnight_utc: localMidnightUTC }),
           })
             .then((r) => r.json())
             .then((data: { total_xp?: number; xp_awarded?: number; skipped?: boolean }) => {
