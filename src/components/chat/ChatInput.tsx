@@ -957,8 +957,8 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
           </div>
         )}
 
-        {/* ── Image attachment preview ── */}
-        {chatImageLocalUrl && (
+        {/* ── Image attachment preview (dev only) ── */}
+        {devMode && chatImageLocalUrl && (
           <div
             className="flex items-center overflow-hidden"
             style={{ border: '1px solid var(--color-border)', background: 'rgba(255,255,255,0.03)', padding: '8px 12px', gap: 'var(--space-3)', marginBottom: 'var(--space-2)' }}
@@ -1086,14 +1086,16 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
               >
                 <Chart style={{ width: 16, height: 16 }} aria-hidden="true" />
               </button>
-              <button
-                onClick={() => chatImageInputRef.current?.click()}
-                disabled={chatImageUploading}
-                className="flex-shrink-0 flex items-center justify-center w-4 h-4 text-tertiary active:text-purple disabled:opacity-40"
-                aria-label="Share image"
-              >
-                <Camera style={{ width: 16, height: 16 }} aria-hidden="true" />
-              </button>
+              {devMode && (
+                <button
+                  onClick={() => chatImageInputRef.current?.click()}
+                  disabled={chatImageUploading}
+                  className="flex-shrink-0 flex items-center justify-center w-4 h-4 text-tertiary active:text-purple disabled:opacity-40"
+                  aria-label="Share image"
+                >
+                  <Camera style={{ width: 16, height: 16 }} aria-hidden="true" />
+                </button>
+              )}
             </motion.div>
             <div className="relative flex-1 min-w-0 overflow-hidden">
               {/* Overlay renders @mention highlights behind the transparent textarea */}
