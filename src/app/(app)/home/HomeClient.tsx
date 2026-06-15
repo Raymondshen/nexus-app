@@ -201,15 +201,15 @@ function AccountPreviewContainer({
 
         {/* Right column: coin badge + friendship XP badge */}
         <div className="flex-shrink-0 flex flex-col items-end" style={{ gap: 'var(--space-2)' }}>
-          {/* Coin badge */}
+          {/* Coin badge — Figma 178:1077: no background, number w-[26px] + coin icon 12×12 */}
           <div className="relative">
             <button
               onClick={(e) => { e.stopPropagation(); onCoinTap() }}
               aria-label={`${infiniteCoins ? '∞' : coins} coins`}
-              className="flex items-center justify-end bg-[rgba(245,158,11,0.25)] rounded-[4px]"
-              style={{ gap: 'var(--space-2)', padding: 'var(--space-2)' }}
+              className="flex items-center justify-end"
+              style={{ gap: 'var(--space-2)' }}
             >
-              <span className="font-silkscreen leading-none w-[26px] pb-[2px]" style={{ fontSize: 'var(--text-xs)', color: '#f59e0b' }}>
+              <span className="font-silkscreen leading-none w-[26px] pb-[2px] text-right" style={{ fontSize: 'var(--text-xs)', color: '#f59e0b' }}>
                 {infiniteCoins ? '∞' : coins.toLocaleString()}
               </span>
               <TokeCircle style={{ width: 12, height: 12, color: '#f59e0b' }} aria-hidden="true" />
@@ -229,11 +229,8 @@ function AccountPreviewContainer({
             </AnimatePresence>
           </div>
 
-          {/* Friendship XP badge */}
-          <div
-            className="flex items-center justify-end rounded-[4px]"
-            style={{ gap: 'var(--space-2)', padding: 'var(--space-2)' }}
-          >
+          {/* Friendship XP badge — Figma 116:742: no background, gradient text + heart icon 12×12 */}
+          <div className="flex items-center justify-end" style={{ gap: 'var(--space-2)' }}>
             <span
               className="font-silkscreen leading-none pb-[2px]"
               style={{
@@ -843,6 +840,7 @@ export function HomeClient({
     if (store.userCoins < base) store.setUserCoins(base)
     return base
   })
+  const [localFriendshipXP, setLocalFriendshipXP] = useState(totalFriendshipXP)
   const [showCoinTip,       setShowCoinTip]       = useState(false)
   const [infiniteCoins,     setInfiniteCoins]     = useState(false)
   const [afkExpEnabled,    setAfkExpEnabled]    = useState(false)
@@ -899,6 +897,28 @@ export function HomeClient({
       )
       .subscribe()
     return () => { supabase.removeChannel(ch) }
+  }, [userId])
+
+  // Realtime: live friendship XP total — re-fetch sum on any insert/update to friendship_xp
+  useEffect(() => {
+    const supabase = createClient()
+    async function refetchFriendshipXP() {
+      const { data } = await supabase
+        .from('friendship_xp')
+        .select('total_xp')
+        .or(`user_a.eq.${userId},user_b.eq.${userId}`)
+      const total = (data ?? []).reduce((sum, r) => sum + ((r as { total_xp: number }).total_xp ?? 0), 0)
+      setLocalFriendshipXP(total)
+    }
+    const chA = supabase
+      .channel(`home-fxp-a:${userId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'friendship_xp', filter: `user_a=eq.${userId}` }, refetchFriendshipXP)
+      .subscribe()
+    const chB = supabase
+      .channel(`home-fxp-b:${userId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'friendship_xp', filter: `user_b=eq.${userId}` }, refetchFriendshipXP)
+      .subscribe()
+    return () => { supabase.removeChannel(chA); supabase.removeChannel(chB) }
   }, [userId])
 
   const crewIds = crews.map((c) => c.crew.id)
@@ -1029,7 +1049,7 @@ export function HomeClient({
           }}
           onFriends={() => router.push('/friends')}
           onInviteSquad={() => setShowCreate(true)}
-          totalFriendshipXP={totalFriendshipXP}
+          totalFriendshipXP={localFriendshipXP}
         />
         <AnnouncementBanner announcements={announcements} />
       </div>
