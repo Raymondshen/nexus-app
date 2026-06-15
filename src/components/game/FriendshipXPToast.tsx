@@ -5,6 +5,8 @@ import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { FRIENDSHIP_TOAST_Z_INDEX } from '@/lib/config'
 
+const BOND_XP_PER_LEVEL = 100
+
 interface FriendshipXPToastProps {
   visible:     boolean
   xpAwarded:   number
@@ -17,7 +19,10 @@ export function FriendshipXPToast({ visible, xpAwarded, totalXP, partnerName }: 
   useEffect(() => setMounted(true), [])
   if (!mounted) return null
 
-  const initial = partnerName[0]?.toUpperCase() ?? '?'
+  const initial    = partnerName[0]?.toUpperCase() ?? '?'
+  const level      = Math.floor(totalXP / BOND_XP_PER_LEVEL) + 1
+  const xpInLevel  = totalXP % BOND_XP_PER_LEVEL
+  const progressPct = (xpInLevel / BOND_XP_PER_LEVEL) * 100
 
   return createPortal(
     <AnimatePresence>
@@ -47,14 +52,14 @@ export function FriendshipXPToast({ visible, xpAwarded, totalXP, partnerName }: 
           {/* Avatar initial */}
           <div
             style={{
-              width:           32,
-              height:          32,
-              flexShrink:      0,
-              background:      'rgba(191, 95, 255, 0.2)',
-              border:          '1px solid rgba(191, 95, 255, 0.4)',
-              display:         'flex',
-              alignItems:      'center',
-              justifyContent:  'center',
+              width:          32,
+              height:         32,
+              flexShrink:     0,
+              background:     'rgba(191, 95, 255, 0.2)',
+              border:         '1px solid rgba(191, 95, 255, 0.4)',
+              display:        'flex',
+              alignItems:     'center',
+              justifyContent: 'center',
             }}
           >
             <span className="font-pixel text-purple" style={{ fontSize: 8, lineHeight: 1 }}>
@@ -62,8 +67,8 @@ export function FriendshipXPToast({ visible, xpAwarded, totalXP, partnerName }: 
             </span>
           </div>
 
-          {/* Text content */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+          {/* Text + bar */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0, flex: 1 }}>
             <span className="font-pixel leading-none" style={{ fontSize: 8, color: '#ffd700' }}>
               +{xpAwarded} BOND XP
             </span>
@@ -73,9 +78,33 @@ export function FriendshipXPToast({ visible, xpAwarded, totalXP, partnerName }: 
             >
               {partnerName}
             </span>
-            <span className="font-silkscreen text-tertiary leading-none" style={{ fontSize: 8 }}>
-              {totalXP} Bond XP total
-            </span>
+
+            {/* XP bar row */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <div className="font-silkscreen" style={{ display: 'flex', gap: 4 }}>
+                <span className="text-secondary leading-none" style={{ fontSize: 8 }}>
+                  Bond Lv.{level}
+                </span>
+                <span className="text-tertiary leading-none" style={{ fontSize: 8 }}>
+                  · {xpInLevel}/{BOND_XP_PER_LEVEL} XP
+                </span>
+              </div>
+              <div
+                style={{
+                  height:   3,
+                  background: 'rgba(191, 95, 255, 0.15)',
+                  overflow: 'hidden',
+                  position: 'relative',
+                }}
+              >
+                <motion.div
+                  style={{ position: 'absolute', left: 0, top: 0, height: '100%', background: '#bf5fff' }}
+                  initial={{ width: '0%' }}
+                  animate={{ width: `${progressPct}%` }}
+                  transition={{ type: 'spring', stiffness: 300, damping: 28, delay: 0.15 }}
+                />
+              </div>
+            </div>
           </div>
         </motion.div>
       )}
