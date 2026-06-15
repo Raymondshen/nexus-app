@@ -97,7 +97,6 @@ function CreateDefinitionSheet({
         style={{ maxHeight: '90vh', paddingTop: 12, paddingBottom: 'max(env(safe-area-inset-bottom), 16px)' }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex justify-center pb-2"><div className="w-10 h-[4px] rounded-full bg-border" /></div>
         {/* Title — DM Sans Bold 18px text-primary */}
         <h2
           className="font-body font-bold text-[18px] text-primary leading-none"
@@ -230,7 +229,6 @@ function DefinitionActionSheet({ definition, onClose, onEdit, onDelete, deleting
         style={{ paddingTop: 12, paddingBottom: 'max(env(safe-area-inset-bottom), 16px)' }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex justify-center pb-2"><div className="w-10 h-[4px] rounded-full bg-border" /></div>
         {/* Content preview — Figma 130:1289: flex-col gap-[--space-5] items-start */}
         <div className="flex flex-col items-start w-full" style={{ gap: 'var(--space-5)' }}>
           {/* Details — Figma 130:1290: flex-col gap-[--space-3] items-start justify-center */}
@@ -319,7 +317,6 @@ function DefinitionViewSheet({ definition, onClose, onSuggest }: DefinitionViewS
         style={{ gap: 'var(--space-7)', paddingTop: 12, paddingBottom: 'max(env(safe-area-inset-bottom), 28px)' }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex justify-center"><div className="w-10 h-[4px] rounded-full bg-border" /></div>
         {/* Content — flex-col gap-[--space-5] items-start */}
         <div className="flex flex-col items-start w-full" style={{ gap: 'var(--space-5)' }}>
           {/* Details — flex-col gap-[--space-3] */}

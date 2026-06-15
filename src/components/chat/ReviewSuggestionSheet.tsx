@@ -108,7 +108,6 @@ export function ReviewSuggestionSheet({
         onDragEnd={(_, info) => { if (info.offset.y > 80 || info.velocity.y > 400) onClose() }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex justify-center pb-2"><div className="w-10 h-[4px] rounded-full bg-border" /></div>
         {/* Title — DM Sans Bold 18px text-primary */}
         <h2
           className="font-body font-bold text-[18px] text-primary leading-none flex-shrink-0"
