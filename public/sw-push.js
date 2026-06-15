@@ -1,6 +1,6 @@
 // Cache name for Supabase Storage chat images (cache-first strategy).
 var NEXUS_IMAGE_CACHE   = 'nexus-images-v1'
-var SUPABASE_IMAGES_RE  = /\/storage\/v1\/object\/public\/chat-images\//
+var SUPABASE_IMAGES_RE  = /\/storage\/v1\/object\/public\/(chat-images|backgrounds)\//
 
 self.addEventListener('fetch', function(event) {
   if (!SUPABASE_IMAGES_RE.test(event.request.url)) return
