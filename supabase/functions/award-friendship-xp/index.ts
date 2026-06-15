@@ -51,20 +51,14 @@ Deno.serve(async (req: Request) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     )
 
-    // Check both users have the beta enabled + rate limit (3 queries in parallel)
+    // Check sender has the beta enabled + rate limit (2 queries in parallel)
     const rateLimitStart = new Date(Date.now() - RATE_LIMIT_WINDOW_MS).toISOString()
 
-    const [profileAResult, profileBResult, recentLogResult] = await Promise.all([
+    const [senderProfileResult, recentLogResult] = await Promise.all([
       supabase
         .from('profiles')
         .select('friendship_xp_enabled')
-        .eq('id', canonA)
-        .single(),
-
-      supabase
-        .from('profiles')
-        .select('friendship_xp_enabled')
-        .eq('id', canonB)
+        .eq('id', user_a_id)
         .single(),
 
       supabase
@@ -75,10 +69,9 @@ Deno.serve(async (req: Request) => {
         .gte('awarded_at', rateLimitStart),
     ])
 
-    const aEnabled = (profileAResult.data as { friendship_xp_enabled?: boolean } | null)?.friendship_xp_enabled === true
-    const bEnabled = (profileBResult.data as { friendship_xp_enabled?: boolean } | null)?.friendship_xp_enabled === true
+    const senderEnabled = (senderProfileResult.data as { friendship_xp_enabled?: boolean } | null)?.friendship_xp_enabled === true
 
-    if (!aEnabled || !bEnabled) {
+    if (!senderEnabled) {
       return new Response(
         JSON.stringify({ skipped: true, reason: 'beta_not_enabled' }),
         { headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
