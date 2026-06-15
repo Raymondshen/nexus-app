@@ -43,16 +43,19 @@ type LastMessage = { content: string; created_at: string; profiles: { username: 
 type HomeProfile = {
   username: string; avatar_url: string | null; birthday: string | null
   coins: number; created_at: string; totalMessages: number; status: string | null
+  totalFriendshipXP: number
 }
 function getCachedHomeProfile(userId: string) {
   return unstable_cache(
     async () => {
       const supabase = createServiceClient()
-      const [{ data: profile }, { count: msgCount }] = await Promise.all([
+      const [{ data: profile }, { count: msgCount }, { data: fxpRows }] = await Promise.all([
         supabase.from('profiles').select('username, avatar_url, birthday, coins, created_at, status').eq('id', userId).single(),
         supabase.from('messages').select('id', { count: 'estimated', head: true }).eq('user_id', userId).neq('message_type', 'system'),
+        supabase.from('friendship_xp').select('total_xp').or(`user_a.eq.${userId},user_b.eq.${userId}`),
       ])
-      return profile ? { ...profile, totalMessages: msgCount ?? 0, status: (profile as { status?: string | null }).status ?? null } as HomeProfile : null
+      const totalFriendshipXP = (fxpRows ?? []).reduce((sum, r) => sum + ((r as { total_xp: number }).total_xp ?? 0), 0)
+      return profile ? { ...profile, totalMessages: msgCount ?? 0, status: (profile as { status?: string | null }).status ?? null, totalFriendshipXP } as HomeProfile : null
     },
     [`home-profile:${userId}`],
     { tags: [`profile:${userId}`], revalidate: 60 }
@@ -211,6 +214,7 @@ export default async function HomePage() {
         friends={friends}
         initialCoins={profile?.coins ?? 0}
         announcements={announcements}
+        totalFriendshipXP={profile?.totalFriendshipXP ?? 0}
       />
     )
   }
@@ -302,6 +306,7 @@ export default async function HomePage() {
       friends={friends}
       initialCoins={profile?.coins ?? 0}
       announcements={announcements}
+      totalFriendshipXP={profile?.totalFriendshipXP ?? 0}
     />
   )
 }

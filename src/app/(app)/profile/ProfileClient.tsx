@@ -11,6 +11,8 @@ import { MagicEdit } from 'pixelarticons/react/MagicEdit'
 import { Bell } from 'pixelarticons/react/Bell'
 import { User } from 'pixelarticons/react/User'
 import { Terminal } from 'pixelarticons/react/Terminal'
+import { TokeCircle } from 'pixelarticons/react/TokeCircle'
+import { Heart } from 'pixelarticons/react/Heart'
 import Image from 'next/image'
 import { isSupabaseStorage, resolveAvatarUrl } from '@/components/ui/Avatar'
 import { createClient } from '@/lib/supabase/client'
@@ -22,21 +24,23 @@ import { BackgroundUploadModal } from '@/components/ui/BackgroundUploadModal'
 import { Button } from '@/components/ui/Button'
 
 interface ProfileClientProps {
-  userId:          string
-  userEmail:       string
-  initialUsername: string
-  avatarUrl:       string | null
-  avatarClass:     string | null
-  customAvatar:    boolean
-  backgroundUrl:   string | null
-  isDev:           boolean
-  isGuest:         boolean
-  memberSinceYear: string
-  totalMessages:   number
-  groupChats:      number
-  inviterUsername: string | null
-  initialStatus:   string | null
-  pendingDeleteAt: string | null
+  userId:             string
+  userEmail:          string
+  initialUsername:    string
+  avatarUrl:          string | null
+  avatarClass:        string | null
+  customAvatar:       boolean
+  backgroundUrl:      string | null
+  isDev:              boolean
+  isGuest:            boolean
+  memberSinceYear:    string
+  totalMessages:      number
+  groupChats:         number
+  inviterUsername:    string | null
+  initialStatus:      string | null
+  pendingDeleteAt:    string | null
+  coins:              number
+  totalFriendshipXP:  number
 }
 
 // ─── Profile status ticker ────────────────────────────────────────────────────
@@ -631,6 +635,7 @@ function BackButton() {
 export function ProfileClient({
   userId, userEmail, initialUsername, avatarUrl, avatarClass, customAvatar, backgroundUrl,
   isDev, isGuest, memberSinceYear, totalMessages, groupChats, inviterUsername, initialStatus, pendingDeleteAt,
+  coins, totalFriendshipXP,
 }: ProfileClientProps) {
   const router = useRouter()
 
@@ -856,13 +861,41 @@ export function ProfileClient({
           }}
         />
 
-        {/* Floating back button box — positioned below safe area */}
-        <div className="absolute z-20 pointer-events-none" style={{ top: 'calc(env(safe-area-inset-top, 0px) + 18px)', left: 16 }}>
+        {/* Top bar: back button (left) + stat badges (right) */}
+        <div
+          className="absolute z-20 left-0 right-0 flex items-center justify-between pointer-events-none"
+          style={{ top: 'calc(env(safe-area-inset-top, 0px) + 18px)', paddingLeft: 16, paddingRight: 16 }}
+        >
+          {/* Back button */}
           <div
             className="pointer-events-auto flex items-center bg-black border border-primary p-2 overflow-hidden"
             style={{ boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)' }}
           >
             <BackButton />
+          </div>
+
+          {/* Coin + friendship XP badges — glass effect */}
+          <div className="flex items-center pointer-events-none" style={{ gap: 4 }}>
+            {/* Coin badge */}
+            <div
+              className="flex items-center justify-center rounded-[4px]"
+              style={{ gap: 4, padding: 4, backdropFilter: 'blur(4px)', filter: 'drop-shadow(0px 0px 10px rgba(0,0,0,0.1))' }}
+            >
+              <TokeCircle style={{ width: 12, height: 12, color: 'var(--color-primary)' }} aria-hidden="true" />
+              <span className="font-silkscreen leading-none pb-[2px]" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-primary)' }}>
+                {coins.toLocaleString()}
+              </span>
+            </div>
+            {/* Friendship XP badge */}
+            <div
+              className="flex items-center justify-center rounded-[4px]"
+              style={{ gap: 4, padding: '4px 8px', backdropFilter: 'blur(4px)', filter: 'drop-shadow(0px 0px 10px rgba(0,0,0,0.1))' }}
+            >
+              <Heart style={{ width: 12, height: 12, color: 'var(--color-primary)' }} aria-hidden="true" />
+              <span className="font-silkscreen leading-none pb-[2px]" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-primary)' }}>
+                {totalFriendshipXP}
+              </span>
+            </div>
           </div>
         </div>
 

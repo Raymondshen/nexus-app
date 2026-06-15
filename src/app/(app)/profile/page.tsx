@@ -43,7 +43,7 @@ export default async function ProfilePage() {
   if (!session) redirect('/login')
   const user = session.user
 
-  const [profile, messagesResult, crewsResult, inviterUsername, pendingDeletion] = await Promise.all([
+  const [profile, messagesResult, crewsResult, inviterUsername, pendingDeletion, coinsResult, friendshipXPResult] = await Promise.all([
     getCachedProfile(user.id),
     supabase
       .from('messages')
@@ -60,6 +60,15 @@ export default async function ProfilePage() {
       .select('delete_at')
       .eq('user_id', user.id)
       .maybeSingle(),
+    supabase
+      .from('profiles')
+      .select('coins')
+      .eq('id', user.id)
+      .single(),
+    supabase
+      .from('friendship_xp')
+      .select('total_xp')
+      .or(`user_a.eq.${user.id},user_b.eq.${user.id}`),
   ])
 
   const pendingDeleteAt = (pendingDeletion.data as { delete_at?: string } | null)?.delete_at ?? null
@@ -67,8 +76,10 @@ export default async function ProfilePage() {
   const memberSinceYear = profile?.created_at
     ? new Date(profile.created_at).getFullYear().toString()
     : ''
-  const totalMessages = messagesResult.count ?? 0
-  const groupChats    = crewsResult.count ?? 0
+  const totalMessages   = messagesResult.count ?? 0
+  const groupChats      = crewsResult.count ?? 0
+  const coins           = (coinsResult.data as { coins?: number } | null)?.coins ?? 0
+  const totalFriendshipXP = (friendshipXPResult.data ?? []).reduce((sum, r) => sum + ((r as { total_xp: number }).total_xp ?? 0), 0)
 
   return (
     <ProfileClient
@@ -87,6 +98,8 @@ export default async function ProfilePage() {
       inviterUsername={inviterUsername}
       initialStatus={profile?.status ?? null}
       pendingDeleteAt={pendingDeleteAt}
+      coins={coins}
+      totalFriendshipXP={totalFriendshipXP}
     />
   )
 }

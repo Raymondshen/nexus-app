@@ -7,6 +7,7 @@ import type { PanInfo } from 'framer-motion'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
 import { TokeCircle } from 'pixelarticons/react/TokeCircle'
+import { Heart } from 'pixelarticons/react/Heart'
 import { Logout } from 'pixelarticons/react/Logout'
 import { Notebook } from 'pixelarticons/react/Notebook'
 import { Plus } from 'pixelarticons/react/Plus'
@@ -36,17 +37,18 @@ export interface FriendSummary {
 }
 
 interface HomeClientProps {
-  initialCrews:  CrewSummary[]
-  userId:        string
-  username:      string
-  avatarUrl:     string | null
-  memberSince:   string
-  profileCache:  Record<string, string>
-  totalMessages: number
-  status:        string | null
-  friends:       FriendSummary[]
-  initialCoins:  number
-  announcements: AnnouncementItem[]
+  initialCrews:       CrewSummary[]
+  userId:             string
+  username:           string
+  avatarUrl:          string | null
+  memberSince:        string
+  profileCache:       Record<string, string>
+  totalMessages:      number
+  status:             string | null
+  friends:            FriendSummary[]
+  initialCoins:       number
+  announcements:      AnnouncementItem[]
+  totalFriendshipXP:  number
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -140,21 +142,23 @@ function AccountPreviewContainer({
   onCoinTap,
   onFriends,
   onInviteSquad,
+  totalFriendshipXP,
 }: {
-  username:      string
-  avatarUrl:     string | null
-  memberSince:   string
-  crewCount:     number
-  totalMessages: number
-  status:        string | null
-  onEditProfile: () => void
-  afkExpEnabled: boolean
-  coins:         number
-  infiniteCoins: boolean
-  showCoinTip:   boolean
-  onCoinTap:     () => void
-  onFriends:     () => void
-  onInviteSquad: () => void
+  username:          string
+  avatarUrl:         string | null
+  memberSince:       string
+  crewCount:         number
+  totalMessages:     number
+  status:            string | null
+  onEditProfile:     () => void
+  afkExpEnabled:     boolean
+  coins:             number
+  infiniteCoins:     boolean
+  showCoinTip:       boolean
+  onCoinTap:         () => void
+  onFriends:         () => void
+  onInviteSquad:     () => void
+  totalFriendshipXP: number
 }) {
   return (
     <div
@@ -195,32 +199,55 @@ function AccountPreviewContainer({
           </div>
         </div>
 
-        {/* Coin badge */}
-        <div className="relative flex-shrink-0">
-          <button
-            onClick={(e) => { e.stopPropagation(); onCoinTap() }}
-            aria-label={`${infiniteCoins ? '∞' : coins} coins`}
-            className="flex items-center bg-[rgba(245,158,11,0.25)] rounded-[4px]"
+        {/* Right column: coin badge + friendship XP badge */}
+        <div className="flex-shrink-0 flex flex-col items-end" style={{ gap: 'var(--space-2)' }}>
+          {/* Coin badge */}
+          <div className="relative">
+            <button
+              onClick={(e) => { e.stopPropagation(); onCoinTap() }}
+              aria-label={`${infiniteCoins ? '∞' : coins} coins`}
+              className="flex items-center justify-end bg-[rgba(245,158,11,0.25)] rounded-[4px]"
+              style={{ gap: 'var(--space-2)', padding: 'var(--space-2)' }}
+            >
+              <span className="font-silkscreen leading-none w-[26px] pb-[2px]" style={{ fontSize: 'var(--text-xs)', color: '#f59e0b' }}>
+                {infiniteCoins ? '∞' : coins.toLocaleString()}
+              </span>
+              <TokeCircle style={{ width: 12, height: 12, color: '#f59e0b' }} aria-hidden="true" />
+            </button>
+            <AnimatePresence>
+              {showCoinTip && (
+                <motion.div
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute right-0 top-full mt-1 z-50 whitespace-nowrap font-silkscreen text-[8px] text-primary bg-surface border border-border px-2 py-1"
+                >
+                  25 COINS = 1 CREW INVITE
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* Friendship XP badge */}
+          <div
+            className="flex items-center justify-end rounded-[4px]"
             style={{ gap: 'var(--space-2)', padding: 'var(--space-2)' }}
           >
-            <TokeCircle style={{ width: 16, height: 16, color: '#f59e0b' }} aria-hidden="true" />
-            <span className="font-silkscreen leading-none w-[26px] pb-[2px]" style={{ fontSize: 'var(--text-xs)', color: '#f59e0b' }}>
-              {infiniteCoins ? '∞' : coins.toLocaleString()}
+            <span
+              className="font-silkscreen leading-none pb-[2px]"
+              style={{
+                fontSize: 'var(--text-xs)',
+                background: 'linear-gradient(to right, #a855f7, #d946ef)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+              }}
+            >
+              {totalFriendshipXP}
             </span>
-          </button>
-          <AnimatePresence>
-            {showCoinTip && (
-              <motion.div
-                initial={{ opacity: 0, y: -4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
-                transition={{ duration: 0.15 }}
-                className="absolute right-0 top-full mt-1 z-50 whitespace-nowrap font-silkscreen text-[8px] text-primary bg-surface border border-border px-2 py-1"
-              >
-                25 COINS = 1 CREW INVITE
-              </motion.div>
-            )}
-          </AnimatePresence>
+            <Heart style={{ width: 12, height: 12, color: '#d946ef' }} aria-hidden="true" />
+          </div>
         </div>
       </div>
 
@@ -798,6 +825,7 @@ export function HomeClient({
   friends,
   initialCoins,
   announcements,
+  totalFriendshipXP,
 }: HomeClientProps) {
   const router = useRouter()
 
@@ -1001,6 +1029,7 @@ export function HomeClient({
           }}
           onFriends={() => router.push('/friends')}
           onInviteSquad={() => setShowCreate(true)}
+          totalFriendshipXP={totalFriendshipXP}
         />
         <AnnouncementBanner announcements={announcements} />
       </div>
