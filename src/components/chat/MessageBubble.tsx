@@ -124,7 +124,54 @@ function renderWithDefinitions(
   return parts.length ? parts : content
 }
 
-// ─── Combined mentions + definition renderer ─────────────────────────────────
+// ─── URL + definition renderer ───────────────────────────────────────────────
+
+const URL_RE_G = /https?:\/\/[^\s<>"']+/g
+
+function renderWithLinks(
+  text: string,
+  definitions: SquadDefinitionWithCreator[],
+  onTap: (def: SquadDefinitionWithCreator) => void,
+): React.ReactNode[] {
+  const parts: React.ReactNode[] = []
+  const re = new RegExp(URL_RE_G.source, 'g')
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+
+  while ((match = re.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      const before = text.slice(lastIndex, match.index)
+      const nodes = renderWithDefinitions(before, definitions, onTap)
+      if (Array.isArray(nodes)) parts.push(...nodes)
+      else parts.push(nodes)
+    }
+    parts.push(
+      <a
+        key={`url-${match.index}`}
+        href={match[0]}
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{ color: 'var(--color-blue)', textDecoration: 'underline' }}
+        onClick={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
+      >
+        {match[0]}
+      </a>
+    )
+    lastIndex = match.index + match[0].length
+  }
+
+  if (lastIndex < text.length) {
+    const after = text.slice(lastIndex)
+    const nodes = renderWithDefinitions(after, definitions, onTap)
+    if (Array.isArray(nodes)) parts.push(...nodes)
+    else parts.push(nodes)
+  }
+
+  return parts
+}
+
+// ─── Combined mentions + definition + link renderer ──────────────────────────
 
 function renderMessageContent(
   content: string,
@@ -147,7 +194,7 @@ function renderMessageContent(
   if (lastIdx < content.length) pass1.push({ kind: 'text', value: content.slice(lastIdx) })
   if (!pass1.length) pass1.push({ kind: 'text', value: content })
 
-  // Pass 2: apply definition highlights to each text segment
+  // Pass 2: apply URL links + definition highlights to each text segment
   const result: React.ReactNode[] = []
   for (let i = 0; i < pass1.length; i++) {
     const part = pass1[i]
@@ -157,14 +204,9 @@ function renderMessageContent(
           @{part.value}
         </span>
       )
-    } else {
-      if (definitions.length && part.value) {
-        const nodes = renderWithDefinitions(part.value, definitions, onTapDef)
-        if (Array.isArray(nodes)) result.push(...nodes.map((n, j) => <React.Fragment key={`df-${i}-${j}`}>{n}</React.Fragment>))
-        else result.push(nodes)
-      } else {
-        result.push(part.value)
-      }
+    } else if (part.value) {
+      const nodes = renderWithLinks(part.value, definitions, onTapDef)
+      result.push(...nodes.map((n, j) => <React.Fragment key={`tx-${i}-${j}`}>{n}</React.Fragment>))
     }
   }
   return result.length ? result : content
