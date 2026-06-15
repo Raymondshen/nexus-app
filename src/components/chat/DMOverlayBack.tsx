@@ -7,7 +7,6 @@ import Image from 'next/image'
 import { isSupabaseStorage, resolveAvatarUrl } from '@/components/ui/Avatar'
 import { useChatStore } from '@/store/chatStore'
 import { createClient } from '@/lib/supabase/client'
-import { FriendshipXPBar } from '@/components/game/FriendshipXPBar'
 import type { ActiveRaid } from '@/types'
 
 interface DMOverlayBackProps {
@@ -57,12 +56,10 @@ export function DMOverlayBack({
     return () => clearInterval(interval)
   }, [crewId, currentUserId])
 
-  const showBondBar = !!(friendId && friendshipXPEnabled)
-
   return (
     <div
       className="absolute z-20 pointer-events-none"
-      style={{ top: 'calc(env(safe-area-inset-top, 0px) + 16px)', left: '16px', right: showBondBar ? '16px' : undefined }}
+      style={{ top: 'calc(env(safe-area-inset-top, 0px) + 16px)', left: '16px' }}
     >
       <div
         className="pointer-events-auto flex items-center gap-2 border border-purple p-2 overflow-hidden"
@@ -98,11 +95,6 @@ export function DMOverlayBack({
             </div>
           )}
         </div>
-        {showBondBar && (
-          <div className="flex-1 min-w-0">
-            <FriendshipXPBar userAId={currentUserId} userBId={friendId!} />
-          </div>
-        )}
       </div>
     </div>
   )
