@@ -7,6 +7,17 @@ export interface GuestUser {
   createdAt: string
 }
 
+// ─── OpenGraph preview ────────────────────────────────────────────────────────
+
+export interface OGPreview {
+  url:          string
+  title?:       string
+  description?: string
+  image?:       string
+  site_name?:   string
+  fetched_at:   string
+}
+
 // ─── Enums ────────────────────────────────────────────────────────────────────
 
 export type MessageType = 'text' | 'voice' | 'image' | 'reaction' | 'system' | 'poll'
@@ -81,6 +92,7 @@ export interface Message extends Record<string, unknown> {
   reply_username?:   string | null
   image_url?:        string | null
   image_blur_hash?:  string | null
+  og_preview?:       OGPreview
 }
 
 export interface CrewXPLog extends Record<string, unknown> {

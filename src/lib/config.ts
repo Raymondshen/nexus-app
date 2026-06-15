@@ -49,6 +49,13 @@ export function validateConfig(): void {
 export const SUPABASE_URL      = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
 export const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? ''
 
+export const OG_PREVIEW = {
+  OG_FETCH_TIMEOUT_MS:      3000,
+  OG_IMAGE_MAX_WIDTH:        400,
+  OG_DESCRIPTION_MAX_CHARS:  120,
+  OG_CACHE_TTL_SECONDS:    86400,
+} as const
+
 export const IMAGE_CONFIG = {
   MAX_UPLOAD_BYTES:          15_728_640, // 15 MB
   MAX_GIF_BYTES:              5_242_880, //  5 MB

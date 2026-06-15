@@ -10,6 +10,9 @@ import { useChatStore } from '@/store/chatStore'
 import { createClient } from '@/lib/supabase/client'
 import type { MessageWithProfile, AvatarClass, SquadDefinitionWithCreator } from '@/types'
 import { supabaseImageLoader } from '@/lib/supabase/imageLoader'
+import { extractFirstUrl } from '@/lib/utils'
+import { useOGPreview } from '@/lib/utils/useOGPreview'
+import { LinkPreviewCard } from '@/components/chat/LinkPreviewCard'
 import { PollCard } from '@/components/chat/PollCard'
 import { SuggestDefinitionSheet } from '@/components/chat/SuggestDefinitionSheet'
 import { Button } from '@/components/ui/Button'
@@ -339,6 +342,12 @@ export function MessageBubble({
     if (grapheme) void handleReaction(grapheme)
   }
 
+  // ─── OG preview — must be called before early returns ───────────────────────
+  const ogUrl = message.message_type === 'text' && !message.image_url
+    ? extractFirstUrl(message.content)
+    : undefined
+  const { data: ogPreview, loading: ogLoading } = useOGPreview(ogUrl)
+
   // ─── System messages ────────────────────────────────────────────────────────
   if (message.message_type === 'system') {
     return <SystemMessage message={message} />
@@ -565,6 +574,13 @@ export function MessageBubble({
                 : message.content
               }
             </p>
+          )}
+
+          {/* ── OG link preview ──────────────────────────────────────────────── */}
+          {!ogLoading && ogPreview && (
+            <div style={{ marginTop: 6 }}>
+              <LinkPreviewCard preview={ogPreview} />
+            </div>
           )}
 
           {/* ── Reaction chips ────────────────────────────────────────────────── */}
