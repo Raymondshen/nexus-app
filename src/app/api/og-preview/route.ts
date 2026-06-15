@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
     const res = await fetch(rawUrl, {
       signal:  controller.signal,
       headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; NexusBot/1.0)',
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
         'Accept':     'text/html',
       },
     })
