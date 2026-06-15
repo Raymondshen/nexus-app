@@ -15,6 +15,7 @@ import { useOGPreview } from '@/lib/utils/useOGPreview'
 import { LinkPreviewCard } from '@/components/chat/LinkPreviewCard'
 import { PollCard } from '@/components/chat/PollCard'
 import { SuggestDefinitionSheet } from '@/components/chat/SuggestDefinitionSheet'
+import { ImagePreviewOverlay } from '@/components/ui/ImagePreviewOverlay'
 import { Button } from '@/components/ui/Button'
 import { Cake } from 'pixelarticons/react/Cake'
 import { UserPlus } from 'pixelarticons/react/UserPlus'
@@ -230,10 +231,13 @@ export function MessageBubble({
   const [mounted,          setMounted]          = useState(false)
   const [activeDefinition, setActiveDefinition] = useState<SquadDefinitionWithCreator | null>(null)
   const [suggestTarget,    setSuggestTarget]    = useState<SquadDefinitionWithCreator | null>(null)
+  const [previewOpen,      setPreviewOpen]      = useState(false)
 
-  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const hasMoved       = useRef(false)
-  const emojiInputRef  = useRef<HTMLInputElement>(null)
+  const longPressTimer       = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const hasMoved             = useRef(false)
+  const emojiInputRef        = useRef<HTMLInputElement>(null)
+  const imgTouchStartTimeRef = useRef(0)
+  const imgLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const onlineUserIds = useChatStore((s) => s.onlineUserIds)
   const updateMessage = useChatStore((s) => s.updateMessage)
@@ -302,6 +306,32 @@ export function MessageBubble({
   function handleTouchMove() {
     hasMoved.current = true
     if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null }
+  }
+
+  // ─── Image tap / long-press handlers ────────────────────────────────────────
+  function handleImageTouchStart(e: React.TouchEvent) {
+    e.stopPropagation()
+    hasMoved.current = false
+    imgTouchStartTimeRef.current = Date.now()
+    imgLongPressTimerRef.current = setTimeout(() => {
+      if (!hasMoved.current) setSheetOpen(true)
+    }, 300)
+  }
+  function handleImageTouchEnd(e: React.TouchEvent) {
+    if (imgLongPressTimerRef.current) { clearTimeout(imgLongPressTimerRef.current); imgLongPressTimerRef.current = null }
+    const elapsed = Date.now() - imgTouchStartTimeRef.current
+    if (elapsed < 250 && !hasMoved.current) {
+      e.stopPropagation()
+      setPreviewOpen(true)
+    }
+  }
+  function handleImageTouchMove() {
+    hasMoved.current = true
+    if (imgLongPressTimerRef.current) { clearTimeout(imgLongPressTimerRef.current); imgLongPressTimerRef.current = null }
+  }
+  function handleImageClick(e: React.MouseEvent) {
+    e.stopPropagation()
+    setPreviewOpen(true)
   }
 
   // ─── Copy ───────────────────────────────────────────────────────────────────
@@ -594,7 +624,14 @@ export function MessageBubble({
 
           {/* Message body */}
           {message.message_type === 'image' ? (
-            <div className="relative w-[220px] h-[165px] mt-1 overflow-hidden">
+            <div
+              className="relative w-[220px] h-[165px] mt-1 overflow-hidden"
+              style={{ cursor: 'pointer' }}
+              onTouchStart={handleImageTouchStart}
+              onTouchEnd={handleImageTouchEnd}
+              onTouchMove={handleImageTouchMove}
+              onClick={handleImageClick}
+            >
               <Image
                 src={(message.image_url as string | null | undefined) ?? message.content}
                 alt="shared image"
@@ -685,6 +722,21 @@ export function MessageBubble({
           )}
         </div>
       </div>
+
+      {/* ── Full-screen image preview ─────────────────────────────────────── */}
+      {mounted && createPortal(
+        <AnimatePresence>
+          {previewOpen && (
+            <ImagePreviewOverlay
+              src={(message.image_url as string | null | undefined) ?? message.content}
+              blurDataURL={(message.image_blur_hash as string | undefined) ?? undefined}
+              alt="Shared image"
+              onClose={() => setPreviewOpen(false)}
+            />
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
 
       {/* ── Definition view sheet ─────────────────────────────────────────── */}
       {mounted && createPortal(

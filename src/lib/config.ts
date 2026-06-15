@@ -56,6 +56,8 @@ export const OG_PREVIEW = {
   OG_CACHE_TTL_SECONDS:    86400,
 } as const
 
+export const IMAGE_PREVIEW_Z_INDEX = 9999
+
 export const IMAGE_CONFIG = {
   MAX_UPLOAD_BYTES:          15_728_640, // 15 MB
   MAX_GIF_BYTES:              5_242_880, //  5 MB
