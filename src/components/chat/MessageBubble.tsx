@@ -151,7 +151,7 @@ function renderWithLinks(
         href={match[0]}
         target="_blank"
         rel="noopener noreferrer"
-        style={{ color: 'var(--color-blue)', textDecoration: 'underline' }}
+        style={{ color: 'var(--color-blue)', textDecoration: 'underline', wordBreak: 'break-all' }}
         onClick={(e) => e.stopPropagation()}
         onTouchStart={(e) => e.stopPropagation()}
       >
@@ -609,7 +609,7 @@ export function MessageBubble({
           ) : (
             <p
               className="font-body font-normal text-[14px] text-white leading-[normal] w-full select-none"
-              style={{ fontVariationSettings: '"opsz" 14', WebkitUserSelect: 'none' }}
+              style={{ fontVariationSettings: '"opsz" 14', WebkitUserSelect: 'none', overflowWrap: 'break-word', minWidth: 0 }}
             >
               {message.message_type === 'text' && (definitions.length || memberUsernames.size)
                 ? renderMessageContent(message.content, definitions, memberUsernames, setActiveDefinition)
