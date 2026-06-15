@@ -8,6 +8,7 @@ import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
 import { Plus } from 'pixelarticons/react/Plus'
 import { createAnnouncementAction } from '@/app/(app)/home/actions'
+import { toggleFriendshipXPAction } from '@/app/(app)/profile/developer/actions'
 
 function BackButton() {
   const goBack = useSlideBack()
@@ -81,19 +82,21 @@ function ToggleRow({ title, description, enabled, onChange }: { title: string; d
 interface DeveloperClientProps {
   userId: string
   initialCoins: number
+  initialFriendshipXPEnabled: boolean
 }
 
-export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClientProps) {
+export function DeveloperClient({ userId: _userId, initialCoins, initialFriendshipXPEnabled }: DeveloperClientProps) {
   const router = useRouter()
 
-  const [devMode,       setDevMode]       = useState(false)
-  const [showPush,      setShowPush]      = useState(false)
-  const [infiniteCoins, setInfiniteCoins] = useState(false)
-  const [chatCamera,    setChatCamera]    = useState(false)
-  const [newText,       setNewText]       = useState('')
-  const [addingBanner,  setAddingBanner]  = useState(false)
-  const [bannerError,   setBannerError]   = useState<string | null>(null)
-  const [addedSuccess,  setAddedSuccess]  = useState(false)
+  const [devMode,          setDevMode]          = useState(false)
+  const [showPush,         setShowPush]         = useState(false)
+  const [infiniteCoins,    setInfiniteCoins]    = useState(false)
+  const [chatCamera,       setChatCamera]       = useState(false)
+  const [friendshipXP,     setFriendshipXP]     = useState(initialFriendshipXPEnabled)
+  const [newText,          setNewText]          = useState('')
+  const [addingBanner,     setAddingBanner]     = useState(false)
+  const [bannerError,      setBannerError]      = useState<string | null>(null)
+  const [addedSuccess,     setAddedSuccess]     = useState(false)
 
   useEffect(() => {
     setDevMode(localStorage.getItem('nexus_dev_mode') === '1')
@@ -130,6 +133,12 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
     setChatCamera(next)
     if (next) localStorage.setItem('nexus_chat_camera', '1')
     else localStorage.removeItem('nexus_chat_camera')
+  }
+
+  async function toggleFriendshipXP() {
+    const next = !friendshipXP
+    setFriendshipXP(next)
+    await toggleFriendshipXPAction(next)
   }
 
   async function handleCreateBanner() {
@@ -295,6 +304,13 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
             description="Enable image upload button in chat input"
             enabled={chatCamera}
             onChange={toggleChatCamera}
+          />
+
+          <ToggleRow
+            title="Friendship XP — Beta"
+            description="Award bilateral XP in DMs and @mentions"
+            enabled={friendshipXP}
+            onChange={toggleFriendshipXP}
           />
         </div>
 

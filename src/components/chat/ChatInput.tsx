@@ -11,6 +11,7 @@ import { createClient } from '@/lib/supabase/client'
 import { getElementType, getXPProgress, XP_PER_LEVEL } from '@/lib/game/xp'
 import { useChatStore } from '@/store/chatStore'
 import { DamageFloat } from '@/components/game/DamageFloat'
+import { FriendshipXPBar } from '@/components/game/FriendshipXPBar'
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/config'
 import { haptic } from '@/lib/sounds'
 import { compressImage, generateLQIP, validateImageUpload, getNetworkQuality } from '@/lib/utils/imageProcessing'
@@ -48,11 +49,13 @@ interface ChatInputProps {
   crewName:       string
   inviteCode?:    string
   creatorId?:     string
-  crewImageUrl?:  string | null
-  initialXP?:     number
-  initialRaid?:   ActiveRaid | null
-  currentUserId?: string
-  isDM?:          boolean
+  crewImageUrl?:       string | null
+  initialXP?:          number
+  initialRaid?:        ActiveRaid | null
+  currentUserId?:      string
+  isDM?:               boolean
+  dmPartnerId?:        string
+  friendshipXPEnabled?: boolean
 }
 
 function sanitizeMessage(raw: string): string {
@@ -60,7 +63,7 @@ function sanitizeMessage(raw: string): string {
 }
 
 
-export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewName, inviteCode, creatorId, crewImageUrl: initialCrewImageUrl, initialXP, initialRaid, isDM }: ChatInputProps) {
+export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewName, inviteCode, creatorId, crewImageUrl: initialCrewImageUrl, initialXP, initialRaid, isDM, dmPartnerId, friendshipXPEnabled }: ChatInputProps) {
   const router = useRouter()
   const [text,           setText]          = useState('')
   const [sending,        setSending]        = useState(false)
@@ -91,16 +94,18 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   const [chatImageLqip,      setChatImageLqip]      = useState<string | null>(null)
   const [chatImageUploading, setChatImageUploading] = useState(false)
   const [chatImageError,     setChatImageError]     = useState<string | null>(null)
+  const [mentionFlash,       setMentionFlash]       = useState<{ friendId: string; totalXP: number } | null>(null)
 
-  const textareaRef        = useRef<HTMLTextAreaElement>(null)
-  const overlayRef         = useRef<HTMLDivElement>(null)
-  const crewImageInputRef  = useRef<HTMLInputElement>(null)
-  const chatImageInputRef  = useRef<HTMLInputElement>(null)
-  const rateRef           = useRef({ count: 0, resetAt: Date.now() + RATE_LIMIT_WINDOW })
-  const typingTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const typingChannelRef  = useRef<RealtimeChannel | null>(null)
-  const msgChannelRef     = useRef<RealtimeChannel | null>(null)
-  const channelReadyRef   = useRef(false)
+  const textareaRef           = useRef<HTMLTextAreaElement>(null)
+  const overlayRef            = useRef<HTMLDivElement>(null)
+  const crewImageInputRef     = useRef<HTMLInputElement>(null)
+  const chatImageInputRef     = useRef<HTMLInputElement>(null)
+  const rateRef               = useRef({ count: 0, resetAt: Date.now() + RATE_LIMIT_WINDOW })
+  const typingTimerRef        = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const mentionFlashTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const typingChannelRef      = useRef<RealtimeChannel | null>(null)
+  const msgChannelRef         = useRef<RealtimeChannel | null>(null)
+  const channelReadyRef       = useRef(false)
 
   const {
     addMessage, removeMessage, updateMessage, setCrewXP, receiveXP, addXP,
@@ -322,6 +327,12 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       if (chatImageLocalUrl?.startsWith('blob:')) URL.revokeObjectURL(chatImageLocalUrl)
     }
   }, [chatImageLocalUrl])
+
+  useEffect(() => {
+    return () => {
+      if (mentionFlashTimerRef.current) clearTimeout(mentionFlashTimerRef.current)
+    }
+  }, [])
 
   async function handleChatImagePick(file: File) {
     const validation = validateImageUpload(file)
@@ -575,6 +586,37 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
         })
         .catch(() => {})
 
+      // Friendship XP — DM send
+      if (isDM && dmPartnerId && friendshipXPEnabled) {
+        fetch(`${SUPABASE_URL}/functions/v1/award-friendship-xp`, {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
+          body:    JSON.stringify({ user_a_id: userId, user_b_id: dmPartnerId, source: 'dm' }),
+        }).catch(() => {})
+      }
+
+      // Friendship XP — @mention in group chat (show transient bar for first responder)
+      if (!isDM && friendshipXPEnabled && mentionedUserIds.length > 0) {
+        let firstFlashShown = false
+        mentionedUserIds.forEach((friendId) => {
+          fetch(`${SUPABASE_URL}/functions/v1/award-friendship-xp`, {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
+            body:    JSON.stringify({ user_a_id: userId, user_b_id: friendId, source: 'mention' }),
+          })
+            .then((r) => r.json())
+            .then((data: { total_xp?: number; xp_awarded?: number; skipped?: boolean }) => {
+              if (!firstFlashShown && typeof data.total_xp === 'number' && (data.xp_awarded ?? 0) > 0) {
+                firstFlashShown = true
+                if (mentionFlashTimerRef.current) clearTimeout(mentionFlashTimerRef.current)
+                setMentionFlash({ friendId, totalXP: data.total_xp })
+                mentionFlashTimerRef.current = setTimeout(() => setMentionFlash(null), 4000)
+              }
+            })
+            .catch(() => {})
+        })
+      }
+
       if (activeRaid && !activeRaid.defeated_at) {
         fetch(`${SUPABASE_URL}/functions/v1/attack-boss`, {
           method: 'POST',
@@ -798,6 +840,36 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       }}
     >
       {devMode && <DamageFloat floats={damageFloats} onDismiss={dismissDamageFloat} />}
+
+      {/* ── Friendship XP flash (group @mention) ── */}
+      <AnimatePresence>
+        {!isDM && mentionFlash && (
+          <motion.div
+            key="friendship-flash"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 8 }}
+            transition={{ duration: 0.2 }}
+            style={{
+              position:       'absolute',
+              bottom:         '100%',
+              left:           0,
+              right:          0,
+              padding:        'var(--space-4) var(--space-5)',
+              background:     'rgba(0,0,0,0.9)',
+              borderTop:      '1px solid var(--color-purple)',
+              backdropFilter: 'blur(4px)',
+            }}
+          >
+            <FriendshipXPBar
+              userAId={userId}
+              userBId={mentionFlash.friendId}
+              initialTotalXP={mentionFlash.totalXP}
+              skipRealtime
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── DM: "Chatting with" label ── */}
       {isDM && (

@@ -9,48 +9,51 @@ export interface DamageFloatItem {
 }
 
 interface ChatStore {
-  messages:      Message[]
-  crewXP:        number
-  crewLevel:     number
-  xpFloats:      { id: number; amount: number }[]
-  activeRaid:    ActiveRaid | null
-  damageFloats:  DamageFloatItem[]
-  onlineUserIds: Set<string>
-  userCoins:     number
-  crewName:      string
-  replyTo:       MessageWithProfile | null
+  messages:            Message[]
+  crewXP:              number
+  crewLevel:           number
+  xpFloats:            { id: number; amount: number }[]
+  activeRaid:          ActiveRaid | null
+  damageFloats:        DamageFloatItem[]
+  onlineUserIds:       Set<string>
+  userCoins:           number
+  crewName:            string
+  replyTo:             MessageWithProfile | null
+  friendshipXPByPair:  Record<string, number>
 
-  setMessages:       (messages: Message[]) => void
-  addMessage:        (message: Message) => void
-  removeMessage:     (id: string) => void
-  updateMessage:     (id: string, patch: Partial<Message>) => void
-  setCrewXP:         (xp: number) => void
-  addXP:             (amount: number) => void
-  receiveXP:         (earned: number, newTotal: number) => void
-  setActiveRaid:     (raid: ActiveRaid | null) => void
-  dismissXPFloat:    (id: number) => void
-  addDamageFloat:    (damage: number, elementType: ElementType | null) => void
-  dismissDamageFloat:(id: number) => void
-  setOnlineUserIds:  (ids: Set<string>) => void
-  setUserCoins:      (coins: number) => void
-  addUserCoins:      (amount: number) => void
-  setCrewName:       (name: string) => void
-  setReplyTo:        (msg: MessageWithProfile | null) => void
+  setMessages:         (messages: Message[]) => void
+  addMessage:          (message: Message) => void
+  removeMessage:       (id: string) => void
+  updateMessage:       (id: string, patch: Partial<Message>) => void
+  setCrewXP:           (xp: number) => void
+  addXP:               (amount: number) => void
+  receiveXP:           (earned: number, newTotal: number) => void
+  setActiveRaid:       (raid: ActiveRaid | null) => void
+  dismissXPFloat:      (id: number) => void
+  addDamageFloat:      (damage: number, elementType: ElementType | null) => void
+  dismissDamageFloat:  (id: number) => void
+  setOnlineUserIds:    (ids: Set<string>) => void
+  setUserCoins:        (coins: number) => void
+  addUserCoins:        (amount: number) => void
+  setCrewName:         (name: string) => void
+  setReplyTo:          (msg: MessageWithProfile | null) => void
+  setFriendshipXP:     (pairKey: string, totalXP: number) => void
 }
 
 let floatCounter = 0
 
 export const useChatStore = create<ChatStore>((set) => ({
-  messages:      [],
-  crewXP:        0,
-  crewLevel:     1,
-  xpFloats:      [],
-  activeRaid:    null,
-  damageFloats:  [],
-  onlineUserIds: new Set<string>(),
-  userCoins:     0,
-  crewName:      '',
-  replyTo:       null,
+  messages:           [],
+  crewXP:             0,
+  crewLevel:          1,
+  xpFloats:           [],
+  activeRaid:         null,
+  damageFloats:       [],
+  onlineUserIds:      new Set<string>(),
+  userCoins:          0,
+  crewName:           '',
+  replyTo:            null,
+  friendshipXPByPair: {},
 
   setMessages: (messages) => set({ messages }),
 
@@ -113,6 +116,9 @@ export const useChatStore = create<ChatStore>((set) => ({
   setCrewName: (name) => set({ crewName: name }),
 
   setReplyTo: (msg) => set({ replyTo: msg }),
+
+  setFriendshipXP: (pairKey, totalXP) =>
+    set((s) => ({ friendshipXPByPair: { ...s.friendshipXPByPair, [pairKey]: totalXP } })),
 }))
 
 export { XP_PER_LEVEL }

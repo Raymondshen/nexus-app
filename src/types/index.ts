@@ -42,7 +42,25 @@ export interface Profile extends Record<string, unknown> {
   coins: number
   custom_avatar: boolean
   status: string | null
+  friendship_xp_enabled: boolean
   created_at: string
+}
+
+export interface FriendshipXP extends Record<string, unknown> {
+  id: string
+  user_a: string
+  user_b: string
+  total_xp: number
+  updated_at: string
+}
+
+export interface FriendshipXPLog extends Record<string, unknown> {
+  id: string
+  user_a: string
+  user_b: string
+  xp_awarded: number
+  source: 'dm' | 'mention'
+  awarded_at: string
 }
 
 export interface CoinLog extends Record<string, unknown> {
@@ -423,6 +441,18 @@ export type Database = {
         Update: Partial<PendingDeletion>
         Relationships: []
       }
+      friendship_xp: {
+        Row: FriendshipXP
+        Insert: Omit<FriendshipXP, 'id' | 'updated_at'> & { id?: string; updated_at?: string }
+        Update: Partial<Omit<FriendshipXP, 'id'>>
+        Relationships: []
+      }
+      friendship_xp_log: {
+        Row: FriendshipXPLog
+        Insert: Omit<FriendshipXPLog, 'id' | 'awarded_at'> & { id?: string; awarded_at?: string }
+        Update: never
+        Relationships: []
+      }
     }
     Views: Record<string, never>
     Functions: {
@@ -486,6 +516,10 @@ export type Database = {
       close_poll: {
         Args: { p_poll_id: string }
         Returns: void
+      }
+      increment_friendship_xp: {
+        Args: { p_user_a: string; p_user_b: string; p_amount: number }
+        Returns: number
       }
     }
     Enums: Record<string, never>
