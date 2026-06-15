@@ -14,7 +14,7 @@ Build: `next build --webpack` (Turbopack breaks next-pwa + proxy.ts)
 profiles            id, username (unique case-insensitive), first_name, last_name, avatar_class, avatar_url, avatar_storage_key, custom_avatar (bool default false), birthday, is_dev, coins (int default 0), status (text nullable ≤100 chars), created_at
 crews               id, name, invite_code (6 chars unique), level, total_xp, created_at, is_dm (bool default false), dm_partner_1 (uuid nullable), dm_partner_2 (uuid nullable), image_url, image_storage_key
 crew_members        id, crew_id, user_id, class, joined_at, last_seen
-messages            id, crew_id, user_id, content, message_type, element_type, xp_awarded, reactions (jsonb default '{}'), created_at
+messages            id, crew_id, user_id, content, message_type, element_type, xp_awarded, reactions (jsonb default '{}'), reply_to_id (uuid nullable), reply_preview (text nullable), reply_username (text nullable), image_url (text nullable), image_blur_hash (text nullable), created_at
 crew_xp_log         id, crew_id, user_id, xp_amount, source, created_at
 bosses              id, name, type (void|ghost|flood|scheduled), max_hp, weak_element, description
 active_raids        id, crew_id, boss_id, current_hp, max_hp, phase, started_at, expires_at, defeated_at, mvp_user_id, expiry_notif_sent
@@ -39,7 +39,7 @@ All `SECURITY DEFINER`. Declared in `Database.Functions` in `src/types/index.ts`
 - `create_crew(p_name, p_invite_code)` → uuid
 - `join_crew(p_invite_code)` → uuid
 - `leave_crew(p_crew_id)` → jsonb `{ok|deleted}`
-- `insert_message(p_crew_id, p_content, p_message_type)` → messages row
+- `insert_message(p_crew_id, p_content, p_message_type, p_reply_to_id?, p_reply_preview?, p_reply_username?, p_image_url?, p_image_blur_hash?)` → messages row
 - `damage_raid(p_raid_id, p_damage, p_user_id)` → `(current_hp, phase, defeated_at)`
 - `increment_crew_xp(p_crew_id, p_xp_delta)` → `(new_total_xp, new_level)`
 - `is_crew_member(p_crew_id)` → boolean
@@ -101,7 +101,7 @@ Error copy: invalid → "The Nexus does not recognize this code." · used → "T
 ## Dev Mode
 `profiles.is_dev = true` — grant: `UPDATE profiles SET is_dev = true WHERE id IN (SELECT id FROM auth.users WHERE email = '...')`
 
-Dev section in `/profile`: Spawn Boss (`nexus_dev_mode`) · Push Diagnostics (`nexus_push_diag`) · Infinite Coins (`nexus_infinite_coins`) · AFK Exp (`nexus_afk_exp`) · Announcements management
+Dev section in `/profile/developer`: Announcements management · Push Diagnostics (`nexus_push_diag`) · Infinite Coins (`nexus_infinite_coins`) · Spawn Boss Mode (`nexus_dev_mode`) · Chat Camera (`nexus_chat_camera`) · AFK Exp (`nexus_afk_exp`)
 
 Server-side (`award-xp`): boss spawn + `LEVEL_UP:` only when `isDevUser = true`
 
@@ -130,6 +130,7 @@ localStorage:
 | `nexus_push_diag` | `'1'` |
 | `nexus_infinite_coins` | `'1'` |
 | `nexus_afk_exp` | `'1'` |
+| `nexus_chat_camera` | `'1'` |
 | `nexus_dismissed_banners` | JSON array of IDs |
 
 ## Architecture
@@ -161,6 +162,10 @@ localStorage:
 
 `renderWithDefinitions`: expands aliases via `parseAliases`, sort by length desc, `\b` regex `gi`, blue `<span>` (`text-blue cursor-pointer`) → `setActiveDefinition`
 
+`renderWithLinks`: runs before `renderWithDefinitions`; detects `https?://` URLs → `<a>` with `wordBreak: 'break-all'` (URLs have no natural break points); remaining text segments fed into `renderWithDefinitions`
+
+OG previews: `extractFirstUrl` → `useOGPreview` hook (debounced, cached) → `<LinkPreviewCard>` renders below message body; iMessage-style 4:3 image + bold title + hostname; only for `message_type === 'text'` with no `image_url`; text `<p>` has `overflowWrap: 'break-word'` to prevent long strings from overflowing
+
 ### ChatInput
 - Props: `{ crewId, userId, userProfile, memberProfiles, crewName, inviteCode?, creatorId?, isDM? }`
 - Send flow: `insert_message` RPC → `addMessage` (optimistic) → broadcast slim payload → `award-xp` → `attack-boss` (if raid)
@@ -174,6 +179,7 @@ localStorage:
 - @mention overlay: transparent textarea (`color: transparent; caretColor: white`) + `aria-hidden` div; purple `<mark style={{ background:'transparent', color:'var(--color-purple)' }}>` for valid tokens; `overlayRef.scrollTop = textareaRef.scrollTop`
 - Mentioned IDs extracted in `send()` from `profilesRef.current`; passed to `award-xp` as `mentioned_user_ids`
 - DM mode: replaces member avatars + XP bar with "Chatting with [name]" label; hides expanded panel
+- Camera button + image preview bar gated on `nexus_chat_camera` localStorage flag (set via Developer Settings); image send passes `p_image_url` + `p_image_blur_hash` atomically to `insert_message` RPC
 
 ### SquadDetailsSheet (`src/components/chat/SquadDetailsSheet.tsx`)
 Trigger: swipe-up (`offset.y < -50` or `velocity.y < -300`) or chevron-up
@@ -378,6 +384,8 @@ Icons (`pixelarticons`):
 - `20240103000024` — squad_definitions UPDATE policy (creator-only)
 - `20240103000025` — squad_definitions actual_word
 - `20240103000026` — definition_suggestions + RLS + realtime (REPLICA IDENTITY FULL)
+- `20240103000031` — messages UPDATE policy (own rows); insert_message extended with p_image_url + p_image_blur_hash (atomic image insert)
+- `20240103000032` — drop old insert_message overloads (3-param json + 6-param messages) that caused ambiguous RPC calls
 
 Manual SQL applied directly:
 ```sql
@@ -412,4 +420,7 @@ ALTER TABLE crews ADD COLUMN IF NOT EXISTS dm_partner_2 uuid REFERENCES auth.use
 
 ## Disabled Features
 - Voice notes: UI removed; `XP_VALUES['voice']` + element `lightning` still defined server-side
-- Image upload: UI removed; upload logic + `chat-images` bucket exist
+- Image upload in chat: hidden from public users; enabled per-dev via `nexus_chat_camera` toggle in Developer Settings (`/profile/developer`); upload logic + `chat-images` bucket fully functional
+
+## Gotchas
+- `CREATE OR REPLACE FUNCTION` only replaces a function if the argument signature matches exactly. Adding or removing params creates a new overload — leaving multiple overloads with all-DEFAULT args causes ambiguous RPC call errors. Always `DROP FUNCTION` old signatures explicitly before recreating with a different param list.
