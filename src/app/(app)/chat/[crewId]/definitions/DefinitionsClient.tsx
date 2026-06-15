@@ -525,109 +525,100 @@ export function DefinitionsClient({
       >
         <div className="flex items-center h-10 gap-2">
           <BackButton />
-          {/* Title + subtitle stacked — Figma 135:1370 */}
-          <div className="flex flex-col">
-            <h1 className="font-silkscreen text-[24px] text-primary leading-none uppercase whitespace-nowrap">
-              Glossary
-            </h1>
-            <p
-              className="font-body text-tertiary leading-none whitespace-nowrap"
-              style={{ fontSize: 'var(--text-xxs)', fontVariationSettings: '"opsz" 14' }}
-            >
-              Words and phrases defined by your squad.
-            </p>
-          </div>
+          <h1 className="font-silkscreen text-[24px] text-primary leading-none uppercase whitespace-nowrap">
+            Glossary
+          </h1>
         </div>
       </div>
 
-      {/* Scrollable body */}
-      <div className="flex-1 overflow-y-auto nexus-scroll px-4 py-4 flex flex-col gap-6 min-h-0">
-
-        {definitions.length === 0 ? (
-          <div className="flex flex-col items-center justify-center flex-1 gap-3 py-16">
-            <p className="font-silkscreen text-[8px] text-tertiary text-center leading-relaxed">
-              NO DEFINITIONS YET
-            </p>
-            <p
-              className="font-body text-[14px] text-muted text-center"
-              style={{ fontVariationSettings: '"opsz" 14' }}
-            >
-              Create the first squad definition.
-            </p>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-4 flex-shrink-0">
-            {definitions.map((def) => {
+      {/* Body — Figma 130:1121: flex-col gap-24px pt-16px pb-28px px-16px */}
+      <div
+        className="flex-1 flex flex-col gap-6 px-4 pt-4 min-h-0 overflow-hidden"
+        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 28px)' }}
+      >
+        {/* Scrollable list — Figma 130:1123: flex-col flex-1 gap-16px */}
+        <div className="flex-1 overflow-y-auto nexus-scroll min-h-0 flex flex-col gap-4">
+          {definitions.length === 0 ? (
+            <div className="flex flex-col items-center justify-center flex-1 gap-3">
+              <p className="font-silkscreen text-[8px] text-tertiary text-center leading-relaxed">
+                NO DEFINITIONS YET
+              </p>
+              <p
+                className="font-body text-[14px] text-muted text-center"
+                style={{ fontVariationSettings: '"opsz" 14' }}
+              >
+                Create the first squad definition.
+              </p>
+            </div>
+          ) : (
+            definitions.map((def) => {
               const aliases   = def.word.split(',').map((w) => w.trim()).filter(Boolean).join(', ')
               const isCreator = def.creator_id === currentUserId
               return (
-                <button
-                  key={def.id}
-                  onClick={() => handleCardTap(def)}
-                  className="w-full text-left bg-[rgba(17,17,17,0.5)] border border-[#111111] rounded-[8px] p-4 flex flex-col gap-4 active:opacity-80 transition-opacity"
-                >
-                  {/* Details — Figma 130:1290: flex-col gap-[--space-3] items-start justify-center */}
-                  <div className="flex flex-col items-start justify-center w-full" style={{ gap: 'var(--space-3)' }}>
-                    {/* Aliases — Figma 130:1291: Silkscreen --mini tertiary leading-none */}
-                    <p
-                      className="font-silkscreen text-tertiary leading-none w-full"
-                      style={{ fontSize: 'var(--text-mini)' }}
-                    >
-                      {aliases}
-                    </p>
-                    {/* Inner — Figma 130:1315: flex-col gap-[--space-2] */}
-                    <div className="flex flex-col w-full" style={{ gap: 'var(--space-2)' }}>
-                      {/* Actual word — Figma 130:1316: DM Sans Bold --md blue leading-none */}
-                      <p
-                        className="font-body font-bold leading-none w-full"
-                        style={{ fontSize: 'var(--text-md)', color: 'var(--color-blue)', fontVariationSettings: '"opsz" 14' }}
-                      >
-                        {def.actual_word || def.word.split(',')[0].trim()}
-                      </p>
-                      {/* Definition — Figma 130:1292: DM Sans Regular 14px secondary leading-normal overflow-hidden */}
-                      <p
-                        className="font-body text-secondary leading-normal overflow-hidden line-clamp-3 w-full"
-                        style={{ fontSize: '14px', fontVariationSettings: '"opsz" 14' }}
-                      >
-                        {def.definition}
-                      </p>
-                    </div>
-                  </div>
-                  {/* Footer row — Figma 143:710: flex row gap-[8px] items-center justify-center */}
-                  <div
-                    className="flex items-center justify-center w-full font-body font-normal leading-none"
-                    style={{ gap: 8, fontSize: 'var(--text-xxs)', fontVariationSettings: '"opsz" 14' }}
+                <div key={def.id} className="flex flex-col gap-4">
+                  <button
+                    onClick={() => handleCardTap(def)}
+                    className="w-full text-left flex flex-col active:opacity-80 transition-opacity"
+                    style={{ gap: 'var(--space-5)' }}
                   >
-                    {/* Created by — flex-1; purple if own, tertiary otherwise */}
-                    <p
-                      className="flex-1 min-w-0"
-                      style={{ color: isCreator ? 'var(--color-purple)' : 'var(--color-tertiary)' }}
-                    >
-                      {def.creator_username ? `Created by : ${def.creator_username}` : ''}
-                    </p>
-                    {/* Suggestion count — amber, text-right; hidden when 0 */}
-                    {(def.suggestion_count ?? 0) > 0 && (
-                      <p className="flex-1 min-w-0 text-right" style={{ color: '#f59e0b' }}>
-                        {def.suggestion_count} New Suggestion{(def.suggestion_count ?? 0) > 1 ? 's' : ''}
+                    {/* Details — Figma 130:1340: flex-col gap-[--space-3] items-start justify-center */}
+                    <div className="flex flex-col items-start justify-center w-full" style={{ gap: 'var(--space-3)' }}>
+                      {/* Aliases — Silkscreen --mini tertiary leading-none */}
+                      <p
+                        className="font-silkscreen text-tertiary leading-none w-full"
+                        style={{ fontSize: 'var(--text-mini)' }}
+                      >
+                        {aliases}
                       </p>
-                    )}
-                  </div>
-                </button>
+                      {/* Word + definition — flex-col gap-[--space-2] */}
+                      <div className="flex flex-col w-full" style={{ gap: 'var(--space-2)' }}>
+                        {/* Actual word — DM Sans Bold --md blue leading-none */}
+                        <p
+                          className="font-body font-bold leading-none w-full"
+                          style={{ fontSize: 'var(--text-md)', color: 'var(--color-blue)', fontVariationSettings: '"opsz" 14' }}
+                        >
+                          {def.actual_word || def.word.split(',')[0].trim()}
+                        </p>
+                        {/* Definition — DM Sans Regular 14px secondary leading-normal */}
+                        <p
+                          className="font-body text-secondary leading-normal overflow-hidden line-clamp-3 w-full"
+                          style={{ fontSize: '14px', fontVariationSettings: '"opsz" 14' }}
+                        >
+                          {def.definition}
+                        </p>
+                      </div>
+                    </div>
+                    {/* Footer row — Figma 143:710: flex row gap-8px items-center */}
+                    <div
+                      className="flex items-center justify-center w-full font-body font-normal leading-none"
+                      style={{ gap: 8, fontSize: 'var(--text-xxs)', fontVariationSettings: '"opsz" 14' }}
+                    >
+                      <p
+                        className="flex-1 min-w-0"
+                        style={{ color: isCreator ? 'var(--color-purple)' : 'var(--color-tertiary)' }}
+                      >
+                        {def.creator_username ? `Created by : ${def.creator_username}` : ''}
+                      </p>
+                      {(def.suggestion_count ?? 0) > 0 && (
+                        <p className="flex-1 min-w-0 text-right" style={{ color: '#f59e0b' }}>
+                          {def.suggestion_count} New Suggestion{(def.suggestion_count ?? 0) > 1 ? 's' : ''}
+                        </p>
+                      )}
+                    </div>
+                  </button>
+                  {/* Divider — Figma 177:952 */}
+                  <div className="w-full h-px bg-border" />
+                </div>
               )
-            })}
-          </div>
-        )}
-      </div>
+            })
+          )}
+        </div>
 
-      {/* Footer — Add button */}
-      <div
-        className="flex-shrink-0 px-4"
-        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 16px)', paddingTop: 8 }}
-      >
+        {/* Add definition button — Figma 130:1150: bg-purple h-48px gap-4px */}
         <Button
           onClick={() => setShowCreate(true)}
           icon={<PlusBox style={{ width: 16, height: 16, color: 'var(--color-primary)' }} aria-hidden="true" />}
-          className="w-full"
+          className="w-full flex-shrink-0"
         >
           Add a squad definition
         </Button>

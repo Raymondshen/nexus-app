@@ -60,9 +60,9 @@ export function FriendshipXPToast({ visible, xpAwarded, totalXP, partnerName }: 
 
             {/* Label + message */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <p className="font-silkscreen leading-none" style={{ fontSize: 8 }}>
-                <span style={{ color: 'var(--color-tertiary)' }}>friendship · </span>
-                <span style={{ color: 'var(--color-primary)' }}>Lv {level}</span>
+              <p className="font-silkscreen leading-none" style={{ fontSize: 8, color: 'var(--color-tertiary)' }}>
+                <span style={{ color: 'var(--color-secondary)' }}>Friendship lv {level}</span>
+                {` · ${xpInLevel} / 100XP`}
               </p>
               <p
                 className="font-body font-normal leading-none truncate"
@@ -76,7 +76,7 @@ export function FriendshipXPToast({ visible, xpAwarded, totalXP, partnerName }: 
             {/* XP progress bar */}
             <div style={{ height: 4, background: 'var(--color-border)', overflow: 'hidden', position: 'relative' }}>
               <motion.div
-                style={{ position: 'absolute', left: 0, top: 0, height: '100%', background: 'var(--color-purple)' }}
+                style={{ position: 'absolute', left: 0, top: 0, height: '100%', background: 'linear-gradient(to right, #a855f7, #d946ef)' }}
                 initial={{ width: '0%' }}
                 animate={{ width: `${progressPct}%` }}
                 transition={{ type: 'spring', stiffness: 300, damping: 28, delay: 0.15 }}
