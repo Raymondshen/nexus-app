@@ -228,11 +228,6 @@ function EditProfileSheet({
               style={{ paddingBottom: 'max(28px, env(safe-area-inset-bottom))' }}
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Pill handle */}
-              <div className="flex justify-center pt-3 pb-2">
-                <div className="w-10 h-[4px] rounded-full bg-border" />
-              </div>
-
               {/* Profile hero — 280px full-bleed */}
               <div
                 className="relative flex flex-col items-end justify-between overflow-hidden shrink-0 w-full"

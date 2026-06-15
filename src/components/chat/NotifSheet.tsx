@@ -70,7 +70,6 @@ export function NotifSheet({
         style={{ paddingTop: 12, paddingBottom: 'max(env(safe-area-inset-bottom), 24px)' }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex justify-center pb-2"><div className="w-10 h-[4px] rounded-full bg-border" /></div>
         <div className="flex flex-col gap-1">
           <h2 className="font-body font-bold text-[length:var(--text-lg)] text-primary leading-none">Notifications</h2>
           <p className="font-body text-[length:var(--text-xs)] text-secondary leading-normal">Control what pulls you back into the chat.</p>

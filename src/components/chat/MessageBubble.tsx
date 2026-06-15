@@ -714,7 +714,6 @@ export function MessageBubble({
                 style={{ gap: 'var(--space-7)', paddingTop: 12, paddingBottom: 'max(env(safe-area-inset-bottom), 28px)' }}
                 onClick={(e) => e.stopPropagation()}
               >
-                <div className="flex justify-center pb-2"><div className="w-10 h-[4px] rounded-full bg-border" /></div>
                 {/* Content — flex-col gap-[--space-5] items-start */}
                 <div className="flex flex-col items-start w-full" style={{ gap: 'var(--space-5)' }}>
                   {/* Details — flex-col gap-[--space-3] items-start justify-center */}

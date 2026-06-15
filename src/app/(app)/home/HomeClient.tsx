@@ -445,10 +445,6 @@ function HomeActionSheet({
         style={{ paddingTop: 12, paddingBottom: 'max(env(safe-area-inset-bottom), 28px)' }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* drag handle */}
-        <div className="flex justify-center pb-2">
-          <div className="w-10 h-[4px] rounded-full bg-border" />
-        </div>
         {sheetContent}
       </motion.div>
     </motion.div>
