@@ -71,7 +71,15 @@ export async function GET(req: NextRequest) {
     const ogDesc     = getMeta(head, 'og:description')
     const metaDesc   = getMeta(head, 'description')
     const ogSiteName = getMeta(head, 'og:site_name')
-    let   ogImage    = getMeta(head, 'og:image')
+    // og:image → og:image:secure_url → twitter:image → <link rel="image_src">
+    const linkImageM =
+      /rel=["']image_src["'][^>]+href=["']([^"']+)["']/i.exec(head) ??
+      /href=["']([^"']+)["'][^>]+rel=["']image_src["']/i.exec(head)
+    const linkImage = linkImageM?.[1] ? decodeHtmlEntities(linkImageM[1].trim()) : undefined
+
+    let ogImage =
+      getMeta(head, 'og:image', 'og:image:secure_url', 'twitter:image:src', 'twitter:image') ??
+      linkImage
 
     // Resolve relative OG image URLs against the origin.
     if (ogImage) {
