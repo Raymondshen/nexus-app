@@ -144,6 +144,8 @@ function AccountPreviewContainer({
   onInviteSquad,
   totalFriendshipXP,
   infiniteFriendshipXP,
+  showHeartTip,
+  onHeartTap,
 }: {
   username:          string
   avatarUrl:         string | null
@@ -161,6 +163,8 @@ function AccountPreviewContainer({
   onInviteSquad:        () => void
   totalFriendshipXP:    number
   infiniteFriendshipXP: boolean
+  showHeartTip:         boolean
+  onHeartTap:           () => void
 }) {
   return (
     <div
@@ -232,20 +236,40 @@ function AccountPreviewContainer({
           </div>
 
           {/* Friendship XP badge — Figma 116:742: no background, gradient text + heart icon 12×12 */}
-          <div className="flex items-center justify-end" style={{ gap: 'var(--space-2)' }}>
-            <span
-              className="font-silkscreen leading-none pb-[2px]"
-              style={{
-                fontSize: 'var(--text-xs)',
-                background: 'linear-gradient(to right, #a855f7, #d946ef)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text',
-              }}
+          <div className="relative">
+            <button
+              onClick={(e) => { e.stopPropagation(); onHeartTap() }}
+              aria-label={`${infiniteFriendshipXP ? '∞' : totalFriendshipXP} friendship points`}
+              className="flex items-center justify-end"
+              style={{ gap: 'var(--space-2)' }}
             >
-              {infiniteFriendshipXP ? '∞' : totalFriendshipXP}
-            </span>
-            <Heart style={{ width: 12, height: 12, color: '#d946ef' }} aria-hidden="true" />
+              <span
+                className="font-silkscreen leading-none pb-[2px]"
+                style={{
+                  fontSize: 'var(--text-xs)',
+                  background: 'linear-gradient(to right, #a855f7, #d946ef)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text',
+                }}
+              >
+                {infiniteFriendshipXP ? '∞' : totalFriendshipXP}
+              </span>
+              <Heart style={{ width: 12, height: 12, color: '#d946ef' }} aria-hidden="true" />
+            </button>
+            <AnimatePresence>
+              {showHeartTip && (
+                <motion.div
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute right-0 top-full mt-1 z-50 whitespace-nowrap font-silkscreen text-[8px] text-primary bg-surface border border-border px-2 py-1"
+                >
+                  EARN FRIENDSHIP POINTS, SPEND ON COSMETICS SOON
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
       </div>
@@ -844,6 +868,7 @@ export function HomeClient({
   })
   const [localFriendshipXP,    setLocalFriendshipXP]    = useState(totalFriendshipXP)
   const [showCoinTip,          setShowCoinTip]          = useState(false)
+  const [showHeartTip,         setShowHeartTip]         = useState(false)
   const [infiniteCoins,        setInfiniteCoins]        = useState(false)
   const [infiniteFriendshipXP, setInfiniteFriendshipXP] = useState(false)
   const [afkExpEnabled,        setAfkExpEnabled]        = useState(false)
@@ -1064,6 +1089,11 @@ export function HomeClient({
           onInviteSquad={() => setShowCreate(true)}
           totalFriendshipXP={localFriendshipXP}
           infiniteFriendshipXP={infiniteFriendshipXP}
+          showHeartTip={showHeartTip}
+          onHeartTap={() => {
+            setShowHeartTip(true)
+            setTimeout(() => setShowHeartTip(false), 2000)
+          }}
         />
         <AnnouncementBanner announcements={announcements} />
       </div>

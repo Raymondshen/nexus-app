@@ -65,18 +65,21 @@ Coins: text/voice/image=1 · reaction/system=0 · generate-invite=−25 · seed-
 - Invite alphabet: `ABCDEFGHJKLMNPQRSTUVWXYZ23456789`, up to 10 uniqueness retries
 - Balance in `profiles.coins`; `chatStore.userCoins`; shown in `AccountPreviewContainer` (bare `TokeCircle` 24×16 + Silkscreen number, no pill background) and profile hero glass badge
 - Coins awarded only when `xpBlocked = false`
+- Tap-tooltip: badge is a `<button>`; tap shows "25 COINS = 1 CREW INVITE" for 2s (`showCoinTip` state, `AccountPreviewContainer`)
 
 Friendship XP: 1pt per DM send or @mention · 10pt daily cap (resets at local midnight, tracked in `friendship_xp_log` by `sender_id`) · `award-friendship-xp` edge function · fully launched (no per-user gate)
 - `friendship_xp` stores cumulative bilateral XP; canonical pair ordering `user_a < user_b` enforced by edge function
 - Home card: heart badge (purple→pink gradient) shows sum of all `friendship_xp` rows where user is `user_a` or `user_b`; realtime via two channels (`home-fxp-a:{userId}` + `home-fxp-b:{userId}`)
 - Profile hero: glass heart badge (same total) alongside coin badge; `backdropFilter: blur(4px)` + drop-shadow
 - Dev tools: `nexus_infinite_fxp` localStorage flag (shows ∞) · Reset button in Developer Settings wipes both `friendship_xp` and `friendship_xp_log` for sender
+- Tap-tooltip: heart badge is a `<button>`; tap shows "EARN FRIENDSHIP POINTS, SPEND ON COSMETICS SOON" for 2s (`showHeartTip` state, `AccountPreviewContainer`), same pattern as the coin badge tooltip
 
 Gems: 1 gem/day for sending your first message in any crew chat · daily reset at local midnight (device timezone) · `award-gem` edge function + `claim_daily_gem` RPC are sole authority on balance/claim — client never decides
 - Balance in `profiles.gem_balance`; `last_gem_claim` (timestamptz) gates the atomic claim; both columns writable only by service role (`profiles_protect_gem_columns` trigger blocks client writes)
 - Client-side gate (`src/lib/game/gems.ts`, idb-keyval key `nexus_gem_claimed_at`) is a display/debounce check only — `isGemGateOpen()` / `recordGemClaim()` never award; checked in `ChatInput.send()` / `sendImage()` after confirmed insert, fire-and-forget, silent-fail
 - `chatStore.gemBalance` hydrated from `profiles.gem_balance` via `initialGemBalance` prop on `FloatingBackButton` (seeded server-side in chat page, mirrors `ChatInput`'s `initialXP` pattern)
 - `GemCounter` (`src/components/ui/GemCounter.tsx`, exports `GemIcon`): cyan (#00e5ff) pixel-diamond icon + Press Start 2P count; lives in `FloatingBackButton`'s right-side icon row (NOT `ChatHeader.tsx` — that file is unused dead code); brief float-and-fade "+1" on gem-earned
+- Tap-tooltip: whole counter is tappable; shows "0/1 DAILY GEMS" or "1/1 DAILY GEMS" (claimed) for 2s using `GEM_DAILY_LIMIT`; claimed status from `isGemGateOpen()` on mount, flipped immediately when `gemBalance` increases — same tap-and-fade pattern as the coin/heart badge tooltips
 - `GemToast` (`src/components/game/GemToast.tsx`): "Gained +1 daily gem for sending a message!" — same fade-in/hold/fade-out timing and glass-card styling as `FriendshipXPToast`; shifts down (`stacked` prop) when the friendship toast is also visible to avoid overlap
 - Dev-gated feature: `nexus_gem_feature` localStorage flag (Developer Settings → "Gem Feature" toggle) — claim trigger, `GemCounter`, and `GemToast` are all no-ops/hidden when off; mirrors `nexus_chat_camera` gating pattern
 - Dev tool: "Reset Gem Cooldown" (two-step confirm) — `resetGemCooldownAction` nulls `last_gem_claim` for the calling dev's own row only (never global) + clears local idb-keyval key via `clearGemClaimRecord()`, letting a dev re-claim today's gem immediately

@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useChatStore } from '@/store/chatStore'
+import { isGemGateOpen } from '@/lib/game/gems'
+import { GEM_DAILY_LIMIT } from '@/lib/config'
 
 export function GemIcon() {
   return (
@@ -21,15 +23,33 @@ export function GemIcon() {
 export function GemCounter() {
   const gemBalance = useChatStore((s) => s.gemBalance)
   const prevRef = useRef(gemBalance)
-  const [showFloat, setShowFloat] = useState(false)
+  const [showFloat,     setShowFloat]     = useState(false)
+  const [claimedToday,  setClaimedToday]  = useState(false)
+  const [showTip,       setShowTip]       = useState(false)
 
   useEffect(() => {
-    if (gemBalance > prevRef.current) setShowFloat(true)
+    isGemGateOpen().then((open) => setClaimedToday(!open))
+  }, [])
+
+  useEffect(() => {
+    if (gemBalance > prevRef.current) {
+      setShowFloat(true)
+      setClaimedToday(true)
+    }
     prevRef.current = gemBalance
   }, [gemBalance])
 
+  function handleTap() {
+    setShowTip(true)
+    setTimeout(() => setShowTip(false), 2000)
+  }
+
   return (
     <div
+      role="button"
+      tabIndex={0}
+      onClick={handleTap}
+      aria-label={`Daily gem progress: ${claimedToday ? GEM_DAILY_LIMIT : 0} of ${GEM_DAILY_LIMIT}`}
       className="relative flex items-center justify-center border border-border overflow-hidden flex-shrink-0"
       style={{
         padding: '8px 10px',
@@ -58,6 +78,20 @@ export function GemCounter() {
           >
             +1
           </motion.span>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showTip && (
+          <motion.div
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.15 }}
+            className="absolute right-0 top-full mt-1 z-50 whitespace-nowrap font-silkscreen text-[8px] text-primary bg-surface border border-border px-2 py-1"
+          >
+            {claimedToday ? `${GEM_DAILY_LIMIT}/${GEM_DAILY_LIMIT} DAILY GEMS` : `0/${GEM_DAILY_LIMIT} DAILY GEMS`}
+          </motion.div>
         )}
       </AnimatePresence>
     </div>
