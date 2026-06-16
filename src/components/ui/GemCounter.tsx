@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useChatStore } from '@/store/chatStore'
 
-function GemIcon() {
+export function GemIcon() {
   return (
     <svg width={16} height={16} viewBox="0 0 8 8" shapeRendering="crispEdges" aria-hidden="true">
       <rect x="3" y="0" width="2" height="1" fill="#00e5ff" />

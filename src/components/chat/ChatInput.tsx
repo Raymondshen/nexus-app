@@ -12,6 +12,7 @@ import { getElementType, getXPProgress, XP_PER_LEVEL } from '@/lib/game/xp'
 import { useChatStore } from '@/store/chatStore'
 import { DamageFloat } from '@/components/game/DamageFloat'
 import { FriendshipXPToast } from '@/components/game/FriendshipXPToast'
+import { GemToast } from '@/components/game/GemToast'
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/config'
 import { haptic } from '@/lib/sounds'
 import { compressImage, generateLQIP, validateImageUpload, getNetworkQuality } from '@/lib/utils/imageProcessing'
@@ -66,7 +67,7 @@ function sanitizeMessage(raw: string): string {
 // Fire-and-forget daily gem claim. The local gate (idb-keyval) is a debounce only —
 // the award-gem Edge Function + claim_daily_gem RPC are the sole authority on the
 // award decision. Must never block sending or surface errors as a send failure.
-async function tryClaimDailyGem(supabase: ReturnType<typeof createClient>) {
+async function tryClaimDailyGem(supabase: ReturnType<typeof createClient>, onClaimed?: () => void) {
   try {
     if (!(await isGemGateOpen())) return
     const { data: { session } } = await supabase.auth.getSession()
@@ -81,6 +82,7 @@ async function tryClaimDailyGem(supabase: ReturnType<typeof createClient>) {
     if (data.claimed) {
       await recordGemClaim()
       useChatStore.getState().setGemBalance(data.gem_balance)
+      onClaimed?.()
     }
   } catch {
     // Silent — a failed gem claim must never surface as a message send error.
@@ -98,6 +100,8 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   const [spawnError,     setSpawnError]     = useState<string | null>(null)
   const [devMode,        setDevMode]        = useState(false)
   const [chatCameraEnabled, setChatCameraEnabled] = useState(false)
+  const [gemFeatureEnabled, setGemFeatureEnabled] = useState(false)
+  const [gemToastVisible,   setGemToastVisible]   = useState(false)
   const [isExpanded,     setIsExpanded]     = useState(false)
   const [memberMsgCounts, setMemberMsgCounts] = useState<Map<string, number>>(new Map())
   const [loadingCounts,  setLoadingCounts]  = useState(false)
@@ -128,6 +132,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   const rateRef               = useRef({ count: 0, resetAt: Date.now() + RATE_LIMIT_WINDOW })
   const typingTimerRef        = useRef<ReturnType<typeof setTimeout> | null>(null)
   const friendshipToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const gemToastTimerRef      = useRef<ReturnType<typeof setTimeout> | null>(null)
   const typingChannelRef      = useRef<RealtimeChannel | null>(null)
   const msgChannelRef         = useRef<RealtimeChannel | null>(null)
   const channelReadyRef       = useRef(false)
@@ -156,6 +161,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   useEffect(() => {
     setDevMode(localStorage.getItem('nexus_dev_mode') === '1')
     setChatCameraEnabled(localStorage.getItem('nexus_chat_camera') === '1')
+    setGemFeatureEnabled(localStorage.getItem('nexus_gem_feature') === '1')
   }, [])
 
   useEffect(() => {
@@ -356,8 +362,15 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   useEffect(() => {
     return () => {
       if (friendshipToastTimerRef.current) clearTimeout(friendshipToastTimerRef.current)
+      if (gemToastTimerRef.current) clearTimeout(gemToastTimerRef.current)
     }
   }, [])
+
+  const showGemToast = () => {
+    if (gemToastTimerRef.current) clearTimeout(gemToastTimerRef.current)
+    setGemToastVisible(true)
+    gemToastTimerRef.current = setTimeout(() => setGemToastVisible(false), 2200)
+  }
 
   async function handleChatImagePick(file: File) {
     const validation = validateImageUpload(file)
@@ -461,7 +474,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
         },
       })
 
-      tryClaimDailyGem(supabase)
+      if (gemFeatureEnabled) tryClaimDailyGem(supabase, showGemToast)
 
       const msgId = raw.id
       fetch(`${SUPABASE_URL}/functions/v1/award-xp`, {
@@ -590,7 +603,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
         },
       })
 
-      tryClaimDailyGem(supabase)
+      if (gemFeatureEnabled) tryClaimDailyGem(supabase, showGemToast)
 
       const msgId = raw.id
       fetch(`${SUPABASE_URL}/functions/v1/award-xp`, {
@@ -896,6 +909,11 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
         partnerName={friendshipToast?.partnerName ?? ''}
         dailyCount={friendshipToast?.dailyCount ?? 1}
       />
+
+      {/* ── Daily gem toast (dev-mode feature) ── */}
+      {gemFeatureEnabled && (
+        <GemToast visible={gemToastVisible} stacked={!!friendshipToast} />
+      )}
 
       {/* ── DM: "Chatting with" label ── */}
       {isDM && (

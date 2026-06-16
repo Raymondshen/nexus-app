@@ -91,6 +91,7 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
   const [showPush,            setShowPush]            = useState(false)
   const [infiniteCoins,       setInfiniteCoins]       = useState(false)
   const [chatCamera,          setChatCamera]          = useState(false)
+  const [gemFeature,          setGemFeature]          = useState(false)
   const [infiniteFriendshipXP, setInfiniteFriendshipXP] = useState(false)
   const [fxpResetConfirm,     setFxpResetConfirm]     = useState(false)
   const [resettingFXP,        setResettingFXP]        = useState(false)
@@ -105,6 +106,7 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
     setShowPush(localStorage.getItem('nexus_push_diag') === '1')
     setInfiniteCoins(localStorage.getItem('nexus_infinite_coins') === '1')
     setChatCamera(localStorage.getItem('nexus_chat_camera') === '1')
+    setGemFeature(localStorage.getItem('nexus_gem_feature') === '1')
     setInfiniteFriendshipXP(localStorage.getItem('nexus_infinite_fxp') === '1')
   }, [])
 
@@ -136,6 +138,13 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
     setChatCamera(next)
     if (next) localStorage.setItem('nexus_chat_camera', '1')
     else localStorage.removeItem('nexus_chat_camera')
+  }
+
+  function toggleGemFeature() {
+    const next = !gemFeature
+    setGemFeature(next)
+    if (next) localStorage.setItem('nexus_gem_feature', '1')
+    else localStorage.removeItem('nexus_gem_feature')
   }
 
   function toggleInfiniteFriendshipXP() {
@@ -322,6 +331,13 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
             description="Enable image upload button in chat input"
             enabled={chatCamera}
             onChange={toggleChatCamera}
+          />
+
+          <ToggleRow
+            title="Gem Feature"
+            description="Enable daily gem claim + counter in chat"
+            enabled={gemFeature}
+            onChange={toggleGemFeature}
           />
 
           <ToggleRow

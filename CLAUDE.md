@@ -76,8 +76,10 @@ Gems: 1 gem/day for sending your first message in any crew chat · daily reset a
 - Balance in `profiles.gem_balance`; `last_gem_claim` (timestamptz) gates the atomic claim; both columns writable only by service role (`profiles_protect_gem_columns` trigger blocks client writes)
 - Client-side gate (`src/lib/game/gems.ts`, idb-keyval key `nexus_gem_claimed_at`) is a display/debounce check only — `isGemGateOpen()` / `recordGemClaim()` never award; checked in `ChatInput.send()` / `sendImage()` after confirmed insert, fire-and-forget, silent-fail
 - `chatStore.gemBalance` hydrated from `profiles.gem_balance` via `initialGemBalance` prop on `FloatingBackButton` (seeded server-side in chat page, mirrors `ChatInput`'s `initialXP` pattern)
-- `GemCounter` (`src/components/ui/GemCounter.tsx`): cyan (#00e5ff) pixel-diamond icon + Press Start 2P count; lives in `FloatingBackButton`'s right-side icon row (NOT `ChatHeader.tsx` — that file is unused dead code); brief float-and-fade "+1" on gem-earned
-- No dev toggle, no shop/purchase flow, no separate gems table — out of scope for this feature
+- `GemCounter` (`src/components/ui/GemCounter.tsx`, exports `GemIcon`): cyan (#00e5ff) pixel-diamond icon + Press Start 2P count; lives in `FloatingBackButton`'s right-side icon row (NOT `ChatHeader.tsx` — that file is unused dead code); brief float-and-fade "+1" on gem-earned
+- `GemToast` (`src/components/game/GemToast.tsx`): "Gained +1 daily gem for sending a message!" — same fade-in/hold/fade-out timing and glass-card styling as `FriendshipXPToast`; shifts down (`stacked` prop) when the friendship toast is also visible to avoid overlap
+- Dev-gated feature: `nexus_gem_feature` localStorage flag (Developer Settings → "Gem Feature" toggle) — claim trigger, `GemCounter`, and `GemToast` are all no-ops/hidden when off; mirrors `nexus_chat_camera` gating pattern
+- No shop/purchase flow, no separate gems table — out of scope for this feature
 
 Boss: The Void at every 500 XP · 48h fight window · 3 phases (100–60%, 60–30%, 30–0%) · defeat → artifact drop
 
