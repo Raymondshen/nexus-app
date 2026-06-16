@@ -1,4 +1,4 @@
-import { get, set } from 'idb-keyval'
+import { get, set, del } from 'idb-keyval'
 import { GEM_IDB_KEY } from '@/lib/config'
 
 function mostRecentLocalMidnight(): number {
@@ -16,4 +16,10 @@ export async function isGemGateOpen(): Promise<boolean> {
 
 export async function recordGemClaim(): Promise<void> {
   await set(GEM_IDB_KEY, Date.now())
+}
+
+// Dev-only: clears the local debounce key so the gate reopens immediately,
+// matching a server-side cooldown reset rather than waiting for local midnight.
+export async function clearGemClaimRecord(): Promise<void> {
+  await del(GEM_IDB_KEY)
 }

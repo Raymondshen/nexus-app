@@ -8,7 +8,8 @@ import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
 import { Plus } from 'pixelarticons/react/Plus'
 import { createAnnouncementAction } from '@/app/(app)/home/actions'
-import { resetFriendshipXPAction } from '@/app/(app)/profile/developer/actions'
+import { resetFriendshipXPAction, resetGemCooldownAction } from '@/app/(app)/profile/developer/actions'
+import { clearGemClaimRecord } from '@/lib/game/gems'
 
 function BackButton() {
   const goBack = useSlideBack()
@@ -96,6 +97,9 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
   const [fxpResetConfirm,     setFxpResetConfirm]     = useState(false)
   const [resettingFXP,        setResettingFXP]        = useState(false)
   const [fxpResetDone,        setFxpResetDone]        = useState(false)
+  const [gemResetConfirm,     setGemResetConfirm]     = useState(false)
+  const [resettingGem,        setResettingGem]        = useState(false)
+  const [gemResetDone,        setGemResetDone]        = useState(false)
   const [newText,             setNewText]             = useState('')
   const [addingBanner,        setAddingBanner]        = useState(false)
   const [bannerError,         setBannerError]         = useState<string | null>(null)
@@ -165,6 +169,20 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
     if (!result.error) {
       setFxpResetDone(true)
       setTimeout(() => setFxpResetDone(false), 2000)
+    }
+  }
+
+  async function handleResetGemCooldown() {
+    if (!gemResetConfirm) { setGemResetConfirm(true); return }
+    if (resettingGem) return
+    setResettingGem(true)
+    const result = await resetGemCooldownAction()
+    if (!result.error) await clearGemClaimRecord()
+    setResettingGem(false)
+    setGemResetConfirm(false)
+    if (!result.error) {
+      setGemResetDone(true)
+      setTimeout(() => setGemResetDone(false), 2000)
     }
   }
 
@@ -339,6 +357,34 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
             enabled={gemFeature}
             onChange={toggleGemFeature}
           />
+
+          {/* Reset gem cooldown — two-step confirm */}
+          <div className="flex items-center w-full" style={{ gap: 'var(--space-4)' }}>
+            <div className="flex-1 min-w-0 flex flex-col gap-0 leading-[0] tracking-[0.2px]">
+              <p className="font-body font-semibold text-secondary leading-normal" style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}>
+                Reset Gem Cooldown
+              </p>
+              <p className="font-body font-normal text-tertiary leading-normal" style={{ fontSize: 'var(--text-xxs)', fontVariationSettings: '"opsz" 14' }}>
+                Allow claiming today&apos;s daily gem again, for your account only
+              </p>
+            </div>
+            <button
+              onClick={handleResetGemCooldown}
+              disabled={resettingGem}
+              onBlur={() => setGemResetConfirm(false)}
+              className="flex-shrink-0 flex items-center justify-center overflow-hidden disabled:opacity-40"
+              style={{
+                background: gemResetDone ? '#22c55e' : gemResetConfirm ? '#ef4444' : '#27272a',
+                padding: '4px 10px',
+                minWidth: 64,
+                transition: 'background 0.15s',
+              }}
+            >
+              <span className="font-silkscreen leading-none whitespace-nowrap text-primary" style={{ fontSize: 'var(--text-mini)' }}>
+                {resettingGem ? '...' : gemResetDone ? 'Done!' : gemResetConfirm ? 'Confirm?' : 'Reset'}
+              </span>
+            </button>
+          </div>
 
           <ToggleRow
             title="Infinite Friendship XP"

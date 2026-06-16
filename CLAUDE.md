@@ -79,6 +79,7 @@ Gems: 1 gem/day for sending your first message in any crew chat · daily reset a
 - `GemCounter` (`src/components/ui/GemCounter.tsx`, exports `GemIcon`): cyan (#00e5ff) pixel-diamond icon + Press Start 2P count; lives in `FloatingBackButton`'s right-side icon row (NOT `ChatHeader.tsx` — that file is unused dead code); brief float-and-fade "+1" on gem-earned
 - `GemToast` (`src/components/game/GemToast.tsx`): "Gained +1 daily gem for sending a message!" — same fade-in/hold/fade-out timing and glass-card styling as `FriendshipXPToast`; shifts down (`stacked` prop) when the friendship toast is also visible to avoid overlap
 - Dev-gated feature: `nexus_gem_feature` localStorage flag (Developer Settings → "Gem Feature" toggle) — claim trigger, `GemCounter`, and `GemToast` are all no-ops/hidden when off; mirrors `nexus_chat_camera` gating pattern
+- Dev tool: "Reset Gem Cooldown" (two-step confirm) — `resetGemCooldownAction` nulls `last_gem_claim` for the calling dev's own row only (never global) + clears local idb-keyval key via `clearGemClaimRecord()`, letting a dev re-claim today's gem immediately
 - No shop/purchase flow, no separate gems table — out of scope for this feature
 
 Boss: The Void at every 500 XP · 48h fight window · 3 phases (100–60%, 60–30%, 30–0%) · defeat → artifact drop
@@ -119,7 +120,7 @@ Error copy: invalid → "The Nexus does not recognize this code." · used → "T
 ## Dev Mode
 `profiles.is_dev = true` — grant: `UPDATE profiles SET is_dev = true WHERE id IN (SELECT id FROM auth.users WHERE email = '...')`
 
-Dev section in `/profile/developer`: Announcements management · Push Diagnostics (`nexus_push_diag`) · Infinite Coins (`nexus_infinite_coins`) · Spawn Boss Mode (`nexus_dev_mode`) · Chat Camera (`nexus_chat_camera`) · AFK Exp (`nexus_afk_exp`) · Infinite Friendship XP (`nexus_infinite_fxp`) · Reset Friendship XP (two-step confirm, wipes `friendship_xp` + `friendship_xp_log`)
+Dev section in `/profile/developer`: Announcements management · Push Diagnostics (`nexus_push_diag`) · Infinite Coins (`nexus_infinite_coins`) · Spawn Boss Mode (`nexus_dev_mode`) · Chat Camera (`nexus_chat_camera`) · Gem Feature (`nexus_gem_feature`) · Reset Gem Cooldown (two-step confirm, nulls `last_gem_claim` for caller only) · AFK Exp (`nexus_afk_exp`) · Infinite Friendship XP (`nexus_infinite_fxp`) · Reset Friendship XP (two-step confirm, wipes `friendship_xp` + `friendship_xp_log`)
 
 Server-side (`award-xp`): boss spawn + `LEVEL_UP:` only when `isDevUser = true`
 

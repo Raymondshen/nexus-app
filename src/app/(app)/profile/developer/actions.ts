@@ -27,3 +27,13 @@ export async function resetFriendshipXPAction(): Promise<{ ok?: boolean; error?:
   if (logError) return { error: logError.message }
   return { ok: true }
 }
+
+export async function resetGemCooldownAction(): Promise<{ ok?: boolean; error?: string }> {
+  const auth = await requireDev()
+  if ('error' in auth) return { error: auth.error }
+  const { session, service } = auth
+
+  const { error } = await service.from('profiles').update({ last_gem_claim: null }).eq('id', session.user.id)
+  if (error) return { error: error.message }
+  return { ok: true }
+}
