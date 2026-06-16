@@ -59,6 +59,9 @@ export const OG_PREVIEW = {
 export const IMAGE_PREVIEW_Z_INDEX   = 9999
 export const FRIENDSHIP_TOAST_Z_INDEX = 9000
 
+export const GEM_DAILY_LIMIT = 1
+export const GEM_IDB_KEY     = 'nexus_gem_claimed_at'
+
 export const IMAGE_CONFIG = {
   MAX_UPLOAD_BYTES:          15_728_640, // 15 MB
   MAX_GIF_BYTES:              5_242_880, //  5 MB

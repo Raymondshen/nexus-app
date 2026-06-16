@@ -11,7 +11,7 @@ Build: `next build --webpack` (Turbopack breaks next-pwa + proxy.ts)
 
 ## Database Tables
 ```
-profiles            id, username (unique case-insensitive), first_name, last_name, avatar_class, avatar_url, avatar_storage_key, custom_avatar (bool default false), birthday, is_dev, coins (int default 0), status (text nullable ≤100 chars), created_at
+profiles            id, username (unique case-insensitive), first_name, last_name, avatar_class, avatar_url, avatar_storage_key, custom_avatar (bool default false), birthday, is_dev, coins (int default 0), gem_balance (int default 0), last_gem_claim (timestamptz nullable), status (text nullable ≤100 chars), created_at
 crews               id, name, invite_code (6 chars unique), level, total_xp, created_at, is_dm (bool default false), dm_partner_1 (uuid nullable), dm_partner_2 (uuid nullable), image_url, image_storage_key
 crew_members        id, crew_id, user_id, class, joined_at, last_seen
 messages            id, crew_id, user_id, content, message_type, element_type, xp_awarded, reactions (jsonb default '{}'), reply_to_id (uuid nullable), reply_preview (text nullable), reply_username (text nullable), image_url (text nullable), image_blur_hash (text nullable), created_at
@@ -54,6 +54,7 @@ All `SECURITY DEFINER`. Declared in `Database.Functions` in `src/types/index.ts`
 - `create_poll(p_crew_id, p_question, p_options, p_expires_at)` → messages row
 - `vote_on_poll(p_poll_id, p_option_index)` → jsonb
 - `close_poll(p_poll_id)` → void
+- `claim_daily_gem(p_user_id, p_local_midnight)` → jsonb `{claimed, gem_balance}`
 
 ## Game Values
 
@@ -70,6 +71,13 @@ Friendship XP: 1pt per DM send or @mention · 10pt daily cap (resets at local mi
 - Home card: heart badge (purple→pink gradient) shows sum of all `friendship_xp` rows where user is `user_a` or `user_b`; realtime via two channels (`home-fxp-a:{userId}` + `home-fxp-b:{userId}`)
 - Profile hero: glass heart badge (same total) alongside coin badge; `backdropFilter: blur(4px)` + drop-shadow
 - Dev tools: `nexus_infinite_fxp` localStorage flag (shows ∞) · Reset button in Developer Settings wipes both `friendship_xp` and `friendship_xp_log` for sender
+
+Gems: 1 gem/day for sending your first message in any crew chat · daily reset at local midnight (device timezone) · `award-gem` edge function + `claim_daily_gem` RPC are sole authority on balance/claim — client never decides
+- Balance in `profiles.gem_balance`; `last_gem_claim` (timestamptz) gates the atomic claim; both columns writable only by service role (`profiles_protect_gem_columns` trigger blocks client writes)
+- Client-side gate (`src/lib/game/gems.ts`, idb-keyval key `nexus_gem_claimed_at`) is a display/debounce check only — `isGemGateOpen()` / `recordGemClaim()` never award; checked in `ChatInput.send()` / `sendImage()` after confirmed insert, fire-and-forget, silent-fail
+- `chatStore.gemBalance` hydrated from `profiles.gem_balance` via `initialGemBalance` prop on `FloatingBackButton` (seeded server-side in chat page, mirrors `ChatInput`'s `initialXP` pattern)
+- `GemCounter` (`src/components/ui/GemCounter.tsx`): cyan (#00e5ff) pixel-diamond icon + Press Start 2P count; lives in `FloatingBackButton`'s right-side icon row (NOT `ChatHeader.tsx` — that file is unused dead code); brief float-and-fade "+1" on gem-earned
+- No dev toggle, no shop/purchase flow, no separate gems table — out of scope for this feature
 
 Boss: The Void at every 500 XP · 48h fight window · 3 phases (100–60%, 60–30%, 30–0%) · defeat → artifact drop
 
@@ -280,6 +288,7 @@ supabase functions deploy award-xp --project-ref tlveyeisjbythssmocth
 supabase functions deploy award-friendship-xp --project-ref tlveyeisjbythssmocth
 supabase functions deploy react-to-message --project-ref tlveyeisjbythssmocth
 supabase functions deploy process-avatar --project-ref tlveyeisjbythssmocth --no-verify-jwt
+supabase functions deploy award-gem --project-ref tlveyeisjbythssmocth
 ```
 
 `git push` does NOT deploy edge functions — must run manually
@@ -396,6 +405,7 @@ Icons (`pixelarticons`):
 - `20240103000026` — definition_suggestions + RLS + realtime (REPLICA IDENTITY FULL)
 - `20240103000031` — messages UPDATE policy (own rows); insert_message extended with p_image_url + p_image_blur_hash (atomic image insert)
 - `20240103000032` — drop old insert_message overloads (3-param json + 6-param messages) that caused ambiguous RPC calls
+- `20240103000035` — profiles.gem_balance + last_gem_claim, claim_daily_gem RPC, profiles_protect_gem_columns trigger (blocks client writes to gem columns)
 
 Manual SQL applied directly:
 ```sql

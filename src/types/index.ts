@@ -43,7 +43,15 @@ export interface Profile extends Record<string, unknown> {
   custom_avatar: boolean
   status: string | null
   friendship_xp_enabled: boolean
+  gem_balance: number
+  last_gem_claim: string | null
   created_at: string
+}
+
+export interface GemClaimResult extends Record<string, unknown> {
+  claimed:     boolean
+  gem_balance: number
+  message?:    string
 }
 
 export interface FriendshipXP extends Record<string, unknown> {
@@ -301,7 +309,7 @@ export type Database = {
     Tables: {
       profiles: {
         Row: Profile
-        Insert: Omit<Profile, 'created_at' | 'avatar_url' | 'coins' | 'custom_avatar'> & { created_at?: string; avatar_url?: string | null; coins?: number; custom_avatar?: boolean }
+        Insert: Omit<Profile, 'created_at' | 'avatar_url' | 'coins' | 'custom_avatar' | 'gem_balance' | 'last_gem_claim'> & { created_at?: string; avatar_url?: string | null; coins?: number; custom_avatar?: boolean; gem_balance?: number; last_gem_claim?: string | null }
         Update: Partial<Omit<Profile, 'id'>>
         Relationships: []
       }
@@ -520,6 +528,10 @@ export type Database = {
       increment_friendship_xp: {
         Args: { p_user_a: string; p_user_b: string; p_amount: number }
         Returns: number
+      }
+      claim_daily_gem: {
+        Args: { p_user_id: string; p_local_midnight: string }
+        Returns: GemClaimResult
       }
     }
     Enums: Record<string, never>

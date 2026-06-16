@@ -16,6 +16,8 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/config'
 import { haptic } from '@/lib/sounds'
 import { compressImage, generateLQIP, validateImageUpload, getNetworkQuality } from '@/lib/utils/imageProcessing'
 import { IMAGE_CONFIG } from '@/lib/config'
+import { isGemGateOpen, recordGemClaim } from '@/lib/game/gems'
+import type { GemClaimResult } from '@/types'
 import { Send } from 'pixelarticons/react/Send'
 import { Chart } from 'pixelarticons/react/Chart'
 import { Camera } from 'pixelarticons/react/Camera'
@@ -59,6 +61,30 @@ interface ChatInputProps {
 
 function sanitizeMessage(raw: string): string {
   return raw.replace(/<[^>]*>/g, '').trim().slice(0, MAX_MESSAGE_LENGTH)
+}
+
+// Fire-and-forget daily gem claim. The local gate (idb-keyval) is a debounce only —
+// the award-gem Edge Function + claim_daily_gem RPC are the sole authority on the
+// award decision. Must never block sending or surface errors as a send failure.
+async function tryClaimDailyGem(supabase: ReturnType<typeof createClient>) {
+  try {
+    if (!(await isGemGateOpen())) return
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.access_token) return
+
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/award-gem`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+      body:    JSON.stringify({ timezone_offset_minutes: new Date().getTimezoneOffset() }),
+    })
+    const data: GemClaimResult = await res.json()
+    if (data.claimed) {
+      await recordGemClaim()
+      useChatStore.getState().setGemBalance(data.gem_balance)
+    }
+  } catch {
+    // Silent — a failed gem claim must never surface as a message send error.
+  }
 }
 
 
@@ -435,6 +461,8 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
         },
       })
 
+      tryClaimDailyGem(supabase)
+
       const msgId = raw.id
       fetch(`${SUPABASE_URL}/functions/v1/award-xp`, {
         method: 'POST',
@@ -561,6 +589,8 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
           reply_to_id: raw.reply_to_id, reply_preview: raw.reply_preview, reply_username: raw.reply_username,
         },
       })
+
+      tryClaimDailyGem(supabase)
 
       const msgId = raw.id
       fetch(`${SUPABASE_URL}/functions/v1/award-xp`, {

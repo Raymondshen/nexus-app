@@ -67,7 +67,7 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
   // Stage 2 — cached member profiles + fresh crew/raid in parallel.
   // crew (total_xp) and active_raids stay uncached — they change with every message.
   // crew_members fetched fresh for membership check (RLS returns empty for non-members).
-  const [cachedProfiles, crewResult, raidResult, lastSeenResult] = await Promise.all([
+  const [cachedProfiles, crewResult, raidResult, lastSeenResult, gemResult] = await Promise.all([
     getCachedMemberProfiles(crewId),
     supabase.from("crews").select("id, name, invite_code, level, total_xp, image_url").eq("id", crewId).single(),
     supabase
@@ -81,10 +81,12 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
       .from("crew_members")
       .select("user_id, last_seen, class, joined_at")
       .eq("crew_id", crewId),
+    supabase.from("profiles").select("gem_balance").eq("id", user.id).single(),
   ]);
 
   const crew    = crewResult.data as Crew | null;
   const raidRow = raidResult.data as ActiveRaid | null;
+  const gemBalance = (gemResult.data as { gem_balance: number } | null)?.gem_balance ?? 0;
 
   // Membership check — fresh query (RLS returns empty for non-members)
   const lastSeenRows = (lastSeenResult.data ?? []) as MemberRow[]
@@ -131,7 +133,7 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
     >
       {welcome === "1" && <WelcomeDetector crewId={crewId} />}
 
-      <FloatingBackButton crewId={crewId} currentUserId={user.id} />
+      <FloatingBackButton crewId={crewId} currentUserId={user.id} initialGemBalance={gemBalance} />
 
       <ErrorBoundary>
         <MessageList

@@ -17,6 +17,7 @@ interface ChatStore {
   damageFloats:        DamageFloatItem[]
   onlineUserIds:       Set<string>
   userCoins:           number
+  gemBalance:          number
   crewName:            string
   replyTo:             MessageWithProfile | null
   friendshipXPByPair:  Record<string, number>
@@ -35,6 +36,8 @@ interface ChatStore {
   setOnlineUserIds:    (ids: Set<string>) => void
   setUserCoins:        (coins: number) => void
   addUserCoins:        (amount: number) => void
+  setGemBalance:       (gems: number) => void
+  addGemBalance:       (amount: number) => void
   setCrewName:         (name: string) => void
   setReplyTo:          (msg: MessageWithProfile | null) => void
   setFriendshipXP:     (pairKey: string, totalXP: number) => void
@@ -51,6 +54,7 @@ export const useChatStore = create<ChatStore>((set) => ({
   damageFloats:       [],
   onlineUserIds:      new Set<string>(),
   userCoins:          0,
+  gemBalance:         0,
   crewName:           '',
   replyTo:            null,
   friendshipXPByPair: {},
@@ -112,6 +116,11 @@ export const useChatStore = create<ChatStore>((set) => ({
 
   addUserCoins: (amount) =>
     set((s) => ({ userCoins: s.userCoins + amount })),
+
+  setGemBalance: (gems) => set({ gemBalance: gems }),
+
+  addGemBalance: (amount) =>
+    set((s) => ({ gemBalance: s.gemBalance + amount })),
 
   setCrewName: (name) => set({ crewName: name }),
 

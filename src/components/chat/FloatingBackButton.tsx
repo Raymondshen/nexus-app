@@ -10,15 +10,19 @@ import { BellOff } from 'pixelarticons/react/BellOff'
 import { Braces } from 'pixelarticons/react/Braces'
 import { createClient } from '@/lib/supabase/client'
 import { NotifSheet, type NotifPrefs } from '@/components/chat/NotifSheet'
+import { GemCounter } from '@/components/ui/GemCounter'
+import { useChatStore } from '@/store/chatStore'
 
 interface FloatingBackButtonProps {
-  crewId:        string
-  currentUserId: string
+  crewId:            string
+  currentUserId:     string
+  initialGemBalance?: number
 }
 
-export function FloatingBackButton({ crewId, currentUserId }: FloatingBackButtonProps) {
+export function FloatingBackButton({ crewId, currentUserId, initialGemBalance }: FloatingBackButtonProps) {
   const goBack = useSlideBack()
   const router = useRouter()
+  const setGemBalance = useChatStore((s) => s.setGemBalance)
 
   const [showNotif,  setShowNotif]  = useState(false)
   const [notifPrefs, setNotifPrefs] = useState<NotifPrefs>({ messages: true, raids: true, victory: true, mentions: true })
@@ -53,6 +57,11 @@ export function FloatingBackButton({ crewId, currentUserId }: FloatingBackButton
     }
     load()
   }, [currentUserId, crewId])
+
+  // Seed store with server-fetched gem balance
+  useEffect(() => {
+    if (initialGemBalance !== undefined) setGemBalance(initialGemBalance)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleToggleNotif = useCallback(async (type: keyof NotifPrefs) => {
     const next = { ...notifPrefs, [type]: !notifPrefs[type] }
@@ -109,6 +118,8 @@ export function FloatingBackButton({ crewId, currentUserId }: FloatingBackButton
 
           {/* Right actions */}
           <div className="flex items-center pointer-events-auto" style={{ gap: 16 }}>
+            <GemCounter />
+
             <button
               onClick={() => setShowNotif(true)}
               aria-label={allMuted ? 'Notifications muted' : 'Notification settings'}
