@@ -10,7 +10,6 @@ import { BellOff } from 'pixelarticons/react/BellOff'
 import { Braces } from 'pixelarticons/react/Braces'
 import { createClient } from '@/lib/supabase/client'
 import { NotifSheet, type NotifPrefs } from '@/components/chat/NotifSheet'
-import { GemCounter } from '@/components/ui/GemCounter'
 import { useChatStore } from '@/store/chatStore'
 
 interface FloatingBackButtonProps {
@@ -26,7 +25,6 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance }:
 
   const [showNotif,  setShowNotif]  = useState(false)
   const [notifPrefs, setNotifPrefs] = useState<NotifPrefs>({ messages: true, raids: true, victory: true, mentions: true })
-  const [gemFeatureEnabled, setGemFeatureEnabled] = useState(false)
 
   useEffect(() => {
     const from = sessionStorage.getItem('nexus_chat_from')
@@ -63,10 +61,6 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance }:
   useEffect(() => {
     if (initialGemBalance !== undefined) setGemBalance(initialGemBalance)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    setGemFeatureEnabled(localStorage.getItem('nexus_gem_feature') === '1')
-  }, [])
 
   const handleToggleNotif = useCallback(async (type: keyof NotifPrefs) => {
     const next = { ...notifPrefs, [type]: !notifPrefs[type] }
@@ -123,8 +117,6 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance }:
 
           {/* Right actions */}
           <div className="flex items-center pointer-events-auto" style={{ gap: 16 }}>
-            {gemFeatureEnabled && <GemCounter />}
-
             <button
               onClick={() => setShowNotif(true)}
               aria-label={allMuted ? 'Notifications muted' : 'Notification settings'}

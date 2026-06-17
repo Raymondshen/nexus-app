@@ -6,9 +6,9 @@ import { useChatStore } from '@/store/chatStore'
 import { isGemGateOpen } from '@/lib/game/gems'
 import { GEM_DAILY_LIMIT } from '@/lib/config'
 
-export function GemIcon() {
+export function GemIcon({ width = 16, height = 16 }: { width?: number; height?: number } = {}) {
   return (
-    <svg width={16} height={16} viewBox="0 0 8 8" shapeRendering="crispEdges" aria-hidden="true">
+    <svg width={width} height={height} viewBox="0 0 8 8" shapeRendering="crispEdges" aria-hidden="true">
       <rect x="3" y="0" width="2" height="1" fill="#00e5ff" />
       <rect x="1" y="1" width="6" height="1" fill="#00e5ff" />
       <rect x="0" y="2" width="8" height="2" fill="#00e5ff" />

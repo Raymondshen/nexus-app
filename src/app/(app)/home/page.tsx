@@ -42,7 +42,7 @@ type LastMessage = { content: string; created_at: string; profiles: { username: 
 // same profile:{userId} tag so a single cache miss fetches both in parallel.
 type HomeProfile = {
   username: string; avatar_url: string | null; birthday: string | null
-  coins: number; created_at: string; totalMessages: number; status: string | null
+  coins: number; gem_balance: number; created_at: string; totalMessages: number; status: string | null
   totalFriendshipXP: number
 }
 function getCachedHomeProfile(userId: string) {
@@ -50,7 +50,7 @@ function getCachedHomeProfile(userId: string) {
     async () => {
       const supabase = createServiceClient()
       const [{ data: profile }, { count: msgCount }, { data: fxpRows }] = await Promise.all([
-        supabase.from('profiles').select('username, avatar_url, birthday, coins, created_at, status').eq('id', userId).single(),
+        supabase.from('profiles').select('username, avatar_url, birthday, coins, gem_balance, created_at, status').eq('id', userId).single(),
         supabase.from('messages').select('id', { count: 'estimated', head: true }).eq('user_id', userId).neq('message_type', 'system'),
         supabase.from('friendship_xp').select('total_xp').or(`user_a.eq.${userId},user_b.eq.${userId}`),
       ])
@@ -213,6 +213,7 @@ export default async function HomePage() {
         status={profile?.status ?? null}
         friends={friends}
         initialCoins={profile?.coins ?? 0}
+        initialGemBalance={profile?.gem_balance ?? 0}
         announcements={announcements}
         totalFriendshipXP={profile?.totalFriendshipXP ?? 0}
       />
@@ -305,6 +306,7 @@ export default async function HomePage() {
       status={profile?.status ?? null}
       friends={friends}
       initialCoins={profile?.coins ?? 0}
+      initialGemBalance={profile?.gem_balance ?? 0}
       announcements={announcements}
       totalFriendshipXP={profile?.totalFriendshipXP ?? 0}
     />

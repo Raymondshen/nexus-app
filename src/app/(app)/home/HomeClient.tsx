@@ -27,6 +27,9 @@ import { useChatStore } from '@/store/chatStore'
 import { clearSkipNextSlideEnter } from '@/components/ui/SlidePage'
 import { AnnouncementBanner } from '@/components/ui/AnnouncementBanner'
 import type { AnnouncementItem } from '@/components/ui/AnnouncementBanner'
+import { GemIcon } from '@/components/ui/GemCounter'
+import { isGemGateOpen } from '@/lib/game/gems'
+import { GEM_DAILY_LIMIT } from '@/lib/config'
 
 export interface FriendSummary {
   id:            string
@@ -47,6 +50,7 @@ interface HomeClientProps {
   status:             string | null
   friends:            FriendSummary[]
   initialCoins:       number
+  initialGemBalance:  number
   announcements:      AnnouncementItem[]
   totalFriendshipXP:  number
 }
@@ -146,6 +150,11 @@ function AccountPreviewContainer({
   infiniteFriendshipXP,
   showHeartTip,
   onHeartTap,
+  gemFeatureEnabled,
+  gemBalance,
+  claimedGemToday,
+  showGemTip,
+  onGemTap,
 }: {
   username:          string
   avatarUrl:         string | null
@@ -165,6 +174,11 @@ function AccountPreviewContainer({
   infiniteFriendshipXP: boolean
   showHeartTip:         boolean
   onHeartTap:           () => void
+  gemFeatureEnabled:    boolean
+  gemBalance:           number
+  claimedGemToday:      boolean
+  showGemTip:           boolean
+  onGemTap:             () => void
 }) {
   return (
     <div
@@ -271,6 +285,36 @@ function AccountPreviewContainer({
               )}
             </AnimatePresence>
           </div>
+
+          {/* Gem badge — gated on nexus_gem_feature */}
+          {gemFeatureEnabled && (
+            <div className="relative">
+              <button
+                onClick={(e) => { e.stopPropagation(); onGemTap() }}
+                aria-label={`${gemBalance} gems`}
+                className="flex items-center justify-end"
+                style={{ gap: 'var(--space-2)' }}
+              >
+                <span className="font-silkscreen leading-none pb-[2px]" style={{ fontSize: 'var(--text-xs)', color: '#00e5ff' }}>
+                  {gemBalance}
+                </span>
+                <GemIcon width={12} height={12} />
+              </button>
+              <AnimatePresence>
+                {showGemTip && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute right-0 top-full mt-1 z-50 whitespace-nowrap font-silkscreen text-[8px] text-primary bg-surface border border-border px-2 py-1"
+                  >
+                    {claimedGemToday ? `${GEM_DAILY_LIMIT}/${GEM_DAILY_LIMIT} DAILY GEMS` : `0/${GEM_DAILY_LIMIT} DAILY GEMS`}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
         </div>
       </div>
 
@@ -847,6 +891,7 @@ export function HomeClient({
   status,
   friends,
   initialCoins,
+  initialGemBalance,
   announcements,
   totalFriendshipXP,
 }: HomeClientProps) {
@@ -872,6 +917,15 @@ export function HomeClient({
   const [infiniteCoins,        setInfiniteCoins]        = useState(false)
   const [infiniteFriendshipXP, setInfiniteFriendshipXP] = useState(false)
   const [afkExpEnabled,        setAfkExpEnabled]        = useState(false)
+  const [gemFeatureEnabled,    setGemFeatureEnabled]    = useState(false)
+  const [gemBalance,           setGemBalance]           = useState(() => {
+    const store = useChatStore.getState()
+    const base = Math.max(initialGemBalance, store.gemBalance)
+    if (store.gemBalance < base) store.setGemBalance(base)
+    return base
+  })
+  const [claimedGemToday,      setClaimedGemToday]      = useState(false)
+  const [showGemTip,           setShowGemTip]           = useState(false)
 
   const profileCacheRef = useRef<Record<string, string>>(profileCache)
   useEffect(() => { profileCacheRef.current = profileCache }, [profileCache])
@@ -904,6 +958,22 @@ export function HomeClient({
     }
     window.addEventListener('nexus-afk-exp-change', onFlagChange)
     return () => window.removeEventListener('nexus-afk-exp-change', onFlagChange)
+  }, [])
+
+  // Gem feature flag + balance sync from chatStore + claimed-today status
+  useEffect(() => {
+    setGemFeatureEnabled(localStorage.getItem('nexus_gem_feature') === '1')
+  }, [])
+
+  useEffect(() => {
+    isGemGateOpen().then((open) => setClaimedGemToday(!open))
+  }, [])
+
+  useEffect(() => {
+    return useChatStore.subscribe((s) => {
+      setGemBalance(s.gemBalance)
+      if (s.gemBalance > 0) setClaimedGemToday(true)
+    })
   }, [])
 
   useEffect(() => { setCrews(initialCrews) }, [initialCrews])
@@ -1093,6 +1163,14 @@ export function HomeClient({
           onHeartTap={() => {
             setShowHeartTip(true)
             setTimeout(() => setShowHeartTip(false), 2000)
+          }}
+          gemFeatureEnabled={gemFeatureEnabled}
+          gemBalance={gemBalance}
+          claimedGemToday={claimedGemToday}
+          showGemTip={showGemTip}
+          onGemTap={() => {
+            setShowGemTip(true)
+            setTimeout(() => setShowGemTip(false), 2000)
           }}
         />
         <AnnouncementBanner announcements={announcements} />
