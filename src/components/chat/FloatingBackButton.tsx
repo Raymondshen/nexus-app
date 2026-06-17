@@ -115,14 +115,32 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
       )
   }, [notifPrefs, currentUserId, crewId])
 
-  const allMuted   = !notifPrefs.messages && !notifPrefs.raids && !notifPrefs.victory
+  const allMuted  = !notifPrefs.messages && !notifPrefs.raids && !notifPrefs.victory
   const activePins = pinFeature ? selectActivePins(messages) : ([] as Message[])
-  // Show the most recently pinned message in the ticker
-  const tickerPin  = activePins.length > 0
-    ? [...activePins].sort((a, b) =>
-        new Date(b.pinned_at as string).getTime() - new Date(a.pinned_at as string).getTime()
-      )[0]
-    : null
+
+  // Sorted stable order: most recently pinned first
+  const sortedPins = [...activePins].sort((a, b) =>
+    new Date(b.pinned_at as string).getTime() - new Date(a.pinned_at as string).getTime()
+  )
+
+  const [tickerIndex, setTickerIndex] = useState(0)
+
+  // Reset to first pin when the set of pins changes
+  useEffect(() => {
+    setTickerIndex(0)
+  }, [sortedPins.length]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Rotate every 5 s when there are multiple pins
+  useEffect(() => {
+    if (sortedPins.length <= 1) return
+    const id = setInterval(() => setTickerIndex((i) => (i + 1) % sortedPins.length), 5000)
+    return () => clearInterval(id)
+  }, [sortedPins.length]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const tickerPin = sortedPins.length > 0 ? sortedPins[tickerIndex % sortedPins.length] : null
+  const tickerSender = tickerPin
+    ? (tickerPin['profile'] as { username?: string } | undefined)?.username
+    : undefined
 
   return (
     <>
@@ -232,7 +250,7 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
           <div className="pointer-events-auto w-full">
             <MarqueeBanner
               text={truncatePinContent(tickerPin.content)}
-              suffix={formatTimeRemaining(tickerPin.pin_expires_at as string | null | undefined) || undefined}
+              suffix={tickerSender ? `@${tickerSender}` : undefined}
               icon={<MapPin style={{ width: 8, height: 8, color: 'var(--color-blue)' }} aria-hidden="true" />}
               onClick={() => setPinnedScrollTargetId(tickerPin.id)}
             />
