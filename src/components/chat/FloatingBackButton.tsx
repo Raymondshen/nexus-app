@@ -8,7 +8,7 @@ import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { Bell } from 'pixelarticons/react/Bell'
 import { BellOff } from 'pixelarticons/react/BellOff'
 import { Braces } from 'pixelarticons/react/Braces'
-import { MapPin } from 'pixelarticons/react/MapPin'
+import { Note } from 'pixelarticons/react/Note'
 import { createClient } from '@/lib/supabase/client'
 import { NotifSheet, type NotifPrefs } from '@/components/chat/NotifSheet'
 import { PinListSheet } from '@/components/chat/PinListSheet'
@@ -186,7 +186,7 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
                   boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)',
                 }}
               >
-                <MapPin
+                <Note
                   style={{
                     width: 24, height: 24,
                     color: activePins.length > 0 ? 'var(--color-primary)' : 'var(--color-tertiary)',
@@ -251,7 +251,7 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
             <MarqueeBanner
               text={truncatePinContent(tickerPin.content)}
               suffix={tickerSender ? `@${tickerSender}` : undefined}
-              icon={<MapPin style={{ width: 8, height: 8, color: 'var(--color-blue)' }} aria-hidden="true" />}
+              icon={<Note style={{ width: 8, height: 8, color: 'var(--color-blue)' }} aria-hidden="true" />}
               onClick={() => setPinnedScrollTargetId(tickerPin.id)}
             />
           </div>
