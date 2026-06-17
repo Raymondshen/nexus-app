@@ -35,9 +35,10 @@ interface FloatingBackButtonProps {
 export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, creatorId }: FloatingBackButtonProps) {
   const goBack = useSlideBack()
   const router = useRouter()
-  const setGemBalance  = useChatStore((s) => s.setGemBalance)
-  const messages       = useChatStore((s) => s.messages)
+  const setGemBalance           = useChatStore((s) => s.setGemBalance)
+  const messages                = useChatStore((s) => s.messages)
   const setPinnedScrollTargetId = useChatStore((s) => s.setPinnedScrollTargetId)
+  const hiddenPinIds            = useChatStore((s) => s.hiddenPinIds)
 
   const [showNotif,    setShowNotif]    = useState(false)
   const [showPinList,  setShowPinList]  = useState(false)
@@ -112,8 +113,10 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
     new Date(b.pinned_at as string).getTime() - new Date(a.pinned_at as string).getTime()
   )
 
-  // Build one item per pin for the continuous multi-item marquee
-  const tickerItems = sortedPins.map((p) => {
+  // Only visible (non-hidden) pins scroll in the ticker
+  const visiblePins = sortedPins.filter((p) => !hiddenPinIds.has(p.id))
+
+  const tickerItems = visiblePins.map((p) => {
     const username = (p['profile'] as { username?: string } | undefined)?.username
     return {
       text:   truncatePinContent(p.content),
@@ -225,12 +228,12 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
         </div>
 
         {/* Pinned message ticker — shown below the nav row when a pin is active */}
-        {pinFeature && sortedPins.length > 0 && (
+        {pinFeature && visiblePins.length > 0 && (
           <div className="pointer-events-auto w-full">
             <MarqueeBanner
               items={tickerItems}
               icon={<Note style={{ width: 8, height: 8, color: 'var(--color-blue)' }} aria-hidden="true" />}
-              onClick={() => setPinnedScrollTargetId(sortedPins[0].id)}
+              onClick={() => setPinnedScrollTargetId(visiblePins[0].id)}
             />
           </div>
         )}

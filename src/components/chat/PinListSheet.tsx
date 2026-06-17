@@ -6,6 +6,33 @@ import { createClient } from '@/lib/supabase/client'
 import { useChatStore } from '@/store/chatStore'
 import type { Message, MessageWithProfile } from '@/types'
 
+function VisibilityToggle({ visible, onChange }: { visible: boolean; onChange: () => void }) {
+  return (
+    <button
+      onClick={onChange}
+      className="flex items-center gap-1.5 flex-shrink-0"
+      aria-label={visible ? 'Hide from banner' : 'Show on banner'}
+    >
+      <div
+        className="relative overflow-hidden flex-shrink-0"
+        style={{ width: 32, height: 18, borderRadius: 18, background: visible ? 'var(--color-purple)' : '#27272a', transition: 'background 0.15s' }}
+      >
+        <motion.span
+          className="absolute top-[3px] w-3 h-3 rounded-full bg-white pointer-events-none"
+          animate={{ left: visible ? 17 : 3 }}
+          transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+        />
+      </div>
+      <span
+        className="font-silkscreen leading-none"
+        style={{ fontSize: 'var(--text-mini)', color: visible ? 'var(--color-secondary)' : 'var(--color-tertiary)' }}
+      >
+        {visible ? 'ON' : 'OFF'}
+      </span>
+    </button>
+  )
+}
+
 interface PinListSheetProps {
   activePins: Message[]
   currentUserId: string
@@ -34,8 +61,10 @@ function truncateContent(content: string, maxLen = 100): string {
 
 export function PinListSheet({ activePins, currentUserId, creatorId, onClose }: PinListSheetProps) {
   const [unpinning, setUnpinning] = useState<string | null>(null)
-  const updateMessage = useChatStore((s) => s.updateMessage)
+  const updateMessage           = useChatStore((s) => s.updateMessage)
   const setPinnedScrollTargetId = useChatStore((s) => s.setPinnedScrollTargetId)
+  const hiddenPinIds            = useChatStore((s) => s.hiddenPinIds)
+  const toggleHiddenPin         = useChatStore((s) => s.toggleHiddenPin)
 
   const isAdmin = creatorId != null && currentUserId === creatorId
 
@@ -159,7 +188,11 @@ export function PinListSheet({ activePins, currentUserId, creatorId, onClose }: 
                   </button>
 
                   {isAdmin && (
-                    <div className="px-5 pb-3">
+                    <div className="px-5 pb-3 flex items-center justify-between">
+                      <VisibilityToggle
+                        visible={!hiddenPinIds.has(pin.id)}
+                        onChange={() => toggleHiddenPin(pin.id)}
+                      />
                       <button
                         onClick={() => void handleUnpin(pin.id)}
                         disabled={unpinning === pin.id}
