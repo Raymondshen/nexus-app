@@ -8,22 +8,51 @@ import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { Bell } from 'pixelarticons/react/Bell'
 import { BellOff } from 'pixelarticons/react/BellOff'
 import { Braces } from 'pixelarticons/react/Braces'
+import { MapPin } from 'pixelarticons/react/MapPin'
 import { createClient } from '@/lib/supabase/client'
 import { NotifSheet, type NotifPrefs } from '@/components/chat/NotifSheet'
-import { useChatStore } from '@/store/chatStore'
+import { PinListSheet } from '@/components/chat/PinListSheet'
+import { MarqueeBanner } from '@/components/ui/MarqueeBanner'
+import { useChatStore, selectActivePins } from '@/store/chatStore'
+import { PIN_FEATURE_KEY } from '@/lib/config'
+import type { Message } from '@/types'
+
+function formatTimeRemaining(expiresAt: string | null | undefined): string {
+  if (!expiresAt) return ''
+  const ms = new Date(expiresAt).getTime() - Date.now()
+  if (ms <= 0) return ''
+  const mins = Math.floor(ms / 60000)
+  if (mins < 60) return `· Fades in ${mins}m`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `· Fades in ${hrs}h`
+  const days = Math.floor(hrs / 24)
+  return `· Fades in ${days}d`
+}
+
+function truncatePinContent(content: string, maxLen = 60): string {
+  if (content.startsWith('POLL:') || content.startsWith('BIRTHDAY:') || content.startsWith('JOIN:')) {
+    return 'Pinned message'
+  }
+  return content.length > maxLen ? content.slice(0, maxLen) + '…' : content
+}
 
 interface FloatingBackButtonProps {
   crewId:            string
   currentUserId:     string
   initialGemBalance?: number
+  creatorId?:        string | null
 }
 
-export function FloatingBackButton({ crewId, currentUserId, initialGemBalance }: FloatingBackButtonProps) {
+export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, creatorId }: FloatingBackButtonProps) {
   const goBack = useSlideBack()
   const router = useRouter()
-  const setGemBalance = useChatStore((s) => s.setGemBalance)
+  const setGemBalance  = useChatStore((s) => s.setGemBalance)
+  const messages       = useChatStore((s) => s.messages)
+  const setPinnedScrollTargetId = useChatStore((s) => s.setPinnedScrollTargetId)
 
-  const [showNotif,  setShowNotif]  = useState(false)
+  const [showNotif,    setShowNotif]    = useState(false)
+  const [showPinList,  setShowPinList]  = useState(false)
+  const [pinFeature,   setPinFeature]   = useState(false)
   const [notifPrefs, setNotifPrefs] = useState<NotifPrefs>({ messages: true, raids: true, victory: true, mentions: true })
 
   useEffect(() => {
@@ -34,6 +63,10 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance }:
     const current = window.location.pathname + window.location.search
     window.history.replaceState({ __NA: true }, '', '/home')
     window.history.pushState(null, '', current)
+  }, [])
+
+  useEffect(() => {
+    setPinFeature(localStorage.getItem(PIN_FEATURE_KEY) === '1')
   }, [])
 
   useEffect(() => {
@@ -82,22 +115,26 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance }:
       )
   }, [notifPrefs, currentUserId, crewId])
 
-  const allMuted = !notifPrefs.messages && !notifPrefs.raids && !notifPrefs.victory
+  const allMuted   = !notifPrefs.messages && !notifPrefs.raids && !notifPrefs.victory
+  const activePins = pinFeature ? selectActivePins(messages) : ([] as Message[])
+  // Show the most recently pinned message in the ticker
+  const tickerPin  = activePins.length > 0
+    ? [...activePins].sort((a, b) =>
+        new Date(b.pinned_at as string).getTime() - new Date(a.pinned_at as string).getTime()
+      )[0]
+    : null
 
   return (
     <>
       {/* Floating gradient top nav */}
       <div
-        className="absolute top-0 left-0 right-0 z-[60] flex items-start pointer-events-none"
-        style={{
-          height: 88,
-          paddingTop: 'env(safe-area-inset-top, 0px)',
-          background: 'linear-gradient(180deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.25) 46.158%, rgba(0,0,0,0) 100%)',
-        }}
+        className="absolute top-0 left-0 right-0 z-[60] flex flex-col pointer-events-none"
+        style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
       >
+        {/* Nav row */}
         <div
           className="flex items-center justify-between w-full pointer-events-none"
-          style={{ padding: '8px 16px' }}
+          style={{ padding: '8px 16px', background: 'linear-gradient(180deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.25) 60%, rgba(0,0,0,0) 100%)', minHeight: 56 }}
         >
           {/* Back button */}
           <button
@@ -117,6 +154,44 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance }:
 
           {/* Right actions */}
           <div className="flex items-center pointer-events-auto" style={{ gap: 16 }}>
+            {/* Pin icon — shown when pin feature is enabled */}
+            {pinFeature && (
+              <button
+                onClick={() => setShowPinList(true)}
+                aria-label={activePins.length > 0 ? `${activePins.length} pinned message${activePins.length !== 1 ? 's' : ''}` : 'No pinned messages'}
+                className="relative flex items-center justify-center border border-border overflow-hidden flex-shrink-0"
+                style={{
+                  padding: 8,
+                  background: 'rgba(0,0,0,0.5)',
+                  backdropFilter: 'blur(10px)',
+                  WebkitBackdropFilter: 'blur(10px)',
+                  boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)',
+                }}
+              >
+                <MapPin
+                  style={{
+                    width: 24, height: 24,
+                    color: activePins.length > 0 ? 'var(--color-primary)' : 'var(--color-tertiary)',
+                  }}
+                  aria-hidden="true"
+                />
+                {activePins.length > 0 && (
+                  <span
+                    className="absolute top-0 right-0 flex items-center justify-center font-pixel leading-none"
+                    style={{
+                      width: 14, height: 14,
+                      background: 'var(--color-purple)',
+                      fontSize: 7,
+                      color: 'white',
+                      transform: 'translate(25%, -25%)',
+                    }}
+                  >
+                    {activePins.length}
+                  </span>
+                )}
+              </button>
+            )}
+
             <button
               onClick={() => setShowNotif(true)}
               aria-label={allMuted ? 'Notifications muted' : 'Notification settings'}
@@ -151,6 +226,18 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance }:
             </button>
           </div>
         </div>
+
+        {/* Pinned message ticker — shown below the nav row when a pin is active */}
+        {pinFeature && tickerPin && (
+          <div className="pointer-events-auto w-full">
+            <MarqueeBanner
+              text={truncatePinContent(tickerPin.content)}
+              suffix={formatTimeRemaining(tickerPin.pin_expires_at as string | null | undefined) || undefined}
+              icon={<MapPin style={{ width: 8, height: 8, color: 'var(--color-blue)' }} aria-hidden="true" />}
+              onClick={() => setPinnedScrollTargetId(tickerPin.id)}
+            />
+          </div>
+        )}
       </div>
 
       <AnimatePresence>
@@ -159,6 +246,14 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance }:
             prefs={notifPrefs}
             onToggle={handleToggleNotif}
             onClose={() => setShowNotif(false)}
+          />
+        )}
+        {showPinList && (
+          <PinListSheet
+            activePins={activePins}
+            currentUserId={currentUserId}
+            creatorId={creatorId ?? null}
+            onClose={() => setShowPinList(false)}
           />
         )}
       </AnimatePresence>

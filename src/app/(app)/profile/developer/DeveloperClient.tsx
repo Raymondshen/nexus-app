@@ -100,6 +100,7 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
   const [gemResetConfirm,     setGemResetConfirm]     = useState(false)
   const [resettingGem,        setResettingGem]        = useState(false)
   const [gemResetDone,        setGemResetDone]        = useState(false)
+  const [pinFeature,          setPinFeature]          = useState(false)
   const [newText,             setNewText]             = useState('')
   const [addingBanner,        setAddingBanner]        = useState(false)
   const [bannerError,         setBannerError]         = useState<string | null>(null)
@@ -112,6 +113,7 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
     setChatCamera(localStorage.getItem('nexus_chat_camera') === '1')
     setGemFeature(localStorage.getItem('nexus_gem_feature') === '1')
     setInfiniteFriendshipXP(localStorage.getItem('nexus_infinite_fxp') === '1')
+    setPinFeature(localStorage.getItem('nexus_pin_feature') === '1')
   }, [])
 
   function toggleDevMode() {
@@ -149,6 +151,13 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
     setGemFeature(next)
     if (next) localStorage.setItem('nexus_gem_feature', '1')
     else localStorage.removeItem('nexus_gem_feature')
+  }
+
+  function togglePinFeature() {
+    const next = !pinFeature
+    setPinFeature(next)
+    if (next) localStorage.setItem('nexus_pin_feature', '1')
+    else localStorage.removeItem('nexus_pin_feature')
   }
 
   function toggleInfiniteFriendshipXP() {
@@ -356,6 +365,13 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
             description="Enable daily gem claim + counter in chat"
             enabled={gemFeature}
             onChange={toggleGemFeature}
+          />
+
+          <ToggleRow
+            title="Pin Feature"
+            description="Enable message pinning in group chats"
+            enabled={pinFeature}
+            onChange={togglePinFeature}
           />
 
           {/* Reset gem cooldown — two-step confirm */}

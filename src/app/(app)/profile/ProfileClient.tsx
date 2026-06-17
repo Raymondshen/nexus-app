@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { SlidePage, useSlideBack } from '@/components/ui/SlidePage'
@@ -22,6 +22,7 @@ import { NotifSheet, type NotifPrefs } from '@/components/chat/NotifSheet'
 import { AvatarUploadModal } from '@/components/ui/AvatarUploadModal'
 import { BackgroundUploadModal } from '@/components/ui/BackgroundUploadModal'
 import { Button } from '@/components/ui/Button'
+import { MarqueeBanner } from '@/components/ui/MarqueeBanner'
 
 interface ProfileClientProps {
   userId:             string
@@ -43,56 +44,15 @@ interface ProfileClientProps {
   totalFriendshipXP:  number
 }
 
-// ─── Profile status ticker ────────────────────────────────────────────────────
+// ─── Profile status ticker — wraps shared MarqueeBanner ─────────────────────
 
 function ProfileStatusTicker({ status }: { status: string }) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const itemRef      = useRef<HTMLSpanElement>(null)
-  const [numCopies, setNumCopies] = useState(6)
-  const [animPx,    setAnimPx]    = useState(0)
-
-  useLayoutEffect(() => {
-    const container = containerRef.current
-    const item      = itemRef.current
-    if (!container || !item) return
-    const cw = container.clientWidth
-    const iw = item.offsetWidth
-    if (iw <= 0) return
-    const halfNeeded = Math.ceil(cw / iw) + 1
-    const n          = Math.max(4, halfNeeded % 2 === 0 ? halfNeeded * 2 : (halfNeeded + 1) * 2)
-    setNumCopies(n)
-    setAnimPx(iw * (n / 2))
-  }, [status])
-
-  const duration = Math.max(21, status.length * 0.28 + 15)
-
   return (
-    <div
-      ref={containerRef}
-      className="overflow-hidden border-t border-b border-border bg-black px-2"
-      style={{ paddingTop: 12, paddingBottom: 12 }}
-    >
-      <motion.div
-        key={status}
-        className="flex"
-        initial={{ x: 0 }}
-        animate={{ x: animPx > 0 ? [0, -animPx] : 0 }}
-        transition={{ duration, repeat: Infinity, ease: 'linear', repeatType: 'loop' }}
-      >
-        {Array.from({ length: numCopies }, (_, i) => (
-          <span
-            key={i}
-            ref={i === 0 ? itemRef : undefined}
-            className="inline-flex items-center gap-1 pr-6 flex-shrink-0 whitespace-nowrap"
-          >
-            <Message style={{ width: 8, height: 8, color: 'var(--color-tertiary)' }} aria-hidden="true" />
-            <span className="font-silkscreen text-tertiary leading-none" style={{ fontSize: 'var(--text-xxs)' }}>
-              &ldquo;{status}&rdquo;
-            </span>
-          </span>
-        ))}
-      </motion.div>
-    </div>
+    <MarqueeBanner
+      text={status}
+      icon={<Message style={{ width: 8, height: 8, color: 'var(--color-tertiary)' }} aria-hidden="true" />}
+      quoted
+    />
   )
 }
 

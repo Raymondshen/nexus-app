@@ -48,6 +48,7 @@ interface MessageListProps {
   currentUserId:  string
   memberProfiles: Record<string, Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url'>>
   initialRaid:    ActiveRaid | null
+  creatorId?:     string | null
 }
 
 function dayLabel(date: Date): string {
@@ -103,6 +104,7 @@ export function MessageList({
   currentUserId,
   memberProfiles,
   initialRaid,
+  creatorId,
 }: MessageListProps) {
   const router = useRouter()
   const onAvatarTap = useMemo(
@@ -113,7 +115,7 @@ export function MessageList({
     [crewId, router],
   )
 
-  const { messages, setMessages, addMessage, updateMessage, setCrewXP, receiveXP } = useChatStore()
+  const { messages, setMessages, addMessage, updateMessage, setCrewXP, receiveXP, pinnedScrollTargetId, setPinnedScrollTargetId } = useChatStore()
   const [dismissedLevelUps, setDismissedLevelUps] = useState<Set<string>>(new Set())
   // Local override map for profiles — patched in real-time when a member updates their avatar/username
   const [localProfiles, setLocalProfiles] = useState<Record<string, Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url'>>>(memberProfiles)
@@ -275,6 +277,14 @@ export function MessageList({
     }
   }, [messages.length]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Scroll to a specific message when triggered by the pinned ticker tap
+  useEffect(() => {
+    if (!pinnedScrollTargetId) return
+    const el = document.getElementById(`msg-${pinnedScrollTargetId}`)
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    setPinnedScrollTargetId(null)
+  }, [pinnedScrollTargetId, setPinnedScrollTargetId])
+
   function handleScroll() {
     const el = scrollRef.current
     if (!el) return
@@ -327,7 +337,14 @@ export function MessageList({
           const hasDbReactions    = Object.keys(dbReactions).length > 0
           const hasLocalReactions = Object.keys(localReactions).length > 0
 
-          const patch: Partial<Message> = { xp_awarded: raw.xp_awarded, element_type: raw.element_type }
+          const patch: Partial<Message> = {
+            xp_awarded:      raw.xp_awarded,
+            element_type:    raw.element_type,
+            pinned:          raw.pinned,
+            pinned_by:       raw.pinned_by,
+            pinned_at:       raw.pinned_at,
+            pin_expires_at:  raw.pin_expires_at,
+          }
           // Apply DB reactions only when non-empty (authoritative) OR both sides are empty
           if (hasDbReactions || !hasLocalReactions) patch.reactions = dbReactions
 
@@ -665,19 +682,21 @@ export function MessageList({
         // profile embedded in the message for users who left the crew since fetch.
         const liveProfile = localProfiles[item.message.user_id] ?? item.message.profile
         return (
-          <MessageBubble
-            key={item.message.id}
-            message={{ ...item.message, profile: liveProfile }}
-            isOwn={item.isOwn}
-            showHeader={item.showHeader}
-            currentUserId={currentUserId}
-            crewId={crewId}
-            xpOverride={item.xpOverride}
-            coinOverride={item.coinOverride}
-            onAvatarTap={onAvatarTap}
-            definitions={definitions}
-            memberUsernames={memberUsernames}
-          />
+          <div key={item.message.id} id={`msg-${item.message.id}`}>
+            <MessageBubble
+              message={{ ...item.message, profile: liveProfile }}
+              isOwn={item.isOwn}
+              showHeader={item.showHeader}
+              currentUserId={currentUserId}
+              crewId={crewId}
+              xpOverride={item.xpOverride}
+              coinOverride={item.coinOverride}
+              onAvatarTap={onAvatarTap}
+              definitions={definitions}
+              memberUsernames={memberUsernames}
+              isCreator={creatorId != null && currentUserId === creatorId}
+            />
+          </div>
         )
       })}
 

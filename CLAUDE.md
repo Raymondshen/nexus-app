@@ -123,7 +123,7 @@ Error copy: invalid → "The Nexus does not recognize this code." · used → "T
 ## Dev Mode
 `profiles.is_dev = true` — grant: `UPDATE profiles SET is_dev = true WHERE id IN (SELECT id FROM auth.users WHERE email = '...')`
 
-Dev section in `/profile/developer`: Announcements management · Push Diagnostics (`nexus_push_diag`) · Infinite Coins (`nexus_infinite_coins`) · Spawn Boss Mode (`nexus_dev_mode`) · Chat Camera (`nexus_chat_camera`) · Gem Feature (`nexus_gem_feature`) · Reset Gem Cooldown (two-step confirm, nulls `last_gem_claim` for caller only) · AFK Exp (`nexus_afk_exp`) · Infinite Friendship XP (`nexus_infinite_fxp`) · Reset Friendship XP (two-step confirm, wipes `friendship_xp` + `friendship_xp_log`)
+Dev section in `/profile/developer`: Announcements management · Push Diagnostics (`nexus_push_diag`) · Infinite Coins (`nexus_infinite_coins`) · Spawn Boss Mode (`nexus_dev_mode`) · Chat Camera (`nexus_chat_camera`) · Gem Feature (`nexus_gem_feature`) · Pin Feature (`nexus_pin_feature`) · Reset Gem Cooldown (two-step confirm, nulls `last_gem_claim` for caller only) · AFK Exp (`nexus_afk_exp`) · Infinite Friendship XP (`nexus_infinite_fxp`) · Reset Friendship XP (two-step confirm, wipes `friendship_xp` + `friendship_xp_log`)
 
 Server-side (`award-xp`): boss spawn + `LEVEL_UP:` only when `isDevUser = true`
 
@@ -154,6 +154,8 @@ localStorage:
 | `nexus_afk_exp` | `'1'` |
 | `nexus_chat_camera` | `'1'` |
 | `nexus_infinite_fxp` | `'1'` |
+| `nexus_gem_feature` | `'1'` |
+| `nexus_pin_feature` | `'1'` |
 | `nexus_dismissed_banners` | JSON array of IDs |
 
 ## Architecture

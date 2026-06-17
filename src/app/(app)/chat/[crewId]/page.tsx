@@ -133,7 +133,7 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
     >
       {welcome === "1" && <WelcomeDetector crewId={crewId} />}
 
-      <FloatingBackButton crewId={crewId} currentUserId={user.id} initialGemBalance={gemBalance} />
+      <FloatingBackButton crewId={crewId} currentUserId={user.id} initialGemBalance={gemBalance} creatorId={creatorId} />
 
       <ErrorBoundary>
         <MessageList
@@ -142,6 +142,7 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
           currentUserId={user.id}
           memberProfiles={memberProfiles}
           initialRaid={raidRow ?? null}
+          creatorId={creatorId}
         />
       </ErrorBoundary>
 

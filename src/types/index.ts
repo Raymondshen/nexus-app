@@ -119,6 +119,10 @@ export interface Message extends Record<string, unknown> {
   image_url?:        string | null
   image_blur_hash?:  string | null
   og_preview?:       OGPreview
+  pinned?:           boolean
+  pinned_by?:        string | null
+  pinned_at?:        string | null
+  pin_expires_at?:   string | null
 }
 
 export interface CrewXPLog extends Record<string, unknown> {
@@ -532,6 +536,14 @@ export type Database = {
       claim_daily_gem: {
         Args: { p_user_id: string; p_local_midnight: string }
         Returns: GemClaimResult
+      }
+      pin_message: {
+        Args: { p_message_id: string; p_duration_minutes?: number | null }
+        Returns: Record<string, unknown>
+      }
+      unpin_message: {
+        Args: { p_message_id: string }
+        Returns: Record<string, unknown>
       }
     }
     Enums: Record<string, never>

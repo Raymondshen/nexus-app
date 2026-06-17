@@ -63,6 +63,10 @@ export const GEM_TOAST_Z_INDEX        = 9000
 export const GEM_DAILY_LIMIT = 1
 export const GEM_IDB_KEY     = 'nexus_gem_claimed_at'
 
+export const PIN_MAX_PER_CREW          = 5
+export const PIN_MAX_DURATION_MINUTES  = 525960  // ~1 year
+export const PIN_FEATURE_KEY           = 'nexus_pin_feature'
+
 export const IMAGE_CONFIG = {
   MAX_UPLOAD_BYTES:          15_728_640, // 15 MB
   MAX_GIF_BYTES:              5_242_880, //  5 MB

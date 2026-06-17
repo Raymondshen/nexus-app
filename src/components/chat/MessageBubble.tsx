@@ -15,6 +15,7 @@ import { useOGPreview } from '@/lib/utils/useOGPreview'
 import { LinkPreviewCard } from '@/components/chat/LinkPreviewCard'
 import { PollCard } from '@/components/chat/PollCard'
 import { SuggestDefinitionSheet } from '@/components/chat/SuggestDefinitionSheet'
+import { PinDurationSheet } from '@/components/chat/PinDurationSheet'
 import { ImagePreviewOverlay } from '@/components/ui/ImagePreviewOverlay'
 import { Button } from '@/components/ui/Button'
 import { Cake } from 'pixelarticons/react/Cake'
@@ -64,6 +65,7 @@ interface MessageBubbleProps {
   onAvatarTap?:     (userId: string) => void
   definitions?:     SquadDefinitionWithCreator[]
   memberUsernames?: Set<string>
+  isCreator?:       boolean
 }
 
 // ─── Definition highlight renderer ──────────────────────────────────────────
@@ -224,6 +226,7 @@ export function MessageBubble({
   onAvatarTap,
   definitions = [] as SquadDefinitionWithCreator[],
   memberUsernames = new Set<string>(),
+  isCreator = false,
 }: MessageBubbleProps) {
   const [sheetOpen,        setSheetOpen]        = useState(false)
   const [copied,           setCopied]           = useState(false)
@@ -232,6 +235,7 @@ export function MessageBubble({
   const [activeDefinition, setActiveDefinition] = useState<SquadDefinitionWithCreator | null>(null)
   const [suggestTarget,    setSuggestTarget]    = useState<SquadDefinitionWithCreator | null>(null)
   const [previewOpen,      setPreviewOpen]      = useState(false)
+  const [pinSheetOpen,     setPinSheetOpen]     = useState(false)
 
   const longPressTimer       = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hasMoved             = useRef(false)
@@ -851,6 +855,16 @@ export function MessageBubble({
         document.body
       )}
 
+      {/* ── Pin duration sheet ──────────────────────────────────────────────── */}
+      {mounted && pinSheetOpen && createPortal(
+        <PinDurationSheet
+          message={message}
+          onClose={() => setPinSheetOpen(false)}
+          onPinned={(patch) => updateMessage(message.id, patch)}
+        />,
+        document.body
+      )}
+
       {/* ── Reaction / action bottom sheet (Discord-style) ──────────────────── */}
       {mounted && createPortal(
         <AnimatePresence>
@@ -933,6 +947,22 @@ export function MessageBubble({
                     {copied ? 'Copied!' : 'Copy Text'}
                   </span>
                 </button>
+
+                {/* ── Pin (admin only) ──────────────────────────────────────── */}
+                {isCreator && (
+                  <>
+                    <div className="border-t border-border" />
+                    <button
+                      onClick={() => { setSheetOpen(false); setPinSheetOpen(true) }}
+                      className="w-full flex items-center gap-4 px-5 min-h-[52px] active:bg-[#111111] transition-colors"
+                    >
+                      <span className="text-[20px]">📌</span>
+                      <span className="font-body text-[15px] text-primary">
+                        {message.pinned ? 'Pinned to the board' : 'Pin this message'}
+                      </span>
+                    </button>
+                  </>
+                )}
 
                 {/* Hidden input — focus opens native emoji keyboard on mobile */}
                 <input

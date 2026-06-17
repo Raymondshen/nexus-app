@@ -39,8 +39,10 @@ interface ChatStore {
   setGemBalance:       (gems: number) => void
   addGemBalance:       (amount: number) => void
   setCrewName:         (name: string) => void
-  setReplyTo:          (msg: MessageWithProfile | null) => void
-  setFriendshipXP:     (pairKey: string, totalXP: number) => void
+  setReplyTo:              (msg: MessageWithProfile | null) => void
+  setFriendshipXP:         (pairKey: string, totalXP: number) => void
+  pinnedScrollTargetId:    string | null
+  setPinnedScrollTargetId: (id: string | null) => void
 }
 
 let floatCounter = 0
@@ -56,8 +58,9 @@ export const useChatStore = create<ChatStore>((set) => ({
   userCoins:          0,
   gemBalance:         0,
   crewName:           '',
-  replyTo:            null,
-  friendshipXPByPair: {},
+  replyTo:                null,
+  friendshipXPByPair:     {},
+  pinnedScrollTargetId:   null,
 
   setMessages: (messages) => set({ messages }),
 
@@ -128,6 +131,16 @@ export const useChatStore = create<ChatStore>((set) => ({
 
   setFriendshipXP: (pairKey, totalXP) =>
     set((s) => ({ friendshipXPByPair: { ...s.friendshipXPByPair, [pairKey]: totalXP } })),
+
+  setPinnedScrollTargetId: (id) => set({ pinnedScrollTargetId: id }),
 }))
 
 export { XP_PER_LEVEL }
+
+export function selectActivePins(messages: Message[]): Message[] {
+  const now = Date.now()
+  return messages.filter((m) =>
+    m.pinned === true &&
+    (m.pin_expires_at == null || new Date(m.pin_expires_at as string).getTime() > now)
+  )
+}
