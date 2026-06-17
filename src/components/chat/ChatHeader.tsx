@@ -7,12 +7,14 @@ import { useChatStore } from '@/store/chatStore'
 import { createClient } from '@/lib/supabase/client'
 import type { Crew, ActiveRaid } from '@/types'
 import { formatDistanceToNow } from 'date-fns'
+import { useRouter } from 'next/navigation'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { Bell } from 'pixelarticons/react/Bell'
 import { BellOff } from 'pixelarticons/react/BellOff'
 import { UserPlus } from 'pixelarticons/react/UserPlus'
 import { Copy } from 'pixelarticons/react/Copy'
 import { Check } from 'pixelarticons/react/Check'
+import { Calendar } from 'pixelarticons/react/Calendar'
 import { NotifSheet, type NotifPrefs } from '@/components/chat/NotifSheet'
 
 type MemberBirthday = { username: string; birthday: string }
@@ -47,6 +49,7 @@ interface ChatHeaderProps {
   currentUserId:    string
   crewId:           string
   memberBirthdays?: MemberBirthday[]
+  isDev?:           boolean
 }
 
 // ─── Share modal ─────────────────────────────────────────────────────────────
@@ -146,18 +149,22 @@ export function ChatHeader({
   currentUserId,
   crewId,
   memberBirthdays = [],
+  isDev = false,
 }: ChatHeaderProps) {
+  const router = useRouter()
   const goBack = useSlideBack()
   const { setCrewXP, setActiveRaid, activeRaid, crewName: storeCrewName, setCrewName } = useChatStore()
-  const [showShare,    setShowShare]    = useState(false)
-  const [showNotif,    setShowNotif]    = useState(false)
-  const [notifPrefs,   setNotifPrefs]   = useState<NotifPrefs>({ messages: true, raids: true, victory: true, mentions: true })
-  const [devMode,      setDevMode]      = useState(false)
+  const [showShare,      setShowShare]      = useState(false)
+  const [showNotif,      setShowNotif]      = useState(false)
+  const [notifPrefs,     setNotifPrefs]     = useState<NotifPrefs>({ messages: true, raids: true, victory: true, mentions: true })
+  const [devMode,        setDevMode]        = useState(false)
+  const [eventsEnabled,  setEventsEnabled]  = useState(false)
 
   const liveCrewName = storeCrewName || crew.name
 
   useEffect(() => {
     setDevMode(localStorage.getItem('nexus_dev_mode') === '1')
+    setEventsEnabled(localStorage.getItem('nexus_events_enabled') === '1')
   }, [])
 
   // Seed the store with the server-fetched name on mount
@@ -260,8 +267,18 @@ export function ChatHeader({
             </h1>
           </div>
 
-          {/* Right: bell + user-plus */}
+          {/* Right: calendar + bell + user-plus */}
           <div className="flex items-center gap-4 flex-shrink-0">
+            {isDev && eventsEnabled && (
+              <button
+                onClick={() => router.push(`/chat/${crewId}/events`)}
+                aria-label="Group events"
+                className="flex items-center justify-center text-primary transition-colors"
+                style={{ width: 24, height: 40 }}
+              >
+                <Calendar style={{ width: 24, height: 24 }} aria-hidden="true" />
+              </button>
+            )}
             <button
               onClick={() => setShowNotif(true)}
               aria-label={allMuted ? 'Notifications muted' : 'Notification settings'}

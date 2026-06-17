@@ -24,6 +24,7 @@ import { Chart } from 'pixelarticons/react/Chart'
 import { Camera } from 'pixelarticons/react/Camera'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
 import { kickMemberAction, renameCrewAction, birthdaysCommandAction } from '@/app/(app)/chat/actions'
+import { EventCreationSheet } from '@/components/chat/EventCreationSheet'
 import { CrewImageUploadModal } from '@/components/chat/CrewImageUploadModal'
 import { NotifSheet, type NotifPrefs } from '@/components/chat/NotifSheet'
 import { SquadDetailsSheet, type MiniMember } from '@/components/chat/SquadDetailsSheet'
@@ -38,6 +39,7 @@ const CREW_AVATAR_COLORS = ['#bf5fff', '#00e5ff', '#ffd700', '#ff4444', '#66bb6a
 
 const SLASH_COMMANDS = [
   { name: 'birthdays', icon: '🎂', description: 'See upcoming squad birthdays' },
+  { name: 'event',     icon: '📅', description: 'Create a group event' },
 ] as const
 type SlashCommandName = typeof SLASH_COMMANDS[number]['name']
 
@@ -117,6 +119,8 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   const [mentionQuery,    setMentionQuery]    = useState<string | null>(null)
   const [mentionIndex,    setMentionIndex]    = useState(0)
   const [isFocused,       setIsFocused]       = useState(false)
+  const [eventsEnabled,   setEventsEnabled]   = useState(false)
+  const [showEventSheet,  setShowEventSheet]  = useState(false)
 
   const [chatImageLocalUrl,  setChatImageLocalUrl]  = useState<string | null>(null)
   const [chatImagePublicUrl, setChatImagePublicUrl] = useState<string | null>(null)
@@ -162,6 +166,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     setDevMode(localStorage.getItem('nexus_dev_mode') === '1')
     setChatCameraEnabled(localStorage.getItem('nexus_chat_camera') === '1')
     setGemFeatureEnabled(localStorage.getItem('nexus_gem_feature') === '1')
+    setEventsEnabled(localStorage.getItem('nexus_events_enabled') === '1')
   }, [])
 
   useEffect(() => {
@@ -771,6 +776,11 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     setText('')
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
     textareaRef.current?.focus()
+
+    if (name === 'event') {
+      if (eventsEnabled) setShowEventSheet(true)
+      return
+    }
 
     if (name === 'birthdays') {
       setSending(true)
@@ -1418,6 +1428,15 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
           />
         )}
       </AnimatePresence>
+
+      {showEventSheet && (
+        <EventCreationSheet
+          crewId={crewId}
+          currentUserId={userId}
+          onClose={() => setShowEventSheet(false)}
+          createMessage
+        />
+      )}
     </div>
   )
 }

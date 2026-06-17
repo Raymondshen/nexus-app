@@ -9,6 +9,7 @@ import { Bell } from 'pixelarticons/react/Bell'
 import { BellOff } from 'pixelarticons/react/BellOff'
 import { Braces } from 'pixelarticons/react/Braces'
 import { Note } from 'pixelarticons/react/Note'
+import { Calendar } from 'pixelarticons/react/Calendar'
 import { createClient } from '@/lib/supabase/client'
 import { NotifSheet, type NotifPrefs } from '@/components/chat/NotifSheet'
 import { PinListSheet } from '@/components/chat/PinListSheet'
@@ -30,9 +31,10 @@ interface FloatingBackButtonProps {
   currentUserId:     string
   initialGemBalance?: number
   creatorId?:        string | null
+  isDev?:            boolean
 }
 
-export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, creatorId }: FloatingBackButtonProps) {
+export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, creatorId, isDev = false }: FloatingBackButtonProps) {
   const goBack = useSlideBack()
   const router = useRouter()
   const setGemBalance           = useChatStore((s) => s.setGemBalance)
@@ -40,9 +42,10 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
   const setPinnedScrollTargetId = useChatStore((s) => s.setPinnedScrollTargetId)
   const hiddenPinIds            = useChatStore((s) => s.hiddenPinIds)
 
-  const [showNotif,    setShowNotif]    = useState(false)
-  const [showPinList,  setShowPinList]  = useState(false)
-  const [pinFeature,   setPinFeature]   = useState(false)
+  const [showNotif,      setShowNotif]      = useState(false)
+  const [showPinList,    setShowPinList]    = useState(false)
+  const [pinFeature,     setPinFeature]     = useState(false)
+  const [eventsEnabled,  setEventsEnabled]  = useState(false)
   const [notifPrefs, setNotifPrefs] = useState<NotifPrefs>({ messages: true, raids: true, victory: true, mentions: true })
 
   useEffect(() => {
@@ -57,6 +60,7 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
 
   useEffect(() => {
     setPinFeature(localStorage.getItem(PIN_FEATURE_KEY) === '1')
+    setEventsEnabled(localStorage.getItem('nexus_events_enabled') === '1')
   }, [])
 
   useEffect(() => {
@@ -209,6 +213,23 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
                 : <Bell   style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
               }
             </button>
+
+            {isDev && eventsEnabled && (
+              <button
+                onClick={() => router.push(`/chat/${crewId}/events`)}
+                aria-label="Group events"
+                className="flex items-center justify-center border border-border overflow-hidden flex-shrink-0"
+                style={{
+                  padding: 8,
+                  background: 'rgba(0,0,0,0.5)',
+                  backdropFilter: 'blur(10px)',
+                  WebkitBackdropFilter: 'blur(10px)',
+                  boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)',
+                }}
+              >
+                <Calendar style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+              </button>
+            )}
 
             <button
               onClick={() => { sessionStorage.setItem('nexus_chat_from', 'chat'); router.push(`/chat/${crewId}/definitions`) }}

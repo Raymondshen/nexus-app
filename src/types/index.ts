@@ -20,7 +20,8 @@ export interface OGPreview {
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
 
-export type MessageType = 'text' | 'voice' | 'image' | 'reaction' | 'system' | 'poll'
+export type MessageType = 'text' | 'voice' | 'image' | 'reaction' | 'system' | 'poll' | 'event'
+export type EventRsvpStatus = 'going' | 'maybe' | 'not_going'
 export type ElementType = 'fire' | 'water' | 'lightning' | 'nature' | 'shadow' | 'arcane'
 export type ArtifactRarity = 'common' | 'rare' | 'epic' | 'legendary'
 export type BossType = 'void' | 'ghost' | 'flood' | 'scheduled'
@@ -43,6 +44,7 @@ export interface Profile extends Record<string, unknown> {
   custom_avatar: boolean
   status: string | null
   friendship_xp_enabled: boolean
+  is_dev: boolean
   gem_balance: number
   last_gem_claim: string | null
   created_at: string
@@ -123,6 +125,7 @@ export interface Message extends Record<string, unknown> {
   pinned_by?:        string | null
   pinned_at?:        string | null
   pin_expires_at?:   string | null
+  event_id?:         string | null
 }
 
 export interface CrewXPLog extends Record<string, unknown> {
@@ -261,6 +264,25 @@ export interface Poll extends Record<string, unknown> {
   created_at: string
 }
 
+export interface Event extends Record<string, unknown> {
+  id:              string
+  crew_id:         string
+  title:           string
+  description:     string | null
+  location:        string | null
+  event_date:      string
+  cover_image_url: string | null
+  created_by:      string
+  created_at:      string
+}
+
+export interface EventRsvp extends Record<string, unknown> {
+  event_id:   string
+  user_id:    string
+  status:     EventRsvpStatus
+  updated_at: string
+}
+
 export interface AppInvite extends Record<string, unknown> {
   id: string
   code: string
@@ -313,7 +335,7 @@ export type Database = {
     Tables: {
       profiles: {
         Row: Profile
-        Insert: Omit<Profile, 'created_at' | 'avatar_url' | 'coins' | 'custom_avatar' | 'gem_balance' | 'last_gem_claim'> & { created_at?: string; avatar_url?: string | null; coins?: number; custom_avatar?: boolean; gem_balance?: number; last_gem_claim?: string | null }
+        Insert: Omit<Profile, 'created_at' | 'avatar_url' | 'coins' | 'custom_avatar' | 'gem_balance' | 'last_gem_claim' | 'is_dev'> & { created_at?: string; avatar_url?: string | null; coins?: number; custom_avatar?: boolean; gem_balance?: number; last_gem_claim?: string | null; is_dev?: boolean }
         Update: Partial<Omit<Profile, 'id'>>
         Relationships: []
       }
@@ -463,6 +485,18 @@ export type Database = {
         Row: FriendshipXPLog
         Insert: Omit<FriendshipXPLog, 'id' | 'awarded_at'> & { id?: string; awarded_at?: string }
         Update: never
+        Relationships: []
+      }
+      events: {
+        Row: Event
+        Insert: Omit<Event, 'id' | 'created_at'> & { id?: string; created_at?: string }
+        Update: Partial<Omit<Event, 'id' | 'created_at' | 'crew_id' | 'created_by'>>
+        Relationships: []
+      }
+      event_rsvps: {
+        Row: EventRsvp
+        Insert: Omit<EventRsvp, 'updated_at'> & { updated_at?: string }
+        Update: Partial<Pick<EventRsvp, 'status' | 'updated_at'>>
         Relationships: []
       }
     }

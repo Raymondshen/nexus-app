@@ -2,7 +2,7 @@
 
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
-import type { MessageType } from '@/types'
+import type { MessageType, EventRsvpStatus } from '@/types'
 
 export async function updateCrewImageAction(
   crewId: string,
@@ -248,4 +248,92 @@ export async function birthdaysCommandAction(crewId: string): Promise<{
       created_at:   (msg as { created_at: string }).created_at,
     },
   }
+}
+
+export async function createEventAction(data: {
+  crewId: string
+  title: string
+  description?: string
+  location?: string
+  eventDate: string
+  coverImageUrl?: string
+  createMessage?: boolean
+}): Promise<{ eventId?: string; error?: string }> {
+  const supabase = await createClient()
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) return { error: 'Not authenticated' }
+  const user = session.user
+
+  const service = createServiceClient()
+
+  // Gate: is_dev required to create events
+  const { data: profile } = await service
+    .from('profiles')
+    .select('is_dev')
+    .eq('id', user.id)
+    .single()
+  if (!(profile as { is_dev?: boolean } | null)?.is_dev) return { error: 'Unauthorized' }
+
+  // Verify crew membership
+  const { data: membership } = await supabase
+    .from('crew_members')
+    .select('id')
+    .eq('crew_id', data.crewId)
+    .eq('user_id', user.id)
+    .maybeSingle()
+  if (!membership) return { error: 'Not a crew member' }
+
+  const { data: event, error: eventError } = await supabase
+    .from('events')
+    .insert({
+      crew_id:         data.crewId,
+      title:           data.title.trim(),
+      description:     data.description?.trim() || null,
+      location:        data.location?.trim() || null,
+      event_date:      data.eventDate,
+      cover_image_url: data.coverImageUrl || null,
+      created_by:      user.id,
+    })
+    .select('id')
+    .single()
+
+  if (eventError) return { error: eventError.message }
+
+  const eventId = (event as { id: string }).id
+
+  if (data.createMessage) {
+    await service
+      .from('messages')
+      .insert({
+        crew_id:      data.crewId,
+        user_id:      user.id,
+        content:      '',
+        message_type: 'event',
+        element_type: null,
+        xp_awarded:   0,
+        reactions:    {},
+        event_id:     eventId,
+      })
+  }
+
+  return { eventId }
+}
+
+export async function upsertEventRsvpAction(
+  eventId: string,
+  status: EventRsvpStatus,
+): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) return { error: 'Not authenticated' }
+
+  const { error } = await supabase
+    .from('event_rsvps')
+    .upsert(
+      { event_id: eventId, user_id: session.user.id, status, updated_at: new Date().toISOString() },
+      { onConflict: 'event_id,user_id' },
+    )
+
+  if (error) return { error: error.message }
+  return {}
 }

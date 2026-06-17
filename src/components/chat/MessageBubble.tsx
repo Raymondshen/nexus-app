@@ -14,6 +14,7 @@ import { extractFirstUrl } from '@/lib/utils'
 import { useOGPreview } from '@/lib/utils/useOGPreview'
 import { LinkPreviewCard } from '@/components/chat/LinkPreviewCard'
 import { PollCard } from '@/components/chat/PollCard'
+import { EventCard } from '@/components/chat/EventCard'
 import { SuggestDefinitionSheet } from '@/components/chat/SuggestDefinitionSheet'
 import { PinDurationSheet } from '@/components/chat/PinDurationSheet'
 import { ImagePreviewOverlay } from '@/components/ui/ImagePreviewOverlay'
@@ -488,6 +489,67 @@ export function MessageBubble({
             </div>
           )}
           <PollCard pollId={pollId} currentUserId={currentUserId} />
+        </div>
+      </div>
+    )
+  }
+
+  // ─── Event messages ──────────────────────────────────────────────────────────
+  if (message.message_type === 'event' && message.event_id) {
+    const eventAvatarUrl = message.profile.avatar_url as string | null | undefined
+    const eventInitial   = message.profile.username[0]?.toUpperCase() ?? '?'
+    const eventClassName = message.profile.avatar_class ? CLASS_NAMES[message.profile.avatar_class] : null
+    const eventIsOnline  = onlineUserIds.has(message.user_id)
+    const eventTimeStr   = format(new Date(message.created_at), 'h:mma').toLowerCase()
+
+    return (
+      <div className={`flex gap-[8px] items-start w-full ${showHeader ? 'pt-[var(--space-6)] pb-0' : 'pt-[var(--space-2)] pb-0'}`}>
+        {showHeader && (
+          <div
+            className="relative flex-shrink-0"
+            onClick={onAvatarTap ? () => onAvatarTap(message.user_id) : undefined}
+            style={onAvatarTap ? { cursor: 'pointer' } : undefined}
+          >
+            <div className="w-8 h-8 bg-surface flex items-center justify-center overflow-hidden">
+              {eventAvatarUrl ? (
+                <div className="relative w-full h-full">
+                  <Image src={resolveAvatarUrl(eventAvatarUrl, 32)} alt={message.profile.username} fill sizes="32px" className="object-cover" unoptimized={isSupabaseStorage(eventAvatarUrl)} />
+                </div>
+              ) : (
+                <span className="font-pixel text-[8px] text-purple">{eventInitial}</span>
+              )}
+            </div>
+            {eventIsOnline && (
+              <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#66bb6a] border-[1.5px] border-black" />
+            )}
+          </div>
+        )}
+        <div className={`flex-1 min-w-0 flex flex-col gap-0 ${!showHeader ? 'pl-10' : ''}`}>
+          {showHeader && (
+            <div className="flex items-center justify-between w-full">
+              <div className="flex items-center gap-[4px] flex-1 min-w-0">
+                <span
+                  className={`font-body font-medium text-[12px] tracking-[0.1px] shrink-0 leading-[normal] whitespace-nowrap ${isOwn ? 'text-purple' : 'text-primary'}`}
+                  style={{ fontVariationSettings: '"opsz" 14', cursor: onAvatarTap ? 'pointer' : undefined }}
+                  onClick={onAvatarTap ? () => onAvatarTap(message.user_id) : undefined}
+                >
+                  {message.profile.username}
+                </span>
+                {eventClassName && (
+                  <>
+                    <span className="w-[2px] h-[2px] bg-purple shrink-0" />
+                    <span className="font-body font-normal text-[10px] tracking-[0.1px] shrink-0 leading-[normal] whitespace-nowrap" style={{ color: '#b3b3b3', fontVariationSettings: '"opsz" 14' }}>
+                      {eventClassName}
+                    </span>
+                  </>
+                )}
+              </div>
+              <span className="font-body font-normal text-[8px] tracking-[0.2px] shrink-0 leading-[normal] whitespace-nowrap ml-1" style={{ color: 'var(--color-paper-200)', fontVariationSettings: '"opsz" 14' }}>
+                {eventTimeStr}
+              </span>
+            </div>
+          )}
+          <EventCard eventId={message.event_id as string} currentUserId={currentUserId} />
         </div>
       </div>
     )

@@ -101,6 +101,7 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
   const [resettingGem,        setResettingGem]        = useState(false)
   const [gemResetDone,        setGemResetDone]        = useState(false)
   const [pinFeature,          setPinFeature]          = useState(false)
+  const [eventsFeature,       setEventsFeature]       = useState(false)
   const [newText,             setNewText]             = useState('')
   const [addingBanner,        setAddingBanner]        = useState(false)
   const [bannerError,         setBannerError]         = useState<string | null>(null)
@@ -114,6 +115,7 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
     setGemFeature(localStorage.getItem('nexus_gem_feature') === '1')
     setInfiniteFriendshipXP(localStorage.getItem('nexus_infinite_fxp') === '1')
     setPinFeature(localStorage.getItem('nexus_pin_feature') === '1')
+    setEventsFeature(localStorage.getItem('nexus_events_enabled') === '1')
   }, [])
 
   function toggleDevMode() {
@@ -158,6 +160,13 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
     setPinFeature(next)
     if (next) localStorage.setItem('nexus_pin_feature', '1')
     else localStorage.removeItem('nexus_pin_feature')
+  }
+
+  function toggleEventsFeature() {
+    const next = !eventsFeature
+    setEventsFeature(next)
+    if (next) localStorage.setItem('nexus_events_enabled', '1')
+    else localStorage.removeItem('nexus_events_enabled')
   }
 
   function toggleInfiniteFriendshipXP() {
@@ -372,6 +381,13 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
             description="Enable message pinning in group chats"
             enabled={pinFeature}
             onChange={togglePinFeature}
+          />
+
+          <ToggleRow
+            title="Events Feature"
+            description="Enable group event creation and RSVP in chats"
+            enabled={eventsFeature}
+            onChange={toggleEventsFeature}
           />
 
           {/* Reset gem cooldown — two-step confirm */}
