@@ -17,17 +17,6 @@ import { useChatStore, selectActivePins } from '@/store/chatStore'
 import { PIN_FEATURE_KEY } from '@/lib/config'
 import type { Message } from '@/types'
 
-function formatTimeRemaining(expiresAt: string | null | undefined): string {
-  if (!expiresAt) return ''
-  const ms = new Date(expiresAt).getTime() - Date.now()
-  if (ms <= 0) return ''
-  const mins = Math.floor(ms / 60000)
-  if (mins < 60) return `· Fades in ${mins}m`
-  const hrs = Math.floor(mins / 60)
-  if (hrs < 24) return `· Fades in ${hrs}h`
-  const days = Math.floor(hrs / 24)
-  return `· Fades in ${days}d`
-}
 
 function truncatePinContent(content: string, maxLen = 60): string {
   if (content.startsWith('POLL:') || content.startsWith('BIRTHDAY:') || content.startsWith('JOIN:')) {
@@ -115,7 +104,7 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
       )
   }, [notifPrefs, currentUserId, crewId])
 
-  const allMuted  = !notifPrefs.messages && !notifPrefs.raids && !notifPrefs.victory
+  const allMuted   = !notifPrefs.messages && !notifPrefs.raids && !notifPrefs.victory
   const activePins = pinFeature ? selectActivePins(messages) : ([] as Message[])
 
   // Sorted stable order: most recently pinned first
@@ -123,24 +112,14 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
     new Date(b.pinned_at as string).getTime() - new Date(a.pinned_at as string).getTime()
   )
 
-  const [tickerIndex, setTickerIndex] = useState(0)
-
-  // Reset to first pin when the set of pins changes
-  useEffect(() => {
-    setTickerIndex(0)
-  }, [sortedPins.length]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Rotate every 5 s when there are multiple pins
-  useEffect(() => {
-    if (sortedPins.length <= 1) return
-    const id = setInterval(() => setTickerIndex((i) => (i + 1) % sortedPins.length), 5000)
-    return () => clearInterval(id)
-  }, [sortedPins.length]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const tickerPin = sortedPins.length > 0 ? sortedPins[tickerIndex % sortedPins.length] : null
-  const tickerSender = tickerPin
-    ? (tickerPin['profile'] as { username?: string } | undefined)?.username
-    : undefined
+  // Build one item per pin for the continuous multi-item marquee
+  const tickerItems = sortedPins.map((p) => {
+    const username = (p['profile'] as { username?: string } | undefined)?.username
+    return {
+      text:   truncatePinContent(p.content),
+      suffix: username ? `@${username}` : undefined,
+    }
+  })
 
   return (
     <>
@@ -246,13 +225,12 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
         </div>
 
         {/* Pinned message ticker — shown below the nav row when a pin is active */}
-        {pinFeature && tickerPin && (
+        {pinFeature && sortedPins.length > 0 && (
           <div className="pointer-events-auto w-full">
             <MarqueeBanner
-              text={truncatePinContent(tickerPin.content)}
-              suffix={tickerSender ? `@${tickerSender}` : undefined}
+              items={tickerItems}
               icon={<Note style={{ width: 8, height: 8, color: 'var(--color-blue)' }} aria-hidden="true" />}
-              onClick={() => setPinnedScrollTargetId(tickerPin.id)}
+              onClick={() => setPinnedScrollTargetId(sortedPins[0].id)}
             />
           </div>
         )}
