@@ -134,7 +134,6 @@ function HomeStatusTicker({ status }: { status: string }) {
 function AccountPreview({
   username,
   avatarUrl,
-  memberSince,
   crewCount,
   totalMessages,
   status,
@@ -158,7 +157,6 @@ function AccountPreview({
 }: {
   username:          string
   avatarUrl:         string | null
-  memberSince:       string
   crewCount:         number
   totalMessages:     number
   status:            string | null
@@ -203,16 +201,11 @@ function AccountPreview({
 
         {/* Name + stats + currency row */}
         <div className="flex-1 min-w-0 flex flex-col gap-[var(--space-2)] justify-center leading-none">
-          {memberSince && (
-            <span className="font-silkscreen text-[length:var(--text-mini)] text-secondary leading-none">
-              Member Since {memberSince}
-            </span>
-          )}
-          <span className="font-body font-bold text-[length:var(--text-xl)] text-primary leading-none truncate" style={{ fontVariationSettings: '"opsz" 14' }}>
-            {username}
-          </span>
           <span className="font-silkscreen text-[length:var(--text-mini)] text-secondary leading-none">
             {crewCount} group chat{crewCount !== 1 ? 's' : ''} · {totalMessages.toLocaleString()} msg
+          </span>
+          <span className="font-body font-bold text-[length:var(--text-xl)] text-primary leading-none truncate" style={{ fontVariationSettings: '"opsz" 14' }}>
+            {username}
           </span>
 
           {/* Currency pills — horizontal row (Figma 189:969) */}
@@ -1141,7 +1134,6 @@ export function HomeClient({
         <AccountPreview
           username={username}
           avatarUrl={avatarUrl}
-          memberSince={memberSince}
           crewCount={crews.length}
           totalMessages={totalMessages}
           status={status}
