@@ -27,7 +27,7 @@ import { useChatStore } from '@/store/chatStore'
 import { clearSkipNextSlideEnter } from '@/components/ui/SlidePage'
 import { AnnouncementBanner } from '@/components/ui/AnnouncementBanner'
 import type { AnnouncementItem } from '@/components/ui/AnnouncementBanner'
-import { GemIcon } from '@/components/ui/GemCounter'
+import { DiamondGem } from 'pixelarticons/react/DiamondGem'
 import { isGemGateOpen } from '@/lib/game/gems'
 import { GEM_DAILY_LIMIT } from '@/lib/config'
 
@@ -285,7 +285,7 @@ function AccountPreview({
                     aria-label={`${gemBalance} gems`}
                     className="flex items-center gap-[var(--space-2)]"
                   >
-                    <GemIcon width={12} height={12} />
+                    <DiamondGem style={{ width: 12, height: 12, color: 'var(--color-blue)' }} />
                     <span className="font-silkscreen leading-none pb-[2px]" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-blue)' }}>
                       {gemBalance}
                     </span>
@@ -310,8 +310,8 @@ function AccountPreview({
         </div>
       </div>
 
-      {/* Status ticker — bordered strip (Figma 143:1440) */}
-      <div className="border-t border-b border-border px-[var(--space-3)] py-[var(--space-3)] overflow-hidden">
+      {/* Status ticker */}
+      <div className="overflow-hidden">
         {status
           ? <HomeStatusTicker status={status} />
           : (
