@@ -46,7 +46,7 @@ function friendshipYear(iso: string): string {
   try { return new Date(iso).getFullYear().toString() } catch { return '' }
 }
 
-// ─── Status ticker — same implementation as home AccountPreviewContainer ──────
+// ─── Status ticker — same implementation as home AccountPreview ──────────────
 
 function StatusTicker({ status }: { status: string }) {
   const containerRef = useRef<HTMLDivElement>(null)

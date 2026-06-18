@@ -129,9 +129,9 @@ function HomeStatusTicker({ status }: { status: string }) {
   )
 }
 
-// ─── Account preview container ───────────────────────────────────────────────
+// ─── Account preview ─────────────────────────────────────────────────────────
 
-function AccountPreviewContainer({
+function AccountPreview({
   username,
   avatarUrl,
   memberSince,
@@ -182,7 +182,7 @@ function AccountPreviewContainer({
 }) {
   return (
     <div
-      className="bg-[rgba(17,17,17,0.5)] border border-[var(--color-surface)] rounded-[8px] overflow-hidden flex flex-col gap-[var(--space-5)] cursor-pointer active:opacity-80 transition-opacity"
+      className="bg-[rgba(17,17,17,0.5)] border border-border rounded-[8px] overflow-hidden flex flex-col gap-[var(--space-5)] cursor-pointer active:opacity-80 transition-opacity"
       style={{ padding: 'var(--space-5)' }}
       onClick={onEditProfile}
       role="button"
@@ -190,145 +190,144 @@ function AccountPreviewContainer({
     >
       {/* Details row */}
       <div className="flex items-start gap-[var(--space-5)]">
-        {/* Avatar + text */}
-        <div className="flex gap-[var(--space-5)] items-center flex-1 min-w-0">
-          {/* Avatar 48×48 */}
-          <div className="w-12 h-12 flex-shrink-0 overflow-hidden relative bg-primary">
-            {avatarUrl ? (
-              <Image src={resolveAvatarUrl(avatarUrl, 48)} alt={username} fill sizes="48px" className="object-cover" priority unoptimized={isSupabaseStorage(avatarUrl)} />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center font-pixel text-[10px] text-black">
-                {username[0]?.toUpperCase() ?? '?'}
-              </div>
-            )}
-          </div>
-
-          {/* Name + stats */}
-          <div className="flex-1 min-w-0 flex flex-col gap-[var(--space-2)] justify-center leading-none">
-            {memberSince && (
-              <span className="font-silkscreen text-[length:var(--text-mini)] text-secondary leading-none">
-                Member Since {memberSince}
-              </span>
-            )}
-            <span className="font-body font-bold text-[length:var(--text-xl)] text-primary leading-none truncate" style={{ fontVariationSettings: '"opsz" 14' }}>
-              {username}
-            </span>
-            <span className="font-silkscreen text-[length:var(--text-mini)] text-secondary leading-none">
-              {crewCount} group chat{crewCount !== 1 ? 's' : ''} · {totalMessages.toLocaleString()} msg
-            </span>
-          </div>
+        {/* Avatar 48×48 */}
+        <div className="w-12 h-12 flex-shrink-0 overflow-hidden relative bg-primary">
+          {avatarUrl ? (
+            <Image src={resolveAvatarUrl(avatarUrl, 48)} alt={username} fill sizes="48px" className="object-cover" priority unoptimized={isSupabaseStorage(avatarUrl)} />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center font-pixel text-[10px] text-black">
+              {username[0]?.toUpperCase() ?? '?'}
+            </div>
+          )}
         </div>
 
-        {/* Right column: coin badge + friendship XP badge */}
-        <div className="flex-shrink-0 flex flex-col items-end" style={{ gap: 'var(--space-2)' }}>
-          {/* Coin badge — Figma 178:1077: no background, number w-[26px] + coin icon 12×12 */}
-          <div className="relative">
-            <button
-              onClick={(e) => { e.stopPropagation(); onCoinTap() }}
-              aria-label={`${infiniteCoins ? '∞' : coins} coins`}
-              className="flex items-center justify-end"
-              style={{ gap: 'var(--space-2)' }}
-            >
-              <span className="font-silkscreen leading-none w-[26px] pb-[2px] text-right" style={{ fontSize: 'var(--text-xs)', color: '#f59e0b' }}>
-                {infiniteCoins ? '∞' : coins.toLocaleString()}
-              </span>
-              <TokeCircle style={{ width: 12, height: 12, color: '#f59e0b' }} aria-hidden="true" />
-            </button>
-            <AnimatePresence>
-              {showCoinTip && (
-                <motion.div
-                  initial={{ opacity: 0, y: -4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -4 }}
-                  transition={{ duration: 0.15 }}
-                  className="absolute right-0 top-full mt-1 z-50 whitespace-nowrap font-silkscreen text-[8px] text-primary bg-surface border border-border px-2 py-1"
-                >
-                  25 COINS = 1 CREW INVITE
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+        {/* Name + stats + currency row */}
+        <div className="flex-1 min-w-0 flex flex-col gap-[var(--space-2)] justify-center leading-none">
+          {memberSince && (
+            <span className="font-silkscreen text-[length:var(--text-mini)] text-secondary leading-none">
+              Member Since {memberSince}
+            </span>
+          )}
+          <span className="font-body font-bold text-[length:var(--text-xl)] text-primary leading-none truncate" style={{ fontVariationSettings: '"opsz" 14' }}>
+            {username}
+          </span>
+          <span className="font-silkscreen text-[length:var(--text-mini)] text-secondary leading-none">
+            {crewCount} group chat{crewCount !== 1 ? 's' : ''} · {totalMessages.toLocaleString()} msg
+          </span>
 
-          {/* Friendship XP badge — Figma 116:742: no background, gradient text + heart icon 12×12 */}
-          <div className="relative">
-            <button
-              onClick={(e) => { e.stopPropagation(); onHeartTap() }}
-              aria-label={`${infiniteFriendshipXP ? '∞' : totalFriendshipXP} friendship points`}
-              className="flex items-center justify-end"
-              style={{ gap: 'var(--space-2)' }}
-            >
-              <span
-                className="font-silkscreen leading-none pb-[2px]"
-                style={{
-                  fontSize: 'var(--text-xs)',
-                  background: 'linear-gradient(to right, #a855f7, #d946ef)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  backgroundClip: 'text',
-                }}
-              >
-                {infiniteFriendshipXP ? '∞' : totalFriendshipXP}
-              </span>
-              <Heart style={{ width: 12, height: 12, color: '#d946ef' }} aria-hidden="true" />
-            </button>
-            <AnimatePresence>
-              {showHeartTip && (
-                <motion.div
-                  initial={{ opacity: 0, y: -4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -4 }}
-                  transition={{ duration: 0.15 }}
-                  className="absolute right-0 top-full mt-1 z-50 whitespace-nowrap font-silkscreen text-[8px] text-primary bg-surface border border-border px-2 py-1"
-                >
-                  EARN FRIENDSHIP POINTS, SPEND ON COSMETICS SOON
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-
-          {/* Gem badge — gated on nexus_gem_feature */}
-          {gemFeatureEnabled && (
+          {/* Currency pills — horizontal row (Figma 189:969) */}
+          <div className="flex items-center gap-[var(--space-3)]">
+            {/* Coin */}
             <div className="relative">
               <button
-                onClick={(e) => { e.stopPropagation(); onGemTap() }}
-                aria-label={`${gemBalance} gems`}
-                className="flex items-center justify-end"
-                style={{ gap: 'var(--space-2)' }}
+                onClick={(e) => { e.stopPropagation(); onCoinTap() }}
+                aria-label={`${infiniteCoins ? '∞' : coins} coins`}
+                className="flex items-center gap-[var(--space-2)]"
               >
-                <span className="font-silkscreen leading-none pb-[2px]" style={{ fontSize: 'var(--text-xs)', color: '#00e5ff' }}>
-                  {gemBalance}
+                <TokeCircle style={{ width: 12, height: 12, color: 'var(--color-coins)' }} aria-hidden="true" />
+                <span className="font-silkscreen leading-none pb-[2px]" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-coins)' }}>
+                  {infiniteCoins ? '∞' : coins.toLocaleString()}
                 </span>
-                <GemIcon width={12} height={12} />
               </button>
               <AnimatePresence>
-                {showGemTip && (
+                {showCoinTip && (
                   <motion.div
                     initial={{ opacity: 0, y: -4 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -4 }}
                     transition={{ duration: 0.15 }}
-                    className="absolute right-0 top-full mt-1 z-50 whitespace-nowrap font-silkscreen text-[8px] text-primary bg-surface border border-border px-2 py-1"
+                    className="absolute left-0 top-full mt-1 z-50 whitespace-nowrap font-silkscreen text-[8px] text-primary bg-surface border border-border px-2 py-1"
                   >
-                    {claimedGemToday ? `${GEM_DAILY_LIMIT}/${GEM_DAILY_LIMIT} DAILY GEMS` : `0/${GEM_DAILY_LIMIT} DAILY GEMS`}
+                    25 COINS = 1 CREW INVITE
                   </motion.div>
                 )}
               </AnimatePresence>
             </div>
-          )}
+
+            <div className="w-[2px] h-[2px] bg-border-hover flex-shrink-0" aria-hidden="true" />
+
+            {/* Friendship XP */}
+            <div className="relative">
+              <button
+                onClick={(e) => { e.stopPropagation(); onHeartTap() }}
+                aria-label={`${infiniteFriendshipXP ? '∞' : totalFriendshipXP} friendship points`}
+                className="flex items-center gap-[var(--space-2)]"
+              >
+                <Heart style={{ width: 12, height: 12, color: '#d946ef' }} aria-hidden="true" />
+                <span
+                  className="font-silkscreen leading-none pb-[2px]"
+                  style={{
+                    fontSize: 'var(--text-xs)',
+                    background: 'linear-gradient(to right, #a855f7, #d946ef)',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    backgroundClip: 'text',
+                  }}
+                >
+                  {infiniteFriendshipXP ? '∞' : totalFriendshipXP}
+                </span>
+              </button>
+              <AnimatePresence>
+                {showHeartTip && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute left-0 top-full mt-1 z-50 whitespace-nowrap font-silkscreen text-[8px] text-primary bg-surface border border-border px-2 py-1"
+                  >
+                    EARN FRIENDSHIP POINTS, SPEND ON COSMETICS SOON
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Gem — gated on nexus_gem_feature */}
+            {gemFeatureEnabled && (
+              <>
+                <div className="w-[2px] h-[2px] bg-border-hover flex-shrink-0" aria-hidden="true" />
+                <div className="relative">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onGemTap() }}
+                    aria-label={`${gemBalance} gems`}
+                    className="flex items-center gap-[var(--space-2)]"
+                  >
+                    <GemIcon width={12} height={12} />
+                    <span className="font-silkscreen leading-none pb-[2px]" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-blue)' }}>
+                      {gemBalance}
+                    </span>
+                  </button>
+                  <AnimatePresence>
+                    {showGemTip && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -4 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute left-0 top-full mt-1 z-50 whitespace-nowrap font-silkscreen text-[8px] text-primary bg-surface border border-border px-2 py-1"
+                      >
+                        {claimedGemToday ? `${GEM_DAILY_LIMIT}/${GEM_DAILY_LIMIT} DAILY GEMS` : `0/${GEM_DAILY_LIMIT} DAILY GEMS`}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Status ticker — animated when status set, static placeholder otherwise */}
-      {status
-        ? <HomeStatusTicker status={status} />
-        : (
-          <p
-            className="font-silkscreen text-[length:var(--text-mini)] text-tertiary leading-none"
-          >
-            &ldquo;Whats the mood today...&rdquo;
-          </p>
-        )
-      }
+      {/* Status ticker — bordered strip (Figma 143:1440) */}
+      <div className="border-t border-b border-border px-[var(--space-3)] py-[var(--space-3)] overflow-hidden">
+        {status
+          ? <HomeStatusTicker status={status} />
+          : (
+            <p className="font-silkscreen text-[length:var(--text-mini)] text-tertiary leading-none">
+              &ldquo;Whats the mood today...&rdquo;
+            </p>
+          )
+        }
+      </div>
 
       {/* AFK XP bar — dev-only feature flag: nexus_afk_exp */}
       {afkExpEnabled && (
@@ -350,7 +349,7 @@ function AccountPreviewContainer({
         <button
           onClick={(e) => { e.stopPropagation(); onFriends() }}
           className="flex-1 flex items-center justify-center font-silkscreen text-[length:var(--text-xxs)] text-purple leading-none border border-purple bg-black active:opacity-70 transition-opacity"
-          style={{ gap: 'var(--space-2)', padding: '12px 16px', boxShadow: '2px 2px 0px 0px rgba(168,85,247,0.5)' }}
+          style={{ gap: 'var(--space-2)', padding: '12px 16px', boxShadow: '4px 4px 0px 0px rgba(168,85,247,0.5)' }}
         >
           <Notebook style={{ width: 12, height: 12, color: 'var(--color-purple)' }} aria-hidden="true" />
           friends
@@ -358,7 +357,7 @@ function AccountPreviewContainer({
         <button
           onClick={(e) => { e.stopPropagation(); onInviteSquad() }}
           className="flex-1 flex items-center justify-center font-silkscreen text-[length:var(--text-xxs)] text-primary leading-none bg-purple active:opacity-70 transition-opacity"
-          style={{ gap: 'var(--space-2)', padding: '12px 16px', boxShadow: '2px 2px 0px 0px rgba(168,85,247,0.5)' }}
+          style={{ gap: 'var(--space-2)', padding: '12px 16px', boxShadow: '4px 4px 0px 0px rgba(168,85,247,0.5)' }}
         >
           <Plus style={{ width: 12, height: 12, color: 'var(--color-primary)' }} aria-hidden="true" />
           Invite squad
@@ -1139,7 +1138,7 @@ export function HomeClient({
         className="flex-shrink-0 px-4 flex flex-col gap-6"
         style={{ paddingTop: 'max(env(safe-area-inset-top), 16px)', marginTop: 'var(--space-5)' }}
       >
-        <AccountPreviewContainer
+        <AccountPreview
           username={username}
           avatarUrl={avatarUrl}
           memberSince={memberSince}

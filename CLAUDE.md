@@ -64,7 +64,7 @@ XP: text=10 · voice=25 (disabled) · image=20 (disabled) · reaction=5 · poll=
 
 Coins: text/voice/image=1 · reaction/system=0 · generate-invite=−25 · seed-to-new-user=+50
 - `handle_new_user` trigger → 50 signup bonus · invite alphabet: `ABCDEFGHJKLMNPQRSTUVWXYZ23456789`
-- Balance in `profiles.coins`; `chatStore.userCoins`; shown in `AccountPreviewContainer` (bare `TokeCircle` 24×16 + Silkscreen number) and profile hero glass badge
+- Balance in `profiles.coins`; `chatStore.userCoins`; shown in `AccountPreview` (bare `TokeCircle` 24×16 + Silkscreen number) and profile hero glass badge
 - Tap-tooltip: shows "25 COINS = 1 CREW INVITE" for 2s; coins awarded only when `xpBlocked = false`
 
 Friendship XP: 1pt per DM send or @mention · 10pt daily cap (local midnight, tracked in `friendship_xp_log` by `sender_id`) · `award-friendship-xp` edge function · fully launched
@@ -222,7 +222,7 @@ Server: verifies friendship → `get_or_create_dm(friendId)` → renders chat. `
 `public/sprites/{spriteId}/{direction}.png` · 8 directions · 24×24px · plain `<img imageRendering: pixelated>` (never `next/image`) · `maxWidth: 'none'` required
 
 ### AnnouncementBanner
-Below `AccountPreviewContainer` · `bg-[var(--color-blue)]/10 border border-[var(--color-blue)]` · swipe `'x'`, `dragElastic 0.15`, 40px threshold · pagination dots for 2+ banners
+Below `AccountPreview` · `bg-[var(--color-blue)]/10 border border-[var(--color-blue)]` · swipe `'x'`, `dragElastic 0.15`, 40px threshold · pagination dots for 2+ banners
 
 ## Caching
 
