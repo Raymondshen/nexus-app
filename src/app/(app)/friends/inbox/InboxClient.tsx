@@ -25,7 +25,7 @@ function BackButton() {
   )
 }
 
-function UserAvatar({ profile, size = 40 }: { profile: FriendProfile | null; size?: number }) {
+function UserAvatar({ profile, size = 48 }: { profile: FriendProfile | null; size?: number }) {
   return (
     <div
       className="flex-shrink-0 relative overflow-hidden bg-border"
@@ -44,6 +44,83 @@ function UserAvatar({ profile, size = 40 }: { profile: FriendProfile | null; siz
         <div className="w-full h-full flex items-center justify-center font-pixel text-[10px] text-primary">
           {profile?.username[0]?.toUpperCase() ?? '?'}
         </div>
+      )}
+    </div>
+  )
+}
+
+interface InboxCardPreviewProps {
+  entry: FriendEntry
+  variant: 'incoming' | 'outgoing'
+  loading: boolean
+  onAccept?: (entry: FriendEntry) => void
+  onDecline?: (entry: FriendEntry) => void
+  onCancel?: (entry: FriendEntry) => void
+}
+
+function InboxCardPreview({ entry, variant, loading, onAccept, onDecline, onCancel }: InboxCardPreviewProps) {
+  return (
+    <div className="flex items-center overflow-hidden" style={{ gap: 'var(--space-5)' }}>
+      <UserAvatar profile={entry.profile} size={48} />
+
+      <div className="flex-1 min-w-0 flex flex-col" style={{ gap: 'var(--space-2)', letterSpacing: '0.2px' }}>
+        <span
+          className="font-body font-bold text-[length:var(--text-md)] text-primary leading-none truncate"
+          style={{ fontVariationSettings: '"opsz" 14' }}
+        >
+          {entry.profile?.username ?? '—'}
+        </span>
+        <span
+          className="font-body font-normal text-[length:var(--text-sm)] leading-none"
+          style={{ color: variant === 'outgoing' ? 'var(--yellow)' : 'var(--color-secondary)' }}
+        >
+          {variant === 'outgoing' ? 'Sent friend request' : 'Wants to be your friend'}
+        </span>
+      </div>
+
+      {variant === 'incoming' ? (
+        <div className="flex items-center flex-shrink-0" style={{ gap: 'var(--space-5)' }}>
+          <button
+            disabled={loading}
+            onClick={() => onAccept?.(entry)}
+            aria-label="Accept friend request"
+            className="flex items-center justify-center overflow-hidden disabled:opacity-50 active:opacity-70"
+            style={{
+              background: 'var(--green)',
+              borderRadius: 'var(--space-3)',
+              padding: 'var(--space-4)',
+            }}
+          >
+            <Check style={{ width: 16, height: 16, color: 'white' }} aria-hidden="true" />
+          </button>
+          <button
+            disabled={loading}
+            onClick={() => onDecline?.(entry)}
+            aria-label="Decline friend request"
+            className="flex items-center justify-center overflow-hidden disabled:opacity-50 active:opacity-70"
+            style={{
+              background: 'var(--red)',
+              borderRadius: 'var(--space-3)',
+              padding: 'var(--space-4)',
+            }}
+          >
+            <Close style={{ width: 16, height: 16, color: 'white' }} aria-hidden="true" />
+          </button>
+        </div>
+      ) : (
+        <button
+          disabled={loading}
+          onClick={() => onCancel?.(entry)}
+          aria-label="Cancel friend request"
+          className="flex-shrink-0 flex items-center justify-center overflow-hidden disabled:opacity-50 active:opacity-70"
+          style={{
+            border: '1px solid var(--red)',
+            borderRadius: 'var(--space-3)',
+            padding: 'var(--space-4)',
+          }}
+        >
+          <Close style={{ width: 16, height: 16, color: 'var(--red)' }} aria-hidden="true" />
+        </button>
       )}
     </div>
   )
@@ -141,130 +218,30 @@ export function InboxClient({ incomingRequests: initialIncoming, outgoingRequest
           </div>
         ) : (
           <>
-            {/* ── Incoming requests ── */}
-            {incoming.map((entry) => {
-              const loading = loadingIds.has(entry.friendship.id)
-              return (
-                <div
-                  key={entry.friendship.id}
-                  className="flex flex-col overflow-hidden"
-                  style={{ gap: 'var(--space-3)' }}
-                >
-                  {/* Profile details */}
-                  <div className="flex items-center overflow-hidden" style={{ gap: 'var(--space-5)' }}>
-                    <UserAvatar profile={entry.profile} size={40} />
-                    <div className="flex-1 min-w-0 flex flex-col" style={{ gap: 'var(--space-2)', letterSpacing: '0.2px' }}>
-                      <span
-                        className="font-body font-semibold text-[length:var(--text-md)] text-primary leading-normal truncate"
-                        style={{ fontVariationSettings: '"opsz" 14' }}
-                      >
-                        {entry.profile?.username ?? '—'}
-                      </span>
-                      <span className="font-silkscreen text-[length:var(--text-xxs)] leading-normal" style={{ color: 'var(--color-blue)' }}>
-                        Wants to be your friend
-                      </span>
-                    </div>
-                  </div>
+            {incoming.map((entry) => (
+              <InboxCardPreview
+                key={entry.friendship.id}
+                entry={entry}
+                variant="incoming"
+                loading={loadingIds.has(entry.friendship.id)}
+                onAccept={handleAccept}
+                onDecline={handleDecline}
+              />
+            ))}
 
-                  {/* Accept / Decline buttons */}
-                  <div className="flex items-center" style={{ gap: 'var(--space-5)' }}>
-                    <button
-                      disabled={loading}
-                      onClick={() => handleAccept(entry)}
-                      className="flex-1 flex items-center justify-center overflow-hidden disabled:opacity-50 active:opacity-70"
-                      style={{
-                        background: 'var(--green)',
-                        boxShadow: '4px 4px 0px 0px rgba(34,197,94,0.5)',
-                        gap: 'var(--space-2)',
-                        paddingLeft: 'var(--space-5)',
-                        paddingRight: 'var(--space-5)',
-                        paddingTop: 'var(--space-4)',
-                        paddingBottom: 'var(--space-4)',
-                      }}
-                    >
-                      <Check style={{ width: 12, height: 12, color: 'white', flexShrink: 0 }} aria-hidden="true" />
-                      <span className="font-silkscreen text-[length:var(--text-xxs)] text-primary whitespace-nowrap leading-none">
-                        {loading ? '...' : 'accept'}
-                      </span>
-                    </button>
-                    <button
-                      disabled={loading}
-                      onClick={() => handleDecline(entry)}
-                      className="flex-1 flex items-center justify-center overflow-hidden disabled:opacity-50 active:opacity-70"
-                      style={{
-                        background: 'var(--red)',
-                        boxShadow: '4px 4px 0px 0px rgba(239,68,68,0.5)',
-                        gap: 'var(--space-2)',
-                        paddingLeft: 'var(--space-5)',
-                        paddingRight: 'var(--space-5)',
-                        paddingTop: 'var(--space-4)',
-                        paddingBottom: 'var(--space-4)',
-                      }}
-                    >
-                      <Close style={{ width: 12, height: 12, color: 'white', flexShrink: 0 }} aria-hidden="true" />
-                      <span className="font-silkscreen text-[length:var(--text-xxs)] text-primary whitespace-nowrap leading-none">
-                        {loading ? '...' : 'decline'}
-                      </span>
-                    </button>
-                  </div>
-                </div>
-              )
-            })}
-
-            {/* ── Divider between sections ── */}
             {incoming.length > 0 && outgoing.length > 0 && (
               <div className="border-t border-border" />
             )}
 
-            {/* ── Outgoing requests ── */}
-            {outgoing.map((entry) => {
-              const loading = loadingIds.has(entry.friendship.id)
-              return (
-                <div
-                  key={entry.friendship.id}
-                  className="flex flex-col overflow-hidden"
-                  style={{ gap: 'var(--space-3)' }}
-                >
-                  {/* Profile details */}
-                  <div className="flex items-center overflow-hidden" style={{ gap: 'var(--space-5)' }}>
-                    <UserAvatar profile={entry.profile} size={40} />
-                    <div className="flex-1 min-w-0 flex flex-col" style={{ gap: 'var(--space-2)', letterSpacing: '0.2px' }}>
-                      <span
-                        className="font-body font-semibold text-[length:var(--text-md)] text-primary leading-normal truncate"
-                        style={{ fontVariationSettings: '"opsz" 14' }}
-                      >
-                        {entry.profile?.username ?? '—'}
-                      </span>
-                      <span className="font-silkscreen text-[length:var(--text-xxs)] leading-normal" style={{ color: 'var(--color-coins)' }}>
-                        Sent friend request
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Cancel request button */}
-                  <button
-                    disabled={loading}
-                    onClick={() => handleCancel(entry)}
-                    className="w-full flex items-center justify-center overflow-hidden disabled:opacity-50 active:opacity-70"
-                    style={{
-                      background: 'var(--background)',
-                      border: '1px solid var(--purple)',
-                      boxShadow: '4px 4px 0px 0px rgba(168,85,247,0.5)',
-                      gap: 'var(--space-2)',
-                      paddingLeft: 'var(--space-5)',
-                      paddingRight: 'var(--space-5)',
-                      paddingTop: 'var(--space-4)',
-                      paddingBottom: 'var(--space-4)',
-                    }}
-                  >
-                    <Close style={{ width: 12, height: 12, color: 'var(--purple)', flexShrink: 0 }} aria-hidden="true" />
-                    <span className="font-silkscreen text-[length:var(--text-xxs)] whitespace-nowrap leading-none" style={{ color: 'var(--purple)' }}>
-                      {loading ? '...' : 'Cancel request'}
-                    </span>
-                  </button>
-                </div>
-              )
-            })}
+            {outgoing.map((entry) => (
+              <InboxCardPreview
+                key={entry.friendship.id}
+                entry={entry}
+                variant="outgoing"
+                loading={loadingIds.has(entry.friendship.id)}
+                onCancel={handleCancel}
+              />
+            ))}
           </>
         )}
       </div>

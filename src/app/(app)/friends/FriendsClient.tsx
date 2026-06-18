@@ -12,7 +12,7 @@ import { Search } from 'pixelarticons/react/Search'
 import { Inbox } from 'pixelarticons/react/Inbox'
 import { Message as MessageIcon } from 'pixelarticons/react/Message'
 import { MailRight } from 'pixelarticons/react/MailRight'
-import { Trash } from 'pixelarticons/react/Trash'
+import { AvatarCircleMinus } from 'pixelarticons/react/AvatarCircleMinus'
 import { createClient } from '@/lib/supabase/client'
 import { signInWithGoogle } from '@/lib/supabase/auth'
 import { sendFriendRequestAction, deleteFriendshipAction } from './actions'
@@ -143,7 +143,7 @@ function FriendCardPreview({ entry }: { entry: FriendEntry }) {
         <UserAvatar profile={entry.profile} size={48} />
         {hasUnread && (
           <span
-            className="absolute top-0 left-0 rounded-full"
+            className="absolute -top-1 -right-1 rounded-full"
             style={{ width: 8, height: 8, background: 'var(--color-danger)' }}
             aria-label={`${entry.unreadCount} unread`}
           />
@@ -185,7 +185,7 @@ function FriendCardPreview({ entry }: { entry: FriendEntry }) {
 
 // ─── Swipeable friend card ────────────────────────────────────────────────────
 
-const REMOVE_REVEAL = 40
+const REMOVE_REVEAL = 56  // 40px button (p-12 + icon-16 + p-12) + 16px gap
 
 function SwipeableFriendCard({
   entry,
@@ -237,11 +237,11 @@ function SwipeableFriendCard({
   return (
     <div className="overflow-hidden">
       <motion.div
-        className="flex"
+        className="flex items-center"
         drag="x"
         dragConstraints={{ left: -REMOVE_REVEAL, right: 0 }}
         dragElastic={{ left: 0.05, right: 0.1 }}
-        style={{ x, width: `calc(100% + ${REMOVE_REVEAL}px)` }}
+        style={{ x, width: `calc(100% + ${REMOVE_REVEAL}px)`, gap: 'var(--space-5)' }}
         onDragStart={() => { wasDragging.current = true; onOpen(entry.friendship.id) }}
         onDragEnd={handleDragEnd}
       >
@@ -254,13 +254,13 @@ function SwipeableFriendCard({
         </motion.div>
 
         <button
-          className="flex-shrink-0 self-stretch flex items-center justify-center bg-[var(--red)] overflow-hidden rounded-[8px]"
-          style={{ width: REMOVE_REVEAL, padding: 12 }}
+          className="flex-shrink-0 flex items-center justify-center bg-[var(--red)] overflow-hidden rounded-[var(--space-3)]"
+          style={{ padding: 'var(--space-4)' }}
           onClick={(e) => { e.stopPropagation(); snapTo(0, false); onRemoveRequest() }}
           tabIndex={open ? 0 : -1}
           aria-label={`Remove ${entry.profile?.username}`}
         >
-          <Trash style={{ width: 16, height: 16, color: 'white' }} aria-hidden="true" />
+          <AvatarCircleMinus style={{ width: 16, height: 16, color: 'white' }} aria-hidden="true" />
         </button>
       </motion.div>
     </div>

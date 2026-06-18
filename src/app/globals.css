@@ -64,6 +64,7 @@
   --blue:       var(--color-blue);
   --red:        #ef4444;
   --green:      #22c55e;
+  --yellow:     var(--color-coins);  /* #f59e0b */
   /* Spacing (--xN) */
   --x1: 2px;
   --x2: var(--space-2);   /* 4px  */
