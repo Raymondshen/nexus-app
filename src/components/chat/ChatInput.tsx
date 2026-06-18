@@ -1369,6 +1369,14 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
               sessionStorage.setItem('nexus_chat_from', 'chat')
               router.push(`/chat/${crewId}/member/${memberId}`)
             }}
+            onDMPress={(memberId) => {
+              setIsExpanded(false)
+              router.push(`/dm/${memberId}`)
+            }}
+            onOpenGlossary={() => {
+              setIsExpanded(false)
+              router.push(`/chat/${crewId}/definitions`)
+            }}
             onRemoveMember={(member) => setRemoveTarget(member as MemberProfile)}
             onClose={() => setIsExpanded(false)}
           />

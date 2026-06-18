@@ -10,10 +10,13 @@ import { XP_PER_LEVEL } from '@/lib/game/xp'
 import { PixelSprite, spriteInfoFor } from '@/components/game/PixelSprite'
 import { MagicEdit } from 'pixelarticons/react/MagicEdit'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
+import { Braces } from 'pixelarticons/react/Braces'
 import { Crown } from 'pixelarticons/react/Crown'
 import { Copy } from 'pixelarticons/react/Copy'
 import { Check } from 'pixelarticons/react/Check'
 import { UserMinus } from 'pixelarticons/react/UserMinus'
+import { UserPlus } from 'pixelarticons/react/UserPlus'
+import { MailRight } from 'pixelarticons/react/MailRight'
 import { Message } from 'pixelarticons/react/Message'
 
 const CLASS_LABELS: Record<string, string> = {
@@ -46,12 +49,14 @@ interface SquadDetailsSheetProps {
   currentUserId:   string
   memberMsgCounts: Map<string, number>
   loadingCounts:   boolean
-  onUploadPhoto:   () => void
-  onNotifPress:    () => void
-  onSave:          (newName: string) => Promise<void>
-  onTapMember:     (memberId: string) => void
-  onRemoveMember?: (member: MiniMember) => void
-  onClose:         () => void
+  onUploadPhoto:    () => void
+  onNotifPress:     () => void
+  onSave:           (newName: string) => Promise<void>
+  onTapMember:      (memberId: string) => void
+  onDMPress?:       (memberId: string) => void
+  onOpenGlossary?:  () => void
+  onRemoveMember?:  (member: MiniMember) => void
+  onClose:          () => void
 }
 
 function StatusTicker({ status }: { status: string }) {
@@ -111,10 +116,10 @@ function StatusTicker({ status }: { status: string }) {
 }
 
 function MemberListRow({
-  profile, msgCount, loading, isOnline, isCreator, onTap, onRemove,
+  profile, msgCount, loading, isOnline, isCreator, onTap, onDM, onRemove,
 }: {
   profile: MiniMember; msgCount: number; loading: boolean; isOnline: boolean
-  isCreator?: boolean; onTap?: () => void; onRemove?: () => void
+  isCreator?: boolean; onTap?: () => void; onDM?: () => void; onRemove?: () => void
 }) {
   const spriteInfo = spriteInfoFor(profile.avatar_class ?? null)
   const url        = profile.avatar_url
@@ -166,16 +171,37 @@ function MemberListRow({
           </p>
         </div>
 
-        {/* Remove button — creator only */}
-        {onRemove && (
+        {/* Action buttons: remove (creator only) + view profile + DM */}
+        <div className="flex items-center flex-shrink-0" style={{ gap: 'var(--space-5)' }}>
+          {onRemove && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onRemove() }}
+              className="flex items-center justify-center active:opacity-70 transition-opacity"
+              style={{ width: 24, height: 24 }}
+              aria-label={`Remove ${profile.username}`}
+            >
+              <UserMinus style={{ width: 24, height: 24, color: 'var(--color-danger)' }} aria-hidden="true" />
+            </button>
+          )}
           <button
-            onClick={(e) => { e.stopPropagation(); onRemove() }}
-            className="flex-shrink-0 flex items-center justify-center w-8 h-8 text-[#ef4444] active:opacity-70 transition-opacity"
-            aria-label={`Remove ${profile.username}`}
+            onClick={(e) => { e.stopPropagation(); onTap?.() }}
+            className="flex items-center justify-center active:opacity-70 transition-opacity"
+            style={{ width: 24, height: 24 }}
+            aria-label={`View ${profile.username}'s profile`}
           >
-            <UserMinus style={{ width: 16, height: 16 }} aria-hidden="true" />
+            <UserPlus style={{ width: 24, height: 24, color: 'var(--color-secondary)' }} aria-hidden="true" />
           </button>
-        )}
+          {onDM && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onDM() }}
+              className="flex items-center justify-center active:opacity-70 transition-opacity"
+              style={{ width: 24, height: 24 }}
+              aria-label={`Message ${profile.username}`}
+            >
+              <MailRight style={{ width: 24, height: 24, color: 'var(--color-secondary)' }} aria-hidden="true" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Status ticker — only renders when the member has a status */}
@@ -407,7 +433,7 @@ export function SquadDetailsSheet({
   crewId, crewName, memberCount, crewImageUrl, members, onlineUserIds,
   crewXP, crewLevel, xpProgress, totalMessages, inviteCode, creatorId,
   currentUserId, memberMsgCounts, loadingCounts,
-  onUploadPhoto, onNotifPress, onSave, onTapMember, onRemoveMember, onClose,
+  onUploadPhoto, onNotifPress, onSave, onTapMember, onDMPress, onOpenGlossary, onRemoveMember, onClose,
 }: SquadDetailsSheetProps) {
   const [copied,         setCopied]         = useState(false)
   const [showSquadEdit,  setShowSquadEdit]  = useState(false)
@@ -505,8 +531,8 @@ export function SquadDetailsSheet({
                 </div>
               </div>
 
-              {/* Action buttons — Edit (creator) | Collapse */}
-              <div className="flex items-center gap-4 flex-shrink-0">
+              {/* Action buttons — Edit (creator) | Glossary | Collapse */}
+              <div className="flex items-center flex-shrink-0" style={{ gap: 'var(--space-5)' }}>
                 {currentUserId === creatorId && (
                   <button
                     onClick={() => setShowSquadEdit(true)}
@@ -517,6 +543,14 @@ export function SquadDetailsSheet({
                     <MagicEdit style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
                   </button>
                 )}
+                <button
+                  onClick={onOpenGlossary}
+                  className="flex items-center justify-center"
+                  style={{ width: 24, height: 24 }}
+                  aria-label="Squad glossary"
+                >
+                  <Braces style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+                </button>
                 <button
                   onClick={onClose}
                   className="flex items-center justify-center"
@@ -634,6 +668,11 @@ export function SquadDetailsSheet({
                 isOnline={onlineUserIds.has(m.id)}
                 isCreator={m.id === creatorId}
                 onTap={() => onTapMember(m.id)}
+                onDM={
+                  onDMPress && m.id !== currentUserId
+                    ? () => onDMPress(m.id)
+                    : undefined
+                }
                 onRemove={
                   currentUserId === creatorId && m.id !== currentUserId && !!inviteCode && onRemoveMember
                     ? () => onRemoveMember(m)
