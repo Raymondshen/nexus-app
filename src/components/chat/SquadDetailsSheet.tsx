@@ -14,8 +14,7 @@ import { Library } from 'pixelarticons/react/Library'
 import { Crown } from 'pixelarticons/react/Crown'
 import { Copy } from 'pixelarticons/react/Copy'
 import { Check } from 'pixelarticons/react/Check'
-import { UserMinus } from 'pixelarticons/react/UserMinus'
-import { User } from 'pixelarticons/react/User'
+import { UserX } from 'pixelarticons/react/UserX'
 import { MailRight } from 'pixelarticons/react/MailRight'
 import { Message } from 'pixelarticons/react/Message'
 
@@ -171,26 +170,8 @@ function MemberListRow({
           </p>
         </div>
 
-        {/* Action buttons: remove (creator only) + view profile + DM */}
+        {/* Action buttons: DM + remove (creator only) */}
         <div className="flex items-center flex-shrink-0" style={{ gap: 'var(--space-5)' }}>
-          {onRemove && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onRemove() }}
-              className="flex items-center justify-center active:opacity-70 transition-opacity"
-              style={{ width: 24, height: 24 }}
-              aria-label={`Remove ${profile.username}`}
-            >
-              <UserMinus style={{ width: 24, height: 24, color: 'var(--color-danger)' }} aria-hidden="true" />
-            </button>
-          )}
-          <button
-            onClick={(e) => { e.stopPropagation(); onTap?.() }}
-            className="flex items-center justify-center active:opacity-70 transition-opacity"
-            style={{ width: 16, height: 24 }}
-            aria-label={`View ${profile.username}'s profile`}
-          >
-            <User style={{ width: 16, height: 24, color: 'var(--color-secondary)' }} aria-hidden="true" />
-          </button>
           {onDM && (
             <button
               onClick={(e) => { e.stopPropagation(); onDM() }}
@@ -199,6 +180,16 @@ function MemberListRow({
               aria-label={`Message ${profile.username}`}
             >
               <MailRight style={{ width: 16, height: 24, color: 'var(--color-secondary)' }} aria-hidden="true" />
+            </button>
+          )}
+          {onRemove && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onRemove() }}
+              className="flex items-center justify-center active:opacity-70 transition-opacity"
+              style={{ width: 24, height: 24 }}
+              aria-label={`Remove ${profile.username}`}
+            >
+              <UserX style={{ width: 24, height: 24, color: 'var(--color-danger)' }} aria-hidden="true" />
             </button>
           )}
         </div>
