@@ -10,8 +10,9 @@ function buildFriends(
   friendshipRows: Array<{ id: string; requester_id: string; addressee_id: string }>,
   profiles: Array<{ id: string; username: string; avatar_url: string | null }>,
   userId: string,
-  dmCrewMap:    Map<string, string> = new Map(),
-  dmLastMsgMap: Map<string, { content: string; created_at: string }> = new Map(),
+  dmCrewMap:     Map<string, string>                                   = new Map(),
+  dmLastMsgMap:  Map<string, { content: string; created_at: string }> = new Map(),
+  dmUnreadMap:   Map<string, number>                                   = new Map(),
 ): FriendSummary[] {
   const profileMap = new Map(profiles.map((p) => [p.id, p]))
   return friendshipRows.map((f) => {
@@ -23,6 +24,7 @@ function buildFriends(
       avatarUrl:     p?.avatar_url ?? null,
       dmChannelId:   dmCrewMap.get(friendId) ?? null,
       lastDMMessage: dmLastMsgMap.get(friendId) ?? null,
+      unreadCount:   dmUnreadMap.get(friendId) ?? 0,
     }
   })
 }
@@ -241,9 +243,10 @@ export default async function HomePage() {
     memberships.filter(m => m.crew).map(m => [m.crew_id, m.crew as unknown as Crew])
   )
 
-  // Build DM channel maps: friendId → crewId, friendId → last message
+  // Build DM channel maps: friendId → crewId, friendId → last message, friendId → unread count
   const dmCrewMap    = new Map<string, string>()
   const dmLastMsgMap = new Map<string, { content: string; created_at: string }>()
+  const dmUnreadMap  = new Map<string, number>()
   for (let i = 0; i < memberships.length; i++) {
     const crew = crewMap.get(memberships[i].crew_id)
     if (!crew?.is_dm) continue
@@ -252,9 +255,11 @@ export default async function HomePage() {
     dmCrewMap.set(friendId, crew.id)
     const lm = lastMessages[i]
     if (lm) dmLastMsgMap.set(friendId, { content: lm.content, created_at: lm.created_at })
+    const unread = unreadMap.get(memberships[i].crew_id) ?? 0
+    if (unread > 0) dmUnreadMap.set(friendId, unread)
   }
 
-  const friends = buildFriends(friendshipRows, friendProfiles, user.id, dmCrewMap, dmLastMsgMap)
+  const friends = buildFriends(friendshipRows, friendProfiles, user.id, dmCrewMap, dmLastMsgMap, dmUnreadMap)
 
   // Build userId → username cache and memberCount per crew from cached member rows
   const profileCache: Record<string, string> = {}

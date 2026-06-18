@@ -12,6 +12,7 @@ import { Trash } from 'pixelarticons/react/Trash'
 import { Notebook } from 'pixelarticons/react/Notebook'
 import { Plus } from 'pixelarticons/react/Plus'
 import { Message as MessageIcon } from 'pixelarticons/react/Message'
+import { MailRight } from 'pixelarticons/react/MailRight'
 import Image from 'next/image'
 import { isSupabaseStorage, resolveAvatarUrl } from '@/components/ui/Avatar'
 import { createClient } from '@/lib/supabase/client'
@@ -37,6 +38,7 @@ export interface FriendSummary {
   avatarUrl:     string | null
   dmChannelId:   string | null
   lastDMMessage: { content: string; created_at: string } | null
+  unreadCount:   number
 }
 
 interface HomeClientProps {
@@ -617,7 +619,7 @@ function LeaveConfirmSheet({
 
 const CREW_AVATAR_COLORS = ['#bf5fff', '#00e5ff', '#ffd700', '#ff4444', '#66bb6a', '#ff9800']
 
-function CrewCardContent({ summary, onAvatarTap }: { summary: CrewSummary; onAvatarTap?: () => void }) {
+function SquadCardPreview({ summary, onAvatarTap }: { summary: CrewSummary; onAvatarTap?: () => void }) {
   const { crew, lastMessage, unreadCount } = summary
   const hasUnread   = unreadCount > 0
   const xpInLevel   = crew.total_xp % XP_PER_LEVEL
@@ -701,7 +703,7 @@ function CrewCardContent({ summary, onAvatarTap }: { summary: CrewSummary; onAva
 
 // ─── Swipeable crew card ──────────────────────────────────────────────────────
 
-const LEAVE_REVEAL = 104
+const LEAVE_REVEAL = 40
 
 function SwipeableCrewCard({
   summary,
@@ -766,7 +768,7 @@ function SwipeableCrewCard({
           onClick={handleClick}
           whileTap={{ scale: open ? 1 : 0.98 }}
         >
-          <CrewCardContent summary={summary} onAvatarTap={onTap} />
+          <SquadCardPreview summary={summary} onAvatarTap={onTap} />
         </motion.div>
 
         <button
@@ -1114,31 +1116,35 @@ export function HomeClient({
         }}
       >
 
-        {/* Direct Messages compact banner card — nav to /friends */}
-        {friends.length > 0 && (
-          <button
-            className="w-full bg-surface border border-border rounded-[8px] p-[var(--space-5)] flex items-center gap-[var(--space-4)] text-left active:opacity-80 transition-opacity"
-            onClick={() => router.push('/friends')}
-            aria-label="Open Direct Messages"
-          >
-            <MessageIcon style={{ width: 16, height: 16, color: 'var(--color-primary)' }} aria-hidden="true" />
-            <div className="flex-1 min-w-0 flex flex-col">
-              <span
-                className="font-body font-medium text-[length:var(--text-sm)] text-primary leading-normal tracking-[0.2px]"
-                style={{ fontVariationSettings: '"opsz" 14' }}
-              >
-                Direct Messages
-              </span>
-              <span
-                className="font-body font-normal text-[length:var(--text-xxs)] text-tertiary leading-normal"
-                style={{ fontVariationSettings: '"opsz" 14' }}
-              >
-                {friends.length} friend{friends.length !== 1 ? 's' : ''}
-              </span>
-            </div>
-            <ChevronRight style={{ width: 16, height: 16, color: 'var(--color-primary)' }} aria-hidden="true" />
-          </button>
-        )}
+        {/* Direct Messages compact banner card — only visible when there are unread DMs */}
+        {(() => {
+          const totalDMUnread = friends.reduce((sum, f) => sum + f.unreadCount, 0)
+          if (totalDMUnread === 0) return null
+          return (
+            <button
+              className="w-full bg-surface border border-border rounded-[8px] p-[var(--space-5)] flex items-center gap-[var(--space-4)] text-left active:opacity-80 transition-opacity"
+              onClick={() => router.push('/friends')}
+              aria-label="Open Direct Messages"
+            >
+              <MailRight style={{ width: 16, height: 16, color: 'var(--color-primary)' }} aria-hidden="true" />
+              <div className="flex-1 min-w-0 flex flex-col">
+                <span
+                  className="font-body font-medium text-[length:var(--text-sm)] text-primary leading-normal tracking-[0.2px]"
+                  style={{ fontVariationSettings: '"opsz" 14' }}
+                >
+                  Direct Messages
+                </span>
+                <span
+                  className="font-body font-normal text-[length:var(--text-xxs)] text-tertiary leading-normal"
+                  style={{ fontVariationSettings: '"opsz" 14' }}
+                >
+                  {totalDMUnread} unread message{totalDMUnread !== 1 ? 's' : ''}
+                </span>
+              </div>
+              <ChevronRight style={{ width: 16, height: 16, color: 'var(--color-primary)' }} aria-hidden="true" />
+            </button>
+          )
+        })()}
 
         {/* Squads section — 8px gap between label and list, 16px between items */}
         <div className="flex flex-col gap-[var(--space-3)] w-full">
