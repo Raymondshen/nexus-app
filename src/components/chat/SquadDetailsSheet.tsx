@@ -10,12 +10,12 @@ import { XP_PER_LEVEL } from '@/lib/game/xp'
 import { PixelSprite, spriteInfoFor } from '@/components/game/PixelSprite'
 import { MagicEdit } from 'pixelarticons/react/MagicEdit'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
-import { Braces } from 'pixelarticons/react/Braces'
+import { Library } from 'pixelarticons/react/Library'
 import { Crown } from 'pixelarticons/react/Crown'
 import { Copy } from 'pixelarticons/react/Copy'
 import { Check } from 'pixelarticons/react/Check'
 import { UserMinus } from 'pixelarticons/react/UserMinus'
-import { UserPlus } from 'pixelarticons/react/UserPlus'
+import { User } from 'pixelarticons/react/User'
 import { MailRight } from 'pixelarticons/react/MailRight'
 import { Message } from 'pixelarticons/react/Message'
 
@@ -186,19 +186,19 @@ function MemberListRow({
           <button
             onClick={(e) => { e.stopPropagation(); onTap?.() }}
             className="flex items-center justify-center active:opacity-70 transition-opacity"
-            style={{ width: 24, height: 24 }}
+            style={{ width: 16, height: 24 }}
             aria-label={`View ${profile.username}'s profile`}
           >
-            <UserPlus style={{ width: 24, height: 24, color: 'var(--color-secondary)' }} aria-hidden="true" />
+            <User style={{ width: 16, height: 24, color: 'var(--color-secondary)' }} aria-hidden="true" />
           </button>
           {onDM && (
             <button
               onClick={(e) => { e.stopPropagation(); onDM() }}
               className="flex items-center justify-center active:opacity-70 transition-opacity"
-              style={{ width: 24, height: 24 }}
+              style={{ width: 16, height: 24 }}
               aria-label={`Message ${profile.username}`}
             >
-              <MailRight style={{ width: 24, height: 24, color: 'var(--color-secondary)' }} aria-hidden="true" />
+              <MailRight style={{ width: 16, height: 24, color: 'var(--color-secondary)' }} aria-hidden="true" />
             </button>
           )}
         </div>
@@ -549,7 +549,7 @@ export function SquadDetailsSheet({
                   style={{ width: 24, height: 24 }}
                   aria-label="Squad glossary"
                 >
-                  <Braces style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+                  <Library style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
                 </button>
                 <button
                   onClick={onClose}
