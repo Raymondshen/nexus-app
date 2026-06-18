@@ -176,20 +176,20 @@ function MemberListRow({
             <button
               onClick={(e) => { e.stopPropagation(); onRemove() }}
               className="flex items-center justify-center active:opacity-70 transition-opacity"
-              style={{ width: 16, height: 24 }}
+              style={{ width: 'var(--space-6)', height: 'var(--space-6)' }}
               aria-label={`Remove ${profile.username}`}
             >
-              <UserX style={{ width: 16, height: 24, color: 'var(--color-danger)' }} aria-hidden="true" />
+              <UserX style={{ width: 'var(--space-6)', height: 'var(--space-6)', color: 'var(--color-danger)' }} aria-hidden="true" />
             </button>
           )}
           {onDM && (
             <button
               onClick={(e) => { e.stopPropagation(); onDM() }}
               className="flex items-center justify-center active:opacity-70 transition-opacity"
-              style={{ width: 16, height: 24 }}
+              style={{ width: 'var(--space-6)', height: 'var(--space-6)' }}
               aria-label={`Message ${profile.username}`}
             >
-              <MailRight style={{ width: 16, height: 24, color: 'var(--color-secondary)' }} aria-hidden="true" />
+              <MailRight style={{ width: 'var(--space-6)', height: 'var(--space-6)', color: 'var(--color-secondary)' }} aria-hidden="true" />
             </button>
           )}
         </div>
