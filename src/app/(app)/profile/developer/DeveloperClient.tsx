@@ -92,8 +92,6 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
   const [showPush,            setShowPush]            = useState(false)
   const [infiniteCoins,       setInfiniteCoins]       = useState(false)
   const [chatCamera,          setChatCamera]          = useState(false)
-  const [gemFeature,          setGemFeature]          = useState(false)
-  const [infiniteFriendshipXP, setInfiniteFriendshipXP] = useState(false)
   const [fxpResetConfirm,     setFxpResetConfirm]     = useState(false)
   const [resettingFXP,        setResettingFXP]        = useState(false)
   const [fxpResetDone,        setFxpResetDone]        = useState(false)
@@ -112,8 +110,6 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
     setShowPush(localStorage.getItem('nexus_push_diag') === '1')
     setInfiniteCoins(localStorage.getItem('nexus_infinite_coins') === '1')
     setChatCamera(localStorage.getItem('nexus_chat_camera') === '1')
-    setGemFeature(localStorage.getItem('nexus_gem_feature') === '1')
-    setInfiniteFriendshipXP(localStorage.getItem('nexus_infinite_fxp') === '1')
     setPinFeature(localStorage.getItem('nexus_pin_feature') === '1')
     setEventsFeature(localStorage.getItem('nexus_events_enabled') === '1')
   }, [])
@@ -148,13 +144,6 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
     else localStorage.removeItem('nexus_chat_camera')
   }
 
-  function toggleGemFeature() {
-    const next = !gemFeature
-    setGemFeature(next)
-    if (next) localStorage.setItem('nexus_gem_feature', '1')
-    else localStorage.removeItem('nexus_gem_feature')
-  }
-
   function togglePinFeature() {
     const next = !pinFeature
     setPinFeature(next)
@@ -167,14 +156,6 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
     setEventsFeature(next)
     if (next) localStorage.setItem('nexus_events_enabled', '1')
     else localStorage.removeItem('nexus_events_enabled')
-  }
-
-  function toggleInfiniteFriendshipXP() {
-    const next = !infiniteFriendshipXP
-    setInfiniteFriendshipXP(next)
-    if (next) localStorage.setItem('nexus_infinite_fxp', '1')
-    else localStorage.removeItem('nexus_infinite_fxp')
-    window.dispatchEvent(new CustomEvent('nexus-infinite-fxp-change', { detail: { on: next } }))
   }
 
   async function handleResetFriendshipXP() {
@@ -370,13 +351,6 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
           />
 
           <ToggleRow
-            title="Gem Feature"
-            description="Enable daily gem claim + counter in chat"
-            enabled={gemFeature}
-            onChange={toggleGemFeature}
-          />
-
-          <ToggleRow
             title="Pin Feature"
             description="Enable message pinning in group chats"
             enabled={pinFeature}
@@ -417,13 +391,6 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
               </span>
             </button>
           </div>
-
-          <ToggleRow
-            title="Infinite Friendship XP"
-            description="Show ∞ on the home card heart badge"
-            enabled={infiniteFriendshipXP}
-            onChange={toggleInfiniteFriendshipXP}
-          />
 
           {/* Reset friendship XP — two-step confirm */}
           <div className="flex items-center w-full" style={{ gap: 'var(--space-4)' }}>

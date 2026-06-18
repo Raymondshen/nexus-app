@@ -148,10 +148,8 @@ function AccountPreview({
   onFriends,
   onInviteSquad,
   totalFriendshipXP,
-  infiniteFriendshipXP,
   showHeartTip,
   onHeartTap,
-  gemFeatureEnabled,
   gemBalance,
   claimedGemToday,
   showGemTip,
@@ -171,10 +169,8 @@ function AccountPreview({
   onFriends:            () => void
   onInviteSquad:        () => void
   totalFriendshipXP:    number
-  infiniteFriendshipXP: boolean
   showHeartTip:         boolean
   onHeartTap:           () => void
-  gemFeatureEnabled:    boolean
   gemBalance:           number
   claimedGemToday:      boolean
   showGemTip:           boolean
@@ -245,7 +241,7 @@ function AccountPreview({
             <div className="relative">
               <button
                 onClick={(e) => { e.stopPropagation(); onHeartTap() }}
-                aria-label={`${infiniteFriendshipXP ? '∞' : totalFriendshipXP} friendship points`}
+                aria-label={`${totalFriendshipXP} friendship points`}
                 className="flex items-center gap-[var(--space-2)]"
               >
                 <Heart style={{ width: 12, height: 12, color: '#d946ef' }} aria-hidden="true" />
@@ -259,7 +255,7 @@ function AccountPreview({
                     backgroundClip: 'text',
                   }}
                 >
-                  {infiniteFriendshipXP ? '∞' : totalFriendshipXP}
+                  {totalFriendshipXP}
                 </span>
               </button>
               <AnimatePresence>
@@ -277,10 +273,9 @@ function AccountPreview({
               </AnimatePresence>
             </div>
 
-            {/* Gem — gated on nexus_gem_feature */}
-            {gemFeatureEnabled && (
-              <>
-                <div className="w-[2px] h-[2px] bg-border-hover flex-shrink-0" aria-hidden="true" />
+            {/* Gem balance */}
+            <>
+              <div className="w-[2px] h-[2px] bg-border-hover flex-shrink-0" aria-hidden="true" />
                 <div className="relative">
                   <button
                     onClick={(e) => { e.stopPropagation(); onGemTap() }}
@@ -306,8 +301,7 @@ function AccountPreview({
                     )}
                   </AnimatePresence>
                 </div>
-              </>
-            )}
+            </>
           </div>
         </div>
       </div>
@@ -875,9 +869,7 @@ export function HomeClient({
   const [showCoinTip,          setShowCoinTip]          = useState(false)
   const [showHeartTip,         setShowHeartTip]         = useState(false)
   const [infiniteCoins,        setInfiniteCoins]        = useState(false)
-  const [infiniteFriendshipXP, setInfiniteFriendshipXP] = useState(false)
   const [afkExpEnabled,        setAfkExpEnabled]        = useState(false)
-  const [gemFeatureEnabled,    setGemFeatureEnabled]    = useState(false)
   const [gemBalance,           setGemBalance]           = useState(() => {
     const store = useChatStore.getState()
     const base = Math.max(initialGemBalance, store.gemBalance)
@@ -908,16 +900,6 @@ export function HomeClient({
     return () => window.removeEventListener('nexus-infinite-coins-change', onFlagChange)
   }, [])
 
-  // Sync infinite friendship XP flag from localStorage + listen for dev-section toggle
-  useEffect(() => {
-    setInfiniteFriendshipXP(localStorage.getItem('nexus_infinite_fxp') === '1')
-    function onFlagChange(e: Event) {
-      setInfiniteFriendshipXP((e as CustomEvent<{ on: boolean }>).detail.on)
-    }
-    window.addEventListener('nexus-infinite-fxp-change', onFlagChange)
-    return () => window.removeEventListener('nexus-infinite-fxp-change', onFlagChange)
-  }, [])
-
   // Sync AFK XP feature flag from localStorage + listen for dev-section toggle
   useEffect(() => {
     setAfkExpEnabled(localStorage.getItem('nexus_afk_exp') === '1')
@@ -926,11 +908,6 @@ export function HomeClient({
     }
     window.addEventListener('nexus-afk-exp-change', onFlagChange)
     return () => window.removeEventListener('nexus-afk-exp-change', onFlagChange)
-  }, [])
-
-  // Gem feature flag + balance sync from chatStore + claimed-today status
-  useEffect(() => {
-    setGemFeatureEnabled(localStorage.getItem('nexus_gem_feature') === '1')
   }, [])
 
   useEffect(() => {
@@ -1146,13 +1123,11 @@ export function HomeClient({
           onFriends={() => router.push('/friends')}
           onInviteSquad={() => setShowCreate(true)}
           totalFriendshipXP={localFriendshipXP}
-          infiniteFriendshipXP={infiniteFriendshipXP}
           showHeartTip={showHeartTip}
           onHeartTap={() => {
             setShowHeartTip(true)
             setTimeout(() => setShowHeartTip(false), 2000)
           }}
-          gemFeatureEnabled={gemFeatureEnabled}
           gemBalance={gemBalance}
           claimedGemToday={claimedGemToday}
           showGemTip={showGemTip}

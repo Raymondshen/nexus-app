@@ -74,7 +74,7 @@ Friendship XP: 1pt per DM send or @mention · 10pt daily cap (local midnight, tr
 Gems: 1/day on first message in any crew · `award-gem` edge function + `claim_daily_gem` RPC are sole authority — client never awards
 - `profiles.gem_balance` + `last_gem_claim`; both blocked from client writes by `profiles_protect_gem_columns` trigger
 - Client gate (`src/lib/game/gems.ts`, idb-keyval `nexus_gem_claimed_at`): display/debounce only; checked in `ChatInput.send()` fire-and-forget
-- Dev-gated (`nexus_gem_feature`): `GemCounter` in `FloatingBackButton` right-icon row, `GemToast` on earn; "Reset Gem Cooldown" nulls `last_gem_claim` for caller + clears idb-keyval key
+- Fully launched: `GemCounter` in `FloatingBackButton` right-icon row, `GemToast` on earn always shown; "Reset Gem Cooldown" in dev page nulls `last_gem_claim` for caller + clears idb-keyval key
 
 Boss: The Void at every 500 XP · 48h window · 3 phases · defeat → artifact drop
 
@@ -112,7 +112,7 @@ Error copy: invalid → "The Nexus does not recognize this code." · used → "T
 ## Dev Mode
 `profiles.is_dev = true` — grant: `UPDATE profiles SET is_dev = true WHERE id IN (SELECT id FROM auth.users WHERE email = '...')`
 
-Dev section in `/profile/developer`: Announcements · Push Diagnostics (`nexus_push_diag`) · Infinite Coins (`nexus_infinite_coins`) · Spawn Boss Mode (`nexus_dev_mode`) · Chat Camera (`nexus_chat_camera`) · Gem Feature (`nexus_gem_feature`) · Pin Feature (`nexus_pin_feature`) · Reset Gem Cooldown · AFK Exp (`nexus_afk_exp`) · Infinite Friendship XP (`nexus_infinite_fxp`) · Reset Friendship XP
+Dev section in `/profile/developer`: Announcements · Push Diagnostics (`nexus_push_diag`) · Infinite Coins (`nexus_infinite_coins`) · Spawn Boss Mode (`nexus_dev_mode`) · Chat Camera (`nexus_chat_camera`) · Pin Feature (`nexus_pin_feature`) · Reset Gem Cooldown · AFK Exp (`nexus_afk_exp`) · Reset Friendship XP
 
 Server-side (`award-xp`): boss spawn + `LEVEL_UP:` only when `isDevUser = true`
 
@@ -135,8 +135,6 @@ localStorage:
 | `nexus_infinite_coins` | `'1'` |
 | `nexus_afk_exp` | `'1'` |
 | `nexus_chat_camera` | `'1'` |
-| `nexus_infinite_fxp` | `'1'` |
-| `nexus_gem_feature` | `'1'` |
 | `nexus_pin_feature` | `'1'` |
 | `nexus_dismissed_banners` | JSON array of IDs |
 

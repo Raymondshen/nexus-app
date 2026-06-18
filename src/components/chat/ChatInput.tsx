@@ -102,7 +102,6 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   const [spawnError,     setSpawnError]     = useState<string | null>(null)
   const [devMode,        setDevMode]        = useState(false)
   const [chatCameraEnabled, setChatCameraEnabled] = useState(false)
-  const [gemFeatureEnabled, setGemFeatureEnabled] = useState(false)
   const [gemToastVisible,   setGemToastVisible]   = useState(false)
   const [isExpanded,     setIsExpanded]     = useState(false)
   const [memberMsgCounts, setMemberMsgCounts] = useState<Map<string, number>>(new Map())
@@ -166,7 +165,6 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   useEffect(() => {
     setDevMode(localStorage.getItem('nexus_dev_mode') === '1')
     setChatCameraEnabled(localStorage.getItem('nexus_chat_camera') === '1')
-    setGemFeatureEnabled(localStorage.getItem('nexus_gem_feature') === '1')
     setEventsEnabled(localStorage.getItem('nexus_events_enabled') === '1')
   }, [])
 
@@ -486,7 +484,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
         },
       })
 
-      if (gemFeatureEnabled) tryClaimDailyGem(supabase, showGemToast)
+      tryClaimDailyGem(supabase, showGemToast)
 
       const msgId = raw.id
       fetch(`${SUPABASE_URL}/functions/v1/award-xp`, {
@@ -615,7 +613,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
         },
       })
 
-      if (gemFeatureEnabled) tryClaimDailyGem(supabase, showGemToast)
+      tryClaimDailyGem(supabase, showGemToast)
 
       const msgId = raw.id
       fetch(`${SUPABASE_URL}/functions/v1/award-xp`, {
@@ -927,10 +925,8 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
         dailyCount={friendshipToast?.dailyCount ?? 1}
       />
 
-      {/* ── Daily gem toast (dev-mode feature) ── */}
-      {gemFeatureEnabled && (
-        <GemToast visible={gemToastVisible} stacked={!!friendshipToast} />
-      )}
+      {/* ── Daily gem toast ── */}
+      <GemToast visible={gemToastVisible} stacked={!!friendshipToast} />
 
       {/* ── DM: "Chatting with" label ── */}
       {isDM && (
