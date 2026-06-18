@@ -701,6 +701,36 @@ function SquadCardPreview({ summary, onAvatarTap }: { summary: CrewSummary; onAv
   )
 }
 
+// ─── DM notification preview card ────────────────────────────────────────────
+
+function DmNotificationPreviewCard({ dmUnread, onTap }: { dmUnread: number; onTap: () => void }) {
+  if (dmUnread === 0) return null
+  return (
+    <button
+      className="w-full bg-surface border border-border rounded-[8px] p-[var(--space-5)] flex items-center gap-[var(--space-4)] text-left active:opacity-80 transition-opacity"
+      onClick={onTap}
+      aria-label="Open Direct Messages"
+    >
+      <MailRight style={{ width: 16, height: 16, color: 'var(--color-primary)' }} aria-hidden="true" />
+      <div className="flex-1 min-w-0 flex flex-col">
+        <span
+          className="font-body font-medium text-[length:var(--text-sm)] text-primary leading-normal tracking-[0.2px]"
+          style={{ fontVariationSettings: '"opsz" 14' }}
+        >
+          Direct Messages
+        </span>
+        <span
+          className="font-body font-normal text-[length:var(--text-xxs)] text-tertiary leading-normal"
+          style={{ fontVariationSettings: '"opsz" 14' }}
+        >
+          {dmUnread} unread message{dmUnread !== 1 ? 's' : ''}
+        </span>
+      </div>
+      <ChevronRight style={{ width: 16, height: 16, color: 'var(--color-primary)' }} aria-hidden="true" />
+    </button>
+  )
+}
+
 // ─── Swipeable crew card ──────────────────────────────────────────────────────
 
 const LEAVE_REVEAL = 40
@@ -858,6 +888,9 @@ export function HomeClient({
   })
   const [claimedGemToday,      setClaimedGemToday]      = useState(false)
   const [showGemTip,           setShowGemTip]           = useState(false)
+  const [dmUnread,             setDmUnread]             = useState(() =>
+    friends.reduce((sum, f) => sum + f.unreadCount, 0)
+  )
 
   const profileCacheRef = useRef<Record<string, string>>(profileCache)
   useEffect(() => { profileCacheRef.current = profileCache }, [profileCache])
@@ -962,6 +995,27 @@ export function HomeClient({
   }, [userId])
 
   const crewIds = crews.map((c) => c.crew.id)
+
+  // ── Realtime: increment dmUnread when a new DM arrives from another user ──
+  useEffect(() => {
+    const dmChannelIds = friends.map(f => f.dmChannelId).filter(Boolean) as string[]
+    if (dmChannelIds.length === 0) return
+    const supabase = createClient()
+    const seenIds  = new Set<string>()
+    const channels = dmChannelIds.map((crewId) =>
+      supabase
+        .channel(`messages:${crewId}`)
+        .on('broadcast', { event: 'new_message' }, (payload) => {
+          const msg = payload.payload as MessageWithProfile
+          if (!msg?.id || msg.user_id === userId || msg.message_type === 'system') return
+          if (seenIds.has(msg.id)) return
+          seenIds.add(msg.id)
+          setDmUnread(n => n + 1)
+        })
+        .subscribe()
+    )
+    return () => { channels.forEach((ch) => supabase.removeChannel(ch)) }
+  }, [friends.map(f => f.dmChannelId).filter(Boolean).sort().join(',')]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Realtime: live message previews + unread counts ──────────────────────
   useEffect(() => {
@@ -1116,35 +1170,10 @@ export function HomeClient({
         }}
       >
 
-        {/* Direct Messages compact banner card — only visible when there are unread DMs */}
-        {(() => {
-          const totalDMUnread = friends.reduce((sum, f) => sum + f.unreadCount, 0)
-          if (totalDMUnread === 0) return null
-          return (
-            <button
-              className="w-full bg-surface border border-border rounded-[8px] p-[var(--space-5)] flex items-center gap-[var(--space-4)] text-left active:opacity-80 transition-opacity"
-              onClick={() => router.push('/friends')}
-              aria-label="Open Direct Messages"
-            >
-              <MailRight style={{ width: 16, height: 16, color: 'var(--color-primary)' }} aria-hidden="true" />
-              <div className="flex-1 min-w-0 flex flex-col">
-                <span
-                  className="font-body font-medium text-[length:var(--text-sm)] text-primary leading-normal tracking-[0.2px]"
-                  style={{ fontVariationSettings: '"opsz" 14' }}
-                >
-                  Direct Messages
-                </span>
-                <span
-                  className="font-body font-normal text-[length:var(--text-xxs)] text-tertiary leading-normal"
-                  style={{ fontVariationSettings: '"opsz" 14' }}
-                >
-                  {totalDMUnread} unread message{totalDMUnread !== 1 ? 's' : ''}
-                </span>
-              </div>
-              <ChevronRight style={{ width: 16, height: 16, color: 'var(--color-primary)' }} aria-hidden="true" />
-            </button>
-          )
-        })()}
+        <DmNotificationPreviewCard
+          dmUnread={dmUnread}
+          onTap={() => router.push('/friends')}
+        />
 
         {/* Squads section — 8px gap between label and list, 16px between items */}
         <div className="flex flex-col gap-[var(--space-3)] w-full">
