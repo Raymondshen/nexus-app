@@ -68,7 +68,7 @@ export default async function FriendsPage() {
       dmEntries.map(({ crewId }) =>
         supabase
           .from('messages')
-          .select('content')
+          .select('content, created_at')
           .eq('crew_id', crewId)
           .neq('message_type', 'system')
           .order('created_at', { ascending: false })
@@ -90,14 +90,16 @@ export default async function FriendsPage() {
     profileMap[(p as FriendProfile).id] = p as FriendProfile
   }
 
-  // Build per-friend last-message and unread-count maps
-  const dmLastMsgMap = new Map<string, string>()
-  const dmUnreadMap  = new Map<string, number>()
+  // Build per-friend last-message, last-message-at, and unread-count maps
+  const dmLastMsgMap   = new Map<string, string>()
+  const dmLastMsgAtMap = new Map<string, string>()
+  const dmUnreadMap    = new Map<string, number>()
 
   for (let i = 0; i < dmEntries.length; i++) {
     const { friendId } = dmEntries[i]
-    const content = (lastMsgResults[i] as { data: { content: string } | null }).data?.content
-    if (content) dmLastMsgMap.set(friendId, content)
+    const row = (lastMsgResults[i] as { data: { content: string; created_at: string } | null }).data
+    if (row?.content)    dmLastMsgMap.set(friendId,   row.content)
+    if (row?.created_at) dmLastMsgAtMap.set(friendId, row.created_at)
   }
 
   const unreadByCrewId = new Map(
@@ -114,25 +116,28 @@ export default async function FriendsPage() {
   const friends: FriendEntry[] = acceptedRows.map((f) => {
     const friendId = f.requester_id === user.id ? f.addressee_id : f.requester_id
     return {
-      friendship:  f,
-      profile:     profileMap[friendId] ?? null,
-      unreadCount: dmUnreadMap.get(friendId)  ?? 0,
-      lastMessage: dmLastMsgMap.get(friendId) ?? null,
+      friendship:    f,
+      profile:       profileMap[friendId] ?? null,
+      unreadCount:   dmUnreadMap.get(friendId)    ?? 0,
+      lastMessage:   dmLastMsgMap.get(friendId)   ?? null,
+      lastMessageAt: dmLastMsgAtMap.get(friendId) ?? null,
     }
   })
 
   const incoming: FriendEntry[] = incomingRows.map((r) => ({
-    friendship:  r,
-    profile:     profileMap[r.requester_id] ?? null,
-    unreadCount: 0,
-    lastMessage: null,
+    friendship:    r,
+    profile:       profileMap[r.requester_id] ?? null,
+    unreadCount:   0,
+    lastMessage:   null,
+    lastMessageAt: null,
   }))
 
   const outgoing: FriendEntry[] = outgoingRows.map((r) => ({
-    friendship:  r,
-    profile:     profileMap[r.addressee_id] ?? null,
-    unreadCount: 0,
-    lastMessage: null,
+    friendship:    r,
+    profile:       profileMap[r.addressee_id] ?? null,
+    unreadCount:   0,
+    lastMessage:   null,
+    lastMessageAt: null,
   }))
 
   return (

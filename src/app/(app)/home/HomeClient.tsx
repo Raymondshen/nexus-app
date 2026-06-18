@@ -686,15 +686,13 @@ function SquadCardPreview({ summary, onAvatarTap }: { summary: CrewSummary; onAv
         <p
           className="font-body font-normal text-[14px] leading-none truncate w-full"
           style={{
-            color: lastMessage ? 'var(--color-secondary)' : 'var(--color-muted)',
+            color: lastMessage
+              ? hasUnread ? 'var(--color-secondary)' : 'var(--color-tertiary)'
+              : 'var(--color-muted)',
             fontVariationSettings: '"opsz" 14',
           }}
         >
-          {lastMessage
-            ? lastMessage.sender
-              ? `${lastMessage.sender}: ${truncate(lastMessage.content, 40)}`
-              : truncate(lastMessage.content, 44)
-            : 'Group journey just started… send a message'}
+          {lastMessage ? truncate(lastMessage.content, 44) : 'Group journey just started… send a message'}
         </p>
       </div>
     </div>

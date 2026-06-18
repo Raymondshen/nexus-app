@@ -4,16 +4,18 @@ import { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { isSupabaseStorage, resolveAvatarUrl } from '@/components/ui/Avatar'
-import { motion } from 'framer-motion'
+import { motion, useMotionValue, animate } from 'framer-motion'
+import type { PanInfo } from 'framer-motion'
 import { SlidePage, useSlideBack } from '@/components/ui/SlidePage'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { Search } from 'pixelarticons/react/Search'
 import { Inbox } from 'pixelarticons/react/Inbox'
 import { Message as MessageIcon } from 'pixelarticons/react/Message'
 import { MailRight } from 'pixelarticons/react/MailRight'
+import { Trash } from 'pixelarticons/react/Trash'
 import { createClient } from '@/lib/supabase/client'
 import { signInWithGoogle } from '@/lib/supabase/auth'
-import { sendFriendRequestAction } from './actions'
+import { sendFriendRequestAction, deleteFriendshipAction } from './actions'
 import type { Friendship, FriendProfile } from '@/types'
 
 function BackButton() {
@@ -31,10 +33,11 @@ function BackButton() {
 }
 
 export interface FriendEntry {
-  friendship:  Friendship
-  profile:     FriendProfile | null
-  unreadCount: number
-  lastMessage: string | null
+  friendship:    Friendship
+  profile:       FriendProfile | null
+  unreadCount:   number
+  lastMessage:   string | null
+  lastMessageAt: string | null
 }
 
 interface FriendsClientProps {
@@ -48,7 +51,7 @@ function friendshipYear(iso: string): string {
   try { return new Date(iso).getFullYear().toString() } catch { return '' }
 }
 
-// ─── Status ticker — same implementation as home AccountPreview ──────────────
+// ─── Status ticker — used in search results ───────────────────────────────────
 
 function StatusTicker({ status }: { status: string }) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -128,74 +131,138 @@ function UserAvatar({ profile, size = 40 }: { profile: FriendProfile | null; siz
   )
 }
 
-// ─── Friend card ─────────────────────────────────────────────────────────────
+// ─── Friend card (presentational) ────────────────────────────────────────────
 
-function FriendCardPreview({
-  entry,
-  onTap,
-}: {
-  entry:   FriendEntry
-  onTap:   () => void
-}) {
+function FriendCardPreview({ entry }: { entry: FriendEntry }) {
   const hasUnread = entry.unreadCount > 0
 
   return (
-    <div className="flex flex-col overflow-hidden" style={{ gap: 'var(--space-3)' }}>
-      {/* Details row */}
-      <div className="flex items-center overflow-hidden" style={{ gap: 'var(--space-5)' }}>
-        <button
-          className="flex-shrink-0 active:opacity-70 relative"
-          onClick={onTap}
-          aria-label={`Open DM with ${entry.profile?.username}`}
-        >
-          <UserAvatar profile={entry.profile} size={48} />
-          {hasUnread && (
-            <span
-              className="absolute top-0 left-0 rounded-full"
-              style={{ width: 8, height: 8, background: 'var(--color-danger)' }}
-              aria-label={`${entry.unreadCount} unread`}
-            />
-          )}
-        </button>
-
-        <button
-          className="flex-1 min-w-0 flex flex-col text-left active:opacity-70"
-          style={{ gap: 'var(--space-2)', letterSpacing: '0.2px' }}
-          onClick={onTap}
-        >
+    <div className="flex items-center overflow-hidden" style={{ gap: 'var(--space-5)' }}>
+      {/* Avatar + unread dot */}
+      <div className="flex-shrink-0 relative">
+        <UserAvatar profile={entry.profile} size={48} />
+        {hasUnread && (
           <span
-            className="font-body font-bold text-[length:var(--text-md)] text-primary leading-normal truncate"
-            style={{ fontVariationSettings: '"opsz" 14' }}
-          >
-            {entry.profile?.username ?? '—'}
-          </span>
-          {hasUnread && entry.lastMessage ? (
-            <span
-              className="font-body font-medium text-[length:var(--text-sm)] text-secondary leading-normal truncate"
-              style={{ fontVariationSettings: '"opsz" 14' }}
-            >
-              {entry.lastMessage}
-            </span>
-          ) : (
-            <span
-              className="font-body font-normal text-[length:var(--text-sm)] text-tertiary leading-normal truncate"
-              style={{ fontVariationSettings: '"opsz" 14' }}
-            >
-              est.{friendshipYear(entry.friendship.created_at)}
-            </span>
-          )}
-        </button>
-
-        {/* DM icon */}
-        <button
-          onClick={onTap}
-          className="flex-shrink-0 active:opacity-70"
-          aria-label={`Message ${entry.profile?.username}`}
-        >
-          <MailRight style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
-        </button>
+            className="absolute top-0 left-0 rounded-full"
+            style={{ width: 8, height: 8, background: 'var(--color-danger)' }}
+            aria-label={`${entry.unreadCount} unread`}
+          />
+        )}
       </div>
 
+      {/* Text — justify-center vertically centres the two lines inside the 48px row */}
+      <div
+        className="flex-1 min-w-0 flex flex-col justify-center tracking-[0.2px]"
+        style={{ gap: 'var(--space-2)' }}
+      >
+        <span
+          className="font-body font-bold text-[length:var(--text-md)] text-primary leading-none truncate w-full"
+          style={{ fontVariationSettings: '"opsz" 14' }}
+        >
+          {entry.profile?.username ?? '—'}
+        </span>
+        {hasUnread && entry.lastMessage ? (
+          <span
+            className="font-body font-medium text-[length:var(--text-sm)] text-secondary leading-none truncate w-full"
+            style={{ fontVariationSettings: '"opsz" 14' }}
+          >
+            {entry.lastMessage}
+          </span>
+        ) : (
+          <span
+            className="font-body font-normal text-[length:var(--text-sm)] text-tertiary leading-none truncate w-full"
+            style={{ fontVariationSettings: '"opsz" 14' }}
+          >
+            est.{friendshipYear(entry.friendship.created_at)}
+          </span>
+        )}
+      </div>
+
+      <MailRight style={{ width: 16, height: 16, color: 'var(--color-primary)' }} aria-hidden="true" />
+    </div>
+  )
+}
+
+// ─── Swipeable friend card ────────────────────────────────────────────────────
+
+const REMOVE_REVEAL = 40
+
+function SwipeableFriendCard({
+  entry,
+  onTap,
+  onRemoveRequest,
+  openCardId,
+  onOpen,
+}: {
+  entry:           FriendEntry
+  onTap:           () => void
+  onRemoveRequest: () => void
+  openCardId:      string | null
+  onOpen:          (id: string) => void
+}) {
+  const x           = useMotionValue(0)
+  const [open, setOpen] = useState(false)
+  const wasDragging = useRef(false)
+
+  useEffect(() => {
+    if (openCardId !== entry.friendship.id) {
+      animate(x, 0, { type: 'spring', stiffness: 300, damping: 28 })
+      setOpen(false)
+    }
+  }, [openCardId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function snapTo(target: number, isOpen: boolean) {
+    animate(x, target, { type: 'spring', stiffness: 300, damping: 28 })
+    setOpen(isOpen)
+  }
+
+  function handleDragEnd(_: unknown, info: PanInfo) {
+    setTimeout(() => { wasDragging.current = false }, 50)
+    if (info.offset.x < -(REMOVE_REVEAL / 2)) {
+      snapTo(-REMOVE_REVEAL, true)
+    } else {
+      snapTo(0, false)
+    }
+  }
+
+  function handleClick() {
+    if (wasDragging.current) return
+    if (open) {
+      snapTo(0, false)
+    } else {
+      onTap()
+    }
+  }
+
+  return (
+    <div className="overflow-hidden">
+      <motion.div
+        className="flex"
+        drag="x"
+        dragConstraints={{ left: -REMOVE_REVEAL, right: 0 }}
+        dragElastic={{ left: 0.05, right: 0.1 }}
+        style={{ x, width: `calc(100% + ${REMOVE_REVEAL}px)` }}
+        onDragStart={() => { wasDragging.current = true; onOpen(entry.friendship.id) }}
+        onDragEnd={handleDragEnd}
+      >
+        <motion.div
+          className="flex-1 min-w-0 bg-black cursor-pointer"
+          onClick={handleClick}
+          whileTap={{ scale: open ? 1 : 0.98 }}
+        >
+          <FriendCardPreview entry={entry} />
+        </motion.div>
+
+        <button
+          className="flex-shrink-0 self-stretch flex items-center justify-center bg-[var(--red)] overflow-hidden rounded-[8px]"
+          style={{ width: REMOVE_REVEAL, padding: 12 }}
+          onClick={(e) => { e.stopPropagation(); snapTo(0, false); onRemoveRequest() }}
+          tabIndex={open ? 0 : -1}
+          aria-label={`Remove ${entry.profile?.username}`}
+        >
+          <Trash style={{ width: 16, height: 16, color: 'white' }} aria-hidden="true" />
+        </button>
+      </motion.div>
     </div>
   )
 }
@@ -211,6 +278,7 @@ export function FriendsClient({
   const router = useRouter()
 
   const [friends,       setFriends]       = useState<FriendEntry[]>(initialFriends)
+  const [openCardId,    setOpenCardId]    = useState<string | null>(null)
   const [searchQuery,   setSearchQuery]   = useState('')
   const [searchResults, setSearchResults] = useState<FriendProfile[]>([])
   const [isSearching,   setIsSearching]   = useState(false)
@@ -218,6 +286,24 @@ export function FriendsClient({
   const [googleLoading, setGoogleLoading] = useState(false)
 
   const showSearch = searchQuery.trim().length >= 2
+
+  // Sorted: unread first, then most recent message
+  const sortedFriends = [...friends].sort((a, b) => {
+    if (a.unreadCount > 0 && b.unreadCount === 0) return -1
+    if (a.unreadCount === 0 && b.unreadCount > 0) return 1
+    return (b.lastMessageAt ?? '').localeCompare(a.lastMessageAt ?? '')
+  })
+
+  function clearUnread(friendshipId: string) {
+    setFriends((prev) =>
+      prev.map((e) => e.friendship.id === friendshipId ? { ...e, unreadCount: 0 } : e),
+    )
+  }
+
+  async function handleRemoveFriend(entry: FriendEntry) {
+    await deleteFriendshipAction(entry.friendship.id)
+    setFriends((prev) => prev.filter((e) => e.friendship.id !== entry.friendship.id))
+  }
 
   // Debounced username search
   useEffect(() => {
@@ -316,7 +402,7 @@ export function FriendsClient({
       {/* ── Body ── */}
       <div
         className="flex-1 overflow-y-auto nexus-scroll flex flex-col"
-        style={{ paddingLeft: 'var(--space-5)', paddingRight: 'var(--space-5)', paddingTop: 'var(--space-5)', paddingBottom: 'var(--space-5)', gap: 'var(--space-5)' }}
+        style={{ paddingLeft: 'var(--space-5)', paddingRight: 'var(--space-5)', paddingBottom: 'var(--space-5)', gap: 'var(--space-5)' }}
       >
 
         {/* Search input */}
@@ -398,11 +484,17 @@ export function FriendsClient({
                 </p>
               </div>
             ) : (
-              friends.map((entry) => (
-                <FriendCardPreview
+              sortedFriends.map((entry) => (
+                <SwipeableFriendCard
                   key={entry.friendship.id}
                   entry={entry}
-                  onTap={() => { if (entry.profile) router.push(`/dm/${entry.profile.id}`) }}
+                  onTap={() => {
+                    clearUnread(entry.friendship.id)
+                    if (entry.profile) router.push(`/dm/${entry.profile.id}`)
+                  }}
+                  onRemoveRequest={() => handleRemoveFriend(entry)}
+                  openCardId={openCardId}
+                  onOpen={setOpenCardId}
                 />
               ))
             )}
