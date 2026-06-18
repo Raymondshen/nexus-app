@@ -170,8 +170,18 @@ function MemberListRow({
           </p>
         </div>
 
-        {/* Action buttons: DM + remove (creator only) */}
+        {/* Action buttons: remove (creator only) + DM */}
         <div className="flex items-center flex-shrink-0" style={{ gap: 'var(--space-5)' }}>
+          {onRemove && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onRemove() }}
+              className="flex items-center justify-center active:opacity-70 transition-opacity"
+              style={{ width: 16, height: 24 }}
+              aria-label={`Remove ${profile.username}`}
+            >
+              <UserX style={{ width: 16, height: 24, color: 'var(--color-danger)' }} aria-hidden="true" />
+            </button>
+          )}
           {onDM && (
             <button
               onClick={(e) => { e.stopPropagation(); onDM() }}
@@ -180,16 +190,6 @@ function MemberListRow({
               aria-label={`Message ${profile.username}`}
             >
               <MailRight style={{ width: 16, height: 24, color: 'var(--color-secondary)' }} aria-hidden="true" />
-            </button>
-          )}
-          {onRemove && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onRemove() }}
-              className="flex items-center justify-center active:opacity-70 transition-opacity"
-              style={{ width: 24, height: 24 }}
-              aria-label={`Remove ${profile.username}`}
-            >
-              <UserX style={{ width: 24, height: 24, color: 'var(--color-danger)' }} aria-hidden="true" />
             </button>
           )}
         </div>
