@@ -37,12 +37,14 @@ export function GemToast({ visible, stacked }: GemToastProps) {
             zIndex:               GEM_TOAST_Z_INDEX,
             display:              'flex',
             alignItems:           'center',
-            gap:                  16,
-            padding:              16,
+            gap:                  'var(--x5)',
+            padding:              'var(--x5)',
+            minHeight:            68,
+            overflow:             'hidden',
             background:           'rgba(17, 17, 17, 0.9)',
             backdropFilter:       'blur(4px)',
             WebkitBackdropFilter: 'blur(4px)',
-            borderRadius:         8,
+            borderRadius:         'var(--x3)',
             boxShadow:            '0px 0px 20px 12px rgba(0, 0, 0, 0.1)',
           }}
         >
@@ -52,17 +54,15 @@ export function GemToast({ visible, stacked }: GemToastProps) {
           </div>
 
           {/* Message */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 0 }}>
-            <p className="font-silkscreen leading-none" style={{ fontSize: 8, color: '#00e5ff' }}>
-              Daily Gem
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--x2)', flex: 1, minWidth: 0 }}>
+            <p className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>
+              Daily Gems
             </p>
             <p
               className="font-body font-normal leading-none truncate"
               style={{ fontSize: 12, color: 'var(--color-secondary)', fontVariationSettings: '"opsz" 14' }}
             >
-              {'Gained '}
-              <span style={{ color: '#00e5ff' }}>+1 daily gem</span>
-              {' for sending a message!'}
+              +1 Daily Gem received
             </p>
           </div>
         </motion.div>
