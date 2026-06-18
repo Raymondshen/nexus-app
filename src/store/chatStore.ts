@@ -45,6 +45,8 @@ interface ChatStore {
   setPinnedScrollTargetId: (id: string | null) => void
   hiddenPinIds:            Set<string>
   toggleHiddenPin:         (id: string) => void
+  squadDetailsOpen:        boolean
+  setSquadDetailsOpen:     (open: boolean) => void
 }
 
 let floatCounter = 0
@@ -64,6 +66,7 @@ export const useChatStore = create<ChatStore>((set) => ({
   friendshipXPByPair:     {},
   pinnedScrollTargetId:   null,
   hiddenPinIds:           new Set<string>(),
+  squadDetailsOpen:       false,
 
   setMessages: (messages) => set({ messages }),
 
@@ -144,6 +147,8 @@ export const useChatStore = create<ChatStore>((set) => ({
       else next.add(id)
       return { hiddenPinIds: next }
     }),
+
+  setSquadDetailsOpen: (open) => set({ squadDetailsOpen: open }),
 }))
 
 export { XP_PER_LEVEL }

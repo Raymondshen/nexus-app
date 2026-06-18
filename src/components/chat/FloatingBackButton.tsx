@@ -38,6 +38,7 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
   const goBack = useSlideBack()
   const router = useRouter()
   const setGemBalance           = useChatStore((s) => s.setGemBalance)
+  const setSquadDetailsOpen     = useChatStore((s) => s.setSquadDetailsOpen)
   const messages                = useChatStore((s) => s.messages)
   const setPinnedScrollTargetId = useChatStore((s) => s.setPinnedScrollTargetId)
   const hiddenPinIds            = useChatStore((s) => s.hiddenPinIds)
@@ -232,8 +233,8 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
             )}
 
             <button
-              onClick={() => { sessionStorage.setItem('nexus_chat_from', 'chat'); router.push(`/chat/${crewId}/definitions`) }}
-              aria-label="Squad glossary"
+              onClick={() => setSquadDetailsOpen(true)}
+              aria-label="Squad details"
               className="flex items-center justify-center border border-border overflow-hidden flex-shrink-0"
               style={{
                 padding: 'var(--x3)',

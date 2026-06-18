@@ -148,6 +148,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     onlineUserIds, setOnlineUserIds, addUserCoins,
     crewName: storeCrewName, setCrewName,
     replyTo, setReplyTo,
+    squadDetailsOpen, setSquadDetailsOpen,
   } = useChatStore()
 
   const liveCrewName = storeCrewName || crewName
@@ -198,6 +199,12 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     const interval = setInterval(update, 60_000)
     return () => clearInterval(interval)
   }, [crewId, userId]) // eslint-disable-line
+
+  useEffect(() => {
+    if (!squadDetailsOpen) return
+    setIsExpanded(true)
+    setSquadDetailsOpen(false)
+  }, [squadDetailsOpen]) // eslint-disable-line
 
   useEffect(() => {
     if (!isExpanded) return
