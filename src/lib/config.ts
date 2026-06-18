@@ -57,7 +57,7 @@ export const OG_PREVIEW = {
 } as const
 
 export const IMAGE_PREVIEW_Z_INDEX   = 9999
-export const FRIENDSHIP_TOAST_Z_INDEX = 9000
+export const FRIENDSHIP_TOAST_Z_INDEX = 9001
 export const GEM_TOAST_Z_INDEX        = 9000
 
 export const GEM_DAILY_LIMIT = 1

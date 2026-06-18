@@ -12,11 +12,18 @@ interface GemToastProps {
 }
 
 // Enter: grow from Figma "behind" scale (331/361 ≈ 0.917) + slide up into position
+// Stacked: sit behind FriendshipXPToast — scaled down, shifted slightly so bottom peeks
 // Exit:  slide up + fade out
 const ENTER: Parameters<typeof motion.div>[0]['animate'] = {
   opacity: 1,
   scale:   1,
   y:       0,
+  transition: { duration: 0.45, ease: [0.16, 1, 0.3, 1] },
+}
+const STACKED: Parameters<typeof motion.div>[0]['animate'] = {
+  opacity: 1,
+  scale:   0.94,
+  y:       4,
   transition: { duration: 0.45, ease: [0.16, 1, 0.3, 1] },
 }
 const EXIT: Parameters<typeof motion.div>[0]['exit'] = {
@@ -36,13 +43,11 @@ export function GemToast({ visible, stacked }: GemToastProps) {
         <motion.div
           key="gem-toast"
           initial={{ opacity: 0, scale: 0.917, y: 12 }}
-          animate={ENTER}
+          animate={stacked ? STACKED : ENTER}
           exit={EXIT}
           style={{
             position:             'fixed',
-            top:                  stacked
-              ? 'calc(env(safe-area-inset-top, 0px) + 144px)'
-              : 'calc(env(safe-area-inset-top, 0px) + 68px)',
+            top:                  'calc(env(safe-area-inset-top, 0px) + 68px)',
             left:                 16,
             right:                16,
             maxWidth:             448,
@@ -54,7 +59,8 @@ export function GemToast({ visible, stacked }: GemToastProps) {
             alignItems:           'center',
             gap:                  'var(--x5)',
             padding:              'var(--x5)',
-            minHeight:            68,
+            // Extra height when stacked so the card bottom peeks ~11px below FriendshipXPToast
+            minHeight:            stacked ? 80 : 68,
             overflow:             'hidden',
             background:           'rgba(17, 17, 17, 0.9)',
             backdropFilter:       'blur(4px)',
