@@ -182,8 +182,15 @@ OG previews: `extractFirstUrl` → `useOGPreview` hook → `<LinkPreviewCard>` b
 
 ### SquadDetailsSheet (`src/components/chat/SquadDetailsSheet.tsx`)
 Trigger: swipe-up or chevron-up · sheet: `z-[70]` (above ticker's z-[60], below action sheets z-[80+]) · `maxHeight: 85vh`
-- Header: crew image + name + `MagicEdit` (rename) · `Braces` (→ definitions) · `Bell` (→ notif sheet)
+- Header icons (right, `gap-[--space-5]`): `MagicEdit` (rename, creator only) · `Library` (→ `/chat/[crewId]/definitions`) · `ChevronRight` rotated 90° (close)
+- Member row right side: `User` 16×24 (→ profile) · `MailRight` 16×24 (→ `/dm/[memberId]`, hidden for own row) · `UserMinus` 24×24 red (remove, creator only on others)
+- Props: `onOpenGlossary?` + `onDMPress?(memberId)` wired in `ChatInput.tsx`
 - Invite code copy: `"Come join my squad on Nexus app {code}"`
+
+### InboxClient (`src/app/(app)/friends/inbox/InboxClient.tsx`)
+Single-row `InboxCardPreview` component: avatar 48px · DM Sans Bold name · status subtitle (DM Sans 14px)
+- Incoming ("Wants to be your friend"): status `--color-secondary` · green `Check` 16×16 + red `Close` 16×16 icon-only buttons inline
+- Outgoing ("Sent friend request"): status `--yellow` · red-bordered `Close` 16×16 icon-only button inline (no fill)
 
 ### HomeClient
 - Realtime: one `messages:{crewId}` broadcast per crew + `postgres_changes UPDATE` on `profiles` + two friendship XP channels (`home-fxp-a/b:{userId}`)
@@ -281,6 +288,8 @@ Colors: `--color-primary` · `--color-surface` · `--color-border` · `--color-p
 
 Game/chat: `--color-bg-chat` (#0a0612) · `--color-chat-purple` (#bf5fff) · `--color-xp` (#ffd700) · `--color-coins` (#f59e0b) · `--color-danger` (#ff4444) · `--color-success` (#66bb6a) · `--color-system-msg` (#1a0d2e)
 
+Figma aliases (globals.css `:root`): `--red` (#ef4444) · `--green` (#22c55e) · `--yellow` (→ `--color-coins`, #f59e0b) · `--purple` (→ `--color-purple`) · `--blue` (→ `--color-blue`) · `--xN` spacing aliases (x1=2px … x7=24px)
+
 Fonts: `font-pixel` = Press Start 2P (game UI) · `font-body` = DM Sans (messages) · `font-silkscreen` = Silkscreen (stats/labels) · Silkscreen next/font var: `--font-silk`
 
 Font sizes: `--text-mini` (8px) → `--text-xxl` (24px) · Spacing: `--space-*`
@@ -292,7 +301,14 @@ Icons (`pixelarticons`):
 | Expand/collapse | `ChevronRight` (rotated) | 24×24 |
 | Chat nav — notifs | `Bell` / `BellOff` | 24×24 |
 | Chat nav — pins | `Note` | 24×24 |
-| Chat nav — glossary | `Braces` | 24×24 |
+| Chat nav — glossary / SquadDetailsSheet header | `Library` | 24×24 |
+| SquadDetailsSheet — edit squad (creator) | `MagicEdit` | 24×24 |
+| SquadDetailsSheet — member profile button | `User` | 16×24 |
+| SquadDetailsSheet — member DM button | `MailRight` | 16×24 |
+| SquadDetailsSheet — member remove (creator only) | `UserMinus` | 24×24, `--color-danger` |
+| Friends — remove friend (swipe reveal) | `AvatarCircleMinus` | 16×16 |
+| Inbox — accept request | `Check` | 16×16 |
+| Inbox — decline / cancel request | `Close` | 16×16 |
 | ChatInput — send | `Send` | 16×16 |
 | ChatInput — poll | `Chart` | 16×16 |
 | ChatInput — creator | `Crown` | 12×12, `var(--color-coins)` |
