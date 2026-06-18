@@ -7,9 +7,9 @@ import { AnimatePresence } from 'framer-motion'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { Bell } from 'pixelarticons/react/Bell'
 import { BellOff } from 'pixelarticons/react/BellOff'
-import { Braces } from 'pixelarticons/react/Braces'
 import { Note } from 'pixelarticons/react/Note'
-import { Calendar } from 'pixelarticons/react/Calendar'
+import { Calendar2 } from 'pixelarticons/react/Calendar2'
+import { Campfire } from '@/components/icons/Campfire'
 import { createClient } from '@/lib/supabase/client'
 import { NotifSheet, type NotifPrefs } from '@/components/chat/NotifSheet'
 import { PinListSheet } from '@/components/chat/PinListSheet'
@@ -146,8 +146,8 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
             aria-label="Go back"
             className="pointer-events-auto flex items-center justify-center border border-border flex-shrink-0 overflow-hidden"
             style={{
-              padding: 8,
-              background: 'rgba(0,0,0,0.5)',
+              padding: 'var(--x3)',
+              background: 'rgba(0,0,0,0)',
               backdropFilter: 'blur(4px)',
               WebkitBackdropFilter: 'blur(4px)',
               boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)',
@@ -157,7 +157,7 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
           </button>
 
           {/* Right actions */}
-          <div className="flex items-center pointer-events-auto" style={{ gap: 16 }}>
+          <div className="flex items-center pointer-events-auto" style={{ gap: 'var(--x5)' }}>
             {/* Pin icon — shown when pin feature is enabled */}
             {pinFeature && (
               <button
@@ -165,11 +165,11 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
                 aria-label={activePins.length > 0 ? `${activePins.length} pinned message${activePins.length !== 1 ? 's' : ''}` : 'No pinned messages'}
                 className="relative flex items-center justify-center border border-border overflow-hidden flex-shrink-0"
                 style={{
-                  padding: 8,
-                  background: 'rgba(0,0,0,0.5)',
-                  backdropFilter: 'blur(10px)',
-                  WebkitBackdropFilter: 'blur(10px)',
-                  boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)',
+                  padding: 'var(--x3)',
+                  background: 'rgba(0,0,0,0)',
+                  backdropFilter: 'blur(4px)',
+                  WebkitBackdropFilter: 'blur(4px)',
+                  filter: 'drop-shadow(0px 0px 10px rgba(0,0,0,0.1))',
                 }}
               >
                 <Note
@@ -201,11 +201,11 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
               aria-label={allMuted ? 'Notifications muted' : 'Notification settings'}
               className="flex items-center justify-center border border-border overflow-hidden flex-shrink-0"
               style={{
-                padding: 8,
-                background: 'rgba(0,0,0,0.5)',
-                backdropFilter: 'blur(10px)',
-                WebkitBackdropFilter: 'blur(10px)',
-                boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)',
+                padding: 'var(--x3)',
+                background: 'rgba(0,0,0,0)',
+                backdropFilter: 'blur(4px)',
+                WebkitBackdropFilter: 'blur(4px)',
+                filter: 'drop-shadow(0px 0px 10px rgba(0,0,0,0.1))',
               }}
             >
               {allMuted
@@ -220,14 +220,14 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
                 aria-label="Group events"
                 className="flex items-center justify-center border border-border overflow-hidden flex-shrink-0"
                 style={{
-                  padding: 8,
-                  background: 'rgba(0,0,0,0.5)',
-                  backdropFilter: 'blur(10px)',
-                  WebkitBackdropFilter: 'blur(10px)',
-                  boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)',
+                  padding: 'var(--x3)',
+                  background: 'rgba(0,0,0,0)',
+                  backdropFilter: 'blur(4px)',
+                  WebkitBackdropFilter: 'blur(4px)',
+                  filter: 'drop-shadow(0px 0px 10px rgba(0,0,0,0.1))',
                 }}
               >
-                <Calendar style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+                <Calendar2 style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
               </button>
             )}
 
@@ -236,14 +236,14 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
               aria-label="Squad glossary"
               className="flex items-center justify-center border border-border overflow-hidden flex-shrink-0"
               style={{
-                padding: 8,
-                background: 'rgba(0,0,0,0.5)',
-                backdropFilter: 'blur(10px)',
-                WebkitBackdropFilter: 'blur(10px)',
-                boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)',
+                padding: 'var(--x3)',
+                background: 'rgba(0,0,0,0)',
+                backdropFilter: 'blur(4px)',
+                WebkitBackdropFilter: 'blur(4px)',
+                filter: 'drop-shadow(0px 0px 10px rgba(0,0,0,0.1))',
               }}
             >
-              <Braces style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+              <Campfire style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
             </button>
           </div>
         </div>
