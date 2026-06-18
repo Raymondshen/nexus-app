@@ -8,7 +8,7 @@ import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
 import { TokeCircle } from 'pixelarticons/react/TokeCircle'
 import { Heart } from 'pixelarticons/react/Heart'
-import { Logout } from 'pixelarticons/react/Logout'
+import { Trash } from 'pixelarticons/react/Trash'
 import { Notebook } from 'pixelarticons/react/Notebook'
 import { Plus } from 'pixelarticons/react/Plus'
 import { Message as MessageIcon } from 'pixelarticons/react/Message'
@@ -627,9 +627,9 @@ function CrewCardContent({ summary, onAvatarTap }: { summary: CrewSummary; onAva
 
   return (
     <div className="w-full text-left flex items-center gap-4 pr-2">
-      {/* Crew avatar — 40×40px per Figma node 50:465 */}
+      {/* Crew avatar — 48×48px per Figma node 189:2197 */}
       <button
-        className="flex-shrink-0 w-10 h-10 overflow-hidden flex items-center justify-center font-pixel text-[10px] active:opacity-70 transition-opacity"
+        className="flex-shrink-0 w-12 h-12 overflow-hidden flex items-center justify-center font-pixel text-[10px] active:opacity-70 transition-opacity"
         style={!imageUrl ? {
           background:  avatarColor + '22',
           border:      `1px solid ${avatarColor}60`,
@@ -654,109 +654,48 @@ function CrewCardContent({ summary, onAvatarTap }: { summary: CrewSummary; onAva
         )}
       </button>
 
-      {/* Content — leading-none on container matches Figma node 4:62 */}
-      <div className="flex-1 min-w-0 flex flex-col gap-2 justify-center leading-none">
+      {/* Content — flat 3-row column, 4px gap per Figma node 189:2198 */}
+      <div className="flex-1 min-w-0 flex flex-col gap-[var(--space-2)] justify-center leading-none">
         {/* XP / level */}
         <span className="font-silkscreen text-[8px] text-tertiary whitespace-nowrap leading-none">
           {xpInLevel}/{XP_PER_LEVEL} XP · Lv. {crew.level}
           {hasUnread ? ` · +${unreadCount} new` : ''}
         </span>
 
-        <div className="flex flex-col gap-1">
-          {/* Crew name + timestamp */}
-          <div className="flex items-center gap-2 w-full">
-            <span
-              className="font-body font-bold text-[16px] leading-none text-white truncate flex-1 min-w-0"
-              style={{ fontVariationSettings: '"opsz" 14' }}
-            >
-              {crew.name}
-            </span>
-            {lastMessage && (
-              <span
-                className="font-body font-light text-[12px] leading-none text-muted flex-shrink-0 whitespace-nowrap"
-                style={{ fontVariationSettings: '"opsz" 14' }}
-              >
-                {relativeTime(lastMessage.created_at)}
-              </span>
-            )}
-          </div>
-
-          {/* Last message preview */}
-          <p
-            className="font-body font-normal text-[14px] leading-none truncate w-full"
-            style={{
-              color: hasUnread ? 'var(--color-primary)' : 'var(--color-muted)',
-              fontVariationSettings: '"opsz" 14',
-            }}
-          >
-            {lastMessage
-              ? lastMessage.sender
-                ? `${lastMessage.sender}: ${truncate(lastMessage.content, 40)}`
-                : truncate(lastMessage.content, 44)
-              : 'Group journey just started… send a message'}
-          </p>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ─── Friend card ─────────────────────────────────────────────────────────────
-
-function FriendCard({ friend, onTap, onAvatarTap }: { friend: FriendSummary; onTap: () => void; onAvatarTap: () => void }) {
-  const colorIndex  = friend.username.charCodeAt(0) % CREW_AVATAR_COLORS.length
-  const avatarColor = CREW_AVATAR_COLORS[colorIndex]
-  const preview     = friend.lastDMMessage?.content ?? 'Send a message'
-
-  return (
-    <motion.div
-      className="w-full flex items-center gap-4 cursor-pointer"
-      onClick={onTap}
-      whileTap={{ scale: 0.98 }}
-    >
-      {/* Avatar — 40×40px per Figma node 50:483 */}
-      <button
-        className="flex-shrink-0 w-10 h-10 flex items-center justify-center font-pixel text-[10px] overflow-hidden active:opacity-70 transition-opacity"
-        style={{ background: avatarColor + '22', border: `1px solid ${avatarColor}60`, color: avatarColor }}
-        onClick={(e) => { e.stopPropagation(); onAvatarTap() }}
-        aria-label={`View ${friend.username}'s profile`}
-      >
-        {friend.avatarUrl ? (
-          <Image src={resolveAvatarUrl(friend.avatarUrl, 40)} alt={friend.username} width={40} height={40} className="object-cover w-full h-full pointer-events-none" unoptimized={isSupabaseStorage(friend.avatarUrl)} />
-        ) : (
-          friend.username[0]?.toUpperCase()
-        )}
-      </button>
-
-      {/* Content — matches Figma node 50:484/485: name+timestamp row then preview */}
-      <div className="flex-1 min-w-0 flex flex-col gap-1 justify-center leading-none">
-        {/* Name + timestamp on same row */}
+        {/* Crew name + timestamp */}
         <div className="flex items-center gap-2 w-full">
           <span
-            className="font-body font-bold text-[16px] leading-none text-white truncate flex-1 min-w-0"
+            className="font-body font-bold text-[16px] leading-none text-primary truncate flex-1 min-w-0"
             style={{ fontVariationSettings: '"opsz" 14' }}
           >
-            {friend.username}
+            {crew.name}
           </span>
-          {friend.lastDMMessage && (
+          {lastMessage && (
             <span
               className="font-body font-light text-[12px] leading-none text-muted flex-shrink-0 whitespace-nowrap"
               style={{ fontVariationSettings: '"opsz" 14' }}
             >
-              {relativeTime(friend.lastDMMessage.created_at)}
+              {relativeTime(lastMessage.created_at)}
             </span>
           )}
         </div>
 
-        {/* Message preview */}
+        {/* Last message preview */}
         <p
-          className="font-body font-normal text-[14px] leading-none truncate w-full text-muted"
-          style={{ fontVariationSettings: '"opsz" 14' }}
+          className="font-body font-normal text-[14px] leading-none truncate w-full"
+          style={{
+            color: lastMessage ? 'var(--color-secondary)' : 'var(--color-muted)',
+            fontVariationSettings: '"opsz" 14',
+          }}
         >
-          {truncate(preview, 44)}
+          {lastMessage
+            ? lastMessage.sender
+              ? `${lastMessage.sender}: ${truncate(lastMessage.content, 40)}`
+              : truncate(lastMessage.content, 44)
+            : 'Group journey just started… send a message'}
         </p>
       </div>
-    </motion.div>
+    </div>
   )
 }
 
@@ -831,14 +770,13 @@ function SwipeableCrewCard({
         </motion.div>
 
         <button
-          className="flex-shrink-0 self-stretch flex flex-row items-center justify-center gap-[4px] bg-[#ef4444] px-[12px] py-[8px] overflow-hidden"
+          className="flex-shrink-0 self-stretch flex items-center justify-center bg-[var(--red)] p-[12px] overflow-hidden rounded-[8px]"
           style={{ width: LEAVE_REVEAL }}
           onClick={(e) => { e.stopPropagation(); snapTo(0, false); onLeaveRequest() }}
           tabIndex={open ? 0 : -1}
           aria-label={`Leave ${summary.crew.name}`}
         >
-          <Logout style={{ width: 16, height: 16, color: 'white' }} aria-hidden="true" />
-          <span className="font-silkscreen text-[12px] text-white whitespace-nowrap leading-none">LEAVE</span>
+          <Trash style={{ width: 16, height: 16, color: 'white' }} aria-hidden="true" />
         </button>
       </motion.div>
     </div>
@@ -1167,7 +1105,7 @@ export function HomeClient({
         <AnnouncementBanner announcements={announcements} />
       </div>
 
-      {/* ── Scrollable list: squads + DMs ── */}
+      {/* ── Scrollable list: DM banner + squads ── */}
       <div
         className="flex-1 overflow-y-auto min-h-0 px-4 flex flex-col gap-6"
         style={{
@@ -1176,50 +1114,57 @@ export function HomeClient({
         }}
       >
 
-        {/* Squads section */}
-        <div className="flex flex-col gap-4 w-full">
+        {/* Direct Messages compact banner card — nav to /friends */}
+        {friends.length > 0 && (
+          <button
+            className="w-full bg-surface border border-border rounded-[8px] p-[var(--space-5)] flex items-center gap-[var(--space-4)] text-left active:opacity-80 transition-opacity"
+            onClick={() => router.push('/friends')}
+            aria-label="Open Direct Messages"
+          >
+            <MessageIcon style={{ width: 16, height: 16, color: 'var(--color-primary)' }} aria-hidden="true" />
+            <div className="flex-1 min-w-0 flex flex-col">
+              <span
+                className="font-body font-medium text-[length:var(--text-sm)] text-primary leading-normal tracking-[0.2px]"
+                style={{ fontVariationSettings: '"opsz" 14' }}
+              >
+                Direct Messages
+              </span>
+              <span
+                className="font-body font-normal text-[length:var(--text-xxs)] text-tertiary leading-normal"
+                style={{ fontVariationSettings: '"opsz" 14' }}
+              >
+                {friends.length} friend{friends.length !== 1 ? 's' : ''}
+              </span>
+            </div>
+            <ChevronRight style={{ width: 16, height: 16, color: 'var(--color-primary)' }} aria-hidden="true" />
+          </button>
+        )}
+
+        {/* Squads section — 8px gap between label and list, 16px between items */}
+        <div className="flex flex-col gap-[var(--space-3)] w-full">
           <p className="font-body font-medium text-[14px] text-primary tracking-[0.2px] leading-normal">Squads</p>
           {crews.length === 0 ? (
             <EmptyState onCreate={() => setShowCreate(true)} />
           ) : (
-            crews.map((summary) => (
-              <motion.div
-                key={summary.crew.id}
-                layout
-                transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-              >
-                <SwipeableCrewCard
-                  summary={summary}
-                  onTap={() => handleCrewTap(summary.crew.id)}
-                  onLeaveRequest={() => { setLeaveTarget(summary); setLeaveError(null) }}
-                  openCardId={openCardId}
-                  onOpen={setOpenCardId}
-                />
-              </motion.div>
-            ))
+            <div className="flex flex-col gap-4">
+              {crews.map((summary) => (
+                <motion.div
+                  key={summary.crew.id}
+                  layout
+                  transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                >
+                  <SwipeableCrewCard
+                    summary={summary}
+                    onTap={() => handleCrewTap(summary.crew.id)}
+                    onLeaveRequest={() => { setLeaveTarget(summary); setLeaveError(null) }}
+                    openCardId={openCardId}
+                    onOpen={setOpenCardId}
+                  />
+                </motion.div>
+              ))}
+            </div>
           )}
         </div>
-
-        {/* Direct Messages section */}
-        {friends.length > 0 && (
-          <div className="flex flex-col gap-4 w-full">
-            <p className="font-body font-medium text-[14px] text-primary tracking-[0.2px] leading-normal">Direct Messages</p>
-            {friends.map((friend) => (
-              <FriendCard
-                key={friend.id}
-                friend={friend}
-                onTap={() => router.push(`/dm/${friend.id}`)}
-                onAvatarTap={() => {
-                  if (friend.dmChannelId) {
-                    router.push(`/chat/${friend.dmChannelId}/member/${friend.id}`)
-                  } else {
-                    router.push(`/dm/${friend.id}`)
-                  }
-                }}
-              />
-            ))}
-          </div>
-        )}
       </div>
 
       {/* ── Modals ── */}
