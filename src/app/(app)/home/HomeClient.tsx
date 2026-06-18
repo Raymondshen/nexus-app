@@ -892,6 +892,11 @@ export function HomeClient({
     friends.reduce((sum, f) => sum + f.unreadCount, 0)
   )
 
+  // Sync dmUnread down when server-fresh friends prop arrives (router.refresh or remount)
+  useEffect(() => {
+    setDmUnread(friends.reduce((sum, f) => sum + f.unreadCount, 0))
+  }, [friends])
+
   const profileCacheRef = useRef<Record<string, string>>(profileCache)
   useEffect(() => { profileCacheRef.current = profileCache }, [profileCache])
 
@@ -1172,7 +1177,7 @@ export function HomeClient({
 
         <DmNotificationPreviewCard
           dmUnread={dmUnread}
-          onTap={() => router.push('/friends')}
+          onTap={() => { setDmUnread(0); router.push('/friends') }}
         />
 
         {/* Squads section — 8px gap between label and list, 16px between items */}

@@ -37,13 +37,17 @@ export default async function InboxPage() {
   }
 
   const incoming: FriendEntry[] = incomingRows.map((r) => ({
-    friendship: r,
-    profile:    profileMap[r.requester_id] ?? null,
+    friendship:  r,
+    profile:     profileMap[r.requester_id] ?? null,
+    unreadCount: 0,
+    lastMessage: null,
   }))
 
   const outgoing: FriendEntry[] = outgoingRows.map((r) => ({
-    friendship: r,
-    profile:    profileMap[r.addressee_id] ?? null,
+    friendship:  r,
+    profile:     profileMap[r.addressee_id] ?? null,
+    unreadCount: 0,
+    lastMessage: null,
   }))
 
   return (

@@ -31,8 +31,10 @@ function BackButton() {
 }
 
 export interface FriendEntry {
-  friendship: Friendship
-  profile:    FriendProfile | null
+  friendship:  Friendship
+  profile:     FriendProfile | null
+  unreadCount: number
+  lastMessage: string | null
 }
 
 interface FriendsClientProps {
@@ -128,25 +130,32 @@ function UserAvatar({ profile, size = 40 }: { profile: FriendProfile | null; siz
 
 // ─── Friend card ─────────────────────────────────────────────────────────────
 
-function FriendCard({
+function FriendCardPreview({
   entry,
   onTap,
 }: {
   entry:   FriendEntry
   onTap:   () => void
 }) {
-  const status = entry.profile?.status
+  const hasUnread = entry.unreadCount > 0
 
   return (
     <div className="flex flex-col overflow-hidden" style={{ gap: 'var(--space-3)' }}>
       {/* Details row */}
       <div className="flex items-center overflow-hidden" style={{ gap: 'var(--space-5)' }}>
         <button
-          className="flex-shrink-0 active:opacity-70"
+          className="flex-shrink-0 active:opacity-70 relative"
           onClick={onTap}
           aria-label={`Open DM with ${entry.profile?.username}`}
         >
-          <UserAvatar profile={entry.profile} size={40} />
+          <UserAvatar profile={entry.profile} size={48} />
+          {hasUnread && (
+            <span
+              className="absolute top-0 left-0 rounded-full"
+              style={{ width: 8, height: 8, background: 'var(--color-danger)' }}
+              aria-label={`${entry.unreadCount} unread`}
+            />
+          )}
         </button>
 
         <button
@@ -155,14 +164,26 @@ function FriendCard({
           onClick={onTap}
         >
           <span
-            className="font-body font-semibold text-[length:var(--text-md)] text-primary leading-normal truncate"
+            className="font-body font-bold text-[length:var(--text-md)] text-primary leading-normal truncate"
             style={{ fontVariationSettings: '"opsz" 14' }}
           >
             {entry.profile?.username ?? '—'}
           </span>
-          <span className="font-silkscreen text-[length:var(--text-xxs)] text-tertiary leading-normal">
-            est.{friendshipYear(entry.friendship.created_at)}
-          </span>
+          {hasUnread && entry.lastMessage ? (
+            <span
+              className="font-body font-medium text-[length:var(--text-sm)] text-secondary leading-normal truncate"
+              style={{ fontVariationSettings: '"opsz" 14' }}
+            >
+              {entry.lastMessage}
+            </span>
+          ) : (
+            <span
+              className="font-body font-normal text-[length:var(--text-sm)] text-tertiary leading-normal truncate"
+              style={{ fontVariationSettings: '"opsz" 14' }}
+            >
+              est.{friendshipYear(entry.friendship.created_at)}
+            </span>
+          )}
         </button>
 
         {/* DM icon */}
@@ -175,8 +196,6 @@ function FriendCard({
         </button>
       </div>
 
-      {/* Status ticker */}
-      {status && <StatusTicker status={status} />}
     </div>
   )
 }
@@ -332,15 +351,18 @@ export function FriendsClient({
                     style={{ gap: 'var(--space-3)' }}
                   >
                     <div className="flex items-center overflow-hidden" style={{ gap: 'var(--space-5)' }}>
-                      <UserAvatar profile={profile} size={40} />
+                      <UserAvatar profile={profile} size={48} />
                       <div className="flex-1 min-w-0 flex flex-col" style={{ gap: 'var(--space-2)', letterSpacing: '0.2px' }}>
                         <span
-                          className="font-body font-semibold text-[length:var(--text-md)] text-primary leading-normal truncate"
+                          className="font-body font-bold text-[length:var(--text-md)] text-primary leading-normal truncate"
                           style={{ fontVariationSettings: '"opsz" 14' }}
                         >
                           {profile.username}
                         </span>
-                        <span className="font-silkscreen text-[length:var(--text-xxs)] text-tertiary leading-normal">
+                        <span
+                          className="font-body font-normal text-[length:var(--text-sm)] text-tertiary leading-normal truncate"
+                          style={{ fontVariationSettings: '"opsz" 14' }}
+                        >
                           @{profile.username.toLowerCase()}
                         </span>
                       </div>
@@ -377,7 +399,7 @@ export function FriendsClient({
               </div>
             ) : (
               friends.map((entry) => (
-                <FriendCard
+                <FriendCardPreview
                   key={entry.friendship.id}
                   entry={entry}
                   onTap={() => { if (entry.profile) router.push(`/dm/${entry.profile.id}`) }}
