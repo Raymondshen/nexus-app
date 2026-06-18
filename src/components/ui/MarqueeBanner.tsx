@@ -108,7 +108,7 @@ export function MarqueeBanner({ text, suffix, items, icon, onClick, quoted }: Ma
     </motion.div>
   )
 
-  const containerClass = "overflow-hidden border border-border bg-black w-full"
+  const containerClass = "overflow-hidden border-y border-border bg-black w-full"
   const containerStyle = { paddingTop: 'var(--x4)', paddingBottom: 'var(--x4)' }
 
   if (onClick) {
