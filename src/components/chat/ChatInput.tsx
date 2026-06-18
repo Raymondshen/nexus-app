@@ -381,7 +381,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   const showGemToast = () => {
     if (gemToastTimerRef.current) clearTimeout(gemToastTimerRef.current)
     setGemToastVisible(true)
-    gemToastTimerRef.current = setTimeout(() => setGemToastVisible(false), 2200)
+    gemToastTimerRef.current = setTimeout(() => setGemToastVisible(false), 3000)
   }
 
   async function handleChatImagePick(file: File) {
