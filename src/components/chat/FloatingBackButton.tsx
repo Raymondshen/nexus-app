@@ -11,8 +11,6 @@ import { Campfire } from '@/components/icons/Campfire'
 import { PinListSheet } from '@/components/chat/PinListSheet'
 import { MarqueeBanner } from '@/components/ui/MarqueeBanner'
 import { useChatStore, selectActivePins } from '@/store/chatStore'
-import { PIN_FEATURE_KEY } from '@/lib/config'
-import type { Message } from '@/types'
 
 
 function truncatePinContent(content: string, maxLen = 60): string {
@@ -39,9 +37,8 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
   const setPinnedScrollTargetId = useChatStore((s) => s.setPinnedScrollTargetId)
   const hiddenPinIds            = useChatStore((s) => s.hiddenPinIds)
 
-  const [showPinList,    setShowPinList]    = useState(false)
-  const [pinFeature,     setPinFeature]     = useState(false)
-  const [eventsEnabled,  setEventsEnabled]  = useState(false)
+  const [showPinList,   setShowPinList]   = useState(false)
+  const [eventsEnabled, setEventsEnabled] = useState(false)
 
   useEffect(() => {
     const from = sessionStorage.getItem('nexus_chat_from')
@@ -54,7 +51,6 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
   }, [])
 
   useEffect(() => {
-    setPinFeature(localStorage.getItem(PIN_FEATURE_KEY) === '1')
     setEventsEnabled(localStorage.getItem('nexus_events_enabled') === '1')
   }, [])
 
@@ -63,7 +59,7 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
     if (initialGemBalance !== undefined) setGemBalance(initialGemBalance)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const activePins = pinFeature ? selectActivePins(messages) : ([] as Message[])
+  const activePins = selectActivePins(messages)
 
   // Sorted stable order: most recently pinned first
   const sortedPins = [...activePins].sort((a, b) =>
@@ -111,43 +107,41 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
 
           {/* Right actions */}
           <div className="flex items-center pointer-events-auto" style={{ gap: 'var(--x5)' }}>
-            {/* Pin icon — shown when pin feature is enabled */}
-            {pinFeature && (
-              <button
-                onClick={() => setShowPinList(true)}
-                aria-label={activePins.length > 0 ? `${activePins.length} pinned message${activePins.length !== 1 ? 's' : ''}` : 'No pinned messages'}
-                className="relative flex items-center justify-center border border-border overflow-hidden flex-shrink-0"
+            {/* Pin icon */}
+            <button
+              onClick={() => setShowPinList(true)}
+              aria-label={activePins.length > 0 ? `${activePins.length} pinned message${activePins.length !== 1 ? 's' : ''}` : 'No pinned messages'}
+              className="relative flex items-center justify-center border border-border overflow-hidden flex-shrink-0"
+              style={{
+                padding: 'var(--x3)',
+                background: 'rgba(0,0,0,0)',
+                backdropFilter: 'blur(4px)',
+                WebkitBackdropFilter: 'blur(4px)',
+                filter: 'drop-shadow(0px 0px 10px rgba(0,0,0,0.1))',
+              }}
+            >
+              <Note
                 style={{
-                  padding: 'var(--x3)',
-                  background: 'rgba(0,0,0,0)',
-                  backdropFilter: 'blur(4px)',
-                  WebkitBackdropFilter: 'blur(4px)',
-                  filter: 'drop-shadow(0px 0px 10px rgba(0,0,0,0.1))',
+                  width: 24, height: 24,
+                  color: activePins.length > 0 ? 'var(--color-primary)' : 'var(--color-tertiary)',
                 }}
-              >
-                <Note
+                aria-hidden="true"
+              />
+              {activePins.length > 0 && (
+                <span
+                  className="absolute top-0 right-0 flex items-center justify-center font-pixel leading-none"
                   style={{
-                    width: 24, height: 24,
-                    color: activePins.length > 0 ? 'var(--color-primary)' : 'var(--color-tertiary)',
+                    width: 14, height: 14,
+                    background: 'var(--color-purple)',
+                    fontSize: 7,
+                    color: 'white',
+                    transform: 'translate(25%, -25%)',
                   }}
-                  aria-hidden="true"
-                />
-                {activePins.length > 0 && (
-                  <span
-                    className="absolute top-0 right-0 flex items-center justify-center font-pixel leading-none"
-                    style={{
-                      width: 14, height: 14,
-                      background: 'var(--color-purple)',
-                      fontSize: 7,
-                      color: 'white',
-                      transform: 'translate(25%, -25%)',
-                    }}
-                  >
-                    {activePins.length}
-                  </span>
-                )}
-              </button>
-            )}
+                >
+                  {activePins.length}
+                </span>
+              )}
+            </button>
 
 {isDev && eventsEnabled && (
               <button
@@ -184,7 +178,7 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
         </div>
 
         {/* Pinned message ticker — shown below the nav row when a pin is active */}
-        {pinFeature && visiblePins.length > 0 && (
+        {visiblePins.length > 0 && (
           <div className="pointer-events-auto" style={{ marginLeft: 'var(--space-5)', marginRight: 'var(--space-5)' }}>
             <MarqueeBanner
               items={tickerItems}

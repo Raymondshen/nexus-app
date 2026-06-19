@@ -98,7 +98,6 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
   const [gemResetConfirm,     setGemResetConfirm]     = useState(false)
   const [resettingGem,        setResettingGem]        = useState(false)
   const [gemResetDone,        setGemResetDone]        = useState(false)
-  const [pinFeature,          setPinFeature]          = useState(false)
   const [eventsFeature,       setEventsFeature]       = useState(false)
   const [newText,             setNewText]             = useState('')
   const [addingBanner,        setAddingBanner]        = useState(false)
@@ -110,7 +109,6 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
     setShowPush(localStorage.getItem('nexus_push_diag') === '1')
     setInfiniteCoins(localStorage.getItem('nexus_infinite_coins') === '1')
     setChatCamera(localStorage.getItem('nexus_chat_camera') === '1')
-    setPinFeature(localStorage.getItem('nexus_pin_feature') === '1')
     setEventsFeature(localStorage.getItem('nexus_events_enabled') === '1')
   }, [])
 
@@ -142,13 +140,6 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
     setChatCamera(next)
     if (next) localStorage.setItem('nexus_chat_camera', '1')
     else localStorage.removeItem('nexus_chat_camera')
-  }
-
-  function togglePinFeature() {
-    const next = !pinFeature
-    setPinFeature(next)
-    if (next) localStorage.setItem('nexus_pin_feature', '1')
-    else localStorage.removeItem('nexus_pin_feature')
   }
 
   function toggleEventsFeature() {
@@ -348,13 +339,6 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
             description="Enable image upload button in chat input"
             enabled={chatCamera}
             onChange={toggleChatCamera}
-          />
-
-          <ToggleRow
-            title="Pin Feature"
-            description="Enable message pinning in group chats"
-            enabled={pinFeature}
-            onChange={togglePinFeature}
           />
 
           <ToggleRow

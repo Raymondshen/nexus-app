@@ -65,7 +65,6 @@ export const GEM_IDB_KEY     = 'nexus_gem_claimed_at'
 
 export const PIN_MAX_PER_CREW          = 5
 export const PIN_MAX_DURATION_MINUTES  = 525960  // ~1 year
-export const PIN_FEATURE_KEY           = 'nexus_pin_feature'
 
 export const KLIPY_API_BASE_URL                = 'https://api.klipy.com/api/v1'
 export const KLIPY_RATING                      = 'g'
