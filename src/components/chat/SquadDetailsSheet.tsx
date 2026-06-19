@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button'
 import { XP_PER_LEVEL } from '@/lib/game/xp'
 import { PixelSprite, spriteInfoFor } from '@/components/game/PixelSprite'
 import { MagicEdit } from 'pixelarticons/react/MagicEdit'
+import { Bell } from 'pixelarticons/react/Bell'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
 import { Library } from 'pixelarticons/react/Library'
 import { Crown } from 'pixelarticons/react/Crown'
@@ -522,7 +523,7 @@ export function SquadDetailsSheet({
                 </div>
               </div>
 
-              {/* Action buttons — Edit (creator) | Glossary | Collapse */}
+              {/* Action buttons — Edit (creator) | Bell | Glossary | Collapse */}
               <div className="flex items-center flex-shrink-0" style={{ gap: 'var(--space-5)' }}>
                 {currentUserId === creatorId && (
                   <button
@@ -534,6 +535,14 @@ export function SquadDetailsSheet({
                     <MagicEdit style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
                   </button>
                 )}
+                <button
+                  onClick={onNotifPress}
+                  className="flex items-center justify-center"
+                  style={{ width: 24, height: 24 }}
+                  aria-label="Notification settings"
+                >
+                  <Bell style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+                </button>
                 <button
                   onClick={onOpenGlossary}
                   className="flex items-center justify-center"

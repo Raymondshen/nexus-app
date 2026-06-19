@@ -1,17 +1,13 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSlideBack } from '@/components/ui/SlidePage'
 import { AnimatePresence } from 'framer-motion'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
-import { Bell } from 'pixelarticons/react/Bell'
-import { BellOff } from 'pixelarticons/react/BellOff'
 import { Note } from 'pixelarticons/react/Note'
 import { Calendar2 } from 'pixelarticons/react/Calendar2'
 import { Campfire } from '@/components/icons/Campfire'
-import { createClient } from '@/lib/supabase/client'
-import { NotifSheet, type NotifPrefs } from '@/components/chat/NotifSheet'
 import { PinListSheet } from '@/components/chat/PinListSheet'
 import { MarqueeBanner } from '@/components/ui/MarqueeBanner'
 import { useChatStore, selectActivePins } from '@/store/chatStore'
@@ -43,11 +39,9 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
   const setPinnedScrollTargetId = useChatStore((s) => s.setPinnedScrollTargetId)
   const hiddenPinIds            = useChatStore((s) => s.hiddenPinIds)
 
-  const [showNotif,      setShowNotif]      = useState(false)
   const [showPinList,    setShowPinList]    = useState(false)
   const [pinFeature,     setPinFeature]     = useState(false)
   const [eventsEnabled,  setEventsEnabled]  = useState(false)
-  const [notifPrefs, setNotifPrefs] = useState<NotifPrefs>({ messages: true, raids: true, victory: true, mentions: true })
 
   useEffect(() => {
     const from = sessionStorage.getItem('nexus_chat_from')
@@ -64,53 +58,11 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
     setEventsEnabled(localStorage.getItem('nexus_events_enabled') === '1')
   }, [])
 
-  useEffect(() => {
-    async function load() {
-      const supabase = createClient()
-      const { data } = await supabase
-        .from('crew_notification_preferences')
-        .select('notif_messages, notif_raids, notif_victory, notif_mentions')
-        .eq('user_id', currentUserId)
-        .eq('crew_id', crewId)
-        .maybeSingle()
-      if (data) {
-        setNotifPrefs({
-          messages: data.notif_messages as boolean,
-          raids:    data.notif_raids    as boolean,
-          victory:  data.notif_victory  as boolean,
-          mentions: data.notif_mentions as boolean,
-        })
-      }
-    }
-    load()
-  }, [currentUserId, crewId])
-
   // Seed store with server-fetched gem balance
   useEffect(() => {
     if (initialGemBalance !== undefined) setGemBalance(initialGemBalance)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleToggleNotif = useCallback(async (type: keyof NotifPrefs) => {
-    const next = { ...notifPrefs, [type]: !notifPrefs[type] }
-    setNotifPrefs(next)
-    const supabase = createClient()
-    await supabase
-      .from('crew_notification_preferences')
-      .upsert(
-        {
-          user_id:        currentUserId,
-          crew_id:        crewId,
-          notif_messages: next.messages,
-          notif_raids:    next.raids,
-          notif_victory:  next.victory,
-          notif_mentions: next.mentions,
-          updated_at:     new Date().toISOString(),
-        },
-        { onConflict: 'user_id,crew_id' },
-      )
-  }, [notifPrefs, currentUserId, crewId])
-
-  const allMuted   = !notifPrefs.messages && !notifPrefs.raids && !notifPrefs.victory
   const activePins = pinFeature ? selectActivePins(messages) : ([] as Message[])
 
   // Sorted stable order: most recently pinned first
@@ -197,25 +149,7 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
               </button>
             )}
 
-            <button
-              onClick={() => setShowNotif(true)}
-              aria-label={allMuted ? 'Notifications muted' : 'Notification settings'}
-              className="flex items-center justify-center border border-border overflow-hidden flex-shrink-0"
-              style={{
-                padding: 'var(--x3)',
-                background: 'rgba(0,0,0,0)',
-                backdropFilter: 'blur(4px)',
-                WebkitBackdropFilter: 'blur(4px)',
-                filter: 'drop-shadow(0px 0px 10px rgba(0,0,0,0.1))',
-              }}
-            >
-              {allMuted
-                ? <BellOff style={{ width: 24, height: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
-                : <Bell   style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
-              }
-            </button>
-
-            {isDev && eventsEnabled && (
+{isDev && eventsEnabled && (
               <button
                 onClick={() => router.push(`/chat/${crewId}/events`)}
                 aria-label="Group events"
@@ -263,13 +197,6 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
       </div>
 
       <AnimatePresence>
-        {showNotif && (
-          <NotifSheet
-            prefs={notifPrefs}
-            onToggle={handleToggleNotif}
-            onClose={() => setShowNotif(false)}
-          />
-        )}
         {showPinList && (
           <PinListSheet
             activePins={activePins}
