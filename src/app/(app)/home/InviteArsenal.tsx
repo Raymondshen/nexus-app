@@ -123,7 +123,7 @@ export function InvitePage({ userId, coins, infiniteCoins, onClose, onCoinsDeduc
               </p>
             </div>
           ) : (
-            codes.map((invite, index) => (
+            [...codes].sort((a, b) => Number(a.used) - Number(b.used)).map((invite, index) => (
               <div key={invite.id} className="flex flex-col" style={{ gap: 24 }}>
                 <InviteCodeRow
                   invite={invite}
