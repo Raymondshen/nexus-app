@@ -4,12 +4,14 @@ import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
-import { motion } from 'framer-motion'
+import { motion, useDragControls } from 'framer-motion'
 import { createClient } from '@/lib/supabase/client'
 import { format } from 'date-fns'
 import { Calendar } from 'pixelarticons/react/Calendar'
 import { resolveAvatarUrl, isSupabaseStorage } from '@/components/ui/Avatar'
 import type { Event } from '@/types'
+
+const DEFAULT_EVENT_IMAGE = '/img/eventDefaultImage.png'
 
 function LocationPinIcon() {
   return (
@@ -35,35 +37,44 @@ type GoingProfile = { id: string; username: string; avatar_url: string | null }
 
 type EventWithDetails = Event & {
   creatorUsername: string | null
-  goingProfiles: GoingProfile[]
+  goingProfiles:   GoingProfile[]
 }
 
 function formatEventDate(dateStr: string): string {
   return format(new Date(dateStr), "EEEE, MMMM d '@' h:mm a")
 }
 
-function EventCardPreview({ event }: { event: EventWithDetails }) {
+function EventCardPreview({
+  event,
+  onTap,
+}: {
+  event:  EventWithDetails
+  onTap:  () => void
+}) {
+  const coverSrc = event.cover_image_url || DEFAULT_EVENT_IMAGE
+  const isLocal  = !event.cover_image_url
+
   return (
-    <div
-      className="w-full overflow-hidden flex flex-col flex-shrink-0"
+    <button
+      className="w-full overflow-hidden flex flex-col flex-shrink-0 text-left"
       style={{
-        background: 'var(--color-surface)',
-        border: '1px solid var(--color-border)',
+        background:   'var(--color-surface)',
+        border:       '1px solid var(--color-border)',
         borderRadius: 8,
       }}
+      onClick={onTap}
     >
-      {event.cover_image_url && (
-        <div className="relative w-full flex-shrink-0" style={{ height: 140 }}>
-          <Image
-            src={event.cover_image_url}
-            alt={event.title}
-            fill
-            sizes="480px"
-            className="object-cover"
-            unoptimized={isSupabaseStorage(event.cover_image_url)}
-          />
-        </div>
-      )}
+      {/* Cover image — always shown, falls back to default */}
+      <div className="relative w-full flex-shrink-0" style={{ height: 140 }}>
+        <Image
+          src={coverSrc}
+          alt={event.title}
+          fill
+          sizes="480px"
+          className="object-cover"
+          unoptimized={!isLocal && isSupabaseStorage(coverSrc)}
+        />
+      </div>
 
       <div className="flex flex-col w-full" style={{ padding: 16, gap: 16 }}>
         {/* Details */}
@@ -79,12 +90,12 @@ function EventCardPreview({ event }: { event: EventWithDetails }) {
             <p
               className="font-body font-bold text-[var(--color-primary)] w-full"
               style={{
-                fontSize: 18,
-                lineHeight: 'normal',
+                fontSize:            18,
+                lineHeight:          'normal',
                 fontVariationSettings: '"opsz" 14',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
+                whiteSpace:          'nowrap',
+                overflow:            'hidden',
+                textOverflow:        'ellipsis',
               }}
             >
               {event.title}
@@ -108,7 +119,9 @@ function EventCardPreview({ event }: { event: EventWithDetails }) {
           {/* Location */}
           {event.location && (
             <div className="flex items-center w-full" style={{ gap: 4 }}>
-              <LocationPinIcon />
+              <span style={{ color: 'var(--color-secondary)', display: 'flex' }}>
+                <LocationPinIcon />
+              </span>
               <p
                 className="font-body font-normal leading-none flex-1 min-w-0 text-[var(--color-secondary)]"
                 style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}
@@ -119,7 +132,7 @@ function EventCardPreview({ event }: { event: EventWithDetails }) {
           )}
         </div>
 
-        {/* Going */}
+        {/* Going — avatar circles */}
         <div className="flex flex-col" style={{ gap: 8 }}>
           <p
             className="font-silkscreen leading-none w-full"
@@ -167,7 +180,7 @@ function EventCardPreview({ event }: { event: EventWithDetails }) {
           </div>
         </div>
       </div>
-    </div>
+    </button>
   )
 }
 
@@ -178,7 +191,8 @@ interface EventSheetBottomPreviewProps {
 }
 
 export function EventSheetBottomPreview({ crewId, onClose }: EventSheetBottomPreviewProps) {
-  const router = useRouter()
+  const router       = useRouter()
+  const dragControls = useDragControls()
   const [events,  setEvents]  = useState<EventWithDetails[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -256,6 +270,11 @@ export function EventSheetBottomPreview({ crewId, onClose }: EventSheetBottomPre
     return () => { cancelled = true }
   }, [crewId])
 
+  function handleCardTap(eventId: string) {
+    onClose()
+    router.push(`/chat/${crewId}/events/${eventId}`)
+  }
+
   function handleViewAll() {
     onClose()
     router.push(`/chat/${crewId}/events`)
@@ -269,7 +288,16 @@ export function EventSheetBottomPreview({ crewId, onClose }: EventSheetBottomPre
       onClick={onClose}
     >
       <div className="absolute inset-0 bg-black/60" />
+
       <motion.div
+        drag="y"
+        dragControls={dragControls}
+        dragListener={false}
+        dragConstraints={{ top: 0 }}
+        dragElastic={{ top: 0, bottom: 0.3 }}
+        onDragEnd={(_, info) => {
+          if (info.offset.y > 80 || info.velocity.y > 300) onClose()
+        }}
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
         transition={{ type: 'spring', stiffness: 320, damping: 32 }}
@@ -277,10 +305,22 @@ export function EventSheetBottomPreview({ crewId, onClose }: EventSheetBottomPre
         style={{ maxHeight: '90vh' }}
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Drag handle */}
+        <div
+          className="flex justify-center flex-shrink-0 cursor-grab active:cursor-grabbing"
+          style={{ paddingTop: 12, paddingBottom: 8, touchAction: 'none' }}
+          onPointerDown={(e) => dragControls.start(e)}
+        >
+          <div
+            className="rounded-full"
+            style={{ width: 40, height: 4, background: 'var(--color-border-hover)' }}
+          />
+        </div>
+
         {/* Scrollable: header + cards */}
         <div
           className="flex-1 overflow-y-auto nexus-scroll flex flex-col"
-          style={{ gap: 'var(--x7)', padding: 'var(--x7) var(--x5) 0' }}
+          style={{ gap: 'var(--x7)', padding: '0 var(--x5)' }}
         >
           <p
             className="font-body font-bold text-[var(--color-primary)] leading-none flex-shrink-0"
@@ -310,7 +350,11 @@ export function EventSheetBottomPreview({ crewId, onClose }: EventSheetBottomPre
           ) : (
             <div className="flex flex-col flex-shrink-0" style={{ gap: 'var(--x7)' }}>
               {events.map((event) => (
-                <EventCardPreview key={event.id} event={event} />
+                <EventCardPreview
+                  key={event.id}
+                  event={event}
+                  onTap={() => handleCardTap(event.id)}
+                />
               ))}
             </div>
           )}
