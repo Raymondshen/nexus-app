@@ -55,24 +55,24 @@ export function EventRegistrationSheet({ onStayGoing, onNotGoing, onClose }: Eve
 
           {/* Buttons */}
           <div className="flex flex-col w-full" style={{ gap: 16 }}>
-            {/* Going Confirmed — solid green */}
+            {/* Going — outlined green */}
             <button
               onClick={onStayGoing}
               className="w-full flex items-center justify-center overflow-hidden"
               style={{
                 height:     48,
                 gap:        8,
-                background: 'var(--color-green)',
+                border:     '1px solid var(--color-green)',
                 paddingLeft:  16,
                 paddingRight: 16,
               }}
             >
-              <Check style={{ width: 16, height: 16, color: 'var(--color-primary)' }} aria-hidden="true" />
+              <Check style={{ width: 16, height: 16, color: 'var(--color-green)' }} aria-hidden="true" />
               <span
                 className="font-silkscreen leading-none"
-                style={{ fontSize: 'var(--text-xs)', color: 'var(--color-primary)' }}
+                style={{ fontSize: 'var(--text-xs)', color: 'var(--color-green)' }}
               >
-                Going Confirmed
+                Going
               </span>
             </button>
 
