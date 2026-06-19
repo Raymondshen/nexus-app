@@ -119,6 +119,10 @@ export function EventCreationSheet({
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
         transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+        drag="y"
+        dragConstraints={{ top: 0, bottom: 0 }}
+        dragElastic={{ top: 0, bottom: 1 }}
+        onDragEnd={(_, info) => { if (info.offset.y > 80 || info.velocity.y > 400) onClose() }}
         className="relative w-full max-w-[480px] bg-black border-t border-[var(--color-border)] overflow-hidden"
         style={{ maxHeight: '90vh' }}
         onClick={(e) => e.stopPropagation()}

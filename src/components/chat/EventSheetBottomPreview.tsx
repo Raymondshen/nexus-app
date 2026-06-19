@@ -292,10 +292,10 @@ export function EventSheetBottomPreview({ crewId, onClose }: EventSheetBottomPre
         drag="y"
         dragControls={dragControls}
         dragListener={false}
-        dragConstraints={{ top: 0 }}
-        dragElastic={{ top: 0, bottom: 0.3 }}
+        dragConstraints={{ top: 0, bottom: 0 }}
+        dragElastic={{ top: 0, bottom: 1 }}
         onDragEnd={(_, info) => {
-          if (info.offset.y > 80 || info.velocity.y > 300) onClose()
+          if (info.offset.y > 80 || info.velocity.y > 400) onClose()
         }}
         initial={{ y: '100%' }}
         animate={{ y: 0 }}

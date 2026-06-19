@@ -102,6 +102,10 @@ export function PollCreatorSheet({ crewId, userProfile, onClose, onCreated }: Po
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
         transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+        drag="y"
+        dragConstraints={{ top: 0, bottom: 0 }}
+        dragElastic={{ top: 0, bottom: 1 }}
+        onDragEnd={(_, info) => { if (info.offset.y > 80 || info.velocity.y > 400) onClose() }}
         style={{ maxHeight: '92vh', paddingBottom: 'max(env(safe-area-inset-bottom), 16px)' }}
         onClick={(e) => e.stopPropagation()}
       >

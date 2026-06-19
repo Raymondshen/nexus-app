@@ -321,6 +321,40 @@ Icons (`pixelarticons`):
 | AccountPreview — invite | `Plus` | 12×12, `var(--color-primary)` |
 | Copy / confirm | `Copy`, `Check` | 12×12 |
 
+## Bottom Sheet Patterns
+
+Two named patterns. Every new bottom sheet must use one of these — no custom dismiss logic.
+
+### Sheet (standard — use this for all general sheets)
+Backdrop tap + drag-to-dismiss. Spring animation `stiffness 320, damping 32`.
+
+```tsx
+{/* Backdrop */}
+<motion.div
+  className="fixed inset-0 z-[60] bg-black/60"
+  initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+  onClick={onClose}
+/>
+{/* Sheet */}
+<motion.div
+  className="fixed bottom-0 left-0 right-0 z-[70] bg-black border-t border-border"
+  initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+  transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+  drag="y"
+  dragConstraints={{ top: 0, bottom: 0 }}
+  dragElastic={{ top: 0, bottom: 1 }}
+  onDragEnd={(_, info) => { if (info.offset.y > 80 || info.velocity.y > 400) onClose() }}
+  onClick={(e) => e.stopPropagation()}
+>
+  {/* content */}
+</motion.div>
+```
+
+Upload modals (AvatarUploadModal, BackgroundUploadModal, CrewImageUploadModal) use `drag={saving ? false : 'y'}` so the sheet is locked during an active upload — consistent with the backdrop being locked the same way.
+
+### Panel (SquadDetailsSheet only — do not use elsewhere)
+Full-height swipe-up panel with scroll-integrated pull-to-close (`onPanEnd`, threshold offset > 60 or vel > 300). This custom behavior exists because the panel merges a scrollable member list with the drag gesture and is intentionally different. Do not replicate this pattern for new sheets.
+
 ## Migrations (`supabase/migrations/`)
 - `20240101000000` — initial schema, RLS, seed bosses
 - `20240101000001` — push_subscriptions
