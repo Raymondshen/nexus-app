@@ -8,28 +8,33 @@ import type { Message, MessageWithProfile } from '@/types'
 
 function VisibilityToggle({ visible, onChange }: { visible: boolean; onChange: () => void }) {
   return (
-    <button
-      onClick={onChange}
-      className="flex items-center gap-1.5 flex-shrink-0"
-      aria-label={visible ? 'Hide from banner' : 'Show on banner'}
-    >
-      <div
-        className="relative overflow-hidden flex-shrink-0"
-        style={{ width: 32, height: 18, borderRadius: 18, background: visible ? 'var(--color-purple)' : '#27272a', transition: 'background 0.15s' }}
+    <div className="flex items-center gap-2 flex-shrink-0">
+      <span
+        className="font-body font-medium whitespace-nowrap"
+        style={{ fontSize: 12, color: 'var(--color-secondary)', fontVariationSettings: '"opsz" 14' }}
+      >
+        Display
+      </span>
+      <button
+        onClick={onChange}
+        className="relative flex-shrink-0"
+        style={{
+          width: 40,
+          height: 24,
+          borderRadius: 40,
+          background: visible ? 'var(--color-purple)' : '#71717a',
+          transition: 'background 0.2s',
+        }}
+        aria-label={visible ? 'Hide from banner' : 'Show on banner'}
       >
         <motion.span
-          className="absolute top-[3px] w-3 h-3 rounded-full bg-white pointer-events-none"
-          animate={{ left: visible ? 17 : 3 }}
+          className="absolute rounded-full bg-white pointer-events-none"
+          style={{ top: 4, width: 16, height: 16 }}
+          animate={{ left: visible ? 20 : 4 }}
           transition={{ type: 'spring', stiffness: 400, damping: 30 }}
         />
-      </div>
-      <span
-        className="font-silkscreen leading-none"
-        style={{ fontSize: 'var(--text-mini)', color: visible ? 'var(--color-secondary)' : 'var(--color-tertiary)' }}
-      >
-        {visible ? 'ON' : 'OFF'}
-      </span>
-    </button>
+      </button>
+    </div>
   )
 }
 
@@ -41,7 +46,7 @@ interface PinListSheetProps {
 }
 
 function formatTimeRemaining(expiresAt: string | null | undefined): string {
-  if (!expiresAt) return 'Pinned permanently'
+  if (!expiresAt) return 'Pinned Permanently'
   const ms = new Date(expiresAt).getTime() - Date.now()
   if (ms <= 0) return 'Expired'
   const mins = Math.floor(ms / 60000)
@@ -105,8 +110,8 @@ export function PinListSheet({ activePins, currentUserId, creatorId, onClose }: 
       />
       <motion.div
         key="pinlist-sheet"
-        className="fixed bottom-0 left-0 right-0 z-[70] bg-[#0a0612] border-t border-border flex flex-col"
-        style={{ maxHeight: '70vh', paddingBottom: 'max(env(safe-area-inset-bottom), 24px)' }}
+        className="fixed bottom-0 left-0 right-0 z-[70] bg-black border-t border-border flex flex-col"
+        style={{ maxHeight: '70vh' }}
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
@@ -118,30 +123,20 @@ export function PinListSheet({ activePins, currentUserId, creatorId, onClose }: 
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-5 pt-5 pb-4 flex items-center justify-between flex-shrink-0">
-          <div className="flex flex-col gap-1">
-            <p className="font-pixel text-[8px] text-tertiary leading-none">PINNED TO THE BOARD</p>
-            {activePins.length > 0 && (
-              <p
-                className="font-body font-normal leading-none"
-                style={{ fontSize: 'var(--text-xxs)', color: 'var(--color-secondary)', fontVariationSettings: '"opsz" 14' }}
-              >
-                {activePins.length} / 5 pinned
-              </p>
-            )}
-          </div>
-          <button
-            onClick={onClose}
-            className="font-pixel text-[8px] text-tertiary h-10 px-2 flex items-center justify-center"
+        <div className="flex-shrink-0 px-4 pt-6 pb-6">
+          <p
+            className="font-body font-bold leading-none"
+            style={{ fontSize: 16, color: 'var(--color-primary)', fontVariationSettings: '"opsz" 14' }}
           >
-            CLOSE
-          </button>
+            Pinned Messages
+          </p>
         </div>
 
-        <div className="border-t border-border flex-shrink-0" />
-
         {/* Pin list */}
-        <div className="flex-1 overflow-y-auto nexus-scroll">
+        <div
+          className="flex-1 overflow-y-auto nexus-scroll px-4"
+          style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 28px)' }}
+        >
           {activePins.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 gap-3">
               <span className="font-pixel text-[8px] text-tertiary leading-none">NO PINS YET</span>
@@ -153,59 +148,59 @@ export function PinListSheet({ activePins, currentUserId, creatorId, onClose }: 
               </p>
             </div>
           ) : (
-            activePins.map((pin) => {
-              const profile = (pin as MessageWithProfile).profile
-              const username = profile?.username ?? 'Unknown'
-              const content  = truncateContent(pin.content)
-              const expires  = formatTimeRemaining(pin.pin_expires_at as string | null | undefined)
+            <div className="flex flex-col">
+              {activePins.map((pin, idx) => {
+                const profile  = (pin as MessageWithProfile).profile
+                const username = profile?.username ?? 'Unknown'
+                const content  = truncateContent(pin.content)
+                const expires  = formatTimeRemaining(pin.pin_expires_at as string | null | undefined)
 
-              return (
-                <div key={pin.id} className="border-b border-border/50 last:border-b-0">
-                  <button
-                    onClick={() => handleScrollTo(pin.id)}
-                    className="w-full flex flex-col gap-1 px-5 py-4 text-left active:bg-[#111111] transition-colors"
-                  >
-                    <p
-                      className="font-body font-normal text-primary leading-snug w-full"
-                      style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}
-                    >
-                      {content}
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <span
-                        className="font-silkscreen leading-none"
-                        style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}
-                      >
-                        @{username}
-                      </span>
-                      <span
-                        className="font-silkscreen leading-none"
-                        style={{ fontSize: 'var(--text-mini)', color: 'var(--color-blue)', opacity: 0.8 }}
-                      >
-                        {expires}
-                      </span>
-                    </div>
-                  </button>
-
-                  {isAdmin && (
-                    <div className="px-5 pb-3 flex items-center justify-between">
-                      <VisibilityToggle
-                        visible={!hiddenPinIds.has(pin.id)}
-                        onChange={() => toggleHiddenPin(pin.id)}
-                      />
+                return (
+                  <div key={pin.id}>
+                    {idx > 0 && <div className="h-px bg-border/40" />}
+                    <div className="py-3 flex flex-col gap-4">
+                      {/* Message content — tappable to scroll */}
                       <button
-                        onClick={() => void handleUnpin(pin.id)}
-                        disabled={unpinning === pin.id}
-                        className="font-silkscreen leading-none disabled:opacity-40 transition-opacity active:opacity-60"
-                        style={{ fontSize: 'var(--text-mini)', color: 'var(--color-danger)' }}
+                        onClick={() => handleScrollTo(pin.id)}
+                        className="flex flex-col gap-1 text-left w-full"
                       >
-                        {unpinning === pin.id ? '...' : 'Unpin'}
+                        <p
+                          className="font-body font-medium w-full leading-snug"
+                          style={{ fontSize: 14, color: 'var(--color-secondary)', fontVariationSettings: '"opsz" 14' }}
+                        >
+                          {content}
+                        </p>
+                        <p
+                          className="font-body font-normal w-full"
+                          style={{ fontSize: 12, color: 'var(--color-tertiary)', fontVariationSettings: '"opsz" 14' }}
+                        >
+                          {`Sent by : @${username} `}
+                          <span style={{ color: '#60a5fa' }}>· {expires}</span>
+                        </p>
                       </button>
+
+                      {/* Admin action row */}
+                      {isAdmin && (
+                        <div className="flex items-center justify-between w-full">
+                          <button
+                            onClick={() => void handleUnpin(pin.id)}
+                            disabled={unpinning === pin.id}
+                            className="font-body font-medium disabled:opacity-40 transition-opacity"
+                            style={{ fontSize: 12, color: 'var(--color-danger)', fontVariationSettings: '"opsz" 14' }}
+                          >
+                            {unpinning === pin.id ? '…' : 'Unpin message'}
+                          </button>
+                          <VisibilityToggle
+                            visible={!hiddenPinIds.has(pin.id)}
+                            onChange={() => toggleHiddenPin(pin.id)}
+                          />
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              )
-            })
+                  </div>
+                )
+              })}
+            </div>
           )}
         </div>
       </motion.div>
