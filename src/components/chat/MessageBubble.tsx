@@ -543,7 +543,7 @@ export function MessageBubble({
             )}
           </div>
         )}
-        <div className={`flex-1 min-w-0 flex flex-col gap-0 ${!showHeader ? 'pl-10' : ''}`}>
+        <div className={`flex-1 min-w-0 flex flex-col gap-[4px] ${!showHeader ? 'pl-10' : ''}`}>
           {showHeader && (
             <div className="flex items-center justify-between w-full">
               <div className="flex items-center gap-[4px] flex-1 min-w-0">
