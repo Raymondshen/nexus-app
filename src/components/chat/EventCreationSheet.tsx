@@ -1,10 +1,58 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
 import { Upload } from 'pixelarticons/react/Upload'
 import { createEventAction, updateEventAction } from '@/app/(app)/chat/actions'
+import { createClient } from '@/lib/supabase/client'
+
+function formatDateDisplay(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-')
+  return `${m}/${d}/${y}`
+}
+
+function formatTimeDisplay(timeStr: string): string {
+  const [h, m] = timeStr.split(':').map(Number)
+  const period = h >= 12 ? 'PM' : 'AM'
+  const hour = h % 12 || 12
+  return `${hour}:${String(m).padStart(2, '0')} ${period}`
+}
+
+interface NativeDateInputProps {
+  value:     string
+  onChange:  (v: string) => void
+  placeholder: string
+  inputType: 'date' | 'time'
+}
+
+function NativeDateInput({ value, onChange, placeholder, inputType }: NativeDateInputProps) {
+  const display = value
+    ? (inputType === 'date' ? formatDateDisplay(value) : formatTimeDisplay(value))
+    : null
+
+  return (
+    <div className="relative w-full" onPointerDown={(e) => e.stopPropagation()}>
+      {/* Figma-styled visual layer */}
+      <div
+        className="bg-black border border-[var(--color-border-hover)] font-body font-normal pointer-events-none"
+        style={{ padding: '12px', fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14', lineHeight: 'normal' }}
+      >
+        <span style={{ color: display ? 'var(--color-primary)' : 'var(--color-muted)' }}>
+          {display ?? placeholder}
+        </span>
+      </div>
+      {/* Invisible native input — captures tap and opens OS picker */}
+      <input
+        type={inputType}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+        style={{ zIndex: 1, colorScheme: 'dark' }}
+      />
+    </div>
+  )
+}
 
 interface InitialValues {
   title:        string
@@ -28,6 +76,7 @@ interface EventCreationSheetProps {
 
 export function EventCreationSheet({
   crewId,
+  currentUserId,
   onClose,
   onCreated,
   createMessage,
@@ -45,12 +94,52 @@ export function EventCreationSheet({
   const [submitting,   setSubmitting]   = useState(false)
   const [error,        setError]        = useState<string | null>(null)
 
+  const [coverImageFile,    setCoverImageFile]    = useState<File | null>(null)
+  const [coverImagePreview, setCoverImagePreview] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (!coverImageFile) { setCoverImagePreview(null); return }
+    const url = URL.createObjectURL(coverImageFile)
+    setCoverImagePreview(url)
+    return () => URL.revokeObjectURL(url)
+  }, [coverImageFile])
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setCoverImageFile(file)
+    e.target.value = ''
+  }
+
   async function handleSubmit() {
     if (submitting || !title.trim() || !locationName.trim() || !dateInput || !timeInput) return
     setError(null)
     setSubmitting(true)
 
     const eventDate = new Date(`${dateInput}T${timeInput}`).toISOString()
+
+    // Upload cover image if selected (create mode only)
+    let coverImageUrl: string | undefined
+    if (coverImageFile && !isEdit) {
+      try {
+        const supabase = createClient()
+        const ts = Date.now()
+        const ext = coverImageFile.type.includes('png') ? 'png'
+          : coverImageFile.type.includes('webp') ? 'webp' : 'jpg'
+        const path = `${crewId}/${currentUserId}/event-cover-${ts}.${ext}`
+        const { error: uploadError } = await supabase.storage
+          .from('chat-images')
+          .upload(path, coverImageFile, { contentType: coverImageFile.type, cacheControl: '31536000' })
+        if (uploadError) { setError('Image upload failed. Try again.'); setSubmitting(false); return }
+        const { data: { publicUrl } } = supabase.storage.from('chat-images').getPublicUrl(path)
+        coverImageUrl = publicUrl
+      } catch {
+        setError('Image upload failed. Try again.')
+        setSubmitting(false)
+        return
+      }
+    }
 
     if (isEdit) {
       const { error: actionError } = await updateEventAction({
@@ -71,6 +160,7 @@ export function EventCreationSheet({
         description: description.trim() || undefined,
         location:    locationName.trim() || undefined,
         eventDate,
+        coverImageUrl,
         createMessage,
       })
       setSubmitting(false)
@@ -80,7 +170,6 @@ export function EventCreationSheet({
     }
   }
 
-  // Matches Figma: bg-black, border-[#3f3f46], muted placeholder (#71717a), DM Sans Regular 14px
   const inputClass =
     'w-full bg-black border border-[var(--color-border-hover)] ' +
     'text-[var(--color-primary)] placeholder:text-[var(--color-muted)] ' +
@@ -154,16 +243,31 @@ export function EventCreationSheet({
                 <p className="font-body font-medium text-[var(--color-primary)]" style={labelStyle}>
                   Event Image
                 </p>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                {coverImagePreview && <img
+                  src={coverImagePreview}
+                  alt="Event cover preview"
+                  style={{ width: '100%', height: 160, objectFit: 'cover', display: 'block' }}
+                />}
                 <button
                   type="button"
+                  onClick={() => fileInputRef.current?.click()}
                   className="w-full flex items-center justify-center overflow-hidden"
                   style={{ height: 48, gap: 8, paddingLeft: 16, paddingRight: 16, border: '1px solid var(--color-purple)' }}
                 >
                   <Upload style={{ width: 16, height: 16, color: 'var(--color-purple)' }} aria-hidden="true" />
                   <span className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-purple)' }}>
-                    upload photo
+                    {coverImageFile ? 'change photo' : 'upload photo'}
                   </span>
                 </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileChange}
+                  className="hidden"
+                  aria-hidden="true"
+                />
               </div>
             )}
 
@@ -188,26 +292,22 @@ export function EventCreationSheet({
                 <p className="font-body font-medium text-[var(--color-primary)]" style={labelStyle}>
                   Date
                 </p>
-                <input
-                  type="date"
+                <NativeDateInput
                   value={dateInput}
-                  onChange={(e) => setDateInput(e.target.value)}
+                  onChange={setDateInput}
                   placeholder="MM/DD/YYYY"
-                  className={inputClass}
-                  style={{ ...inputStyle, colorScheme: 'dark' }}
+                  inputType="date"
                 />
               </div>
               <div className="flex flex-col flex-1 min-w-0" style={{ gap: 'var(--x3)' }}>
                 <p className="font-body font-medium text-[var(--color-primary)]" style={labelStyle}>
                   Time
                 </p>
-                <input
-                  type="time"
+                <NativeDateInput
                   value={timeInput}
-                  onChange={(e) => setTimeInput(e.target.value)}
+                  onChange={setTimeInput}
                   placeholder="Set Time"
-                  className={inputClass}
-                  style={{ ...inputStyle, colorScheme: 'dark' }}
+                  inputType="time"
                 />
               </div>
             </div>
