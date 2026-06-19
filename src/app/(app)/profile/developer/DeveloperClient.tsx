@@ -98,7 +98,6 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
   const [gemResetConfirm,     setGemResetConfirm]     = useState(false)
   const [resettingGem,        setResettingGem]        = useState(false)
   const [gemResetDone,        setGemResetDone]        = useState(false)
-  const [eventsFeature,       setEventsFeature]       = useState(false)
   const [newText,             setNewText]             = useState('')
   const [addingBanner,        setAddingBanner]        = useState(false)
   const [bannerError,         setBannerError]         = useState<string | null>(null)
@@ -109,7 +108,6 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
     setShowPush(localStorage.getItem('nexus_push_diag') === '1')
     setInfiniteCoins(localStorage.getItem('nexus_infinite_coins') === '1')
     setChatCamera(localStorage.getItem('nexus_chat_camera') === '1')
-    setEventsFeature(localStorage.getItem('nexus_events_enabled') === '1')
   }, [])
 
   function toggleDevMode() {
@@ -140,13 +138,6 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
     setChatCamera(next)
     if (next) localStorage.setItem('nexus_chat_camera', '1')
     else localStorage.removeItem('nexus_chat_camera')
-  }
-
-  function toggleEventsFeature() {
-    const next = !eventsFeature
-    setEventsFeature(next)
-    if (next) localStorage.setItem('nexus_events_enabled', '1')
-    else localStorage.removeItem('nexus_events_enabled')
   }
 
   async function handleResetFriendshipXP() {
@@ -338,13 +329,6 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
             description="Enable image upload button in chat input"
             enabled={chatCamera}
             onChange={toggleChatCamera}
-          />
-
-          <ToggleRow
-            title="Events Feature"
-            description="Enable group event creation and RSVP in chats"
-            enabled={eventsFeature}
-            onChange={toggleEventsFeature}
           />
 
           {/* Reset gem cooldown — two-step confirm */}

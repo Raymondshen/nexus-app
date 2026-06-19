@@ -186,13 +186,6 @@ export function EventPageFull({ crewId, currentUserId }: EventPageFullProps) {
   const [events,      setEvents]      = useState<EnrichedEvent[]>([])
   const [loading,     setLoading]     = useState(true)
   const [showCreate,  setShowCreate]  = useState(false)
-  const [gateChecked, setGateChecked] = useState(false)
-
-  useEffect(() => {
-    const enabled = localStorage.getItem('nexus_events_enabled') === '1'
-    if (!enabled) { router.replace(`/chat/${crewId}`); return }
-    setGateChecked(true)
-  }, [crewId, router])
 
   const loadEvents = useCallback(async () => {
     const supabase = createClient()
@@ -267,7 +260,6 @@ export function EventPageFull({ crewId, currentUserId }: EventPageFullProps) {
     return () => { supabase.removeChannel(channel) }
   }, [crewId, loadEvents])
 
-  if (!gateChecked) return null
 
   const now      = new Date()
   const upcoming = events.filter((e) => new Date(e.event_date) >= now)

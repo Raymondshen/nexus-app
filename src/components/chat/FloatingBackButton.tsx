@@ -26,10 +26,9 @@ interface FloatingBackButtonProps {
   currentUserId:     string
   initialGemBalance?: number
   creatorId?:        string | null
-  isDev?:            boolean
 }
 
-export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, creatorId, isDev = false }: FloatingBackButtonProps) {
+export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, creatorId }: FloatingBackButtonProps) {
   const goBack = useSlideBack()
   const router = useRouter()
   const setGemBalance           = useChatStore((s) => s.setGemBalance)
@@ -41,7 +40,6 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
 
   const [showPinList,       setShowPinList]       = useState(false)
   const [showEventPreview,  setShowEventPreview]  = useState(false)
-  const [eventsEnabled,     setEventsEnabled]     = useState(false)
 
   useEffect(() => {
     const from = sessionStorage.getItem('nexus_chat_from')
@@ -54,7 +52,6 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
   }, [])
 
   useEffect(() => {
-    setEventsEnabled(localStorage.getItem('nexus_events_enabled') === '1')
   }, [])
 
   // Seed store with server-fetched gem balance
@@ -145,22 +142,20 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
               />
             </button>
 
-            {isDev && eventsEnabled && (
-              <button
-                onClick={() => setShowEventPreview(true)}
-                aria-label="Group events"
-                className="flex items-center justify-center border border-border flex-shrink-0"
-                style={{
-                  padding: 'var(--x3)',
-                  background: 'rgba(0,0,0,0)',
-                  backdropFilter: 'blur(7px)',
-                  WebkitBackdropFilter: 'blur(7px)',
-                  boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)',
-                }}
-              >
-                <Calendar2 style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
-              </button>
-            )}
+            <button
+              onClick={() => setShowEventPreview(true)}
+              aria-label="Group events"
+              className="flex items-center justify-center border border-border flex-shrink-0"
+              style={{
+                padding: 'var(--x3)',
+                background: 'rgba(0,0,0,0)',
+                backdropFilter: 'blur(7px)',
+                WebkitBackdropFilter: 'blur(7px)',
+                boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)',
+              }}
+            >
+              <Calendar2 style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+            </button>
 
             <button
               onClick={() => setSquadDetailsOpen(true)}

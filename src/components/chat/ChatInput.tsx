@@ -122,7 +122,6 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   const [mentionQuery,    setMentionQuery]    = useState<string | null>(null)
   const [mentionIndex,    setMentionIndex]    = useState(0)
   const [isFocused,       setIsFocused]       = useState(false)
-  const [eventsEnabled,   setEventsEnabled]   = useState(false)
   const [showEventSheet,  setShowEventSheet]  = useState(false)
 
   const [chatImageLocalUrl,  setChatImageLocalUrl]  = useState<string | null>(null)
@@ -169,7 +168,6 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   useEffect(() => {
     setDevMode(localStorage.getItem('nexus_dev_mode') === '1')
     setChatCameraEnabled(localStorage.getItem('nexus_chat_camera') === '1')
-    setEventsEnabled(localStorage.getItem('nexus_events_enabled') === '1')
   }, [])
 
   useEffect(() => {
@@ -883,7 +881,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     textareaRef.current?.focus()
 
     if (name === 'event') {
-      if (eventsEnabled) setShowEventSheet(true)
+      setShowEventSheet(true)
       return
     }
 
