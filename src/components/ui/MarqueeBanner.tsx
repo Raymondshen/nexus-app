@@ -17,6 +17,8 @@ interface MarqueeBannerProps {
   icon: React.ReactNode
   onClick?: () => void
   quoted?: boolean
+  // Pinned-ticker variant: full border on all 4 sides instead of just top/bottom
+  pinned?: boolean
 }
 
 function Dot() {
@@ -36,7 +38,7 @@ function Dot() {
   )
 }
 
-export function MarqueeBanner({ text, suffix, items, icon, onClick, quoted }: MarqueeBannerProps) {
+export function MarqueeBanner({ text, suffix, items, icon, onClick, quoted, pinned }: MarqueeBannerProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const groupRef     = useRef<HTMLSpanElement>(null)
   const [numCopies, setNumCopies] = useState(4)
@@ -108,7 +110,9 @@ export function MarqueeBanner({ text, suffix, items, icon, onClick, quoted }: Ma
     </motion.div>
   )
 
-  const containerClass = "overflow-hidden border-y border-border bg-black w-full"
+  const containerClass = pinned
+    ? "overflow-hidden border border-border bg-black w-full"
+    : "overflow-hidden border-y border-border bg-black w-full"
   const containerStyle = { paddingTop: 'var(--x4)', paddingBottom: 'var(--x4)' }
 
   if (onClick) {

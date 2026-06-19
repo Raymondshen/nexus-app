@@ -256,6 +256,7 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
               items={tickerItems}
               icon={<Note style={{ width: 8, height: 8, color: 'var(--color-blue)' }} aria-hidden="true" />}
               onClick={() => setPinnedScrollTargetId(visiblePins[0].id)}
+              pinned
             />
           </div>
         )}

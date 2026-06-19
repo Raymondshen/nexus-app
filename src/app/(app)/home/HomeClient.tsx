@@ -725,7 +725,9 @@ function DmNotificationPreviewCard({ dmUnread, onTap }: { dmUnread: number; onTa
 
 // ─── Swipeable crew card ──────────────────────────────────────────────────────
 
-const LEAVE_REVEAL = 40
+const LEAVE_BTN_WIDTH = 40
+const LEAVE_GAP       = 16  // var(--x5) gap between card and button (Figma 189-2385)
+const LEAVE_REVEAL    = LEAVE_BTN_WIDTH + LEAVE_GAP
 
 function SwipeableCrewCard({
   summary,
@@ -781,7 +783,7 @@ function SwipeableCrewCard({
         drag="x"
         dragConstraints={{ left: -LEAVE_REVEAL, right: 0 }}
         dragElastic={{ left: 0.05, right: 0.1 }}
-        style={{ x, width: `calc(100% + ${LEAVE_REVEAL}px)` }}
+        style={{ x, width: `calc(100% + ${LEAVE_REVEAL}px)`, gap: LEAVE_GAP }}
         onDragStart={() => { wasDragging.current = true; onOpen(summary.crew.id) }}
         onDragEnd={handleDragEnd}
       >
@@ -795,7 +797,7 @@ function SwipeableCrewCard({
 
         <button
           className="flex-shrink-0 self-stretch flex items-center justify-center bg-[var(--red)] p-[12px] overflow-hidden rounded-[8px]"
-          style={{ width: LEAVE_REVEAL }}
+          style={{ width: LEAVE_BTN_WIDTH }}
           onClick={(e) => { e.stopPropagation(); snapTo(0, false); onLeaveRequest() }}
           tabIndex={open ? 0 : -1}
           aria-label={`Leave ${summary.crew.name}`}
