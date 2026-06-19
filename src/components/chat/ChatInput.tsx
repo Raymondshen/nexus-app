@@ -29,6 +29,7 @@ import { CrewImageUploadModal } from '@/components/chat/CrewImageUploadModal'
 import { NotifSheet, type NotifPrefs } from '@/components/chat/NotifSheet'
 import { SquadDetailsSheet, type MiniMember } from '@/components/chat/SquadDetailsSheet'
 import { PollCreatorSheet } from '@/components/chat/PollCreatorSheet'
+import { GifPickerSheet } from '@/components/chat/GifPickerSheet'
 import type { Message, MessageWithProfile, Profile, ActiveRaid } from '@/types'
 
 const MAX_MESSAGE_LENGTH = 2000
@@ -115,6 +116,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   const [showNotif,       setShowNotif]       = useState(false)
   const [notifPrefs,      setNotifPrefs]      = useState<NotifPrefs>({ messages: true, raids: true, victory: true, mentions: true })
   const [showPollCreator,   setShowPollCreator]   = useState(false)
+  const [showGifPicker,     setShowGifPicker]     = useState(false)
   const [mentionQuery,    setMentionQuery]    = useState<string | null>(null)
   const [mentionIndex,    setMentionIndex]    = useState(0)
   const [isFocused,       setIsFocused]       = useState(false)
@@ -530,6 +532,103 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       textareaRef.current?.focus()
     }
   }, [chatImagePublicUrl, chatImageLqip, chatImageUploading, sending, crewId, userId, userProfile, addMessage, removeMessage, updateMessage, activeRaid, addDamageFloat, addUserCoins, clearChatImage]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const sendGif = useCallback(async (gifUrl: string) => {
+    if (sending) return
+
+    const tempId = `opt_${Date.now()}`
+    setSending(true)
+    setSendError(null)
+    haptic(10)
+
+    const optimisticMsg: MessageWithProfile = {
+      id:              tempId,
+      crew_id:         crewId,
+      user_id:         userId,
+      content:         gifUrl,
+      message_type:    'image',
+      element_type:    'nature',
+      xp_awarded:      0,
+      reactions:       {},
+      created_at:      new Date().toISOString(),
+      image_url:       gifUrl,
+      image_blur_hash: undefined,
+      profile:         userProfile,
+    }
+    addMessage(optimisticMsg)
+    addXP(20)
+
+    try {
+      const supabase = createClient()
+      const { data: raw, error } = await supabase.rpc('insert_message', {
+        p_crew_id:         crewId,
+        p_content:         gifUrl,
+        p_message_type:    'image',
+        p_image_url:       gifUrl,
+        p_image_blur_hash: null,
+      })
+      if (error) throw error
+      if (!raw) throw new Error('No message returned from server.')
+
+      const alreadyAdded = useChatStore.getState().messages.some((m) => m.id === raw.id)
+      if (alreadyAdded) {
+        removeMessage(tempId)
+      } else {
+        updateMessage(tempId, { id: raw.id, created_at: raw.created_at, element_type: raw.element_type, image_url: gifUrl })
+      }
+
+      if (channelReadyRef.current) msgChannelRef.current?.send({
+        type: 'broadcast', event: 'new_message',
+        payload: {
+          id: raw.id, crew_id: raw.crew_id, user_id: raw.user_id,
+          content: raw.content, message_type: raw.message_type,
+          element_type: raw.element_type, xp_awarded: raw.xp_awarded,
+          created_at: raw.created_at,
+          image_url: gifUrl, image_blur_hash: null,
+        },
+      })
+
+      tryClaimDailyGem(supabase, showGemToast)
+
+      const msgId = raw.id
+      fetch(`${SUPABASE_URL}/functions/v1/award-xp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
+        body: JSON.stringify({ message_id: msgId, crew_id: crewId, user_id: userId, username: userProfile.username, message_type: 'image', content: gifUrl, mentioned_user_ids: [] }),
+      })
+        .then((r) => r.json())
+        .then((data: { xp_earned?: number; new_total_xp?: number; coins_earned?: number }) => {
+          if (typeof data.xp_earned === 'number' && data.xp_earned > 0) updateMessage(msgId, { xp_awarded: data.xp_earned })
+          if (typeof data.new_total_xp === 'number') {
+            setCrewXP(data.new_total_xp)
+            if (channelReadyRef.current) msgChannelRef.current?.send({
+              type: 'broadcast', event: 'xp_update',
+              payload: { xp_earned: data.xp_earned ?? 0, new_total_xp: data.new_total_xp, sender_id: userId },
+            })
+          }
+          if (typeof data.coins_earned === 'number' && data.coins_earned > 0) addUserCoins(data.coins_earned)
+        })
+        .catch(() => {})
+
+      if (activeRaid && !activeRaid.defeated_at) {
+        fetch(`${SUPABASE_URL}/functions/v1/attack-boss`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
+          body: JSON.stringify({ crew_id: crewId, user_id: userId, message_type: 'image', element_type: 'nature', content: gifUrl }),
+        })
+          .then((r) => r.json())
+          .then((data) => { if (data.damage) { addDamageFloat(data.damage, 'nature'); haptic([10, 50, 10]) } })
+          .catch(() => {})
+      }
+    } catch (err) {
+      console.error('[sendGif]', err)
+      removeMessage(tempId)
+      setSendError(err instanceof Error ? err.message : 'Failed to send GIF.')
+    } finally {
+      setSending(false)
+      textareaRef.current?.focus()
+    }
+  }, [sending, crewId, userId, userProfile, addMessage, removeMessage, updateMessage, activeRaid, addDamageFloat, addUserCoins]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const send = useCallback(async () => {
     const content = sanitizeMessage(text)
@@ -1213,6 +1312,13 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
               >
                 <Chart style={{ width: 16, height: 16 }} aria-hidden="true" />
               </button>
+              <button
+                onClick={() => setShowGifPicker(true)}
+                className="flex-shrink-0 flex items-center justify-center w-4 h-4 text-tertiary active:text-purple"
+                aria-label="Send GIF"
+              >
+                <span className="font-silkscreen text-[8px] leading-none">GIF</span>
+              </button>
               {chatCameraEnabled && (
                 <button
                   onClick={() => chatImageInputRef.current?.click()}
@@ -1436,6 +1542,16 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
             userProfile={userProfile}
             onClose={() => setShowPollCreator(false)}
             onCreated={handlePollCreated}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showGifPicker && (
+          <GifPickerSheet
+            onSelect={(gifUrl) => { setShowGifPicker(false); void sendGif(gifUrl) }}
+            onUpload={() => chatImageInputRef.current?.click()}
+            onClose={() => setShowGifPicker(false)}
           />
         )}
       </AnimatePresence>

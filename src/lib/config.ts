@@ -67,6 +67,12 @@ export const PIN_MAX_PER_CREW          = 5
 export const PIN_MAX_DURATION_MINUTES  = 525960  // ~1 year
 export const PIN_FEATURE_KEY           = 'nexus_pin_feature'
 
+export const KLIPY_API_BASE_URL                = 'https://api.klipy.com/api/v1'
+export const KLIPY_RATING                      = 'g'
+export const KLIPY_SEARCH_DEBOUNCE_MS          = 400
+export const KLIPY_PAGE_SIZE                   = 20
+export const KLIPY_TRENDING_REVALIDATE_SECONDS = 300
+
 export const IMAGE_CONFIG = {
   MAX_UPLOAD_BYTES:          15_728_640, // 15 MB
   MAX_GIF_BYTES:              5_242_880, //  5 MB

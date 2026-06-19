@@ -22,6 +22,49 @@ import { Button } from '@/components/ui/Button'
 import { Cake } from 'pixelarticons/react/Cake'
 import { UserPlus } from 'pixelarticons/react/UserPlus'
 
+function ImageBubble({
+  src, blurDataURL, onTouchStart, onTouchEnd, onTouchMove, onClick,
+}: {
+  src:          string
+  blurDataURL?: string
+  onTouchStart: (e: React.TouchEvent) => void
+  onTouchEnd:   (e: React.TouchEvent) => void
+  onTouchMove:  () => void
+  onClick:      (e: React.MouseEvent) => void
+}) {
+  const isGif = /\.gif(\?|$)/i.test(src) || src.includes('static.klipy.com')
+  return (
+    <div
+      className="relative w-[220px] h-[165px] mt-1 overflow-hidden"
+      style={{ cursor: 'pointer' }}
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
+      onTouchMove={onTouchMove}
+      onClick={onClick}
+    >
+      {isGif ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={src}
+          alt="shared GIF"
+          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+        />
+      ) : (
+        <Image
+          src={src}
+          alt="shared image"
+          fill
+          sizes="220px"
+          className="object-cover"
+          loader={supabaseImageLoader}
+          placeholder={blurDataURL ? 'blur' : 'empty'}
+          blurDataURL={blurDataURL}
+        />
+      )}
+    </div>
+  )
+}
+
 const CLASS_NAMES: Record<AvatarClass, string> = {
   berserker: 'Berserker',
   sage:      'Sage',
@@ -690,25 +733,14 @@ export function MessageBubble({
 
           {/* Message body */}
           {message.message_type === 'image' ? (
-            <div
-              className="relative w-[220px] h-[165px] mt-1 overflow-hidden"
-              style={{ cursor: 'pointer' }}
+            <ImageBubble
+              src={(message.image_url as string | null | undefined) ?? message.content}
+              blurDataURL={(message.image_blur_hash as string | undefined) ?? undefined}
               onTouchStart={handleImageTouchStart}
               onTouchEnd={handleImageTouchEnd}
               onTouchMove={handleImageTouchMove}
               onClick={handleImageClick}
-            >
-              <Image
-                src={(message.image_url as string | null | undefined) ?? message.content}
-                alt="shared image"
-                fill
-                sizes="220px"
-                className="object-cover"
-                loader={supabaseImageLoader}
-                placeholder={message.image_blur_hash ? 'blur' : 'empty'}
-                blurDataURL={(message.image_blur_hash as string | undefined) ?? undefined}
-              />
-            </div>
+            />
           ) : (
             <p
               className="font-body font-normal text-[14px] text-white leading-[normal] w-full select-none"
