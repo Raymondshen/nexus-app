@@ -172,8 +172,8 @@ OG previews: `extractFirstUrl` → `useOGPreview` hook → `<LinkPreviewCard>` b
 ### Pin Feature (dev-gated: `nexus_pin_feature`)
 - Admin = crew member with earliest `joined_at`; cap = 5 active pins per crew (`PIN_MAX_PER_CREW`)
 - `pin_message` / `unpin_message` RPCs only — `messages_protect_pin_columns` trigger blocks direct client writes
-- `PinDurationSheet` (`src/components/chat/PinDurationSheet.tsx`): two-step confirm → duration picker (presets + custom); opened from long-press sheet
-- `PinListSheet` (`src/components/chat/PinListSheet.tsx`): lists active pins; admin row = ON/OFF visibility toggle + Unpin button
+- `PinDurationSheet` (`src/components/chat/PinDurationSheet.tsx`): single-step sheet — message preview (content + "Sent by : @username") + duration `<select>` dropdown (7 presets: 15 min → 1 month + Permanent; `ChevronRight` rotated 90° as indicator) + "PIN IT" button (h-48 bg-purple Silkscreen); `bg-black border-t border-[#27272a]`; opened from long-press sheet
+- `PinListSheet` (`src/components/chat/PinListSheet.tsx`): lists active pins; `bg-black` no border-top; header "Pinned Messages" DM Sans Bold 16px; each item: content (Medium 14px secondary) + "Sent by : @user · [expiry]" (Regular 12px tertiary + blue #60a5fa); admin row = "Unpin message" (left, red, 12px) + "Display" label + 40×24px toggle (purple ON thumb-right / #71717a OFF thumb-left); `h-px bg-border/40` dividers with `margin: 12px 0`
 - `MarqueeBanner` (`src/components/ui/MarqueeBanner.tsx`): shared marquee; accepts `items[]` for multi-pin continuous scroll (`msg @user • msg @user • …`); also used by ProfileStatusTicker (single `text` prop)
 - `FloatingBackButton`: `Note` icon button (count badge) + ticker strip below nav; ticker filters `hiddenPinIds` (chatStore Set, in-memory); tapping ticker scrolls to first visible pin
 - `selectActivePins(messages)` exported from chatStore; `hiddenPinIds` + `toggleHiddenPin` in chatStore
@@ -297,6 +297,7 @@ Icons (`pixelarticons`):
 |---|---|---|
 | Back buttons | `ChevronLeft` | 24×24 |
 | Expand/collapse | `ChevronRight` (rotated) | 24×24 |
+| PinDurationSheet — duration dropdown | `ChevronRight` (rotated 90°) | 16×16 |
 | Chat nav — notifs | `Bell` / `BellOff` | 24×24 |
 | Chat nav — pins | `Note` | 24×24 |
 | Chat nav — glossary / SquadDetailsSheet header | `Library` | 24×24 |
