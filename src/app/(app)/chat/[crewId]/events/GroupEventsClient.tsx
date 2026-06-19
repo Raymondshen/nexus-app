@@ -13,6 +13,8 @@ import { resolveAvatarUrl, isSupabaseStorage } from '@/components/ui/Avatar'
 import { format } from 'date-fns'
 import type { Event } from '@/types'
 
+const DEFAULT_EVENT_IMAGE = '/img/eventDefaultImage.png'
+
 interface EventPageFullProps {
   crewId:        string
   currentUserId: string
@@ -49,28 +51,31 @@ function formatEventDate(dateStr: string): string {
   return format(new Date(dateStr), "EEEE, MMMM d '@' h:mm a")
 }
 
-function EventPageCard({ event }: { event: EnrichedEvent }) {
+function EventCardPreview({ event, crewId }: { event: EnrichedEvent; crewId: string }) {
+  const router = useRouter()
+  const coverSrc = event.cover_image_url || DEFAULT_EVENT_IMAGE
+  const isLocal  = !event.cover_image_url
+
   return (
-    <div
-      className="w-full overflow-hidden flex flex-col flex-shrink-0"
+    <button
+      className="w-full overflow-hidden flex flex-col flex-shrink-0 text-left"
       style={{
         background: 'var(--color-surface)',
         border: '1px solid var(--color-border)',
         borderRadius: 8,
       }}
+      onClick={() => router.push(`/chat/${crewId}/events/${event.id}`)}
     >
-      {event.cover_image_url && (
-        <div className="relative w-full flex-shrink-0" style={{ height: 140 }}>
-          <Image
-            src={event.cover_image_url}
-            alt={event.title}
-            fill
-            sizes="480px"
-            className="object-cover"
-            unoptimized={isSupabaseStorage(event.cover_image_url)}
-          />
-        </div>
-      )}
+      <div className="relative w-full flex-shrink-0" style={{ height: 140 }}>
+        <Image
+          src={coverSrc}
+          alt={event.title}
+          fill
+          sizes="480px"
+          className="object-cover"
+          unoptimized={!isLocal && isSupabaseStorage(coverSrc)}
+        />
+      </div>
 
       <div className="flex flex-col w-full" style={{ padding: 16, gap: 16 }}>
         {/* Details */}
@@ -171,7 +176,7 @@ function EventPageCard({ event }: { event: EnrichedEvent }) {
           </div>
         </div>
       </div>
-    </div>
+    </button>
   )
 }
 
@@ -353,7 +358,7 @@ export function EventPageFull({ crewId, currentUserId }: EventPageFullProps) {
                 <div className="flex flex-col" style={{ gap: 'var(--x5)' }}>
                   {upcoming.map((event) => (
                     <motion.div key={event.id} layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-                      <EventPageCard event={event} />
+                      <EventCardPreview event={event} crewId={crewId} />
                     </motion.div>
                   ))}
                 </div>
@@ -372,7 +377,7 @@ export function EventPageFull({ crewId, currentUserId }: EventPageFullProps) {
                 <div className="flex flex-col" style={{ gap: 'var(--x5)' }}>
                   {[...past].reverse().map((event) => (
                     <motion.div key={event.id} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                      <EventPageCard event={event} />
+                      <EventCardPreview event={event} crewId={crewId} />
                     </motion.div>
                   ))}
                 </div>
