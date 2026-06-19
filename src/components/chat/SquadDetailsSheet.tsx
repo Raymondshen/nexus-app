@@ -161,7 +161,7 @@ function MemberListRow({
         {/* Name + class · msg count */}
         <div className="flex flex-col gap-1 justify-center min-w-0 flex-1">
           <div className="flex items-center gap-1">
-            <p className="font-body font-bold text-[16px] text-white truncate leading-none" style={{ fontVariationSettings: '"opsz" 14' }}>{profile.username}</p>
+            <p className="font-body font-bold text-white truncate leading-none" style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}>{profile.username}</p>
             {isCreator && (
               <Crown style={{ width: 12, height: 12, color: '#f59e0b' }} aria-hidden="true" />
             )}
@@ -495,17 +495,17 @@ export function SquadDetailsSheet({
         {/* ── Fixed header ── */}
         <div className="flex-shrink-0 flex flex-col gap-4 px-4 pt-6">
 
-          {/* group_header — 200px tall, title row at top, avatar+XP at bottom */}
-          <div className="flex flex-col justify-between" style={{ height: 200 }}>
+          {/* group_header — 180px tall, title row at top, XP bar at bottom */}
+          <div className="flex flex-col justify-between" style={{ height: 180 }}>
 
             {/* Title row: crew image + name/count | action buttons */}
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-2 min-w-0 flex-1">
-                {/* 32×32 crew image */}
-                <div className="relative flex-shrink-0 w-8 h-8 overflow-hidden">
+                {/* 40×40 crew image */}
+                <div className="relative flex-shrink-0 overflow-hidden" style={{ width: 'var(--space-11)', height: 'var(--space-11)' }}>
                   {crewImageUrl ? (
                     <div className="relative w-full h-full">
-                      <Image src={crewImageUrl} alt={crewName} fill sizes="32px" className="object-cover" unoptimized={isSupabaseStorage(crewImageUrl)} />
+                      <Image src={crewImageUrl} alt={crewName} fill sizes="40px" className="object-cover" unoptimized={isSupabaseStorage(crewImageUrl)} />
                     </div>
                   ) : (
                     <div className="w-full h-full bg-purple" />
@@ -513,11 +513,14 @@ export function SquadDetailsSheet({
                 </div>
 
                 {/* Name + member count */}
-                <div className="flex flex-col gap-1 min-w-0">
-                  <p className="font-silkscreen text-[16px] text-purple leading-none truncate uppercase">
+                <div className="flex flex-col min-w-0" style={{ gap: 'var(--space-2)' }}>
+                  <p
+                    className="font-body font-black leading-none truncate uppercase"
+                    style={{ fontSize: 'var(--text-md)', color: 'var(--color-secondary)', fontVariationSettings: '"opsz" 14' }}
+                  >
                     {crewName}
                   </p>
-                  <p className="font-silkscreen text-[8px] text-tertiary leading-none">
+                  <p className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-xxs)', color: 'var(--color-secondary)' }}>
                     {memberCount} {memberCount === 1 ? 'member' : 'members'}
                   </p>
                 </div>
@@ -565,90 +568,66 @@ export function SquadDetailsSheet({
               </div>
             </div>
 
-            {/* Avatar list + XP bar (pinned to bottom of 200px block) */}
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center gap-3">
-                {members.slice(0, 8).map((m) => {
-                  const url     = m.avatar_url
-                  const initial = m.username[0]?.toUpperCase() ?? '?'
-                  const online  = onlineUserIds.has(m.id)
-                  return (
-                    <div key={m.id} className="relative flex-shrink-0" title={m.username}>
-                      <div className="w-6 h-6 overflow-hidden bg-surface flex items-center justify-center">
-                        {url ? (
-                          <div className="relative w-full h-full">
-                            <Image src={resolveAvatarUrl(url, 24)} alt={m.username} fill sizes="24px" className="object-cover" unoptimized={isSupabaseStorage(url)} />
-                          </div>
-                        ) : (
-                          <span className="font-pixel text-[8px] text-purple">{initial}</span>
-                        )}
-                      </div>
-                      {online && (
-                        <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#66bb6a] border-[1.5px] border-black" />
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-
-              {/* XP stats + bar */}
-              <div className="flex flex-col gap-2 w-full">
-                <div className="flex items-center w-full">
-                  <p className="flex-1 min-w-0 leading-[0] text-[0px] font-silkscreen">
-                    <span className="text-[8px] leading-none text-primary">Level {crewLevel}</span>
-                    <span className="text-[8px] leading-none text-tertiary">
-                      {` · ${crewXP % XP_PER_LEVEL} / ${XP_PER_LEVEL}XP`}
+            {/* XP bar (pinned to bottom of 180px block) */}
+            <div className="flex flex-col w-full" style={{ gap: 'var(--space-3)' }}>
+              <p className="leading-[0] text-[0px] font-silkscreen w-full">
+                <span className="leading-none text-tertiary" style={{ fontSize: 'var(--text-mini)' }}>
+                  {`${crewXP % XP_PER_LEVEL} / ${XP_PER_LEVEL}XP`}
+                </span>
+                {totalMessages > 0 && (
+                  <>
+                    <span className="leading-none text-tertiary" style={{ fontSize: 'var(--text-mini)' }}>{` · `}</span>
+                    <span className="leading-none text-secondary" style={{ fontSize: 'var(--text-mini)' }}>
+                      {totalMessages.toLocaleString()} total Squad msg.
                     </span>
-                    {totalMessages > 0 && (
-                      <span className="text-[8px] leading-none text-tertiary">
-                        {` · ${totalMessages.toLocaleString()} total msg.`}
-                      </span>
-                    )}
-                  </p>
-                  <p className="font-silkscreen text-[8px] leading-none whitespace-nowrap text-tertiary">Next Boss</p>
-                </div>
-                <div className="bg-surface h-1 overflow-hidden w-full relative">
-                  <motion.div
-                    className="absolute left-0 top-0 h-full bg-purple"
-                    animate={{ width: `${xpProgress}%` }}
-                    transition={{ type: 'spring', stiffness: 300, damping: 28 }}
-                  />
-                </div>
+                  </>
+                )}
+              </p>
+              <div className="bg-surface overflow-hidden w-full relative" style={{ height: 4 }}>
+                <motion.div
+                  className="absolute left-0 top-0 h-full bg-purple"
+                  animate={{ width: `${xpProgress}%` }}
+                  transition={{ type: 'spring', stiffness: 300, damping: 28 }}
+                />
               </div>
             </div>
           </div>
 
           {/* Invite code block — group chats only */}
           {inviteCode && (
-            <div className="flex items-center justify-between bg-[rgba(168,85,247,0.1)] border border-purple p-3 overflow-hidden">
-              <div className="flex flex-col gap-1">
-                <p className="font-silkscreen text-[8px] text-secondary leading-none tracking-[0.2px]">
+            <div className="flex items-center justify-between border border-purple overflow-hidden" style={{ padding: 'var(--space-4)' }}>
+              <div className="flex flex-col" style={{ gap: 'var(--space-2)' }}>
+                <p className="font-silkscreen leading-none tracking-[0.2px]" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>
                   Invite your squad
                 </p>
                 <p
-                  className="font-silkscreen text-[24px] text-purple leading-none tracking-[0.2px]"
-                  style={{ textShadow: '0px 0px 3px var(--color-purple)' }}
+                  className="font-silkscreen leading-none tracking-[0.2px]"
+                  style={{ fontSize: 'var(--text-xxl)', color: 'var(--color-purple)', textShadow: '0px 0px 3px var(--color-purple)' }}
                 >
                   {inviteCode}
                 </p>
               </div>
               <button
                 onClick={handleCopyCode}
-                className="flex items-center gap-1 px-4 py-3 flex-shrink-0 transition-colors duration-150"
-                style={copied
-                  ? { backgroundColor: '#22c55e', boxShadow: '2px 2px 0px 0px rgba(34,197,94,0.5)' }
-                  : { backgroundColor: 'var(--color-purple)' }
-                }
+                className="flex items-center flex-shrink-0 transition-colors duration-150"
+                style={{
+                  gap: 'var(--space-3)',
+                  padding: 'var(--space-4) var(--space-5)',
+                  ...(copied
+                    ? { backgroundColor: 'var(--color-green)', boxShadow: '4px 4px 0px 0px rgba(34,197,94,0.5)' }
+                    : { backgroundColor: 'var(--color-purple)', boxShadow: '4px 4px 0px 0px rgba(168,85,247,0.5)' }
+                  ),
+                }}
               >
                 {copied ? (
                   <>
-                    <Check style={{ width: 12, height: 12, color: 'white' }} aria-hidden="true" />
-                    <p className="font-silkscreen text-[11px] text-white leading-none whitespace-nowrap">copied</p>
+                    <Check style={{ width: 12, height: 12, color: 'var(--color-primary)' }} aria-hidden="true" />
+                    <p className="font-silkscreen leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-xxs)', color: 'var(--color-primary)' }}>copied</p>
                   </>
                 ) : (
                   <>
-                    <Copy style={{ width: 12, height: 12, color: 'white' }} aria-hidden="true" />
-                    <p className="font-silkscreen text-[11px] text-white leading-none whitespace-nowrap">Copy Code</p>
+                    <Copy style={{ width: 12, height: 12, color: 'var(--color-primary)' }} aria-hidden="true" />
+                    <p className="font-silkscreen leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-xxs)', color: 'var(--color-primary)' }}>Copy Code</p>
                   </>
                 )}
               </button>
@@ -657,7 +636,7 @@ export function SquadDetailsSheet({
         </div>
 
         {/* ── Scrollable member list ── */}
-        <div ref={memberListRef} className="flex-1 overflow-y-auto nexus-scroll px-4 min-h-0 mt-4" style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 24px)' }}>
+        <div ref={memberListRef} className="flex-1 overflow-y-auto nexus-scroll px-4 min-h-0 mt-4" style={{ paddingBottom: 'max(env(safe-area-inset-bottom), var(--space-8))' }}>
           <div className="flex flex-col gap-[var(--space-6)]">
             {[...members].sort((a, b) => (memberMsgCounts.get(b.id) ?? 0) - (memberMsgCounts.get(a.id) ?? 0)).map((m) => (
               <MemberListRow

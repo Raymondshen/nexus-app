@@ -110,7 +110,7 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
             className="pointer-events-auto flex items-center justify-center border border-border flex-shrink-0"
             style={{
               padding: 'var(--x3)',
-              background: 'black',
+              background: 'rgba(0,0,0,0)',
               backdropFilter: 'blur(7px)',
               WebkitBackdropFilter: 'blur(7px)',
               boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)',
@@ -131,7 +131,7 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
                 background: 'rgba(0,0,0,0)',
                 backdropFilter: 'blur(7px)',
                 WebkitBackdropFilter: 'blur(7px)',
-                filter: 'drop-shadow(0px 0px 10px rgba(0,0,0,0.1))',
+                boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)',
               }}
             >
               <Note
@@ -153,7 +153,7 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
                   background: 'rgba(0,0,0,0)',
                   backdropFilter: 'blur(7px)',
                   WebkitBackdropFilter: 'blur(7px)',
-                  filter: 'drop-shadow(0px 0px 10px rgba(0,0,0,0.1))',
+                  boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)',
                 }}
               >
                 <Calendar2 style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
@@ -169,7 +169,7 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
                 background: 'rgba(0,0,0,0)',
                 backdropFilter: 'blur(7px)',
                 WebkitBackdropFilter: 'blur(7px)',
-                filter: 'drop-shadow(0px 0px 10px rgba(0,0,0,0.1))',
+                boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)',
               }}
             >
               <Campfire style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
