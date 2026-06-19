@@ -271,11 +271,13 @@ export function EventSheetBottomPreview({ crewId, onClose }: EventSheetBottomPre
 
   function handleCardTap(eventId: string) {
     onClose()
+    sessionStorage.setItem('nexus_chat_from', 'event')
     router.push(`/chat/${crewId}/events/${eventId}`)
   }
 
   function handleViewAll() {
     onClose()
+    sessionStorage.setItem('nexus_chat_from', 'events')
     router.push(`/chat/${crewId}/events`)
   }
 
