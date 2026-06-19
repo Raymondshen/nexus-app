@@ -3,8 +3,8 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createClient } from '@/lib/supabase/client'
-import { PIN_MAX_DURATION_MINUTES } from '@/lib/config'
-import type { Message } from '@/types'
+import { ChevronRight } from 'pixelarticons/react/ChevronRight'
+import type { Message, MessageWithProfile } from '@/types'
 
 interface PinDurationSheetProps {
   message: Message
@@ -12,25 +12,15 @@ interface PinDurationSheetProps {
   onPinned: (patch: Partial<Message>) => void
 }
 
-const PRESETS: { label: string; minutes: number | null }[] = [
-  { label: '15 min',   minutes: 15 },
-  { label: '1 hour',   minutes: 60 },
-  { label: '6 hours',  minutes: 360 },
-  { label: '1 day',    minutes: 1440 },
-  { label: '1 week',   minutes: 10080 },
-  { label: '1 month',  minutes: 43200 },
-  { label: 'Permanent', minutes: null },
+const PRESETS: { label: string; value: string }[] = [
+  { label: '15 minutes', value: '15' },
+  { label: '1 hour',     value: '60' },
+  { label: '6 hours',    value: '360' },
+  { label: '1 day',      value: '1440' },
+  { label: '1 week',     value: '10080' },
+  { label: '1 month',    value: '43200' },
+  { label: 'Permanent',  value: 'permanent' },
 ]
-
-type Step = 'confirm' | 'duration'
-type CustomUnit = 'minutes' | 'hours' | 'days' | 'months'
-
-const UNIT_MULTIPLIERS: Record<CustomUnit, number> = {
-  minutes: 1,
-  hours:   60,
-  days:    1440,
-  months:  43200,
-}
 
 function truncateContent(content: string, maxLen = 80): string {
   if (content.startsWith('POLL:') || content.startsWith('BIRTHDAY:') || content.startsWith('JOIN:')) {
@@ -40,17 +30,21 @@ function truncateContent(content: string, maxLen = 80): string {
 }
 
 export function PinDurationSheet({ message, onClose, onPinned }: PinDurationSheetProps) {
-  const [step,           setStep]          = useState<Step>('confirm')
-  const [pinning,        setPinning]       = useState(false)
-  const [error,          setError]         = useState<string | null>(null)
-  const [customValue,    setCustomValue]   = useState('')
-  const [customUnit,     setCustomUnit]    = useState<CustomUnit>('hours')
-  const [showCustom,     setShowCustom]    = useState(false)
+  const [selected, setSelected] = useState('15')
+  const [pinning,  setPinning]  = useState(false)
+  const [error,    setError]    = useState<string | null>(null)
 
-  async function handlePin(durationMinutes: number | null) {
+  const profile  = (message as MessageWithProfile).profile
+  const username = profile?.username ?? 'Unknown'
+  const preview  = truncateContent(message.content)
+
+  async function handlePin() {
     if (pinning) return
     setPinning(true)
     setError(null)
+
+    const durationMinutes = selected === 'permanent' ? null : parseInt(selected, 10)
+
     try {
       const supabase = createClient()
       const { error: rpcError } = await supabase.rpc('pin_message', {
@@ -88,16 +82,6 @@ export function PinDurationSheet({ message, onClose, onPinned }: PinDurationShee
     }
   }
 
-  function handleCustomPin() {
-    const val = parseInt(customValue, 10)
-    if (!val || val <= 0) { setError('Enter a valid number.'); return }
-    const mins = val * UNIT_MULTIPLIERS[customUnit]
-    if (mins > PIN_MAX_DURATION_MINUTES) { setError('Max duration is ~1 year.'); return }
-    void handlePin(mins)
-  }
-
-  const preview = truncateContent(message.content)
-
   return (
     <AnimatePresence>
       <motion.div
@@ -111,8 +95,14 @@ export function PinDurationSheet({ message, onClose, onPinned }: PinDurationShee
       />
       <motion.div
         key="pin-sheet"
-        className="fixed bottom-0 left-0 right-0 z-[90] bg-[#0a0612] border-t border-border flex flex-col"
-        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 24px)' }}
+        className="fixed bottom-0 left-0 right-0 z-[90] bg-black border-t border-[#27272a] flex flex-col"
+        style={{
+          paddingTop: 24,
+          paddingLeft: 16,
+          paddingRight: 16,
+          paddingBottom: 'max(env(safe-area-inset-bottom), 28px)',
+          gap: 24,
+        }}
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
@@ -123,145 +113,92 @@ export function PinDurationSheet({ message, onClose, onPinned }: PinDurationShee
         onDragEnd={(_, info) => { if (info.offset.y > 80 || info.velocity.y > 400) onClose() }}
         onClick={(e) => e.stopPropagation()}
       >
-        {step === 'confirm' ? (
-          <>
-            {/* Header */}
-            <div className="px-5 pt-5 pb-4 flex flex-col gap-2">
-              <p className="font-pixel text-[8px] text-tertiary leading-none">PIN MESSAGE</p>
-              <p
-                className="font-body font-normal leading-snug"
-                style={{ fontSize: 'var(--text-xs)', color: 'var(--color-secondary)', fontVariationSettings: '"opsz" 14' }}
-              >
-                Pin this message to the board?
-              </p>
-              {/* Message preview */}
-              <div className="border border-border px-3 py-2 mt-1">
-                <p
-                  className="font-body font-normal leading-normal text-primary"
-                  style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}
-                >
-                  {preview}
-                </p>
-              </div>
-            </div>
+        {/* Header */}
+        <p
+          className="font-body font-bold leading-none flex-shrink-0"
+          style={{ fontSize: 16, color: 'var(--color-primary)', fontVariationSettings: '"opsz" 14' }}
+        >
+          Pin Message
+        </p>
 
-            <div className="border-t border-border" />
+        {/* Message preview */}
+        <div className="flex-shrink-0 flex flex-col" style={{ gap: 4 }}>
+          <p
+            className="font-body font-medium w-full"
+            style={{ fontSize: 14, color: 'var(--color-secondary)', fontVariationSettings: '"opsz" 14', lineHeight: 'normal', letterSpacing: '0.2px' }}
+          >
+            {preview}
+          </p>
+          <p
+            className="font-body font-normal w-full"
+            style={{ fontSize: 12, color: 'var(--color-tertiary)', fontVariationSettings: '"opsz" 14', lineHeight: 'normal' }}
+          >
+            {`Sent by : @${username}`}
+          </p>
+        </div>
 
-            {/* Actions */}
-            <div className="px-5 py-4 flex flex-col gap-3">
-              <button
-                onClick={() => setStep('duration')}
-                className="w-full h-12 bg-purple flex items-center justify-center overflow-hidden"
-                style={{ boxShadow: '4px 4px 0px 0px rgba(168,85,247,0.5)' }}
-              >
-                <span className="font-pixel text-[8px] text-primary leading-none">PIN IT</span>
-              </button>
-              <button
-                onClick={onClose}
-                className="w-full h-12 flex items-center justify-center"
-              >
-                <span className="font-pixel text-[8px] text-tertiary leading-none">CANCEL</span>
-              </button>
-            </div>
-          </>
-        ) : (
-          <>
-            {/* Header */}
-            <div className="px-5 pt-5 pb-4 flex flex-col gap-2">
-              <p className="font-pixel text-[8px] text-tertiary leading-none">HOW LONG?</p>
-              <p
-                className="font-body font-normal leading-snug"
-                style={{ fontSize: 'var(--text-xs)', color: 'var(--color-secondary)', fontVariationSettings: '"opsz" 14' }}
-              >
-                Choose how long to keep it pinned.
-              </p>
-            </div>
+        {/* Duration section */}
+        <div className="flex-shrink-0 flex flex-col" style={{ gap: 8 }}>
+          {/* Label */}
+          <p
+            className="font-body font-medium"
+            style={{ fontSize: 14, color: 'var(--color-primary)', fontVariationSettings: '"opsz" 14', letterSpacing: '0.2px', lineHeight: 'normal' }}
+          >
+            Duration <span style={{ color: '#ef4444' }}>*</span>
+          </p>
 
-            <div className="border-t border-border" />
-
-            {/* Duration presets */}
-            <div className="px-5 py-4 flex flex-col gap-0">
-              {PRESETS.map(({ label, minutes }) => (
-                <button
-                  key={label}
-                  onClick={() => void handlePin(minutes)}
-                  disabled={pinning}
-                  className="w-full flex items-center justify-between py-3 border-b border-border/50 active:bg-[#111111] transition-colors disabled:opacity-40"
-                >
-                  <span
-                    className="font-body font-normal text-primary"
-                    style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
-                  >
-                    {label}
-                  </span>
-                  {minutes === null && (
-                    <span className="font-silkscreen text-purple leading-none" style={{ fontSize: 'var(--text-mini)' }}>
-                      ∞
-                    </span>
-                  )}
-                </button>
+          {/* Select input */}
+          <div
+            className="relative flex items-center bg-black"
+            style={{ border: '1px solid #3f3f46', padding: 12, gap: 8 }}
+          >
+            <select
+              value={selected}
+              onChange={(e) => setSelected(e.target.value)}
+              className="flex-1 bg-transparent font-body font-normal appearance-none focus:outline-none min-w-0"
+              style={{ fontSize: 14, color: 'var(--color-primary)', fontVariationSettings: '"opsz" 14', lineHeight: 'normal' }}
+            >
+              {PRESETS.map(({ label, value }) => (
+                <option key={value} value={value} style={{ background: '#09090b', color: '#fafafa' }}>
+                  {label}
+                </option>
               ))}
+            </select>
+            <ChevronRight
+              style={{ width: 16, height: 16, color: 'var(--color-primary)', transform: 'rotate(90deg)', flexShrink: 0, pointerEvents: 'none' }}
+            />
+          </div>
 
-              {/* Custom duration */}
-              <button
-                onClick={() => setShowCustom((v) => !v)}
-                className="w-full flex items-center justify-between py-3 active:bg-[#111111] transition-colors"
-              >
-                <span
-                  className="font-body font-normal text-primary"
-                  style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
-                >
-                  Custom…
-                </span>
-              </button>
+          {/* Helper text */}
+          <p
+            className="font-body font-normal"
+            style={{ fontSize: 11, color: 'var(--color-tertiary)', fontVariationSettings: '"opsz" 14', letterSpacing: '0.2px', lineHeight: 'normal' }}
+          >
+            Set how long you want this message to be pinned for.
+          </p>
+        </div>
 
-              {showCustom && (
-                <div className="flex items-center gap-2 py-2">
-                  <input
-                    type="number"
-                    min={1}
-                    value={customValue}
-                    onChange={(e) => setCustomValue(e.target.value)}
-                    placeholder="e.g. 3"
-                    className="flex-1 bg-black border border-border text-primary font-body focus:outline-none focus:border-purple"
-                    style={{ fontSize: 16, padding: '10px 12px', fontVariationSettings: '"opsz" 14' }}
-                  />
-                  <select
-                    value={customUnit}
-                    onChange={(e) => setCustomUnit(e.target.value as CustomUnit)}
-                    className="bg-black border border-border text-primary font-body focus:outline-none focus:border-purple"
-                    style={{ fontSize: 16, padding: '10px 12px', fontVariationSettings: '"opsz" 14' }}
-                  >
-                    <option value="minutes">Minutes</option>
-                    <option value="hours">Hours</option>
-                    <option value="days">Days</option>
-                    <option value="months">Months</option>
-                  </select>
-                  <button
-                    onClick={handleCustomPin}
-                    disabled={pinning || !customValue}
-                    className="flex-shrink-0 h-11 px-4 bg-purple flex items-center justify-center disabled:opacity-40 overflow-hidden"
-                  >
-                    <span className="font-pixel text-[8px] text-primary leading-none whitespace-nowrap">PIN</span>
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {error && (
-              <p className="px-5 pb-2 font-pixel text-[8px] text-[var(--color-danger)] leading-none">{error}</p>
-            )}
-
-            <div className="px-5 pt-2 border-t border-border">
-              <button
-                onClick={onClose}
-                className="w-full h-12 flex items-center justify-center"
-              >
-                <span className="font-pixel text-[8px] text-tertiary leading-none">CANCEL</span>
-              </button>
-            </div>
-          </>
+        {/* Error */}
+        {error && (
+          <p
+            className="font-body font-normal flex-shrink-0 -mt-4"
+            style={{ fontSize: 12, color: 'var(--color-danger)', lineHeight: 'normal' }}
+          >
+            {error}
+          </p>
         )}
+
+        {/* PIN IT button */}
+        <button
+          onClick={() => void handlePin()}
+          disabled={pinning}
+          className="flex-shrink-0 w-full flex items-center justify-center overflow-hidden disabled:opacity-40 transition-opacity"
+          style={{ height: 48, background: 'var(--color-purple)' }}
+        >
+          <span className="font-silkscreen leading-none text-primary" style={{ fontSize: 12 }}>
+            {pinning ? '...' : 'PIN IT'}
+          </span>
+        </button>
       </motion.div>
     </AnimatePresence>
   )
