@@ -20,9 +20,10 @@ import { IMAGE_CONFIG } from '@/lib/config'
 import { isGemGateOpen, recordGemClaim } from '@/lib/game/gems'
 import type { GemClaimResult } from '@/types'
 import { Send } from 'pixelarticons/react/Send'
-import { Chart } from 'pixelarticons/react/Chart'
-import { Camera } from 'pixelarticons/react/Camera'
+import { PlusBox } from 'pixelarticons/react/PlusBox'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
+import { InputActionsSheet } from '@/components/chat/InputActionsSheet'
+import { GifIcon } from '@/components/icons/GifIcon'
 import { kickMemberAction, renameCrewAction, birthdaysCommandAction } from '@/app/(app)/chat/actions'
 import { EventCreationSheet } from '@/components/chat/EventCreationSheet'
 import { CrewImageUploadModal } from '@/components/chat/CrewImageUploadModal'
@@ -117,6 +118,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   const [notifPrefs,      setNotifPrefs]      = useState<NotifPrefs>({ messages: true, raids: true, victory: true, mentions: true })
   const [showPollCreator,   setShowPollCreator]   = useState(false)
   const [showGifPicker,     setShowGifPicker]     = useState(false)
+  const [showActionsSheet,  setShowActionsSheet]  = useState(false)
   const [mentionQuery,    setMentionQuery]    = useState<string | null>(null)
   const [mentionIndex,    setMentionIndex]    = useState(0)
   const [isFocused,       setIsFocused]       = useState(false)
@@ -857,7 +859,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     setText(val)
     const el = e.target
     el.style.height = 'auto'
-    el.style.height = Math.min(el.scrollHeight, 91) + 'px'
+    el.style.height = Math.min(el.scrollHeight, 120) + 'px'
     if (val.trim()) {
       broadcastTyping(true)
       if (typingTimerRef.current) clearTimeout(typingTimerRef.current)
@@ -1295,81 +1297,78 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
             )
           })()}
 
-          <div
-            className="border flex items-center overflow-hidden transition-colors"
-            style={{ borderColor: isFocused ? 'var(--color-border-hover)' : 'var(--color-border)', paddingLeft: 'var(--space-5)', paddingRight: 'var(--space-5)', gap: 'var(--space-5)', minHeight: 48 }}
-          >
+          <div className="flex items-center" style={{ gap: 16 }}>
+            {/* [+] and GIF icons — outside the input border, slide out on focus */}
             <motion.div
               className="flex-shrink-0 overflow-hidden flex items-center"
-              animate={{ width: isFocused ? 0 : 40, opacity: isFocused ? 0 : 1, marginRight: isFocused ? -16 : 0 }}
+              animate={{ width: isFocused ? 0 : 64, opacity: isFocused ? 0 : 1, marginRight: isFocused ? -16 : 0 }}
               transition={{ type: 'spring', stiffness: 320, damping: 28 }}
-              style={{ pointerEvents: isFocused ? 'none' : 'auto', gap: 8 }}
+              style={{ pointerEvents: isFocused ? 'none' : 'auto', gap: 16 }}
             >
               <button
-                onClick={() => setShowPollCreator(true)}
-                className="flex-shrink-0 flex items-center justify-center w-4 h-4 text-tertiary active:text-purple"
-                aria-label="Create poll"
+                onClick={() => setShowActionsSheet(true)}
+                className="flex-shrink-0 flex items-center justify-center text-tertiary active:text-purple"
+                style={{ width: 24, height: 24 }}
+                aria-label="More options"
               >
-                <Chart style={{ width: 16, height: 16 }} aria-hidden="true" />
+                <PlusBox style={{ width: 24, height: 24 }} aria-hidden="true" />
               </button>
               <button
                 onClick={() => setShowGifPicker(true)}
-                className="flex-shrink-0 flex items-center justify-center w-4 h-4 text-tertiary active:text-purple"
+                className="flex-shrink-0 flex items-center justify-center text-tertiary active:text-purple"
+                style={{ width: 24, height: 24 }}
                 aria-label="Send GIF"
               >
-                <span className="font-silkscreen text-[8px] leading-none">GIF</span>
+                <GifIcon style={{ width: 24, height: 24 }} aria-hidden="true" />
               </button>
-              {chatCameraEnabled && (
-                <button
-                  onClick={() => chatImageInputRef.current?.click()}
-                  disabled={chatImageUploading}
-                  className="flex-shrink-0 flex items-center justify-center w-4 h-4 text-tertiary active:text-purple disabled:opacity-40"
-                  aria-label="Share image"
-                >
-                  <Camera style={{ width: 16, height: 16 }} aria-hidden="true" />
-                </button>
-              )}
             </motion.div>
-            <div className="relative flex-1 min-w-0 overflow-hidden">
-              {/* Overlay renders @mention highlights behind the transparent textarea */}
-              <div
-                ref={overlayRef}
-                aria-hidden="true"
-                className="pointer-events-none absolute inset-0 font-body text-[14px] leading-normal overflow-hidden"
-                style={{ paddingTop: 14, paddingBottom: 14, fontVariationSettings: '"opsz" 14', whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: 'var(--color-primary)' }}
-              >
-                {renderHighlightedInput(text)}
-              </div>
-              <textarea
-                ref={textareaRef}
-                value={text}
-                onChange={handleInput}
-                onKeyDown={handleKeyDown}
-                onBlur={handleBlur}
-                placeholder={inRaid ? 'Attack The Void...' : isDM ? 'Send a message...' : 'Message the squad...'}
-                rows={1}
-                onFocus={() => setIsFocused(true)}
-                className="relative w-full bg-transparent font-body text-[14px] placeholder:text-muted resize-none focus:outline-none leading-normal"
-                style={{ paddingTop: 14, paddingBottom: 14, maxHeight: 91, fontVariationSettings: '"opsz" 14', color: 'transparent', caretColor: 'var(--color-primary)', overflowY: 'auto', overflowX: 'hidden' }}
-              />
-            </div>
-            {(() => {
-              const isCmd    = text.startsWith('/') && !text.includes(' ')
-              const hasMatch = isCmd && SLASH_COMMANDS.some((c) => c.name.startsWith(text.slice(1).toLowerCase()))
-              const canSendImage = !!chatImagePublicUrl && !chatImageUploading
-              const canSendText  = !!text.trim() && !hasMatch
-              const canSend      = canSendImage || canSendText
-              return (
-                <button
-                  onClick={canSendImage ? sendImage : send}
-                  disabled={!canSend || sending || chatImageUploading}
-                  className={`flex-shrink-0 flex items-center justify-center w-4 h-4 transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${canSend ? 'text-purple' : 'text-muted'}`}
-                  aria-label="Send message"
+
+            {/* Input container — border turns purple on focus */}
+            <div
+              className="border flex-1 flex items-center transition-colors"
+              style={{ borderColor: isFocused ? 'var(--color-purple)' : 'var(--color-border)', paddingLeft: 16, paddingRight: 16, gap: 16, minHeight: 48 }}
+            >
+              <div className="relative flex-1 min-w-0 overflow-hidden">
+                {/* Overlay renders @mention highlights behind the transparent textarea */}
+                <div
+                  ref={overlayRef}
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-0 font-body text-[14px] leading-normal overflow-hidden"
+                  style={{ paddingTop: 12, paddingBottom: 12, fontVariationSettings: '"opsz" 14', whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: 'var(--color-primary)' }}
                 >
-                  <Send style={{ width: 16, height: 16 }} aria-hidden="true" />
-                </button>
-              )
-            })()}
+                  {renderHighlightedInput(text)}
+                </div>
+                <textarea
+                  ref={textareaRef}
+                  value={text}
+                  onChange={handleInput}
+                  onKeyDown={handleKeyDown}
+                  onBlur={handleBlur}
+                  placeholder={inRaid ? 'Attack The Void...' : isDM ? 'Send a message...' : 'Message the squad...'}
+                  rows={1}
+                  onFocus={() => setIsFocused(true)}
+                  className="relative w-full bg-transparent font-body text-[14px] placeholder:text-muted resize-none focus:outline-none leading-normal"
+                  style={{ paddingTop: 12, paddingBottom: 12, maxHeight: 120, fontVariationSettings: '"opsz" 14', color: 'transparent', caretColor: 'var(--color-primary)', overflowY: 'auto', overflowX: 'hidden' }}
+                />
+              </div>
+              {(() => {
+                const isCmd    = text.startsWith('/') && !text.includes(' ')
+                const hasMatch = isCmd && SLASH_COMMANDS.some((c) => c.name.startsWith(text.slice(1).toLowerCase()))
+                const canSendImage = !!chatImagePublicUrl && !chatImageUploading
+                const canSendText  = !!text.trim() && !hasMatch
+                const canSend      = canSendImage || canSendText
+                return (
+                  <button
+                    onClick={canSendImage ? sendImage : send}
+                    disabled={!canSend || sending || chatImageUploading}
+                    className={`flex-shrink-0 flex items-center justify-center w-4 h-4 transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${canSend ? 'text-purple' : 'text-muted'}`}
+                    aria-label="Send message"
+                  >
+                    <Send style={{ width: 16, height: 16 }} aria-hidden="true" />
+                  </button>
+                )
+              })()}
+            </div>
           </div>
         </div>
       </motion.div>
@@ -1550,8 +1549,18 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
         {showGifPicker && (
           <GifPickerSheet
             onSelect={(gifUrl) => { setShowGifPicker(false); void sendGif(gifUrl) }}
-            onUpload={() => chatImageInputRef.current?.click()}
             onClose={() => setShowGifPicker(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showActionsSheet && (
+          <InputActionsSheet
+            showUploadPhoto={chatCameraEnabled}
+            onUploadPhoto={() => chatImageInputRef.current?.click()}
+            onCreatePoll={() => setShowPollCreator(true)}
+            onClose={() => setShowActionsSheet(false)}
           />
         )}
       </AnimatePresence>

@@ -18,7 +18,7 @@ import { createClient } from '@/lib/supabase/client'
 import { createCrewAction } from '@/app/(app)/onboarding/create/actions'
 import { joinCrewAction }   from '@/app/(app)/onboarding/join/actions'
 import { leaveCrewAction } from './actions'
-import { InviteArsenal } from './InviteArsenal'
+import { InvitePage } from './InviteArsenal'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import type { CrewSummary } from './page'
@@ -1208,7 +1208,7 @@ export function HomeClient({
           />
         )}
         {showInviteArsenal && (
-          <InviteArsenal
+          <InvitePage
             key="invite-arsenal"
             userId={userId}
             coins={coins}

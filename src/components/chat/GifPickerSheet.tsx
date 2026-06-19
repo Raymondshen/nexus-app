@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { motion } from 'framer-motion'
+import { Search } from 'pixelarticons/react/Search'
 import { KLIPY_SEARCH_DEBOUNCE_MS, KLIPY_PAGE_SIZE } from '@/lib/config'
 
 interface KlipyGif {
@@ -22,7 +23,6 @@ interface GifResponse {
 
 interface GifPickerSheetProps {
   onSelect: (gifUrl: string) => void
-  onUpload: () => void
   onClose:  () => void
 }
 
@@ -62,7 +62,7 @@ function GifThumbnail({ gif, onSelect }: { gif: KlipyGif; onSelect: () => void }
   )
 }
 
-export function GifPickerSheet({ onSelect, onUpload, onClose }: GifPickerSheetProps) {
+export function GifPickerSheet({ onSelect, onClose }: GifPickerSheetProps) {
   const [query,   setQuery]   = useState('')
   const [gifs,    setGifs]    = useState<KlipyGif[]>([])
   const [loading, setLoading] = useState(true)
@@ -95,12 +95,10 @@ export function GifPickerSheet({ onSelect, onUpload, onClose }: GifPickerSheetPr
     }
   }, [])
 
-  // Load trending on open
   useEffect(() => {
     fetchGifs('', 1, false)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Debounced search when query changes (skips initial mount)
   useEffect(() => {
     if (query === prevQueryRef.current) return
     prevQueryRef.current = query
@@ -109,7 +107,6 @@ export function GifPickerSheet({ onSelect, onUpload, onClose }: GifPickerSheetPr
     return () => clearTimeout(timer)
   }, [query]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Pagination via IntersectionObserver
   useEffect(() => {
     const el = sentinelRef.current
     if (!el || !hasNext) return
@@ -147,46 +144,29 @@ export function GifPickerSheet({ onSelect, onUpload, onClose }: GifPickerSheetPr
         style={{ maxHeight: '92vh' }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between flex-shrink-0" style={{ padding: '12px 16px 8px' }}>
-          <span className="font-silkscreen text-[10px] text-primary leading-none">GIFs</span>
-          <button
-            onClick={onClose}
-            aria-label="Close GIF picker"
-            className="w-8 h-8 flex items-center justify-center text-tertiary active:text-primary transition-colors"
-          >
-            <span style={{ fontSize: 16, lineHeight: 1 }}>✕</span>
-          </button>
-        </div>
-
-        {/* Search input */}
-        <div className="flex-shrink-0 px-4 pb-3">
-          <div
-            className="flex items-center border border-border"
-            style={{ height: 40, paddingLeft: 12, paddingRight: 8, gap: 8 }}
-          >
+        {/* Search input + attribution */}
+        <div className="flex-shrink-0 flex flex-col px-4 pt-6" style={{ gap: 4 }}>
+          <div className="flex items-center border border-[#27272a] h-12 px-4" style={{ gap: 8 }}>
+            <Search style={{ width: 16, height: 16, color: 'var(--color-muted, #71717a)', flexShrink: 0 }} />
             <input
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search GIFs..."
-              className="flex-1 bg-transparent font-body text-[14px] text-primary placeholder:text-muted focus:outline-none leading-normal"
+              className="flex-1 bg-transparent font-body text-[14px] text-primary placeholder:text-muted focus:outline-none leading-normal min-w-0"
               style={{ fontVariationSettings: '"opsz" 14' }}
             />
-            {query && (
-              <button
-                onClick={() => setQuery('')}
-                aria-label="Clear search"
-                className="flex-shrink-0 w-6 h-6 flex items-center justify-center text-tertiary active:text-primary"
-              >
-                <span style={{ fontSize: 14, lineHeight: 1 }}>✕</span>
-              </button>
-            )}
           </div>
+          <span
+            className="font-silkscreen text-tertiary leading-none"
+            style={{ fontSize: 8, letterSpacing: '0.2px' }}
+          >
+            Powered by Klipy
+          </span>
         </div>
 
         {/* GIF grid */}
-        <div className="flex-1 overflow-y-auto nexus-scroll px-4" style={{ minHeight: 0 }}>
+        <div className="flex-1 overflow-y-auto nexus-scroll px-4" style={{ minHeight: 0, paddingTop: 24, paddingBottom: 28 }}>
           {error ? (
             <div className="flex flex-col items-center justify-center py-12 gap-4">
               <p className="font-silkscreen text-[8px] text-tertiary leading-relaxed text-center">{error}</p>
@@ -222,15 +202,6 @@ export function GifPickerSheet({ onSelect, onUpload, onClose }: GifPickerSheetPr
             </div>
           )}
         </div>
-
-        {/* Upload your own */}
-        <button
-          onClick={() => { onClose(); onUpload() }}
-          className="flex-shrink-0 w-full h-12 flex items-center justify-center border-t border-[#27272a] active:bg-surface transition-colors"
-          style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 0px)' }}
-        >
-          <span className="font-silkscreen text-[8px] text-tertiary leading-none">UPLOAD YOUR OWN GIF</span>
-        </button>
       </motion.div>
     </>
   )

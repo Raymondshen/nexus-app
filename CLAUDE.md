@@ -164,10 +164,15 @@ OG previews: `extractFirstUrl` → `useOGPreview` hook → `<LinkPreviewCard>` b
 ### ChatInput
 - Props: `{ crewId, userId, userProfile, memberProfiles, crewName, inviteCode?, creatorId?, isDM? }`
 - Send flow: `insert_message` RPC → `addMessage` (optimistic) → broadcast → `award-xp` → `attack-boss` (if raid)
-- Textarea: max 3 lines / 91px; input bar inactive `border-border` / focused `border-purple`; `minHeight: 48`
+- Input row (inactive): `PlusBox` 24×24 + `GifIcon` 24×24 outside border box, 16px gaps; border `#27272a`
+- Input row (focused): icons slide out (motion.div `width→0`), border turns `--color-purple`, icons use `marginRight: -16` to cancel flex gap
+- Textarea: auto-resizes from 1 row (48px min) up to 120px (`scrollHeight` in `handleInput`); `py-12`; color transparent + caretColor primary
 - @mention overlay: transparent textarea + `aria-hidden` div; purple `<mark>` for valid tokens; overlay scrollTop synced
 - Slash commands: `/birthdays` → `message_type: 'system'`
-- Camera button + image upload gated on `nexus_chat_camera`; DM mode hides XP bar + expanded panel
+- `InputActionsSheet` (`src/components/chat/InputActionsSheet.tsx`): triggered by `PlusBox` (`[+]`) button; two options — "UPLOAD PHOTO" (`Upload` 16×16, purple border, gated `nexus_chat_camera`) + "CREATE A POLL" (`Chart` 16×16, secondary border); spring slide-up, `pt-24 pb-28 px-16 gap-16`
+- `GifPickerSheet` (`src/components/chat/GifPickerSheet.tsx`): `Search` icon 16×16 in input; "Powered by Klipy" Silkscreen 8px tertiary below; no upload button; spring slide-up, `pt-24 pb-28 px-16`
+- `GifIcon` (`src/components/icons/GifIcon.tsx`): custom 24×24 SVG with `currentColor` fill; used as GIF button in ChatInput row
+- DM mode hides XP bar + expanded panel
 
 ### Pin Feature (dev-gated: `nexus_pin_feature`)
 - Admin = crew member with earliest `joined_at`; cap = 5 active pins per crew (`PIN_MAX_PER_CREW`)
