@@ -9,6 +9,7 @@ import { Note } from 'pixelarticons/react/Note'
 import { Calendar2 } from 'pixelarticons/react/Calendar2'
 import { Campfire } from '@/components/icons/Campfire'
 import { PinListSheet } from '@/components/chat/PinListSheet'
+import { EventSheetBottomPreview } from '@/components/chat/EventSheetBottomPreview'
 import { MarqueeBanner } from '@/components/ui/MarqueeBanner'
 import { useChatStore, selectActivePins } from '@/store/chatStore'
 
@@ -38,8 +39,9 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
   const hiddenPinIds            = useChatStore((s) => s.hiddenPinIds)
   const setHiddenPinIds         = useChatStore((s) => s.setHiddenPinIds)
 
-  const [showPinList,   setShowPinList]   = useState(false)
-  const [eventsEnabled, setEventsEnabled] = useState(false)
+  const [showPinList,       setShowPinList]       = useState(false)
+  const [showEventPreview,  setShowEventPreview]  = useState(false)
+  const [eventsEnabled,     setEventsEnabled]     = useState(false)
 
   useEffect(() => {
     const from = sessionStorage.getItem('nexus_chat_from')
@@ -145,7 +147,7 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
 
             {isDev && eventsEnabled && (
               <button
-                onClick={() => router.push(`/chat/${crewId}/events`)}
+                onClick={() => setShowEventPreview(true)}
                 aria-label="Group events"
                 className="flex items-center justify-center border border-border flex-shrink-0"
                 style={{
@@ -200,6 +202,14 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
           />
         )}
       </AnimatePresence>
+
+      {showEventPreview && (
+        <EventSheetBottomPreview
+          crewId={crewId}
+          currentUserId={currentUserId}
+          onClose={() => setShowEventPreview(false)}
+        />
+      )}
     </>
   )
 }

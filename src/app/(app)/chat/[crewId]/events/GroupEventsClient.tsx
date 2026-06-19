@@ -2,26 +2,186 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { motion } from 'framer-motion'
 import { SlidePage, useSlideBack } from '@/components/ui/SlidePage'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
+import { Calendar } from 'pixelarticons/react/Calendar'
 import { createClient } from '@/lib/supabase/client'
-import { EventCard } from '@/components/chat/EventCard'
 import { EventCreationSheet } from '@/components/chat/EventCreationSheet'
+import { resolveAvatarUrl, isSupabaseStorage } from '@/components/ui/Avatar'
+import { format } from 'date-fns'
 import type { Event } from '@/types'
 
-interface GroupEventsClientProps {
+interface EventPageFullProps {
   crewId:        string
   currentUserId: string
 }
 
-export function GroupEventsClient({ crewId, currentUserId }: GroupEventsClientProps) {
-  const goBack = useSlideBack()
-  const router = useRouter()
-  const [events,          setEvents]          = useState<Event[]>([])
-  const [loading,         setLoading]         = useState(true)
-  const [showCreate,      setShowCreate]      = useState(false)
-  const [gateChecked,     setGateChecked]     = useState(false)
+type GoingProfile = { id: string; username: string; avatar_url: string | null }
+
+type EnrichedEvent = Event & {
+  creatorUsername: string | null
+  goingProfiles:   GoingProfile[]
+}
+
+function LocationPinIcon() {
+  return (
+    <svg
+      width="12"
+      height="14"
+      viewBox="0 0 24 28"
+      fill="none"
+      aria-hidden="true"
+      style={{ flexShrink: 0 }}
+    >
+      <path
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M12 0C7.03 0 3 4.03 3 9c0 6.75 9 18 9 18s9-11.25 9-18c0-4.97-4.03-9-9-9zm0 12.25c-1.79 0-3.25-1.46-3.25-3.25S10.21 5.75 12 5.75 15.25 7.21 15.25 9 13.79 12.25 12 12.25z"
+        fill="currentColor"
+      />
+    </svg>
+  )
+}
+
+function formatEventDate(dateStr: string): string {
+  return format(new Date(dateStr), "EEEE, MMMM d '@' h:mm a")
+}
+
+function EventPageCard({ event }: { event: EnrichedEvent }) {
+  return (
+    <div
+      className="w-full overflow-hidden flex flex-col flex-shrink-0"
+      style={{
+        background: 'var(--color-surface)',
+        border: '1px solid var(--color-border)',
+        borderRadius: 8,
+      }}
+    >
+      {event.cover_image_url && (
+        <div className="relative w-full flex-shrink-0" style={{ height: 140 }}>
+          <Image
+            src={event.cover_image_url}
+            alt={event.title}
+            fill
+            sizes="480px"
+            className="object-cover"
+            unoptimized={isSupabaseStorage(event.cover_image_url)}
+          />
+        </div>
+      )}
+
+      <div className="flex flex-col w-full" style={{ padding: 16, gap: 16 }}>
+        {/* Details */}
+        <div className="flex flex-col w-full overflow-hidden" style={{ gap: 8 }}>
+          <div className="flex flex-col w-full" style={{ gap: 4 }}>
+            <p
+              className="font-silkscreen leading-none w-full"
+              style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}
+            >
+              Hosted by : {event.creatorUsername ?? '—'}
+            </p>
+            <p
+              className="font-body font-bold text-[var(--color-primary)] w-full"
+              style={{
+                fontSize: 18,
+                lineHeight: 'normal',
+                fontVariationSettings: '"opsz" 14',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {event.title}
+            </p>
+          </div>
+
+          <div className="flex items-center w-full" style={{ gap: 4 }}>
+            <Calendar
+              style={{ width: 12, height: 16, color: 'var(--color-secondary)', flexShrink: 0 }}
+              aria-hidden="true"
+            />
+            <p
+              className="font-body font-normal leading-none flex-1 min-w-0 text-[var(--color-secondary)]"
+              style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}
+            >
+              {formatEventDate(event.event_date)}
+            </p>
+          </div>
+
+          {event.location && (
+            <div className="flex items-center w-full" style={{ gap: 4 }}>
+              <LocationPinIcon />
+              <p
+                className="font-body font-normal leading-none flex-1 min-w-0 text-[var(--color-secondary)]"
+                style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}
+              >
+                {event.location}
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Going */}
+        <div className="flex flex-col" style={{ gap: 8 }}>
+          <p
+            className="font-silkscreen leading-none w-full"
+            style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}
+          >
+            Going
+          </p>
+          <div className="flex items-center" style={{ gap: 8 }}>
+            {event.goingProfiles.length === 0 ? (
+              <p
+                className="font-body font-normal text-[var(--color-tertiary)]"
+                style={{ fontSize: 'var(--text-xxs)', fontVariationSettings: '"opsz" 14' }}
+              >
+                Be the first!
+              </p>
+            ) : (
+              event.goingProfiles.slice(0, 5).map((profile) => (
+                <div
+                  key={profile.id}
+                  className="relative flex-shrink-0 rounded-full overflow-hidden"
+                  style={{ width: 24, height: 24, background: 'var(--color-border)' }}
+                >
+                  {profile.avatar_url ? (
+                    <Image
+                      src={resolveAvatarUrl(profile.avatar_url, 24)}
+                      alt={profile.username}
+                      fill
+                      sizes="24px"
+                      className="object-cover"
+                      unoptimized={isSupabaseStorage(profile.avatar_url)}
+                    />
+                  ) : (
+                    <div
+                      className="w-full h-full flex items-center justify-center"
+                      style={{ background: 'var(--color-purple)' }}
+                    >
+                      <span className="font-pixel text-white" style={{ fontSize: 6 }}>
+                        {profile.username[0]?.toUpperCase() ?? '?'}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export function EventPageFull({ crewId, currentUserId }: EventPageFullProps) {
+  const goBack     = useSlideBack()
+  const router     = useRouter()
+  const [events,      setEvents]      = useState<EnrichedEvent[]>([])
+  const [loading,     setLoading]     = useState(true)
+  const [showCreate,  setShowCreate]  = useState(false)
+  const [gateChecked, setGateChecked] = useState(false)
 
   useEffect(() => {
     const enabled = localStorage.getItem('nexus_events_enabled') === '1'
@@ -31,12 +191,57 @@ export function GroupEventsClient({ crewId, currentUserId }: GroupEventsClientPr
 
   const loadEvents = useCallback(async () => {
     const supabase = createClient()
-    const { data } = await supabase
+
+    const { data: eventsData } = await supabase
       .from('events')
       .select('*')
       .eq('crew_id', crewId)
       .order('event_date', { ascending: true })
-    setEvents((data ?? []) as Event[])
+
+    const eventsList = (eventsData ?? []) as Event[]
+
+    if (eventsList.length === 0) {
+      setEvents([])
+      setLoading(false)
+      return
+    }
+
+    const eventIds   = eventsList.map((e) => e.id)
+    const creatorIds = [...new Set(eventsList.map((e) => e.created_by))]
+
+    const [{ data: creatorsData }, { data: rsvpsData }] = await Promise.all([
+      supabase.from('profiles').select('id, username').in('id', creatorIds),
+      supabase.from('event_rsvps').select('event_id, user_id').in('event_id', eventIds).eq('status', 'going'),
+    ])
+
+    const creatorsMap = new Map<string, string>(
+      ((creatorsData ?? []) as { id: string; username: string }[]).map((p) => [p.id, p.username])
+    )
+    const goingRsvps   = (rsvpsData ?? []) as { event_id: string; user_id: string }[]
+    const goingUserIds = [...new Set(goingRsvps.map((r) => r.user_id))]
+
+    let goingProfilesMap = new Map<string, GoingProfile>()
+    if (goingUserIds.length > 0) {
+      const { data: profilesData } = await supabase
+        .from('profiles')
+        .select('id, username, avatar_url')
+        .in('id', goingUserIds)
+      goingProfilesMap = new Map(
+        ((profilesData ?? []) as GoingProfile[]).map((p) => [p.id, p])
+      )
+    }
+
+    setEvents(
+      eventsList.map((event) => ({
+        ...event,
+        creatorUsername: creatorsMap.get(event.created_by) ?? null,
+        goingProfiles: goingRsvps
+          .filter((r) => r.event_id === event.id)
+          .map((r) => goingProfilesMap.get(r.user_id))
+          .filter((p): p is GoingProfile => !!p)
+          .slice(0, 5),
+      }))
+    )
     setLoading(false)
   }, [crewId])
 
@@ -44,7 +249,6 @@ export function GroupEventsClient({ crewId, currentUserId }: GroupEventsClientPr
     loadEvents()
   }, [loadEvents])
 
-  // Realtime subscription for events + rsvp changes while this page is mounted
   useEffect(() => {
     const supabase = createClient()
     const channel = supabase
@@ -60,7 +264,7 @@ export function GroupEventsClient({ crewId, currentUserId }: GroupEventsClientPr
 
   if (!gateChecked) return null
 
-  const now = new Date()
+  const now      = new Date()
   const upcoming = events.filter((e) => new Date(e.event_date) >= now)
   const past     = events.filter((e) => new Date(e.event_date) <  now)
 
@@ -72,35 +276,41 @@ export function GroupEventsClient({ crewId, currentUserId }: GroupEventsClientPr
     >
       {/* Header */}
       <div
-        className="flex-shrink-0 w-full border-b border-border"
+        className="flex-shrink-0 w-full"
         style={{
-          paddingLeft:  'var(--space-5)',
-          paddingRight: 'var(--space-5)',
-          paddingTop:   'calc(env(safe-area-inset-top, 0px) + var(--space-3))',
-          paddingBottom: 'var(--space-3)',
+          paddingLeft:   'var(--x5)',
+          paddingRight:  'var(--x5)',
+          paddingTop:    'calc(env(safe-area-inset-top, 0px) + var(--x3))',
+          paddingBottom: 'var(--x3)',
         }}
       >
         <div className="flex h-[40px] items-center justify-between">
-          <div className="flex items-center gap-3">
+          {/* Left: back + title */}
+          <div className="flex items-center" style={{ gap: 'var(--x3)' }}>
             <button
               onClick={goBack}
               aria-label="Back"
               className="flex items-center justify-center flex-shrink-0"
               style={{ width: 24, height: 24 }}
             >
-              <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-purple)' }} aria-hidden="true" />
+              <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
             </button>
-            <p className="font-pixel text-primary leading-none uppercase" style={{ fontSize: 'var(--text-xs)' }}>
-              Group Event
+            <p
+              className="font-silkscreen text-[var(--color-primary)] leading-none uppercase"
+              style={{ fontSize: 'var(--text-xxl)' }}
+            >
+              Events
             </p>
           </div>
 
+          {/* Right: create button */}
           <button
             onClick={() => setShowCreate(true)}
-            className="font-pixel text-purple leading-none"
-            style={{ fontSize: 'var(--text-mini)' }}
+            aria-label="Create event"
+            className="flex items-center justify-center flex-shrink-0"
+            style={{ width: 24, height: 24 }}
           >
-            + CREATE
+            <Calendar style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
           </button>
         </div>
       </div>
@@ -108,12 +318,16 @@ export function GroupEventsClient({ crewId, currentUserId }: GroupEventsClientPr
       {/* Body */}
       <div
         className="flex-1 overflow-y-auto nexus-scroll flex flex-col"
-        style={{ gap: 'var(--space-7)', padding: 'var(--space-5)', paddingBottom: 'max(env(safe-area-inset-bottom), var(--space-5))' }}
+        style={{
+          gap:           'var(--x5)',
+          padding:       'var(--x5)',
+          paddingBottom: 'max(env(safe-area-inset-bottom), var(--x8))',
+        }}
       >
         {loading && (
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col" style={{ gap: 'var(--x5)' }}>
             {[1, 2].map((i) => (
-              <div key={i} className="h-48 bg-border animate-pulse" />
+              <div key={i} className="w-full animate-pulse" style={{ height: 303, background: 'var(--color-border)', borderRadius: 8 }} />
             ))}
           </div>
         )}
@@ -121,19 +335,25 @@ export function GroupEventsClient({ crewId, currentUserId }: GroupEventsClientPr
         {!loading && (
           <>
             {/* Upcoming */}
-            <div className="flex flex-col gap-4">
-              <p className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}>
-                UPCOMING
+            <div className="flex flex-col" style={{ gap: 'var(--x3)' }}>
+              <p
+                className="font-body font-medium text-[var(--color-primary)] leading-normal"
+                style={{ fontSize: 'var(--text-sm)', letterSpacing: '0.2px', fontVariationSettings: '"opsz" 14' }}
+              >
+                Upcoming
               </p>
               {upcoming.length === 0 ? (
-                <p className="font-body text-muted leading-normal" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}>
-                  No raids on the books yet.
+                <p
+                  className="font-body text-[var(--color-tertiary)] leading-normal"
+                  style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
+                >
+                  No upcoming events yet.
                 </p>
               ) : (
-                <div className="flex flex-col gap-4">
+                <div className="flex flex-col" style={{ gap: 'var(--x5)' }}>
                   {upcoming.map((event) => (
                     <motion.div key={event.id} layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-                      <EventCard eventId={event.id} currentUserId={currentUserId} />
+                      <EventPageCard event={event} />
                     </motion.div>
                   ))}
                 </div>
@@ -142,33 +362,22 @@ export function GroupEventsClient({ crewId, currentUserId }: GroupEventsClientPr
 
             {/* Past */}
             {past.length > 0 && (
-              <div className="flex flex-col gap-4">
-                <p className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}>
-                  PAST
+              <div className="flex flex-col" style={{ gap: 'var(--x3)' }}>
+                <p
+                  className="font-body font-medium text-[var(--color-primary)] leading-normal"
+                  style={{ fontSize: 'var(--text-sm)', letterSpacing: '0.2px', fontVariationSettings: '"opsz" 14' }}
+                >
+                  Past
                 </p>
-                <div className="flex flex-col gap-4">
+                <div className="flex flex-col" style={{ gap: 'var(--x5)' }}>
                   {[...past].reverse().map((event) => (
                     <motion.div key={event.id} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                      <EventCard eventId={event.id} currentUserId={currentUserId} />
+                      <EventPageCard event={event} />
                     </motion.div>
                   ))}
                 </div>
               </div>
             )}
-
-            {/* Floating CTA */}
-            <button
-              onClick={() => setShowCreate(true)}
-              className="w-full flex items-center justify-center font-pixel text-primary"
-              style={{
-                fontSize: 'var(--text-xxs)',
-                minHeight: 48,
-                background: 'var(--color-purple)',
-                boxShadow: '4px 4px 0px 0px rgba(168,85,247,0.4)',
-              }}
-            >
-              Mark your calendar.
-            </button>
           </>
         )}
       </div>
@@ -184,3 +393,6 @@ export function GroupEventsClient({ crewId, currentUserId }: GroupEventsClientPr
     </SlidePage>
   )
 }
+
+// Named export alias kept for the page.tsx import
+export { EventPageFull as GroupEventsClient }
