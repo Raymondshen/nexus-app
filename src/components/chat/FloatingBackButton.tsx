@@ -92,24 +92,24 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
     <>
       {/* Floating gradient top nav */}
       <div
-        className="absolute top-0 left-0 right-0 z-[60] flex flex-col pointer-events-none"
+        className="absolute top-0 left-0 right-0 z-[60] flex flex-col pointer-events-none overflow-hidden"
         style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
       >
         {/* Nav row */}
         <div
           className="flex items-center justify-between w-full pointer-events-none"
-          style={{ padding: '8px 16px', background: 'linear-gradient(180deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.25) 60%, rgba(0,0,0,0) 100%)', minHeight: 56 }}
+          style={{ padding: 16, background: 'linear-gradient(180deg, #000000 0%, rgba(0,0,0,0.25) 46.158%, rgba(0,0,0,0) 100%)' }}
         >
           {/* Back button */}
           <button
             onClick={goBack}
             aria-label="Go back"
-            className="pointer-events-auto flex items-center justify-center border border-border flex-shrink-0 overflow-hidden"
+            className="pointer-events-auto flex items-center justify-center border border-border flex-shrink-0"
             style={{
               padding: 'var(--x3)',
-              background: 'rgba(0,0,0,0)',
-              backdropFilter: 'blur(4px)',
-              WebkitBackdropFilter: 'blur(4px)',
+              background: 'black',
+              backdropFilter: 'blur(7px)',
+              WebkitBackdropFilter: 'blur(7px)',
               boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)',
             }}
           >
@@ -122,12 +122,12 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
             <button
               onClick={() => setShowPinList(true)}
               aria-label={activePins.length > 0 ? `${activePins.length} pinned message${activePins.length !== 1 ? 's' : ''}` : 'No pinned messages'}
-              className="relative flex items-center justify-center border border-border overflow-hidden flex-shrink-0"
+              className="relative flex items-center justify-center border border-border flex-shrink-0"
               style={{
                 padding: 'var(--x3)',
                 background: 'rgba(0,0,0,0)',
-                backdropFilter: 'blur(4px)',
-                WebkitBackdropFilter: 'blur(4px)',
+                backdropFilter: 'blur(7px)',
+                WebkitBackdropFilter: 'blur(7px)',
                 filter: 'drop-shadow(0px 0px 10px rgba(0,0,0,0.1))',
               }}
             >
@@ -140,16 +140,16 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
               />
             </button>
 
-{isDev && eventsEnabled && (
+            {isDev && eventsEnabled && (
               <button
                 onClick={() => router.push(`/chat/${crewId}/events`)}
                 aria-label="Group events"
-                className="flex items-center justify-center border border-border overflow-hidden flex-shrink-0"
+                className="flex items-center justify-center border border-border flex-shrink-0"
                 style={{
                   padding: 'var(--x3)',
                   background: 'rgba(0,0,0,0)',
-                  backdropFilter: 'blur(4px)',
-                  WebkitBackdropFilter: 'blur(4px)',
+                  backdropFilter: 'blur(7px)',
+                  WebkitBackdropFilter: 'blur(7px)',
                   filter: 'drop-shadow(0px 0px 10px rgba(0,0,0,0.1))',
                 }}
               >
@@ -160,12 +160,12 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
             <button
               onClick={() => setSquadDetailsOpen(true)}
               aria-label="Squad details"
-              className="flex items-center justify-center border border-border overflow-hidden flex-shrink-0"
+              className="flex items-center justify-center border border-border flex-shrink-0"
               style={{
                 padding: 'var(--x3)',
                 background: 'rgba(0,0,0,0)',
-                backdropFilter: 'blur(4px)',
-                WebkitBackdropFilter: 'blur(4px)',
+                backdropFilter: 'blur(7px)',
+                WebkitBackdropFilter: 'blur(7px)',
                 filter: 'drop-shadow(0px 0px 10px rgba(0,0,0,0.1))',
               }}
             >
