@@ -11,7 +11,7 @@ function VisibilityToggle({ visible, onChange }: { visible: boolean; onChange: (
     <div className="flex items-center gap-2 flex-shrink-0">
       <span
         className="font-body font-medium whitespace-nowrap"
-        style={{ fontSize: 12, color: 'var(--color-secondary)', fontVariationSettings: '"opsz" 14' }}
+        style={{ fontSize: 12, color: 'var(--color-secondary)', fontVariationSettings: '"opsz" 14', letterSpacing: '0.2px', lineHeight: 'normal' }}
       >
         Display
       </span>
@@ -110,7 +110,7 @@ export function PinListSheet({ activePins, currentUserId, creatorId, onClose }: 
       />
       <motion.div
         key="pinlist-sheet"
-        className="fixed bottom-0 left-0 right-0 z-[70] bg-black border-t border-border flex flex-col"
+        className="fixed bottom-0 left-0 right-0 z-[70] bg-black flex flex-col"
         style={{ maxHeight: '70vh' }}
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
@@ -157,22 +157,22 @@ export function PinListSheet({ activePins, currentUserId, creatorId, onClose }: 
 
                 return (
                   <div key={pin.id}>
-                    {idx > 0 && <div className="h-px bg-border/40" />}
-                    <div className="py-3 flex flex-col gap-4">
+                    {idx > 0 && <div className="h-px bg-border/40" style={{ margin: '12px 0' }} />}
+                    <div className="flex flex-col gap-4">
                       {/* Message content — tappable to scroll */}
                       <button
                         onClick={() => handleScrollTo(pin.id)}
                         className="flex flex-col gap-1 text-left w-full"
                       >
                         <p
-                          className="font-body font-medium w-full leading-snug"
-                          style={{ fontSize: 14, color: 'var(--color-secondary)', fontVariationSettings: '"opsz" 14' }}
+                          className="font-body font-medium w-full"
+                          style={{ fontSize: 14, color: 'var(--color-secondary)', fontVariationSettings: '"opsz" 14', lineHeight: 'normal', letterSpacing: '0.2px' }}
                         >
                           {content}
                         </p>
                         <p
                           className="font-body font-normal w-full"
-                          style={{ fontSize: 12, color: 'var(--color-tertiary)', fontVariationSettings: '"opsz" 14' }}
+                          style={{ fontSize: 12, color: 'var(--color-tertiary)', fontVariationSettings: '"opsz" 14', lineHeight: 'normal', letterSpacing: '0.2px' }}
                         >
                           {`Sent by : @${username} `}
                           <span style={{ color: '#60a5fa' }}>· {expires}</span>
@@ -186,7 +186,7 @@ export function PinListSheet({ activePins, currentUserId, creatorId, onClose }: 
                             onClick={() => void handleUnpin(pin.id)}
                             disabled={unpinning === pin.id}
                             className="font-body font-medium disabled:opacity-40 transition-opacity"
-                            style={{ fontSize: 12, color: 'var(--color-danger)', fontVariationSettings: '"opsz" 14' }}
+                            style={{ fontSize: 12, color: 'var(--color-danger)', fontVariationSettings: '"opsz" 14', letterSpacing: '0.2px', lineHeight: 'normal' }}
                           >
                             {unpinning === pin.id ? '…' : 'Unpin message'}
                           </button>
