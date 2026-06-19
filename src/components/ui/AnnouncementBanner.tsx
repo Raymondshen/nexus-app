@@ -67,7 +67,7 @@ export function AnnouncementBanner({ announcements }: { announcements: Announcem
   return (
     <div
       className="w-full rounded-[8px] overflow-hidden flex-shrink-0"
-      style={{ background: 'rgba(96,165,250,0.1)', border: '1px solid #60a5fa' }}
+      style={{ background: 'rgba(96,165,250,0.1)', border: '1px solid var(--color-blue)' }}
     >
       <AnimatePresence initial={false} custom={dir} mode="wait">
         <motion.div
@@ -87,7 +87,7 @@ export function AnnouncementBanner({ announcements }: { announcements: Announcem
         >
           {/* Megaphone icon — Figma 153:1777 */}
           <Megaphone
-            style={{ width: 16, height: 16, color: '#60a5fa', flexShrink: 0 }}
+            style={{ width: 16, height: 16, color: 'var(--color-blue)', flexShrink: 0 }}
             aria-hidden="true"
           />
 
@@ -128,7 +128,7 @@ export function AnnouncementBanner({ announcements }: { announcements: Announcem
               onClick={() => setPage([i, i > safeIdx ? 1 : -1])}
               animate={{
                 width:      i === safeIdx ? 12 : 4,
-                background: i === safeIdx ? '#60a5fa' : 'rgba(96,165,250,0.3)',
+                background: i === safeIdx ? 'var(--color-blue)' : 'rgba(96,165,250,0.3)',
               }}
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               className="h-[4px] rounded-[2px] flex-shrink-0"

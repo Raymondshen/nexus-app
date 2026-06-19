@@ -131,7 +131,7 @@ export function InvitePage({ userId, coins, infiniteCoins, onClose, onCoinsDeduc
                   onCopy={handleCopy}
                 />
                 {index < codes.length - 1 && (
-                  <div className="w-full border-t border-[#27272a]" />
+                  <div className="w-full border-t border-border" />
                 )}
               </div>
             ))
@@ -232,7 +232,7 @@ function InviteCodeRow({
 
         {isUsed ? (
           <div
-            className="flex items-center flex-shrink-0 bg-black border border-[#71717a]"
+            className="flex items-center flex-shrink-0 bg-black border border-muted"
             style={{ gap: 8, paddingLeft: 16, paddingRight: 16, paddingTop: 8, paddingBottom: 8, boxShadow: '4px 4px 0px 0px rgba(113,113,122,0.5)' }}
           >
             <Copy style={{ width: 12, height: 12, color: 'var(--color-muted)', flexShrink: 0 }} aria-hidden="true" />

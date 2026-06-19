@@ -36,6 +36,7 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
   const messages                = useChatStore((s) => s.messages)
   const setPinnedScrollTargetId = useChatStore((s) => s.setPinnedScrollTargetId)
   const hiddenPinIds            = useChatStore((s) => s.hiddenPinIds)
+  const setHiddenPinIds         = useChatStore((s) => s.setHiddenPinIds)
 
   const [showPinList,   setShowPinList]   = useState(false)
   const [eventsEnabled, setEventsEnabled] = useState(false)
@@ -65,6 +66,16 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
   const sortedPins = [...activePins].sort((a, b) =>
     new Date(b.pinned_at as string).getTime() - new Date(a.pinned_at as string).getTime()
   )
+
+  // Enforce single-pin display: if multiple pins are visible, keep only the most recent one
+  useEffect(() => {
+    const visibleCount = sortedPins.filter((p) => !hiddenPinIds.has(p.id)).length
+    if (visibleCount > 1) {
+      const next = new Set(sortedPins.map((p) => p.id))
+      if (sortedPins[0]) next.delete(sortedPins[0].id)
+      setHiddenPinIds(next)
+    }
+  }, [sortedPins.map((p) => p.id).join(',')]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Only visible (non-hidden) pins scroll in the ticker
   const visiblePins = sortedPins.filter((p) => !hiddenPinIds.has(p.id))
@@ -127,20 +138,6 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
                 }}
                 aria-hidden="true"
               />
-              {activePins.length > 0 && (
-                <span
-                  className="absolute top-0 right-0 flex items-center justify-center font-pixel leading-none"
-                  style={{
-                    width: 14, height: 14,
-                    background: 'var(--color-purple)',
-                    fontSize: 7,
-                    color: 'white',
-                    transform: 'translate(25%, -25%)',
-                  }}
-                >
-                  {activePins.length}
-                </span>
-              )}
             </button>
 
 {isDev && eventsEnabled && (

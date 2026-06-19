@@ -102,7 +102,7 @@ function ShareModal({ crew, onClose }: { crew: Crew; onClose: () => void }) {
         <div className="flex items-center justify-between bg-[rgba(168,85,247,0.1)] border border-purple p-4 w-full overflow-hidden">
           <p
             className="font-silkscreen text-[24px] text-purple leading-none tracking-[0.2px]"
-            style={{ textShadow: '0px 0px 3px #a855f7' }}
+            style={{ textShadow: '0px 0px 3px var(--color-purple)' }}
           >
             {crew.invite_code}
           </p>
@@ -283,7 +283,7 @@ export function ChatHeader({
               onClick={() => setShowNotif(true)}
               aria-label={allMuted ? 'Notifications muted' : 'Notification settings'}
               className="flex items-center justify-center transition-colors"
-              style={{ width: 24, height: 40, color: allMuted ? '#71717a' : 'var(--color-primary)' }}
+              style={{ width: 24, height: 40, color: allMuted ? 'var(--color-muted)' : 'var(--color-primary)' }}
             >
               {allMuted
                 ? <BellOff style={{ width: 24, height: 24 }} aria-hidden="true" />

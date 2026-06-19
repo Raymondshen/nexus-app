@@ -27,7 +27,7 @@ export function NotifToggleRow({
         aria-checked={enabled}
         aria-label={`${enabled ? 'Disable' : 'Enable'} ${label} notifications`}
         className="relative flex-shrink-0 overflow-hidden"
-        style={{ width: 40, height: 24, borderRadius: 40, background: enabled ? 'var(--color-purple)' : '#27272a' }}
+        style={{ width: 40, height: 24, borderRadius: 40, background: enabled ? 'var(--color-purple)' : 'var(--color-border)' }}
       >
         <motion.span
           className="absolute top-[4px] w-4 h-4 rounded-full bg-white pointer-events-none"

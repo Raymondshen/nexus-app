@@ -131,7 +131,7 @@ export function PollCreatorSheet({ crewId, userProfile, onClose, onCreated }: Po
                 value={question}
                 onChange={(e) => setQuestion(e.target.value.slice(0, 200))}
                 placeholder="What do you want to ask?"
-                className="w-full h-[60px] bg-black border border-[#3f3f46] px-3 py-3 font-body text-[14px] text-primary placeholder:text-muted resize-none focus:outline-none focus:border-purple transition-colors leading-normal"
+                className="w-full h-[60px] bg-black border border-border-hover px-3 py-3 font-body text-[14px] text-primary placeholder:text-muted resize-none focus:outline-none focus:border-purple transition-colors leading-normal"
                 style={{ fontVariationSettings: '"opsz" 14' }}
               />
             </div>
@@ -151,7 +151,7 @@ export function PollCreatorSheet({ crewId, userProfile, onClose, onCreated }: Po
                     value={opt}
                     onChange={(e) => updateOption(idx, e.target.value)}
                     placeholder={`Option ${idx + 1}...`}
-                    className="flex-1 bg-black border border-[#3f3f46] px-3 py-3 font-body text-[14px] text-primary placeholder:text-muted focus:outline-none focus:border-purple transition-colors"
+                    className="flex-1 bg-black border border-border-hover px-3 py-3 font-body text-[14px] text-primary placeholder:text-muted focus:outline-none focus:border-purple transition-colors"
                     style={{ fontVariationSettings: '"opsz" 14' }}
                   />
                   {options.length > 2 && (
@@ -193,7 +193,7 @@ export function PollCreatorSheet({ crewId, userProfile, onClose, onCreated }: Po
                     className={`flex-1 py-3 flex items-center justify-center transition-colors font-body text-[14px] ${
                       duration === value
                         ? 'bg-purple text-primary'
-                        : 'bg-black border border-[#3f3f46] text-muted'
+                        : 'bg-black border border-border-hover text-muted'
                     }`}
                     style={{ fontVariationSettings: '"opsz" 14' }}
                   >

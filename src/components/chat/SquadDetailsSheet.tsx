@@ -595,7 +595,7 @@ export function SquadDetailsSheet({
               <div className="flex flex-col gap-2 w-full">
                 <div className="flex items-center w-full">
                   <p className="flex-1 min-w-0 leading-[0] text-[0px] font-silkscreen">
-                    <span className="text-[8px] leading-none text-[#fafafa]">Level {crewLevel}</span>
+                    <span className="text-[8px] leading-none text-primary">Level {crewLevel}</span>
                     <span className="text-[8px] leading-none text-tertiary">
                       {` · ${crewXP % XP_PER_LEVEL} / ${XP_PER_LEVEL}XP`}
                     </span>
@@ -627,7 +627,7 @@ export function SquadDetailsSheet({
                 </p>
                 <p
                   className="font-silkscreen text-[24px] text-purple leading-none tracking-[0.2px]"
-                  style={{ textShadow: '0px 0px 3px #a855f7' }}
+                  style={{ textShadow: '0px 0px 3px var(--color-purple)' }}
                 >
                   {inviteCode}
                 </p>

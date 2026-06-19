@@ -34,7 +34,7 @@ function ToggleSwitch({ enabled, onChange }: { enabled: boolean; onChange: () =>
         width: 40,
         height: 24,
         borderRadius: 40,
-        background: enabled ? '#a855f7' : '#27272a',
+        background: enabled ? 'var(--color-purple)' : 'var(--color-border)',
       }}
       aria-checked={enabled}
       role="switch"
@@ -364,7 +364,7 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
               onBlur={() => setGemResetConfirm(false)}
               className="flex-shrink-0 flex items-center justify-center overflow-hidden disabled:opacity-40"
               style={{
-                background: gemResetDone ? '#22c55e' : gemResetConfirm ? '#ef4444' : '#27272a',
+                background: gemResetDone ? 'var(--color-success)' : gemResetConfirm ? 'var(--color-danger)' : 'var(--color-border)',
                 padding: '4px 10px',
                 minWidth: 64,
                 transition: 'background 0.15s',
@@ -392,7 +392,7 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
               onBlur={() => setFxpResetConfirm(false)}
               className="flex-shrink-0 flex items-center justify-center overflow-hidden disabled:opacity-40"
               style={{
-                background: fxpResetDone ? '#22c55e' : fxpResetConfirm ? '#ef4444' : '#27272a',
+                background: fxpResetDone ? 'var(--color-success)' : fxpResetConfirm ? 'var(--color-danger)' : 'var(--color-border)',
                 padding: '4px 10px',
                 minWidth: 64,
                 transition: 'background 0.15s',

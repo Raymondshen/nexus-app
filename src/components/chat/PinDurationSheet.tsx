@@ -95,7 +95,7 @@ export function PinDurationSheet({ message, onClose, onPinned }: PinDurationShee
       />
       <motion.div
         key="pin-sheet"
-        className="fixed bottom-0 left-0 right-0 z-[90] bg-black border-t border-[#27272a] flex flex-col"
+        className="fixed bottom-0 left-0 right-0 z-[90] bg-black border-t border-border flex flex-col"
         style={{
           paddingTop: 24,
           paddingLeft: 16,
@@ -150,7 +150,7 @@ export function PinDurationSheet({ message, onClose, onPinned }: PinDurationShee
           {/* Select input */}
           <div
             className="relative flex items-center bg-black"
-            style={{ border: '1px solid #3f3f46', padding: 12, gap: 8 }}
+            style={{ border: '1px solid var(--color-border-hover)', padding: 12, gap: 8 }}
           >
             <select
               value={selected}

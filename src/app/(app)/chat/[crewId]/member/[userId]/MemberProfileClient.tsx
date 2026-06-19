@@ -223,7 +223,7 @@ export function MemberProfileClient({
               </p>
               <div style={{ height: 4, background: 'var(--color-surface)', overflow: 'hidden', position: 'relative', width: '100%' }}>
                 <motion.div
-                  style={{ position: 'absolute', left: 0, top: 0, height: '100%', background: 'linear-gradient(to right, #a855f7, #d946ef)' }}
+                  style={{ position: 'absolute', left: 0, top: 0, height: '100%', background: 'linear-gradient(to right, var(--color-purple), #d946ef)' }}
                   initial={{ width: '0%' }}
                   animate={{ width: `${bondPct}%` }}
                   transition={{ type: 'spring', stiffness: 300, damping: 28, delay: 0.2 }}

@@ -44,7 +44,8 @@ interface ChatStore {
   pinnedScrollTargetId:    string | null
   setPinnedScrollTargetId: (id: string | null) => void
   hiddenPinIds:            Set<string>
-  toggleHiddenPin:         (id: string) => void
+  toggleHiddenPin:         (id: string, allPinIds: string[]) => void
+  setHiddenPinIds:         (ids: Set<string>) => void
   squadDetailsOpen:        boolean
   setSquadDetailsOpen:     (open: boolean) => void
 }
@@ -140,11 +141,20 @@ export const useChatStore = create<ChatStore>((set) => ({
 
   setPinnedScrollTargetId: (id) => set({ pinnedScrollTargetId: id }),
 
-  toggleHiddenPin: (id) =>
+  setHiddenPinIds: (ids) => set({ hiddenPinIds: ids }),
+
+  toggleHiddenPin: (id, allPinIds) =>
     set((s) => {
       const next = new Set(s.hiddenPinIds)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
+      if (next.has(id)) {
+        // Show this pin, hide all others
+        next.delete(id)
+        for (const pid of allPinIds) {
+          if (pid !== id) next.add(pid)
+        }
+      } else {
+        next.add(id)
+      }
       return { hiddenPinIds: next }
     }),
 

@@ -136,7 +136,7 @@ export function GifPickerSheet({ onSelect, onClose }: GifPickerSheetProps) {
 
       {/* Sheet */}
       <motion.div
-        className="fixed bottom-0 left-0 right-0 z-[70] bg-black border-t border-[#27272a] flex flex-col"
+        className="fixed bottom-0 left-0 right-0 z-[70] bg-black border-t border-border flex flex-col"
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
@@ -146,8 +146,8 @@ export function GifPickerSheet({ onSelect, onClose }: GifPickerSheetProps) {
       >
         {/* Search input + attribution */}
         <div className="flex-shrink-0 flex flex-col px-4 pt-6" style={{ gap: 4 }}>
-          <div className="flex items-center border border-[#27272a] h-12 px-4" style={{ gap: 8 }}>
-            <Search style={{ width: 16, height: 16, color: 'var(--color-muted, #71717a)', flexShrink: 0 }} />
+          <div className="flex items-center border border-border h-12 px-4" style={{ gap: 8 }}>
+            <Search style={{ width: 16, height: 16, color: 'var(--color-muted)', flexShrink: 0 }} />
             <input
               type="text"
               value={query}

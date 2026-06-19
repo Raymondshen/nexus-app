@@ -77,8 +77,8 @@ export function FriendshipXPToast({ visible, xpAwarded, totalXP, partnerName, da
                         height:     4,
                         flexShrink: 0,
                         background: i < dailyCount
-                          ? 'linear-gradient(to right, #a855f7, #d946ef)'
-                          : '#71717a',
+                          ? 'linear-gradient(to right, var(--color-purple), #d946ef)'
+                          : 'var(--color-muted)',
                       }}
                     />
                   ))}
@@ -96,7 +96,7 @@ export function FriendshipXPToast({ visible, xpAwarded, totalXP, partnerName, da
             {/* XP progress bar */}
             <div style={{ height: 4, background: 'var(--color-border)', overflow: 'hidden', position: 'relative' }}>
               <motion.div
-                style={{ position: 'absolute', left: 0, top: 0, height: '100%', background: 'linear-gradient(to right, #a855f7, #d946ef)' }}
+                style={{ position: 'absolute', left: 0, top: 0, height: '100%', background: 'linear-gradient(to right, var(--color-purple), #d946ef)' }}
                 initial={{ width: '0%' }}
                 animate={{ width: `${progressPct}%` }}
                 transition={{ type: 'spring', stiffness: 300, damping: 28, delay: 0.15 }}

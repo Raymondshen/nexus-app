@@ -156,7 +156,7 @@ function renderWithDefinitions(
       parts.push(
         <span
           key={`${pair.def.id}-${match.index}`}
-          style={{ color: '#60a5fa' }}
+          style={{ color: 'var(--color-blue)' }}
           onClick={(e) => { e.stopPropagation(); onTap(pair.def) }}
         >
           {hit}
@@ -520,7 +520,7 @@ export function MessageBubble({
                 {pollClassName && (
                   <>
                     <span className="w-[2px] h-[2px] bg-purple shrink-0" />
-                    <span className="font-body font-normal text-[10px] tracking-[0.1px] shrink-0 leading-[normal] whitespace-nowrap" style={{ color: '#b3b3b3', fontVariationSettings: '"opsz" 14' }}>
+                    <span className="font-body font-normal text-[10px] tracking-[0.1px] shrink-0 leading-[normal] whitespace-nowrap" style={{ color: 'var(--color-paper-150)', fontVariationSettings: '"opsz" 14' }}>
                       {pollClassName}
                     </span>
                   </>
@@ -581,7 +581,7 @@ export function MessageBubble({
                 {eventClassName && (
                   <>
                     <span className="w-[2px] h-[2px] bg-purple shrink-0" />
-                    <span className="font-body font-normal text-[10px] tracking-[0.1px] shrink-0 leading-[normal] whitespace-nowrap" style={{ color: '#b3b3b3', fontVariationSettings: '"opsz" 14' }}>
+                    <span className="font-body font-normal text-[10px] tracking-[0.1px] shrink-0 leading-[normal] whitespace-nowrap" style={{ color: 'var(--color-paper-150)', fontVariationSettings: '"opsz" 14' }}>
                       {eventClassName}
                     </span>
                   </>
@@ -664,7 +664,7 @@ export function MessageBubble({
                     <span className="w-[2px] h-[2px] bg-purple shrink-0" />
                     <span
                       className="font-body font-normal text-[10px] tracking-[0.1px] shrink-0 leading-[normal] whitespace-nowrap"
-                      style={{ color: '#b3b3b3', fontVariationSettings: '"opsz" 14' }}
+                      style={{ color: 'var(--color-paper-150)', fontVariationSettings: '"opsz" 14' }}
                     >
                       {className}
                     </span>
@@ -1023,7 +1023,7 @@ export function MessageBubble({
                     setSheetOpen(false)
                     setReplyTo({ ...message })
                   }}
-                  className="w-full flex items-center gap-4 px-5 min-h-[52px] active:bg-[#111111] transition-colors"
+                  className="w-full flex items-center gap-4 px-5 min-h-[52px] active:bg-surface transition-colors"
                 >
                   <span className="text-[20px]">↩️</span>
                   <span className="font-body text-[15px] text-primary">Reply</span>
@@ -1034,7 +1034,7 @@ export function MessageBubble({
                 {/* ── Copy Text ────────────────────────────────────────────── */}
                 <button
                   onClick={handleCopy}
-                  className="w-full flex items-center gap-4 px-5 min-h-[52px] active:bg-[#111111] transition-colors"
+                  className="w-full flex items-center gap-4 px-5 min-h-[52px] active:bg-surface transition-colors"
                 >
                   <span className="text-[20px]">📋</span>
                   <span className="font-body text-[15px] text-primary">
@@ -1048,7 +1048,7 @@ export function MessageBubble({
                     <div className="border-t border-border" />
                     <button
                       onClick={() => { setSheetOpen(false); setPinSheetOpen(true) }}
-                      className="w-full flex items-center gap-4 px-5 min-h-[52px] active:bg-[#111111] transition-colors"
+                      className="w-full flex items-center gap-4 px-5 min-h-[52px] active:bg-surface transition-colors"
                     >
                       <span className="text-[20px]">📌</span>
                       <span className="font-body text-[15px] text-primary">
@@ -1085,7 +1085,7 @@ function BirthdayMessage({ content }: { content: string }) {
   return (
     <div style={{ marginTop: 'var(--space-6)' }}>
       <div
-        className="border border-[#a855f7] flex items-center w-full"
+        className="border border-purple flex items-center w-full"
         style={{ padding: 16, gap: 8 }}
       >
         <Cake style={{ width: 24, height: 24, color: 'var(--color-primary)', flexShrink: 0 }} aria-hidden="true" />
@@ -1097,7 +1097,7 @@ function BirthdayMessage({ content }: { content: string }) {
             {label}
           </p>
           <p className="font-body w-full" style={{ fontSize: 'var(--text-sm)', lineHeight: 0, fontVariationSettings: '"opsz" 14' }}>
-            <span className="leading-normal" style={{ color: '#a855f7' }}>@{username}</span>
+            <span className="leading-normal" style={{ color: 'var(--color-purple)' }}>@{username}</span>
             {dateStr && <span className="leading-normal" style={{ color: 'var(--color-primary)' }}> · {dateStr}</span>}
           </p>
         </div>
@@ -1124,7 +1124,7 @@ function JoinMessage({ content }: { content: string }) {
           </p>
           <p className="font-body w-full" style={{ fontSize: 'var(--text-sm)', lineHeight: 'normal', fontVariationSettings: '"opsz" 14' }}>
             <span style={{ color: 'var(--color-primary)' }}>Welcome a new member ·</span>
-            <span style={{ color: '#a855f7' }}> @{username}</span>
+            <span style={{ color: 'var(--color-purple)' }}> @{username}</span>
           </p>
         </div>
       </div>
@@ -1138,7 +1138,7 @@ function SystemMessage({ message }: { message: MessageWithProfile }) {
   if (content.startsWith('JOIN:'))     return <JoinMessage content={content} />
   let bg   = 'bg-surface border-border'
   let icon = '⚙️'
-  if (content.startsWith('🎂'))                                                          { bg = 'bg-[#1a0d2e] border-[#a855f7]/30'; icon = '' }
+  if (content.startsWith('🎂'))                                                          { bg = 'bg-[#1a0d2e] border-purple/30'; icon = '' }
   else if (content.includes('VOID') || content.includes('BOSS') || content.includes('boss')) { bg = 'bg-[#2d0a0a] border-[#ff4444]/40'; icon = '💀' }
   else if (content.includes('XP') || content.includes('xp'))                            { bg = 'bg-[#1a1400] border-[#ffd700]/40'; icon = '⭐' }
   else if (content.includes('artifact') || content.includes('ARTIFACT'))                { bg = 'bg-[#1a0d2e] border-[#bf5fff]/40'; icon = '💎' }

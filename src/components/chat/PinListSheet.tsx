@@ -22,7 +22,7 @@ function VisibilityToggle({ visible, onChange }: { visible: boolean; onChange: (
           width: 40,
           height: 24,
           borderRadius: 40,
-          background: visible ? 'var(--color-purple)' : '#71717a',
+          background: visible ? 'var(--color-purple)' : 'var(--color-muted)',
           transition: 'background 0.2s',
         }}
         aria-label={visible ? 'Hide from banner' : 'Show on banner'}
@@ -175,7 +175,7 @@ export function PinListSheet({ activePins, currentUserId, creatorId, onClose }: 
                           style={{ fontSize: 12, color: 'var(--color-tertiary)', fontVariationSettings: '"opsz" 14', lineHeight: 'normal', letterSpacing: '0.2px' }}
                         >
                           {`Sent by : @${username} `}
-                          <span style={{ color: '#60a5fa' }}>· {expires}</span>
+                          <span style={{ color: 'var(--color-blue)' }}>· {expires}</span>
                         </p>
                       </button>
 
@@ -192,7 +192,7 @@ export function PinListSheet({ activePins, currentUserId, creatorId, onClose }: 
                           </button>
                           <VisibilityToggle
                             visible={!hiddenPinIds.has(pin.id)}
-                            onChange={() => toggleHiddenPin(pin.id)}
+                            onChange={() => toggleHiddenPin(pin.id, activePins.map((p) => p.id))}
                           />
                         </div>
                       )}

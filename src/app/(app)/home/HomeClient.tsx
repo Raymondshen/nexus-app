@@ -243,12 +243,12 @@ function AccountPreview({
                 aria-label={`${totalFriendshipXP} friendship points`}
                 className="flex items-center gap-[var(--space-2)]"
               >
-                <Heart style={{ width: 12, height: 12, color: '#d946ef' }} aria-hidden="true" />
+                <Heart style={{ width: 12, height: 12, color: 'var(--color-purple)' }} aria-hidden="true" />
                 <span
                   className="font-silkscreen leading-none pb-[2px]"
                   style={{
                     fontSize: 'var(--text-xs)',
-                    background: 'linear-gradient(to right, #a855f7, #d946ef)',
+                    background: 'linear-gradient(to right, var(--color-purple), #d946ef)',
                     WebkitBackgroundClip: 'text',
                     WebkitTextFillColor: 'transparent',
                     backgroundClip: 'text',

@@ -1031,7 +1031,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       {/* ── DM: "Chatting with" label ── */}
       {isDM && (
         <p className="font-silkscreen text-[12px] leading-none">
-          <span className="text-[#a1a1aa]">Chatting with </span>
+          <span className="text-tertiary">Chatting with </span>
           <span className="text-purple">{liveCrewName.toLowerCase()}</span>
         </p>
       )}

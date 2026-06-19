@@ -165,7 +165,7 @@ export function PollCard({ pollId, currentUserId }: PollCardProps) {
     >
       {/* Poll header */}
       <div className="px-3 pt-3 pb-2">
-        <p className="font-silkscreen text-[8px] leading-none mb-1" style={{ color: isClosed ? 'var(--color-tertiary)' : '#a855f7' }}>
+        <p className="font-silkscreen text-[8px] leading-none mb-1" style={{ color: isClosed ? 'var(--color-tertiary)' : 'var(--color-purple)' }}>
           POLL{isClosed ? ' · CLOSED' : ''}
         </p>
         <p
@@ -211,7 +211,7 @@ export function PollCard({ pollId, currentUserId }: PollCardProps) {
                 <div className="flex items-center gap-2 flex-1 min-w-0">
                   <div
                     className="flex-shrink-0 w-3 h-3 border-2 rounded-full transition-colors"
-                    style={{ borderColor: isSelected ? '#a855f7' : 'var(--color-tertiary)', backgroundColor: isSelected ? '#a855f7' : 'transparent' }}
+                    style={{ borderColor: isSelected ? 'var(--color-purple)' : 'var(--color-tertiary)', backgroundColor: isSelected ? 'var(--color-purple)' : 'transparent' }}
                   />
                   <span
                     className={`font-body text-[13px] leading-normal truncate ${isSelected ? 'text-primary' : 'text-secondary'}`}

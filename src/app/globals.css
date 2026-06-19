@@ -5,20 +5,23 @@
    a single source of truth. Update here when Figma variables change.
    ────────────────────────────────────────────────────────────────────────── */
 :root {
-  /* Colors */
-  --color-paper:     #f6f6f6;
-  --color-primary:   #fafafa;
-  --color-secondary: #e4e4e7;
-  --color-tertiary:  #a1a1aa;
-  --color-muted:     #71717a;
-  --color-border:    #27272a;
-  --color-surface:   #111111;
-  --color-purple:    #a855f7;
-  --color-blue:      #60a5fa;
-  --color-paper-150: #b3b3b3;
-  --color-paper-200: #9a9a9a;
-  --color-border-hover: #3f3f46;
-  /* Game / chat accent colors */
+  /* Semantic color tokens — Figma collection: color.tokens.json */
+  --color-primary:      #fafafa;    /* primary      #FAFAFA */
+  --color-secondary:    #e4e4e7;    /* secondary    #E4E4E7 */
+  --color-tertiary:     #a1a1aa;    /* tertiary     #A1A1AA */
+  --color-muted:        #71717a;    /* muted        #71717A */
+  --color-border-hover: #3f3f46;    /* border-hover #3F3F46 */
+  --color-border:       #27272a;    /* border       #27272A */
+  --color-surface:      #111111;    /* surface      #111111 */
+  --color-background:   #000000;    /* background   #000000 */
+  --color-purple:       #a855f7;    /* purple       #A855F7 */
+  --color-blue:         #60a5fa;    /* blue         #60A5FA */
+  --color-green:        #22c55e;    /* green        #22C55E */
+  --color-yellow:       #f59e0b;    /* yellow       #F59E0B */
+  --color-red:          #ef4444;    /* red          #EF4444 */
+  /* Game / chat accent colors (not in Figma — kept for game logic) */
+  --color-paper-150:   #b3b3b3;
+  --color-paper-200:   #9a9a9a;
   --color-bg-chat:     #0a0612;
   --color-chat-purple: #bf5fff;
   --color-xp:          #ffd700;
@@ -27,61 +30,78 @@
   --color-success:     #66bb6a;
   --color-system-msg:  #1a0d2e;
 
-  /* Spacing */
-  --space-1:  0px;
-  --space-2:  4px;
-  --space-3:  8px;
-  --space-4:  12px;
-  --space-5:  16px;
-  --space-6:  20px;
-  --space-7:  24px;
-  --space-11: 40px;
-  --space-13: 48px;
-  --space-14: 52px;
+  /* Spacing tokens — Figma collection: size.tokens.json */
+  --space-1:  0px;    /* x1  */
+  --space-2:  4px;    /* x2  */
+  --space-3:  8px;    /* x3  */
+  --space-4:  12px;   /* x4  */
+  --space-5:  16px;   /* x5  */
+  --space-6:  20px;   /* x6  */
+  --space-7:  24px;   /* x7  */
+  --space-8:  28px;   /* x8  */
+  --space-9:  32px;   /* x9  */
+  --space-10: 36px;   /* x10 */
+  --space-11: 40px;   /* x11 */
+  --space-12: 44px;   /* x12 */
+  --space-13: 48px;   /* x13 */
+  --space-14: 52px;   /* x14 */
+  --space-15: 56px;   /* x15 */
 
-  /* Font sizes */
-  --text-mini: 8px;
-  --text-xxs:  11px;
-  --text-xs:   12px;
-  --text-sm:   14px;
-  --text-md:   16px;
-  --text-lg:   18px;
-  --text-xl:   20px;
-  --text-xxl:  24px;
+  /* Font size tokens — Figma collection: fontsize.tokens.json */
+  --text-display: 32px;   /* display */
+  --text-xxl:     24px;   /* xxl     */
+  --text-xl:      20px;   /* xl      */
+  --text-lg:      18px;   /* lg      */
+  --text-md:      16px;   /* md      */
+  --text-sm:      14px;   /* sm      */
+  --text-xs:      12px;   /* xs      */
+  --text-xxs:     11px;   /* xxs     */
+  --text-mini:    8px;    /* mini    */
 
   /* ── Figma variable aliases ──────────────────────────────────────────────
-     The Figma file references these names directly in generated code.
-     They map to the canonical project tokens above.
+     Generated Figma code uses these bare names (without --color- prefix).
+     They resolve to the canonical semantic tokens above.
      ──────────────────────────────────────────────────────────────────────── */
-  /* Colors */
-  --background: #000000;
-  --border:     var(--color-border);
-  --primary:    var(--color-primary);
-  --secondary:  var(--color-secondary);
-  --tertiary:   var(--color-tertiary);
-  --surface:    var(--color-surface);
-  --purple:     var(--color-purple);
-  --blue:       var(--color-blue);
-  --red:        #ef4444;
-  --green:      #22c55e;
-  --yellow:     var(--color-coins);  /* #f59e0b */
-  /* Spacing (--xN) */
-  --x1: 2px;
-  --x2: var(--space-2);   /* 4px  */
-  --x3: var(--space-3);   /* 8px  */
-  --x4: var(--space-4);   /* 12px */
-  --x5: var(--space-5);   /* 16px */
-  --x6: var(--space-6);   /* 20px */
-  --x7: var(--space-7);   /* 24px */
-  /* Font sizes */
-  --mini: var(--text-mini);  /* 8px  */
-  --xxs:  var(--text-xxs);   /* 11px */
-  --xs:   var(--text-xs);    /* 12px */
-  --sm:   var(--text-sm);    /* 14px */
-  --md:   var(--text-md);    /* 16px */
-  --lg:   var(--text-lg);    /* 18px */
-  --xl:   var(--text-xl);    /* 20px */
-  --xxl:  var(--text-xxl);   /* 24px */
+  /* Color aliases */
+  --background:   var(--color-background);
+  --primary:      var(--color-primary);
+  --secondary:    var(--color-secondary);
+  --tertiary:     var(--color-tertiary);
+  --muted:        var(--color-muted);
+  --border:       var(--color-border);
+  --border-hover: var(--color-border-hover);
+  --surface:      var(--color-surface);
+  --purple:       var(--color-purple);
+  --blue:         var(--color-blue);
+  --green:        var(--color-green);
+  --yellow:       var(--color-yellow);
+  --red:          var(--color-red);
+  /* Spacing aliases (--xN) — Figma size.tokens.json */
+  --x1:  0px;               /* x1  = 0px  */
+  --x2:  var(--space-2);    /* x2  = 4px  */
+  --x3:  var(--space-3);    /* x3  = 8px  */
+  --x4:  var(--space-4);    /* x4  = 12px */
+  --x5:  var(--space-5);    /* x5  = 16px */
+  --x6:  var(--space-6);    /* x6  = 20px */
+  --x7:  var(--space-7);    /* x7  = 24px */
+  --x8:  var(--space-8);    /* x8  = 28px */
+  --x9:  var(--space-9);    /* x9  = 32px */
+  --x10: var(--space-10);   /* x10 = 36px */
+  --x11: var(--space-11);   /* x11 = 40px */
+  --x12: var(--space-12);   /* x12 = 44px */
+  --x13: var(--space-13);   /* x13 = 48px */
+  --x14: var(--space-14);   /* x14 = 52px */
+  --x15: var(--space-15);   /* x15 = 56px */
+  /* Font size aliases — Figma fontsize.tokens.json */
+  --display: var(--text-display);  /* display = 32px */
+  --xxl:     var(--text-xxl);      /* xxl     = 24px */
+  --xl:      var(--text-xl);       /* xl      = 20px */
+  --lg:      var(--text-lg);       /* lg      = 18px */
+  --md:      var(--text-md);       /* md      = 16px */
+  --sm:      var(--text-sm);       /* sm      = 14px */
+  --xs:      var(--text-xs);       /* xs      = 12px */
+  --xxs:     var(--text-xxs);      /* xxs     = 11px */
+  --mini:    var(--text-mini);     /* mini    = 8px  */
 }
 
 @theme {
@@ -90,21 +110,24 @@
   --font-body:       var(--font-dm-sans);
   --font-silkscreen: var(--font-silk);
 
-  /* Semantic color utilities — mirrors :root vars so Tailwind generates
-     bg-surface, text-muted, border-border, etc. */
-  --color-paper:     #f6f6f6;
-  --color-primary:   #fafafa;
-  --color-secondary: #e4e4e7;
-  --color-tertiary:  #a1a1aa;
-  --color-muted:     #71717a;
-  --color-border:    #27272a;
-  --color-surface:   #111111;
-  --color-purple:    #a855f7;
-  --color-blue:      #60a5fa;
-  --color-paper-150: #b3b3b3;
-  --color-paper-200: #9a9a9a;
+  /* Semantic color utilities — generates Tailwind classes:
+     bg-surface, text-muted, border-border, bg-background, etc. */
+  --color-primary:      #fafafa;
+  --color-secondary:    #e4e4e7;
+  --color-tertiary:     #a1a1aa;
+  --color-muted:        #71717a;
+  --color-border:       #27272a;
   --color-border-hover: #3f3f46;
+  --color-surface:      #111111;
+  --color-background:   #000000;
+  --color-purple:       #a855f7;
+  --color-blue:         #60a5fa;
+  --color-green:        #22c55e;
+  --color-yellow:       #f59e0b;
+  --color-red:          #ef4444;
   /* Game / chat accent colors */
+  --color-paper-150:   #b3b3b3;
+  --color-paper-200:   #9a9a9a;
   --color-bg-chat:     #0a0612;
   --color-chat-purple: #bf5fff;
   --color-xp:          #ffd700;

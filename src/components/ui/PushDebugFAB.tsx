@@ -399,7 +399,7 @@ export function PushDebugFAB() {
 
   if (!showFab) return null
 
-  const dot = status == null             ? '#71717a'
+  const dot = status == null             ? 'var(--color-muted)'
             : !status.inDB               ? '#ef4444'
             : status.subType === 'apns'  ? '#66bb6a'
             : status.dbCount  === 0      ? '#ef4444'
@@ -419,7 +419,7 @@ export function PushDebugFAB() {
         }}
       >
         <span style={{ width: 6, height: 6, borderRadius: '50%', background: dot, flexShrink: 0, display: 'block' }} />
-        <span className="font-pixel" style={{ fontSize: 7, color: '#a855f7', letterSpacing: 1 }}>
+        <span className="font-pixel" style={{ fontSize: 7, color: 'var(--color-purple)', letterSpacing: 1 }}>
           {checking ? '…' : 'PUSH'}
         </span>
       </button>
@@ -451,7 +451,7 @@ export function PushDebugFAB() {
             >
               {/* Header */}
               <div className="flex items-center justify-between px-4 py-3 border-b border-border flex-shrink-0">
-                <span className="font-pixel" style={{ fontSize: 9, color: '#a855f7' }}>PUSH DIAGNOSTICS</span>
+                <span className="font-pixel" style={{ fontSize: 9, color: 'var(--color-purple)' }}>PUSH DIAGNOSTICS</span>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={checkStatus}
@@ -547,7 +547,7 @@ export function PushDebugFAB() {
                     onClick={handleSendTest}
                     disabled={testLoading}
                     className="flex-1 h-9 font-pixel border disabled:opacity-40"
-                    style={{ fontSize: 7, color: '#a855f7', borderColor: 'rgba(168,85,247,0.35)', background: 'rgba(168,85,247,0.06)' }}
+                    style={{ fontSize: 7, color: 'var(--color-purple)', borderColor: 'rgba(168,85,247,0.35)', background: 'rgba(168,85,247,0.06)' }}
                   >
                     {testLoading ? '…' : 'SEND TEST'}
                   </button>
@@ -583,10 +583,10 @@ export function PushDebugFAB() {
                 {/* Live log */}
                 {log.length > 0 && (
                   <div>
-                    <p className="font-pixel mb-1.5" style={{ fontSize: 7, color: '#71717a' }}>LOG</p>
+                    <p className="font-pixel mb-1.5" style={{ fontSize: 7, color: 'var(--color-muted)' }}>LOG</p>
                     <div className="space-y-0.5">
                       {log.map((entry, i) => (
-                        <p key={i} className="font-sans break-all leading-snug" style={{ fontSize: 10, color: i === 0 ? '#e4e4e7' : '#71717a' }}>
+                        <p key={i} className="font-sans break-all leading-snug" style={{ fontSize: 10, color: i === 0 ? '#e4e4e7' : 'var(--color-muted)' }}>
                           {entry}
                         </p>
                       ))}
@@ -614,7 +614,7 @@ function StatusRow({
   const color = ok ? '#66bb6a' : warn ? '#ffd700' : '#ef4444'
   return (
     <div className="flex items-baseline gap-2">
-      <span className="font-sans flex-shrink-0" style={{ fontSize: 10, color: '#71717a', minWidth: 56 }}>{label}</span>
+      <span className="font-sans flex-shrink-0" style={{ fontSize: 10, color: 'var(--color-muted)', minWidth: 56 }}>{label}</span>
       <span className="font-sans" style={{ fontSize: mono ? 10 : 11, color, wordBreak: 'break-all' }}>
         {value}
       </span>

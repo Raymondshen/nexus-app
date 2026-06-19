@@ -80,7 +80,7 @@ function ToggleSwitch({ enabled, onChange, disabled }: { enabled: boolean; onCha
       style={{
         width:      40,
         height:     24,
-        background: enabled ? '#a855f7' : '#27272a',
+        background: enabled ? 'var(--color-purple)' : 'var(--color-border)',
       }}
       aria-checked={enabled}
       role="switch"
