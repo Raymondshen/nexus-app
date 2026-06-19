@@ -240,7 +240,7 @@ function SquadDetailsEditSheet({
     <>
       {/* Backdrop — above the squad details sheet (z-[50]) */}
       <motion.div
-        className="fixed inset-0 z-[58] bg-black/60"
+        className="fixed inset-0 z-[80] bg-black/60"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
@@ -250,7 +250,7 @@ function SquadDetailsEditSheet({
 
       {/* Sheet — Figma 113:516: bg-black border-t border-border flex-col gap-[--x7] pt-[--x7] pb-[--md] px-[--md] */}
       <motion.div
-        className="fixed bottom-0 left-0 right-0 z-[59] bg-[var(--background)] border-t border-border flex flex-col overflow-y-auto nexus-scroll"
+        className="fixed bottom-0 left-0 right-0 z-[81] bg-[var(--background)] border-t border-border flex flex-col overflow-y-auto nexus-scroll"
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
         exit={{ y: '100%' }}

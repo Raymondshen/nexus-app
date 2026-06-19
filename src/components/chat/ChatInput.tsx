@@ -905,9 +905,9 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
 
   return (
     <div
-      className="bg-black border-t border-border flex flex-col flex-shrink-0 relative z-[40]"
+      className="bg-black border-t border-border flex flex-col flex-shrink-0 relative z-[65]"
       style={{
-        paddingTop:    'var(--space-4)',
+        paddingTop:    'var(--space-5)',
         paddingLeft:   'var(--space-5)',
         paddingRight:  'var(--space-5)',
         paddingBottom: 'max(env(safe-area-inset-bottom), 32px)',
@@ -991,8 +991,8 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
 
         {/* XP indicator */}
         <div
-          className="flex flex-col items-center justify-center w-full"
-          style={{ height: 'var(--space-7)', gap: 'var(--space-3)' }}
+          className="flex flex-col w-full"
+          style={{ gap: 'var(--space-3)' }}
         >
           <div className="flex items-center w-full font-silkscreen text-tertiary" style={{ gap: 'var(--space-2)' }}>
             <p className="flex-1 min-w-0 leading-[0] text-[0px]">
@@ -1198,7 +1198,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
 
           <div
             className="border flex items-center overflow-hidden transition-colors"
-            style={{ borderColor: isFocused ? 'var(--color-purple)' : 'var(--color-border)', paddingLeft: 'var(--space-5)', paddingRight: 'var(--space-5)', gap: 'var(--space-5)', minHeight: 48 }}
+            style={{ borderColor: isFocused ? 'var(--color-border-hover)' : 'var(--color-border)', paddingLeft: 'var(--space-5)', paddingRight: 'var(--space-5)', gap: 'var(--space-5)', minHeight: 48 }}
           >
             <motion.div
               className="flex-shrink-0 overflow-hidden flex items-center"
@@ -1257,7 +1257,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                 <button
                   onClick={canSendImage ? sendImage : send}
                   disabled={!canSend || sending || chatImageUploading}
-                  className={`flex-shrink-0 flex items-center justify-center w-4 h-4 transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${isFocused || canSendImage ? 'text-purple' : canSendText ? 'text-primary' : 'text-muted'}`}
+                  className={`flex-shrink-0 flex items-center justify-center w-4 h-4 transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${canSend ? 'text-purple' : 'text-muted'}`}
                   aria-label="Send message"
                 >
                   <Send style={{ width: 16, height: 16 }} aria-hidden="true" />
