@@ -16,22 +16,33 @@ export function NotifToggleRow({
   onToggle:    () => void
 }) {
   return (
-    <div className="flex items-center gap-2">
-      <div className="flex-1 min-w-0 flex flex-col tracking-[0.2px]">
-        <p className="font-body font-medium text-[length:var(--text-sm)] text-secondary leading-normal">{label}</p>
-        <p className="font-body text-[length:var(--text-xs)] text-tertiary leading-normal">{description}</p>
+    <div className="flex items-center" style={{ gap: 8 }}>
+      <div className="flex-1 min-w-0 flex flex-col" style={{ letterSpacing: '0.2px' }}>
+        <p
+          className="font-body font-semibold leading-normal"
+          style={{ fontSize: 14, color: 'var(--color-secondary)', fontVariationSettings: '"opsz" 14' }}
+        >
+          {label}
+        </p>
+        <p
+          className="font-body font-normal leading-normal"
+          style={{ fontSize: 12, color: 'var(--color-tertiary)', fontVariationSettings: '"opsz" 14' }}
+        >
+          {description}
+        </p>
       </div>
       <button
         onClick={onToggle}
         role="switch"
         aria-checked={enabled}
         aria-label={`${enabled ? 'Disable' : 'Enable'} ${label} notifications`}
-        className="relative flex-shrink-0 overflow-hidden"
-        style={{ width: 40, height: 24, borderRadius: 40, background: enabled ? 'var(--color-purple)' : 'var(--color-border)' }}
+        className="relative flex-shrink-0"
+        style={{ width: 48, height: 28, borderRadius: 40, background: enabled ? 'var(--color-purple)' : 'var(--color-muted)', transition: 'background 0.2s' }}
       >
         <motion.span
-          className="absolute top-[4px] w-4 h-4 rounded-full bg-white pointer-events-none"
-          animate={{ left: enabled ? 20 : 4 }}
+          className="absolute rounded-full bg-white pointer-events-none"
+          style={{ top: 4, width: 20, height: 20 }}
+          animate={{ left: enabled ? 24 : 4 }}
           transition={{ type: 'spring', stiffness: 400, damping: 30 }}
         />
       </button>
@@ -66,21 +77,40 @@ export function NotifSheet({
         dragConstraints={{ top: 0, bottom: 0 }}
         dragElastic={{ top: 0, bottom: 1 }}
         onDragEnd={(_, info) => { if (info.offset.y > 80 || info.velocity.y > 400) onClose() }}
-        className="relative w-full max-w-[480px] bg-[var(--background)] border-t border-border flex flex-col gap-6 px-4 overflow-hidden"
-        style={{ paddingTop: 12, paddingBottom: 'max(env(safe-area-inset-bottom), 24px)' }}
+        className="relative w-full max-w-[480px] bg-black border-t border-border flex flex-col overflow-hidden"
+        style={{ gap: 24, paddingTop: 24, paddingLeft: 16, paddingRight: 16, paddingBottom: 'max(env(safe-area-inset-bottom), 28px)' }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex flex-col gap-1">
-          <h2 className="font-body font-bold text-[length:var(--text-lg)] text-primary leading-none">Notifications</h2>
-          <p className="font-body text-[length:var(--text-xs)] text-secondary leading-normal">Control what pulls you back into the chat.</p>
+        {/* Header */}
+        <div className="flex flex-col flex-shrink-0" style={{ gap: 4 }}>
+          <h2
+            className="font-body font-bold leading-none"
+            style={{ fontSize: 16, color: 'var(--color-primary)', fontVariationSettings: '"opsz" 14' }}
+          >
+            Notifications
+          </h2>
+          <p
+            className="font-body font-normal leading-normal"
+            style={{ fontSize: 12, color: 'var(--color-tertiary)', fontVariationSettings: '"opsz" 14' }}
+          >
+            Control what pulls you back into the chat.
+          </p>
         </div>
 
-        <div className="flex flex-col gap-3">
+        {/* Toggle rows */}
+        <div className="flex flex-col flex-shrink-0" style={{ gap: 16 }}>
           <NotifToggleRow
             label="Messages"
             description="Notify me with new messages from this chat"
             enabled={prefs.messages}
             onToggle={() => onToggle('messages')}
+          />
+          <div className="border-t border-border w-full" />
+          <NotifToggleRow
+            label="@Mentions"
+            description="Notify me when someone mentions me by name"
+            enabled={prefs.mentions}
+            onToggle={() => onToggle('mentions')}
           />
           <div className="border-t border-border w-full" />
           <NotifToggleRow
@@ -96,15 +126,7 @@ export function NotifSheet({
             enabled={prefs.victory}
             onToggle={() => onToggle('victory')}
           />
-          <div className="border-t border-border w-full" />
-          <NotifToggleRow
-            label="@Mentions"
-            description="Notify me when someone mentions me by name"
-            enabled={prefs.mentions}
-            onToggle={() => onToggle('mentions')}
-          />
         </div>
-
       </motion.div>
     </motion.div>
   )
