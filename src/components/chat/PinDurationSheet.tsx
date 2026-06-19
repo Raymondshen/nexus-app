@@ -118,23 +118,28 @@ export function PinDurationSheet({ message, onClose, onPinned }: PinDurationShee
           className="font-body font-bold leading-none flex-shrink-0"
           style={{ fontSize: 16, color: 'var(--color-primary)', fontVariationSettings: '"opsz" 14' }}
         >
-          Pin Message
+          Pin Message?
         </p>
 
-        {/* Message preview */}
-        <div className="flex-shrink-0 flex flex-col" style={{ gap: 4 }}>
-          <p
-            className="font-body font-medium w-full"
-            style={{ fontSize: 14, color: 'var(--color-secondary)', fontVariationSettings: '"opsz" 14', lineHeight: 'normal', letterSpacing: '0.2px' }}
-          >
-            {preview}
-          </p>
-          <p
-            className="font-body font-normal w-full"
-            style={{ fontSize: 12, color: 'var(--color-tertiary)', fontVariationSettings: '"opsz" 14', lineHeight: 'normal' }}
-          >
-            {`Sent by : @${username}`}
-          </p>
+        {/* Message preview card */}
+        <div
+          className="flex-shrink-0 w-full"
+          style={{ background: 'var(--color-surface)', borderRadius: 8, padding: 16 }}
+        >
+          <div className="flex flex-col" style={{ gap: 4 }}>
+            <p
+              className="font-body font-medium w-full"
+              style={{ fontSize: 14, color: 'var(--color-secondary)', fontVariationSettings: '"opsz" 14', lineHeight: 'normal', letterSpacing: '0.2px' }}
+            >
+              {preview}
+            </p>
+            <p
+              className="font-body font-normal w-full"
+              style={{ fontSize: 12, color: 'var(--color-tertiary)', fontVariationSettings: '"opsz" 14', lineHeight: 'normal', letterSpacing: '0.2px' }}
+            >
+              {`Sent by : @${username}`}
+            </p>
+          </div>
         </div>
 
         {/* Duration section */}
@@ -144,7 +149,7 @@ export function PinDurationSheet({ message, onClose, onPinned }: PinDurationShee
             className="font-body font-medium"
             style={{ fontSize: 14, color: 'var(--color-primary)', fontVariationSettings: '"opsz" 14', letterSpacing: '0.2px', lineHeight: 'normal' }}
           >
-            Duration <span style={{ color: '#ef4444' }}>*</span>
+            Duration <span style={{ color: 'var(--color-danger)' }}>*</span>
           </p>
 
           {/* Select input */}
