@@ -251,7 +251,7 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
 
         {/* Pinned message ticker — shown below the nav row when a pin is active */}
         {pinFeature && visiblePins.length > 0 && (
-          <div className="pointer-events-auto w-full">
+          <div className="pointer-events-auto" style={{ marginLeft: 'var(--space-5)', marginRight: 'var(--space-5)' }}>
             <MarqueeBanner
               items={tickerItems}
               icon={<Note style={{ width: 8, height: 8, color: 'var(--color-blue)' }} aria-hidden="true" />}

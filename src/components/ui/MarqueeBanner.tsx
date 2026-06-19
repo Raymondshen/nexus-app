@@ -113,7 +113,7 @@ export function MarqueeBanner({ text, suffix, items, icon, onClick, quoted, pinn
   const containerClass = pinned
     ? "overflow-hidden border border-border bg-black w-full"
     : "overflow-hidden border-y border-border bg-black w-full"
-  const containerStyle = { paddingTop: 'var(--x4)', paddingBottom: 'var(--x4)' }
+  const containerStyle = { paddingTop: 'var(--x4)', paddingBottom: 'var(--x4)', paddingLeft: 'var(--x3)', paddingRight: 'var(--x3)' }
 
   if (onClick) {
     return (

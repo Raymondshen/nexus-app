@@ -8,7 +8,6 @@ import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
 import { TokeCircle } from 'pixelarticons/react/TokeCircle'
 import { Heart } from 'pixelarticons/react/Heart'
-import { Trash } from 'pixelarticons/react/Trash'
 import { Notebook } from 'pixelarticons/react/Notebook'
 import { Plus } from 'pixelarticons/react/Plus'
 import { Message as MessageIcon } from 'pixelarticons/react/Message'
@@ -622,7 +621,7 @@ function SquadCardPreview({ summary, onAvatarTap }: { summary: CrewSummary; onAv
   const imageUrl    = crew.image_url as string | null | undefined
 
   return (
-    <div className="w-full text-left flex items-center gap-4 pr-2">
+    <div className="w-full flex items-center gap-4 h-12">
       {/* Crew avatar — 48×48px per Figma node 189:2197 */}
       <button
         className="flex-shrink-0 w-12 h-12 overflow-hidden flex items-center justify-center font-pixel text-[10px] active:opacity-70 transition-opacity"
@@ -802,7 +801,12 @@ function SwipeableCrewCard({
           tabIndex={open ? 0 : -1}
           aria-label={`Leave ${summary.crew.name}`}
         >
-          <Trash style={{ width: 16, height: 16, color: 'white' }} aria-hidden="true" />
+          <img
+            src="/icons/leave-pixel.svg"
+            alt=""
+            aria-hidden="true"
+            style={{ width: 16, height: 16, imageRendering: 'pixelated', maxWidth: 'none' }}
+          />
         </button>
       </motion.div>
     </div>
