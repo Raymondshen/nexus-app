@@ -8,7 +8,7 @@ import { format } from 'date-fns'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useChatStore } from '@/store/chatStore'
 import { createClient } from '@/lib/supabase/client'
-import type { MessageWithProfile, AvatarClass, SquadDefinitionWithCreator } from '@/types'
+import type { MessageWithProfile, SquadDefinitionWithCreator } from '@/types'
 import { supabaseImageLoader } from '@/lib/supabase/imageLoader'
 import { extractFirstUrl } from '@/lib/utils'
 import { useOGPreview } from '@/lib/utils/useOGPreview'
@@ -63,20 +63,6 @@ function ImageBubble({
       )}
     </div>
   )
-}
-
-const CLASS_NAMES: Record<AvatarClass, string> = {
-  berserker: 'Berserker',
-  sage:      'Sage',
-  ghost:     'Ghost',
-  hype_man:  'Hype Man',
-  the_voice: 'The Voice',
-  meme_lord: 'Meme Lord',
-  mage:      'Mage',
-  warrior:   'Warrior',
-  rogue:     'Rogue',
-  healer:    'Healer',
-  archer:    'Archer',
 }
 
 const QUICK_REACTIONS = ['🔥', '💧', '⚡', '🌿', '🌑', '🔮'] as const
@@ -480,9 +466,8 @@ export function MessageBubble({
 
     const pollAvatarUrl = message.profile.avatar_url as string | null | undefined
     const pollInitial   = message.profile.username[0]?.toUpperCase() ?? '?'
-    const pollClassName = message.profile.avatar_class ? CLASS_NAMES[message.profile.avatar_class] : null
     const pollIsOnline  = onlineUserIds.has(message.user_id)
-    const pollTimeStr   = format(new Date(message.created_at), 'h:mma').toLowerCase()
+    const pollTimeStr    = format(new Date(message.created_at), 'h:mma').toLowerCase()
 
     return (
       <div className={`flex gap-[8px] items-start w-full ${showHeader ? 'pt-[var(--space-6)] pb-0' : 'pt-[var(--space-2)] pb-0'}`}>
@@ -492,7 +477,7 @@ export function MessageBubble({
             onClick={onAvatarTap ? () => onAvatarTap(message.user_id) : undefined}
             style={onAvatarTap ? { cursor: 'pointer' } : undefined}
           >
-            <div className="w-8 h-8 bg-surface flex items-center justify-center overflow-hidden">
+            <div className="w-8 h-8 rounded-full bg-surface flex items-center justify-center overflow-hidden">
               {pollAvatarUrl ? (
                 <div className="relative w-full h-full">
                   <Image src={resolveAvatarUrl(pollAvatarUrl, 32)} alt={message.profile.username} fill sizes="32px" className="object-cover" unoptimized={isSupabaseStorage(pollAvatarUrl)} />
@@ -517,16 +502,8 @@ export function MessageBubble({
                 >
                   {message.profile.username}
                 </span>
-                {pollClassName && (
-                  <>
-                    <span className="w-[2px] h-[2px] bg-purple shrink-0" />
-                    <span className="font-body font-normal text-[10px] tracking-[0.1px] shrink-0 leading-[normal] whitespace-nowrap" style={{ color: 'var(--color-paper-150)', fontVariationSettings: '"opsz" 14' }}>
-                      {pollClassName}
-                    </span>
-                  </>
-                )}
               </div>
-              <span className="font-body font-normal text-[8px] tracking-[0.2px] shrink-0 leading-[normal] whitespace-nowrap ml-1" style={{ color: 'var(--color-paper-200)', fontVariationSettings: '"opsz" 14' }}>
+              <span className="font-body font-normal text-[8px] tracking-[0.2px] shrink-0 leading-[normal] whitespace-nowrap ml-1" style={{ color: 'var(--color-tertiary)', fontVariationSettings: '"opsz" 14' }}>
                 {pollTimeStr}
               </span>
             </div>
@@ -541,9 +518,8 @@ export function MessageBubble({
   if (message.message_type === 'event' && message.event_id) {
     const eventAvatarUrl = message.profile.avatar_url as string | null | undefined
     const eventInitial   = message.profile.username[0]?.toUpperCase() ?? '?'
-    const eventClassName = message.profile.avatar_class ? CLASS_NAMES[message.profile.avatar_class] : null
     const eventIsOnline  = onlineUserIds.has(message.user_id)
-    const eventTimeStr   = format(new Date(message.created_at), 'h:mma').toLowerCase()
+    const eventTimeStr    = format(new Date(message.created_at), 'h:mma').toLowerCase()
 
     return (
       <div className={`flex gap-[8px] items-start w-full ${showHeader ? 'pt-[var(--space-6)] pb-0' : 'pt-[var(--space-2)] pb-0'}`}>
@@ -553,7 +529,7 @@ export function MessageBubble({
             onClick={onAvatarTap ? () => onAvatarTap(message.user_id) : undefined}
             style={onAvatarTap ? { cursor: 'pointer' } : undefined}
           >
-            <div className="w-8 h-8 bg-surface flex items-center justify-center overflow-hidden">
+            <div className="w-8 h-8 rounded-full bg-surface flex items-center justify-center overflow-hidden">
               {eventAvatarUrl ? (
                 <div className="relative w-full h-full">
                   <Image src={resolveAvatarUrl(eventAvatarUrl, 32)} alt={message.profile.username} fill sizes="32px" className="object-cover" unoptimized={isSupabaseStorage(eventAvatarUrl)} />
@@ -578,16 +554,8 @@ export function MessageBubble({
                 >
                   {message.profile.username}
                 </span>
-                {eventClassName && (
-                  <>
-                    <span className="w-[2px] h-[2px] bg-purple shrink-0" />
-                    <span className="font-body font-normal text-[10px] tracking-[0.1px] shrink-0 leading-[normal] whitespace-nowrap" style={{ color: 'var(--color-paper-150)', fontVariationSettings: '"opsz" 14' }}>
-                      {eventClassName}
-                    </span>
-                  </>
-                )}
               </div>
-              <span className="font-body font-normal text-[8px] tracking-[0.2px] shrink-0 leading-[normal] whitespace-nowrap ml-1" style={{ color: 'var(--color-paper-200)', fontVariationSettings: '"opsz" 14' }}>
+              <span className="font-body font-normal text-[8px] tracking-[0.2px] shrink-0 leading-[normal] whitespace-nowrap ml-1" style={{ color: 'var(--color-tertiary)', fontVariationSettings: '"opsz" 14' }}>
                 {eventTimeStr}
               </span>
             </div>
@@ -600,9 +568,8 @@ export function MessageBubble({
 
   const initial   = message.profile.username[0]?.toUpperCase() ?? '?'
   const avatarUrl = message.profile.avatar_url as string | null | undefined
-  const className = message.profile.avatar_class ? CLASS_NAMES[message.profile.avatar_class] : null
   const isOnline  = onlineUserIds.has(message.user_id)
-  const timeStr   = format(new Date(message.created_at), 'h:mma').toLowerCase()
+  const timeStr    = format(new Date(message.created_at), 'h:mma').toLowerCase()
 
   const reactions       = message.reactions ?? {}
   const sortedReactions = Object.entries(reactions)
@@ -626,7 +593,7 @@ export function MessageBubble({
             onTouchStart={onAvatarTap ? (e) => e.stopPropagation() : undefined}
             style={onAvatarTap ? { cursor: 'pointer' } : undefined}
           >
-            <div className="w-8 h-8 bg-surface flex items-center justify-center overflow-hidden">
+            <div className="w-8 h-8 rounded-full bg-surface flex items-center justify-center overflow-hidden">
               {avatarUrl ? (
                 <div className="relative w-full h-full">
                   <Image src={resolveAvatarUrl(avatarUrl, 32)} alt={message.profile.username} fill sizes="32px" className="object-cover" unoptimized={isSupabaseStorage(avatarUrl)} />
@@ -659,21 +626,9 @@ export function MessageBubble({
                   {message.profile.username}
                 </span>
 
-                {className && (
-                  <>
-                    <span className="w-[2px] h-[2px] bg-purple shrink-0" />
-                    <span
-                      className="font-body font-normal text-[10px] tracking-[0.1px] shrink-0 leading-[normal] whitespace-nowrap"
-                      style={{ color: 'var(--color-paper-150)', fontVariationSettings: '"opsz" 14' }}
-                    >
-                      {className}
-                    </span>
-                  </>
-                )}
-
                 {displayXP > 0 && (
                   <>
-                    <span className="w-[2px] h-[2px] bg-purple shrink-0" />
+                    <span className="w-[2px] h-[2px] bg-border shrink-0" />
                     <p className="font-silkscreen tracking-[0.1px] whitespace-nowrap leading-[0] text-[0px] shrink-0">
                       <span className="text-[8px] leading-[normal]" style={{ color: '#f59e0b' }}>
                         +{displayXP} XP
@@ -685,7 +640,7 @@ export function MessageBubble({
 
               <span
                 className="font-body font-normal text-[8px] tracking-[0.2px] shrink-0 leading-[normal] whitespace-nowrap ml-1"
-                style={{ color: 'var(--color-paper-200)', fontVariationSettings: '"opsz" 14' }}
+                style={{ color: 'var(--color-tertiary)', fontVariationSettings: '"opsz" 14' }}
               >
                 {timeStr}
               </span>
@@ -743,7 +698,7 @@ export function MessageBubble({
             />
           ) : (
             <p
-              className="font-body font-normal text-[14px] text-white leading-[normal] w-full select-none"
+              className="font-body font-normal text-[14px] text-secondary leading-[normal] w-full select-none"
               style={{ fontVariationSettings: '"opsz" 14', WebkitUserSelect: 'none', overflowWrap: 'break-word', minWidth: 0 }}
             >
               {message.message_type === 'text' && (definitions.length || memberUsernames.size)

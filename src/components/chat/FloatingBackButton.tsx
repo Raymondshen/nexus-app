@@ -93,12 +93,15 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
       {/* Floating gradient top nav */}
       <div
         className="absolute top-0 left-0 right-0 z-[60] flex flex-col pointer-events-none overflow-hidden"
-        style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+        style={{
+          paddingTop: 'env(safe-area-inset-top, 0px)',
+          background: 'linear-gradient(180deg, #000000 0%, rgba(0,0,0,0.25) 46.158%, rgba(0,0,0,0) 100%)',
+        }}
       >
         {/* Nav row */}
         <div
           className="flex items-center justify-between w-full pointer-events-none"
-          style={{ padding: 16, background: 'linear-gradient(180deg, #000000 0%, rgba(0,0,0,0.25) 46.158%, rgba(0,0,0,0) 100%)' }}
+          style={{ padding: 16 }}
         >
           {/* Back button */}
           <button
