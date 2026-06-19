@@ -543,7 +543,7 @@ function AccountDetailsSheet({
               )}
 
               {/* Buttons */}
-              <div className="flex flex-col w-full gap-[var(--space-3)]">
+              <div className="flex flex-col w-full" style={{ gap: 'var(--space-5)' }}>
                 <button
                   onClick={onLogout}
                   disabled={loggingOut}

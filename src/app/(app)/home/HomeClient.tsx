@@ -464,17 +464,17 @@ function HomeActionSheet({
     // Menu view
     return (
       <>
-        <div className="flex flex-col gap-[var(--space-3)]">
-          <p className="font-silkscreen text-[length:var(--text-mini)] text-tertiary leading-none whitespace-nowrap">SQUAD SH**!</p>
+        <div className="flex flex-col" style={{ gap: 'var(--space-3)' }}>
+          <p className="font-silkscreen leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}>SQUAD SH**!</p>
           <h2
-            className="font-body font-bold text-[length:var(--text-lg)] text-primary leading-none"
-            style={{ fontVariationSettings: '"opsz" 14' }}
+            className="font-body font-bold text-primary leading-none"
+            style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}
           >
             What would you like to do?
           </h2>
         </div>
 
-        <div className="flex flex-col gap-[var(--space-7)]">
+        <div className="flex flex-col" style={{ gap: 'var(--space-5)' }}>
           <Button shadow className="w-full" onClick={() => setView('create')}>
             CREATE A SQUAD
           </Button>
@@ -483,17 +483,17 @@ function HomeActionSheet({
             JOIN A SQUAD
           </Button>
 
-          <div className="flex flex-col gap-[var(--space-3)]">
+          <div className="flex flex-col" style={{ gap: 'var(--space-3)' }}>
             <button
               onClick={onOpenArsenal}
               className="w-full h-[48px] flex items-center justify-center bg-black border overflow-hidden"
-              style={{ borderColor: '#f59e0b', boxShadow: '4px 4px 0px 0px rgba(245,158,11,0.5)' }}
+              style={{ borderColor: 'var(--color-yellow)', boxShadow: '4px 4px 0px 0px rgba(245,158,11,0.5)' }}
             >
-              <span className="font-silkscreen leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-xs)', color: '#f59e0b' }}>INVITE A FRIEND</span>
+              <span className="font-silkscreen leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-yellow)' }}>INVITE A FRIEND</span>
             </button>
-            <p className="font-silkscreen text-[length:var(--text-mini)] tracking-[0.2px] leading-none" style={{ color: '#f59e0b' }}>
-              <span className="text-tertiary">Cost 25 COINS Per INVITE</span>
-              {` · ${infiniteCoins ? '∞' : coins.toLocaleString()} coins available`}
+            <p className="font-silkscreen leading-none tracking-[0.2px]" style={{ fontSize: 'var(--text-xxs)' }}>
+              <span style={{ color: 'var(--color-tertiary)' }}>25 coins = invite code · </span>
+              <span style={{ color: 'var(--color-yellow)' }}>{infiniteCoins ? '∞' : coins.toLocaleString()} coins</span>
             </p>
           </div>
         </div>
@@ -523,7 +523,7 @@ function HomeActionSheet({
           if (info.offset.y > 80 || info.velocity.y > 400) onClose()
         }}
         className="relative w-full max-w-[480px] bg-[var(--background)] border-t border-border flex flex-col gap-[var(--space-7)] px-[16px] overflow-hidden"
-        style={{ paddingTop: 12, paddingBottom: 'max(env(safe-area-inset-bottom), 28px)' }}
+        style={{ paddingTop: 'var(--space-5)', paddingBottom: 'max(env(safe-area-inset-bottom), var(--space-8))' }}
         onClick={(e) => e.stopPropagation()}
       >
         {sheetContent}
@@ -568,16 +568,16 @@ function LeaveConfirmSheet({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex flex-col gap-[var(--space-2)]">
+        <div className="flex flex-col" style={{ gap: 'var(--space-2)' }}>
           <h2
-            className="font-body font-bold text-[length:var(--text-lg)] text-primary leading-none"
-            style={{ fontVariationSettings: '"opsz" 14' }}
+            className="font-body font-bold text-primary leading-none"
+            style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}
           >
             {isLast ? `Delete ${summary.crew.name}?` : `Leave ${summary.crew.name}?`}
           </h2>
           <p
-            className="font-body text-[length:var(--text-xs)] text-tertiary leading-normal"
-            style={{ fontVariationSettings: '"opsz" 14' }}
+            className="font-body leading-normal"
+            style={{ fontSize: 'var(--text-xs)', color: 'var(--color-tertiary)', fontVariationSettings: '"opsz" 14' }}
           >
             {isLast
               ? 'You are the last member. This will permanently delete the crew and all its history.'
@@ -586,9 +586,9 @@ function LeaveConfirmSheet({
         </div>
 
         {/* Buttons */}
-        <div className="flex flex-col gap-[var(--space-3)]">
+        <div className="flex flex-col" style={{ gap: 'var(--space-5)' }}>
           {leaveError && (
-            <p className="font-silkscreen text-[length:var(--text-mini)] text-[#ef4444]">{leaveError}</p>
+            <p className="font-silkscreen" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-red)' }}>{leaveError}</p>
           )}
           <Button
             variant="danger"
