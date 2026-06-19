@@ -103,7 +103,7 @@ export function EventCardMessage({ eventId, crewId }: EventCardMessageProps) {
       }}
       onClick={(e) => {
         e.stopPropagation()
-        router.push(`/chat/${crewId}/events/${eventId}`)
+        router.push(`/chat/${crewId}/events/${eventId}?from=chat`)
       }}
       onTouchStart={(e) => e.stopPropagation()}
     >

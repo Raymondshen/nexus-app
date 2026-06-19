@@ -4,13 +4,14 @@ import { EventPageInfoClient } from './EventPageInfoClient'
 import type { Event } from '@/types'
 
 interface EventPageInfoPageProps {
-  params: Promise<{ crewId: string; eventId: string }>
+  params:       Promise<{ crewId: string; eventId: string }>
+  searchParams: Promise<{ from?: string }>
 }
 
 type GoingProfile = { id: string; username: string; avatar_url: string | null }
 
-export default async function EventPageInfoPage({ params }: EventPageInfoPageProps) {
-  const { crewId, eventId } = await params
+export default async function EventPageInfoPage({ params, searchParams }: EventPageInfoPageProps) {
+  const [{ crewId, eventId }, { from }] = await Promise.all([params, searchParams])
   const supabase = await createClient()
 
   const { data: { session } } = await supabase.auth.getSession()
@@ -93,6 +94,7 @@ export default async function EventPageInfoPage({ params }: EventPageInfoPagePro
       event={{ ...event, creatorUsername, goingProfiles }}
       initialRsvpStatus={initialRsvpStatus}
       isCreator={isCreator}
+      from={from}
     />
   )
 }

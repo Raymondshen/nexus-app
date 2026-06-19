@@ -32,6 +32,7 @@ interface EventPageInfoProps {
   event:               EnrichedEventInfo
   initialRsvpStatus:   'going' | 'not_going' | null
   isCreator:           boolean
+  from?:               string
 }
 
 function LocationPinIcon() {
@@ -61,6 +62,7 @@ export function EventPageInfoClient({
   event,
   initialRsvpStatus,
   isCreator,
+  from,
 }: EventPageInfoProps) {
   const goBack = useSlideBack()
   const router = useRouter()
@@ -138,7 +140,7 @@ export function EventPageInfoClient({
         marginRight: 'auto',
         overflow:    'hidden',
       }}
-      backHref={`/chat/${crewId}/events`}
+      backHref={from === 'chat' ? undefined : `/chat/${crewId}/events`}
     >
       {/* ── Hero ─────────────────────────────────────────────── */}
       <div className="relative flex-shrink-0 w-full" style={{ height: 280 }}>

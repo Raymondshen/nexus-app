@@ -119,7 +119,6 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
   return (
     <SlidePage
       className="flex flex-col bg-black"
-      backHref="/home"
       nativeSwipe
       style={{
         position: 'fixed',
