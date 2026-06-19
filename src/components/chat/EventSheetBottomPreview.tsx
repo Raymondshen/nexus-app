@@ -209,7 +209,6 @@ export function EventSheetBottomPreview({ crewId, onClose }: EventSheetBottomPre
           .eq('crew_id', crewId)
           .gte('event_date', now)
           .order('event_date', { ascending: true })
-          .limit(2)
 
         if (cancelled) return
         const eventsList = (eventsData ?? []) as Event[]
@@ -334,10 +333,6 @@ export function EventSheetBottomPreview({ crewId, onClose }: EventSheetBottomPre
               <div
                 className="w-full animate-pulse"
                 style={{ height: 303, background: 'var(--color-border)', borderRadius: 8 }}
-              />
-              <div
-                className="w-full animate-pulse"
-                style={{ height: 163, background: 'var(--color-border)', borderRadius: 8 }}
               />
             </div>
           ) : events.length === 0 ? (

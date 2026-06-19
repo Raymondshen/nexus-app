@@ -302,7 +302,7 @@ export async function createEventAction(data: {
   const eventId = (event as { id: string }).id
 
   if (data.createMessage) {
-    await service
+    const { error: msgError } = await service
       .from('messages')
       .insert({
         crew_id:      data.crewId,
@@ -314,6 +314,7 @@ export async function createEventAction(data: {
         reactions:    {},
         event_id:     eventId,
       })
+    if (msgError) console.error('[createEventAction] message insert failed:', msgError.message)
   }
 
   return { eventId }
