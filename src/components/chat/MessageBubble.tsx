@@ -14,7 +14,7 @@ import { extractFirstUrl } from '@/lib/utils'
 import { useOGPreview } from '@/lib/utils/useOGPreview'
 import { LinkPreviewCard } from '@/components/chat/LinkPreviewCard'
 import { PollCard } from '@/components/chat/PollCard'
-import { EventCard } from '@/components/chat/EventCard'
+import { EventCardMessage } from '@/components/chat/EventCardMessage'
 import { SuggestDefinitionSheet } from '@/components/chat/SuggestDefinitionSheet'
 import { PinDurationSheet } from '@/components/chat/PinDurationSheet'
 import { ImagePreviewOverlay } from '@/components/ui/ImagePreviewOverlay'
@@ -560,7 +560,7 @@ export function MessageBubble({
               </span>
             </div>
           )}
-          <EventCard eventId={message.event_id as string} currentUserId={currentUserId} />
+          <EventCardMessage eventId={message.event_id as string} crewId={crewId ?? message.crew_id} />
         </div>
       </div>
     )
