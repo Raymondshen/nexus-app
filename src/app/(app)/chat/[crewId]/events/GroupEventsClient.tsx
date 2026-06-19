@@ -391,6 +391,7 @@ export function EventPageFull({ crewId, currentUserId }: EventPageFullProps) {
         <EventCreationSheet
           crewId={crewId}
           currentUserId={currentUserId}
+          createMessage
           onClose={() => setShowCreate(false)}
           onCreated={() => loadEvents()}
         />
