@@ -209,7 +209,6 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   }, [squadDetailsOpen]) // eslint-disable-line
 
   useEffect(() => {
-    if (!isExpanded) return
     let cancelled = false
     setLoadingCounts(true)
     createClient()
@@ -1037,42 +1036,44 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
         </p>
       )}
 
-      {/* ── Group: Member avatars + XP bar — tap or swipe up to expand ── */}
+      {/* ── Group: mini header — tap or swipe up to expand ── */}
       {!isDM && <motion.div
         className="flex flex-col relative cursor-pointer"
-        style={{ touchAction: 'pan-x', gap: 'var(--space-3)' }}
+        style={{ touchAction: 'pan-x', gap: 'var(--space-5)' }}
         onPanEnd={handleTopPanEnd}
         onClick={() => setIsExpanded(true)}
       >
-        {/* Crew name + member count */}
-        <div className="flex items-center" style={{ gap: 'var(--space-2)' }}>
-          <p className="font-silkscreen text-[length:var(--text-xs)] text-purple leading-none whitespace-nowrap">{liveCrewName.toUpperCase()}</p>
-          <p className="font-silkscreen text-[length:var(--text-mini)] text-tertiary leading-none">· {memberCount} member{memberCount !== 1 ? 's' : ''}</p>
-        </div>
+        {/* groupHeader row: crew image + name/level | dot | member avatars */}
+        <div className="flex items-center" style={{ gap: 'var(--space-5)' }}>
+          {/* Crew image + name + level */}
+          <div className="flex items-center flex-shrink-0" style={{ gap: 8 }}>
+            <div className="relative flex-shrink-0 overflow-hidden bg-surface" style={{ width: 24, height: 24 }}>
+              {crewImageUrl && (
+                <Image src={crewImageUrl} alt={liveCrewName} fill sizes="24px" className="object-cover" unoptimized={isSupabaseStorage(crewImageUrl)} />
+              )}
+            </div>
+            <div className="flex flex-col" style={{ gap: 2 }}>
+              <p className="font-body font-black text-secondary leading-none" style={{ fontSize: 16, fontVariationSettings: '"opsz" 14' }}>
+                {liveCrewName.toUpperCase()}
+              </p>
+              <p className="font-silkscreen text-tertiary leading-none" style={{ fontSize: 8 }}>
+                Squad Level {crewLevel}
+              </p>
+            </div>
+          </div>
 
-        {/* Chevron — absolute top-right of content section */}
-        <button
-          onClick={(e) => { e.stopPropagation(); setIsExpanded(true) }}
-          className="absolute right-0 top-0 flex items-center justify-center flex-shrink-0"
-          style={{ width: 'var(--space-7)', height: 'var(--space-7)' }}
-          aria-label="Show members"
-        >
-          <ChevronRight
-            style={{ width: 'var(--space-7)', height: 'var(--space-7)', color: 'var(--color-tertiary)', transform: 'rotate(-90deg)' }}
-            aria-hidden="true"
-          />
-        </button>
+          {/* Dot separator */}
+          <div className="flex-shrink-0" style={{ width: 3, height: 3, borderRadius: '50%', background: 'var(--color-border)' }} />
 
-        {/* User list */}
-        <div className="flex items-center w-full">
-          <div className="flex items-center gap-3">
-            {members.slice(0, 8).map((m) => {
+          {/* Stacked member avatars (circles, 8px gap) */}
+          <div className="flex items-center" style={{ gap: 8 }}>
+            {members.slice(0, 5).map((m) => {
               const url     = m.avatar_url as string | null | undefined
               const initial = m.username[0]?.toUpperCase() ?? '?'
               const online  = onlineUserIds.has(m.id)
               return (
                 <div key={m.id} className="relative flex-shrink-0" title={m.username}>
-                  <div className="w-6 h-6 overflow-hidden bg-surface flex items-center justify-center">
+                  <div className="rounded-full overflow-hidden bg-surface flex items-center justify-center" style={{ width: 24, height: 24 }}>
                     {url ? (
                       <div className="relative w-full h-full">
                         <Image src={resolveAvatarUrl(url, 24)} alt={m.username} fill sizes="24px" className="object-cover" unoptimized={isSupabaseStorage(url)} />
@@ -1090,21 +1091,26 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
           </div>
         </div>
 
-        {/* XP indicator */}
-        <div
-          className="flex flex-col w-full"
-          style={{ gap: 'var(--space-3)' }}
+        {/* Chevron — absolute top-right */}
+        <button
+          onClick={(e) => { e.stopPropagation(); setIsExpanded(true) }}
+          className="absolute right-0 top-0 flex items-center justify-center flex-shrink-0"
+          style={{ width: 'var(--space-7)', height: 'var(--space-7)' }}
+          aria-label="Show members"
         >
-          <div className="flex items-center w-full font-silkscreen text-tertiary" style={{ gap: 'var(--space-2)' }}>
-            <p className="flex-1 min-w-0 leading-[0] text-[0px]">
-              <span className="text-[length:var(--text-mini)] leading-none text-secondary">Level {crewLevel}</span>
-              <span className="text-[length:var(--text-mini)] leading-none">
-                {` · ${crewXP % XP_PER_LEVEL} / ${XP_PER_LEVEL}XP`}
-              </span>
-            </p>
-            <p className="text-[length:var(--text-mini)] leading-none whitespace-nowrap text-tertiary">Next Boss</p>
-          </div>
+          <ChevronRight
+            style={{ width: 'var(--space-7)', height: 'var(--space-7)', color: 'var(--color-tertiary)', transform: 'rotate(-90deg)' }}
+            aria-hidden="true"
+          />
+        </button>
 
+        {/* XP indicator */}
+        <div className="flex flex-col w-full" style={{ gap: 'var(--space-3)' }}>
+          <p className="font-silkscreen text-tertiary leading-[0] w-full" style={{ fontSize: 0 }}>
+            <span className="leading-none" style={{ fontSize: 8 }}>{crewXP % XP_PER_LEVEL} / {XP_PER_LEVEL}XP</span>
+            <span className="leading-none" style={{ fontSize: 8 }}>{` · `}</span>
+            <span className="leading-none text-secondary" style={{ fontSize: 8 }}>{totalMessages.toLocaleString()} total Squad msg.</span>
+          </p>
           <div className="bg-surface h-1 overflow-hidden w-full relative">
             <motion.div
               className="absolute left-0 top-0 h-full bg-purple"
