@@ -152,7 +152,7 @@ export function ErrorLogsClient({ initialErrors }: ErrorLogsClientProps) {
   }, [])
 
   return (
-    <SlidePage className="min-h-screen bg-black flex flex-col" backHref="/profile">
+    <SlidePage className="min-h-screen bg-black flex flex-col">
 
       {/* Header */}
       <div

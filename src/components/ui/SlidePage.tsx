@@ -73,7 +73,7 @@ export function SlidePage({ children, className, style, backHref, nativeSwipe }:
   // Skipped when nativeSwipe=true so the iOS native gesture handles it instead,
   // which renders the real previous page (home) in the background during the drag.
   useEffect(() => {
-    if (!backHref || nativeSwipe) return
+    if (nativeSwipe) return
     const el = containerRef.current
     if (!el) return
 
@@ -120,7 +120,12 @@ export function SlidePage({ children, className, style, backHref, nativeSwipe }:
 
       if (dx > 80 || vel > 400) {
         exiting.current = true
-        router.replace(backHref!)
+        if (backHref) {
+          router.replace(backHref)
+        } else {
+          _skipNextSlideEnter = true
+          router.back()
+        }
         controls.start({
           x: window.innerWidth,
           transition: { type: 'tween', ease: [0.32, 0, 0.67, 0], duration: 0.12 },

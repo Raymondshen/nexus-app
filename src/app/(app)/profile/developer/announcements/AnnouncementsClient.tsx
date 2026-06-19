@@ -67,7 +67,6 @@ export function AnnouncementsClient({ initialAnnouncements }: AnnouncementsClien
     <SlidePage
       className="bg-black flex flex-col"
       style={{ position: 'fixed', inset: 0, maxWidth: 480, marginLeft: 'auto', marginRight: 'auto', overflow: 'hidden' }}
-      backHref="/profile/developer"
     >
       {/* Header */}
       <div

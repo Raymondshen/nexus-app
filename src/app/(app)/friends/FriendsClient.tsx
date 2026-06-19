@@ -351,7 +351,7 @@ export function FriendsClient({
   }, [])
 
   return (
-    <SlidePage className="min-h-screen bg-black flex flex-col" backHref="/home">
+    <SlidePage className="min-h-screen bg-black flex flex-col">
 
       {/* ── Header ── */}
       <div

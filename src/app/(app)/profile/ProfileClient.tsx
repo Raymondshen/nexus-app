@@ -736,7 +736,6 @@ export function ProfileClient({
     <SlidePage
       className="bg-black flex flex-col"
       style={{ position: 'fixed', inset: 0, maxWidth: 480, marginLeft: 'auto', marginRight: 'auto', overflow: 'hidden' }}
-      backHref="/home"
     >
       {/* ── Hero section — full bleed: 280px content + safe area at top ──── */}
       <div className="relative flex-shrink-0 w-full bg-black overflow-hidden" style={{ height: 'calc(280px + env(safe-area-inset-top, 0px))' }}>

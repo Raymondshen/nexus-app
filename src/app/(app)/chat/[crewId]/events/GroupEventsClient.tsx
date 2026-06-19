@@ -277,7 +277,6 @@ export function EventPageFull({ crewId, currentUserId }: EventPageFullProps) {
     <SlidePage
       className="bg-black flex flex-col"
       style={{ position: 'fixed', inset: 0, maxWidth: 480, marginLeft: 'auto', marginRight: 'auto', overflow: 'hidden' }}
-      backHref={`/chat/${crewId}`}
     >
       {/* Header */}
       <div

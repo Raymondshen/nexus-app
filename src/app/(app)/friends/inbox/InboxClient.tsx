@@ -178,7 +178,7 @@ export function InboxClient({ incomingRequests: initialIncoming, outgoingRequest
   const isEmpty = incoming.length === 0 && outgoing.length === 0
 
   return (
-    <SlidePage className="min-h-screen bg-black flex flex-col" backHref="/friends">
+    <SlidePage className="min-h-screen bg-black flex flex-col">
 
       {/* ── Header ── */}
       <div
