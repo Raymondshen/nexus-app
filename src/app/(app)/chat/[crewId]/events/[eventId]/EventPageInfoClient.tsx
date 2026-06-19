@@ -7,6 +7,7 @@ import { SlidePage, useSlideBack } from '@/components/ui/SlidePage'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { Calendar } from 'pixelarticons/react/Calendar'
 import { Check } from 'pixelarticons/react/Check'
+import { Close } from 'pixelarticons/react/Close'
 import { MagicEdit } from 'pixelarticons/react/MagicEdit'
 import { resolveAvatarUrl, isSupabaseStorage } from '@/components/ui/Avatar'
 import { upsertEventRsvpAction } from '@/app/(app)/chat/actions'
@@ -25,11 +26,12 @@ export type EnrichedEventInfo = Event & {
 }
 
 interface EventPageInfoProps {
-  crewId:         string
-  currentUserId:  string
-  event:          EnrichedEventInfo
-  initialIsGoing: boolean
-  isCreator:      boolean
+  crewId:              string
+  currentUserId:       string
+  currentUserProfile:  GoingProfile
+  event:               EnrichedEventInfo
+  initialRsvpStatus:   'going' | 'not_going' | null
+  isCreator:           boolean
 }
 
 function LocationPinIcon() {
@@ -55,17 +57,28 @@ function LocationPinIcon() {
 export function EventPageInfoClient({
   crewId,
   currentUserId,
+  currentUserProfile,
   event,
-  initialIsGoing,
+  initialRsvpStatus,
   isCreator,
 }: EventPageInfoProps) {
   const goBack = useSlideBack()
   const router = useRouter()
 
-  const [isGoing,           setIsGoing]           = useState(initialIsGoing)
+  const [rsvpStatus,        setRsvpStatus]        = useState<'going' | 'not_going' | null>(initialRsvpStatus)
   const [pending,           setPending]           = useState(false)
   const [showEdit,          setShowEdit]          = useState(false)
   const [showRegistration,  setShowRegistration]  = useState(false)
+
+  const isGoing = rsvpStatus === 'going'
+
+  // Optimistically add/remove current user from the going list
+  const displayGoingProfiles = (() => {
+    const alreadyIn = event.goingProfiles.some(p => p.id === currentUserId)
+    if (isGoing && !alreadyIn) return [currentUserProfile, ...event.goingProfiles]
+    if (!isGoing && alreadyIn) return event.goingProfiles.filter(p => p.id !== currentUserId)
+    return event.goingProfiles
+  })()
 
   const coverSrc = event.cover_image_url || DEFAULT_EVENT_IMAGE
   const isLocal  = !event.cover_image_url
@@ -80,23 +93,37 @@ export function EventPageInfoClient({
     timeInput:    format(new Date(event.event_date), 'HH:mm'),
   }
 
-  // Mark as going (first tap when not going)
+  // First tap when no RSVP exists yet
   async function handleGoingTap() {
-    if (pending || isGoing) return
+    if (pending || rsvpStatus !== null) return
     setPending(true)
-    setIsGoing(true)
+    setRsvpStatus('going')
     const { error } = await upsertEventRsvpAction(event.id, 'going')
-    if (error) setIsGoing(false)
+    if (error) setRsvpStatus(null)
     setPending(false)
   }
 
-  // Set not going from the registration sheet
+  // "Going Confirmed" pressed in registration sheet
+  async function handleConfirmGoing() {
+    setShowRegistration(false)
+    if (rsvpStatus === 'going') return
+    const prev = rsvpStatus
+    setPending(true)
+    setRsvpStatus('going')
+    const { error } = await upsertEventRsvpAction(event.id, 'going')
+    if (error) setRsvpStatus(prev)
+    setPending(false)
+  }
+
+  // "Not Going" pressed in registration sheet
   async function handleNotGoing() {
     setShowRegistration(false)
+    if (rsvpStatus === 'not_going') return
+    const prev = rsvpStatus
     setPending(true)
-    setIsGoing(false)
+    setRsvpStatus('not_going')
     const { error } = await upsertEventRsvpAction(event.id, 'not_going')
-    if (error) setIsGoing(true)
+    if (error) setRsvpStatus(prev)
     setPending(false)
   }
 
@@ -294,11 +321,11 @@ export function EventPageInfoClient({
               fontVariationSettings: '"opsz" 14',
             }}
           >
-            Going · {event.goingProfiles.length} :
+            Going · {displayGoingProfiles.length} :
           </p>
 
           <div className="flex items-center" style={{ gap: 12 }}>
-            {event.goingProfiles.length === 0 ? (
+            {displayGoingProfiles.length === 0 ? (
               <p
                 className="font-body font-normal"
                 style={{
@@ -310,7 +337,7 @@ export function EventPageInfoClient({
                 Be the first!
               </p>
             ) : (
-              event.goingProfiles.map((profile) => (
+              displayGoingProfiles.map((profile) => (
                 <div
                   key={profile.id}
                   className="relative flex-shrink-0 rounded-full overflow-hidden"
@@ -354,7 +381,7 @@ export function EventPageInfoClient({
           paddingBottom: 28,
         }}
       >
-        {isGoing ? (
+        {rsvpStatus === 'going' ? (
           /* ── Going Confirmed (flat solid green) ──────────── */
           <div className="flex flex-col w-full" style={{ gap: 8 }}>
             <p
@@ -392,8 +419,47 @@ export function EventPageInfoClient({
               </span>
             </button>
           </div>
+        ) : rsvpStatus === 'not_going' ? (
+          /* ── Not Going (bordered red) ────────────────────── */
+          <div className="flex flex-col w-full" style={{ gap: 8 }}>
+            <p
+              className="font-body font-normal w-full"
+              style={{
+                fontSize:            'var(--text-xxs)',
+                color:               'var(--color-tertiary)',
+                letterSpacing:       '0.2px',
+                lineHeight:          'normal',
+                fontVariationSettings: '"opsz" 14',
+                textAlign:           'right',
+              }}
+            >
+              Tap to change your registration
+            </p>
+            <button
+              onClick={() => setShowRegistration(true)}
+              disabled={pending}
+              className="w-full flex items-center justify-center overflow-hidden"
+              style={{
+                height:     48,
+                gap:        8,
+                border:     '1px solid var(--color-red)',
+                background: 'black',
+                paddingLeft:  16,
+                paddingRight: 16,
+                opacity:    pending ? 0.6 : 1,
+              }}
+            >
+              <Close style={{ width: 16, height: 16, color: 'var(--color-red)' }} aria-hidden="true" />
+              <span
+                className="font-silkscreen leading-none"
+                style={{ fontSize: 'var(--text-xs)', color: 'var(--color-red)' }}
+              >
+                Not Going
+              </span>
+            </button>
+          </div>
         ) : (
-          /* ── Not yet going (bordered green) ─────────────── */
+          /* ── No RSVP yet (bordered green) ───────────────── */
           <button
             onClick={handleGoingTap}
             disabled={pending}
@@ -435,7 +501,7 @@ export function EventPageInfoClient({
       {/* ── Registration sheet (change RSVP) ─────────────────── */}
       {showRegistration && (
         <EventRegistrationSheet
-          onStayGoing={() => setShowRegistration(false)}
+          onStayGoing={handleConfirmGoing}
           onNotGoing={handleNotGoing}
           onClose={() => setShowRegistration(false)}
         />

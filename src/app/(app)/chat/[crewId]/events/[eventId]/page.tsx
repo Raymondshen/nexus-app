@@ -38,7 +38,7 @@ export default async function EventPageInfoPage({ params }: EventPageInfoPagePro
 
   const event = eventResult.data as unknown as Event
 
-  const [creatorResult, rsvpsResult, myRsvpResult] = await Promise.all([
+  const [creatorResult, rsvpsResult, myRsvpResult, currentProfileResult] = await Promise.all([
     service
       .from('profiles')
       .select('username')
@@ -55,6 +55,11 @@ export default async function EventPageInfoPage({ params }: EventPageInfoPagePro
       .eq('event_id', eventId)
       .eq('user_id', session.user.id)
       .maybeSingle(),
+    service
+      .from('profiles')
+      .select('id, username, avatar_url')
+      .eq('id', session.user.id)
+      .single(),
   ])
 
   const creatorUsername = (creatorResult.data as { username: string } | null)?.username ?? null
@@ -69,15 +74,24 @@ export default async function EventPageInfoPage({ params }: EventPageInfoPagePro
     goingProfiles = (profilesData ?? []) as GoingProfile[]
   }
 
-  const initialIsGoing = (myRsvpResult.data as { status: string } | null)?.status === 'going'
-  const isCreator      = event.created_by === session.user.id
+  const currentUserProfile: GoingProfile =
+    (currentProfileResult.data as GoingProfile | null) ??
+    { id: session.user.id, username: '', avatar_url: null }
+
+  const rsvpData = myRsvpResult.data as { status: string } | null
+  const initialRsvpStatus: 'going' | 'not_going' | null =
+    rsvpData?.status === 'going'     ? 'going'     :
+    rsvpData?.status === 'not_going' ? 'not_going' : null
+
+  const isCreator = event.created_by === session.user.id
 
   return (
     <EventPageInfoClient
       crewId={crewId}
       currentUserId={session.user.id}
+      currentUserProfile={currentUserProfile}
       event={{ ...event, creatorUsername, goingProfiles }}
-      initialIsGoing={initialIsGoing}
+      initialRsvpStatus={initialRsvpStatus}
       isCreator={isCreator}
     />
   )
