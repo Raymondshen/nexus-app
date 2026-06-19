@@ -186,7 +186,7 @@ function AccountPreview({
       {/* Details row */}
       <div className="flex items-start gap-[var(--space-5)]">
         {/* Avatar 48×48 */}
-        <div className="w-12 h-12 flex-shrink-0 overflow-hidden relative bg-primary">
+        <div className="w-12 h-12 flex-shrink-0 overflow-hidden relative bg-primary rounded-full">
           {avatarUrl ? (
             <Image src={resolveAvatarUrl(avatarUrl, 48)} alt={username} fill sizes="48px" className="object-cover" priority unoptimized={isSupabaseStorage(avatarUrl)} />
           ) : (

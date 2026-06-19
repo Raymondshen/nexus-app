@@ -463,7 +463,8 @@ export function MessageList({
   // Show skeleton while the initial history fetch is in flight
   if (!historyLoaded) {
     return (
-      <div className="flex-1 min-h-0 overflow-hidden px-4 py-3 flex flex-col gap-3">
+      <div className="flex-1 min-h-0 overflow-hidden px-4 pb-3 flex flex-col gap-3">
+        <div className="shrink-0 h-[134px]" aria-hidden="true" />
         {[80, 55, 100, 65, 90, 45, 75].map((w, i) => (
           <div key={i} className={`flex items-end gap-2 ${i % 3 === 0 ? 'flex-row-reverse' : ''}`}>
             <div className="w-7 h-7 bg-[#1a1a2e] animate-pulse flex-shrink-0" />
@@ -623,8 +624,11 @@ export function MessageList({
     <div
       ref={scrollRef}
       onScroll={handleScroll}
-      className="flex-1 min-h-0 h-full overflow-y-auto px-4 py-4 flex flex-col nexus-scroll"
+      className="flex-1 min-h-0 h-full overflow-y-auto px-4 pb-4 flex flex-col nexus-scroll"
     >
+      {/* Spacer so messages start below the floating navbar when content is short */}
+      <div className="shrink-0 h-[134px]" aria-hidden="true" />
+
       {messages.length === 0 && (
         <div className="flex-1 flex flex-col items-center justify-center gap-4 opacity-60">
           <CampfireSprite />
