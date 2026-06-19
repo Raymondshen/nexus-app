@@ -319,6 +319,43 @@ export async function createEventAction(data: {
   return { eventId }
 }
 
+export async function updateEventAction(data: {
+  eventId:     string
+  title:       string
+  description?: string
+  location?:   string
+  eventDate:   string
+}): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) return { error: 'Not authenticated' }
+
+  // Verify caller is the event creator
+  const { data: existing } = await supabase
+    .from('events')
+    .select('created_by')
+    .eq('id', data.eventId)
+    .single()
+
+  if ((existing as { created_by: string } | null)?.created_by !== session.user.id) {
+    return { error: 'Only the event creator can edit this event' }
+  }
+
+  const service = createServiceClient()
+  const { error } = await service
+    .from('events')
+    .update({
+      title:       data.title.trim(),
+      description: data.description?.trim() || null,
+      location:    data.location?.trim() || null,
+      event_date:  data.eventDate,
+    })
+    .eq('id', data.eventId)
+
+  if (error) return { error: error.message }
+  return {}
+}
+
 export async function upsertEventRsvpAction(
   eventId: string,
   status: EventRsvpStatus,

@@ -2,14 +2,16 @@
 
 import { useState } from 'react'
 import Image from 'next/image'
+import { useRouter } from 'next/navigation'
 import { SlidePage, useSlideBack } from '@/components/ui/SlidePage'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { Calendar } from 'pixelarticons/react/Calendar'
 import { Check } from 'pixelarticons/react/Check'
-import { Close } from 'pixelarticons/react/Close'
 import { MagicEdit } from 'pixelarticons/react/MagicEdit'
 import { resolveAvatarUrl, isSupabaseStorage } from '@/components/ui/Avatar'
 import { upsertEventRsvpAction } from '@/app/(app)/chat/actions'
+import { EventCreationSheet } from '@/components/chat/EventCreationSheet'
+import { EventRegistrationSheet } from '@/components/chat/EventRegistrationSheet'
 import { format } from 'date-fns'
 import type { Event } from '@/types'
 
@@ -52,30 +54,51 @@ function LocationPinIcon() {
 
 export function EventPageInfoClient({
   crewId,
+  currentUserId,
   event,
   initialIsGoing,
   isCreator,
 }: EventPageInfoProps) {
-  const goBack  = useSlideBack()
-  const [isGoing, setIsGoing] = useState(initialIsGoing)
-  const [pending, setPending] = useState(false)
+  const goBack = useSlideBack()
+  const router = useRouter()
 
-  const coverSrc  = event.cover_image_url || DEFAULT_EVENT_IMAGE
-  const isLocal   = !event.cover_image_url
+  const [isGoing,           setIsGoing]           = useState(initialIsGoing)
+  const [pending,           setPending]           = useState(false)
+  const [showEdit,          setShowEdit]          = useState(false)
+  const [showRegistration,  setShowRegistration]  = useState(false)
 
-  async function handleRsvp() {
-    if (pending) return
-    const prev     = isGoing
-    const newStatus = isGoing ? 'not_going' : 'going'
-    setIsGoing(!isGoing)
+  const coverSrc = event.cover_image_url || DEFAULT_EVENT_IMAGE
+  const isLocal  = !event.cover_image_url
+
+  // Pre-fill values for the edit sheet from the current event
+  const editInitialValues = {
+    title:        event.title,
+    description:  event.description  ?? '',
+    locationName: event.location     ?? '',
+    locationLink: '',
+    dateInput:    format(new Date(event.event_date), 'yyyy-MM-dd'),
+    timeInput:    format(new Date(event.event_date), 'HH:mm'),
+  }
+
+  // Mark as going (first tap when not going)
+  async function handleGoingTap() {
+    if (pending || isGoing) return
     setPending(true)
-    const { error } = await upsertEventRsvpAction(event.id, newStatus)
-    if (error) setIsGoing(prev)
+    setIsGoing(true)
+    const { error } = await upsertEventRsvpAction(event.id, 'going')
+    if (error) setIsGoing(false)
     setPending(false)
   }
 
-  const btnColor = isGoing ? 'var(--color-red)' : 'var(--color-green)'
-  const btnShadowRgb = isGoing ? 'rgba(239,68,68,0.5)' : 'rgba(34,197,94,0.5)'
+  // Set not going from the registration sheet
+  async function handleNotGoing() {
+    setShowRegistration(false)
+    setPending(true)
+    setIsGoing(false)
+    const { error } = await upsertEventRsvpAction(event.id, 'not_going')
+    if (error) setIsGoing(true)
+    setPending(false)
+  }
 
   return (
     <SlidePage
@@ -116,9 +139,9 @@ export function EventPageInfoClient({
         <div
           className="absolute top-0 left-0 w-full flex items-center justify-between overflow-hidden"
           style={{
-            paddingLeft:  16,
-            paddingRight: 16,
-            paddingTop:   'calc(env(safe-area-inset-top, 0px) + 18px)',
+            paddingLeft:   16,
+            paddingRight:  16,
+            paddingTop:    'calc(env(safe-area-inset-top, 0px) + 18px)',
             paddingBottom: 18,
           }}
         >
@@ -138,6 +161,7 @@ export function EventPageInfoClient({
 
           {isCreator && (
             <button
+              onClick={() => setShowEdit(true)}
               aria-label="Edit event"
               className="flex items-center justify-center flex-shrink-0"
               style={{
@@ -210,7 +234,6 @@ export function EventPageInfoClient({
                     fontVariationSettings: '"opsz" 14',
                     textDecoration:      'underline',
                     textDecorationStyle: 'solid',
-                    textUnderlineOffset: 'auto',
                   }}
                 >
                   {event.location}
@@ -225,8 +248,8 @@ export function EventPageInfoClient({
       <div
         className="flex-1 overflow-y-auto nexus-scroll flex flex-col"
         style={{
-          gap:    24,
-          padding: 16,
+          gap:           24,
+          padding:       16,
           paddingBottom: 'max(env(safe-area-inset-bottom, 0px), var(--space-8))',
         }}
       >
@@ -261,20 +284,18 @@ export function EventPageInfoClient({
 
         {/* Going */}
         <div className="flex flex-col w-full" style={{ gap: 8 }}>
-          <div className="flex items-center w-full">
-            <p
-              className="font-body font-medium flex-1 min-w-0"
-              style={{
-                fontSize:            'var(--text-sm)',
-                color:               'var(--color-primary)',
-                letterSpacing:       '0.2px',
-                lineHeight:          'normal',
-                fontVariationSettings: '"opsz" 14',
-              }}
-            >
-              Going · {event.goingProfiles.length} :
-            </p>
-          </div>
+          <p
+            className="font-body font-medium flex-1 min-w-0"
+            style={{
+              fontSize:            'var(--text-sm)',
+              color:               'var(--color-primary)',
+              letterSpacing:       '0.2px',
+              lineHeight:          'normal',
+              fontVariationSettings: '"opsz" 14',
+            }}
+          >
+            Going · {event.goingProfiles.length} :
+          </p>
 
           <div className="flex items-center" style={{ gap: 12 }}>
             {event.goingProfiles.length === 0 ? (
@@ -323,7 +344,7 @@ export function EventPageInfoClient({
 
       {/* ── Bottom bar ───────────────────────────────────────── */}
       <div
-        className="flex-shrink-0 w-full flex flex-col"
+        className="flex-shrink-0 w-full"
         style={{
           background:   'black',
           borderTop:    '1px solid var(--color-border)',
@@ -331,36 +352,94 @@ export function EventPageInfoClient({
           paddingRight: 16,
           paddingTop:   16,
           paddingBottom: 28,
-          gap:          0,
         }}
       >
-        <button
-          onClick={handleRsvp}
-          disabled={pending}
-          className="flex items-center justify-center w-full flex-shrink-0"
-          style={{
-            height:      48,
-            border:      `1px solid ${btnColor}`,
-            boxShadow:   `4px 4px 0px 0px ${btnShadowRgb}`,
-            background:  'black',
-            gap:         8,
-            opacity:     pending ? 0.6 : 1,
-            transition:  'border-color 0.15s, box-shadow 0.15s, opacity 0.15s',
-          }}
-        >
-          {isGoing ? (
-            <Close style={{ width: 16, height: 16, color: btnColor }} aria-hidden="true" />
-          ) : (
-            <Check style={{ width: 16, height: 16, color: btnColor }} aria-hidden="true" />
-          )}
-          <span
-            className="font-silkscreen leading-none"
-            style={{ fontSize: 'var(--text-xs)', color: btnColor }}
+        {isGoing ? (
+          /* ── Going Confirmed (flat solid green) ──────────── */
+          <div className="flex flex-col w-full" style={{ gap: 8 }}>
+            <p
+              className="font-body font-normal w-full"
+              style={{
+                fontSize:            'var(--text-xxs)',
+                color:               'var(--color-tertiary)',
+                letterSpacing:       '0.2px',
+                lineHeight:          'normal',
+                fontVariationSettings: '"opsz" 14',
+                textAlign:           'right',
+              }}
+            >
+              Tap to change your registration
+            </p>
+            <button
+              onClick={() => setShowRegistration(true)}
+              disabled={pending}
+              className="w-full flex items-center justify-center overflow-hidden"
+              style={{
+                height:     48,
+                gap:        8,
+                background: 'var(--color-green)',
+                paddingLeft:  16,
+                paddingRight: 16,
+                opacity:    pending ? 0.6 : 1,
+              }}
+            >
+              <Check style={{ width: 16, height: 16, color: 'var(--color-primary)' }} aria-hidden="true" />
+              <span
+                className="font-silkscreen leading-none"
+                style={{ fontSize: 'var(--text-xs)', color: 'var(--color-primary)' }}
+              >
+                Going Confirmed
+              </span>
+            </button>
+          </div>
+        ) : (
+          /* ── Not yet going (bordered green) ─────────────── */
+          <button
+            onClick={handleGoingTap}
+            disabled={pending}
+            className="w-full flex items-center justify-center overflow-hidden"
+            style={{
+              height:     48,
+              gap:        8,
+              border:     '1px solid var(--color-green)',
+              boxShadow:  '4px 4px 0px 0px rgba(34,197,94,0.5)',
+              background: 'black',
+              paddingLeft:  16,
+              paddingRight: 16,
+              opacity:    pending ? 0.6 : 1,
+            }}
           >
-            {isGoing ? 'not going' : 'going'}
-          </span>
-        </button>
+            <Check style={{ width: 16, height: 16, color: 'var(--color-green)' }} aria-hidden="true" />
+            <span
+              className="font-silkscreen leading-none"
+              style={{ fontSize: 'var(--text-xs)', color: 'var(--color-green)' }}
+            >
+              going
+            </span>
+          </button>
+        )}
       </div>
+
+      {/* ── Edit sheet (creator only) ─────────────────────────── */}
+      {showEdit && (
+        <EventCreationSheet
+          crewId={crewId}
+          currentUserId={currentUserId}
+          eventId={event.id}
+          initialValues={editInitialValues}
+          onClose={() => setShowEdit(false)}
+          onCreated={() => { setShowEdit(false); router.refresh() }}
+        />
+      )}
+
+      {/* ── Registration sheet (change RSVP) ─────────────────── */}
+      {showRegistration && (
+        <EventRegistrationSheet
+          onStayGoing={() => setShowRegistration(false)}
+          onNotGoing={handleNotGoing}
+          onClose={() => setShowRegistration(false)}
+        />
+      )}
     </SlidePage>
   )
 }

@@ -4,7 +4,16 @@ import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
 import { Upload } from 'pixelarticons/react/Upload'
-import { createEventAction } from '@/app/(app)/chat/actions'
+import { createEventAction, updateEventAction } from '@/app/(app)/chat/actions'
+
+interface InitialValues {
+  title:        string
+  description:  string
+  locationName: string
+  locationLink: string
+  dateInput:    string // YYYY-MM-DD
+  timeInput:    string // HH:mm
+}
 
 interface EventCreationSheetProps {
   crewId:         string
@@ -12,15 +21,27 @@ interface EventCreationSheetProps {
   onClose:        () => void
   onCreated?:     (eventId: string) => void
   createMessage?: boolean
+  // Edit mode — when provided the sheet updates rather than creates
+  eventId?:       string
+  initialValues?: InitialValues
 }
 
-export function EventCreationSheet({ crewId, onClose, onCreated, createMessage }: EventCreationSheetProps) {
-  const [title,        setTitle]        = useState('')
-  const [description,  setDescription]  = useState('')
-  const [locationName, setLocationName] = useState('')
-  const [locationLink, setLocationLink] = useState('')
-  const [dateInput,    setDateInput]    = useState('')
-  const [timeInput,    setTimeInput]    = useState('')
+export function EventCreationSheet({
+  crewId,
+  onClose,
+  onCreated,
+  createMessage,
+  eventId,
+  initialValues,
+}: EventCreationSheetProps) {
+  const isEdit = !!eventId
+
+  const [title,        setTitle]        = useState(initialValues?.title        ?? '')
+  const [description,  setDescription]  = useState(initialValues?.description  ?? '')
+  const [locationName, setLocationName] = useState(initialValues?.locationName ?? '')
+  const [locationLink, setLocationLink] = useState(initialValues?.locationLink ?? '')
+  const [dateInput,    setDateInput]    = useState(initialValues?.dateInput    ?? '')
+  const [timeInput,    setTimeInput]    = useState(initialValues?.timeInput    ?? '')
   const [submitting,   setSubmitting]   = useState(false)
   const [error,        setError]        = useState<string | null>(null)
 
@@ -31,19 +52,32 @@ export function EventCreationSheet({ crewId, onClose, onCreated, createMessage }
 
     const eventDate = new Date(`${dateInput}T${timeInput}`).toISOString()
 
-    const { eventId, error: actionError } = await createEventAction({
-      crewId,
-      title:       title.trim(),
-      description: description.trim() || undefined,
-      location:    locationName.trim() || undefined,
-      eventDate,
-      createMessage,
-    })
-
-    setSubmitting(false)
-    if (actionError) { setError(actionError); return }
-    onCreated?.(eventId!)
-    onClose()
+    if (isEdit) {
+      const { error: actionError } = await updateEventAction({
+        eventId:     eventId!,
+        title:       title.trim(),
+        description: description.trim() || undefined,
+        location:    locationName.trim() || undefined,
+        eventDate,
+      })
+      setSubmitting(false)
+      if (actionError) { setError(actionError); return }
+      onCreated?.(eventId!)
+      onClose()
+    } else {
+      const { eventId: newId, error: actionError } = await createEventAction({
+        crewId,
+        title:       title.trim(),
+        description: description.trim() || undefined,
+        location:    locationName.trim() || undefined,
+        eventDate,
+        createMessage,
+      })
+      setSubmitting(false)
+      if (actionError) { setError(actionError); return }
+      onCreated?.(newId!)
+      onClose()
+    }
   }
 
   // Matches Figma: bg-black, border-[#3f3f46], muted placeholder (#71717a), DM Sans Regular 14px
@@ -53,22 +87,20 @@ export function EventCreationSheet({ crewId, onClose, onCreated, createMessage }
     'font-body font-normal focus:outline-none focus:border-[var(--color-purple)] transition-colors'
 
   const inputStyle: React.CSSProperties = {
-    fontSize:             'var(--text-sm)',  // 14px
+    fontSize:             'var(--text-sm)',
     padding:              '12px',
     fontVariationSettings: '"opsz" 14',
   }
 
-  // DM Sans Medium 14px white tracking 0.2px — field labels
   const labelStyle: React.CSSProperties = {
-    fontSize:             'var(--text-sm)',  // 14px
+    fontSize:             'var(--text-sm)',
     letterSpacing:        '0.2px',
     fontVariationSettings: '"opsz" 14',
     lineHeight:           'normal',
   }
 
-  // DM Sans Regular 11px tertiary tracking 0.2px — hint text below fields
   const hintStyle: React.CSSProperties = {
-    fontSize:             'var(--text-xxs)', // 11px
+    fontSize:             'var(--text-xxs)',
     letterSpacing:        '0.2px',
     fontVariationSettings: '"opsz" 14',
     lineHeight:           'normal',
@@ -91,59 +123,45 @@ export function EventCreationSheet({ crewId, onClose, onCreated, createMessage }
         style={{ maxHeight: '90vh' }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Single scrollable column — everything scrolls together */}
         <div
           className="overflow-y-auto nexus-scroll flex flex-col"
           style={{
-            gap:           'var(--x7)',          // 24px between header / fields / buttons
-            paddingTop:    'var(--x7)',          // 24px
-            paddingLeft:   'var(--x5)',          // 16px
-            paddingRight:  'var(--x5)',          // 16px
-            paddingBottom: 'max(env(safe-area-inset-bottom), var(--x8))', // ≥28px
+            gap:           'var(--x7)',
+            paddingTop:    'var(--x7)',
+            paddingLeft:   'var(--x5)',
+            paddingRight:  'var(--x5)',
+            paddingBottom: 'max(env(safe-area-inset-bottom), var(--x8))',
           }}
         >
-
           {/* ── Header ─────────────────────────────────────── */}
-          {/* DM Sans Bold 16px white — matches Figma var(--md, 16px) */}
           <p
             className="font-body font-bold text-[var(--color-primary)] shrink-0 w-full"
             style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14', lineHeight: 'normal' }}
           >
-            New Event
+            {isEdit ? 'Edit Event' : 'New Event'}
           </p>
 
-          {/* ── Fields — gap 16px between each group ──────── */}
+          {/* ── Fields ────────────────────────────────────── */}
           <div className="flex flex-col" style={{ gap: 'var(--x5)' }}>
 
-            {/* Event Image */}
-            <div className="flex flex-col" style={{ gap: 'var(--x3)' }}>
-              <p className="font-body font-medium text-[var(--color-primary)]" style={labelStyle}>
-                Event Image
-              </p>
-              {/* Upload button: purple border, Upload icon 16×16 purple, "upload photo" Silkscreen 12px purple */}
-              <button
-                type="button"
-                className="w-full flex items-center justify-center overflow-hidden"
-                style={{
-                  height:      48,
-                  gap:         8,
-                  paddingLeft:  16,
-                  paddingRight: 16,
-                  border:      '1px solid var(--color-purple)',
-                }}
-              >
-                <Upload
-                  style={{ width: 16, height: 16, color: 'var(--color-purple)' }}
-                  aria-hidden="true"
-                />
-                <span
-                  className="font-silkscreen leading-none"
-                  style={{ fontSize: 'var(--text-xs)', color: 'var(--color-purple)' }}
+            {/* Event Image (create only) */}
+            {!isEdit && (
+              <div className="flex flex-col" style={{ gap: 'var(--x3)' }}>
+                <p className="font-body font-medium text-[var(--color-primary)]" style={labelStyle}>
+                  Event Image
+                </p>
+                <button
+                  type="button"
+                  className="w-full flex items-center justify-center overflow-hidden"
+                  style={{ height: 48, gap: 8, paddingLeft: 16, paddingRight: 16, border: '1px solid var(--color-purple)' }}
                 >
-                  upload photo
-                </span>
-              </button>
-            </div>
+                  <Upload style={{ width: 16, height: 16, color: 'var(--color-purple)' }} aria-hidden="true" />
+                  <span className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-purple)' }}>
+                    upload photo
+                  </span>
+                </button>
+              </div>
+            )}
 
             {/* Title * */}
             <div className="flex flex-col" style={{ gap: 'var(--x3)' }}>
@@ -160,7 +178,7 @@ export function EventCreationSheet({ crewId, onClose, onCreated, createMessage }
               />
             </div>
 
-            {/* Date + Time — side by side, 16px gap */}
+            {/* Date + Time */}
             <div className="flex" style={{ gap: 'var(--x5)' }}>
               <div className="flex flex-col flex-1 min-w-0" style={{ gap: 'var(--x3)' }}>
                 <p className="font-body font-medium text-[var(--color-primary)]" style={labelStyle}>
@@ -241,38 +259,28 @@ export function EventCreationSheet({ crewId, onClose, onCreated, createMessage }
             </div>
 
             {error && (
-              <p
-                className="font-pixel leading-none"
-                style={{ fontSize: 'var(--text-mini)', color: 'var(--color-danger)' }}
-              >
+              <p className="font-pixel leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-danger)' }}>
                 {error}
               </p>
             )}
           </div>
 
-          {/* ── Buttons — gap 16px ─────────────────────────── */}
+          {/* ── Buttons ───────────────────────────────────── */}
           <div className="flex flex-col" style={{ gap: 'var(--x5)' }}>
-            {/* Create event — bg-purple, Silkscreen 12px white */}
             <button
               onClick={handleSubmit}
               disabled={submitting || !title.trim() || !locationName.trim() || !dateInput || !timeInput}
               className="w-full flex items-center justify-center font-silkscreen text-[var(--color-primary)] bg-[var(--color-purple)] overflow-hidden disabled:opacity-40"
               style={{ fontSize: 'var(--text-xs)', height: 48 }}
             >
-              {submitting ? '...' : 'Create event'}
+              {submitting ? '...' : isEdit ? 'Save changes' : 'Create event'}
             </button>
 
-            {/* Cancel — red border, Silkscreen 12px red */}
             <button
               onClick={onClose}
               disabled={submitting}
               className="w-full flex items-center justify-center font-silkscreen overflow-hidden disabled:opacity-40"
-              style={{
-                fontSize: 'var(--text-xs)',
-                height:   48,
-                color:    'var(--red)',
-                border:   '1px solid var(--red)',
-              }}
+              style={{ fontSize: 'var(--text-xs)', height: 48, color: 'var(--red)', border: '1px solid var(--red)' }}
             >
               Cancel
             </button>
