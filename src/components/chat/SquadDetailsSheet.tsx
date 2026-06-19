@@ -135,7 +135,7 @@ function MemberListRow({
       >
         {/* Profile photo + online dot */}
         <div className="relative flex-shrink-0">
-          <div className="w-8 h-8 overflow-hidden bg-surface flex items-center justify-center">
+          <div className="w-8 h-8 overflow-hidden rounded-full bg-surface flex items-center justify-center">
             {url ? (
               <div className="relative w-full h-full">
                 <Image src={resolveAvatarUrl(url, 32)} alt={profile.username} fill sizes="32px" className="object-cover" unoptimized={isSupabaseStorage(url)} />
@@ -205,22 +205,23 @@ function MemberListRow({
 // ─── Squad Details Edit Sheet (Figma 113:516) ────────────────────────────────
 
 interface SquadDetailsEditSheetProps {
-  crewName:     string
-  memberCount:  number
-  crewImageUrl: string | null
-  members:      MiniMember[]
-  onlineUserIds: Set<string>
-  crewXP:       number
-  crewLevel:    number
-  xpProgress:   number
-  totalMessages: number
-  onUploadPhoto: () => void
-  onSave:        (newName: string) => Promise<void>
-  onClose:       () => void
+  crewName:        string
+  memberCount:     number
+  crewImageUrl:    string | null
+  members:         MiniMember[]
+  onlineUserIds:   Set<string>
+  memberMsgCounts: Map<string, number>
+  crewXP:          number
+  crewLevel:       number
+  xpProgress:      number
+  totalMessages:   number
+  onUploadPhoto:   () => void
+  onSave:          (newName: string) => Promise<void>
+  onClose:         () => void
 }
 
 function SquadDetailsEditSheet({
-  crewName, memberCount, crewImageUrl, members, onlineUserIds,
+  crewName, memberCount, crewImageUrl, members, onlineUserIds, memberMsgCounts,
   crewXP, crewLevel, xpProgress, totalMessages,
   onUploadPhoto, onSave, onClose,
 }: SquadDetailsEditSheetProps) {
@@ -303,13 +304,21 @@ function SquadDetailsEditSheet({
           {/* avatar list + XP bar (pinned to bottom) */}
           <div className="flex flex-col" style={{ gap: 'var(--space-3)' }}>
             <div className="flex items-center" style={{ gap: 'var(--space-4)' }}>
-              {members.slice(0, 8).map((m) => {
+              {[...members]
+                .sort((a, b) => {
+                  const aOnline = onlineUserIds.has(a.id) ? 1 : 0
+                  const bOnline = onlineUserIds.has(b.id) ? 1 : 0
+                  if (bOnline !== aOnline) return bOnline - aOnline
+                  return (memberMsgCounts.get(b.id) ?? 0) - (memberMsgCounts.get(a.id) ?? 0)
+                })
+                .slice(0, 8)
+                .map((m) => {
                 const url     = m.avatar_url
                 const initial = m.username[0]?.toUpperCase() ?? '?'
                 const online  = onlineUserIds.has(m.id)
                 return (
                   <div key={m.id} className="relative flex-shrink-0" title={m.username}>
-                    <div className="w-6 h-6 overflow-hidden bg-surface flex items-center justify-center">
+                    <div className="w-6 h-6 overflow-hidden rounded-full bg-surface flex items-center justify-center">
                       {url ? (
                         <div className="relative w-full h-full">
                           <Image src={resolveAvatarUrl(url, 24)} alt={m.username} fill sizes="24px" className="object-cover" unoptimized={isSupabaseStorage(url)} />
@@ -638,7 +647,12 @@ export function SquadDetailsSheet({
         {/* ── Scrollable member list ── */}
         <div ref={memberListRef} className="flex-1 overflow-y-auto nexus-scroll px-4 min-h-0 mt-4" style={{ paddingBottom: 'max(env(safe-area-inset-bottom), var(--space-8))' }}>
           <div className="flex flex-col gap-[var(--space-6)]">
-            {[...members].sort((a, b) => (memberMsgCounts.get(b.id) ?? 0) - (memberMsgCounts.get(a.id) ?? 0)).map((m) => (
+            {[...members].sort((a, b) => {
+              const aOnline = onlineUserIds.has(a.id) ? 1 : 0
+              const bOnline = onlineUserIds.has(b.id) ? 1 : 0
+              if (bOnline !== aOnline) return bOnline - aOnline
+              return (memberMsgCounts.get(b.id) ?? 0) - (memberMsgCounts.get(a.id) ?? 0)
+            }).map((m) => (
               <MemberListRow
                 key={m.id}
                 profile={m}
@@ -674,6 +688,7 @@ export function SquadDetailsSheet({
             crewImageUrl={crewImageUrl}
             members={members}
             onlineUserIds={onlineUserIds}
+            memberMsgCounts={memberMsgCounts}
             crewXP={crewXP}
             crewLevel={crewLevel}
             xpProgress={xpProgress}
