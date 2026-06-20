@@ -160,8 +160,9 @@ export function MessageList({
   const [loadingOlder, setLoadingOlder] = useState(false)
   const isFetchingOlderRef  = useRef(false)
   const oldestCursorRef     = useRef<string | null>(null)
-  // Anchor-based scroll restoration after prepend
-  const anchorKeyRef       = useRef<string | null>(null)
+  // Scroll-position restoration after prepend
+  const prevScrollTopRef   = useRef(0)
+  const prevTotalSizeRef   = useRef(0)
   const anchorPendingRef   = useRef(false)
   const skipAutoScrollRef  = useRef(false)
 
@@ -501,19 +502,18 @@ export function MessageList({
     }
   }, [messages.length]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ─── Anchor restoration after prepend (fires before paint) ──────────────────
+  // ─── Scroll restoration after prepend (fires before paint) ──────────────────
+  // Delta strategy: new items are inserted above the viewport. Their combined
+  // estimated height = getTotalSize() delta. Adding that delta to the old
+  // scrollTop keeps every currently-visible item at the same pixel position.
 
   useBrowserLayoutEffect(() => {
     if (!anchorPendingRef.current) return
     anchorPendingRef.current = false
-    const anchor = anchorKeyRef.current
-    if (anchor == null) return
-    const idx = items.findIndex((item) =>
-      item.kind === 'message'
-        ? item.message.id === anchor
-        : (item as { key?: string }).key === anchor
-    )
-    if (idx !== -1) virtualizer.scrollToIndex(idx, { align: 'start', behavior: 'auto' })
+    const el = scrollRef.current
+    if (!el) return
+    const delta = virtualizer.getTotalSize() - prevTotalSizeRef.current
+    if (delta > 0) el.scrollTop = prevScrollTopRef.current + delta
   }, [items.length]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Pinned message scroll ────────────────────────────────────────────────────
@@ -559,10 +559,10 @@ export function MessageList({
           },
         }))
 
-      // Capture the topmost visible item's stable key before the state update
-      // shifts all indices. useLayoutEffect uses this to restore position after paint.
-      const virtualItems = virtualizer.getVirtualItems()
-      anchorKeyRef.current      = virtualItems[0] != null ? String(virtualItems[0].key) : null
+      // Snapshot scroll position and total virtual height before the state
+      // update so useLayoutEffect can compensate by the exact size delta.
+      prevScrollTopRef.current  = scrollRef.current?.scrollTop ?? 0
+      prevTotalSizeRef.current  = virtualizer.getTotalSize()
       anchorPendingRef.current  = true
       skipAutoScrollRef.current = true
 
@@ -587,7 +587,7 @@ export function MessageList({
     const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
     isNearBottomRef.current = distFromBottom < 150
 
-    if (el.scrollTop < 120 && hasMore && !isFetchingOlderRef.current && historyLoaded) {
+    if (el.scrollTop < 120 && hasMore && !isFetchingOlderRef.current && !anchorPendingRef.current && historyLoaded) {
       fetchOlderMessages()
     }
   }
