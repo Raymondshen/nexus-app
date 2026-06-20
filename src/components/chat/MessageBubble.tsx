@@ -657,7 +657,7 @@ export function MessageBubble({
                 onTouchStart={(e) => e.stopPropagation()}
                 onTouchEnd={(e) => e.stopPropagation()}
               >
-                <CornerDownRight style={{ width: 16, height: 16, color: 'var(--color-tertiary)', flexShrink: 0 }} />
+                <CornerDownRight style={{ width: 16, height: 16, color: 'var(--color-purple)', flexShrink: 0 }} />
                 <div className="relative w-[16px] h-[16px] rounded-full bg-surface overflow-hidden flex-shrink-0">
                   {replyAvatarUrl ? (
                     <Image
