@@ -816,7 +816,7 @@ function SwipeableCrewCard({
   return (
     <div className="overflow-hidden">
       <motion.div
-        className="flex"
+        className="flex items-center"
         drag="x"
         dragConstraints={{ left: -LEAVE_REVEAL, right: 0 }}
         dragElastic={{ left: 0.05, right: 0.1 }}
@@ -833,7 +833,7 @@ function SwipeableCrewCard({
         </motion.div>
 
         <button
-          className="flex-shrink-0 self-stretch flex items-center justify-center bg-[var(--red)] p-[12px] overflow-hidden rounded-[8px]"
+          className="flex-shrink-0 flex items-center justify-center bg-[var(--red)] p-[12px] overflow-hidden rounded-[8px]"
           style={{ width: LEAVE_BTN_WIDTH }}
           onClick={(e) => { e.stopPropagation(); snapTo(0, false); onLeaveRequest() }}
           tabIndex={open ? 0 : -1}
