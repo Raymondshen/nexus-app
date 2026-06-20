@@ -4,7 +4,6 @@ import { useState, useEffect, useLayoutEffect, useRef, useCallback, useActionSta
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence, useMotionValue, animate } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
-import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
 import { TokeCircle } from 'pixelarticons/react/TokeCircle'
 import { Heart } from 'pixelarticons/react/Heart'
@@ -20,7 +19,6 @@ import { joinCrewAction }   from '@/app/(app)/onboarding/join/actions'
 import { leaveCrewAction } from './actions'
 import { InvitePage } from './InviteArsenal'
 import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
 import type { CrewSummary } from './page'
 import type { Message, MessageWithProfile } from '@/types'
 import { useChatStore } from '@/store/chatStore'
@@ -383,81 +381,121 @@ function HomeActionSheet({
   const sheetContent = (() => {
     if (view === 'create') {
       return (
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center gap-3 mb-1">
-            <button onClick={() => setView('menu')} className="text-muted hover:text-primary transition-colors">
-              <ChevronLeft style={{ width: 16, height: 16 }} aria-hidden="true" />
-            </button>
-            <h2 className="font-pixel text-[11px] text-primary">CREATE A CREW</h2>
-          </div>
+        <>
+          <p
+            className="font-body font-bold text-primary leading-none"
+            style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}
+          >
+            Create a Squad
+          </p>
 
           {createState?.error && (
-            <div className="bg-[#ff4444]/10 border border-[#ff4444]/50 px-3 py-2">
-              <p className="font-pixel text-[9px] text-[#ff4444] leading-relaxed">{createState.error}</p>
+            <div className="border px-3 py-2" style={{ background: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.5)' }}>
+              <p className="font-silkscreen" style={{ fontSize: 'var(--text-mini)', color: 'var(--red)' }}>{createState.error}</p>
             </div>
           )}
 
-          <form action={createAction} className="flex flex-col gap-4">
-            <Input
-              name="crewName"
-              type="text"
-              label="CREW NAME"
-              placeholder="The Void Slayers"
-              required
-              minLength={2}
-              maxLength={30}
-              autoComplete="off"
-              autoFocus
-            />
-            <Button type="submit" variant="primary" loading={createPending} className="w-full">
-              FORGE THE CREW
-            </Button>
+          <form action={createAction} className="flex flex-col" style={{ gap: 'var(--space-7)' }}>
+            <div className="flex flex-col" style={{ gap: 'var(--space-3)' }}>
+              <p
+                className="font-body leading-none tracking-[0.2px]"
+                style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14', fontWeight: 500 }}
+              >
+                <span className="text-primary">Squad Name </span>
+                <span style={{ color: 'var(--red)' }}>*</span>
+              </p>
+              <input
+                name="crewName"
+                type="text"
+                placeholder="BFF Hangout, Family, etc..."
+                required
+                minLength={2}
+                maxLength={30}
+                autoComplete="off"
+                autoFocus
+                className="w-full bg-[var(--background)] font-body font-normal text-primary placeholder:text-muted focus:outline-none"
+                style={{ border: '1px solid #3f3f46', padding: 12, fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
+              />
+            </div>
+            <div className="flex flex-col" style={{ gap: 'var(--space-5)' }}>
+              <Button type="submit" shadow loading={createPending} className="w-full">
+                CREATE SQUAD
+              </Button>
+              <Button
+                type="button"
+                variant="outlined"
+                color="red"
+                shadow
+                className="w-full h-[48px]"
+                onClick={() => setView('menu')}
+              >
+                CANCEL CREATION
+              </Button>
+            </div>
           </form>
-        </div>
+        </>
       )
     }
 
     if (view === 'join') {
       return (
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center gap-3 mb-1">
-            <button onClick={() => setView('menu')} className="text-muted hover:text-primary transition-colors">
-              <ChevronLeft style={{ width: 16, height: 16 }} aria-hidden="true" />
-            </button>
-            <h2 className="font-pixel text-[11px] text-primary">JOIN A CREW</h2>
-          </div>
+        <>
+          <p
+            className="font-body font-bold text-primary leading-none"
+            style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}
+          >
+            Join a Squad
+          </p>
 
           {joinState?.error && (
-            <div className="bg-[#ff4444]/10 border border-[#ff4444]/50 px-3 py-2">
-              <p className="font-pixel text-[9px] text-[#ff4444] leading-relaxed">{joinState.error}</p>
+            <div className="border px-3 py-2" style={{ background: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.5)' }}>
+              <p className="font-silkscreen" style={{ fontSize: 'var(--text-mini)', color: 'var(--red)' }}>{joinState.error}</p>
             </div>
           )}
 
-          <form action={joinAction} className="flex flex-col gap-4">
-            <div className="flex flex-col gap-[6px]">
-              <label className="font-pixel text-[9px] text-purple tracking-widest">INVITE CODE</label>
+          <form action={joinAction} className="flex flex-col" style={{ gap: 'var(--space-7)' }}>
+            <div className="flex flex-col" style={{ gap: 'var(--space-3)' }}>
+              <p
+                className="font-body leading-none tracking-[0.2px]"
+                style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14', fontWeight: 500 }}
+              >
+                <span className="text-primary">Enter Invite Code </span>
+                <span style={{ color: 'var(--red)' }}>*</span>
+              </p>
               <input
                 value={joinCode}
                 onChange={handleJoinCodeChange}
                 placeholder="A3X9KP"
                 autoComplete="off"
                 autoFocus
-                className="w-full bg-black border border-border px-3 py-3 text-white font-pixel text-[16px] tracking-[0.4em] text-center placeholder:text-muted placeholder:tracking-[0.2em] focus:outline-none focus:border-purple"
+                className="w-full bg-[var(--background)] font-silkscreen text-primary placeholder:text-muted focus:outline-none text-center uppercase tracking-[0.4em] placeholder:tracking-[0.2em]"
+                style={{ border: '1px solid var(--color-purple)', padding: 12, fontSize: 'var(--text-xxl)' }}
               />
               <input type="hidden" name="inviteCode" value={joinCode} />
-              <p className="font-pixel text-[7px] text-muted">{joinCode.length}/6 characters</p>
             </div>
-            <Button
-              type="submit"
-              variant="primary"
-              loading={joinPending}
-              disabled={joinCode.length !== 6}
-              className="w-full"
-            >
-              ENTER THE WAR
-            </Button>
+            <div className="flex flex-col" style={{ gap: 'var(--space-5)' }}>
+              <Button
+                type="submit"
+                shadow
+                loading={joinPending}
+                disabled={joinCode.length !== 6}
+                className="w-full"
+              >
+                JOIN THE SQUAD
+              </Button>
+              <Button
+                type="button"
+                variant="outlined"
+                color="red"
+                shadow
+                className="w-full h-[48px]"
+                onClick={() => setView('menu')}
+              >
+                NEVER MIND...
+              </Button>
+            </div>
           </form>
-        </div>
+        </>
       )
     }
 
