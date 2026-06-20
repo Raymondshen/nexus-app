@@ -18,6 +18,7 @@ import { Check } from 'pixelarticons/react/Check'
 import { UserX } from 'pixelarticons/react/UserX'
 import { MailRight } from 'pixelarticons/react/MailRight'
 import { Message } from 'pixelarticons/react/Message'
+import { Upload } from 'pixelarticons/react/Upload'
 
 const CLASS_LABELS: Record<string, string> = {
   berserker: 'Berserker', sage: 'Sage', ghost: 'Ghost', hype_man: 'Hype Man',
@@ -205,24 +206,20 @@ function MemberListRow({
 // ─── Squad Details Edit Sheet (Figma 113:516) ────────────────────────────────
 
 interface SquadDetailsEditSheetProps {
-  crewName:        string
-  memberCount:     number
-  crewImageUrl:    string | null
-  members:         MiniMember[]
-  onlineUserIds:   Set<string>
-  memberMsgCounts: Map<string, number>
-  crewXP:          number
-  crewLevel:       number
-  xpProgress:      number
-  totalMessages:   number
-  onUploadPhoto:   () => void
-  onSave:          (newName: string) => Promise<void>
-  onClose:         () => void
+  crewName:      string
+  memberCount:   number
+  crewImageUrl:  string | null
+  crewXP:        number
+  xpProgress:    number
+  totalMessages: number
+  onUploadPhoto: () => void
+  onSave:        (newName: string) => Promise<void>
+  onClose:       () => void
 }
 
 function SquadDetailsEditSheet({
-  crewName, memberCount, crewImageUrl, members, onlineUserIds, memberMsgCounts,
-  crewXP, crewLevel, xpProgress, totalMessages,
+  crewName, memberCount, crewImageUrl,
+  crewXP, xpProgress, totalMessages,
   onUploadPhoto, onSave, onClose,
 }: SquadDetailsEditSheetProps) {
   const [nameValue, setNameValue] = useState(crewName)
@@ -264,132 +261,59 @@ function SquadDetailsEditSheet({
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Title — Figma 113:519: DM Sans Bold --lg text-primary */}
-        <h2
-          className="font-body font-bold text-primary leading-none flex-shrink-0"
-          style={{ fontSize: 'var(--text-lg)', fontVariationSettings: '"opsz" 14' }}
-        >
-          Squad Details
-        </h2>
-
-        {/* group_header preview — 200px, title row top + avatar/XP bottom (Figma 113:557) */}
-        <div className="flex flex-col justify-between flex-shrink-0" style={{ height: 200 }}>
-          {/* header_container: image + name/count */}
-          <div className="flex items-start gap-2">
-            <div className="relative flex-shrink-0 w-8 h-8 overflow-hidden">
+        {/* group_header — 180px, title row top + XP bar bottom (Figma 214:5744) */}
+        <div className="flex flex-col justify-between flex-shrink-0" style={{ height: 180 }}>
+          {/* header_container: image + name/count (Figma 214:5745) */}
+          <div className="flex items-center" style={{ gap: 'var(--space-3)' }}>
+            <div className="relative flex-shrink-0 overflow-hidden" style={{ width: 40, height: 40 }}>
               {crewImageUrl ? (
                 <div className="relative w-full h-full">
-                  <Image src={crewImageUrl} alt={nameValue || crewName} fill sizes="32px" className="object-cover" unoptimized={isSupabaseStorage(crewImageUrl)} />
+                  <Image src={crewImageUrl} alt={nameValue || crewName} fill sizes="40px" className="object-cover" unoptimized={isSupabaseStorage(crewImageUrl)} />
                 </div>
               ) : (
                 <div className="w-full h-full bg-purple" />
               )}
             </div>
-            <div className="flex flex-col" style={{ gap: 'var(--space-2)' }}>
+            <div className="flex flex-col min-w-0" style={{ gap: 'var(--space-2)' }}>
               <p
-                className="font-silkscreen text-purple leading-none uppercase"
-                style={{ fontSize: 'var(--text-md)' }}
+                className="font-body font-black text-primary leading-none truncate"
+                style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}
               >
                 {nameValue || crewName}
               </p>
-              <p
-                className="font-silkscreen text-tertiary leading-none"
-                style={{ fontSize: 'var(--text-mini)' }}
-              >
+              <p className="font-silkscreen text-secondary leading-none" style={{ fontSize: 'var(--text-xxs)' }}>
                 {memberCount} {memberCount === 1 ? 'member' : 'members'}
               </p>
             </div>
           </div>
 
-          {/* avatar list + XP bar (pinned to bottom) */}
-          <div className="flex flex-col" style={{ gap: 'var(--space-3)' }}>
-            <div className="flex items-center" style={{ gap: 'var(--space-4)' }}>
-              {[...members]
-                .sort((a, b) => {
-                  const aOnline = onlineUserIds.has(a.id) ? 1 : 0
-                  const bOnline = onlineUserIds.has(b.id) ? 1 : 0
-                  if (bOnline !== aOnline) return bOnline - aOnline
-                  return (memberMsgCounts.get(b.id) ?? 0) - (memberMsgCounts.get(a.id) ?? 0)
-                })
-                .slice(0, 8)
-                .map((m) => {
-                const url     = m.avatar_url
-                const initial = m.username[0]?.toUpperCase() ?? '?'
-                const online  = onlineUserIds.has(m.id)
-                return (
-                  <div key={m.id} className="relative flex-shrink-0" title={m.username}>
-                    <div className="w-6 h-6 overflow-hidden rounded-full bg-surface flex items-center justify-center">
-                      {url ? (
-                        <div className="relative w-full h-full">
-                          <Image src={resolveAvatarUrl(url, 24)} alt={m.username} fill sizes="24px" className="object-cover" unoptimized={isSupabaseStorage(url)} />
-                        </div>
-                      ) : (
-                        <span className="font-pixel text-purple" style={{ fontSize: 'var(--text-mini)' }}>{initial}</span>
-                      )}
-                    </div>
-                    {online && (
-                      <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#66bb6a] border-[1.5px] border-black" />
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-            <div className="flex flex-col w-full" style={{ gap: 'var(--space-3)' }}>
-              <p className="leading-[0] text-[0px] font-silkscreen flex-1 min-w-0">
-                <span className="leading-none text-primary" style={{ fontSize: 'var(--text-mini)' }}>Level {crewLevel}</span>
-                <span className="leading-none text-tertiary" style={{ fontSize: 'var(--text-mini)' }}>
-                  {` · ${crewXP % XP_PER_LEVEL} / ${XP_PER_LEVEL}XP`}
-                </span>
-                {totalMessages > 0 && (
-                  <span className="leading-none text-tertiary" style={{ fontSize: 'var(--text-mini)' }}>
-                    {` · ${totalMessages.toLocaleString()} total msg.`}
+          {/* XP bar pinned to bottom (Figma 214:5757) */}
+          <div className="flex flex-col w-full" style={{ gap: 'var(--space-3)' }}>
+            <p className="leading-[0] text-[0px] font-silkscreen">
+              <span className="leading-none text-tertiary" style={{ fontSize: 'var(--text-mini)' }}>
+                {`${crewXP % XP_PER_LEVEL} / ${XP_PER_LEVEL}XP`}
+              </span>
+              {totalMessages > 0 && (
+                <>
+                  <span className="leading-none text-tertiary" style={{ fontSize: 'var(--text-mini)' }}>{` · `}</span>
+                  <span className="leading-none text-secondary" style={{ fontSize: 'var(--text-mini)' }}>
+                    {totalMessages.toLocaleString()} total Squad msg.
                   </span>
-                )}
-              </p>
-              <div className="bg-surface h-1 overflow-hidden w-full relative">
-                <motion.div
-                  className="absolute left-0 top-0 h-full bg-purple"
-                  animate={{ width: `${xpProgress}%` }}
-                  transition={{ type: 'spring', stiffness: 300, damping: 28 }}
-                />
-              </div>
+                </>
+              )}
+            </p>
+            <div className="bg-surface overflow-hidden w-full relative" style={{ height: 4 }}>
+              <motion.div
+                className="absolute left-0 top-0 h-full bg-purple"
+                animate={{ width: `${xpProgress}%` }}
+                transition={{ type: 'spring', stiffness: 300, damping: 28 }}
+              />
             </div>
           </div>
         </div>
 
         {/* Fields — gap-[--x5] (Figma 113:528) */}
         <div className="flex flex-col flex-shrink-0" style={{ gap: 'var(--space-5)' }}>
-
-          {/* Squad Profile Picture — Figma 113:535 */}
-          <div className="flex flex-col" style={{ gap: 'var(--space-3)' }}>
-            <p
-              className="font-body font-medium text-primary tracking-[0.2px] leading-normal"
-              style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
-            >
-              Squad Profile Picture
-            </p>
-            {/* row: 48px image + upload button */}
-            <div className="flex items-center" style={{ gap: 'var(--space-5)' }}>
-              {/* 48×48 crew image — Figma 113:595 */}
-              <div className="relative flex-shrink-0 w-12 h-12 overflow-hidden">
-                {crewImageUrl ? (
-                  <div className="relative w-full h-full">
-                    <Image src={crewImageUrl} alt={crewName} fill sizes="48px" className="object-cover" unoptimized={isSupabaseStorage(crewImageUrl)} />
-                  </div>
-                ) : (
-                  <div className="w-full h-full bg-purple" />
-                )}
-              </div>
-              {/* Upload button — Figma 113:592: border-purple h-[48px] Silkscreen --sm text-purple */}
-              <Button
-                variant="outlined"
-                onClick={onUploadPhoto}
-                className="flex-1"
-              >
-                upload photo
-              </Button>
-            </div>
-          </div>
 
           {/* Squad Name — Figma 113:529 */}
           <div className="flex flex-col" style={{ gap: 'var(--space-3)' }}>
@@ -399,18 +323,39 @@ function SquadDetailsEditSheet({
             >
               Squad Name
             </p>
-            {/* Input — Figma 113:533: bg-black border border-border-hover h-[48px] p-[12px] */}
+            {/* Input — Figma 113:533: bg-black border border-[#3f3f46] h-[48px] p-[12px] */}
             <input
               value={nameValue}
               onChange={(e) => setNameValue(e.target.value.slice(0, 30))}
               onKeyDown={(e) => { if (e.key === 'Enter') handleSave() }}
               maxLength={30}
               placeholder={crewName}
-              className="w-full h-12 bg-black border border-border-hover font-body text-primary placeholder:text-muted focus:outline-none focus:border-purple transition-colors"
-              style={{ padding: 'var(--space-4)', fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
+              className="w-full h-12 bg-black font-body text-primary placeholder:text-muted focus:outline-none transition-colors"
+              style={{ border: '1px solid #3f3f46', padding: 12, fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
               autoComplete="off"
               autoCapitalize="off"
             />
+          </div>
+
+          {/* Squad Profile Picture — Figma 113:535 */}
+          <div className="flex flex-col" style={{ gap: 'var(--space-3)' }}>
+            <p
+              className="font-body font-medium text-primary tracking-[0.2px] leading-normal"
+              style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
+            >
+              Squad Profile Picture
+            </p>
+            {/* Upload button — Figma 214:5767: full-width, purple border, icon + label */}
+            <button
+              onClick={onUploadPhoto}
+              className="flex items-center justify-center w-full h-12 border border-purple active:opacity-70 transition-opacity"
+              style={{ gap: 'var(--space-3)', paddingLeft: 'var(--space-5)', paddingRight: 'var(--space-5)' }}
+            >
+              <Upload style={{ width: 16, height: 16, color: 'var(--color-purple)' }} aria-hidden="true" />
+              <span className="font-silkscreen leading-none pb-0.5" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-purple)' }}>
+                upload photo
+              </span>
+            </button>
           </div>
         </div>
 
@@ -686,11 +631,7 @@ export function SquadDetailsSheet({
             crewName={crewName}
             memberCount={memberCount}
             crewImageUrl={crewImageUrl}
-            members={members}
-            onlineUserIds={onlineUserIds}
-            memberMsgCounts={memberMsgCounts}
             crewXP={crewXP}
-            crewLevel={crewLevel}
             xpProgress={xpProgress}
             totalMessages={totalMessages}
             onUploadPhoto={onUploadPhoto}
