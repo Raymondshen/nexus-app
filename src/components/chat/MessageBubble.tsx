@@ -754,6 +754,7 @@ export function MessageBubble({
                   <button
                     key={emoji}
                     onTouchStart={(e) => e.stopPropagation()}
+                    onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); void handleReaction(emoji) }}
                     onClick={() => void handleReaction(emoji)}
                     className="flex items-center select-none active:opacity-70 transition-opacity"
                     style={{
