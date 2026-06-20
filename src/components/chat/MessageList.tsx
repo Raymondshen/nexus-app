@@ -8,7 +8,8 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 // useEffect on the server (SSR) where useLayoutEffect is not available.
 const useBrowserLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect
 import dynamic from 'next/dynamic'
-import { AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
+import { ArrowBarDown } from 'pixelarticons/react/ArrowBarDown'
 import { format, isToday, isYesterday, isSameDay } from 'date-fns'
 import { createClient } from '@/lib/supabase/client'
 import { useChatStore } from '@/store/chatStore'
@@ -177,8 +178,9 @@ export function MessageList({
   const profilesRef  = useRef(memberProfiles)
   profilesRef.current = memberProfiles
 
-  const isNearBottomRef      = useRef(true)
-  const hasInitialScrolled   = useRef(false)
+  const isNearBottomRef        = useRef(true)
+  const hasInitialScrolled     = useRef(false)
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false)
 
   // ─── Cache load + initial DB fetch ───────────────────────────────────────────
 
@@ -586,6 +588,7 @@ export function MessageList({
 
     const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
     isNearBottomRef.current = distFromBottom < 150
+    setShowScrollToBottom(distFromBottom > 300)
 
     if (el.scrollTop < 120 && hasMore && !isFetchingOlderRef.current && !anchorPendingRef.current && historyLoaded) {
       fetchOlderMessages()
@@ -866,6 +869,26 @@ export function MessageList({
           <span className="font-pixel text-[7px] text-[#2a1545] bg-black/80 px-2 py-1">LOADING...</span>
         </div>
       )}
+
+      {/* Scroll-to-bottom button */}
+      <AnimatePresence>
+        {showScrollToBottom && (
+          <motion.button
+            key="scroll-to-bottom"
+            initial={{ opacity: 0, scale: 0.7 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.7 }}
+            transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+            onClick={() => {
+              virtualizer.scrollToIndex(items.length - 1, { align: 'end', behavior: 'smooth' })
+            }}
+            className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 flex items-center justify-center rounded-full border border-[#27272a] bg-black p-2 shadow-[0px_0px_20px_12px_rgba(0,0,0,0.4)]"
+            aria-label="Scroll to latest messages"
+          >
+            <ArrowBarDown style={{ width: 20, height: 20, color: 'var(--color-primary)' }} />
+          </motion.button>
+        )}
+      </AnimatePresence>
 
       <div
         ref={scrollRef}
