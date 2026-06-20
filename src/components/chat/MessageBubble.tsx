@@ -22,7 +22,7 @@ import { ImagePreviewOverlay } from '@/components/ui/ImagePreviewOverlay'
 import { Button } from '@/components/ui/Button'
 import { Cake } from 'pixelarticons/react/Cake'
 import { UserPlus } from 'pixelarticons/react/UserPlus'
-import { CornerDownLeft } from 'pixelarticons/react/CornerDownLeft'
+import { CornerDownRight } from 'pixelarticons/react/CornerDownRight'
 
 function ImageBubble({
   src, blurDataURL, onTouchStart, onTouchEnd, onTouchMove, onClick,
@@ -657,7 +657,7 @@ export function MessageBubble({
                 onTouchStart={(e) => e.stopPropagation()}
                 onTouchEnd={(e) => e.stopPropagation()}
               >
-                <CornerDownLeft style={{ width: 16, height: 16, color: 'var(--color-tertiary)', flexShrink: 0 }} />
+                <CornerDownRight style={{ width: 16, height: 16, color: 'var(--color-tertiary)', flexShrink: 0 }} />
                 <div className="relative w-[16px] h-[16px] rounded-full bg-surface overflow-hidden flex-shrink-0">
                   {replyAvatarUrl ? (
                     <Image
