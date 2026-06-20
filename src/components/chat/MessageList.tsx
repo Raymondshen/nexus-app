@@ -160,9 +160,10 @@ export function MessageList({
   const [loadingOlder, setLoadingOlder] = useState(false)
   const isFetchingOlderRef  = useRef(false)
   const oldestCursorRef     = useRef<string | null>(null)
-  // Used to restore scroll position after prepend
-  const prependCountRef       = useRef(0)
-  const firstVisibleIndexRef  = useRef(0)
+  // Anchor-based scroll restoration after prepend
+  const anchorKeyRef       = useRef<string | null>(null)
+  const anchorPendingRef   = useRef(false)
+  const skipAutoScrollRef  = useRef(false)
 
   const [definitions, setDefinitions] = useState<SquadDefinitionWithCreator[]>([])
 
@@ -468,6 +469,12 @@ export function MessageList({
     count: items.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: (index) => estimateItemSize(items[index] ?? { kind: 'message' } as DisplayItem),
+    getItemKey: (index) => {
+      const item = items[index]
+      if (!item) return index
+      if (item.kind === 'message') return item.message.id
+      return item.key
+    },
     overscan: 5,
   })
 
@@ -485,8 +492,8 @@ export function MessageList({
 
   useEffect(() => {
     if (!hasInitialScrolled.current) return
-    // Ignore prepend-triggered length changes
-    if (prependCountRef.current > 0) return
+    // Skip when a prepend is in progress — anchor restoration handles scroll instead
+    if (skipAutoScrollRef.current) { skipAutoScrollRef.current = false; return }
     const lastMsg = messages[messages.length - 1]
     const ownSend = !!lastMsg && lastMsg.user_id === currentUserId
     if (ownSend || isNearBottomRef.current) {
@@ -494,14 +501,19 @@ export function MessageList({
     }
   }, [messages.length]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ─── Scroll compensation after prepend ───────────────────────────────────────
+  // ─── Anchor restoration after prepend (fires before paint) ──────────────────
 
-  useEffect(() => {
-    const n = prependCountRef.current
-    if (n === 0) return
-    prependCountRef.current = 0
-    // The first visible item before prepend is now shifted down by n
-    virtualizer.scrollToIndex(firstVisibleIndexRef.current + n, { align: 'start', behavior: 'auto' })
+  useBrowserLayoutEffect(() => {
+    if (!anchorPendingRef.current) return
+    anchorPendingRef.current = false
+    const anchor = anchorKeyRef.current
+    if (anchor == null) return
+    const idx = items.findIndex((item) =>
+      item.kind === 'message'
+        ? item.message.id === anchor
+        : (item as { key?: string }).key === anchor
+    )
+    if (idx !== -1) virtualizer.scrollToIndex(idx, { align: 'start', behavior: 'auto' })
   }, [items.length]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Pinned message scroll ────────────────────────────────────────────────────
@@ -547,10 +559,12 @@ export function MessageList({
           },
         }))
 
-      // Record scroll compensation before the state update causes a re-render
+      // Capture the topmost visible item's stable key before the state update
+      // shifts all indices. useLayoutEffect uses this to restore position after paint.
       const virtualItems = virtualizer.getVirtualItems()
-      firstVisibleIndexRef.current = virtualItems[0]?.index ?? 0
-      prependCountRef.current = older.length
+      anchorKeyRef.current      = virtualItems[0] != null ? String(virtualItems[0].key) : null
+      anchorPendingRef.current  = true
+      skipAutoScrollRef.current = true
 
       // Advance cursor to the oldest of the newly loaded batch
       oldestCursorRef.current = rows[0].created_at
@@ -558,7 +572,8 @@ export function MessageList({
       prependMessages(older as Message[])
     } catch {
       // Silently ignore — user can scroll up again to retry
-      prependCountRef.current = 0
+      anchorPendingRef.current  = false
+      skipAutoScrollRef.current = false
     } finally {
       isFetchingOlderRef.current = false
       setLoadingOlder(false)
