@@ -110,7 +110,7 @@ function StatusTicker({ status }: { status: string }) {
 function UserAvatar({ profile, size = 40 }: { profile: FriendProfile | null; size?: number }) {
   return (
     <div
-      className="flex-shrink-0 relative overflow-hidden bg-border"
+      className="flex-shrink-0 relative overflow-hidden rounded-full bg-[var(--color-primary)]"
       style={{ width: size, height: size }}
     >
       {profile?.avatar_url ? (
@@ -123,7 +123,7 @@ function UserAvatar({ profile, size = 40 }: { profile: FriendProfile | null; siz
           unoptimized={isSupabaseStorage(profile.avatar_url)}
         />
       ) : (
-        <div className="w-full h-full flex items-center justify-center font-pixel text-[10px] text-primary">
+        <div className="w-full h-full flex items-center justify-center font-pixel text-[10px] text-black">
           {profile?.username[0]?.toUpperCase() ?? '?'}
         </div>
       )}
@@ -178,7 +178,7 @@ function FriendCardPreview({ entry }: { entry: FriendEntry }) {
         )}
       </div>
 
-      <MailRight style={{ width: 16, height: 16, color: 'var(--color-primary)' }} aria-hidden="true" />
+      <MailRight style={{ width: 20, height: 20, color: 'var(--color-primary)' }} aria-hidden="true" />
     </div>
   )
 }
@@ -402,7 +402,7 @@ export function FriendsClient({
       {/* ── Body ── */}
       <div
         className="flex-1 overflow-y-auto nexus-scroll flex flex-col"
-        style={{ paddingLeft: 'var(--space-5)', paddingRight: 'var(--space-5)', paddingBottom: 'var(--space-5)', gap: 'var(--space-5)' }}
+        style={{ paddingLeft: 'var(--space-5)', paddingRight: 'var(--space-5)', paddingTop: 'var(--space-5)', paddingBottom: 'var(--space-5)', gap: 'var(--space-7)' }}
       >
 
         {/* Search input */}
@@ -423,7 +423,7 @@ export function FriendsClient({
 
         {/* ── Search results ── */}
         {showSearch ? (
-          <div className="flex flex-col" style={{ gap: 'var(--space-5)' }}>
+          <div className="flex flex-col" style={{ gap: 'var(--space-7)' }}>
             {searchResults.length === 0 && !isSearching ? (
               <p className="font-pixel text-[8px] text-muted py-4 text-center">NO USERS FOUND</p>
             ) : (
@@ -475,7 +475,7 @@ export function FriendsClient({
           </div>
         ) : (
           /* ── Friends list ── */
-          <div className="flex flex-col" style={{ gap: 'var(--space-5)' }}>
+          <div className="flex flex-col" style={{ gap: 'var(--space-7)' }}>
             {friends.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <p className="font-pixel text-[9px] text-primary mb-3">NO FRIENDS YET</p>

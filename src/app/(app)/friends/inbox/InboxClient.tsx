@@ -28,7 +28,7 @@ function BackButton() {
 function UserAvatar({ profile, size = 48 }: { profile: FriendProfile | null; size?: number }) {
   return (
     <div
-      className="flex-shrink-0 relative overflow-hidden bg-border"
+      className="flex-shrink-0 relative overflow-hidden rounded-full bg-[var(--color-primary)]"
       style={{ width: size, height: size }}
     >
       {profile?.avatar_url ? (
@@ -41,7 +41,7 @@ function UserAvatar({ profile, size = 48 }: { profile: FriendProfile | null; siz
           unoptimized={isSupabaseStorage(profile.avatar_url)}
         />
       ) : (
-        <div className="w-full h-full flex items-center justify-center font-pixel text-[10px] text-primary">
+        <div className="w-full h-full flex items-center justify-center font-pixel text-[10px] text-black">
           {profile?.username[0]?.toUpperCase() ?? '?'}
         </div>
       )}
@@ -206,7 +206,7 @@ export function InboxClient({ incomingRequests: initialIncoming, outgoingRequest
           paddingRight: 'var(--space-5)',
           paddingTop: 'var(--space-5)',
           paddingBottom: 'var(--space-5)',
-          gap: 'var(--space-5)',
+          gap: 'var(--space-7)',
         }}
       >
         {isEmpty ? (
@@ -228,10 +228,6 @@ export function InboxClient({ incomingRequests: initialIncoming, outgoingRequest
                 onDecline={handleDecline}
               />
             ))}
-
-            {incoming.length > 0 && outgoing.length > 0 && (
-              <div className="border-t border-border" />
-            )}
 
             {outgoing.map((entry) => (
               <InboxCardPreview
