@@ -3,7 +3,7 @@
 Group chat RPG: messages → XP → boss fights → artifacts. Pixel art (RotMG style).
 
 ## Stack
-Next.js 16 App Router · TypeScript · Tailwind · Framer Motion · Zustand · Supabase (Auth, Postgres, Realtime, Storage, Edge Functions) · next-pwa v5 · Vercel
+Next.js 16 App Router · TypeScript · Tailwind · Framer Motion · Zustand · Supabase (Auth, Postgres, Realtime, Storage, Edge Functions) · next-pwa v5 · Vercel · @tanstack/react-virtual v3
 
 Icons: `pixelarticons` — `import { X } from 'pixelarticons/react/X'` · `<X style={{ width, height, color }} />` · named exports only · never lucide-react in chat/home UI
 
@@ -143,16 +143,21 @@ localStorage:
 ### Realtime / Messaging
 - Channel `messages:{crewId}`: broadcast (sender→instant) + Postgres Changes INSERT (backup) + presence + typing
 - `addMessage` deduplicates by id; broadcast payload has no profile (resolved from `profilesRef`)
+- `prependMessages` deduplicates by id before prepending older batches to the front of the array
 - XP sync: sender `addXP(n)` optimistic → `setCrewXP(data.new_total_xp)` → broadcasts `xp_update`; receivers `receiveXP(earned, newTotal)`; dedup by `sender_id`
 - Presence: sole channel is ChatInput's `messages:{crewId}` (two concurrent channels = interference); `visibilitychange` re-tracks (iOS PWA reconnect)
 
 ### MessageList
-- stale-while-revalidate: `nexus-msgs-{crewId}` → load + `setHistoryLoaded` same tick → background fetch merges (cap 50); `setMessages([])` before load prevents crew bleed
-- Scroll: initial → `scrollTop = scrollHeight`; new msg → `scrollIntoView('smooth')` only within 120px of bottom
-- Grouping: consecutive same-user within 60s · reset on day dividers / boss cards / system msgs / polls
-- Pre-pass builds `groupXPMap` + `groupCoinMap`; group leader gets `xpOverride` prop
+- **Virtualization**: `useVirtualizer` (`@tanstack/react-virtual` v3) — absolute-position strategy, `measureElement` for accurate variable heights, `overscan: 5`, `getItemKey` returns stable id (message uuid or item `.key`) so React reconciliation survives prepend without discarding measurements
+- **Initial load**: stale-while-revalidate — `nexus-msgs-{crewId}` sessionStorage → immediate render; background fetch newest 50 (`ORDER BY created_at DESC LIMIT 50`) merges with in-flight Realtime msgs, writes back to cache; `setMessages([])` before load prevents crew bleed
+- **Cursor pagination**: scroll-up within 120 px triggers `fetchOlderMessages` — keyset query `WHERE crew_id=? AND created_at < cursor ORDER BY created_at DESC LIMIT 50` hits existing `messages_crew_id_created_at` index; batches prepended via `chatStore.prependMessages` (deduplicates by id)
+- **Scroll restoration after prepend**: capture `scrollTop` + `virtualizer.getTotalSize()` before `prependMessages`; in `useBrowserLayoutEffect` (pre-paint) set `el.scrollTop = prevScrollTop + (newTotalSize - prevTotalSize)` — keeps every visible item at the same pixel row without index arithmetic
+- **Continuous-load guard**: `anchorPendingRef` stays `true` from before `prependMessages` until the layout effect fires; `handleScroll` checks both `isFetchingOlderRef` and `anchorPendingRef` so the window between `finally` and the layout effect cannot trigger a second fetch
+- **Display items**: `useMemo` builds typed `DisplayItem[]` array — `spacer | empty | divider | boss | artifact | level_up | message`; two separate `useMemo` passes for `groupXPMap` + `groupCoinMap`; group leader gets `xpOverride` / `coinOverride` prop
+- **Scroll**: initial → `scrollTop = scrollHeight`; new Realtime append → `virtualizer.scrollToIndex(last, 'end', smooth)` if near bottom or own send; `skipAutoScrollRef` prevents auto-scroll fighting anchor restoration in the same render cycle
+- **Pinned scroll**: `findIndex` on items array by message id → `virtualizer.scrollToIndex(idx, 'center', smooth)`
 - Postgres Changes UPDATE: skip `reactions:{}` when local has reactions (award-xp race); patch also picks up pin fields (`pinned`, `pinned_by`, `pinned_at`, `pin_expires_at`)
-- Each bubble wrapped in `<div id="msg-{id}">` for scroll-to-pin
+- Each message bubble wrapped in `<div id="msg-{id}">` for legacy DOM scroll-to-pin fallback
 
 ### MessageBubble — text rendering
 `renderMessageContent` — splits on `@username` tokens, then `renderWithLinks` (URL → `<a>`) + `renderWithDefinitions` (alias regex → blue `<span>`) on each text segment. Early returns for `message_type === 'system'` and `'poll'` narrow type before the reaction sheet render.
