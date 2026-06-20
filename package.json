@@ -13,6 +13,7 @@
     "@hackernoon/pixel-icon-library": "^1.1.0",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.106.2",
+    "@tanstack/react-virtual": "^3.14.3",
     "@types/canvas-confetti": "^1.9.0",
     "browser-image-compression": "^2.0.2",
     "canvas-confetti": "^1.9.4",

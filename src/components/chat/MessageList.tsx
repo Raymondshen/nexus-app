@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useCallback, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
+import { useVirtualizer } from '@tanstack/react-virtual'
 
 // Fires synchronously before the browser paints on the client; falls back to
 // useEffect on the server (SSR) where useLayoutEffect is not available.
@@ -58,7 +59,6 @@ function dayLabel(date: Date): string {
 }
 
 // ─── Campfire pixel art for empty state ─────────────────────────────────────
-// 0=bg 1=stone 2=log 3=flame-outer 4=flame-inner 5=ember
 const CAMPFIRE_GRID = [
   '0000000000000000',
   '0000000400000000',
@@ -98,6 +98,31 @@ function CampfireSprite() {
   )
 }
 
+// ─── Display item types ───────────────────────────────────────────────────────
+type DisplayItem =
+  | { kind: 'spacer';   key: string }
+  | { kind: 'empty';    key: string }
+  | { kind: 'divider';  label: string;      key: string }
+  | { kind: 'boss';     raidId: string;     key: string; raid: ActiveRaid | null }
+  | { kind: 'artifact'; artifactId: string; key: string }
+  | { kind: 'level_up'; level: number; msgId: string; key: string }
+  | { kind: 'message';  message: MessageWithProfile; isOwn: boolean; showHeader: boolean; xpOverride?: number; coinOverride?: number }
+
+function estimateItemSize(item: DisplayItem): number {
+  switch (item.kind) {
+    case 'spacer':   return 134
+    case 'empty':    return 200
+    case 'divider':  return 36
+    case 'boss':     return 120
+    case 'artifact': return 100
+    case 'level_up': return 80
+    case 'message':  return 72
+    default:         return 72
+  }
+}
+
+const LOAD_OLDER_BATCH = 50
+
 export function MessageList({
   crewId,
   crewName,
@@ -115,18 +140,13 @@ export function MessageList({
     [crewId, router],
   )
 
-  const { messages, setMessages, addMessage, updateMessage, setCrewXP, receiveXP, pinnedScrollTargetId, setPinnedScrollTargetId } = useChatStore()
+  const { messages, setMessages, prependMessages, addMessage, updateMessage, setCrewXP, receiveXP, pinnedScrollTargetId, setPinnedScrollTargetId } = useChatStore()
   const [dismissedLevelUps, setDismissedLevelUps] = useState<Set<string>>(new Set())
-  // Local override map for profiles — patched in real-time when a member updates their avatar/username
   const [localProfiles, setLocalProfiles] = useState<Record<string, Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url'>>>(memberProfiles)
   const [devMode] = useState(() => {
     if (typeof window === 'undefined') return false
     return localStorage.getItem('nexus_dev_mode') === '1'
   })
-  // Lazy initializer: read sessionStorage synchronously at first render so the
-  // initial render is already in the "loaded" state for cache hits. This is
-  // fundamentally more reliable than useLayoutEffect because it eliminates the
-  // intermediate skeleton render entirely — no render cycle with historyLoaded=false.
   const [historyLoaded, setHistoryLoaded] = useState(() => {
     if (typeof window === 'undefined') return false
     try {
@@ -134,6 +154,15 @@ export function MessageList({
       return raw !== null && Array.isArray(JSON.parse(raw))
     } catch { return false }
   })
+
+  // Pagination state
+  const [hasMore, setHasMore]     = useState(true)
+  const [loadingOlder, setLoadingOlder] = useState(false)
+  const isFetchingOlderRef  = useRef(false)
+  const oldestCursorRef     = useRef<string | null>(null)
+  // Used to restore scroll position after prepend
+  const prependCountRef       = useRef(0)
+  const firstVisibleIndexRef  = useRef(0)
 
   const [definitions, setDefinitions] = useState<SquadDefinitionWithCreator[]>([])
 
@@ -143,21 +172,20 @@ export function MessageList({
   )
 
   const scrollRef    = useRef<HTMLDivElement>(null)
-  const bottomRef    = useRef<HTMLDivElement>(null)
   const profilesRef  = useRef(memberProfiles)
   profilesRef.current = memberProfiles
 
-  // Track whether user is near the bottom (within 120px)
-  const isNearBottomRef = useRef(true)
-  // True after the first scroll-to-bottom on open; gates smooth vs instant scroll
-  const hasInitialScrolled = useRef(false)
+  const isNearBottomRef      = useRef(true)
+  const hasInitialScrolled   = useRef(false)
 
-  // Pre-paint: clear any stale Zustand messages from a previous crew and populate
-  // from cache. historyLoaded is already correctly initialized by the lazy useState
-  // above, so we only need to set it here for the edge case where the cache entry
-  // disappears between the lazy init read and this effect.
+  // ─── Cache load + initial DB fetch ───────────────────────────────────────────
+
   useBrowserLayoutEffect(() => {
     setMessages([])
+    setHasMore(true)
+    oldestCursorRef.current = null
+    hasInitialScrolled.current = false
+
     const cacheKey = `nexus-msgs-${crewId}`
     try {
       const raw = sessionStorage.getItem(cacheKey)
@@ -172,14 +200,10 @@ export function MessageList({
     setHistoryLoaded(false)
   }, [crewId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Post-paint: background network fetch to hydrate / refresh from DB.
-  // The cache check above already resolved historyLoaded for cache hits, so
-  // this effect only needs to handle the fetch itself + the fallback timer.
   useEffect(() => {
     const cacheKey = `nexus-msgs-${crewId}`
     let cancelled = false
 
-    // Safety net: if the fetch hangs indefinitely, exit the skeleton after 8 s.
     const fallbackTimer = setTimeout(() => {
       if (!cancelled) setHistoryLoaded(true)
     }, 8000)
@@ -192,7 +216,7 @@ export function MessageList({
           .select('*')
           .eq('crew_id', crewId)
           .order('created_at', { ascending: false })
-          .limit(50)
+          .limit(LOAD_OLDER_BATCH)
 
         const rows = ((data ?? []) as Message[]).reverse()
         const fetched: MessageWithProfile[] = rows
@@ -205,17 +229,10 @@ export function MessageList({
           }))
 
         if (cancelled) {
-          // Component unmounted — still write the cache so the next visit is instant.
-          try { sessionStorage.setItem(cacheKey, JSON.stringify(fetched.slice(-50))) } catch {}
+          try { sessionStorage.setItem(cacheKey, JSON.stringify(fetched.slice(-LOAD_OLDER_BATCH))) } catch {}
           return
         }
 
-        // Merge with any messages already in the store (Realtime events or
-        // optimistic sends that arrived while the fetch was in flight).
-        // For messages in both sets, use the fetched row as the base but
-        // preserve local reactions when the fetched snapshot has none — the
-        // fetch may have been issued before react-to-message committed, so
-        // the fetched row is stale with respect to reactions.
         const existing = useChatStore.getState().messages
         const existingMap = new Map(existing.map((m) => [m.id, m]))
         const fetchedIds = new Set(fetched.map((m) => m.id))
@@ -236,13 +253,18 @@ export function MessageList({
 
         setMessages(merged)
 
-        try {
-          sessionStorage.setItem(cacheKey, JSON.stringify(merged.slice(-50)))
-        } catch {
-          // Storage quota exceeded — skip silently
+        // Record the oldest message as the pagination cursor
+        if (merged.length > 0) {
+          oldestCursorRef.current = merged[0].created_at
         }
+        // If the server returned fewer than LOAD_OLDER_BATCH, we're at the beginning
+        if (rows.length < LOAD_OLDER_BATCH) setHasMore(false)
+
+        try {
+          sessionStorage.setItem(cacheKey, JSON.stringify(merged.slice(-LOAD_OLDER_BATCH)))
+        } catch {}
       } catch {
-        // Network error — Realtime subscription still delivers live messages
+        // Realtime still delivers live messages
       } finally {
         clearTimeout(fallbackTimer)
         if (!cancelled) setHistoryLoaded(true)
@@ -255,41 +277,304 @@ export function MessageList({
     }
   }, [crewId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Instant jump to bottom before first paint — fires once when messages are available.
-  // useBrowserLayoutEffect ensures no flash: the browser never renders the list at the top.
-  // Guard: only fire when messages are actually present (avoids premature trigger on empty store).
+  // ─── Build display items ──────────────────────────────────────────────────────
+
+  // Pre-pass: accumulate XP and coins per group
+  const groupXPMap   = useMemo(() => {
+    const map = new Map<string, number>()
+    let preLastDate: Date | null = null
+    let preLastUserId: string | null = null
+    let preLastMsgTime = 0
+    let preGroupLeaderId: string | null = null
+    const preRenderedRaids = new Set<string>()
+
+    for (const msg of messages) {
+      if (!msg.id || typeof msg.content !== 'string') continue
+      const msgDate = new Date(msg.created_at)
+      const msgTime = msgDate.getTime()
+      const raidId     = parseBossSpawnRaidId(msg.content)
+      const artifactId = parseArtifactDropId(msg.content)
+      const level      = parseLevelUp(msg.content)
+
+      if (!preLastDate || !isSameDay(preLastDate, msgDate)) {
+        preLastUserId = null; preLastMsgTime = 0; preGroupLeaderId = null
+      }
+      preLastDate = msgDate
+
+      if (raidId && !preRenderedRaids.has(raidId)) {
+        preRenderedRaids.add(raidId)
+        preLastUserId = null; preLastMsgTime = 0; preGroupLeaderId = null
+        continue
+      }
+      if (artifactId || level !== null || raidId) {
+        preLastUserId = null; preLastMsgTime = 0; preGroupLeaderId = null
+        continue
+      }
+      if (msg.message_type === 'system' || msg.message_type === 'poll') {
+        preLastUserId = null; preLastMsgTime = 0; preGroupLeaderId = null
+        continue
+      }
+
+      const sameUser     = msg.user_id === preLastUserId
+      const withinMinute = sameUser && (msgTime - preLastMsgTime) < 60_000
+      const msgXP        = msg.xp_awarded ?? 0
+
+      if (!withinMinute || !!msg.reply_to_id) {
+        preGroupLeaderId = msg.id
+        map.set(msg.id, msgXP)
+      } else if (preGroupLeaderId) {
+        map.set(preGroupLeaderId, (map.get(preGroupLeaderId) ?? 0) + msgXP)
+      }
+
+      preLastUserId  = msg.user_id
+      preLastMsgTime = msgTime
+    }
+    return map
+  }, [messages])
+
+  const groupCoinMap = useMemo(() => {
+    const map = new Map<string, number>()
+    let preLastDate: Date | null = null
+    let preLastUserId: string | null = null
+    let preLastMsgTime = 0
+    let preGroupLeaderId: string | null = null
+    const preRenderedRaids = new Set<string>()
+
+    for (const msg of messages) {
+      if (!msg.id || typeof msg.content !== 'string') continue
+      const msgDate = new Date(msg.created_at)
+      const msgTime = msgDate.getTime()
+      const raidId     = parseBossSpawnRaidId(msg.content)
+      const artifactId = parseArtifactDropId(msg.content)
+      const level      = parseLevelUp(msg.content)
+
+      if (!preLastDate || !isSameDay(preLastDate, msgDate)) {
+        preLastUserId = null; preLastMsgTime = 0; preGroupLeaderId = null
+      }
+      preLastDate = msgDate
+
+      if (raidId && !preRenderedRaids.has(raidId)) {
+        preRenderedRaids.add(raidId)
+        preLastUserId = null; preLastMsgTime = 0; preGroupLeaderId = null
+        continue
+      }
+      if (artifactId || level !== null || raidId) {
+        preLastUserId = null; preLastMsgTime = 0; preGroupLeaderId = null
+        continue
+      }
+      if (msg.message_type === 'system' || msg.message_type === 'poll') {
+        preLastUserId = null; preLastMsgTime = 0; preGroupLeaderId = null
+        continue
+      }
+
+      const sameUser     = msg.user_id === preLastUserId
+      const withinMinute = sameUser && (msgTime - preLastMsgTime) < 60_000
+      const msgCoins     = (msg.xp_awarded ?? 0) > 0 ? 1 : 0
+
+      if (!withinMinute || !!msg.reply_to_id) {
+        preGroupLeaderId = msg.id
+        map.set(msg.id, msgCoins)
+      } else if (preGroupLeaderId) {
+        map.set(preGroupLeaderId, (map.get(preGroupLeaderId) ?? 0) + msgCoins)
+      }
+
+      preLastUserId  = msg.user_id
+      preLastMsgTime = msgTime
+    }
+    return map
+  }, [messages])
+
+  const items: DisplayItem[] = useMemo(() => {
+    const list: DisplayItem[] = []
+
+    // Top spacer so messages start below the floating navbar
+    list.push({ kind: 'spacer', key: 'top-spacer' })
+
+    if (messages.length === 0) {
+      list.push({ kind: 'empty', key: 'empty-state' })
+      return list
+    }
+
+    let lastDate:    Date | null   = null
+    let lastUserId:  string | null = null
+    let lastMsgTime: number        = 0
+    const renderedRaids = new Set<string>()
+
+    for (const msg of messages) {
+      if (!msg.id || typeof msg.content !== 'string') continue
+
+      const msgDate    = new Date(msg.created_at)
+      const msgTime    = msgDate.getTime()
+      const raidId     = parseBossSpawnRaidId(msg.content)
+      const artifactId = parseArtifactDropId(msg.content)
+      const level      = parseLevelUp(msg.content)
+
+      if (!lastDate || !isSameDay(lastDate, msgDate)) {
+        list.push({ kind: 'divider', label: dayLabel(msgDate), key: `divider-${msg.id}` })
+        lastUserId  = null
+        lastMsgTime = 0
+      }
+
+      if (raidId) {
+        if (!renderedRaids.has(raidId)) renderedRaids.add(raidId)
+        lastUserId  = null
+        lastMsgTime = 0
+      } else if (artifactId) {
+        if (devMode) {
+          list.push({ kind: 'artifact', artifactId, key: `artifact-${msg.id}` })
+        }
+        lastUserId  = null
+        lastMsgTime = 0
+      } else if (level !== null) {
+        if (devMode) {
+          list.push({ kind: 'level_up', level, msgId: msg.id, key: `levelup-${msg.id}` })
+        }
+        lastUserId  = null
+        lastMsgTime = 0
+      } else {
+        if (msg.message_type === 'poll') {
+          list.push({ kind: 'message', message: msg as MessageWithProfile, isOwn: msg.user_id === currentUserId, showHeader: true })
+          lastUserId  = null
+          lastMsgTime = 0
+        } else if (msg.message_type === 'system') {
+          const c = msg.content
+          const isBossMsg = c.includes('BOSS') || c.includes('VOID') || c.includes('boss') || c.includes('raid') || c.includes('RAID')
+          if (!isBossMsg) {
+            list.push({ kind: 'message', message: msg as MessageWithProfile, isOwn: false, showHeader: false })
+            lastUserId  = null
+            lastMsgTime = 0
+          }
+        } else {
+          const sameUser     = msg.user_id === lastUserId
+          const withinMinute = sameUser && (msgTime - lastMsgTime) < 60_000
+          const showHeader   = !withinMinute || !!msg.reply_to_id
+          const xpOverride   = showHeader ? groupXPMap.get(msg.id)   : undefined
+          const coinOverride = showHeader ? groupCoinMap.get(msg.id) : undefined
+          list.push({ kind: 'message', message: msg as MessageWithProfile, isOwn: msg.user_id === currentUserId, showHeader, xpOverride, coinOverride })
+          lastUserId  = msg.user_id
+          lastMsgTime = msgTime
+        }
+      }
+
+      lastDate = msgDate
+    }
+
+    return list
+  }, [messages, currentUserId, devMode, groupXPMap, groupCoinMap])
+
+  // ─── TanStack Virtual ─────────────────────────────────────────────────────────
+
+  const virtualizer = useVirtualizer({
+    count: items.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: (index) => estimateItemSize(items[index] ?? { kind: 'message' } as DisplayItem),
+    overscan: 5,
+  })
+
+  // ─── Initial scroll to bottom ─────────────────────────────────────────────────
+
   useBrowserLayoutEffect(() => {
-    if (!historyLoaded || hasInitialScrolled.current || messages.length === 0) return
+    if (!historyLoaded || hasInitialScrolled.current || items.length === 0) return
     const el = scrollRef.current
     if (!el) return
     el.scrollTop = el.scrollHeight
     hasInitialScrolled.current = true
-  }, [historyLoaded, messages.length]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [historyLoaded, items.length]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-scroll after initial: smooth for received messages (near-bottom only),
-  // unconditional for own sends so the user always sees their message.
+  // ─── Auto-scroll on new message (append) ─────────────────────────────────────
+
   useEffect(() => {
     if (!hasInitialScrolled.current) return
+    // Ignore prepend-triggered length changes
+    if (prependCountRef.current > 0) return
     const lastMsg = messages[messages.length - 1]
     const ownSend = !!lastMsg && lastMsg.user_id === currentUserId
     if (ownSend || isNearBottomRef.current) {
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+      virtualizer.scrollToIndex(items.length - 1, { align: 'end', behavior: 'smooth' })
     }
   }, [messages.length]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Scroll to a specific message when triggered by the pinned ticker tap
+  // ─── Scroll compensation after prepend ───────────────────────────────────────
+
+  useEffect(() => {
+    const n = prependCountRef.current
+    if (n === 0) return
+    prependCountRef.current = 0
+    // The first visible item before prepend is now shifted down by n
+    virtualizer.scrollToIndex(firstVisibleIndexRef.current + n, { align: 'start', behavior: 'auto' })
+  }, [items.length]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ─── Pinned message scroll ────────────────────────────────────────────────────
+
   useEffect(() => {
     if (!pinnedScrollTargetId) return
-    const el = document.getElementById(`msg-${pinnedScrollTargetId}`)
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    const idx = items.findIndex(
+      (item) => item.kind === 'message' && item.message.id === pinnedScrollTargetId
+    )
+    if (idx !== -1) {
+      virtualizer.scrollToIndex(idx, { align: 'center', behavior: 'smooth' })
+    }
     setPinnedScrollTargetId(null)
-  }, [pinnedScrollTargetId, setPinnedScrollTargetId])
+  }, [pinnedScrollTargetId, setPinnedScrollTargetId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ─── Scroll handler: near-bottom detection + pagination trigger ───────────────
+
+  const fetchOlderMessages = useCallback(async () => {
+    if (isFetchingOlderRef.current || !hasMore || !oldestCursorRef.current) return
+    isFetchingOlderRef.current = true
+    setLoadingOlder(true)
+
+    try {
+      const supabase = createClient()
+      const { data } = await supabase
+        .from('messages')
+        .select('*')
+        .eq('crew_id', crewId)
+        .lt('created_at', oldestCursorRef.current)
+        .order('created_at', { ascending: false })
+        .limit(LOAD_OLDER_BATCH)
+
+      const rows = ((data ?? []) as Message[]).reverse()
+      if (rows.length < LOAD_OLDER_BATCH) setHasMore(false)
+      if (rows.length === 0) return
+
+      const older: MessageWithProfile[] = rows
+        .filter((m) => typeof m.content === 'string')
+        .map((m) => ({
+          ...m,
+          profile: profilesRef.current[m.user_id] ?? {
+            id: m.user_id, username: '???', avatar_class: null, avatar_url: null,
+          },
+        }))
+
+      // Record scroll compensation before the state update causes a re-render
+      const virtualItems = virtualizer.getVirtualItems()
+      firstVisibleIndexRef.current = virtualItems[0]?.index ?? 0
+      prependCountRef.current = older.length
+
+      // Advance cursor to the oldest of the newly loaded batch
+      oldestCursorRef.current = rows[0].created_at
+
+      prependMessages(older as Message[])
+    } catch {
+      // Silently ignore — user can scroll up again to retry
+      prependCountRef.current = 0
+    } finally {
+      isFetchingOlderRef.current = false
+      setLoadingOlder(false)
+    }
+  }, [crewId, hasMore, prependMessages]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleScroll() {
     const el = scrollRef.current
     if (!el) return
+
     const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
     isNearBottomRef.current = distFromBottom < 150
+
+    if (el.scrollTop < 120 && hasMore && !isFetchingOlderRef.current && historyLoaded) {
+      fetchOlderMessages()
+    }
   }
 
   const resolveProfile = useCallback(
@@ -298,15 +583,12 @@ export function MessageList({
     []
   )
 
-  // Postgres-change fallback only — broadcasts are handled by ChatInput on the
-  // shared messages:{crewId} channel (presence + broadcasts in one subscription).
-  // Using a different topic here avoids the duplicate-channel / presence-after-
-  // subscribe crash that occurs when two components share the singleton client.
+  // ─── Realtime: Postgres Changes (INSERT backup + UPDATE) + profile changes ────
+
   useEffect(() => {
     const supabase = createClient()
     const channel  = supabase
       .channel(`db:messages:${crewId}`)
-      // INSERT: catches missed broadcasts and reconnect gaps.
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'messages', filter: `crew_id=eq.${crewId}` },
@@ -316,7 +598,6 @@ export function MessageList({
           addMessage({ ...raw, profile: resolveProfile(raw.user_id) } as MessageWithProfile)
         }
       )
-      // UPDATE: picks up xp_awarded written back by the award-xp edge function.
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'messages', filter: `crew_id=eq.${crewId}` },
@@ -324,13 +605,6 @@ export function MessageList({
           const raw = payload.new as Message
           if (!raw?.id) return
 
-          // Guard: award-xp UPDATEs the message row (setting xp_awarded/element_type)
-          // BEFORE react-to-message commits the reaction, so the Postgres Changes UPDATE
-          // event for award-xp carries reactions:{} from the DB — which would wipe any
-          // optimistic reaction the user already applied locally. Only overwrite local
-          // reactions when the DB value is non-empty (authoritative) OR when local is
-          // already empty (safe to sync). Never apply an empty DB snapshot over a
-          // non-empty local state.
           const dbReactions    = (raw.reactions  ?? {}) as Record<string, string[]>
           const localMsg       = useChatStore.getState().messages.find((m) => m.id === raw.id)
           const localReactions = (localMsg?.reactions  ?? {}) as Record<string, string[]>
@@ -345,12 +619,10 @@ export function MessageList({
             pinned_at:       raw.pinned_at,
             pin_expires_at:  raw.pin_expires_at,
           }
-          // Apply DB reactions only when non-empty (authoritative) OR both sides are empty
           if (hasDbReactions || !hasLocalReactions) patch.reactions = dbReactions
 
           updateMessage(raw.id, patch)
 
-          // Persist reaction changes to cache so they survive navigation
           if (patch.reactions !== undefined) {
             try {
               const cacheKey = `nexus-msgs-${crewId}`
@@ -367,7 +639,6 @@ export function MessageList({
           }
         }
       )
-      // Profile UPDATE: reflects avatar/username changes immediately for active chat members.
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'profiles' },
@@ -389,7 +660,8 @@ export function MessageList({
     return () => { supabase.removeChannel(channel) }
   }, [crewId, addMessage, updateMessage, resolveProfile])
 
-  // Fetch squad definitions on mount + subscribe to live changes
+  // ─── Squad definitions ────────────────────────────────────────────────────────
+
   useEffect(() => {
     const supabase = createClient()
     let cancelled  = false
@@ -431,7 +703,6 @@ export function MessageList({
         async (payload) => {
           if (payload.eventType === 'INSERT') {
             const incoming = payload.new as SquadDefinition
-            // Resolve username from in-memory profiles first; fall back to a DB fetch
             let creator_username: string | undefined = profilesRef.current[incoming.creator_id]?.username
             if (!creator_username) {
               const { data } = await supabase
@@ -460,7 +731,8 @@ export function MessageList({
     }
   }, [crewId])
 
-  // Show skeleton while the initial history fetch is in flight
+  // ─── Skeleton while fetching ──────────────────────────────────────────────────
+
   if (!historyLoaded) {
     return (
       <div className="flex-1 min-h-0 overflow-hidden px-4 pb-3 flex flex-col gap-3">
@@ -478,235 +750,138 @@ export function MessageList({
     )
   }
 
-  // Pre-pass: accumulate XP and coins per group so the group-leader bubble shows running totals.
-  // Coins = 1 per message when xp_awarded > 0 (spam-blocked messages earn neither XP nor coins).
-  // Mirrors the grouping conditions in the main display-list loop below.
-  const groupXPMap   = new Map<string, number>()
-  const groupCoinMap = new Map<string, number>()
-  {
-    let preLastDate: Date | null = null
-    let preLastUserId: string | null = null
-    let preLastMsgTime = 0
-    let preGroupLeaderId: string | null = null
-    const preRenderedRaids = new Set<string>()
+  // ─── Item renderer ────────────────────────────────────────────────────────────
 
-    for (const msg of messages) {
-      if (!msg.id || typeof msg.content !== 'string') continue
-      const msgDate = new Date(msg.created_at)
-      const msgTime = msgDate.getTime()
-      const raidId     = parseBossSpawnRaidId(msg.content)
-      const artifactId = parseArtifactDropId(msg.content)
-      const level      = parseLevelUp(msg.content)
-
-      if (!preLastDate || !isSameDay(preLastDate, msgDate)) {
-        preLastUserId = null; preLastMsgTime = 0; preGroupLeaderId = null
-      }
-      preLastDate = msgDate
-
-      if (raidId && !preRenderedRaids.has(raidId)) {
-        preRenderedRaids.add(raidId)
-        preLastUserId = null; preLastMsgTime = 0; preGroupLeaderId = null
-        continue
-      }
-      if (artifactId || level !== null || raidId) {
-        preLastUserId = null; preLastMsgTime = 0; preGroupLeaderId = null
-        continue
-      }
-      if (msg.message_type === 'system' || msg.message_type === 'poll') {
-        preLastUserId = null; preLastMsgTime = 0; preGroupLeaderId = null
-        continue
-      }
-
-      const sameUser     = msg.user_id === preLastUserId
-      const withinMinute = sameUser && (msgTime - preLastMsgTime) < 60_000
-      const msgXP        = msg.xp_awarded ?? 0
-      const msgCoins     = msgXP > 0 ? 1 : 0
-
-      if (!withinMinute || !!msg.reply_to_id) {
-        preGroupLeaderId = msg.id
-        groupXPMap.set(msg.id, msgXP)
-        groupCoinMap.set(msg.id, msgCoins)
-      } else if (preGroupLeaderId) {
-        groupXPMap.set(preGroupLeaderId, (groupXPMap.get(preGroupLeaderId) ?? 0) + msgXP)
-        groupCoinMap.set(preGroupLeaderId, (groupCoinMap.get(preGroupLeaderId) ?? 0) + msgCoins)
-      }
-
-      preLastUserId  = msg.user_id
-      preLastMsgTime = msgTime
+  function renderItem(item: DisplayItem) {
+    if (item.kind === 'spacer') {
+      return <div style={{ height: 134 }} aria-hidden="true" />
     }
+
+    if (item.kind === 'empty') {
+      return (
+        <div className="flex flex-col items-center justify-center gap-4 opacity-60" style={{ minHeight: 200 }}>
+          <CampfireSprite />
+          <p className="font-pixel text-[9px] text-[#6b4f8f] text-center leading-loose">
+            Send the first message.<br />The adventure begins.
+          </p>
+        </div>
+      )
+    }
+
+    if (item.kind === 'divider') {
+      return (
+        <div className="flex items-center gap-3 my-2">
+          <div className="flex-1 border-t border-[#1a1a2e]" />
+          <span className="font-pixel text-[7px] text-[#2a1545]">{item.label}</span>
+          <div className="flex-1 border-t border-[#1a1a2e]" />
+        </div>
+      )
+    }
+
+    if (item.kind === 'boss') {
+      return (
+        <BossCard
+          raidId={item.raidId}
+          crewId={crewId}
+          initialRaid={item.raid}
+        />
+      )
+    }
+
+    if (item.kind === 'artifact') {
+      return (
+        <ArtifactDropRenderer
+          artifactId={item.artifactId}
+          crewName={crewName}
+        />
+      )
+    }
+
+    if (item.kind === 'level_up') {
+      if (dismissedLevelUps.has(item.msgId)) return null
+      return (
+        <AnimatePresence>
+          <LevelUpBanner
+            level={item.level}
+            onDismiss={() => setDismissedLevelUps((s) => new Set([...s, item.msgId]))}
+          />
+        </AnimatePresence>
+      )
+    }
+
+    // item.kind === 'message'
+    const liveProfile = localProfiles[item.message.user_id] ?? item.message.profile
+    return (
+      <div id={`msg-${item.message.id}`}>
+        <MessageBubble
+          message={{ ...item.message, profile: liveProfile }}
+          isOwn={item.isOwn}
+          showHeader={item.showHeader}
+          currentUserId={currentUserId}
+          crewId={crewId}
+          xpOverride={item.xpOverride}
+          coinOverride={item.coinOverride}
+          onAvatarTap={onAvatarTap}
+          definitions={definitions}
+          memberUsernames={memberUsernames}
+          memberProfiles={localProfiles}
+          isCreator={creatorId != null && currentUserId === creatorId}
+        />
+      </div>
+    )
   }
 
-  // Build display list
-  type DisplayItem =
-    | { kind: 'divider';  label: string;      key: string }
-    | { kind: 'boss';     raidId: string;     key: string; raid: ActiveRaid | null }
-    | { kind: 'artifact'; artifactId: string; key: string }
-    | { kind: 'level_up'; level: number; msgId: string; key: string }
-    | { kind: 'message';  message: MessageWithProfile; isOwn: boolean; showHeader: boolean; xpOverride?: number; coinOverride?: number }
+  // ─── Virtual list ─────────────────────────────────────────────────────────────
 
-  const items: DisplayItem[] = []
-  let lastDate:    Date | null   = null
-  let lastUserId:  string | null = null
-  let lastMsgTime: number        = 0
-  const renderedRaids = new Set<string>()
-
-  for (const msg of messages) {
-    // Guard against malformed messages (e.g. broadcast with missing fields)
-    if (!msg.id || typeof msg.content !== 'string') continue
-
-    const msgDate    = new Date(msg.created_at)
-    const msgTime    = msgDate.getTime()
-    const raidId     = parseBossSpawnRaidId(msg.content)
-    const artifactId = parseArtifactDropId(msg.content)
-    const level      = parseLevelUp(msg.content)
-
-    if (!lastDate || !isSameDay(lastDate, msgDate)) {
-      items.push({ kind: 'divider', label: dayLabel(msgDate), key: `divider-${msg.id}` })
-      lastUserId  = null
-      lastMsgTime = 0
-    }
-
-    if (raidId) {
-      // Boss spawn messages are always skipped — not rendered in squad chat
-      if (!renderedRaids.has(raidId)) renderedRaids.add(raidId)
-      lastUserId  = null
-      lastMsgTime = 0
-    } else if (artifactId) {
-      if (devMode) {
-        items.push({ kind: 'artifact', artifactId, key: `artifact-${msg.id}` })
-      }
-      lastUserId  = null
-      lastMsgTime = 0
-    } else if (level !== null) {
-      if (devMode) {
-        items.push({ kind: 'level_up', level, msgId: msg.id, key: `levelup-${msg.id}` })
-      }
-      lastUserId  = null
-      lastMsgTime = 0
-    } else {
-      if (msg.message_type === 'poll') {
-        // Polls always render with a header and break grouping on both sides
-        items.push({ kind: 'message', message: msg as MessageWithProfile, isOwn: msg.user_id === currentUserId, showHeader: true })
-        lastUserId  = null
-        lastMsgTime = 0
-      } else if (msg.message_type === 'system') {
-        const c = msg.content
-        const isBossMsg = c.includes('BOSS') || c.includes('VOID') || c.includes('boss') || c.includes('raid') || c.includes('RAID')
-        if (!isBossMsg) {
-          items.push({ kind: 'message', message: msg as MessageWithProfile, isOwn: false, showHeader: false })
-          lastUserId  = null
-          lastMsgTime = 0
-        }
-      } else {
-        const sameUser     = msg.user_id === lastUserId
-        const withinMinute = sameUser && (msgTime - lastMsgTime) < 60_000
-        const showHeader   = !withinMinute || !!msg.reply_to_id
-        const xpOverride   = showHeader ? groupXPMap.get(msg.id)   : undefined
-        const coinOverride = showHeader ? groupCoinMap.get(msg.id) : undefined
-        items.push({ kind: 'message', message: msg as MessageWithProfile, isOwn: msg.user_id === currentUserId, showHeader, xpOverride, coinOverride })
-        lastUserId  = msg.user_id
-        lastMsgTime = msgTime
-      }
-    }
-
-    lastDate = msgDate
-  }
+  const virtualItems = virtualizer.getVirtualItems()
 
   return (
     <div className="relative flex-1 min-h-0">
-      {/* Top fade overlay matching Figma node 88:448 */}
+      {/* Top fade overlay */}
       <div
         className="pointer-events-none absolute left-0 right-0 top-0 z-10 h-1/4"
         style={{
           background: 'linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.25) 46.158%, rgba(0,0,0,0) 100%)',
         }}
       />
-    <div
-      ref={scrollRef}
-      onScroll={handleScroll}
-      className="flex-1 min-h-0 h-full overflow-y-auto px-4 pb-4 flex flex-col nexus-scroll chat-no-select"
-    >
-      {/* Spacer so messages start below the floating navbar when content is short */}
-      <div className="shrink-0 h-[134px]" aria-hidden="true" />
 
-      {messages.length === 0 && (
-        <div className="flex-1 flex flex-col items-center justify-center gap-4 opacity-60">
-          <CampfireSprite />
-          <p className="font-pixel text-[9px] text-[#6b4f8f] text-center leading-loose">
-            Send the first message.<br />The adventure begins.
-          </p>
+      {/* Load-older indicator */}
+      {loadingOlder && (
+        <div className="absolute top-[134px] left-0 right-0 z-20 flex justify-center pointer-events-none">
+          <span className="font-pixel text-[7px] text-[#2a1545] bg-black/80 px-2 py-1">LOADING...</span>
         </div>
       )}
 
-      {items.map((item) => {
-        if (item.kind === 'divider') {
-          return (
-            <div key={item.key} className="flex items-center gap-3 my-2">
-              <div className="flex-1 border-t border-[#1a1a2e]" />
-              <span className="font-pixel text-[7px] text-[#2a1545]">{item.label}</span>
-              <div className="flex-1 border-t border-[#1a1a2e]" />
-            </div>
-          )
-        }
-
-        if (item.kind === 'boss') {
-          return (
-            <BossCard
-              key={item.key}
-              raidId={item.raidId}
-              crewId={crewId}
-              initialRaid={item.raid}
-            />
-          )
-        }
-
-        if (item.kind === 'artifact') {
-          return (
-            <ArtifactDropRenderer
-              key={item.key}
-              artifactId={item.artifactId}
-              crewName={crewName}
-            />
-          )
-        }
-
-        if (item.kind === 'level_up') {
-          if (dismissedLevelUps.has(item.msgId)) return null
-          return (
-            <AnimatePresence key={item.key}>
-              <LevelUpBanner
-                level={item.level}
-                onDismiss={() => setDismissedLevelUps((s) => new Set([...s, item.msgId]))}
-              />
-            </AnimatePresence>
-          )
-        }
-
-        // Use localProfiles for real-time avatar/username updates; fall back to the
-        // profile embedded in the message for users who left the crew since fetch.
-        const liveProfile = localProfiles[item.message.user_id] ?? item.message.profile
-        return (
-          <div key={item.message.id} id={`msg-${item.message.id}`}>
-            <MessageBubble
-              message={{ ...item.message, profile: liveProfile }}
-              isOwn={item.isOwn}
-              showHeader={item.showHeader}
-              currentUserId={currentUserId}
-              crewId={crewId}
-              xpOverride={item.xpOverride}
-              coinOverride={item.coinOverride}
-              onAvatarTap={onAvatarTap}
-              definitions={definitions}
-              memberUsernames={memberUsernames}
-              memberProfiles={localProfiles}
-              isCreator={creatorId != null && currentUserId === creatorId}
-            />
-          </div>
-        )
-      })}
-
-      <div ref={bottomRef} />
-    </div>
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className="flex-1 min-h-0 h-full overflow-y-auto px-4 pb-4 nexus-scroll chat-no-select"
+        style={{ contain: 'strict' }}
+      >
+        {/* Total scroll height governed by the virtualizer */}
+        <div style={{ height: virtualizer.getTotalSize(), position: 'relative', width: '100%' }}>
+          {virtualItems.map((virtualItem) => {
+            const item = items[virtualItem.index]
+            if (!item) return null
+            return (
+              <div
+                key={virtualItem.key}
+                data-index={virtualItem.index}
+                ref={virtualizer.measureElement}
+                style={{
+                  position:  'absolute',
+                  top:       0,
+                  left:      0,
+                  width:     '100%',
+                  transform: `translateY(${virtualItem.start}px)`,
+                }}
+              >
+                {renderItem(item)}
+              </div>
+            )
+          })}
+        </div>
+      </div>
     </div>
   )
 }

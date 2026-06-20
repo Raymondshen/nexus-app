@@ -23,6 +23,7 @@ interface ChatStore {
   friendshipXPByPair:  Record<string, number>
 
   setMessages:         (messages: Message[]) => void
+  prependMessages:     (messages: Message[]) => void
   addMessage:          (message: Message) => void
   removeMessage:       (id: string) => void
   updateMessage:       (id: string, patch: Partial<Message>) => void
@@ -70,6 +71,14 @@ export const useChatStore = create<ChatStore>((set) => ({
   squadDetailsOpen:       false,
 
   setMessages: (messages) => set({ messages }),
+
+  prependMessages: (messages) =>
+    set((s) => {
+      const existingIds = new Set(s.messages.map((m) => m.id))
+      const newOnes = messages.filter((m) => !existingIds.has(m.id))
+      if (newOnes.length === 0) return {}
+      return { messages: [...newOnes, ...s.messages] }
+    }),
 
   addMessage: (message) =>
     set((s) => {
