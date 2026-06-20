@@ -624,7 +624,7 @@ export function MessageList({
     <div
       ref={scrollRef}
       onScroll={handleScroll}
-      className="flex-1 min-h-0 h-full overflow-y-auto px-4 pb-4 flex flex-col nexus-scroll"
+      className="flex-1 min-h-0 h-full overflow-y-auto px-4 pb-4 flex flex-col nexus-scroll chat-no-select"
     >
       {/* Spacer so messages start below the floating navbar when content is short */}
       <div className="shrink-0 h-[134px]" aria-hidden="true" />

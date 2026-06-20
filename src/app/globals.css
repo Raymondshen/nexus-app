@@ -160,6 +160,13 @@ body {
   overscroll-behavior-y: contain;
 }
 
+/* Prevent native text-selection callout on long-press in chat (iOS + Android) */
+.chat-no-select {
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+
 @keyframes float {
   0%, 100% {
     transform: translateY(0px);
