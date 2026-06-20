@@ -732,6 +732,11 @@ export function ProfileClient({
   const initial      = localUsername[0]?.toUpperCase() ?? '?'
   const msgFormatted = totalMessages.toLocaleString()
 
+  const fxpPerLevel = 100
+  const fxpLevel    = Math.floor(totalFriendshipXP / fxpPerLevel) + 1
+  const fxpProgress = totalFriendshipXP % fxpPerLevel
+  const fxpPercent  = (fxpProgress / fxpPerLevel) * 100
+
   return (
     <SlidePage
       className="bg-black flex flex-col"
@@ -761,7 +766,7 @@ export function ProfileClient({
           {/* Details row */}
           <div className="flex items-center gap-[var(--space-5)] w-full">
             {/* Avatar 56×56 — display only */}
-            <div className="flex-shrink-0 relative overflow-hidden bg-border" style={{ width: 56, height: 56 }}>
+            <div className="flex-shrink-0 relative overflow-hidden bg-primary rounded-full" style={{ width: 56, height: 56 }}>
               {localAvatarUrl ? (
                 <Image src={resolveAvatarUrl(localAvatarUrl, 56)} alt={localUsername} fill sizes="56px" className="object-cover" priority unoptimized={isSupabaseStorage(localAvatarUrl)} />
               ) : (
@@ -774,7 +779,7 @@ export function ProfileClient({
             {/* Name + stats */}
             <div className="flex-1 min-w-0 flex flex-col gap-[var(--space-2)] justify-center leading-none">
               {memberSinceYear && (
-                <p className="font-silkscreen" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}>
+                <p className="font-silkscreen" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>
                   Member Since {memberSinceYear}
                 </p>
               )}
@@ -789,6 +794,17 @@ export function ProfileClient({
                   Recruited by {inviterUsername}
                 </p>
               )}
+            </div>
+          </div>
+
+          {/* Friendship XP bar */}
+          <div className="flex flex-col w-full" style={{ gap: 8 }}>
+            <p className="font-silkscreen leading-none w-full" style={{ fontSize: 'var(--text-mini)' }}>
+              <span style={{ color: 'var(--color-secondary)' }}>Friendship lv {fxpLevel}</span>
+              <span style={{ color: 'var(--color-tertiary)' }}>{` · ${fxpProgress} / 100xp`}</span>
+            </p>
+            <div className="w-full overflow-hidden" style={{ height: 4, background: 'var(--color-surface)' }}>
+              <div style={{ width: `${fxpPercent}%`, height: 4, background: 'linear-gradient(to right, #a855f7, #d946ef)' }} />
             </div>
           </div>
 
@@ -827,8 +843,8 @@ export function ProfileClient({
         >
           {/* Back button */}
           <div
-            className="pointer-events-auto flex items-center bg-black border border-primary p-2 overflow-hidden"
-            style={{ boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)' }}
+            className="pointer-events-auto flex items-center p-2 overflow-hidden"
+            style={{ filter: 'drop-shadow(0px 0px 10px rgba(0,0,0,0.4))' }}
           >
             <BackButton />
           </div>
@@ -875,51 +891,54 @@ export function ProfileClient({
             onClick={() => setShowEditSheet(true)}
             disabled={isGuest}
             className="w-full flex gap-3 items-center text-left disabled:opacity-50"
+            style={{ minHeight: 34 }}
           >
-            <MagicEdit style={{ width: 16, height: 16, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
+            <MagicEdit style={{ width: 20, height: 20, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
             <div className="flex-1 min-w-0 flex flex-col gap-0 leading-[0] tracking-[0.2px]">
-              <p className="font-body font-semibold text-secondary leading-normal" style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}>
+              <p className="font-body font-semibold text-secondary leading-normal" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}>
                 Edit Profile
               </p>
-              <p className="font-body font-normal text-tertiary leading-normal" style={{ fontSize: 'var(--text-xxs)', fontVariationSettings: '"opsz" 14' }}>
+              <p className="font-body font-normal text-tertiary leading-normal" style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}>
                 Manage your profile.
               </p>
             </div>
-            <ChevronRight style={{ width: 16, height: 16, color: 'var(--color-tertiary)', flexShrink: 0 }} aria-hidden="true" />
+            <ChevronRight style={{ width: 20, height: 20, color: 'var(--color-tertiary)', flexShrink: 0 }} aria-hidden="true" />
           </button>
 
           {/* Notification */}
           <button
             onClick={() => setShowNotifSheet(true)}
             className="w-full flex gap-3 items-center text-left"
+            style={{ minHeight: 34 }}
           >
-            <Bell style={{ width: 16, height: 16, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
+            <Bell style={{ width: 20, height: 20, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
             <div className="flex-1 min-w-0 flex flex-col gap-0 leading-[0] tracking-[0.2px]">
-              <p className="font-body font-semibold text-secondary leading-normal" style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}>
+              <p className="font-body font-semibold text-secondary leading-normal" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}>
                 Notification
               </p>
-              <p className="font-body font-normal text-tertiary leading-normal" style={{ fontSize: 'var(--text-xxs)', fontVariationSettings: '"opsz" 14' }}>
+              <p className="font-body font-normal text-tertiary leading-normal" style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}>
                 Control what pulls you back into the chat.
               </p>
             </div>
-            <ChevronRight style={{ width: 16, height: 16, color: 'var(--color-tertiary)', flexShrink: 0 }} aria-hidden="true" />
+            <ChevronRight style={{ width: 20, height: 20, color: 'var(--color-tertiary)', flexShrink: 0 }} aria-hidden="true" />
           </button>
 
-          {/* Account */}
+          {/* Account Details */}
           <button
             onClick={() => setShowAccountSheet(true)}
             className="w-full flex gap-3 items-center text-left"
+            style={{ minHeight: 34 }}
           >
-            <User style={{ width: 16, height: 16, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
+            <User style={{ width: 20, height: 20, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
             <div className="flex-1 min-w-0 flex flex-col gap-0 leading-[0] tracking-[0.2px]">
-              <p className="font-body font-semibold text-secondary leading-normal" style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}>
-                Account
+              <p className="font-body font-semibold text-secondary leading-normal" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}>
+                Account Details
               </p>
-              <p className="font-body font-normal text-tertiary leading-normal" style={{ fontSize: 'var(--text-xxs)', fontVariationSettings: '"opsz" 14' }}>
-                Log out or manage your account.
+              <p className="font-body font-normal text-tertiary leading-normal truncate" style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}>
+                Signed in with {userEmail}
               </p>
             </div>
-            <ChevronRight style={{ width: 16, height: 16, color: 'var(--color-tertiary)', flexShrink: 0 }} aria-hidden="true" />
+            <ChevronRight style={{ width: 20, height: 20, color: 'var(--color-tertiary)', flexShrink: 0 }} aria-hidden="true" />
           </button>
 
           {/* Developer Page — dev users only */}
@@ -927,17 +946,18 @@ export function ProfileClient({
             <button
               onClick={() => router.push('/profile/developer')}
               className="w-full flex gap-3 items-center text-left"
+              style={{ minHeight: 34 }}
             >
-              <Terminal style={{ width: 16, height: 16, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
+              <Terminal style={{ width: 20, height: 20, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
               <div className="flex-1 min-w-0 flex flex-col gap-0 leading-[0] tracking-[0.2px]">
-                <p className="font-body font-semibold text-secondary leading-normal" style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}>
+                <p className="font-body font-semibold text-secondary leading-normal" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}>
                   Developer Page
                 </p>
-                <p className="font-body font-normal text-tertiary leading-normal" style={{ fontSize: 'var(--text-xxs)', fontVariationSettings: '"opsz" 14' }}>
+                <p className="font-body font-normal text-tertiary leading-normal" style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}>
                   Debug, Manage, and Test new features
                 </p>
               </div>
-              <ChevronRight style={{ width: 16, height: 16, color: 'var(--color-tertiary)', flexShrink: 0 }} aria-hidden="true" />
+              <ChevronRight style={{ width: 20, height: 20, color: 'var(--color-tertiary)', flexShrink: 0 }} aria-hidden="true" />
             </button>
           )}
 
