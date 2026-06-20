@@ -22,6 +22,8 @@ import type { GemClaimResult } from '@/types'
 import { Send } from 'pixelarticons/react/Send'
 import { PlusBox } from 'pixelarticons/react/PlusBox'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
+import { Undo } from 'pixelarticons/react/Undo'
+import { Close } from 'pixelarticons/react/Close'
 import { InputActionsSheet } from '@/components/chat/InputActionsSheet'
 import { GifIcon } from '@/components/icons/GifIcon'
 import { kickMemberAction, renameCrewAction, birthdaysCommandAction } from '@/app/(app)/chat/actions'
@@ -1165,26 +1167,24 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
         {/* ── Reply preview bar ── */}
         {replyTo && (
           <div
-            className="flex items-center overflow-hidden"
-            style={{ borderLeft: '2px solid var(--color-purple)', background: 'rgba(191,95,255,0.06)', paddingLeft: 'var(--space-4)', paddingRight: 'var(--space-3)', paddingTop: 'var(--space-3)', paddingBottom: 'var(--space-3)', gap: 'var(--space-3)', marginBottom: 'var(--space-2)' }}
+            className="flex items-center w-full"
+            style={{ background: 'var(--color-surface)', padding: 16, gap: 8, marginBottom: 8 }}
           >
-            <div className="flex-1 min-w-0 flex flex-col" style={{ gap: 2 }}>
-              <span className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-purple)' }}>
-                ↩ Replying to @{replyTo.profile?.username ?? replyTo.reply_username ?? '???'}
-              </span>
-              <span
-                className="font-body font-normal leading-snug text-ellipsis overflow-hidden whitespace-nowrap"
-                style={{ fontSize: 'var(--text-xxs)', color: 'var(--color-tertiary)', fontVariationSettings: '"opsz" 14' }}
-              >
-                {replyTo.content.slice(0, 80)}
-              </span>
-            </div>
+            <Undo style={{ width: 16, height: 16, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
+            <p
+              className="flex-1 min-w-0 font-body font-medium leading-none tracking-[0.1px] whitespace-nowrap overflow-hidden text-ellipsis"
+              style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}
+            >
+              <span style={{ color: 'var(--color-primary)' }}>Replying to </span>
+              <span style={{ color: 'var(--color-purple)' }}>@{replyTo.profile?.username ?? replyTo.reply_username ?? '???'}</span>
+            </p>
             <button
               onClick={() => setReplyTo(null)}
-              className="flex-shrink-0 flex items-center justify-center w-6 h-6 text-tertiary active:text-primary"
+              className="flex-shrink-0 flex items-center justify-center active:opacity-60"
+              style={{ width: 16, height: 16 }}
               aria-label="Cancel reply"
             >
-              <span style={{ fontSize: 14, lineHeight: 1 }}>✕</span>
+              <Close style={{ width: 16, height: 16, color: 'var(--color-secondary)' }} aria-hidden="true" />
             </button>
           </div>
         )}
