@@ -170,7 +170,8 @@ OG previews: `extractFirstUrl` → `useOGPreview` hook → `<LinkPreviewCard>` b
 - @mention overlay: transparent textarea + `aria-hidden` div; purple `<mark>` for valid tokens; overlay scrollTop synced
 - Slash commands: `/birthdays` → `message_type: 'system'`
 - `InputActionsSheet` (`src/components/chat/InputActionsSheet.tsx`): triggered by `PlusBox` (`[+]`) button; two options — "UPLOAD PHOTO" (`Upload` 16×16, purple border, gated `nexus_chat_camera`) + "CREATE A POLL" (`Chart` 16×16, secondary border); spring slide-up, `pt-24 pb-28 px-16 gap-16`
-- `GifPickerSheet` (`src/components/chat/GifPickerSheet.tsx`): `Search` icon 16×16 in input; "Powered by Klipy" Silkscreen 8px tertiary below; no upload button; spring slide-up, `pt-24 pb-28 px-16`
+- `GifPickerSheet` (`src/components/chat/GifPickerSheet.tsx`): `Search` icon 16×16 in input; "Powered by Klipy" Silkscreen 8px tertiary below; no upload button; spring slide-up, `pt-24 pb-28 px-16`; loads trending on open, switches to search on query input (400ms debounce)
+- **Klipy API** (`src/app/api/gif/route.ts`): two endpoints with **different response shapes** — trending (`/web/common-trending`) returns items in `data.clips[]` with flat `file.thumbnail_url`/`thumbnail_url_webp` and `file_meta.gif/webp` for dimensions; search (`/web/gifs/search`) returns items in `data.data[]` with nested `file.sm/md/hd/xs` sub-objects each containing `gif`/`jpg`/`webp` variants. Both share `data.has_next`. Use separate parsers (`parseClipItem` / `parseSearchItem`) — do NOT unify them.
 - `GifIcon` (`src/components/icons/GifIcon.tsx`): custom 24×24 SVG with `currentColor` fill; used as GIF button in ChatInput row
 - DM mode hides XP bar + expanded panel
 
@@ -178,17 +179,25 @@ OG previews: `extractFirstUrl` → `useOGPreview` hook → `<LinkPreviewCard>` b
 - Admin = crew member with earliest `joined_at`; cap = 5 active pins per crew (`PIN_MAX_PER_CREW`)
 - `pin_message` / `unpin_message` RPCs only — `messages_protect_pin_columns` trigger blocks direct client writes
 - `PinDurationSheet` (`src/components/chat/PinDurationSheet.tsx`): single-step sheet — message preview (content + "Sent by : @username") + duration `<select>` dropdown (7 presets: 15 min → 1 month + Permanent; `ChevronRight` rotated 90° as indicator) + "PIN IT" button (h-48 bg-purple Silkscreen); `bg-black border-t border-[#27272a]`; opened from long-press sheet
-- `PinListSheet` (`src/components/chat/PinListSheet.tsx`): lists active pins; `bg-black` no border-top; header "Pinned Messages" DM Sans Bold 16px; each item: content (Medium 14px secondary) + "Sent by : @user · [expiry]" (Regular 12px tertiary + blue #60a5fa); admin row = "Unpin message" (left, red, 12px) + "Display" label + 40×24px toggle (purple ON thumb-right / #71717a OFF thumb-left); `h-px bg-border/40` dividers with `margin: 12px 0`
+- `PinListSheet` (`src/components/chat/PinListSheet.tsx`): lists active pins; `bg-black` no border-top; header "Pinned Messages" DM Sans Bold 16px; each item: content (Medium 14px secondary) + "Sent by : @user · [expiry]" (Regular 12px tertiary + blue #60a5fa); **admin-only action row** (entire row hidden for non-admins) = "Unpin message" (left, red, 12px) + "Display" label + 40×24px toggle (purple ON thumb-right / #71717a OFF thumb-left); `h-px bg-border/40` dividers with `margin: 12px 0`
 - `MarqueeBanner` (`src/components/ui/MarqueeBanner.tsx`): shared marquee; accepts `items[]` for multi-pin continuous scroll (`msg @user • msg @user • …`); also used by ProfileStatusTicker (single `text` prop)
 - `FloatingBackButton`: `Note` icon button (count badge) + ticker strip below nav; ticker filters `hiddenPinIds` (chatStore Set, in-memory); tapping ticker scrolls to first visible pin
 - `selectActivePins(messages)` exported from chatStore; `hiddenPinIds` + `toggleHiddenPin` in chatStore
 
 ### SquadDetailsSheet (`src/components/chat/SquadDetailsSheet.tsx`)
 Trigger: swipe-up or chevron-up · sheet: `z-[70]` (above ticker's z-[60], below action sheets z-[80+]) · `maxHeight: 85vh`
-- Header icons (right, `gap-[--space-5]`): `MagicEdit` (rename, creator only) · `Library` (→ `/chat/[crewId]/definitions`) · `ChevronRight` rotated 90° (close)
+- Header icons (right, `gap-[--space-5]`): `MagicEdit` (rename, creator only) · `Bell` (notifs) · `Library` (→ `/chat/[crewId]/definitions`) · `ChevronRight` rotated 90° (close)
 - Member row right side: `User` 16×24 (→ profile) · `MailRight` 16×24 (→ `/dm/[memberId]`, hidden for own row) · `UserMinus` 24×24 red (remove, creator only on others)
 - Props: `onOpenGlossary?` + `onDMPress?(memberId)` wired in `ChatInput.tsx`
 - Invite code copy: `"Come join my squad on Nexus app {code}"`
+
+`SquadDetailsEditSheet` (inner, Figma 113:516) — triggered by `MagicEdit`, z-[80]/z-[81], `maxHeight: 90vh`, `gap: --space-7`, `padding: --space-7 --space-5`
+- **No title heading** — opens directly to group_header (180px, `justify-between`)
+- Header: 40×40px square crew image + DM Sans Black 16px `text-primary` name + Silkscreen `text-secondary text-xxs` member count; NO avatar list
+- XP bar pinned to bottom of 180px block: `{xpProgress}%` tertiary · total msg secondary (8px Silkscreen)
+- Fields (`gap: --space-5`): **Squad Name first** (DM Sans Medium 14px label, `border: 1px solid #3f3f46` input h-48 p-12) → **Squad Profile Picture** (DM Sans Medium 14px label, full-width purple-border h-48 button with `Upload` 16×16 + Silkscreen xs text-purple "upload photo")
+- Buttons: `<Button>Save Changes</Button>` + `<Button variant="outlined" color="red">Cancel</Button>`, `gap: --space-5`
+- Props stripped to: `crewName`, `memberCount`, `crewImageUrl`, `crewXP`, `xpProgress`, `totalMessages`, `onUploadPhoto`, `onSave`, `onClose` (no members/onlineUserIds/memberMsgCounts/crewLevel)
 
 ### InboxClient (`src/app/(app)/friends/inbox/InboxClient.tsx`)
 Single-row `InboxCardPreview` component: avatar 48px · DM Sans Bold name · status subtitle (DM Sans 14px)
@@ -315,6 +324,7 @@ Icons (`pixelarticons`):
 | Inbox — decline / cancel request | `Close` | 16×16 |
 | ChatInput — send | `Send` | 16×16 |
 | ChatInput — poll | `Chart` | 16×16 |
+| SquadDetailsEditSheet — upload photo button | `Upload` | 16×16, `var(--color-purple)` |
 | ChatInput — creator | `Crown` | 12×12, `var(--color-coins)` |
 | Coin badge | `TokeCircle` | 24×16 (not square) |
 | AccountPreview — friends | `Notebook` | 12×12, `var(--color-purple)` |
