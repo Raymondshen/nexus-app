@@ -126,6 +126,8 @@ export interface Message extends Record<string, unknown> {
   pinned_at?:        string | null
   pin_expires_at?:   string | null
   event_id?:         string | null
+  /** Client-only stable key for optimistic messages. Never sent to the server. */
+  tempId?:           string
 }
 
 export interface CrewXPLog extends Record<string, unknown> {

@@ -148,7 +148,7 @@ localStorage:
 - Presence: sole channel is ChatInput's `messages:{crewId}` (two concurrent channels = interference); `visibilitychange` re-tracks (iOS PWA reconnect)
 
 ### MessageList
-- **Virtualization**: `useVirtualizer` (`@tanstack/react-virtual` v3) — absolute-position strategy, `measureElement` for accurate variable heights, `overscan: 5`, `getItemKey` returns stable id (message uuid or item `.key`) so React reconciliation survives prepend without discarding measurements
+- **Virtualization**: `useVirtualizer` (`@tanstack/react-virtual` v3) — absolute-position strategy, `measureElement` for accurate variable heights, `overscan: 5`, `getItemKey` uses `message.tempId ?? message.id` (or item `.key`) — `tempId` is set on every optimistic message and kept through reconciliation so the virtualizer key is stable when the real `id` is patched in, preventing the remeasure/reposition that causes messages to appear at the wrong scroll position
 - **Initial load**: stale-while-revalidate — `nexus-msgs-{crewId}` sessionStorage → immediate render; background fetch newest 50 (`ORDER BY created_at DESC LIMIT 50`) merges with in-flight Realtime msgs, writes back to cache; `setMessages([])` before load prevents crew bleed
 - **Cursor pagination**: scroll-up within 120 px triggers `fetchOlderMessages` — keyset query `WHERE crew_id=? AND created_at < cursor ORDER BY created_at DESC LIMIT 50` hits existing `messages_crew_id_created_at` index; batches prepended via `chatStore.prependMessages` (deduplicates by id)
 - **Scroll restoration after prepend**: capture `scrollTop` + `virtualizer.getTotalSize()` before `prependMessages`; in `useBrowserLayoutEffect` (pre-paint) set `el.scrollTop = prevScrollTop + (newTotalSize - prevTotalSize)` — keeps every visible item at the same pixel row without index arithmetic
@@ -168,7 +168,7 @@ OG previews: `extractFirstUrl` → `useOGPreview` hook → `<LinkPreviewCard>` b
 
 ### ChatInput
 - Props: `{ crewId, userId, userProfile, memberProfiles, crewName, inviteCode?, creatorId?, isDM? }`
-- Send flow: `insert_message` RPC → `addMessage` (optimistic) → broadcast → `award-xp` → `attack-boss` (if raid)
+- Send flow: `addMessage(optimisticMsg)` synchronously (with `tempId` field for stable virtualizer key) → `insert_message` RPC → reconcile in place: if postgres_changes beat the RPC `removeMessage(raw.id)` first, then always `updateMessage(tempId, { id: raw.id })` (never remove-and-reinsert the temp) → broadcast → `award-xp` → `attack-boss` (if raid); on RPC error `removeMessage(tempId)` rollback
 - Input row (inactive): `PlusBox` 24×24 + `GifIcon` 24×24 outside border box, 16px gaps; border `#27272a`
 - Input row (focused): icons slide out (motion.div `width→0`), border turns `--color-purple`, icons use `marginRight: -16` to cancel flex gap
 - Textarea: auto-resizes from 1 row (48px min) up to 120px (`scrollHeight` in `handleInput`); `py-12`; color transparent + caretColor primary
@@ -440,3 +440,4 @@ ALTER TABLE crews ADD COLUMN IF NOT EXISTS dm_partner_2 uuid REFERENCES auth.use
 
 ## Gotchas
 - `CREATE OR REPLACE FUNCTION` only replaces if signature matches exactly. Adding/removing params creates a new overload — multiple all-DEFAULT overloads cause ambiguous RPC errors. Always `DROP FUNCTION` old signatures before recreating with a different param list.
+- Optimistic messages carry `tempId: string` (client-only, never sent to server). The TanStack Virtual key is `message.tempId ?? message.id`. Reconciliation **must always** call `updateMessage(tempId, { id: raw.id })` in place — never `removeMessage(tempId)` on success. Removing and re-adding the message causes a virtualizer key swap, which discards the measured height and misaligns scroll position. Only `removeMessage(tempId)` on RPC error (rollback).

@@ -209,6 +209,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   }, [squadDetailsOpen]) // eslint-disable-line
 
   useEffect(() => {
+    if (!isExpanded) return
     let cancelled = false
     setLoadingCounts(true)
     createClient()
@@ -450,6 +451,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       image_url:        publicUrlSnapshot,
       image_blur_hash:  lqipSnapshot ?? undefined,
       profile:          userProfile,
+      tempId,
     }
     addMessage(optimisticMsg)
     addXP(20)
@@ -468,13 +470,12 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
 
       const alreadyAdded = useChatStore.getState().messages.some((m) => m.id === raw.id)
       if (alreadyAdded) {
-        removeMessage(tempId)
-      } else {
-        updateMessage(tempId, {
-          id: raw.id, created_at: raw.created_at, element_type: raw.element_type,
-          image_url: publicUrlSnapshot, image_blur_hash: lqipSnapshot ?? undefined,
-        })
+        removeMessage(raw.id)
       }
+      updateMessage(tempId, {
+        id: raw.id, created_at: raw.created_at, element_type: raw.element_type,
+        image_url: publicUrlSnapshot, image_blur_hash: lqipSnapshot ?? undefined,
+      })
 
       if (channelReadyRef.current) msgChannelRef.current?.send({
         type: 'broadcast', event: 'new_message',
@@ -555,6 +556,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       image_url:       gifUrl,
       image_blur_hash: undefined,
       profile:         userProfile,
+      tempId,
     }
     addMessage(optimisticMsg)
     addXP(20)
@@ -573,10 +575,9 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
 
       const alreadyAdded = useChatStore.getState().messages.some((m) => m.id === raw.id)
       if (alreadyAdded) {
-        removeMessage(tempId)
-      } else {
-        updateMessage(tempId, { id: raw.id, created_at: raw.created_at, element_type: raw.element_type, image_url: gifUrl })
+        removeMessage(raw.id)
       }
+      updateMessage(tempId, { id: raw.id, created_at: raw.created_at, element_type: raw.element_type, image_url: gifUrl })
 
       if (channelReadyRef.current) msgChannelRef.current?.send({
         type: 'broadcast', event: 'new_message',
@@ -681,6 +682,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       xp_awarded: 0, reactions: {}, created_at: new Date().toISOString(),
       profile: userProfile,
       reply_to_id: replyToId, reply_preview: replyPreview, reply_username: replyUsername,
+      tempId,
     }
     addMessage(optimisticMsg)
     addXP(10)
@@ -693,14 +695,14 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       if (error) throw error
 
       // Replace the optimistic message with the confirmed server row.
-      // Guard against a Postgres Changes INSERT arriving first — if raw.id is
-      // already in the store, just remove the temp entry to avoid a duplicate.
+      // If a Postgres Changes INSERT arrived first, raw.id is already in the store
+      // as a separate entry — remove that duplicate, then always patch the temp in
+      // place so the virtualizer key (tempId) stays stable and avoids a key swap.
       const alreadyAdded = useChatStore.getState().messages.some((m) => m.id === raw.id)
       if (alreadyAdded) {
-        removeMessage(tempId)
-      } else {
-        updateMessage(tempId, { id: raw.id, created_at: raw.created_at, element_type: raw.element_type })
+        removeMessage(raw.id)
       }
+      updateMessage(tempId, { id: raw.id, created_at: raw.created_at, element_type: raw.element_type })
 
       if (channelReadyRef.current) msgChannelRef.current?.send({
         type: 'broadcast', event: 'new_message',

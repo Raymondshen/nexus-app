@@ -475,7 +475,7 @@ export function MessageList({
     getItemKey: (index) => {
       const item = items[index]
       if (!item) return index
-      if (item.kind === 'message') return item.message.id
+      if (item.kind === 'message') return item.message.tempId ?? item.message.id
       return item.key
     },
     overscan: 5,
