@@ -49,6 +49,7 @@ export function ChatSheetReact({
         dragConstraints={{ top: 0, bottom: 0 }}
         dragElastic={{ top: 0, bottom: 1 }}
         onDragEnd={(_, info) => { if (info.offset.y > 80 || info.velocity.y > 400) onClose() }}
+        onTouchStart={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
         style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 28px)' }}
       >
