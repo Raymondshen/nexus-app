@@ -31,8 +31,8 @@ function ToggleSwitch({ enabled, onChange }: { enabled: boolean; onChange: () =>
       onClick={onChange}
       className="relative flex-shrink-0 overflow-hidden"
       style={{
-        width: 40,
-        height: 24,
+        width: 48,
+        height: 28,
         borderRadius: 40,
         background: enabled ? 'var(--color-purple)' : 'var(--color-border)',
       }}
@@ -40,8 +40,9 @@ function ToggleSwitch({ enabled, onChange }: { enabled: boolean; onChange: () =>
       role="switch"
     >
       <motion.span
-        className="absolute top-[4px] w-4 h-4 rounded-full bg-white pointer-events-none"
-        animate={{ left: enabled ? 20 : 4 }}
+        className="absolute top-[4px] rounded-full bg-white pointer-events-none"
+        style={{ width: 20, height: 20 }}
+        animate={{ left: enabled ? 24 : 4 }}
         transition={{ type: 'spring', stiffness: 400, damping: 30 }}
       />
     </button>
@@ -50,28 +51,28 @@ function ToggleSwitch({ enabled, onChange }: { enabled: boolean; onChange: () =>
 
 function NavRow({ title, description, onClick }: { title: string; description: string; onClick: () => void }) {
   return (
-    <button onClick={onClick} className="flex items-center w-full text-left" style={{ gap: 'var(--space-4)' }}>
+    <button onClick={onClick} className="flex items-center w-full text-left" style={{ gap: 'var(--space-3)' }}>
       <div className="flex-1 min-w-0 flex flex-col gap-0 leading-[0] tracking-[0.2px]">
-        <p className="font-body font-semibold text-secondary leading-normal" style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}>
+        <p className="font-body font-semibold text-secondary leading-normal" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}>
           {title}
         </p>
-        <p className="font-body font-normal text-tertiary leading-normal" style={{ fontSize: 'var(--text-xxs)', fontVariationSettings: '"opsz" 14' }}>
+        <p className="font-body font-normal text-tertiary leading-normal" style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}>
           {description}
         </p>
       </div>
-      <ChevronRight style={{ width: 16, height: 16, color: 'var(--color-tertiary)', flexShrink: 0 }} aria-hidden="true" />
+      <ChevronRight style={{ width: 20, height: 20, color: 'var(--color-tertiary)', flexShrink: 0 }} aria-hidden="true" />
     </button>
   )
 }
 
 function ToggleRow({ title, description, enabled, onChange }: { title: string; description: string; enabled: boolean; onChange: () => void }) {
   return (
-    <div className="flex items-center w-full" style={{ gap: 'var(--space-4)' }}>
+    <div className="flex items-center w-full" style={{ gap: 'var(--space-3)' }}>
       <div className="flex-1 min-w-0 flex flex-col gap-0 leading-[0] tracking-[0.2px]">
-        <p className="font-body font-semibold text-secondary leading-normal" style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}>
+        <p className="font-body font-semibold text-secondary leading-normal" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}>
           {title}
         </p>
-        <p className="font-body font-normal text-tertiary leading-normal" style={{ fontSize: 'var(--text-xxs)', fontVariationSettings: '"opsz" 14' }}>
+        <p className="font-body font-normal text-tertiary leading-normal" style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}>
           {description}
         </p>
       </div>
@@ -216,59 +217,61 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
       >
 
         {/* Announcements section */}
-        <div className="flex flex-col w-full" style={{ gap: 'var(--space-3)' }}>
-          <p
-            className="font-body font-medium text-primary tracking-[0.2px] leading-normal"
-            style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
-          >
-            Announcements
-          </p>
-
-          {/* Text input */}
-          <div
-            className="border flex h-[48px] items-center overflow-hidden w-full"
-            style={{ borderColor: 'var(--color-border)', paddingLeft: 'var(--space-5)', paddingRight: 'var(--space-5)' }}
-          >
-            <input
-              value={newText}
-              onChange={(e) => { setNewText(e.target.value.slice(0, 500)); setBannerError(null) }}
-              onKeyDown={(e) => { if (e.key === 'Enter') handleCreateBanner() }}
-              placeholder="New announcement text..."
-              maxLength={500}
-              className="flex-1 bg-transparent font-body font-normal text-primary placeholder:text-muted focus:outline-none leading-normal"
+        <div className="flex flex-col w-full" style={{ gap: 'var(--space-5)' }}>
+          <div className="flex flex-col" style={{ gap: 'var(--space-3)' }}>
+            <p
+              className="font-body font-medium text-primary tracking-[0.2px] leading-normal"
               style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
-            />
-          </div>
-
-          {bannerError && (
-            <p className="font-pixel leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-danger)' }}>
-              {bannerError}
+            >
+              Announcements
             </p>
-          )}
 
-          {/* Add announcement button */}
-          <button
-            onClick={handleCreateBanner}
-            disabled={!newText.trim() || addingBanner}
-            className="flex items-center justify-center overflow-hidden w-full disabled:opacity-40"
-            style={{
-              background: addedSuccess ? '#22c55e' : 'var(--color-purple)',
-              gap: 'var(--space-2)',
-              paddingLeft: 'var(--space-5)',
-              paddingRight: 'var(--space-5)',
-              paddingTop: 'var(--space-4)',
-              paddingBottom: 'var(--space-4)',
-              boxShadow: addedSuccess
-                ? '4px 4px 0px 0px rgba(34,197,94,0.5)'
-                : '4px 4px 0px 0px rgba(168,85,247,0.5)',
-              transition: 'background 0.2s, box-shadow 0.2s',
-            }}
-          >
-            <Plus style={{ width: 12, height: 12, color: 'var(--color-primary)', flexShrink: 0 }} aria-hidden="true" />
-            <span className="font-silkscreen text-primary leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-xxs)' }}>
-              {addingBanner ? '...' : addedSuccess ? 'Added!' : 'Add announcement'}
-            </span>
-          </button>
+            {/* Text input */}
+            <div
+              className="border flex h-[48px] items-center overflow-hidden w-full"
+              style={{ borderColor: 'var(--color-border)', paddingLeft: 'var(--space-5)', paddingRight: 'var(--space-5)' }}
+            >
+              <input
+                value={newText}
+                onChange={(e) => { setNewText(e.target.value.slice(0, 500)); setBannerError(null) }}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleCreateBanner() }}
+                placeholder="New announcement text..."
+                maxLength={500}
+                className="flex-1 bg-transparent font-body font-normal text-primary placeholder:text-muted focus:outline-none leading-normal"
+                style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
+              />
+            </div>
+
+            {bannerError && (
+              <p className="font-pixel leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-danger)' }}>
+                {bannerError}
+              </p>
+            )}
+
+            {/* Add announcement button */}
+            <button
+              onClick={handleCreateBanner}
+              disabled={!newText.trim() || addingBanner}
+              className="flex items-center justify-center overflow-hidden w-full disabled:opacity-40"
+              style={{
+                background: addedSuccess ? '#22c55e' : 'var(--color-purple)',
+                gap: 'var(--space-3)',
+                paddingLeft: 'var(--space-6)',
+                paddingRight: 'var(--space-6)',
+                paddingTop: 'var(--space-5)',
+                paddingBottom: 'var(--space-5)',
+                boxShadow: addedSuccess
+                  ? '4px 4px 0px 0px rgba(34,197,94,0.5)'
+                  : '4px 4px 0px 0px rgba(168,85,247,0.5)',
+                transition: 'background 0.2s, box-shadow 0.2s',
+              }}
+            >
+              <Plus style={{ width: 16, height: 16, color: 'var(--color-primary)', flexShrink: 0 }} aria-hidden="true" />
+              <span className="font-silkscreen text-primary leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-xs)' }}>
+                {addingBanner ? '...' : addedSuccess ? 'Added!' : 'Add announcement'}
+              </span>
+            </button>
+          </div>
 
           {/* Published Announcements row */}
           <NavRow
@@ -279,10 +282,10 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
         </div>
 
         {/* Debug section */}
-        <div className="flex flex-col w-full" style={{ gap: 'var(--space-3)' }}>
+        <div className="flex flex-col w-full" style={{ gap: 'var(--space-5)' }}>
           <p
-            className="font-body font-medium text-primary tracking-[0.2px] leading-normal"
-            style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
+            className="font-silkscreen leading-normal tracking-[0.2px] uppercase"
+            style={{ fontSize: 'var(--text-sm)', color: 'var(--color-purple)' }}
           >
             Debug
           </p>
@@ -302,10 +305,10 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
         </div>
 
         {/* Features section */}
-        <div className="flex flex-col w-full" style={{ gap: 'var(--space-3)' }}>
+        <div className="flex flex-col w-full" style={{ gap: 'var(--space-5)' }}>
           <p
-            className="font-body font-medium text-primary tracking-[0.2px] leading-normal"
-            style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
+            className="font-silkscreen leading-normal tracking-[0.2px] uppercase"
+            style={{ fontSize: 'var(--text-sm)', color: 'var(--color-purple)' }}
           >
             Features
           </p>
@@ -332,12 +335,12 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
           />
 
           {/* Reset gem cooldown — two-step confirm */}
-          <div className="flex items-center w-full" style={{ gap: 'var(--space-4)' }}>
+          <div className="flex items-center w-full" style={{ gap: 'var(--space-3)' }}>
             <div className="flex-1 min-w-0 flex flex-col gap-0 leading-[0] tracking-[0.2px]">
-              <p className="font-body font-semibold text-secondary leading-normal" style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}>
+              <p className="font-body font-semibold text-secondary leading-normal" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}>
                 Reset Gem Cooldown
               </p>
-              <p className="font-body font-normal text-tertiary leading-normal" style={{ fontSize: 'var(--text-xxs)', fontVariationSettings: '"opsz" 14' }}>
+              <p className="font-body font-normal text-tertiary leading-normal" style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}>
                 Allow claiming today&apos;s daily gem again, for your account only
               </p>
             </div>
@@ -360,12 +363,12 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
           </div>
 
           {/* Reset friendship XP — two-step confirm */}
-          <div className="flex items-center w-full" style={{ gap: 'var(--space-4)' }}>
+          <div className="flex items-center w-full" style={{ gap: 'var(--space-3)' }}>
             <div className="flex-1 min-w-0 flex flex-col gap-0 leading-[0] tracking-[0.2px]">
-              <p className="font-body font-semibold text-secondary leading-normal" style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}>
+              <p className="font-body font-semibold text-secondary leading-normal" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}>
                 Reset Friendship XP
               </p>
-              <p className="font-body font-normal text-tertiary leading-normal" style={{ fontSize: 'var(--text-xxs)', fontVariationSettings: '"opsz" 14' }}>
+              <p className="font-body font-normal text-tertiary leading-normal" style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}>
                 Wipe all friendship XP pairs for your account
               </p>
             </div>
