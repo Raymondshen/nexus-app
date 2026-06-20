@@ -2,42 +2,47 @@ import DelayedSkeleton from '@/components/ui/DelayedSkeleton'
 
 export default function MemberProfileLoading() {
   return (
-    <div className="flex flex-col bg-black" style={{ position: 'fixed', top: 0, bottom: 0, left: 0, right: 0, maxWidth: 480, marginLeft: 'auto', marginRight: 'auto' }}>
-      {/* Header */}
-      <div
-        className="flex-shrink-0 flex items-center gap-3 px-4 pb-2 border-b border-border"
-        style={{ paddingTop: 'max(env(safe-area-inset-top), 8px)' }}
-      >
-        <div className="w-6 h-6 bg-border animate-pulse" />
-        <div className="h-3 w-20 bg-border animate-pulse" />
-      </div>
-
+    <div
+      className="flex flex-col bg-black"
+      style={{ position: 'fixed', top: 0, bottom: 0, left: 0, right: 0, maxWidth: 480, marginLeft: 'auto', marginRight: 'auto', overflow: 'hidden' }}
+    >
       <DelayedSkeleton>
-        <div className="flex-1 overflow-y-auto">
-          {/* Hero */}
-          <div className="flex flex-col items-center pt-10 pb-8 bg-[#0a0612] border-b border-border">
-            <div className="w-24 h-24 bg-border animate-pulse" />
-            <div className="w-16 h-16 mt-4 bg-border animate-pulse" />
-            <div className="mt-4 flex flex-col items-center gap-2">
-              <div className="h-4 w-36 bg-border animate-pulse" />
-              <div className="h-2.5 w-20 bg-border animate-pulse" />
+        {/* Hero skeleton — matches 280px + safe-area */}
+        <div
+          className="relative flex-shrink-0 w-full bg-surface overflow-hidden animate-pulse"
+          style={{ height: 'calc(280px + env(safe-area-inset-top, 0px))' }}
+        >
+          {/* Back button placeholder */}
+          <div
+            className="absolute z-20"
+            style={{ top: 'calc(env(safe-area-inset-top, 0px) + 18px)', left: 16 }}
+          >
+            <div className="w-8 h-8 bg-border animate-pulse" />
+          </div>
+
+          {/* Bottom content placeholder */}
+          <div className="absolute bottom-0 left-0 right-0 flex flex-col gap-4 p-4">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-full bg-border animate-pulse flex-shrink-0" />
+              <div className="flex flex-col gap-2 flex-1 min-w-0">
+                <div className="h-2 w-20 bg-border animate-pulse" />
+                <div className="h-5 w-36 bg-border animate-pulse" />
+                <div className="h-2 w-28 bg-border animate-pulse" />
+              </div>
+            </div>
+            <div className="flex flex-col gap-2 w-full">
+              <div className="h-2 w-24 bg-border animate-pulse" />
+              <div className="h-1 w-full bg-border animate-pulse" />
             </div>
           </div>
+        </div>
 
-          {/* Stats */}
-          <div className="flex gap-[1px] bg-border mt-[1px]">
-            {[0, 1, 2].map((i) => (
-              <div key={i} className="flex-1 flex flex-col items-center justify-center py-5 gap-2 bg-black">
-                <div className="h-3 w-10 bg-border animate-pulse" />
-                <div className="h-2 w-14 bg-border animate-pulse" />
-              </div>
-            ))}
-          </div>
+        {/* Status ticker placeholder */}
+        <div className="border-y border-border h-10 bg-black animate-pulse" />
 
-          {/* Friend button */}
-          <div className="px-4 pt-6">
-            <div className="w-full h-12 bg-border animate-pulse" />
-          </div>
+        {/* Body — friend button */}
+        <div className="px-4 pt-4">
+          <div className="w-full h-12 bg-border animate-pulse" />
         </div>
       </DelayedSkeleton>
     </div>

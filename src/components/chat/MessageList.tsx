@@ -698,6 +698,7 @@ export function MessageList({
               onAvatarTap={onAvatarTap}
               definitions={definitions}
               memberUsernames={memberUsernames}
+              memberProfiles={localProfiles}
               isCreator={creatorId != null && currentUserId === creatorId}
             />
           </div>

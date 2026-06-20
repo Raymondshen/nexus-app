@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { SlidePage } from '@/components/ui/SlidePage'
-import { MemberProfileClient } from './MemberProfileClient'
+import { AccountPageMember } from './AccountPageMember'
 import type { AvatarClass } from '@/types'
 
 interface Props {
@@ -40,7 +40,8 @@ export default async function MemberProfilePage({ params }: Props) {
   const canonB = viewerId < userId ? userId : viewerId
 
   // Security: verify viewer is in the crew + target is in the crew
-  // Fetch profile, class, stats, friendship, invite origin, global stats, and friendship XP in parallel
+  // Fetch profile, class, stats, friendship, invite origin, global stats, friendship XP,
+  // and viewer's own coins in parallel
   const [
     viewerMembership,
     profileResult,
@@ -51,6 +52,7 @@ export default async function MemberProfilePage({ params }: Props) {
     targetCrewCountResult,
     targetMessagesResult,
     friendshipXPResult,
+    viewerCoinsResult,
   ] = await Promise.all([
     supabase
       .from('crew_members')
@@ -93,20 +95,22 @@ export default async function MemberProfilePage({ params }: Props) {
     viewerId !== userId
       ? supabase.from('friendship_xp').select('total_xp').eq('user_a', canonA).eq('user_b', canonB).maybeSingle()
       : Promise.resolve({ data: null }),
+    supabase.from('profiles').select('coins').eq('id', viewerId).single(),
   ])
 
   // Must be a crew member viewing another crew member
   if (!viewerMembership.data) redirect('/home')
   if (!targetMembership.data || !profileResult.data) redirect(`/chat/${crewId}`)
 
-  const profile = profileResult.data
-  const statsRow = statsResult.data?.[0] ?? { msg_count: 0, total_xp: 0 }
+  const profile    = profileResult.data
+  const statsRow   = statsResult.data?.[0] ?? { msg_count: 0, total_xp: 0 }
   const friendship = friendshipResult.data as {
     id: string; requester_id: string; addressee_id: string; status: string
   } | null
   const globalGroupChats = targetCrewCountResult.count ?? 0
   const globalMessages   = targetMessagesResult.count ?? 0
   const friendshipXP     = (friendshipXPResult?.data as { total_xp?: number } | null)?.total_xp ?? null
+  const viewerCoins      = (viewerCoinsResult.data as { coins?: number } | null)?.coins ?? 0
 
   return (
     <SlidePage
@@ -123,7 +127,7 @@ export default async function MemberProfilePage({ params }: Props) {
         overflow:    'hidden',
       }}
     >
-      <MemberProfileClient
+      <AccountPageMember
         crewId={crewId}
         userId={userId}
         viewerId={viewerId}
@@ -142,6 +146,7 @@ export default async function MemberProfilePage({ params }: Props) {
         globalGroupChats={globalGroupChats}
         globalMessages={globalMessages}
         friendshipXP={friendshipXP}
+        viewerCoins={viewerCoins}
       />
     </SlidePage>
   )

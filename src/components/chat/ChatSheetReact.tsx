@@ -1,7 +1,7 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { Undo } from 'pixelarticons/react/Undo'
+import { CornerUpLeft } from 'pixelarticons/react/CornerUpLeft'
 import { Copy } from 'pixelarticons/react/Copy'
 import { Note } from 'pixelarticons/react/Note'
 
@@ -87,7 +87,7 @@ export function ChatSheetReact({
               className="w-full flex items-center"
               style={{ background: 'var(--color-surface)', borderRadius: 8, padding: 16, gap: 8 }}
             >
-              <Undo style={{ width: 24, height: 20, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
+              <CornerUpLeft style={{ width: 24, height: 20, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
               <span
                 className="flex-1 font-body font-semibold text-secondary leading-normal text-left tracking-[0.2px]"
                 style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}

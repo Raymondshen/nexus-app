@@ -8,7 +8,7 @@ import { format } from 'date-fns'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useChatStore } from '@/store/chatStore'
 import { createClient } from '@/lib/supabase/client'
-import type { MessageWithProfile, SquadDefinitionWithCreator } from '@/types'
+import type { MessageWithProfile, Profile, SquadDefinitionWithCreator } from '@/types'
 import { supabaseImageLoader } from '@/lib/supabase/imageLoader'
 import { extractFirstUrl } from '@/lib/utils'
 import { useOGPreview } from '@/lib/utils/useOGPreview'
@@ -22,6 +22,7 @@ import { ImagePreviewOverlay } from '@/components/ui/ImagePreviewOverlay'
 import { Button } from '@/components/ui/Button'
 import { Cake } from 'pixelarticons/react/Cake'
 import { UserPlus } from 'pixelarticons/react/UserPlus'
+import { CornerDownLeft } from 'pixelarticons/react/CornerDownLeft'
 
 function ImageBubble({
   src, blurDataURL, onTouchStart, onTouchEnd, onTouchMove, onClick,
@@ -84,6 +85,7 @@ interface MessageBubbleProps {
   onAvatarTap?:     (userId: string) => void
   definitions?:     SquadDefinitionWithCreator[]
   memberUsernames?: Set<string>
+  memberProfiles?:  Record<string, Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url'>>
   isCreator?:       boolean
 }
 
@@ -245,6 +247,7 @@ export function MessageBubble({
   onAvatarTap,
   definitions = [] as SquadDefinitionWithCreator[],
   memberUsernames = new Set<string>(),
+  memberProfiles,
   isCreator = false,
 }: MessageBubbleProps) {
   const [sheetOpen,        setSheetOpen]        = useState(false)
@@ -314,6 +317,20 @@ export function MessageBubble({
     raf = requestAnimationFrame(step)
     return () => cancelAnimationFrame(raf)
   }, [coinTarget]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ─── Reply tap — scroll to original message with a brief purple flash ───────
+  function handleReplyTap() {
+    if (!message.reply_to_id) return
+    const el = document.getElementById(`msg-${message.reply_to_id}`)
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    el.style.transition = 'background-color 0.2s ease'
+    el.style.backgroundColor = 'rgba(191,95,255,0.12)'
+    setTimeout(() => {
+      el.style.backgroundColor = ''
+      setTimeout(() => { el.style.transition = '' }, 300)
+    }, 700)
+  }
 
   // ─── Long-press handlers (500 ms, cancelled on scroll) ──────────────────────
   function handleTouchStart() {
@@ -623,44 +640,59 @@ export function MessageBubble({
             </div>
           )}
 
-          {/* Reply quote — shown when this message is a reply */}
-          {message.reply_to_id && (message.reply_preview || message.reply_username) && (
-            <div
-              className="flex items-start gap-[6px] mt-[2px] mb-[2px] overflow-hidden"
-              style={{ opacity: 0.75 }}
-            >
-              <div
-                className="flex-shrink-0 self-stretch"
-                style={{ width: 2, borderRadius: 2, background: 'var(--color-purple)', minHeight: 20 }}
-              />
-              <div className="flex flex-col gap-[1px] min-w-0 overflow-hidden">
+          {/* Reply row — Figma: icon + avatar + @username + preview (single line) */}
+          {message.reply_to_id && (message.reply_preview || message.reply_username) && (() => {
+            const replyProfile = message.reply_username
+              ? Object.values(memberProfiles ?? {}).find(
+                  (p) => p.username.toLowerCase() === message.reply_username!.toLowerCase()
+                )
+              : null
+            const replyAvatarUrl = replyProfile?.avatar_url ?? null
+            const replyInitial   = message.reply_username?.[0]?.toUpperCase() ?? '?'
+            return (
+              <button
+                className="flex items-center gap-[4px] w-full mt-[2px] mb-[2px] overflow-hidden"
+                style={{ height: 16, background: 'none', border: 'none', padding: 0, textAlign: 'left', cursor: 'pointer' }}
+                onClick={(e) => { e.stopPropagation(); handleReplyTap() }}
+                onTouchStart={(e) => e.stopPropagation()}
+                onTouchEnd={(e) => e.stopPropagation()}
+              >
+                <CornerDownLeft style={{ width: 16, height: 16, color: 'var(--color-tertiary)', flexShrink: 0 }} />
+                <div className="relative w-[16px] h-[16px] rounded-full bg-surface overflow-hidden flex-shrink-0">
+                  {replyAvatarUrl ? (
+                    <Image
+                      src={resolveAvatarUrl(replyAvatarUrl, 16)}
+                      alt={message.reply_username ?? ''}
+                      fill
+                      sizes="16px"
+                      className="object-cover"
+                      unoptimized={isSupabaseStorage(replyAvatarUrl)}
+                    />
+                  ) : (
+                    <span className="absolute inset-0 flex items-center justify-center font-pixel text-[4px] text-purple">
+                      {replyInitial}
+                    </span>
+                  )}
+                </div>
                 {message.reply_username && (
                   <span
-                    className="font-silkscreen leading-none whitespace-nowrap overflow-hidden text-ellipsis"
-                    style={{ fontSize: 'var(--text-mini)', color: 'var(--color-purple)' }}
+                    className="font-body font-normal whitespace-nowrap shrink-0 leading-none"
+                    style={{ fontSize: 12, color: 'var(--color-purple)', fontVariationSettings: '"opsz" 14' }}
                   >
                     @{message.reply_username}
                   </span>
                 )}
                 {message.reply_preview && (
                   <span
-                    className="font-body font-normal leading-snug overflow-hidden"
-                    style={{
-                      fontSize: 'var(--text-xxs)',
-                      color: 'var(--color-tertiary)',
-                      fontVariationSettings: '"opsz" 14',
-                      display: '-webkit-box',
-                      WebkitLineClamp: 1,
-                      WebkitBoxOrient: 'vertical',
-                      wordBreak: 'break-word',
-                    }}
+                    className="font-body font-normal flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap leading-none"
+                    style={{ fontSize: 12, color: 'var(--color-tertiary)', fontVariationSettings: '"opsz" 14' }}
                   >
                     {message.reply_preview}
                   </span>
                 )}
-              </div>
-            </div>
-          )}
+              </button>
+            )
+          })()}
 
           {/* Message body */}
           {message.message_type === 'image' ? (
