@@ -17,6 +17,7 @@ import { PollCard } from '@/components/chat/PollCard'
 import { EventCardMessage } from '@/components/chat/EventCardMessage'
 import { SuggestDefinitionSheet } from '@/components/chat/SuggestDefinitionSheet'
 import { PinDurationSheet } from '@/components/chat/PinDurationSheet'
+import { ChatSheetReact } from '@/components/chat/ChatSheetReact'
 import { ImagePreviewOverlay } from '@/components/ui/ImagePreviewOverlay'
 import { Button } from '@/components/ui/Button'
 import { Cake } from 'pixelarticons/react/Cake'
@@ -65,23 +66,11 @@ function ImageBubble({
   )
 }
 
-const QUICK_REACTIONS = ['🔥', '💧', '⚡', '🌿', '🌑', '🔮'] as const
-
 type ReactResponse = {
   reactions:     Record<string, string[]>
   hype_man_heal: boolean
   heal_amount:   number
   error?:        string
-}
-
-function getFirstGrapheme(str: string): string {
-  if (!str) return ''
-  try {
-    const seg = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
-    return [...seg.segment(str)][0]?.segment ?? ''
-  } catch {
-    return [...str][0] ?? ''
-  }
 }
 
 interface MessageBubbleProps {
@@ -269,7 +258,6 @@ export function MessageBubble({
 
   const longPressTimer       = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hasMoved             = useRef(false)
-  const emojiInputRef        = useRef<HTMLInputElement>(null)
   const imgTouchStartTimeRef = useRef(0)
   const imgLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -435,18 +423,6 @@ export function MessageBubble({
     }
   }, [message.id, message.crew_id, message.reactions, currentUserId, updateMessage])
 
-  // ─── Native emoji keyboard (hidden input) ───────────────────────────────────
-  function handlePickEmoji() {
-    emojiInputRef.current?.focus()
-  }
-
-  function handleNativeEmojiInput(e: React.FormEvent<HTMLInputElement>) {
-    const value = (e.target as HTMLInputElement).value
-    if (!value) return
-    const grapheme = getFirstGrapheme(value)
-    ;(e.target as HTMLInputElement).value = ''
-    if (grapheme) void handleReaction(grapheme)
-  }
 
   // ─── OG preview — must be called before early returns ───────────────────────
   const ogUrl = message.message_type === 'text' && !message.image_url
@@ -914,116 +890,21 @@ export function MessageBubble({
         document.body
       )}
 
-      {/* ── Reaction / action bottom sheet (Discord-style) ──────────────────── */}
+      {/* ── ChatSheetReact — reaction + action bottom sheet ─────────────────── */}
       {mounted && createPortal(
         <AnimatePresence>
           {sheetOpen && (
-            <>
-              {/* Backdrop */}
-              <motion.div
-                key="msg-backdrop"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.18 }}
-                className="fixed inset-0 z-[70] bg-black/60"
-                onTouchStart={(e) => { e.stopPropagation(); setSheetOpen(false) }}
-                onClick={() => setSheetOpen(false)}
-              />
-
-              {/* Sheet */}
-              <motion.div
-                key="msg-sheet"
-                initial={{ y: '100%' }}
-                animate={{ y: 0 }}
-                exit={{ y: '100%' }}
-                transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-                className="fixed bottom-0 left-0 right-0 z-[80] bg-[#0a0612] border-t border-border"
-                style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 24px)' }}
-              >
-                {/* ── Emoji quick-pick row ─────────────────────────────────── */}
-                <div className="px-4 pt-4 pb-3 flex items-center">
-                  {QUICK_REACTIONS.map((emoji) => {
-                    const active = (reactions[emoji] ?? []).includes(currentUserId)
-                    return (
-                      <button
-                        key={emoji}
-                        onClick={() => void handleReaction(emoji)}
-                        className={`flex-1 flex items-center justify-center py-3 text-[28px] select-none transition-transform active:scale-90 ${
-                          active ? 'scale-110' : ''
-                        }`}
-                      >
-                        {emoji}
-                      </button>
-                    )
-                  })}
-
-                  {/* Open native emoji keyboard */}
-                  <button
-                    onClick={handlePickEmoji}
-                    className="flex-1 flex items-center justify-center py-3"
-                    aria-label="More emojis"
-                  >
-                    <span className="w-9 h-9 rounded-full bg-[#1a1a2e] border border-border flex items-center justify-center text-[18px]">
-                      😊
-                    </span>
-                  </button>
-                </div>
-
-                <div className="border-t border-border" />
-
-                {/* ── Reply ──────────────────────────────────────────────── */}
-                <button
-                  onClick={() => {
-                    setSheetOpen(false)
-                    setReplyTo({ ...message })
-                  }}
-                  className="w-full flex items-center gap-4 px-5 min-h-[52px] active:bg-surface transition-colors"
-                >
-                  <span className="text-[20px]">↩️</span>
-                  <span className="font-body text-[15px] text-primary">Reply</span>
-                </button>
-
-                <div className="border-t border-border" />
-
-                {/* ── Copy Text ────────────────────────────────────────────── */}
-                <button
-                  onClick={handleCopy}
-                  className="w-full flex items-center gap-4 px-5 min-h-[52px] active:bg-surface transition-colors"
-                >
-                  <span className="text-[20px]">📋</span>
-                  <span className="font-body text-[15px] text-primary">
-                    {copied ? 'Copied!' : 'Copy Text'}
-                  </span>
-                </button>
-
-                {/* ── Pin (admin only) ──────────────────────────────────────── */}
-                {isCreator && (
-                  <>
-                    <div className="border-t border-border" />
-                    <button
-                      onClick={() => { setSheetOpen(false); setPinSheetOpen(true) }}
-                      className="w-full flex items-center gap-4 px-5 min-h-[52px] active:bg-surface transition-colors"
-                    >
-                      <span className="text-[20px]">📌</span>
-                      <span className="font-body text-[15px] text-primary">
-                        {message.pinned ? 'Pinned to the board' : 'Pin this message'}
-                      </span>
-                    </button>
-                  </>
-                )}
-
-                {/* Hidden input — focus opens native emoji keyboard on mobile */}
-                <input
-                  ref={emojiInputRef}
-                  type="text"
-                  aria-hidden="true"
-                  tabIndex={-1}
-                  style={{ position: 'fixed', top: '-9999px', left: '-9999px', width: 1, height: 1, opacity: 0.01 }}
-                  onInput={handleNativeEmojiInput}
-                />
-              </motion.div>
-            </>
+            <ChatSheetReact
+              onClose={() => setSheetOpen(false)}
+              reactions={reactions}
+              currentUserId={currentUserId}
+              onReact={(emoji) => void handleReaction(emoji)}
+              onReply={() => { setSheetOpen(false); setReplyTo({ ...message }) }}
+              onCopy={handleCopy}
+              copied={copied}
+              canPin={isCreator}
+              onOpenPin={() => { setSheetOpen(false); setPinSheetOpen(true) }}
+            />
           )}
         </AnimatePresence>,
         document.body
