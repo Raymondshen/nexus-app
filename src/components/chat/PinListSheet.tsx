@@ -181,9 +181,9 @@ export function PinListSheet({ activePins, currentUserId, creatorId, onClose }: 
                       </p>
                     </button>
 
-                    {/* Action row */}
-                    <div className="flex items-center justify-between w-full">
-                      {isAdmin ? (
+                    {/* Action row — admin only */}
+                    {isAdmin && (
+                      <div className="flex items-center justify-between w-full">
                         <button
                           onClick={() => void handleUnpin(pin.id)}
                           disabled={unpinning === pin.id}
@@ -192,14 +192,12 @@ export function PinListSheet({ activePins, currentUserId, creatorId, onClose }: 
                         >
                           {unpinning === pin.id ? '…' : 'Unpin message'}
                         </button>
-                      ) : (
-                        <span />
-                      )}
-                      <VisibilityToggle
-                        visible={isVisible}
-                        onChange={() => toggleHiddenPin(pin.id, activePins.map((p) => p.id))}
-                      />
-                    </div>
+                        <VisibilityToggle
+                          visible={isVisible}
+                          onChange={() => toggleHiddenPin(pin.id, activePins.map((p) => p.id))}
+                        />
+                      </div>
+                    )}
                   </div>
                 )
               })}
