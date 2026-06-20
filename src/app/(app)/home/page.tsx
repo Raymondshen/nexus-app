@@ -38,7 +38,6 @@ export interface CrewSummary {
 }
 
 type MemberRow = { crew_id: string; user_id: string; profiles: { username: string } | null }
-type LastMessage = { content: string; created_at: string; profiles: { username: string } | null } | null
 
 // Cached: home profile + estimated message count. Both cached together under the
 // same profile:{userId} tag so a single cache miss fetches both in parallel.
@@ -121,26 +120,6 @@ function getCachedHomeMembers(crewIds: string[]) {
   )()
 }
 
-// Cached: last non-system message preview per crew (30s TTL — stale preview is acceptable)
-function getCachedCrewLastMessage(crewId: string) {
-  return unstable_cache(
-    async () => {
-      const supabase = createServiceClient()
-      const { data } = await supabase
-        .from('messages')
-        .select('content, created_at, profiles(username)')
-        .eq('crew_id', crewId)
-        .neq('message_type', 'system')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-      return data as LastMessage
-    },
-    [`home-last-msg:${crewId}`],
-    { revalidate: 30 }
-  )()
-}
-
 // Cached: active announcements (60s TTL, invalidated by revalidateTag('announcements'))
 function getCachedAnnouncements() {
   return unstable_cache(
@@ -184,7 +163,7 @@ export default async function HomePage() {
     getCachedHomeProfile(user.id),
     supabase
       .from('crew_members')
-      .select('crew_id, last_seen, joined_at, crew:crews(id, name, level, total_xp, invite_code, is_dm, dm_partner_1, dm_partner_2, image_url)')
+      .select('crew_id, last_seen, joined_at, crew:crews(id, name, level, total_xp, invite_code, is_dm, dm_partner_1, dm_partner_2, image_url, last_message_preview, last_message_at, last_message_sender_id)')
       .eq('user_id', user.id)
       .order('joined_at', { ascending: false }),
     getCachedFriendships(user.id),
@@ -224,11 +203,10 @@ export default async function HomePage() {
 
   const crewIds = memberships.map((m) => m.crew_id)
 
-  // Stage 2 — 4 parallel calls, only 1 hits the DB (get_unread_counts RPC).
-  // cachedMembers + lastMessages are served from cache; friendProfiles now also cached.
-  const [cachedMembers, lastMessages, unreadResult, friendProfiles] = await Promise.all([
+  // Stage 2 — 3 parallel calls, only 1 hits the DB (get_unread_counts RPC).
+  // Last-message preview comes from denormalized crews columns fetched in Stage 1.
+  const [cachedMembers, unreadResult, friendProfiles] = await Promise.all([
     getCachedHomeMembers(crewIds),
-    Promise.all(memberships.map((m) => getCachedCrewLastMessage(m.crew_id))),
     supabase.rpc('get_unread_counts', {
       p_crew_ids: crewIds,
       p_cutoffs:  memberships.map(m => (m.last_seen ?? m.joined_at) as string),
@@ -247,15 +225,16 @@ export default async function HomePage() {
   const dmCrewMap    = new Map<string, string>()
   const dmLastMsgMap = new Map<string, { content: string; created_at: string }>()
   const dmUnreadMap  = new Map<string, number>()
-  for (let i = 0; i < memberships.length; i++) {
-    const crew = crewMap.get(memberships[i].crew_id)
+  for (const membership of memberships) {
+    const crew = crewMap.get(membership.crew_id)
     if (!crew?.is_dm) continue
     const friendId = (crew.dm_partner_1 === user.id ? crew.dm_partner_2 : crew.dm_partner_1) as string | undefined
     if (!friendId) continue
     dmCrewMap.set(friendId, crew.id)
-    const lm = lastMessages[i]
-    if (lm) dmLastMsgMap.set(friendId, { content: lm.content, created_at: lm.created_at })
-    const unread = unreadMap.get(memberships[i].crew_id) ?? 0
+    const preview = crew.last_message_preview as string | null | undefined
+    const previewAt = crew.last_message_at as string | null | undefined
+    if (preview && previewAt) dmLastMsgMap.set(friendId, { content: preview, created_at: previewAt })
+    const unread = unreadMap.get(membership.crew_id) ?? 0
     if (unread > 0) dmUnreadMap.set(friendId, unread)
   }
 
@@ -270,16 +249,18 @@ export default async function HomePage() {
     memberCountMap[row.crew_id] = (memberCountMap[row.crew_id] ?? 0) + 1
   }
 
-  const summaries: CrewSummary[] = memberships.flatMap((m, i) => {
+  const summaries: CrewSummary[] = memberships.flatMap((m) => {
     const crew = crewMap.get(m.crew_id)
     if (!crew || crew.is_dm) return []  // DM channels are shown in Friends section, not Squads
 
-    const lastMsgData = lastMessages[i]
-    const lastMessage = lastMsgData
+    const preview   = crew.last_message_preview as string | null | undefined
+    const previewAt = crew.last_message_at as string | null | undefined
+    const senderId  = crew.last_message_sender_id as string | null | undefined
+    const lastMessage = preview && previewAt
       ? {
-          content:    lastMsgData.content,
-          sender:     (lastMsgData.profiles as { username: string } | null)?.username ?? '',
-          created_at: lastMsgData.created_at,
+          content:    preview,
+          sender:     profileCache[senderId ?? ''] ?? '',
+          created_at: previewAt,
         }
       : null
 

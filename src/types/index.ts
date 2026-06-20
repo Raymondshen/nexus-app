@@ -94,6 +94,9 @@ export interface Crew extends Record<string, unknown> {
   dm_partner_2?: string | null
   image_url?: string | null
   image_storage_key?: string | null
+  last_message_preview?: string | null
+  last_message_at?: string | null
+  last_message_sender_id?: string | null
 }
 
 export interface CrewMember extends Record<string, unknown> {

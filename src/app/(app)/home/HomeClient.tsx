@@ -28,6 +28,7 @@ import type { AnnouncementItem } from '@/components/ui/AnnouncementBanner'
 import { DiamondGem } from 'pixelarticons/react/DiamondGem'
 import { isGemGateOpen } from '@/lib/game/gems'
 import { GEM_DAILY_LIMIT } from '@/lib/config'
+import { consumeHomeLastMessage } from '@/lib/homePreviewCache'
 
 export interface FriendSummary {
   id:            string
@@ -895,7 +896,14 @@ export function HomeClient({
 }: HomeClientProps) {
   const router = useRouter()
 
-  const [crews,             setCrews]             = useState<CrewSummary[]>(initialCrews)
+  const [crews,             setCrews]             = useState<CrewSummary[]>(() =>
+    initialCrews.map((cs) => {
+      const cached = consumeHomeLastMessage(cs.crew.id)
+      if (!cached) return cs
+      if (cs.lastMessage && cached.created_at <= cs.lastMessage.created_at) return cs
+      return { ...cs, lastMessage: { content: cached.content, sender: cached.sender, created_at: cached.created_at } }
+    })
+  )
   const [showCreate,        setShowCreate]        = useState(false)
   const [showInviteArsenal, setShowInviteArsenal] = useState(false)
   const [openCardId,        setOpenCardId]        = useState<string | null>(null)
@@ -1041,53 +1049,61 @@ export function HomeClient({
     return () => { channels.forEach((ch) => supabase.removeChannel(ch)) }
   }, [friends.map(f => f.dmChannelId).filter(Boolean).sort().join(',')]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Realtime: live message previews + unread counts ──────────────────────
+  // ── Realtime: live message previews via postgres_changes UPDATE on crews ─
+  // Single consolidated channel replaces the previous one-per-crew broadcast setup.
+  // The trigger update_crew_last_message() fires after every non-system INSERT and
+  // updates the three denormalized columns; we receive that UPDATE here.
+  // Guard: skip if the timestamp didn't change (handles XP/level-only updates).
   useEffect(() => {
     if (crewIds.length === 0) return
     const supabase = createClient()
-    const seenIds  = new Set<string>()
-
-    function applyNewMessage(
-      crewId: string,
-      msg: { id: string; content: string; user_id: string; created_at: string; sender: string },
-    ) {
-      if (seenIds.has(msg.id)) return
-      seenIds.add(msg.id)
-
-      setCrews((prev) =>
-        prev
-          .map((cs) => {
-            if (cs.crew.id !== crewId) return cs
-            return {
-              ...cs,
-              lastMessage: { content: msg.content, sender: msg.sender, created_at: msg.created_at },
-              unreadCount: msg.user_id === userId ? cs.unreadCount : cs.unreadCount + 1,
-            }
+    const ch = supabase
+      .channel('home-crews-preview')
+      .on(
+        'postgres_changes',
+        {
+          event:  'UPDATE',
+          schema: 'public',
+          table:  'crews',
+          filter: `id=in.(${crewIds.join(',')})`,
+        },
+        (payload) => {
+          const updated = payload.new as {
+            id: string
+            last_message_preview: string | null
+            last_message_at: string | null
+            last_message_sender_id: string | null
+          }
+          if (!updated.last_message_preview || !updated.last_message_at) return
+          setCrews((prev) => {
+            let changed = false
+            const next = prev.map((cs) => {
+              if (cs.crew.id !== updated.id) return cs
+              if (cs.lastMessage?.created_at === updated.last_message_at) return cs
+              changed = true
+              return {
+                ...cs,
+                lastMessage: {
+                  content:    updated.last_message_preview!,
+                  sender:     profileCacheRef.current[updated.last_message_sender_id ?? ''] ?? '',
+                  created_at: updated.last_message_at!,
+                },
+                unreadCount:
+                  updated.last_message_sender_id === userId
+                    ? cs.unreadCount
+                    : cs.unreadCount + 1,
+              }
+            })
+            if (!changed) return prev
+            return next.sort((a, b) =>
+              (b.lastMessage?.created_at ?? '').localeCompare(a.lastMessage?.created_at ?? ''),
+            )
           })
-          .sort((a, b) =>
-            (b.lastMessage?.created_at ?? '').localeCompare(a.lastMessage?.created_at ?? ''),
-          ),
+        },
       )
-    }
+      .subscribe()
 
-    const channels = crewIds.map((crewId) =>
-      supabase
-        .channel(`messages:${crewId}`)
-        .on('broadcast', { event: 'new_message' }, (payload) => {
-          const msg = payload.payload as MessageWithProfile
-          if (!msg?.id || msg.message_type === 'system') return
-          applyNewMessage(crewId, {
-            id:         msg.id,
-            content:    msg.content,
-            user_id:    msg.user_id,
-            created_at: msg.created_at,
-            sender:     profileCacheRef.current[msg.user_id] ?? msg.profile?.username ?? '',
-          })
-        })
-        .subscribe(),
-    )
-
-    return () => { channels.forEach((ch) => supabase.removeChannel(ch)) }
+    return () => { supabase.removeChannel(ch) }
   }, [[...crewIds].sort().join(',')]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Navigation: mark as read on tap ──────────────────────────────────────

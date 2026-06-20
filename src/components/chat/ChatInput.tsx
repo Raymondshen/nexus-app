@@ -33,6 +33,7 @@ import { NotifSheet, type NotifPrefs } from '@/components/chat/NotifSheet'
 import { SquadDetailsSheet, type MiniMember } from '@/components/chat/SquadDetailsSheet'
 import { PollCreatorSheet } from '@/components/chat/PollCreatorSheet'
 import { GifPickerSheet } from '@/components/chat/GifPickerSheet'
+import { setHomeLastMessage } from '@/lib/homePreviewCache'
 import type { Message, MessageWithProfile, Profile, ActiveRaid } from '@/types'
 
 const MAX_MESSAGE_LENGTH = 2000
@@ -476,6 +477,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
         id: raw.id, created_at: raw.created_at, element_type: raw.element_type,
         image_url: publicUrlSnapshot, image_blur_hash: lqipSnapshot ?? undefined,
       })
+      setHomeLastMessage(crewId, { content: raw.content, created_at: raw.created_at, sender: userProfile.username })
 
       if (channelReadyRef.current) msgChannelRef.current?.send({
         type: 'broadcast', event: 'new_message',
@@ -578,6 +580,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
         removeMessage(raw.id)
       }
       updateMessage(tempId, { id: raw.id, created_at: raw.created_at, element_type: raw.element_type, image_url: gifUrl })
+      setHomeLastMessage(crewId, { content: raw.content, created_at: raw.created_at, sender: userProfile.username })
 
       if (channelReadyRef.current) msgChannelRef.current?.send({
         type: 'broadcast', event: 'new_message',
@@ -703,6 +706,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
         removeMessage(raw.id)
       }
       updateMessage(tempId, { id: raw.id, created_at: raw.created_at, element_type: raw.element_type })
+      setHomeLastMessage(crewId, { content: raw.content, created_at: raw.created_at, sender: userProfile.username })
 
       if (channelReadyRef.current) msgChannelRef.current?.send({
         type: 'broadcast', event: 'new_message',
