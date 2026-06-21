@@ -77,7 +77,9 @@ Gems: 1/day on first message in any crew · `award-gem` edge function + `claim_d
 - Client gate (`src/lib/game/gems.ts`, idb-keyval `nexus_gem_claimed_at`): display/debounce only; checked in `ChatInput.send()` fire-and-forget
 - Fully launched: `GemCounter` in `FloatingBackButton` right-icon row, `GemToast` on earn always shown; "Reset Gem Cooldown" in dev page nulls `last_gem_claim` for caller + clears idb-keyval key
 
-Boss: The Void at every 500 XP · 48h window · 3 phases · defeat → artifact drop
+Boss: The Void at every 500 XP (`BOSS_XP_THRESHOLD`) · 48h window · 3 phases · defeat → artifact drop
+
+Leveling: exponential curve — `xpForLevel(n) = round(120 × 1.0435^(n-1))` · `LEVEL_CAP = 100` · constants in `src/lib/config.ts` (`LEVEL_XP_BASE=120`, `LEVEL_XP_GROWTH_RATE=1.0435`) · formula mirrored in `award-xp` + `react-to-message` edge functions · 5 tiers every 20 levels: Rookie (1–20) → Adventurer (21–40) → Veteran (41–60) → Elite (61–80) → Mythic (81–100) · `isTierBoundary` flag on level-up `DisplayItem` for future tier-up celebration
 
 Elements: fire=<20 chars · water=>150 chars · lightning=voice · nature=images · shadow=reactions · arcane=daily/system
 
