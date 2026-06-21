@@ -16,6 +16,7 @@ interface ChatStore {
   activeRaid:          ActiveRaid | null
   damageFloats:        DamageFloatItem[]
   onlineUserIds:       Set<string>
+  lastActiveMap:       Record<string, number>
   userCoins:           number
   gemBalance:          number
   crewName:            string
@@ -35,6 +36,8 @@ interface ChatStore {
   addDamageFloat:      (damage: number, elementType: ElementType | null) => void
   dismissDamageFloat:  (id: number) => void
   setOnlineUserIds:    (ids: Set<string>) => void
+  setLastActive:       (userId: string, ts: number) => void
+  sweepOnlineUserIds:  (thresholdMs: number) => void
   setUserCoins:        (coins: number) => void
   addUserCoins:        (amount: number) => void
   setGemBalance:       (gems: number) => void
@@ -61,6 +64,7 @@ export const useChatStore = create<ChatStore>((set) => ({
   activeRaid:         null,
   damageFloats:       [],
   onlineUserIds:      new Set<string>(),
+  lastActiveMap:      {},
   userCoins:          0,
   gemBalance:         0,
   crewName:           '',
@@ -130,6 +134,20 @@ export const useChatStore = create<ChatStore>((set) => ({
     set((s) => ({ damageFloats: s.damageFloats.filter((f) => f.id !== id) })),
 
   setOnlineUserIds: (ids) => set({ onlineUserIds: ids }),
+
+  setLastActive: (userId, ts) =>
+    set((s) => ({ lastActiveMap: { ...s.lastActiveMap, [userId]: ts } })),
+
+  sweepOnlineUserIds: (thresholdMs) =>
+    set((s) => {
+      const now = Date.now()
+      const ids = new Set(
+        Object.entries(s.lastActiveMap)
+          .filter(([, ts]) => now - ts < thresholdMs)
+          .map(([id]) => id)
+      )
+      return { onlineUserIds: ids }
+    }),
 
   setUserCoins: (coins) => set({ userCoins: coins }),
 

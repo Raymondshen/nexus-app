@@ -11,7 +11,7 @@ Build: `next build --webpack` (Turbopack breaks next-pwa + proxy.ts)
 
 ## Database Tables
 ```
-profiles            id, username (unique case-insensitive), first_name, last_name, avatar_class, avatar_url, avatar_storage_key, custom_avatar (bool default false), birthday, is_dev, coins (int default 0), gem_balance (int default 0), last_gem_claim (timestamptz nullable), status (text nullable ≤100 chars), created_at
+profiles            id, username (unique case-insensitive), first_name, last_name, avatar_class, avatar_url, avatar_storage_key, custom_avatar (bool default false), birthday, is_dev, coins (int default 0), gem_balance (int default 0), last_gem_claim (timestamptz nullable), status (text nullable ≤100 chars), last_active_at (timestamptz nullable), created_at
 crews               id, name, invite_code (6 chars unique), level, total_xp, created_at, is_dm (bool default false), dm_partner_1 (uuid nullable), dm_partner_2 (uuid nullable), image_url, image_storage_key, last_message_preview (text nullable), last_message_at (timestamptz nullable), last_message_sender_id (uuid nullable)
 crew_members        id, crew_id, user_id, class, joined_at, last_seen
 messages            id, crew_id, user_id, content, message_type, element_type, xp_awarded, reactions (jsonb default '{}'), reply_to_id, reply_preview, reply_username, image_url, image_blur_hash, pinned (bool default false), pinned_by (uuid nullable), pinned_at (timestamptz nullable), pin_expires_at (timestamptz nullable), created_at
@@ -57,6 +57,7 @@ All `SECURITY DEFINER`. Declared in `Database.Functions` in `src/types/index.ts`
 - `claim_daily_gem(p_user_id, p_local_midnight)` → jsonb `{claimed, gem_balance}`
 - `pin_message(p_message_id, p_duration_minutes?)` → jsonb — admin only, cap=5, duration≤525960 min
 - `unpin_message(p_message_id)` → jsonb — admin only
+- `update_active()` → void — sets `profiles.last_active_at = now()` for caller; used as presence heartbeat
 
 ## Game Values
 
@@ -141,11 +142,18 @@ localStorage:
 ## Architecture
 
 ### Realtime / Messaging
-- Channel `messages:{crewId}`: broadcast (sender→instant) + Postgres Changes INSERT (backup) + presence + typing
+- Channel `messages:{crewId}`: broadcast (sender→instant) + Postgres Changes INSERT (backup) + presence (typing only) + typing
 - `addMessage` deduplicates by id; broadcast payload has no profile (resolved from `profilesRef`)
 - `prependMessages` deduplicates by id before prepending older batches to the front of the array
 - XP sync: sender `addXP(n)` optimistic → `setCrewXP(data.new_total_xp)` → broadcasts `xp_update`; receivers `receiveXP(earned, newTotal)`; dedup by `sender_id`
-- Presence: sole channel is ChatInput's `messages:{crewId}` (two concurrent channels = interference); `visibilitychange` re-tracks (iOS PWA reconnect)
+- **Presence (online/offline)**: timestamp-derived, not socket-state. `profiles.last_active_at` is the authority — online = `last_active_at > now() - 45s`. No `is_online` boolean, no cleanup cron.
+  - Heartbeat (30s interval, foreground only): `update_active()` RPC + broadcasts `{ event: 'active', user_id, ts }` on `messages:{crewId}`; piggybacked on every message send
+  - Initial seed: on mount fetches `last_active_at` for all member IDs from `profiles` (covers users active in other crews)
+  - Staleness sweep (15s, pure local): `sweepOnlineUserIds(45_000)` recomputes `chatStore.onlineUserIds` from `lastActiveMap` — no network call
+  - Backgrounded: heartbeat interval stopped on `visibilitychange→hidden`; timestamp ages naturally; sweep drops stale entries within 45s. No iOS throttle fights.
+  - Foregrounded: heartbeat fires immediately + interval restarts + channel re-tracked for typing
+  - `chatStore.lastActiveMap: Record<userId, timestamp_ms>` · `setLastActive(uid, ts)` · `sweepOnlineUserIds(thresholdMs)`
+- Typing: Supabase Presence (`ch.track({ username, typing })`) on `messages:{crewId}`; `presence:sync` reads typing state only — NOT used for online status
 
 ### MessageList
 - **Virtualization**: `useVirtualizer` (`@tanstack/react-virtual` v3) — absolute-position strategy, `measureElement` for accurate variable heights, `overscan: 5`, `getItemKey` uses `message.tempId ?? message.id` (or item `.key`) — `tempId` is set on every optimistic message and kept through reconciliation so the virtualizer key is stable when the real `id` is patched in, preventing the remeasure/reposition that causes messages to appear at the wrong scroll position
@@ -410,6 +418,7 @@ Full-height swipe-up panel with scroll-integrated pull-to-close (`onPanEnd`, thr
 - `20240103000035` — profiles.gem_balance + last_gem_claim, claim_daily_gem, profiles_protect_gem_columns trigger
 - `20240103000036` — messages pin columns, messages_protect_pin_columns trigger, pin_message + unpin_message RPCs
 - `20240103000037` — crews last_message_preview/at/sender_id denormalized columns, update_crew_last_message trigger (skips system msgs, out-of-order guard), backfill from messages, crews added to supabase_realtime publication
+- `20240103000038` — profiles.last_active_at (timestamptz nullable), update_active() RPC (SECURITY DEFINER, updates own row only)
 
 Manual SQL applied directly:
 ```sql

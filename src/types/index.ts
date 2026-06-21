@@ -47,6 +47,7 @@ export interface Profile extends Record<string, unknown> {
   is_dev: boolean
   gem_balance: number
   last_gem_claim: string | null
+  last_active_at: string | null
   created_at: string
 }
 
@@ -583,6 +584,10 @@ export type Database = {
       unpin_message: {
         Args: { p_message_id: string }
         Returns: Record<string, unknown>
+      }
+      update_active: {
+        Args: Record<string, never>
+        Returns: void
       }
     }
     Enums: Record<string, never>

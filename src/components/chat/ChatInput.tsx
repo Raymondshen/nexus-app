@@ -36,9 +36,10 @@ import { GifPickerSheet } from '@/components/chat/GifPickerSheet'
 import { setHomeLastMessage } from '@/lib/homePreviewCache'
 import type { Message, MessageWithProfile, Profile, ActiveRaid } from '@/types'
 
-const MAX_MESSAGE_LENGTH = 2000
-const RATE_LIMIT_MAX     = 30
-const RATE_LIMIT_WINDOW  = 60_000
+const MAX_MESSAGE_LENGTH   = 2000
+const RATE_LIMIT_MAX       = 30
+const RATE_LIMIT_WINDOW    = 60_000
+const ONLINE_THRESHOLD_MS  = 45_000
 
 const CREW_AVATAR_COLORS = ['#bf5fff', '#00e5ff', '#ffd700', '#ff4444', '#66bb6a', '#ff9800']
 
@@ -150,7 +151,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     addMessage, removeMessage, updateMessage, setCrewXP, receiveXP, addXP,
     activeRaid, setActiveRaid, damageFloats, addDamageFloat, dismissDamageFloat,
     crewXP, crewLevel,
-    onlineUserIds, setOnlineUserIds, addUserCoins,
+    onlineUserIds, setOnlineUserIds, setLastActive, sweepOnlineUserIds, addUserCoins,
     crewName: storeCrewName, setCrewName,
     replyTo, setReplyTo,
     squadDetailsOpen, setSquadDetailsOpen,
@@ -277,7 +278,8 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   }
 
   useEffect(() => {
-    // Seed own ID optimistically before channel connects
+    // Seed self as online immediately; DB fetch + peer broadcasts will refine the set
+    setLastActive(userId, Date.now())
     setOnlineUserIds(new Set([userId]))
 
     const supabase = createClient()
@@ -287,12 +289,50 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     const fallbackProfile = (uid: string): MemberProfile =>
       profilesRef.current[uid] ?? { id: uid, username: '???', avatar_class: null, avatar_url: null }
 
+    // Heartbeat: write to DB + broadcast timestamp so channel peers update their maps
+    const heartbeat = () => {
+      const ts = Date.now()
+      setLastActive(userId, ts)
+      ch.send({ type: 'broadcast', event: 'active', payload: { user_id: userId, ts } })
+      supabase.rpc('update_active').then(() => {}, () => {})
+    }
+
+    // Seed initial online set from DB — covers users active in other crews
+    const memberIds = Object.keys(profilesRef.current)
+    if (memberIds.length > 0) {
+      supabase
+        .from('profiles')
+        .select('id, last_active_at')
+        .in('id', memberIds)
+        .then(({ data }) => {
+          if (!data) return
+          const store = useChatStore.getState()
+          data.forEach((p) => {
+            if (p.last_active_at) store.setLastActive(p.id, new Date(p.last_active_at).getTime())
+          })
+          store.sweepOnlineUserIds(ONLINE_THRESHOLD_MS)
+        })
+    }
+
+    let heartbeatTimer: ReturnType<typeof setInterval> | null = null
+    const startHeartbeat = () => {
+      if (heartbeatTimer) return
+      heartbeatTimer = setInterval(heartbeat, 30_000)
+    }
+    const stopHeartbeat = () => {
+      if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null }
+    }
+
+    // Sweep stale entries from onlineUserIds every 15s — no network call, pure local math
+    const sweepTimer = setInterval(
+      () => useChatStore.getState().sweepOnlineUserIds(ONLINE_THRESHOLD_MS),
+      15_000,
+    )
+
     ch
       .on('presence', { event: 'sync' }, () => {
+        // Presence channel used for typing indicators only — online status comes from timestamps
         const state = ch.presenceState<{ username: string; typing: boolean }>()
-        const ids = new Set(Object.keys(state))
-        ids.add(userId) // always include self — track() confirmation may lag behind sync
-        setOnlineUserIds(ids)
         const others = Object.entries(state)
           .filter(([key]) => key !== userId)
           .flatMap(([, presences]) => presences)
@@ -300,13 +340,12 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
           .map((p) => p.username)
         setTypingUsers(others)
       })
-      .on('presence', { event: 'join' }, ({ key }: { key: string }) => {
-        setOnlineUserIds(new Set([...useChatStore.getState().onlineUserIds, key]))
-      })
-      .on('presence', { event: 'leave' }, ({ key }: { key: string }) => {
-        const next = new Set(useChatStore.getState().onlineUserIds)
-        next.delete(key)
-        setOnlineUserIds(next)
+      .on('broadcast', { event: 'active' }, ({ payload }) => {
+        const { user_id: uid, ts } = payload as { user_id: string; ts: number }
+        if (!uid || typeof ts !== 'number') return
+        const store = useChatStore.getState()
+        store.setLastActive(uid, ts)
+        store.sweepOnlineUserIds(ONLINE_THRESHOLD_MS)
       })
       .on('broadcast', { event: 'new_message' }, (payload) => {
         const msg = payload.payload as Message
@@ -325,16 +364,20 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
         if (status === 'SUBSCRIBED') {
           channelReadyRef.current = true
           await ch.track({ username: userProfileRef.current.username, typing: false })
+          heartbeat()
+          startHeartbeat()
         }
       })
 
-    // Re-track presence when user brings the app back to foreground (handles iOS PWA
-    // backgrounding where the WebSocket may reconnect without firing SUBSCRIBED again)
     function handleVisibilityChange() {
       if (document.visibilityState === 'visible') {
+        // Treat socket as suspect after backgrounding — re-track typing + fire heartbeat
         ch.track({ username: userProfileRef.current.username, typing: false }).catch(() => {})
-        // Also ensure self is always in the online set while visible
-        setOnlineUserIds(new Set([...useChatStore.getState().onlineUserIds, userId]))
+        heartbeat()
+        startHeartbeat()
+      } else {
+        // Stop heartbeating when hidden — let timestamp age naturally; no iOS throttle fights
+        stopHeartbeat()
       }
     }
     document.addEventListener('visibilitychange', handleVisibilityChange)
@@ -344,6 +387,8 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     channelReadyRef.current   = false
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
+      stopHeartbeat()
+      clearInterval(sweepTimer)
       supabase.removeChannel(ch)
       msgChannelRef.current     = null
       typingChannelRef.current  = null
@@ -708,16 +753,23 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       updateMessage(tempId, { id: raw.id, created_at: raw.created_at, element_type: raw.element_type })
       setHomeLastMessage(crewId, { content: raw.content, created_at: raw.created_at, sender: userProfile.username })
 
-      if (channelReadyRef.current) msgChannelRef.current?.send({
-        type: 'broadcast', event: 'new_message',
-        payload: {
-          id: raw.id, crew_id: raw.crew_id, user_id: raw.user_id,
-          content: raw.content, message_type: raw.message_type,
-          element_type: raw.element_type, xp_awarded: raw.xp_awarded,
-          created_at: raw.created_at,
-          reply_to_id: raw.reply_to_id, reply_preview: raw.reply_preview, reply_username: raw.reply_username,
-        },
-      })
+      if (channelReadyRef.current) {
+        msgChannelRef.current?.send({
+          type: 'broadcast', event: 'new_message',
+          payload: {
+            id: raw.id, crew_id: raw.crew_id, user_id: raw.user_id,
+            content: raw.content, message_type: raw.message_type,
+            element_type: raw.element_type, xp_awarded: raw.xp_awarded,
+            created_at: raw.created_at,
+            reply_to_id: raw.reply_to_id, reply_preview: raw.reply_preview, reply_username: raw.reply_username,
+          },
+        })
+        // Piggyback heartbeat on send — proves liveness, keeps DB timestamp fresh between intervals
+        const ts = Date.now()
+        setLastActive(userId, ts)
+        msgChannelRef.current?.send({ type: 'broadcast', event: 'active', payload: { user_id: userId, ts } })
+        supabase.rpc('update_active').then(() => {}, () => {})
+      }
 
       tryClaimDailyGem(supabase, showGemToast)
 
@@ -1069,7 +1121,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
           </div>
 
           {/* Dot separator */}
-          <div className="flex-shrink-0" style={{ width: 3, height: 3, borderRadius: '50%', background: 'var(--color-border)' }} />
+          <div className="flex-shrink-0" style={{ width: 2, height: 2, background: 'var(--color-border)' }} />
 
           {/* Stacked member avatars (circles, 8px gap) */}
           <div className="flex items-center" style={{ gap: 8 }}>
@@ -1333,10 +1385,10 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
               </button>
             </motion.div>
 
-            {/* Input container — border turns purple on focus */}
+            {/* Input container — outline turns purple on focus */}
             <div
-              className="border flex-1 flex items-center transition-colors"
-              style={{ borderColor: isFocused ? 'var(--color-purple)' : 'var(--color-border)', paddingLeft: 16, paddingRight: 16, gap: 16, minHeight: 48 }}
+              className="flex-1 flex items-center transition-colors"
+              style={{ outline: '1px solid', outlineColor: isFocused ? 'var(--color-purple)' : 'var(--color-border)', outlineOffset: '-1px', paddingLeft: 16, paddingRight: 16, gap: 16, minHeight: 48 }}
             >
               <div className="relative flex-1 min-w-0 overflow-hidden">
                 {/* Overlay renders @mention highlights behind the transparent textarea */}
