@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
-import { motion, useDragControls } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { createClient } from '@/lib/supabase/client'
 import { format } from 'date-fns'
 import { Calendar } from 'pixelarticons/react/Calendar'
@@ -191,10 +191,39 @@ interface EventSheetBottomPreviewProps {
 }
 
 export function EventSheetBottomPreview({ crewId, onClose }: EventSheetBottomPreviewProps) {
-  const router       = useRouter()
-  const dragControls = useDragControls()
+  const router    = useRouter()
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const pullRef   = useRef({ startY: 0, atTop: false })
   const [events,  setEvents]  = useState<EventWithDetails[]>([])
   const [loading, setLoading] = useState(true)
+
+  // Pull-to-close: when the scroll container is at the top and the user
+  // swipes down, close the sheet instead of scrolling.
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+
+    function onTouchStart(e: TouchEvent) {
+      pullRef.current = { startY: e.touches[0].clientY, atTop: el!.scrollTop === 0 }
+    }
+    function onTouchMove(e: TouchEvent) {
+      if (!pullRef.current.atTop) return
+      if (e.touches[0].clientY - pullRef.current.startY > 0) e.preventDefault()
+    }
+    function onTouchEnd(e: TouchEvent) {
+      if (!pullRef.current.atTop) return
+      if (e.changedTouches[0].clientY - pullRef.current.startY > 60) onClose()
+    }
+
+    el.addEventListener('touchstart', onTouchStart, { passive: true })
+    el.addEventListener('touchmove',  onTouchMove,  { passive: false })
+    el.addEventListener('touchend',   onTouchEnd,   { passive: true })
+    return () => {
+      el.removeEventListener('touchstart', onTouchStart)
+      el.removeEventListener('touchmove',  onTouchMove)
+      el.removeEventListener('touchend',   onTouchEnd)
+    }
+  }, [onClose])
 
   useEffect(() => {
     let cancelled = false
@@ -286,32 +315,26 @@ export function EventSheetBottomPreview({ crewId, onClose }: EventSheetBottomPre
       className="fixed inset-0 z-[80] flex items-end justify-center"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
       onClick={onClose}
     >
       <div className="absolute inset-0 bg-black/60" />
 
       <motion.div
         drag="y"
-        dragControls={dragControls}
-        dragListener={false}
         dragConstraints={{ top: 0, bottom: 0 }}
         dragElastic={{ top: 0, bottom: 1 }}
-        onDragEnd={(_, info) => {
-          if (info.offset.y > 80 || info.velocity.y > 400) onClose()
-        }}
+        onDragEnd={(_, info) => { if (info.offset.y > 80 || info.velocity.y > 400) onClose() }}
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
+        exit={{ y: '100%' }}
         transition={{ type: 'spring', stiffness: 320, damping: 32 }}
         className="relative w-full max-w-[480px] bg-black border-t border-[var(--color-border)] flex flex-col overflow-hidden"
         style={{ maxHeight: '90vh' }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Drag handle */}
-        <div
-          className="flex justify-center flex-shrink-0 cursor-grab active:cursor-grabbing"
-          style={{ paddingTop: 12, paddingBottom: 8, touchAction: 'none' }}
-          onPointerDown={(e) => dragControls.start(e)}
-        >
+        <div className="flex justify-center flex-shrink-0" style={{ paddingTop: 12, paddingBottom: 8 }}>
           <div
             className="rounded-full"
             style={{ width: 40, height: 4, background: 'var(--color-border-hover)' }}
@@ -320,6 +343,7 @@ export function EventSheetBottomPreview({ crewId, onClose }: EventSheetBottomPre
 
         {/* Scrollable: header + cards */}
         <div
+          ref={scrollRef}
           className="flex-1 overflow-y-auto nexus-scroll flex flex-col"
           style={{ gap: 'var(--x7)', padding: '0 var(--x5)' }}
         >

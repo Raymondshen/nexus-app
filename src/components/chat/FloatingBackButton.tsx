@@ -143,13 +143,15 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
         )}
       </AnimatePresence>
 
-      {showEventPreview && (
-        <EventSheetBottomPreview
-          crewId={crewId}
-          currentUserId={currentUserId}
-          onClose={() => setShowEventPreview(false)}
-        />
-      )}
+      <AnimatePresence>
+        {showEventPreview && (
+          <EventSheetBottomPreview
+            crewId={crewId}
+            currentUserId={currentUserId}
+            onClose={() => setShowEventPreview(false)}
+          />
+        )}
+      </AnimatePresence>
     </>
   )
 }
