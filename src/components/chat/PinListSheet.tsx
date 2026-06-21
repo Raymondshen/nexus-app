@@ -1,42 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
 import { createClient } from '@/lib/supabase/client'
 import { useChatStore } from '@/store/chatStore'
 import type { Message, MessageWithProfile } from '@/types'
 
-function VisibilityToggle({ visible, onChange }: { visible: boolean; onChange: () => void }) {
-  return (
-    <div className="flex items-center flex-shrink-0" style={{ gap: 8 }}>
-      <span
-        className="font-body font-medium whitespace-nowrap"
-        style={{ fontSize: 12, color: 'var(--color-secondary)', fontVariationSettings: '"opsz" 14', letterSpacing: '0.2px', lineHeight: 'normal' }}
-      >
-        Display
-      </span>
-      <button
-        onClick={onChange}
-        className="relative flex-shrink-0"
-        style={{
-          width: 40,
-          height: 24,
-          borderRadius: 40,
-          background: visible ? 'var(--color-purple)' : 'var(--color-muted)',
-          transition: 'background 0.2s',
-        }}
-        aria-label={visible ? 'Hide from banner' : 'Show on banner'}
-      >
-        <motion.span
-          className="absolute rounded-full bg-white pointer-events-none"
-          style={{ top: 4, width: 16, height: 16 }}
-          animate={{ left: visible ? 20 : 4 }}
-          transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-        />
-      </button>
-    </div>
-  )
-}
 
 interface PinListSheetProps {
   activePins: Message[]
@@ -68,8 +37,6 @@ export function PinListSheet({ activePins, currentUserId, creatorId, onClose }: 
   const [unpinning, setUnpinning] = useState<string | null>(null)
   const updateMessage           = useChatStore((s) => s.updateMessage)
   const setPinnedScrollTargetId = useChatStore((s) => s.setPinnedScrollTargetId)
-  const hiddenPinIds            = useChatStore((s) => s.hiddenPinIds)
-  const toggleHiddenPin         = useChatStore((s) => s.toggleHiddenPin)
 
   const isAdmin = creatorId != null && currentUserId === creatorId
 
@@ -152,7 +119,6 @@ export function PinListSheet({ activePins, currentUserId, creatorId, onClose }: 
                 const username = profile?.username ?? 'Unknown'
                 const content  = truncateContent(pin.content)
                 const expires  = formatTimeRemaining(pin.pin_expires_at as string | null | undefined)
-                const isVisible = !hiddenPinIds.has(pin.id)
 
                 return (
                   <div
@@ -183,20 +149,14 @@ export function PinListSheet({ activePins, currentUserId, creatorId, onClose }: 
 
                     {/* Action row — admin only */}
                     {isAdmin && (
-                      <div className="flex items-center justify-between w-full">
-                        <button
-                          onClick={() => void handleUnpin(pin.id)}
-                          disabled={unpinning === pin.id}
-                          className="font-body font-medium disabled:opacity-40 transition-opacity"
-                          style={{ fontSize: 12, color: 'var(--color-danger)', fontVariationSettings: '"opsz" 14', letterSpacing: '0.2px', lineHeight: 'normal' }}
-                        >
-                          {unpinning === pin.id ? '…' : 'Unpin message'}
-                        </button>
-                        <VisibilityToggle
-                          visible={isVisible}
-                          onChange={() => toggleHiddenPin(pin.id, activePins.map((p) => p.id))}
-                        />
-                      </div>
+                      <button
+                        onClick={() => void handleUnpin(pin.id)}
+                        disabled={unpinning === pin.id}
+                        className="font-body font-medium disabled:opacity-40 transition-opacity self-start"
+                        style={{ fontSize: 12, color: 'var(--color-danger)', fontVariationSettings: '"opsz" 14', letterSpacing: '0.2px', lineHeight: 'normal' }}
+                      >
+                        {unpinning === pin.id ? '…' : 'Unpin message'}
+                      </button>
                     )}
                   </div>
                 )
