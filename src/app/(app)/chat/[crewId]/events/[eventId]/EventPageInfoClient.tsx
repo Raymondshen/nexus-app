@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { AnimatePresence } from 'framer-motion'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { SlidePage, useSlideBack } from '@/components/ui/SlidePage'
@@ -489,16 +490,18 @@ export function EventPageInfoClient({
       </div>
 
       {/* ── Edit sheet (creator only) ─────────────────────────── */}
-      {showEdit && (
-        <EventCreationSheet
-          crewId={crewId}
-          currentUserId={currentUserId}
-          eventId={event.id}
-          initialValues={editInitialValues}
-          onClose={() => setShowEdit(false)}
-          onCreated={() => { setShowEdit(false); router.refresh() }}
-        />
-      )}
+      <AnimatePresence>
+        {showEdit && (
+          <EventCreationSheet
+            crewId={crewId}
+            currentUserId={currentUserId}
+            eventId={event.id}
+            initialValues={editInitialValues}
+            onClose={() => setShowEdit(false)}
+            onCreated={() => { setShowEdit(false); router.refresh() }}
+          />
+        )}
+      </AnimatePresence>
 
       {/* ── Registration sheet (change RSVP) ─────────────────── */}
       {showRegistration && (

@@ -1627,14 +1627,16 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
         )}
       </AnimatePresence>
 
-      {showEventSheet && (
-        <EventCreationSheet
-          crewId={crewId}
-          currentUserId={userId}
-          onClose={() => setShowEventSheet(false)}
-          createMessage
-        />
-      )}
+      <AnimatePresence>
+        {showEventSheet && (
+          <EventCreationSheet
+            crewId={crewId}
+            currentUserId={userId}
+            onClose={() => setShowEventSheet(false)}
+            createMessage
+          />
+        )}
+      </AnimatePresence>
     </div>
   )
 }
