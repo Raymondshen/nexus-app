@@ -44,6 +44,12 @@ function isRedditUrl(url: URL): boolean {
     || url.hostname === 'redd.it'
 }
 
+function isInstagramUrl(url: URL): boolean {
+  return url.hostname === 'www.instagram.com'
+    || url.hostname === 'instagram.com'
+    || url.hostname === 'instagr.am'
+}
+
 // ─── YouTube: oEmbed API (thumbnail_url + title, no HTML scraping needed) ─────
 
 interface YouTubeOEmbed {
@@ -109,14 +115,15 @@ export async function GET(req: NextRequest) {
     }
 
     // Reddit → old.reddit.com serves plain HTML with proper OG tags
-    const fetchUrl = isRedditUrl(parsedUrl) ? toOldRedditUrl(parsedUrl) : rawUrl
+    // Instagram → facebookexternalhit UA causes Instagram to include OG tags in SSR HTML
+    const fetchUrl  = isRedditUrl(parsedUrl) ? toOldRedditUrl(parsedUrl) : rawUrl
+    const userAgent = isInstagramUrl(parsedUrl)
+      ? 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)'
+      : 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
 
     const res = await fetch(fetchUrl, {
       signal:  controller.signal,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
-        'Accept':     'text/html',
-      },
+      headers: { 'User-Agent': userAgent, 'Accept': 'text/html' },
     })
     clearTimeout(timer)
 
