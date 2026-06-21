@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useRef, useCallback, useEffect } from 'react'
+import React, { useState, useRef, useCallback, useEffect, useLayoutEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
@@ -137,7 +137,12 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   const [friendshipToast,    setFriendshipToast]    = useState<{ totalXP: number; xpAwarded: number; partnerName: string; dailyCount: number } | null>(null)
 
   const textareaRef           = useRef<HTMLTextAreaElement>(null)
-  const singleLineHeightRef   = useRef<number>(0)
+  const inputRef              = useRef<HTMLInputElement>(null)
+  const mirrorRef             = useRef<HTMLSpanElement>(null)
+  const innerContainerRef     = useRef<HTMLDivElement>(null)
+  const pendingCaretPosRef    = useRef<number | null>(null)
+  const isMultilineRef        = useRef(false)
+  const textRef               = useRef('')
   const overlayRef            = useRef<HTMLDivElement>(null)
   const crewImageInputRef     = useRef<HTMLInputElement>(null)
   const chatImageInputRef     = useRef<HTMLInputElement>(null)
@@ -161,6 +166,10 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
 
   const liveCrewName = storeCrewName || crewName
 
+  // Keep refs in sync on every render so closures and effects always see current values
+  textRef.current = text
+  isMultilineRef.current = isMultiline
+
   const profilesRef     = useRef(memberProfiles)
   profilesRef.current   = memberProfiles
   const userProfileRef  = useRef(userProfile)
@@ -176,15 +185,9 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     setChatCameraEnabled(localStorage.getItem('nexus_chat_camera') === '1')
   }, [])
 
-  // Capture the natural one-row height on mount so we know when content overflows to a second line
   useEffect(() => {
-    const el = textareaRef.current
-    if (el) singleLineHeightRef.current = el.scrollHeight
-  }, [])
-
-  useEffect(() => {
-    if (replyTo) textareaRef.current?.focus()
-  }, [replyTo])
+    if (replyTo) focusField()
+  }, [replyTo]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Seed store with server-fetched values (previously handled by ChatHeader)
   useEffect(() => {
@@ -271,21 +274,101 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       )
   }, [notifPrefs, userId, crewId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Sync overlay scroll with textarea scroll so highlighted text stays aligned.
-  // scrollLeft sync is needed in single-line (nowrap) mode when the text slides horizontally.
+  // Sync overlay scroll with the active field so highlighted text stays aligned.
   useEffect(() => {
-    const ta = textareaRef.current
+    const field = isMultiline ? textareaRef.current : inputRef.current
     const ov = overlayRef.current
-    if (!ta || !ov) return
+    if (!field || !ov) return
     const sync = () => {
-      if (overlayRef.current && textareaRef.current) {
-        overlayRef.current.scrollTop  = textareaRef.current.scrollTop
-        overlayRef.current.scrollLeft = textareaRef.current.scrollLeft
+      if (overlayRef.current) {
+        overlayRef.current.scrollTop  = field.scrollTop
+        overlayRef.current.scrollLeft = field.scrollLeft
       }
     }
-    ta.addEventListener('scroll', sync)
-    return () => ta.removeEventListener('scroll', sync)
-  }, [])
+    field.addEventListener('scroll', sync)
+    return () => field.removeEventListener('scroll', sync)
+  }, [isMultiline])
+
+  // ─── Hybrid input/textarea helpers ─────────────────────────────────────────
+
+  function getActiveField(): HTMLInputElement | HTMLTextAreaElement | null {
+    return isMultilineRef.current ? textareaRef.current : inputRef.current
+  }
+
+  function focusField() {
+    if (isMultilineRef.current) textareaRef.current?.focus()
+    else inputRef.current?.focus()
+  }
+
+  // Measures text width via the hidden mirror span and swaps element type if needed.
+  // Called on every keystroke and on container resize.
+  const recheckOverflow = useCallback((val?: string, caretPos?: number) => {
+    const currentVal = val ?? textRef.current
+    const mirror     = mirrorRef.current
+    const container  = innerContainerRef.current
+    if (!mirror || !container) return
+
+    mirror.textContent = currentVal || ''
+    const mirrorWidth    = mirror.offsetWidth
+    const containerWidth = container.clientWidth
+
+    // 2px forward buffer, 6px hysteresis before swapping back — prevents thrashing at boundary
+    const willWrap = mirrorWidth > containerWidth - 2
+    const willFit  = mirrorWidth < containerWidth - 6
+
+    if (!isMultilineRef.current && willWrap) {
+      const pos = caretPos ?? (inputRef.current?.selectionStart ?? currentVal.length)
+      pendingCaretPosRef.current = pos
+      isMultilineRef.current = true
+      setIsMultiline(true)
+    } else if (isMultilineRef.current && willFit && !currentVal.includes('\n')) {
+      const pos = caretPos ?? (textareaRef.current?.selectionStart ?? currentVal.length)
+      pendingCaretPosRef.current = pos
+      isMultilineRef.current = false
+      setIsMultiline(false)
+    } else if (isMultilineRef.current) {
+      // Already in textarea mode — update height as content changes
+      const el = textareaRef.current
+      if (el) {
+        el.style.height = 'auto'
+        const cs  = getComputedStyle(el)
+        const lh  = parseFloat(cs.lineHeight) || 24
+        const pt  = parseFloat(cs.paddingTop) || 12
+        const pb  = parseFloat(cs.paddingBottom) || 12
+        el.style.height = Math.min(el.scrollHeight, pt + pb + lh * 3) + 'px'
+      }
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Restore caret and set initial textarea height after element swap
+  useLayoutEffect(() => {
+    const pos = pendingCaretPosRef.current
+    if (pos === null) return
+    pendingCaretPosRef.current = null
+    const el = isMultiline ? textareaRef.current : inputRef.current
+    if (!el) return
+    if (isMultiline && el instanceof HTMLTextAreaElement) {
+      el.style.height = 'auto'
+      const cs  = getComputedStyle(el)
+      const lh  = parseFloat(cs.lineHeight) || 24
+      const pt  = parseFloat(cs.paddingTop) || 12
+      const pb  = parseFloat(cs.paddingBottom) || 12
+      el.style.height = Math.min(el.scrollHeight, pt + pb + lh * 3) + 'px'
+    }
+    el.focus()
+    el.setSelectionRange(pos, pos)
+  }, [isMultiline])
+
+  // Re-check overflow when the container is resized (orientation change, keyboard open/close)
+  useEffect(() => {
+    const container = innerContainerRef.current
+    if (!container) return
+    const ro = new ResizeObserver(() => recheckOverflow())
+    ro.observe(container)
+    return () => ro.disconnect()
+  }, [recheckOverflow])
+
+  // ────────────────────────────────────────────────────────────────────────────
 
   function handleTopPanEnd(_: PointerEvent, info: PanInfo) {
     if (info.offset.y < -50 || info.velocity.y < -300) setIsExpanded(true)
@@ -592,7 +675,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       setSendError(msg)
     } finally {
       setSending(false)
-      textareaRef.current?.focus()
+      focusField()
     }
   }, [chatImagePublicUrl, chatImageLqip, chatImageUploading, sending, crewId, userId, userProfile, addMessage, removeMessage, updateMessage, activeRaid, addDamageFloat, addUserCoins, clearChatImage]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -690,7 +773,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       setSendError(err instanceof Error ? err.message : 'Failed to send GIF.')
     } finally {
       setSending(false)
-      textareaRef.current?.focus()
+      focusField()
     }
   }, [sending, crewId, userId, userProfile, addMessage, removeMessage, updateMessage, activeRaid, addDamageFloat, addUserCoins]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -723,15 +806,14 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     setSending(true)
     setSendError(null)
     setText('')
+    textRef.current = ''
     setReplyTo(null)
     broadcastTyping(false)
     if (typingTimerRef.current) clearTimeout(typingTimerRef.current)
-    if (textareaRef.current) {
-      const singleH = singleLineHeightRef.current || 45
-      textareaRef.current.style.height     = `${singleH}px`
-      textareaRef.current.style.whiteSpace = 'nowrap'
-    }
+    const wasMultiline = isMultilineRef.current
     setIsMultiline(false)
+    isMultilineRef.current = false
+    if (wasMultiline) pendingCaretPosRef.current = 0
     haptic(10)
 
     const supabase    = createClient()
@@ -877,28 +959,15 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     } catch (err) {
       removeMessage(tempId)
       setText(content)
+      textRef.current = content
       if (currentReply) setReplyTo(currentReply)
       setSendError(err instanceof Error ? err.message : 'Failed to send. Tap to retry.')
-      // Re-measure after React restores the text to the DOM so height/mode are correct
-      requestAnimationFrame(() => {
-        const el = textareaRef.current
-        if (!el) return
-        const singleH = singleLineHeightRef.current || 45
-        el.style.whiteSpace = 'pre-wrap'
-        el.style.height     = 'auto'
-        const wouldWrap     = el.scrollHeight > singleH
-        if (wouldWrap) {
-          el.style.height = Math.min(el.scrollHeight, 120) + 'px'
-          setIsMultiline(true)
-        } else {
-          el.style.whiteSpace = 'nowrap'
-          el.style.height     = `${singleH}px`
-          setIsMultiline(false)
-        }
-      })
+      // Re-check overflow after React restores the text so element type is correct
+      requestAnimationFrame(() => recheckOverflow(content))
     } finally {
       setSending(false)
-      textareaRef.current?.focus()
+      // If still in input mode, focus directly; if swapping to input, useLayoutEffect handles it
+      inputRef.current?.focus()
     }
   }, [text, sending, crewId, userId, userProfile, addMessage, removeMessage, updateMessage, activeRaid, addDamageFloat]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -921,7 +990,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     } finally { setSpawning(false) }
   }
 
-  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) {
     // @mention picker navigation
     if (mentionQuery !== null && mentionMatches.length > 0) {
       if (e.key === 'Escape')    { e.preventDefault(); setMentionQuery(null); return }
@@ -947,25 +1016,14 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     }
   }
 
-  function handleInput(e: React.ChangeEvent<HTMLTextAreaElement>) {
-    const val = e.target.value.slice(0, MAX_MESSAGE_LENGTH)
+  function handleInput(e: React.ChangeEvent<HTMLInputElement> | React.ChangeEvent<HTMLTextAreaElement>) {
+    const target = e.target as HTMLInputElement | HTMLTextAreaElement
+    const val    = target.value.slice(0, MAX_MESSAGE_LENGTH)
     setText(val)
-    const el     = e.target
-    const singleH = singleLineHeightRef.current || 45
+    textRef.current = val
 
-    // Temporarily allow wrapping so we can measure the true content height.
-    // If it exceeds one row → multiline mode; otherwise keep it locked to a single line.
-    el.style.whiteSpace = 'pre-wrap'
-    el.style.height     = 'auto'
-    const wouldWrap     = el.scrollHeight > singleH
-    if (wouldWrap) {
-      el.style.height = Math.min(el.scrollHeight, 120) + 'px'
-      setIsMultiline(true)
-    } else {
-      el.style.whiteSpace = 'nowrap'
-      el.style.height     = `${singleH}px`
-      setIsMultiline(false)
-    }
+    const caretPos = target.selectionStart ?? val.length
+    recheckOverflow(val, caretPos)
 
     if (val.trim()) {
       broadcastTyping(true)
@@ -973,8 +1031,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       typingTimerRef.current = setTimeout(() => broadcastTyping(false), 3000)
     } else { broadcastTyping(false) }
     // Detect @mention query at cursor position
-    const pos = e.target.selectionStart ?? val.length
-    const q   = getMentionQuery(val, pos)
+    const q = getMentionQuery(val, caretPos)
     setMentionQuery(q)
     if (q !== null) setMentionIndex(0)
   }
@@ -987,13 +1044,12 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
 
   async function executeCommand(name: SlashCommandName) {
     setText('')
-    if (textareaRef.current) {
-      const singleH = singleLineHeightRef.current || 45
-      textareaRef.current.style.height     = `${singleH}px`
-      textareaRef.current.style.whiteSpace = 'nowrap'
-    }
+    textRef.current = ''
+    const wasMultiline = isMultilineRef.current
     setIsMultiline(false)
-    textareaRef.current?.focus()
+    isMultilineRef.current = false
+    if (wasMultiline) pendingCaretPosRef.current = 0
+    else focusField()
 
     if (name === 'event') {
       setShowEventSheet(true)
@@ -1063,21 +1119,24 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   }
 
   function completeMention(username: string) {
-    if (!textareaRef.current) return
-    const pos    = textareaRef.current.selectionStart ?? text.length
-    const before = text.slice(0, pos)
-    const after  = text.slice(pos)
-    const atIdx  = before.lastIndexOf('@')
+    const field = getActiveField()
+    if (!field) return
+    const pos     = field.selectionStart ?? text.length
+    const before  = text.slice(0, pos)
+    const after   = text.slice(pos)
+    const atIdx   = before.lastIndexOf('@')
     if (atIdx === -1) return
     const newText = before.slice(0, atIdx) + '@' + username + ' ' + after
     setText(newText)
+    textRef.current = newText
     setMentionQuery(null)
     setMentionIndex(0)
     requestAnimationFrame(() => {
-      if (textareaRef.current) {
+      const f = getActiveField()
+      if (f) {
         const cur = atIdx + username.length + 2
-        textareaRef.current.focus()
-        textareaRef.current.setSelectionRange(cur, cur)
+        f.focus()
+        f.setSelectionRange(cur, cur)
       }
     })
   }
@@ -1445,8 +1504,25 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
               className="flex-1 flex items-center transition-colors"
               style={{ outline: '1px solid', outlineColor: isFocused ? 'var(--color-purple)' : 'var(--color-border)', outlineOffset: '-1px', paddingLeft: 16, paddingRight: 16, gap: 16, minHeight: 48 }}
             >
-              <div className="relative flex-1 min-w-0 overflow-hidden">
-                {/* Overlay renders @mention highlights behind the transparent textarea */}
+              <div ref={innerContainerRef} className="relative flex-1 min-w-0 overflow-hidden">
+                {/* Hidden mirror span — measures text pixel width for overflow detection */}
+                <span
+                  ref={mirrorRef}
+                  aria-hidden="true"
+                  className="font-body"
+                  style={{
+                    position: 'fixed',
+                    top: -9999,
+                    left: -9999,
+                    visibility: 'hidden',
+                    pointerEvents: 'none',
+                    whiteSpace: 'pre',
+                    fontSize: 14,
+                    lineHeight: 'normal',
+                    fontVariationSettings: '"opsz" 14',
+                  }}
+                />
+                {/* Overlay renders @mention highlights behind the transparent input/textarea */}
                 <div
                   ref={overlayRef}
                   aria-hidden="true"
@@ -1455,18 +1531,33 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                 >
                   {renderHighlightedInput(text)}
                 </div>
-                <textarea
-                  ref={textareaRef}
-                  value={text}
-                  onChange={handleInput}
-                  onKeyDown={handleKeyDown}
-                  onBlur={handleBlur}
-                  placeholder={inRaid ? 'Attack The Void...' : isDM ? 'Send a message...' : 'Message the squad...'}
-                  rows={1}
-                  onFocus={() => setIsFocused(true)}
-                  className="relative w-full bg-transparent font-body text-[14px] placeholder:text-muted resize-none focus:outline-none leading-normal"
-                  style={{ paddingTop: 12, paddingBottom: 12, maxHeight: 120, fontVariationSettings: '"opsz" 14', color: 'transparent', caretColor: 'var(--color-primary)', overflowY: 'auto', overflowX: 'hidden', whiteSpace: isMultiline ? 'pre-wrap' : 'nowrap' }}
-                />
+                {isMultiline ? (
+                  <textarea
+                    ref={textareaRef}
+                    value={text}
+                    onChange={(e) => handleInput(e)}
+                    onKeyDown={(e) => handleKeyDown(e)}
+                    onBlur={handleBlur}
+                    placeholder={inRaid ? 'Attack The Void...' : isDM ? 'Send a message...' : 'Message the squad...'}
+                    rows={1}
+                    onFocus={() => setIsFocused(true)}
+                    className="relative w-full bg-transparent font-body text-[14px] placeholder:text-muted resize-none focus:outline-none leading-normal"
+                    style={{ paddingTop: 12, paddingBottom: 12, fontVariationSettings: '"opsz" 14', color: 'transparent', caretColor: 'var(--color-primary)', overflowY: 'auto', overflowX: 'hidden' }}
+                  />
+                ) : (
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    value={text}
+                    onChange={(e) => handleInput(e)}
+                    onKeyDown={(e) => handleKeyDown(e)}
+                    onBlur={handleBlur}
+                    placeholder={inRaid ? 'Attack The Void...' : isDM ? 'Send a message...' : 'Message the squad...'}
+                    onFocus={() => setIsFocused(true)}
+                    className="relative w-full bg-transparent font-body text-[14px] placeholder:text-muted focus:outline-none leading-normal"
+                    style={{ paddingTop: 12, paddingBottom: 12, fontVariationSettings: '"opsz" 14', color: 'transparent', caretColor: 'var(--color-primary)' }}
+                  />
+                )}
               </div>
               {(() => {
                 const isCmd    = text.startsWith('/') && !text.includes(' ')

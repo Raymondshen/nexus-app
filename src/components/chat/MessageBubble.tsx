@@ -391,6 +391,8 @@ export function MessageBubble({
     const prev     = message.reactions ?? {}
     const users    = prev[emoji] ?? []
     const isActive = users.includes(currentUserId)
+    // Capture intent before the async call so the closure value can't drift.
+    const wasAdding = !isActive
 
     const nextUsers = isActive
       ? users.filter((id) => id !== currentUserId)
@@ -420,6 +422,12 @@ export function MessageBubble({
     }
 
     if (data?.reactions != null) {
+      // Guard: if we were ADDING the reaction but the response doesn't include our
+      // emoji, the edge function saw stale DB state and toggled us back off.
+      // Discard the response and let the Postgres Changes event deliver the real state.
+      if (wasAdding && !(data.reactions[emoji] ?? []).includes(currentUserId)) {
+        return
+      }
       updateMessage(message.id, { reactions: data.reactions })
       // Persist reactions to cache so they survive navigation
       try {
@@ -724,64 +732,73 @@ export function MessageBubble({
           )}
 
           {/* ── Reaction chips ────────────────────────────────────────────────── */}
-          {sortedReactions.length > 0 && (
-            <div className="relative flex flex-wrap gap-[6px] mt-[6px]">
+          <AnimatePresence>
+            {sortedReactions.length > 0 && (
+              <motion.div
+                key="reaction-chips"
+                className="relative flex flex-wrap gap-[6px] mt-[6px]"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.12 }}
+              >
 
-              {/* Hype Man heal float */}
-              <AnimatePresence>
-                {healFloat && (
-                  <motion.div
-                    key={healFloat.id}
-                    initial={{ opacity: 0, y: 0 }}
-                    animate={{ opacity: [0, 1, 1, 0], y: [0, -8, -22, -36] }}
-                    transition={{ duration: 1.2, ease: 'easeOut', times: [0, 0.15, 0.65, 1] }}
-                    onAnimationComplete={() => setHealFloat(null)}
-                    className="pointer-events-none absolute -top-3 left-0 z-10"
-                  >
-                    <span
-                      className="font-pixel text-[10px] font-bold"
-                      style={{ color: '#66bb6a', textShadow: '0 0 8px rgba(102,187,106,0.8)' }}
+                {/* Hype Man heal float */}
+                <AnimatePresence>
+                  {healFloat && (
+                    <motion.div
+                      key={healFloat.id}
+                      initial={{ opacity: 0, y: 0 }}
+                      animate={{ opacity: [0, 1, 1, 0], y: [0, -8, -22, -36] }}
+                      transition={{ duration: 1.2, ease: 'easeOut', times: [0, 0.15, 0.65, 1] }}
+                      onAnimationComplete={() => setHealFloat(null)}
+                      className="pointer-events-none absolute -top-3 left-0 z-10"
                     >
-                      +{healFloat.amount} HEAL
-                    </span>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                      <span
+                        className="font-pixel text-[10px] font-bold"
+                        style={{ color: '#66bb6a', textShadow: '0 0 8px rgba(102,187,106,0.8)' }}
+                      >
+                        +{healFloat.amount} HEAL
+                      </span>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
-              {sortedReactions.map(([emoji, users]) => {
-                const active = users.includes(currentUserId)
-                return (
-                  <button
-                    key={emoji}
-                    onTouchStart={(e) => e.stopPropagation()}
-                    onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); void handleReaction(emoji) }}
-                    onClick={() => void handleReaction(emoji)}
-                    className="flex items-center select-none active:opacity-70 transition-opacity"
-                    style={{
-                      gap: 6,
-                      height: 28,
-                      paddingLeft: 10,
-                      paddingRight: 10,
-                      border: `1px solid ${active ? '#bf5fff' : 'rgba(255,255,255,0.15)'}`,
-                      background: active ? 'rgba(191,95,255,0.18)' : 'rgba(255,255,255,0.06)',
-                    }}
-                  >
-                    <span style={{ fontSize: 15, lineHeight: 1 }}>{emoji}</span>
-                    <span
-                      className="font-body font-semibold tabular-nums leading-none"
+                {sortedReactions.map(([emoji, users]) => {
+                  const active = users.includes(currentUserId)
+                  return (
+                    <button
+                      key={emoji}
+                      onTouchStart={(e) => e.stopPropagation()}
+                      onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); void handleReaction(emoji) }}
+                      onClick={() => void handleReaction(emoji)}
+                      className="flex items-center select-none active:opacity-70 transition-opacity"
                       style={{
-                        fontSize: 12,
-                        color: active ? '#bf5fff' : 'rgba(255,255,255,0.75)',
-                        fontVariationSettings: '"opsz" 14',
+                        gap: 6,
+                        height: 28,
+                        paddingLeft: 10,
+                        paddingRight: 10,
+                        border: `1px solid ${active ? '#bf5fff' : 'rgba(255,255,255,0.15)'}`,
+                        background: active ? 'rgba(191,95,255,0.18)' : 'rgba(255,255,255,0.06)',
                       }}
                     >
-                      {users.length}
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
-          )}
+                      <span style={{ fontSize: 15, lineHeight: 1 }}>{emoji}</span>
+                      <span
+                        className="font-body font-semibold tabular-nums leading-none"
+                        style={{
+                          fontSize: 12,
+                          color: active ? '#bf5fff' : 'rgba(255,255,255,0.75)',
+                          fontVariationSettings: '"opsz" 14',
+                        }}
+                      >
+                        {users.length}
+                      </span>
+                    </button>
+                  )
+                })}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
 
