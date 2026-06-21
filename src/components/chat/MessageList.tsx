@@ -7,50 +7,19 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 // Fires synchronously before the browser paints on the client; falls back to
 // useEffect on the server (SSR) where useLayoutEffect is not available.
 const useBrowserLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect
-import dynamic from 'next/dynamic'
 import { motion, AnimatePresence } from 'framer-motion'
 import { format, isToday, isYesterday, isSameDay } from 'date-fns'
 import { createClient } from '@/lib/supabase/client'
 import { useChatStore } from '@/store/chatStore'
 import { MessageBubble } from './MessageBubble'
-import { LevelUpBanner } from '@/components/game/LevelUpBanner'
-import { parseBossSpawnRaidId } from '@/lib/game/boss'
-import { parseArtifactDropId, parseLevelUp } from '@/lib/game/artifacts'
-import { isTierBoundary } from '@/lib/game/xp'
 import { ArrowBarDown } from 'pixelarticons/react/ArrowBarDown'
-import type { MessageWithProfile, Message, Profile, ActiveRaid, AvatarClass, SquadDefinition, SquadDefinitionWithCreator } from '@/types'
-
-const BossCard = dynamic(
-  () => import('@/components/game/BossCard').then((m) => m.BossCard),
-  {
-    loading: () => (
-      <div
-        className="w-full my-2 p-4 text-center"
-        style={{ border: '1px solid rgba(255,34,0,0.4)', background: 'rgba(10,0,0,0.8)' }}
-      >
-        <p className="font-pixel text-[8px] text-[#ff4444]/60">BOSS INCOMING...</p>
-      </div>
-    ),
-  }
-)
-
-const ArtifactDropRenderer = dynamic(
-  () => import('@/components/game/ArtifactDropRenderer').then((m) => m.ArtifactDropRenderer),
-  {
-    loading: () => (
-      <div className="w-full my-2 p-3 border border-[#bf5fff]/20 bg-[#0a0612] animate-pulse">
-        <div className="h-4 w-32 bg-[#1a1a2e] rounded" />
-      </div>
-    ),
-  }
-)
+import type { MessageWithProfile, Message, Profile, AvatarClass, SquadDefinition, SquadDefinitionWithCreator } from '@/types'
 
 interface MessageListProps {
   crewId:         string
   crewName:       string
   currentUserId:  string
   memberProfiles: Record<string, Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url'>>
-  initialRaid:    ActiveRaid | null
   creatorId?:     string | null
 }
 
@@ -104,22 +73,16 @@ function CampfireSprite() {
 type DisplayItem =
   | { kind: 'spacer';   key: string }
   | { kind: 'empty';    key: string }
-  | { kind: 'divider';  label: string;      key: string }
-  | { kind: 'boss';     raidId: string;     key: string; raid: ActiveRaid | null }
-  | { kind: 'artifact'; artifactId: string; key: string }
-  | { kind: 'level_up'; level: number; isTierUp: boolean; msgId: string; key: string }
+  | { kind: 'divider';  label: string; key: string }
   | { kind: 'message';  message: MessageWithProfile; isOwn: boolean; showHeader: boolean; xpOverride?: number; coinOverride?: number }
 
 function estimateItemSize(item: DisplayItem): number {
   switch (item.kind) {
-    case 'spacer':   return 134
-    case 'empty':    return 200
-    case 'divider':  return 36
-    case 'boss':     return 120
-    case 'artifact': return 100
-    case 'level_up': return 80
-    case 'message':  return 72
-    default:         return 72
+    case 'spacer':  return 134
+    case 'empty':   return 200
+    case 'divider': return 36
+    case 'message': return 72
+    default:        return 72
   }
 }
 
@@ -130,7 +93,6 @@ export function MessageList({
   crewName,
   currentUserId,
   memberProfiles,
-  initialRaid,
   creatorId,
 }: MessageListProps) {
   const router = useRouter()
@@ -143,7 +105,6 @@ export function MessageList({
   )
 
   const { messages, setMessages, prependMessages, addMessage, updateMessage, setCrewXP, receiveXP, pinnedScrollTargetId, setPinnedScrollTargetId } = useChatStore()
-  const [dismissedLevelUps, setDismissedLevelUps] = useState<Set<string>>(new Set())
   const [localProfiles, setLocalProfiles] = useState<Record<string, Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url'>>>(memberProfiles)
   const [devMode] = useState(() => {
     if (typeof window === 'undefined') return false
@@ -291,30 +252,17 @@ export function MessageList({
     let preLastUserId: string | null = null
     let preLastMsgTime = 0
     let preGroupLeaderId: string | null = null
-    const preRenderedRaids = new Set<string>()
 
     for (const msg of messages) {
       if (!msg.id || typeof msg.content !== 'string') continue
       const msgDate = new Date(msg.created_at)
       const msgTime = msgDate.getTime()
-      const raidId     = parseBossSpawnRaidId(msg.content)
-      const artifactId = parseArtifactDropId(msg.content)
-      const level      = parseLevelUp(msg.content)
 
       if (!preLastDate || !isSameDay(preLastDate, msgDate)) {
         preLastUserId = null; preLastMsgTime = 0; preGroupLeaderId = null
       }
       preLastDate = msgDate
 
-      if (raidId && !preRenderedRaids.has(raidId)) {
-        preRenderedRaids.add(raidId)
-        preLastUserId = null; preLastMsgTime = 0; preGroupLeaderId = null
-        continue
-      }
-      if (artifactId || level !== null || raidId) {
-        preLastUserId = null; preLastMsgTime = 0; preGroupLeaderId = null
-        continue
-      }
       if (msg.message_type === 'system' || msg.message_type === 'poll') {
         preLastUserId = null; preLastMsgTime = 0; preGroupLeaderId = null
         continue
@@ -343,30 +291,17 @@ export function MessageList({
     let preLastUserId: string | null = null
     let preLastMsgTime = 0
     let preGroupLeaderId: string | null = null
-    const preRenderedRaids = new Set<string>()
 
     for (const msg of messages) {
       if (!msg.id || typeof msg.content !== 'string') continue
       const msgDate = new Date(msg.created_at)
       const msgTime = msgDate.getTime()
-      const raidId     = parseBossSpawnRaidId(msg.content)
-      const artifactId = parseArtifactDropId(msg.content)
-      const level      = parseLevelUp(msg.content)
 
       if (!preLastDate || !isSameDay(preLastDate, msgDate)) {
         preLastUserId = null; preLastMsgTime = 0; preGroupLeaderId = null
       }
       preLastDate = msgDate
 
-      if (raidId && !preRenderedRaids.has(raidId)) {
-        preRenderedRaids.add(raidId)
-        preLastUserId = null; preLastMsgTime = 0; preGroupLeaderId = null
-        continue
-      }
-      if (artifactId || level !== null || raidId) {
-        preLastUserId = null; preLastMsgTime = 0; preGroupLeaderId = null
-        continue
-      }
       if (msg.message_type === 'system' || msg.message_type === 'poll') {
         preLastUserId = null; preLastMsgTime = 0; preGroupLeaderId = null
         continue
@@ -403,16 +338,12 @@ export function MessageList({
     let lastDate:    Date | null   = null
     let lastUserId:  string | null = null
     let lastMsgTime: number        = 0
-    const renderedRaids = new Set<string>()
 
     for (const msg of messages) {
       if (!msg.id || typeof msg.content !== 'string') continue
 
-      const msgDate    = new Date(msg.created_at)
-      const msgTime    = msgDate.getTime()
-      const raidId     = parseBossSpawnRaidId(msg.content)
-      const artifactId = parseArtifactDropId(msg.content)
-      const level      = parseLevelUp(msg.content)
+      const msgDate = new Date(msg.created_at)
+      const msgTime = msgDate.getTime()
 
       if (!lastDate || !isSameDay(lastDate, msgDate)) {
         list.push({ kind: 'divider', label: dayLabel(msgDate), key: `divider-${msg.id}` })
@@ -420,45 +351,23 @@ export function MessageList({
         lastMsgTime = 0
       }
 
-      if (raidId) {
-        if (!renderedRaids.has(raidId)) renderedRaids.add(raidId)
+      if (msg.message_type === 'poll') {
+        list.push({ kind: 'message', message: msg as MessageWithProfile, isOwn: msg.user_id === currentUserId, showHeader: true })
         lastUserId  = null
         lastMsgTime = 0
-      } else if (artifactId) {
-        if (devMode) {
-          list.push({ kind: 'artifact', artifactId, key: `artifact-${msg.id}` })
-        }
-        lastUserId  = null
-        lastMsgTime = 0
-      } else if (level !== null) {
-        if (devMode) {
-          list.push({ kind: 'level_up', level, isTierUp: isTierBoundary(level), msgId: msg.id, key: `levelup-${msg.id}` })
-        }
+      } else if (msg.message_type === 'system') {
+        list.push({ kind: 'message', message: msg as MessageWithProfile, isOwn: false, showHeader: false })
         lastUserId  = null
         lastMsgTime = 0
       } else {
-        if (msg.message_type === 'poll') {
-          list.push({ kind: 'message', message: msg as MessageWithProfile, isOwn: msg.user_id === currentUserId, showHeader: true })
-          lastUserId  = null
-          lastMsgTime = 0
-        } else if (msg.message_type === 'system') {
-          const c = msg.content
-          const isBossMsg = c.includes('BOSS') || c.includes('VOID') || c.includes('boss') || c.includes('raid') || c.includes('RAID')
-          if (!isBossMsg) {
-            list.push({ kind: 'message', message: msg as MessageWithProfile, isOwn: false, showHeader: false })
-            lastUserId  = null
-            lastMsgTime = 0
-          }
-        } else {
-          const sameUser     = msg.user_id === lastUserId
-          const withinMinute = sameUser && (msgTime - lastMsgTime) < 60_000
-          const showHeader   = !withinMinute || !!msg.reply_to_id
-          const xpOverride   = showHeader ? groupXPMap.get(msg.id)   : undefined
-          const coinOverride = showHeader ? groupCoinMap.get(msg.id) : undefined
-          list.push({ kind: 'message', message: msg as MessageWithProfile, isOwn: msg.user_id === currentUserId, showHeader, xpOverride, coinOverride })
-          lastUserId  = msg.user_id
-          lastMsgTime = msgTime
-        }
+        const sameUser     = msg.user_id === lastUserId
+        const withinMinute = sameUser && (msgTime - lastMsgTime) < 60_000
+        const showHeader   = !withinMinute || !!msg.reply_to_id
+        const xpOverride   = showHeader ? groupXPMap.get(msg.id)   : undefined
+        const coinOverride = showHeader ? groupCoinMap.get(msg.id) : undefined
+        list.push({ kind: 'message', message: msg as MessageWithProfile, isOwn: msg.user_id === currentUserId, showHeader, xpOverride, coinOverride })
+        lastUserId  = msg.user_id
+        lastMsgTime = msgTime
       }
 
       lastDate = msgDate
@@ -794,38 +703,6 @@ export function MessageList({
           <span className="font-pixel text-[7px] text-[#2a1545]">{item.label}</span>
           <div className="flex-1 border-t border-[#1a1a2e]" />
         </div>
-      )
-    }
-
-    if (item.kind === 'boss') {
-      return (
-        <BossCard
-          raidId={item.raidId}
-          crewId={crewId}
-          initialRaid={item.raid}
-        />
-      )
-    }
-
-    if (item.kind === 'artifact') {
-      return (
-        <ArtifactDropRenderer
-          artifactId={item.artifactId}
-          crewName={crewName}
-        />
-      )
-    }
-
-    if (item.kind === 'level_up') {
-      if (dismissedLevelUps.has(item.msgId)) return null
-      return (
-        <AnimatePresence>
-          <LevelUpBanner
-            level={item.level}
-            isTierUp={item.isTierUp}
-            onDismiss={() => setDismissedLevelUps((s) => new Set([...s, item.msgId]))}
-          />
-        </AnimatePresence>
       )
     }
 

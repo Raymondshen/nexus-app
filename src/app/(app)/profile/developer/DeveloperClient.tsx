@@ -321,13 +321,6 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
           />
 
           <ToggleRow
-            title="Spawn Boss Mode"
-            description="Display boss spawn button in chat"
-            enabled={devMode}
-            onChange={toggleDevMode}
-          />
-
-          <ToggleRow
             title="Chat Camera"
             description="Enable image upload button in chat input"
             enabled={chatCamera}

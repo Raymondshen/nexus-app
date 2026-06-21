@@ -74,8 +74,6 @@ Deno.serve(async (req) => {
       await Promise.all([
         supabase.from('app_invites').update({ inviter_id: null }).eq('inviter_id', userId),
         supabase.from('app_invites').update({ used_by: null }).eq('used_by', userId),
-        supabase.from('active_raids').update({ mvp_user_id: null }).eq('mvp_user_id', userId),
-        supabase.from('artifacts').update({ mvp_user_id: null }).eq('mvp_user_id', userId),
       ])
 
       // Phase 2 — leaf-level rows that reference tables deleted below

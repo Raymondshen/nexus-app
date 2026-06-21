@@ -36,8 +36,6 @@ const COIN_VALUES: Record<string, number> = {
   system:   0,
 }
 
-const BOSS_XP_THRESHOLD = 500
-
 // Leveling constants — keep in sync with src/lib/config.ts
 const LEVEL_XP_BASE        = 120
 const LEVEL_XP_GROWTH_RATE = 1.0435
@@ -46,16 +44,6 @@ const LEVEL_CAP            = 100
 // Anti-spam constants
 const COOLDOWN_MS     = 30_000  // Layer 2: soft block if gap < 30 s
 const CONSECUTIVE_MAX = 3       // Layer 1: hard block after this many in a row
-
-function getElementType(content: string, messageType: string): string {
-  if (messageType === 'voice')    return 'lightning'
-  if (messageType === 'image')    return 'nature'
-  if (messageType === 'reaction') return 'shadow'
-  if (messageType === 'system')   return 'arcane'
-  if (content.length < 20)        return 'fire'
-  if (content.length > 150)       return 'water'
-  return 'fire'
-}
 
 // Mirror of src/lib/game/xp.ts — keep in sync with levelFromTotalXp
 function getLevelFromXP(xp: number): number {
@@ -233,10 +221,7 @@ Deno.serve(async (req: Request) => {
           .eq('id', crew_id),
         supabase
           .from('messages')
-          .update({
-            xp_awarded:   xpAwarded,
-            element_type: getElementType(content ?? '', message_type),
-          })
+          .update({ xp_awarded: xpAwarded })
           .eq('id', message_id),
       ])
 
@@ -264,71 +249,6 @@ Deno.serve(async (req: Request) => {
           source: message_type,
         }),
       ])
-    }
-
-    // ─── BOSS SPAWN (dev-only) ───────────────────────────────────────────────
-    const oldThreshold = Math.floor(oldXP / BOSS_XP_THRESHOLD)
-    const newThreshold = Math.floor(newXP  / BOSS_XP_THRESHOLD)
-
-    if (newThreshold > oldThreshold && isDevUser) {
-      const { data: existingRaid } = await supabase
-        .from('active_raids')
-        .select('id')
-        .eq('crew_id', crew_id)
-        .is('defeated_at', null)
-        .gt('expires_at', new Date().toISOString())
-        .maybeSingle()
-
-      if (!existingRaid) {
-        const { data: voidBoss } = await supabase
-          .from('bosses')
-          .select('id, max_hp, name')
-          .eq('type', 'void')
-          .limit(1)
-          .single()
-
-        if (voidBoss) {
-          const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString()
-
-          const { data: newRaid } = await supabase
-            .from('active_raids')
-            .insert({
-              crew_id,
-              boss_id:    voidBoss.id,
-              current_hp: voidBoss.max_hp,
-              max_hp:     voidBoss.max_hp,
-              expires_at: expiresAt,
-            })
-            .select('id')
-            .single()
-
-          if (newRaid) {
-            await supabase.from('messages').insert({
-              crew_id,
-              user_id,
-              content:      `BOSS_SPAWN:${newRaid.id}`,
-              message_type: 'system',
-              element_type: 'arcane',
-              xp_awarded:   0,
-            })
-
-            const fnUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/send-notification`
-            fetch(fnUrl, {
-              method:  'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                user_ids: (membersResult.data ?? []).map((m: { user_id: string }) => m.user_id),
-                type:     'boss_spawned',
-                payload:  {
-                  boss_name: voidBoss.name ?? 'The Void',
-                  crew_name: crewBefore?.name ?? '',
-                  crew_id,
-                },
-              }),
-            }).catch(() => {})
-          }
-        }
-      }
     }
 
     return new Response(

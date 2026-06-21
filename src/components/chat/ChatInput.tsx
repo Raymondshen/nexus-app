@@ -8,9 +8,8 @@ import Image from 'next/image'
 import { isSupabaseStorage, resolveAvatarUrl } from '@/components/ui/Avatar'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/client'
-import { getElementType, getXPProgress, getXPInCurrentLevel, getXPForCurrentLevel } from '@/lib/game/xp'
+import { getXPProgress, getXPInCurrentLevel, getXPForCurrentLevel } from '@/lib/game/xp'
 import { useChatStore } from '@/store/chatStore'
-import { DamageFloat } from '@/components/game/DamageFloat'
 import { FriendshipXPToast } from '@/components/game/FriendshipXPToast'
 import { GemToast } from '@/components/game/GemToast'
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/config'
@@ -34,7 +33,7 @@ import { SquadDetailsSheet, type MiniMember } from '@/components/chat/SquadDetai
 import { PollCreatorSheet } from '@/components/chat/PollCreatorSheet'
 import { GifPickerSheet } from '@/components/chat/GifPickerSheet'
 import { setHomeLastMessage } from '@/lib/homePreviewCache'
-import type { Message, MessageWithProfile, Profile, ActiveRaid } from '@/types'
+import type { Message, MessageWithProfile, Profile } from '@/types'
 
 const MAX_MESSAGE_LENGTH   = 2000
 const RATE_LIMIT_MAX       = 30
@@ -62,7 +61,6 @@ interface ChatInputProps {
   creatorId?:     string
   crewImageUrl?:       string | null
   initialXP?:          number
-  initialRaid?:        ActiveRaid | null
   currentUserId?:      string
   isDM?:               boolean
   dmPartnerId?:        string
@@ -98,14 +96,12 @@ async function tryClaimDailyGem(supabase: ReturnType<typeof createClient>, onCla
 }
 
 
-export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewName, inviteCode, creatorId, crewImageUrl: initialCrewImageUrl, initialXP, initialRaid, isDM, dmPartnerId }: ChatInputProps) {
+export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewName, inviteCode, creatorId, crewImageUrl: initialCrewImageUrl, initialXP, isDM, dmPartnerId }: ChatInputProps) {
   const router = useRouter()
   const [text,           setText]          = useState('')
   const [sending,        setSending]        = useState(false)
   const [sendError,      setSendError]      = useState<string | null>(null)
   const [typingUsers,    setTypingUsers]    = useState<string[]>([])
-  const [spawning,       setSpawning]       = useState(false)
-  const [spawnError,     setSpawnError]     = useState<string | null>(null)
   const [devMode,        setDevMode]        = useState(false)
   const [chatCameraEnabled, setChatCameraEnabled] = useState(false)
   const [gemToastVisible,   setGemToastVisible]   = useState(false)
@@ -119,7 +115,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   const [crewImageUrl,   setCrewImageUrl]   = useState<string | null>(initialCrewImageUrl ?? null)
   const [crewImageFile,  setCrewImageFile]  = useState<File | null>(null)
   const [showNotif,       setShowNotif]       = useState(false)
-  const [notifPrefs,      setNotifPrefs]      = useState<NotifPrefs>({ messages: true, raids: true, victory: true, mentions: true })
+  const [notifPrefs,      setNotifPrefs]      = useState<NotifPrefs>({ messages: true, mentions: true })
   const [showPollCreator,   setShowPollCreator]   = useState(false)
   const [showGifPicker,     setShowGifPicker]     = useState(false)
   const [showActionsSheet,  setShowActionsSheet]  = useState(false)
@@ -156,7 +152,6 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
 
   const {
     addMessage, removeMessage, updateMessage, setCrewXP, receiveXP, addXP,
-    activeRaid, setActiveRaid, damageFloats, addDamageFloat, dismissDamageFloat,
     crewXP, crewLevel,
     onlineUserIds, setOnlineUserIds, setLastActive, sweepOnlineUserIds, addUserCoins,
     crewName: storeCrewName, setCrewName,
@@ -174,8 +169,6 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   profilesRef.current   = memberProfiles
   const userProfileRef  = useRef(userProfile)
   userProfileRef.current = userProfile
-  const inRaid = !!(activeRaid && !activeRaid.defeated_at)
-
   const xpProgress  = getXPProgress(crewXP)
   const members     = Object.values(memberProfiles).filter(m => !kickedIds.has(m.id))
   const memberCount = members.length
@@ -191,8 +184,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
 
   // Seed store with server-fetched values (previously handled by ChatHeader)
   useEffect(() => {
-    if (initialXP   !== undefined) setCrewXP(initialXP)
-    if (initialRaid !== undefined) setActiveRaid(initialRaid ?? null)
+    if (initialXP !== undefined) setCrewXP(initialXP)
     setCrewName(crewName)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -238,7 +230,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     let cancelled = false
     createClient()
       .from('crew_notification_preferences')
-      .select('notif_messages, notif_raids, notif_victory, notif_mentions')
+      .select('notif_messages, notif_mentions')
       .eq('user_id', userId)
       .eq('crew_id', crewId)
       .maybeSingle()
@@ -246,8 +238,6 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
         if (cancelled || !data) return
         setNotifPrefs({
           messages: data.notif_messages as boolean,
-          raids:    data.notif_raids    as boolean,
-          victory:  data.notif_victory  as boolean,
           mentions: data.notif_mentions as boolean,
         })
       })
@@ -264,8 +254,6 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
           user_id:        userId,
           crew_id:        crewId,
           notif_messages: next.messages,
-          notif_raids:    next.raids,
-          notif_victory:  next.victory,
           notif_mentions: next.mentions,
           updated_at:     new Date().toISOString(),
         },
@@ -586,7 +574,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       user_id:          userId,
       content:          publicUrlSnapshot,
       message_type:     'image',
-      element_type:     'nature',
+      element_type:     null,
       xp_awarded:       0,
       reactions:        {},
       created_at:       new Date().toISOString(),
@@ -653,16 +641,6 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
         })
         .catch(() => {})
 
-      if (activeRaid && !activeRaid.defeated_at) {
-        fetch(`${SUPABASE_URL}/functions/v1/attack-boss`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
-          body: JSON.stringify({ crew_id: crewId, user_id: userId, message_type: 'image', element_type: 'nature', content: publicUrlSnapshot }),
-        })
-          .then((r) => r.json())
-          .then((data) => { if (data.damage) { addDamageFloat(data.damage, 'nature'); haptic([10, 50, 10]) } })
-          .catch(() => {})
-      }
     } catch (err) {
       console.error('[sendImage]', err)
       removeMessage(tempId)
@@ -676,7 +654,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       setSending(false)
       focusField()
     }
-  }, [chatImagePublicUrl, chatImageLqip, chatImageUploading, sending, crewId, userId, userProfile, addMessage, removeMessage, updateMessage, activeRaid, addDamageFloat, addUserCoins, clearChatImage]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [chatImagePublicUrl, chatImageLqip, chatImageUploading, sending, crewId, userId, userProfile, addMessage, removeMessage, updateMessage, addUserCoins, clearChatImage]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const sendGif = useCallback(async (gifUrl: string) => {
     if (sending) return
@@ -756,16 +734,6 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
         })
         .catch(() => {})
 
-      if (activeRaid && !activeRaid.defeated_at) {
-        fetch(`${SUPABASE_URL}/functions/v1/attack-boss`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
-          body: JSON.stringify({ crew_id: crewId, user_id: userId, message_type: 'image', element_type: 'nature', content: gifUrl }),
-        })
-          .then((r) => r.json())
-          .then((data) => { if (data.damage) { addDamageFloat(data.damage, 'nature'); haptic([10, 50, 10]) } })
-          .catch(() => {})
-      }
     } catch (err) {
       console.error('[sendGif]', err)
       removeMessage(tempId)
@@ -774,7 +742,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       setSending(false)
       focusField()
     }
-  }, [sending, crewId, userId, userProfile, addMessage, removeMessage, updateMessage, activeRaid, addDamageFloat, addUserCoins]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [sending, crewId, userId, userProfile, addMessage, removeMessage, updateMessage, addUserCoins]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const send = useCallback(async () => {
     const content = sanitizeMessage(text)
@@ -816,8 +784,6 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     haptic(10)
 
     const supabase    = createClient()
-    const elementType = getElementType(content, 'text')
-
     const replyToId       = currentReply?.id ?? null
     const replyPreview    = currentReply ? currentReply.content.slice(0, 100) : null
     const replyUsername   = currentReply?.profile?.username ?? null
@@ -826,7 +792,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     const tempId = `opt_${Date.now()}`
     const optimisticMsg: MessageWithProfile = {
       id: tempId, crew_id: crewId, user_id: userId, content,
-      message_type: 'text', element_type: elementType,
+      message_type: 'text', element_type: null,
       xp_awarded: 0, reactions: {}, created_at: new Date().toISOString(),
       profile: userProfile,
       reply_to_id: replyToId, reply_preview: replyPreview, reply_username: replyUsername,
@@ -945,49 +911,18 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
         })
       }
 
-      if (activeRaid && !activeRaid.defeated_at) {
-        fetch(`${SUPABASE_URL}/functions/v1/attack-boss`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
-          body: JSON.stringify({ crew_id: crewId, user_id: userId, message_type: 'text', element_type: elementType, content }),
-        })
-          .then((r) => r.json())
-          .then((data) => { if (data.damage) { addDamageFloat(data.damage, elementType); haptic([10, 50, 10]) } })
-          .catch(() => {})
-      }
     } catch (err) {
       removeMessage(tempId)
       setText(content)
       textRef.current = content
       if (currentReply) setReplyTo(currentReply)
       setSendError(err instanceof Error ? err.message : 'Failed to send. Tap to retry.')
-      // Re-check overflow after React restores the text so element type is correct
       requestAnimationFrame(() => recheckOverflow(content))
     } finally {
       setSending(false)
-      // If still in input mode, focus directly; if swapping to input, useLayoutEffect handles it
       inputRef.current?.focus()
     }
-  }, [text, sending, crewId, userId, userProfile, addMessage, removeMessage, updateMessage, activeRaid, addDamageFloat]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  async function handleSpawnBoss() {
-    if (spawning || inRaid) return
-    setSpawning(true); setSpawnError(null)
-    try {
-      const supabase = createClient()
-      const { data: { session } } = await supabase.auth.getSession()
-      const res = await fetch('/api/test/spawn-boss', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token ?? ''}` },
-        body: JSON.stringify({ crew_id: crewId }),
-      })
-      let data: { error?: string } = {}
-      try { data = await res.json() } catch { setSpawnError(`Server error ${res.status}`); return }
-      if (!res.ok) setSpawnError(data.error ?? `Error ${res.status}`)
-    } catch (err) {
-      setSpawnError(err instanceof Error ? err.message : 'Network error')
-    } finally { setSpawning(false) }
-  }
+  }, [text, sending, crewId, userId, userProfile, addMessage, removeMessage, updateMessage]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) {
     // @mention picker navigation
@@ -1185,8 +1120,6 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
         gap:           'var(--space-5)',
       }}
     >
-      {devMode && <DamageFloat floats={damageFloats} onDismiss={dismissDamageFloat} />}
-
       {/* ── Friendship XP toast (DM send or group @mention) ── */}
       <FriendshipXPToast
         visible={!!friendshipToast}
@@ -1306,7 +1239,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
           </button>
         )}
 
-        {devMode && inRaid && typingLabel && (
+        {typingLabel && (
           <div className="flex items-center gap-1 mb-2">
             <span className="flex gap-0.5">
               {[0, 1, 2].map((i) => (
@@ -1314,26 +1247,6 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
               ))}
             </span>
             <span className="font-pixel text-[7px] text-tertiary">{typingLabel}</span>
-          </div>
-        )}
-
-        {devMode && inRaid && !typingLabel && (
-          <div className="flex items-center gap-1 mb-2">
-            <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#ff2200] animate-pulse" />
-            <span className="font-pixel text-[7px] text-[#ff4444]">⚔ RAID ACTIVE — every message deals damage</span>
-          </div>
-        )}
-
-        {devMode && !inRaid && (
-          <div className="flex items-center gap-2 mb-2">
-            <button
-              onClick={handleSpawnBoss}
-              disabled={spawning}
-              className="font-pixel text-[7px] px-2 py-0.5 border border-[#ff4444]/40 text-[#ff4444]/70 hover:text-[#ff4444] hover:border-[#ff4444] transition-colors disabled:opacity-40"
-            >
-              {spawning ? 'SPAWNING...' : '⚔ SPAWN BOSS'}
-            </button>
-            {spawnError && <span className="font-pixel text-[7px] text-[#ff4444]/60">{spawnError}</span>}
           </div>
         )}
 
@@ -1539,7 +1452,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                     onChange={(e) => handleInput(e)}
                     onKeyDown={(e) => handleKeyDown(e)}
                     onBlur={handleBlur}
-                    placeholder={inRaid ? 'Attack The Void...' : isDM ? 'Send a message...' : 'Message the squad...'}
+                    placeholder={isDM ? 'Send a message...' : 'Message the squad...'}
                     rows={1}
                     onFocus={() => setIsFocused(true)}
                     className="relative w-full bg-transparent font-body text-[14px] placeholder:text-muted resize-none focus:outline-none leading-normal"
@@ -1553,7 +1466,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                     onChange={(e) => handleInput(e)}
                     onKeyDown={(e) => handleKeyDown(e)}
                     onBlur={handleBlur}
-                    placeholder={inRaid ? 'Attack The Void...' : isDM ? 'Send a message...' : 'Message the squad...'}
+                    placeholder={isDM ? 'Send a message...' : 'Message the squad...'}
                     onFocus={() => setIsFocused(true)}
                     className="relative w-full bg-transparent font-body text-[14px] placeholder:text-muted focus:outline-none leading-normal"
                     style={{ paddingTop: 12, paddingBottom: 12, fontVariationSettings: '"opsz" 14', color: 'transparent', caretColor: 'var(--color-primary)' }}

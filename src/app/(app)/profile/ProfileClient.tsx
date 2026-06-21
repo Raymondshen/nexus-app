@@ -645,18 +645,16 @@ export function ProfileClient({
   // ── Notifications ─────────────────────────────────────────────────────────
   const [showNotifSheet,   setShowNotifSheet]   = useState(false)
   const [showAccountSheet, setShowAccountSheet] = useState(false)
-  const [prefs,          setPrefs]          = useState<NotifPrefs>({ messages: true, raids: true, victory: true, mentions: true })
+  const [prefs,          setPrefs]          = useState<NotifPrefs>({ messages: true, mentions: true })
 
   const fetchPrefs = useCallback(async () => {
     const supabase = createClient()
     const { data } = await supabase
       .from('notification_preferences')
-      .select('notif_messages, notif_raids, notif_victory, notif_mentions')
+      .select('notif_messages, notif_mentions')
       .eq('user_id', userId).maybeSingle()
     if (data) setPrefs({
       messages: data.notif_messages as boolean,
-      raids:    data.notif_raids    as boolean,
-      victory:  data.notif_victory  as boolean,
       mentions: data.notif_mentions as boolean,
     })
   }, [userId])
@@ -670,8 +668,6 @@ export function ProfileClient({
     await supabase.from('notification_preferences').upsert({
       user_id:        userId,
       notif_messages: next.messages,
-      notif_raids:    next.raids,
-      notif_victory:  next.victory,
       notif_mentions: next.mentions,
       updated_at:     new Date().toISOString(),
     }, { onConflict: 'user_id' })

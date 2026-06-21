@@ -7,13 +7,11 @@ import Image from 'next/image'
 import { isSupabaseStorage, resolveAvatarUrl } from '@/components/ui/Avatar'
 import { useChatStore } from '@/store/chatStore'
 import { createClient } from '@/lib/supabase/client'
-import type { ActiveRaid } from '@/types'
 
 interface DMOverlayBackProps {
   crewId:               string
   currentUserId:        string
   initialXP:            number
-  initialRaid:          ActiveRaid | null
   friendUsername:       string
   friendAvatarUrl:      string | null
   friendId?:            string
@@ -23,17 +21,15 @@ export function DMOverlayBack({
   crewId,
   currentUserId,
   initialXP,
-  initialRaid,
   friendUsername,
   friendAvatarUrl,
   friendId,
 }: DMOverlayBackProps) {
   const goBack = useSlideBack()
-  const { setCrewXP, setActiveRaid } = useChatStore()
+  const { setCrewXP } = useChatStore()
 
   useEffect(() => {
     setCrewXP(initialXP)
-    setActiveRaid(initialRaid)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {

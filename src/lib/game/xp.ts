@@ -1,33 +1,4 @@
-import type { MessageType, ElementType, TierName } from '@/types'
 import { LEVEL_XP_BASE, LEVEL_XP_GROWTH_RATE, LEVEL_CAP } from '@/lib/config'
-
-export const XP_VALUES: Record<MessageType, number> = {
-  text:     10,
-  voice:    25,
-  image:    20,
-  reaction:  5,
-  system:    0,
-  poll:      0,
-  event:     0,
-}
-
-export const XP_BONUS_FIRST_TODAY = 20
-export const XP_BONUS_COMBO       = 5
-export const BOSS_XP_THRESHOLD    = 500
-
-export function getElementType(content: string, messageType: MessageType): ElementType {
-  if (messageType === 'voice')    return 'lightning'
-  if (messageType === 'image')    return 'nature'
-  if (messageType === 'reaction') return 'shadow'
-  if (messageType === 'system')   return 'arcane'
-  if (content.length < 20)        return 'fire'
-  if (content.length > 150)       return 'water'
-  return 'fire'
-}
-
-export function calculateXP(messageType: MessageType): number {
-  return XP_VALUES[messageType] ?? 0
-}
 
 // ─── Leveling ────────────────────────────────────────────────────────────────
 
@@ -57,20 +28,6 @@ export function levelFromTotalXp(totalXp: number): number {
     level++
   }
   return level
-}
-
-/** Tier name for a given level (20 levels per tier). */
-export function tierForLevel(level: number): TierName {
-  if (level <= 20) return 'Rookie'
-  if (level <= 40) return 'Adventurer'
-  if (level <= 60) return 'Veteran'
-  if (level <= 80) return 'Elite'
-  return 'Mythic'
-}
-
-/** True when a level is the first level of a new tier (21, 41, 61, 81). */
-export function isTierBoundary(level: number): boolean {
-  return level === 21 || level === 41 || level === 61 || level === 81
 }
 
 /** XP accumulated within the current level (for display). */

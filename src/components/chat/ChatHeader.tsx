@@ -5,8 +5,7 @@ import { useSlideBack } from '@/components/ui/SlidePage'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useChatStore } from '@/store/chatStore'
 import { createClient } from '@/lib/supabase/client'
-import type { Crew, ActiveRaid } from '@/types'
-import { formatDistanceToNow } from 'date-fns'
+import type { Crew } from '@/types'
 import { useRouter } from 'next/navigation'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { Bell } from 'pixelarticons/react/Bell'
@@ -45,7 +44,6 @@ function getNextBirthday(members: MemberBirthday[]): { username: string; label: 
 interface ChatHeaderProps {
   crew:             Crew
   initialXP:        number
-  initialRaid:      ActiveRaid | null
   currentUserId:    string
   crewId:           string
   memberBirthdays?: MemberBirthday[]
@@ -145,7 +143,6 @@ function ShareModal({ crew, onClose }: { crew: Crew; onClose: () => void }) {
 export function ChatHeader({
   crew,
   initialXP,
-  initialRaid,
   currentUserId,
   crewId,
   memberBirthdays = [],
@@ -153,10 +150,10 @@ export function ChatHeader({
 }: ChatHeaderProps) {
   const router = useRouter()
   const goBack = useSlideBack()
-  const { setCrewXP, setActiveRaid, activeRaid, crewName: storeCrewName, setCrewName } = useChatStore()
+  const { setCrewXP, crewName: storeCrewName, setCrewName } = useChatStore()
   const [showShare,      setShowShare]      = useState(false)
   const [showNotif,      setShowNotif]      = useState(false)
-  const [notifPrefs,     setNotifPrefs]     = useState<NotifPrefs>({ messages: true, raids: true, victory: true, mentions: true })
+  const [notifPrefs,     setNotifPrefs]     = useState<NotifPrefs>({ messages: true, mentions: true })
   const [devMode,        setDevMode]        = useState(false)
   const [eventsEnabled,  setEventsEnabled]  = useState(false)
 
@@ -174,7 +171,6 @@ export function ChatHeader({
 
   useEffect(() => {
     setCrewXP(initialXP)
-    setActiveRaid(initialRaid)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Update last_seen every 60s for accurate server-side initial state.
@@ -202,15 +198,13 @@ export function ChatHeader({
       const supabase = createClient()
       const { data } = await supabase
         .from('crew_notification_preferences')
-        .select('notif_messages, notif_raids, notif_victory, notif_mentions')
+        .select('notif_messages, notif_mentions')
         .eq('user_id', currentUserId)
         .eq('crew_id', crewId)
         .maybeSingle()
       if (data) {
         setNotifPrefs({
           messages: data.notif_messages as boolean,
-          raids:    data.notif_raids    as boolean,
-          victory:  data.notif_victory  as boolean,
           mentions: data.notif_mentions as boolean,
         })
       }
@@ -229,8 +223,6 @@ export function ChatHeader({
           user_id:        currentUserId,
           crew_id:        crewId,
           notif_messages: next.messages,
-          notif_raids:    next.raids,
-          notif_victory:  next.victory,
           notif_mentions: next.mentions,
           updated_at:     new Date().toISOString(),
         },
@@ -241,7 +233,7 @@ export function ChatHeader({
   const handleCloseShare   = useCallback(() => setShowShare(false), [])
   const handleCloseNotif   = useCallback(() => setShowNotif(false), [])
 
-  const allMuted = !notifPrefs.messages && !notifPrefs.raids && !notifPrefs.victory
+  const allMuted = !notifPrefs.messages && !notifPrefs.mentions
   const nextBirthday = getNextBirthday(memberBirthdays)
 
   return (
@@ -310,24 +302,6 @@ export function ChatHeader({
           </div>
         )}
 
-        {/* Boss countdown if raid is active — dev mode only */}
-        {devMode && activeRaid && !activeRaid.defeated_at && (
-          <div className="flex items-center gap-2 mt-2 bg-[#2d0a0a] border border-[#ff4444]/40 px-2 py-1">
-            <span className="font-pixel text-[8px] text-[#ff4444]">💀 BOSS ACTIVE</span>
-            <span className="font-pixel text-[7px] text-[#ff4444]/70">
-              {formatDistanceToNow(new Date(activeRaid.expires_at), { addSuffix: true }).toUpperCase()}
-            </span>
-            <div className="ml-auto flex items-center gap-1">
-              <div className="h-1 w-16 bg-[#1a0000] border border-[#ff4444]/20">
-                <div
-                  className="h-full bg-[#ff4444] transition-all duration-500"
-                  style={{ width: `${Math.round((activeRaid.current_hp / activeRaid.max_hp) * 100)}%` }}
-                />
-              </div>
-              <span className="font-pixel text-[7px] text-[#ff4444]/70">HP</span>
-            </div>
-          </div>
-        )}
       </div>
 
       <AnimatePresence>

@@ -2,7 +2,7 @@
 
 import { motion } from 'framer-motion'
 
-export type NotifPrefs = { messages: boolean; raids: boolean; victory: boolean; mentions: boolean }
+export type NotifPrefs = { messages: boolean; mentions: boolean }
 
 export function NotifToggleRow({
   label,
@@ -111,20 +111,6 @@ export function NotifSheet({
             description="Notify me when someone mentions me by name"
             enabled={prefs.mentions}
             onToggle={() => onToggle('mentions')}
-          />
-          <div className="border-t border-border w-full" />
-          <NotifToggleRow
-            label="Raid Alerts"
-            description="Notify me when boss spawns and expires"
-            enabled={prefs.raids}
-            onToggle={() => onToggle('raids')}
-          />
-          <div className="border-t border-border w-full" />
-          <NotifToggleRow
-            label="Victory"
-            description="Notify me when boss defeated & artifact drops"
-            enabled={prefs.victory}
-            onToggle={() => onToggle('victory')}
           />
         </div>
       </motion.div>

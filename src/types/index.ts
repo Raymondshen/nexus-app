@@ -22,10 +22,6 @@ export interface OGPreview {
 
 export type MessageType = 'text' | 'voice' | 'image' | 'reaction' | 'system' | 'poll' | 'event'
 export type EventRsvpStatus = 'going' | 'maybe' | 'not_going'
-export type ElementType = 'fire' | 'water' | 'lightning' | 'nature' | 'shadow' | 'arcane'
-export type ArtifactRarity = 'common' | 'rare' | 'epic' | 'legendary'
-export type BossType = 'void' | 'ghost' | 'flood' | 'scheduled'
-export type TierName = 'Rookie' | 'Adventurer' | 'Veteran' | 'Elite' | 'Mythic'
 export type AvatarClass = 'berserker' | 'sage' | 'ghost' | 'hype_man' | 'the_voice' | 'meme_lord' | 'mage' | 'warrior' | 'rogue' | 'healer' | 'archer'
 
 // ─── Row types ────────────────────────────────────────────────────────────────
@@ -116,7 +112,7 @@ export interface Message extends Record<string, unknown> {
   user_id: string
   content: string
   message_type: MessageType
-  element_type: ElementType | null
+  element_type: string | null
   xp_awarded: number | null
   reactions: Record<string, string[]>
   created_at: string
@@ -144,29 +140,6 @@ export interface CrewXPLog extends Record<string, unknown> {
   created_at: string
 }
 
-export interface Boss extends Record<string, unknown> {
-  id: string
-  name: string
-  type: BossType
-  max_hp: number
-  weak_element: ElementType | null
-  description: string | null
-}
-
-export interface ActiveRaid extends Record<string, unknown> {
-  id: string
-  crew_id: string
-  boss_id: string
-  current_hp: number
-  max_hp: number
-  phase: number
-  started_at: string
-  expires_at: string
-  defeated_at: string | null
-  mvp_user_id: string | null
-  expiry_notif_sent: boolean
-}
-
 export interface PushSubscription extends Record<string, unknown> {
   id: string
   user_id: string
@@ -180,8 +153,6 @@ export interface PushSubscription extends Record<string, unknown> {
 export interface NotificationPreferences extends Record<string, unknown> {
   user_id:        string
   notif_messages: boolean
-  notif_raids:    boolean
-  notif_victory:  boolean
   notif_mentions: boolean
   updated_at:     string
 }
@@ -195,22 +166,8 @@ export interface CrewNotificationPreferences extends Record<string, unknown> {
   user_id:        string
   crew_id:        string
   notif_messages: boolean
-  notif_raids:    boolean
-  notif_victory:  boolean
   notif_mentions: boolean
   updated_at:     string
-}
-
-export interface Artifact extends Record<string, unknown> {
-  id: string
-  crew_id: string
-  name: string
-  rarity: ArtifactRarity
-  source_boss_id: string
-  earned_at: string
-  mvp_user_id: string
-  asset_type: string
-  metadata: Record<string, unknown> | null
 }
 
 // ─── Derived / joined types ───────────────────────────────────────────────────
@@ -379,29 +336,6 @@ export type Database = {
         Row: CrewXPLog
         Insert: Omit<CrewXPLog, 'id' | 'created_at'> & { id?: string; created_at?: string }
         Update: Partial<Omit<CrewXPLog, 'id'>>
-        Relationships: []
-      }
-      bosses: {
-        Row: Boss
-        Insert: Omit<Boss, 'id'> & { id?: string }
-        Update: Partial<Omit<Boss, 'id'>>
-        Relationships: []
-      }
-      active_raids: {
-        Row: ActiveRaid
-        Insert: Omit<ActiveRaid, 'id' | 'phase' | 'defeated_at' | 'mvp_user_id'> & {
-          id?: string
-          phase?: number
-          defeated_at?: string | null
-          mvp_user_id?: string | null
-        }
-        Update: Partial<Omit<ActiveRaid, 'id'>>
-        Relationships: []
-      }
-      artifacts: {
-        Row: Artifact
-        Insert: Omit<Artifact, 'id' | 'earned_at'> & { id?: string; earned_at?: string }
-        Update: Partial<Omit<Artifact, 'id'>>
         Relationships: []
       }
       push_subscriptions: {

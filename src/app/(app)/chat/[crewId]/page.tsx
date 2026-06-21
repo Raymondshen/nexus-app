@@ -7,7 +7,7 @@ import { ChatInput } from "@/components/chat/ChatInput";
 import { WelcomeDetector } from "@/components/ui/WelcomeDetector";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { SlidePage } from "@/components/ui/SlidePage";
-import type { Profile, Crew, ActiveRaid, AvatarClass } from "@/types";
+import type { Profile, Crew, AvatarClass } from "@/types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -64,19 +64,12 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
   if (!session) redirect("/login");
   const user = session.user;
 
-  // Stage 2 — cached member profiles + fresh crew/raid in parallel.
-  // crew (total_xp) and active_raids stay uncached — they change with every message.
+  // Stage 2 — cached member profiles + fresh crew in parallel.
+  // crew (total_xp) stays uncached — it changes with every message.
   // crew_members fetched fresh for membership check (RLS returns empty for non-members).
-  const [cachedProfiles, crewResult, raidResult, lastSeenResult, gemResult] = await Promise.all([
+  const [cachedProfiles, crewResult, lastSeenResult, gemResult] = await Promise.all([
     getCachedMemberProfiles(crewId),
     supabase.from("crews").select("id, name, invite_code, level, total_xp, image_url").eq("id", crewId).single(),
-    supabase
-      .from("active_raids")
-      .select("*")
-      .eq("crew_id", crewId)
-      .is("defeated_at", null)
-      .gt("expires_at", new Date().toISOString())
-      .maybeSingle(),
     supabase
       .from("crew_members")
       .select("user_id, last_seen, class, joined_at")
@@ -85,7 +78,6 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
   ]);
 
   const crew    = crewResult.data as Crew | null;
-  const raidRow = raidResult.data as ActiveRaid | null;
   const gemBalance = (gemResult.data as { gem_balance: number } | null)?.gem_balance ?? 0;
 
   // Membership check — fresh query (RLS returns empty for non-members)
@@ -140,7 +132,6 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
           crewName={crew.name}
           currentUserId={user.id}
           memberProfiles={memberProfiles}
-          initialRaid={raidRow ?? null}
           creatorId={creatorId}
         />
       </ErrorBoundary>
@@ -160,7 +151,6 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
           creatorId={creatorId ?? undefined}
           crewImageUrl={crew.image_url ?? null}
           initialXP={crew.total_xp}
-          initialRaid={raidRow ?? null}
           currentUserId={user.id}
         />
       </ErrorBoundary>

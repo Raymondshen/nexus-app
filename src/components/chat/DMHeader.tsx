@@ -1,20 +1,17 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { useSlideBack } from '@/components/ui/SlidePage'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import Image from 'next/image'
 import { isSupabaseStorage, resolveAvatarUrl } from '@/components/ui/Avatar'
 import { useChatStore } from '@/store/chatStore'
 import { createClient } from '@/lib/supabase/client'
-import type { ActiveRaid } from '@/types'
-import { formatDistanceToNow } from 'date-fns'
 
 interface DMHeaderProps {
   crewId:          string
   currentUserId:   string
   initialXP:       number
-  initialRaid:     ActiveRaid | null
   friendUsername:  string
   friendAvatarUrl: string | null
 }
@@ -23,22 +20,15 @@ export function DMHeader({
   crewId,
   currentUserId,
   initialXP,
-  initialRaid,
   friendUsername,
   friendAvatarUrl,
 }: DMHeaderProps) {
   const goBack = useSlideBack()
-  const { setCrewXP, setActiveRaid, activeRaid } = useChatStore()
-  const [devMode, setDevMode] = useState(false)
+  const { setCrewXP } = useChatStore()
 
   useEffect(() => {
     setCrewXP(initialXP)
-    setActiveRaid(initialRaid)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    setDevMode(localStorage.getItem('nexus_dev_mode') === '1')
-  }, [])
 
   useEffect(() => {
     const supabase = createClient()
@@ -90,24 +80,6 @@ export function DMHeader({
           <span className="font-silkscreen text-[8px] text-muted leading-none mt-1">1:1 CHAT</span>
         </div>
       </div>
-
-      {devMode && activeRaid && !activeRaid.defeated_at && (
-        <div className="flex items-center gap-2 mt-2 bg-[#2d0a0a] border border-[#ff4444]/40 px-2 py-1">
-          <span className="font-pixel text-[8px] text-[#ff4444]">💀 BOSS ACTIVE</span>
-          <span className="font-pixel text-[7px] text-[#ff4444]/70">
-            {formatDistanceToNow(new Date(activeRaid.expires_at), { addSuffix: true }).toUpperCase()}
-          </span>
-          <div className="ml-auto flex items-center gap-1">
-            <div className="h-1 w-16 bg-[#1a0000] border border-[#ff4444]/20">
-              <div
-                className="h-full bg-[#ff4444] transition-all duration-500"
-                style={{ width: `${Math.round((activeRaid.current_hp / activeRaid.max_hp) * 100)}%` }}
-              />
-            </div>
-            <span className="font-pixel text-[7px] text-[#ff4444]/70">HP</span>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

@@ -17,17 +17,13 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-type NotificationType = 'boss_spawned' | 'boss_defeated' | 'raid_expiring' | 'crew_silent' | 'message_received' | 'mention_received' | 'friend_request' | 'recruit_arrived'
+type NotificationType = 'message_received' | 'mention_received' | 'friend_request' | 'recruit_arrived'
 
 // Maps each notification type to its preference column in notification_preferences.
 // null = always deliver (no preference gate).
-const PREF_COLUMN: Record<NotificationType, 'notif_messages' | 'notif_raids' | 'notif_victory' | 'notif_mentions' | null> = {
+const PREF_COLUMN: Record<NotificationType, 'notif_messages' | 'notif_mentions' | null> = {
   message_received: 'notif_messages',
   mention_received: 'notif_mentions',
-  boss_spawned:     'notif_raids',
-  raid_expiring:    'notif_raids',
-  crew_silent:      'notif_raids',
-  boss_defeated:    'notif_victory',
   friend_request:   null,
   recruit_arrived:  null,
 }
@@ -47,38 +43,6 @@ function buildPayload(type: NotificationType, data: Record<string, unknown>) {
       return {
         title: `${data.sender_name ?? 'Someone'} mentioned you in ${data.crew_name ?? 'your crew'}`,
         body:  String(data.content_preview || 'sent'),
-        icon:  '/icons/icon-192.png',
-        badge: '/icons/icon-192.png',
-        data:  { url: `/chat/${data.crew_id}` },
-      }
-    case 'boss_spawned':
-      return {
-        title: '⚔ RAID ALERT',
-        body:  `${data.boss_name ?? 'A boss'} has appeared${crewTag}! Your crew needs you.`,
-        icon:  '/icons/icon-192.png',
-        badge: '/icons/icon-192.png',
-        data:  { url: `/chat/${data.crew_id}` },
-      }
-    case 'boss_defeated':
-      return {
-        title: '🏆 VICTORY',
-        body:  `${data.boss_name ?? 'The boss'} defeated${crewTag}! Claim your artifact.`,
-        icon:  '/icons/icon-192.png',
-        badge: '/icons/icon-192.png',
-        data:  { url: `/vault/${data.crew_id}` },
-      }
-    case 'raid_expiring':
-      return {
-        title: '⏳ RAID EXPIRING',
-        body:  `The boss escapes${crewTag} in 2 hours. Jump in now!`,
-        icon:  '/icons/icon-192.png',
-        badge: '/icons/icon-192.png',
-        data:  { url: `/chat/${data.crew_id}` },
-      }
-    case 'crew_silent':
-      return {
-        title: '💀 THE VOID STIRS',
-        body:  `Your crew${crewTag ? ` (${data.crew_name})` : ''} has gone quiet. Send a message before The Void spawns.`,
         icon:  '/icons/icon-192.png',
         badge: '/icons/icon-192.png',
         data:  { url: `/chat/${data.crew_id}` },
@@ -123,8 +87,7 @@ Deno.serve(async (req: Request) => {
     const body = await req.json()
     const { user_id, user_ids, type, payload } = body
 
-    // Support single user_id (backward compat from attack-boss, check-raid-expiry)
-    // and user_ids array (batch mode from award-xp)
+    // Support single user_id and user_ids array (batch mode from award-xp)
     const targetIds: string[] = Array.isArray(user_ids) && user_ids.length > 0
       ? user_ids
       : user_id

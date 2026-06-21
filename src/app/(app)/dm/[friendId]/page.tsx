@@ -6,7 +6,7 @@ import { MessageList } from '@/components/chat/MessageList'
 import { ChatInput } from '@/components/chat/ChatInput'
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
 import { SlidePage } from '@/components/ui/SlidePage'
-import type { Profile, ActiveRaid, AvatarClass } from '@/types'
+import type { Profile, AvatarClass } from '@/types'
 
 type MemberProfile = Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url' | 'status'>
 type MemberProfileMap = Record<string, MemberProfile>
@@ -70,18 +70,11 @@ export default async function DMPage({ params }: DMPageProps) {
 
   const dmCrewId = channelId as string
 
-  // Fetch friend profile, crew XP, raid, and member profiles in parallel
-  const [friendProfileResult, cachedProfiles, crewResult, raidResult] = await Promise.all([
+  // Fetch friend profile, crew XP, and member profiles in parallel
+  const [friendProfileResult, cachedProfiles, crewResult] = await Promise.all([
     supabase.from('profiles').select('username, avatar_url').eq('id', friendId).single(),
     getCachedDMMemberProfiles(dmCrewId),
     supabase.from('crews').select('id, total_xp, level').eq('id', dmCrewId).single(),
-    supabase
-      .from('active_raids')
-      .select('*')
-      .eq('crew_id', dmCrewId)
-      .is('defeated_at', null)
-      .gt('expires_at', new Date().toISOString())
-      .maybeSingle(),
   ])
 
   if (!crewResult.data) redirect('/home')
@@ -89,7 +82,6 @@ export default async function DMPage({ params }: DMPageProps) {
   const friendUsername  = friendProfileResult.data?.username ?? 'Friend'
   const friendAvatarUrl = (friendProfileResult.data as Record<string, unknown> | null)?.avatar_url as string | null ?? null
   const crew            = crewResult.data as unknown as { id: string; total_xp: number; level: number }
-  const raidRow         = raidResult.data as ActiveRaid | null
 
   const memberProfiles: MemberProfileMap = Object.fromEntries(
     cachedProfiles.filter((r) => r.profile).map((r) => [r.user_id, r.profile!])
@@ -118,14 +110,12 @@ export default async function DMPage({ params }: DMPageProps) {
             crewName={friendUsername}
             currentUserId={user.id}
             memberProfiles={memberProfiles}
-            initialRaid={raidRow}
           />
         </ErrorBoundary>
         <DMOverlayBack
           crewId={dmCrewId}
           currentUserId={user.id}
           initialXP={crew.total_xp}
-          initialRaid={raidRow}
           friendUsername={friendUsername}
           friendAvatarUrl={friendAvatarUrl}
           friendId={friendId}

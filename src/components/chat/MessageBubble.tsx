@@ -1038,9 +1038,7 @@ function SystemMessage({ message }: { message: MessageWithProfile }) {
   let bg   = 'bg-surface border-border'
   let icon = '⚙️'
   if (content.startsWith('🎂'))                                                          { bg = 'bg-[#1a0d2e] border-purple/30'; icon = '' }
-  else if (content.includes('VOID') || content.includes('BOSS') || content.includes('boss')) { bg = 'bg-[#2d0a0a] border-[#ff4444]/40'; icon = '💀' }
   else if (content.includes('XP') || content.includes('xp'))                            { bg = 'bg-[#1a1400] border-[#ffd700]/40'; icon = '⭐' }
-  else if (content.includes('artifact') || content.includes('ARTIFACT'))                { bg = 'bg-[#1a0d2e] border-[#bf5fff]/40'; icon = '💎' }
   return (
     <div className="flex justify-center" style={{ marginTop: 'var(--space-6)', marginBottom: 'var(--space-6)' }}>
       <div className={`border px-4 py-2 max-w-[85%] text-center ${bg}`}>

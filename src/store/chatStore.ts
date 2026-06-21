@@ -1,20 +1,12 @@
 import { create } from 'zustand'
-import type { Message, MessageWithProfile, ActiveRaid, ElementType } from '@/types'
+import type { Message, MessageWithProfile } from '@/types'
 import { getLevelFromXP } from '@/lib/game/xp'
-
-export interface DamageFloatItem {
-  id: number
-  damage: number
-  elementType: ElementType | null
-}
 
 interface ChatStore {
   messages:            Message[]
   crewXP:              number
   crewLevel:           number
   xpFloats:            { id: number; amount: number }[]
-  activeRaid:          ActiveRaid | null
-  damageFloats:        DamageFloatItem[]
   onlineUserIds:       Set<string>
   lastActiveMap:       Record<string, number>
   userCoins:           number
@@ -31,10 +23,7 @@ interface ChatStore {
   setCrewXP:           (xp: number) => void
   addXP:               (amount: number) => void
   receiveXP:           (earned: number, newTotal: number) => void
-  setActiveRaid:       (raid: ActiveRaid | null) => void
   dismissXPFloat:      (id: number) => void
-  addDamageFloat:      (damage: number, elementType: ElementType | null) => void
-  dismissDamageFloat:  (id: number) => void
   setOnlineUserIds:    (ids: Set<string>) => void
   setLastActive:       (userId: string, ts: number) => void
   sweepOnlineUserIds:  (thresholdMs: number) => void
@@ -59,8 +48,6 @@ export const useChatStore = create<ChatStore>((set) => ({
   crewXP:             0,
   crewLevel:          1,
   xpFloats:           [],
-  activeRaid:         null,
-  damageFloats:       [],
   onlineUserIds:      new Set<string>(),
   lastActiveMap:      {},
   userCoins:          0,
@@ -117,18 +104,8 @@ export const useChatStore = create<ChatStore>((set) => ({
       xpFloats:  [...s.xpFloats, { id: ++floatCounter, amount: earned }],
     })),
 
-  setActiveRaid: (raid) => set({ activeRaid: raid }),
-
   dismissXPFloat: (id) =>
     set((s) => ({ xpFloats: s.xpFloats.filter((f) => f.id !== id) })),
-
-  addDamageFloat: (damage, elementType) =>
-    set((s) => ({
-      damageFloats: [...s.damageFloats, { id: ++floatCounter, damage, elementType }],
-    })),
-
-  dismissDamageFloat: (id) =>
-    set((s) => ({ damageFloats: s.damageFloats.filter((f) => f.id !== id) })),
 
   setOnlineUserIds: (ids) => set({ onlineUserIds: ids }),
 
