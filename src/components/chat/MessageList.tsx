@@ -882,7 +882,7 @@ export function MessageList({
             onClick={() => {
               virtualizer.scrollToIndex(items.length - 1, { align: 'end', behavior: 'smooth' })
             }}
-            className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 inline-flex items-center justify-center border border-border"
+            className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 inline-flex items-center justify-center border border-border rounded-full"
             style={{
               padding: 'var(--x3)',
               background: 'rgba(0,0,0,0)',

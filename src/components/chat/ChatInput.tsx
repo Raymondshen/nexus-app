@@ -1619,7 +1619,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       <AnimatePresence>
         {showActionsSheet && (
           <InputActionsSheet
-            showUploadPhoto={chatCameraEnabled}
+            showUploadPhoto={true}
             onUploadPhoto={() => chatImageInputRef.current?.click()}
             onCreatePoll={() => setShowPollCreator(true)}
             onClose={() => setShowActionsSheet(false)}
