@@ -26,6 +26,57 @@ function decodeHtmlEntities(s: string): string {
     .replace(/&nbsp;/g, ' ')
 }
 
+// ─── Platform detection ────────────────────────────────────────────────────────
+
+const YOUTUBE_HOSTS = new Set([
+  'www.youtube.com', 'youtube.com',
+  'music.youtube.com', 'm.youtube.com',
+  'youtu.be',
+])
+
+function isYouTubeUrl(url: URL): boolean {
+  return YOUTUBE_HOSTS.has(url.hostname)
+}
+
+function isRedditUrl(url: URL): boolean {
+  return url.hostname === 'www.reddit.com'
+    || url.hostname === 'reddit.com'
+    || url.hostname === 'redd.it'
+}
+
+// ─── YouTube: oEmbed API (thumbnail_url + title, no HTML scraping needed) ─────
+
+interface YouTubeOEmbed {
+  title?:         string
+  thumbnail_url?: string
+  author_name?:   string
+}
+
+async function fetchYouTubePreview(rawUrl: string, signal: AbortSignal): Promise<OGPreview | null> {
+  const endpoint = `https://www.youtube.com/oembed?url=${encodeURIComponent(rawUrl)}&format=json`
+  const res = await fetch(endpoint, { signal, headers: { 'User-Agent': 'Mozilla/5.0' } })
+  if (!res.ok) return null
+  const data = (await res.json()) as YouTubeOEmbed
+  if (!data.title && !data.thumbnail_url) return null
+  return {
+    url:        rawUrl,
+    title:      data.title,
+    image:      data.thumbnail_url,
+    site_name:  'YouTube',
+    fetched_at: new Date().toISOString(),
+  }
+}
+
+// ─── Reddit: rewrite to old.reddit.com (pure HTML, reliable OG tags) ──────────
+
+function toOldRedditUrl(url: URL): string {
+  const rewritten = new URL(url.toString())
+  rewritten.hostname = 'old.reddit.com'
+  return rewritten.toString()
+}
+
+// ─── Handler ───────────────────────────────────────────────────────────────────
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const rawUrl = searchParams.get('url')
@@ -44,11 +95,23 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid URL' }, { status: 400 })
   }
 
-  try {
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), OG_PREVIEW.OG_FETCH_TIMEOUT_MS)
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), OG_PREVIEW.OG_FETCH_TIMEOUT_MS)
 
-    const res = await fetch(rawUrl, {
+  try {
+    // YouTube / YouTube Music / youtu.be → oEmbed (HTML scraping is unreliable)
+    if (isYouTubeUrl(parsedUrl)) {
+      const preview = await fetchYouTubePreview(rawUrl, controller.signal)
+      clearTimeout(timer)
+      return NextResponse.json(preview, {
+        headers: { 'Cache-Control': `public, max-age=${OG_PREVIEW.OG_CACHE_TTL_SECONDS}` },
+      })
+    }
+
+    // Reddit → old.reddit.com serves plain HTML with proper OG tags
+    const fetchUrl = isRedditUrl(parsedUrl) ? toOldRedditUrl(parsedUrl) : rawUrl
+
+    const res = await fetch(fetchUrl, {
       signal:  controller.signal,
       headers: {
         'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
@@ -62,7 +125,6 @@ export async function GET(req: NextRequest) {
     const ct = res.headers.get('content-type') ?? ''
     if (!ct.includes('text/html')) return NextResponse.json(null)
 
-    // Read only the first 100 KB — enough for <head> meta tags on any real site.
     const text = await res.text()
     const head = text.slice(0, 100_000)
 
@@ -71,7 +133,6 @@ export async function GET(req: NextRequest) {
     const ogDesc     = getMeta(head, 'og:description')
     const metaDesc   = getMeta(head, 'description')
     const ogSiteName = getMeta(head, 'og:site_name')
-    // og:image → og:image:secure_url → twitter:image → <link rel="image_src">
     const linkImageM =
       /rel=["']image_src["'][^>]+href=["']([^"']+)["']/i.exec(head) ??
       /href=["']([^"']+)["'][^>]+rel=["']image_src["']/i.exec(head)
@@ -81,7 +142,6 @@ export async function GET(req: NextRequest) {
       getMeta(head, 'og:image', 'og:image:secure_url', 'twitter:image:src', 'twitter:image') ??
       linkImage
 
-    // Resolve relative OG image URLs against the origin.
     if (ogImage) {
       try { ogImage = new URL(ogImage, parsedUrl.origin).toString() } catch {}
     }
@@ -109,6 +169,7 @@ export async function GET(req: NextRequest) {
       headers: { 'Cache-Control': `public, max-age=${OG_PREVIEW.OG_CACHE_TTL_SECONDS}` },
     })
   } catch {
+    clearTimeout(timer)
     return NextResponse.json(null)
   }
 }
