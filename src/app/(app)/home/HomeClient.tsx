@@ -27,7 +27,7 @@ import { AnnouncementBanner } from '@/components/ui/AnnouncementBanner'
 import type { AnnouncementItem } from '@/components/ui/AnnouncementBanner'
 import { DiamondGem } from 'pixelarticons/react/DiamondGem'
 import { isGemGateOpen } from '@/lib/game/gems'
-import { getXPInCurrentLevel, getXPForCurrentLevel } from '@/lib/game/xp'
+import { getXPInCurrentLevel, getXPForCurrentLevel, getLevelFromXP } from '@/lib/game/xp'
 import { GEM_DAILY_LIMIT } from '@/lib/config'
 import { consumeHomeLastMessage } from '@/lib/homePreviewCache'
 
@@ -691,7 +691,7 @@ function SquadCardPreview({ summary, onAvatarTap }: { summary: CrewSummary; onAv
       <div className="flex-1 min-w-0 flex flex-col gap-[var(--space-2)] justify-center leading-none">
         {/* XP / level */}
         <span className="font-silkscreen text-[8px] text-tertiary whitespace-nowrap leading-none">
-          {xpInLevel}/{getXPForCurrentLevel(crew.total_xp)} XP · Lv. {crew.level}
+          {xpInLevel}/{getXPForCurrentLevel(crew.total_xp)} XP · Lv. {getLevelFromXP(crew.total_xp)}
           {hasUnread ? ` · +${unreadCount} new` : ''}
         </span>
 
