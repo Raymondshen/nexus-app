@@ -17,7 +17,6 @@ import { createClient } from '@/lib/supabase/client'
 import { createCrewAction } from '@/app/(app)/onboarding/create/actions'
 import { joinCrewAction }   from '@/app/(app)/onboarding/join/actions'
 import { leaveCrewAction } from './actions'
-import { InvitePage } from './InviteArsenal'
 import { Button } from '@/components/ui/Button'
 import type { CrewSummary } from './page'
 import type { Message, MessageWithProfile } from '@/types'
@@ -904,16 +903,16 @@ export function HomeClient({
     })
   )
   const [showCreate,        setShowCreate]        = useState(false)
-  const [showInviteArsenal, setShowInviteArsenal] = useState(false)
   const [openCardId,        setOpenCardId]        = useState<string | null>(null)
   const [leaveTarget,       setLeaveTarget]       = useState<CrewSummary | null>(null)
   const [leaving,           setLeaving]           = useState(false)
   const [leaveError,        setLeaveError]        = useState<string | null>(null)
   const [coins,             setCoins]             = useState(() => {
     const store = useChatStore.getState()
-    const base = Math.max(initialCoins, store.userCoins)
-    // Seed the store with the absolute balance so addUserCoins in chat accumulates correctly
-    if (store.userCoins < base) store.setUserCoins(base)
+    // Prefer the store when it has been seeded (trust spent/earned adjustments).
+    // Fall back to server value only when the store is uninitialized (0).
+    const base = store.userCoins || initialCoins
+    if (!store.userCoins) store.setUserCoins(base)
     return base
   })
   const [localFriendshipXP,    setLocalFriendshipXP]    = useState(totalFriendshipXP)
@@ -1141,17 +1140,10 @@ export function HomeClient({
     }
   }, [leaveTarget, leaving])
 
-  const handleCoinsDeducted    = useCallback(() => setCoins(c => {
-    const next = c - 25
-    useChatStore.getState().setUserCoins(next)
-    return next
-  }), [])
   const handleCloseCreate      = useCallback(() => setShowCreate(false), [])
-  const handleCloseArsenal     = useCallback(() => setShowInviteArsenal(false), [])
   const handleOpenArsenal      = useCallback(() => {
-    setShowCreate(false)
-    setShowInviteArsenal(true)
-  }, [])
+    router.push('/home/invite')
+  }, [router])
   const handleCloseLeave  = useCallback(() => {
     if (!leaving) { setLeaveTarget(null); setLeaveError(null) }
   }, [leaving])
@@ -1258,16 +1250,6 @@ export function HomeClient({
             onClose={handleCloseLeave}
             pending={leaving}
             leaveError={leaveError}
-          />
-        )}
-        {showInviteArsenal && (
-          <InvitePage
-            key="invite-arsenal"
-            userId={userId}
-            coins={coins}
-            infiniteCoins={infiniteCoins}
-            onClose={handleCloseArsenal}
-            onCoinsDeducted={handleCoinsDeducted}
           />
         )}
       </AnimatePresence>
