@@ -222,7 +222,6 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   }, [squadDetailsOpen]) // eslint-disable-line
 
   useEffect(() => {
-    if (!isExpanded) return
     let cancelled = false
     setLoadingCounts(true)
     createClient()
@@ -233,7 +232,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
         setLoadingCounts(false)
       })
     return () => { cancelled = true }
-  }, [isExpanded, crewId]) // eslint-disable-line
+  }, [crewId]) // eslint-disable-line
 
   useEffect(() => {
     let cancelled = false
@@ -1280,8 +1279,10 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
         <div className="flex flex-col w-full" style={{ gap: 'var(--space-3)' }}>
           <p className="font-silkscreen text-tertiary leading-[0] w-full" style={{ fontSize: 0 }}>
             <span className="leading-none" style={{ fontSize: 8 }}>{getXPInCurrentLevel(crewXP)} / {getXPForCurrentLevel(crewXP)}XP</span>
-            <span className="leading-none" style={{ fontSize: 8 }}>{` · `}</span>
-            <span className="leading-none text-secondary" style={{ fontSize: 8 }}>{totalMessages.toLocaleString()} total Squad msg.</span>
+            {totalMessages > 0 && <>
+              <span className="leading-none" style={{ fontSize: 8 }}>{` · `}</span>
+              <span className="leading-none text-secondary" style={{ fontSize: 8 }}>{totalMessages.toLocaleString()} total Squad msg.</span>
+            </>}
           </p>
           <div className="bg-surface h-1 overflow-hidden w-full relative">
             <motion.div
