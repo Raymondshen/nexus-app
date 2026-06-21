@@ -46,7 +46,11 @@ const COIN_VALUES: Record<string, number> = {
 const XP_BONUS_FIRST_TODAY  = 20
 const XP_BONUS_COMBO        = 5
 const BOSS_XP_THRESHOLD     = 500
-const XP_PER_LEVEL          = 500
+
+// Leveling constants — keep in sync with src/lib/config.ts
+const LEVEL_XP_BASE        = 120
+const LEVEL_XP_GROWTH_RATE = 1.0435
+const LEVEL_CAP            = 100
 
 // Anti-spam constants
 const COOLDOWN_MS           = 2_000   // Layer 1: min gap between messages
@@ -65,8 +69,17 @@ function getElementType(content: string, messageType: string): string {
   return 'fire'
 }
 
+// Mirror of src/lib/game/xp.ts — keep in sync with levelFromTotalXp
 function getLevelFromXP(xp: number): number {
-  return Math.floor(xp / XP_PER_LEVEL) + 1
+  let level = 1
+  let cumXP = 0
+  while (level < LEVEL_CAP) {
+    const cost = Math.round(LEVEL_XP_BASE * Math.pow(LEVEL_XP_GROWTH_RATE, level - 1))
+    if (cumXP + cost > xp) break
+    cumXP += cost
+    level++
+  }
+  return level
 }
 
 function getDailyMultiplier(countBeforeThisMessage: number): number {

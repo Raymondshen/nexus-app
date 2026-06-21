@@ -16,6 +16,7 @@ import { MessageBubble } from './MessageBubble'
 import { LevelUpBanner } from '@/components/game/LevelUpBanner'
 import { parseBossSpawnRaidId } from '@/lib/game/boss'
 import { parseArtifactDropId, parseLevelUp } from '@/lib/game/artifacts'
+import { isTierBoundary } from '@/lib/game/xp'
 import { ArrowBarDown } from 'pixelarticons/react/ArrowBarDown'
 import type { MessageWithProfile, Message, Profile, ActiveRaid, AvatarClass, SquadDefinition, SquadDefinitionWithCreator } from '@/types'
 
@@ -106,7 +107,7 @@ type DisplayItem =
   | { kind: 'divider';  label: string;      key: string }
   | { kind: 'boss';     raidId: string;     key: string; raid: ActiveRaid | null }
   | { kind: 'artifact'; artifactId: string; key: string }
-  | { kind: 'level_up'; level: number; msgId: string; key: string }
+  | { kind: 'level_up'; level: number; isTierUp: boolean; msgId: string; key: string }
   | { kind: 'message';  message: MessageWithProfile; isOwn: boolean; showHeader: boolean; xpOverride?: number; coinOverride?: number }
 
 function estimateItemSize(item: DisplayItem): number {
@@ -431,7 +432,7 @@ export function MessageList({
         lastMsgTime = 0
       } else if (level !== null) {
         if (devMode) {
-          list.push({ kind: 'level_up', level, msgId: msg.id, key: `levelup-${msg.id}` })
+          list.push({ kind: 'level_up', level, isTierUp: isTierBoundary(level), msgId: msg.id, key: `levelup-${msg.id}` })
         }
         lastUserId  = null
         lastMsgTime = 0
@@ -821,6 +822,7 @@ export function MessageList({
         <AnimatePresence>
           <LevelUpBanner
             level={item.level}
+            isTierUp={item.isTierUp}
             onDismiss={() => setDismissedLevelUps((s) => new Set([...s, item.msgId]))}
           />
         </AnimatePresence>

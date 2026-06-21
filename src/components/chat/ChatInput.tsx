@@ -8,7 +8,7 @@ import Image from 'next/image'
 import { isSupabaseStorage, resolveAvatarUrl } from '@/components/ui/Avatar'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/client'
-import { getElementType, getXPProgress, XP_PER_LEVEL } from '@/lib/game/xp'
+import { getElementType, getXPProgress, getXPInCurrentLevel, getXPForCurrentLevel } from '@/lib/game/xp'
 import { useChatStore } from '@/store/chatStore'
 import { DamageFloat } from '@/components/game/DamageFloat'
 import { FriendshipXPToast } from '@/components/game/FriendshipXPToast'
@@ -1279,7 +1279,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
         {/* XP indicator */}
         <div className="flex flex-col w-full" style={{ gap: 'var(--space-3)' }}>
           <p className="font-silkscreen text-tertiary leading-[0] w-full" style={{ fontSize: 0 }}>
-            <span className="leading-none" style={{ fontSize: 8 }}>{crewXP % XP_PER_LEVEL} / {XP_PER_LEVEL}XP</span>
+            <span className="leading-none" style={{ fontSize: 8 }}>{getXPInCurrentLevel(crewXP)} / {getXPForCurrentLevel(crewXP)}XP</span>
             <span className="leading-none" style={{ fontSize: 8 }}>{` · `}</span>
             <span className="leading-none text-secondary" style={{ fontSize: 8 }}>{totalMessages.toLocaleString()} total Squad msg.</span>
           </p>

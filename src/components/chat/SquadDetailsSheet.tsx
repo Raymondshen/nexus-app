@@ -6,7 +6,7 @@ import type { PanInfo } from 'framer-motion'
 import Image from 'next/image'
 import { isSupabaseStorage, resolveAvatarUrl } from '@/components/ui/Avatar'
 import { Button } from '@/components/ui/Button'
-import { XP_PER_LEVEL } from '@/lib/game/xp'
+import { getXPInCurrentLevel, getXPForCurrentLevel } from '@/lib/game/xp'
 import { PixelSprite, spriteInfoFor } from '@/components/game/PixelSprite'
 import { MagicEdit } from 'pixelarticons/react/MagicEdit'
 import { Bell } from 'pixelarticons/react/Bell'
@@ -291,7 +291,7 @@ function SquadDetailsEditSheet({
           <div className="flex flex-col w-full" style={{ gap: 'var(--space-3)' }}>
             <p className="leading-[0] text-[0px] font-silkscreen">
               <span className="leading-none text-tertiary" style={{ fontSize: 'var(--text-mini)' }}>
-                {`${crewXP % XP_PER_LEVEL} / ${XP_PER_LEVEL}XP`}
+                {`${getXPInCurrentLevel(crewXP)} / ${getXPForCurrentLevel(crewXP)}XP`}
               </span>
               {totalMessages > 0 && (
                 <>
@@ -526,7 +526,7 @@ export function SquadDetailsSheet({
             <div className="flex flex-col w-full" style={{ gap: 'var(--space-3)' }}>
               <p className="leading-[0] text-[0px] font-silkscreen w-full">
                 <span className="leading-none text-tertiary" style={{ fontSize: 'var(--text-mini)' }}>
-                  {`${crewXP % XP_PER_LEVEL} / ${XP_PER_LEVEL}XP`}
+                  {`${getXPInCurrentLevel(crewXP)} / ${getXPForCurrentLevel(crewXP)}XP`}
                 </span>
                 {totalMessages > 0 && (
                   <>

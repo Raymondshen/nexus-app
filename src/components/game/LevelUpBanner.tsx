@@ -4,11 +4,12 @@ import { useEffect } from 'react'
 import { motion } from 'framer-motion'
 
 interface LevelUpBannerProps {
-  level:     number
-  onDismiss: () => void
+  level:      number
+  isTierUp?:  boolean
+  onDismiss:  () => void
 }
 
-export function LevelUpBanner({ level, onDismiss }: LevelUpBannerProps) {
+export function LevelUpBanner({ level, isTierUp = false, onDismiss }: LevelUpBannerProps) {
   useEffect(() => {
     const t = setTimeout(onDismiss, 3000)
     return () => clearTimeout(t)

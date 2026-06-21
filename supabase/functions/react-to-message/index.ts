@@ -7,11 +7,24 @@ const CORS = {
 }
 const JSON_HEADERS = { ...CORS, 'Content-Type': 'application/json' }
 
-const XP_PER_LEVEL     = 500
+// Leveling constants — keep in sync with src/lib/config.ts
+const LEVEL_XP_BASE        = 120
+const LEVEL_XP_GROWTH_RATE = 1.0435
+const LEVEL_CAP            = 100
+
 const HYPE_MAN_HEAL_XP = 5
 
+// Mirror of src/lib/game/xp.ts — keep in sync with levelFromTotalXp
 function getLevelFromXP(xp: number): number {
-  return Math.floor(xp / XP_PER_LEVEL) + 1
+  let level = 1
+  let cumXP = 0
+  while (level < LEVEL_CAP) {
+    const cost = Math.round(LEVEL_XP_BASE * Math.pow(LEVEL_XP_GROWTH_RATE, level - 1))
+    if (cumXP + cost > xp) break
+    cumXP += cost
+    level++
+  }
+  return level
 }
 
 Deno.serve(async (req: Request) => {

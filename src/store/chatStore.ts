@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { Message, MessageWithProfile, ActiveRaid, ElementType } from '@/types'
-import { getLevelFromXP, XP_PER_LEVEL } from '@/lib/game/xp'
+import { getLevelFromXP } from '@/lib/game/xp'
 
 export interface DamageFloatItem {
   id: number
@@ -167,8 +167,6 @@ export const useChatStore = create<ChatStore>((set) => ({
 
   setSquadDetailsOpen: (open) => set({ squadDetailsOpen: open }),
 }))
-
-export { XP_PER_LEVEL }
 
 export function selectActivePins(messages: Message[]): Message[] {
   const now = Date.now()

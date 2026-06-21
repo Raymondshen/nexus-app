@@ -27,6 +27,7 @@ import { AnnouncementBanner } from '@/components/ui/AnnouncementBanner'
 import type { AnnouncementItem } from '@/components/ui/AnnouncementBanner'
 import { DiamondGem } from 'pixelarticons/react/DiamondGem'
 import { isGemGateOpen } from '@/lib/game/gems'
+import { getXPInCurrentLevel, getXPForCurrentLevel } from '@/lib/game/xp'
 import { GEM_DAILY_LIMIT } from '@/lib/config'
 import { consumeHomeLastMessage } from '@/lib/homePreviewCache'
 
@@ -56,8 +57,6 @@ interface HomeClientProps {
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-
-const XP_PER_LEVEL = 500
 
 function truncate(str: string, max: number): string {
   return str.length <= max ? str : str.slice(0, max - 1) + '…'
@@ -654,7 +653,7 @@ const CREW_AVATAR_COLORS = ['#bf5fff', '#00e5ff', '#ffd700', '#ff4444', '#66bb6a
 function SquadCardPreview({ summary, onAvatarTap }: { summary: CrewSummary; onAvatarTap?: () => void }) {
   const { crew, lastMessage, unreadCount } = summary
   const hasUnread   = unreadCount > 0
-  const xpInLevel   = crew.total_xp % XP_PER_LEVEL
+  const xpInLevel   = getXPInCurrentLevel(crew.total_xp)
   const colorIndex  = crew.name.charCodeAt(0) % CREW_AVATAR_COLORS.length
   const avatarColor = CREW_AVATAR_COLORS[colorIndex]
   const imageUrl    = crew.image_url as string | null | undefined
@@ -692,7 +691,7 @@ function SquadCardPreview({ summary, onAvatarTap }: { summary: CrewSummary; onAv
       <div className="flex-1 min-w-0 flex flex-col gap-[var(--space-2)] justify-center leading-none">
         {/* XP / level */}
         <span className="font-silkscreen text-[8px] text-tertiary whitespace-nowrap leading-none">
-          {xpInLevel}/{XP_PER_LEVEL} XP · Lv. {crew.level}
+          {xpInLevel}/{getXPForCurrentLevel(crew.total_xp)} XP · Lv. {crew.level}
           {hasUnread ? ` · +${unreadCount} new` : ''}
         </span>
 
