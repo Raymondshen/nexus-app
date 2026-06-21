@@ -1,4 +1,3 @@
-import imageCompression from 'browser-image-compression'
 import { IMAGE_CONFIG } from '@/lib/config'
 
 export interface CompressOptions {
@@ -6,16 +5,73 @@ export interface CompressOptions {
   quality: number
 }
 
-export async function compressImage(file: File, options: CompressOptions): Promise<File> {
-  if (file.type === 'image/gif') return file
-  const result = await imageCompression(file, {
-    maxWidthOrHeight: options.maxWidthOrHeight,
-    initialQuality:   options.quality,
-    fileType:         'image/webp',
-    useWebWorker:     true,
-    preserveExif:     false,
+function replaceExt(name: string, ext: string): string {
+  const base = name.replace(/\.[^.]+$/, '')
+  return (base || 'image') + '.' + ext
+}
+
+export function compressImage(file: File, options: CompressOptions): Promise<File> {
+  if (file.type === 'image/gif') return Promise.resolve(file)
+
+  return new Promise((resolve, reject) => {
+    const img = new window.Image()
+    const objectUrl = URL.createObjectURL(file)
+
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl)
+
+      const { maxWidthOrHeight, quality } = options
+      let w = img.naturalWidth
+      let h = img.naturalHeight
+
+      // Scale down so longest edge ≤ maxWidthOrHeight; never upscale
+      if (w > maxWidthOrHeight || h > maxWidthOrHeight) {
+        if (w >= h) {
+          h = Math.round(h * maxWidthOrHeight / w)
+          w = maxWidthOrHeight
+        } else {
+          w = Math.round(w * maxWidthOrHeight / h)
+          h = maxWidthOrHeight
+        }
+      }
+
+      const canvas = document.createElement('canvas')
+      canvas.width  = w
+      canvas.height = h
+      const ctx = canvas.getContext('2d')
+      if (!ctx) { reject(new Error('Canvas context unavailable')); return }
+
+      // Drawing to canvas strips EXIF — no separate strip step needed.
+      ctx.drawImage(img, 0, 0, w, h)
+
+      // Try WebP; fall back to JPEG for browsers without WebP encoding support.
+      canvas.toBlob(
+        (webpBlob) => {
+          if (webpBlob) {
+            resolve(new File([webpBlob], replaceExt(file.name, 'webp'), { type: 'image/webp' }))
+            return
+          }
+          canvas.toBlob(
+            (jpegBlob) => {
+              if (!jpegBlob) { reject(new Error('Image compression failed')); return }
+              resolve(new File([jpegBlob], replaceExt(file.name, 'jpg'), { type: 'image/jpeg' }))
+            },
+            'image/jpeg',
+            quality,
+          )
+        },
+        'image/webp',
+        quality,
+      )
+    }
+
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl)
+      reject(new Error('Failed to load image for compression'))
+    }
+
+    img.src = objectUrl
   })
-  return result
 }
 
 export function generateLQIP(file: File): Promise<string> {

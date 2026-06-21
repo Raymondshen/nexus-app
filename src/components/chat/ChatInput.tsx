@@ -455,10 +455,10 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       setChatImageLqip(lqip)
 
       const supabase = createClient()
-      const ext      = file.type === 'image/gif' ? 'gif' : 'webp'
+      const ext      = file.type === 'image/gif' ? 'gif' : compressed.type.includes('jpeg') ? 'jpg' : 'webp'
       const path     = `${crewId}/${userId}/${Date.now()}.${ext}`
       const { error: uploadError } = await supabase.storage.from('chat-images').upload(path, compressed, {
-        contentType:  file.type === 'image/gif' ? 'image/gif' : 'image/webp',
+        contentType:  file.type === 'image/gif' ? 'image/gif' : compressed.type,
         cacheControl: '31536000',
       })
       if (uploadError) throw uploadError
