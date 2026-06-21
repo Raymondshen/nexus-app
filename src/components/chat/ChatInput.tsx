@@ -1125,7 +1125,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
 
           {/* Stacked member avatars (circles, 8px gap) */}
           <div className="flex items-center" style={{ gap: 8 }}>
-            {members.slice(0, 5).map((m) => {
+            {[...members].sort((a, b) => (onlineUserIds.has(b.id) ? 1 : 0) - (onlineUserIds.has(a.id) ? 1 : 0)).slice(0, 5).map((m) => {
               const url     = m.avatar_url as string | null | undefined
               const initial = m.username[0]?.toUpperCase() ?? '?'
               const online  = onlineUserIds.has(m.id)
