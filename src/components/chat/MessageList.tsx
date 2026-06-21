@@ -16,6 +16,7 @@ import { MessageBubble } from './MessageBubble'
 import { LevelUpBanner } from '@/components/game/LevelUpBanner'
 import { parseBossSpawnRaidId } from '@/lib/game/boss'
 import { parseArtifactDropId, parseLevelUp } from '@/lib/game/artifacts'
+import { ArrowBarDown } from 'pixelarticons/react/ArrowBarDown'
 import type { MessageWithProfile, Message, Profile, ActiveRaid, AvatarClass, SquadDefinition, SquadDefinitionWithCreator } from '@/types'
 
 const BossCard = dynamic(
@@ -884,9 +885,7 @@ export function MessageList({
             className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 size-10 inline-flex items-center justify-center gap-2 overflow-hidden rounded-[56px] bg-black/0 p-2 shadow-[0px_0px_20px_12px_rgba(0,0,0,0.10)]"
             aria-label="Scroll to latest messages"
           >
-            <div className="size-5 relative overflow-hidden">
-              <div className="w-3.5 h-4 left-[3.33px] top-[1.67px] absolute bg-primary" />
-            </div>
+            <ArrowBarDown style={{ width: 20, height: 20, color: 'var(--color-primary)' }} />
           </motion.button>
         )}
       </AnimatePresence>

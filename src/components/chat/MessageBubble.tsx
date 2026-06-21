@@ -21,6 +21,8 @@ import { ChatSheetReact } from '@/components/chat/ChatSheetReact'
 import { ImagePreviewOverlay } from '@/components/ui/ImagePreviewOverlay'
 import { Button } from '@/components/ui/Button'
 import { CornerDownRight } from 'pixelarticons/react/CornerDownRight'
+import { Cake } from 'pixelarticons/react/Cake'
+import { PartyPopper } from 'pixelarticons/react/PartyPopper'
 
 function ImageBubble({
   src, blurDataURL, onTouchStart, onTouchEnd, onTouchMove, onClick,
@@ -958,10 +960,7 @@ function BirthdayMessage({ content }: { content: string }) {
         className="flex items-center w-full rounded-[8px] overflow-hidden border border-[var(--color-purple)] bg-[rgba(17,17,17,0.9)] shadow-[0px_0px_20px_12px_rgba(0,0,0,0.10)]"
         style={{ padding: 16, gap: 16 }}
       >
-        {/* Pixel cake icon 16×16 */}
-        <div className="size-4 relative overflow-hidden flex-shrink-0">
-          <div className="w-3.5 h-3 left-[0.67px] top-[2px] absolute bg-secondary" />
-        </div>
+        <Cake style={{ width: 16, height: 16, color: 'var(--color-secondary)', flexShrink: 0 }} />
         <div className="flex flex-1 flex-col" style={{ gap: 4, minWidth: 1 }}>
           <p className="font-silkscreen leading-none w-full" style={{ fontSize: 'var(--text-mini)' }}>
             <span style={{ color: 'var(--color-tertiary)' }}>{labelA}</span>
@@ -990,10 +989,7 @@ function JoinMessage({ content }: { content: string }) {
         className="flex items-center w-full rounded-[8px] overflow-hidden border border-[var(--color-purple)] bg-[rgba(17,17,17,0.9)] shadow-[0px_0px_20px_12px_rgba(0,0,0,0.10)]"
         style={{ padding: 16, gap: 16 }}
       >
-        {/* Pixel party-popper icon 16×16 */}
-        <div className="size-4 relative overflow-hidden flex-shrink-0">
-          <div className="size-3.5 left-[1.33px] top-[1.33px] absolute bg-secondary" />
-        </div>
+        <PartyPopper style={{ width: 16, height: 16, color: 'var(--color-secondary)', flexShrink: 0 }} />
         <div className="flex flex-col" style={{ gap: 4, minWidth: 1 }}>
           <p className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}>
             New Squad Member Joined!
