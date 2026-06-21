@@ -311,41 +311,31 @@ export function EventSheetBottomPreview({ crewId, onClose }: EventSheetBottomPre
   }
 
   const content = (
-    <motion.div
-      className="fixed inset-0 z-[80] flex items-end justify-center"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      onClick={onClose}
-    >
-      <div className="absolute inset-0 bg-black/60" />
-
+    <>
+      {/* Backdrop */}
       <motion.div
-        drag="y"
-        dragConstraints={{ top: 0, bottom: 0 }}
-        dragElastic={{ top: 0, bottom: 1 }}
-        onDragEnd={(_, info) => { if (info.offset.y > 80 || info.velocity.y > 400) onClose() }}
+        className="fixed inset-0 z-[79] bg-black/60"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+      />
+
+      {/* Sheet — fills from below floating navbar to bottom of screen */}
+      <motion.div
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
         transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-        className="relative w-full max-w-[480px] bg-black border-t border-[var(--color-border)] flex flex-col overflow-hidden"
-        style={{ maxHeight: '90vh' }}
+        className="fixed left-0 right-0 bottom-0 z-[80] bg-black border-t border-[var(--color-border)] flex flex-col overflow-hidden"
+        style={{ top: 'calc(env(safe-area-inset-top, 0px) + 72px)' }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Drag handle */}
-        <div className="flex justify-center flex-shrink-0" style={{ paddingTop: 12, paddingBottom: 8 }}>
-          <div
-            className="rounded-full"
-            style={{ width: 40, height: 4, background: 'var(--color-border-hover)' }}
-          />
-        </div>
-
         {/* Scrollable: header + cards */}
         <div
           ref={scrollRef}
           className="flex-1 overflow-y-auto nexus-scroll flex flex-col"
-          style={{ gap: 'var(--x7)', padding: '0 var(--x5)' }}
+          style={{ gap: 'var(--x7)', padding: 'var(--x7) var(--x5) 0' }}
         >
           <p
             className="font-body font-bold text-[var(--color-primary)] leading-none flex-shrink-0"
@@ -395,7 +385,7 @@ export function EventSheetBottomPreview({ crewId, onClose }: EventSheetBottomPre
           </button>
         </div>
       </motion.div>
-    </motion.div>
+    </>
   )
 
   return createPortal(content, document.body)
