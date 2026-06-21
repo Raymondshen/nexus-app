@@ -127,6 +127,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   const [mentionIndex,    setMentionIndex]    = useState(0)
   const [isFocused,       setIsFocused]       = useState(false)
   const [showEventSheet,  setShowEventSheet]  = useState(false)
+  const [isMultiline,     setIsMultiline]     = useState(false)
 
   const [chatImageLocalUrl,  setChatImageLocalUrl]  = useState<string | null>(null)
   const [chatImagePublicUrl, setChatImagePublicUrl] = useState<string | null>(null)
@@ -136,6 +137,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   const [friendshipToast,    setFriendshipToast]    = useState<{ totalXP: number; xpAwarded: number; partnerName: string; dailyCount: number } | null>(null)
 
   const textareaRef           = useRef<HTMLTextAreaElement>(null)
+  const singleLineHeightRef   = useRef<number>(0)
   const overlayRef            = useRef<HTMLDivElement>(null)
   const crewImageInputRef     = useRef<HTMLInputElement>(null)
   const chatImageInputRef     = useRef<HTMLInputElement>(null)
@@ -172,6 +174,12 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   useEffect(() => {
     setDevMode(localStorage.getItem('nexus_dev_mode') === '1')
     setChatCameraEnabled(localStorage.getItem('nexus_chat_camera') === '1')
+  }, [])
+
+  // Capture the natural one-row height on mount so we know when content overflows to a second line
+  useEffect(() => {
+    const el = textareaRef.current
+    if (el) singleLineHeightRef.current = el.scrollHeight
   }, [])
 
   useEffect(() => {
@@ -263,12 +271,18 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       )
   }, [notifPrefs, userId, crewId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Sync overlay scroll with textarea scroll so highlighted text stays aligned
+  // Sync overlay scroll with textarea scroll so highlighted text stays aligned.
+  // scrollLeft sync is needed in single-line (nowrap) mode when the text slides horizontally.
   useEffect(() => {
     const ta = textareaRef.current
     const ov = overlayRef.current
     if (!ta || !ov) return
-    const sync = () => { if (overlayRef.current && textareaRef.current) overlayRef.current.scrollTop = textareaRef.current.scrollTop }
+    const sync = () => {
+      if (overlayRef.current && textareaRef.current) {
+        overlayRef.current.scrollTop  = textareaRef.current.scrollTop
+        overlayRef.current.scrollLeft = textareaRef.current.scrollLeft
+      }
+    }
     ta.addEventListener('scroll', sync)
     return () => ta.removeEventListener('scroll', sync)
   }, [])
@@ -712,7 +726,12 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     setReplyTo(null)
     broadcastTyping(false)
     if (typingTimerRef.current) clearTimeout(typingTimerRef.current)
-    if (textareaRef.current) textareaRef.current.style.height = 'auto'
+    if (textareaRef.current) {
+      const singleH = singleLineHeightRef.current || 45
+      textareaRef.current.style.height     = `${singleH}px`
+      textareaRef.current.style.whiteSpace = 'nowrap'
+    }
+    setIsMultiline(false)
     haptic(10)
 
     const supabase    = createClient()
@@ -860,6 +879,23 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       setText(content)
       if (currentReply) setReplyTo(currentReply)
       setSendError(err instanceof Error ? err.message : 'Failed to send. Tap to retry.')
+      // Re-measure after React restores the text to the DOM so height/mode are correct
+      requestAnimationFrame(() => {
+        const el = textareaRef.current
+        if (!el) return
+        const singleH = singleLineHeightRef.current || 45
+        el.style.whiteSpace = 'pre-wrap'
+        el.style.height     = 'auto'
+        const wouldWrap     = el.scrollHeight > singleH
+        if (wouldWrap) {
+          el.style.height = Math.min(el.scrollHeight, 120) + 'px'
+          setIsMultiline(true)
+        } else {
+          el.style.whiteSpace = 'nowrap'
+          el.style.height     = `${singleH}px`
+          setIsMultiline(false)
+        }
+      })
     } finally {
       setSending(false)
       textareaRef.current?.focus()
@@ -914,9 +950,23 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   function handleInput(e: React.ChangeEvent<HTMLTextAreaElement>) {
     const val = e.target.value.slice(0, MAX_MESSAGE_LENGTH)
     setText(val)
-    const el = e.target
-    el.style.height = 'auto'
-    el.style.height = Math.min(el.scrollHeight, 120) + 'px'
+    const el     = e.target
+    const singleH = singleLineHeightRef.current || 45
+
+    // Temporarily allow wrapping so we can measure the true content height.
+    // If it exceeds one row → multiline mode; otherwise keep it locked to a single line.
+    el.style.whiteSpace = 'pre-wrap'
+    el.style.height     = 'auto'
+    const wouldWrap     = el.scrollHeight > singleH
+    if (wouldWrap) {
+      el.style.height = Math.min(el.scrollHeight, 120) + 'px'
+      setIsMultiline(true)
+    } else {
+      el.style.whiteSpace = 'nowrap'
+      el.style.height     = `${singleH}px`
+      setIsMultiline(false)
+    }
+
     if (val.trim()) {
       broadcastTyping(true)
       if (typingTimerRef.current) clearTimeout(typingTimerRef.current)
@@ -937,7 +987,12 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
 
   async function executeCommand(name: SlashCommandName) {
     setText('')
-    if (textareaRef.current) textareaRef.current.style.height = 'auto'
+    if (textareaRef.current) {
+      const singleH = singleLineHeightRef.current || 45
+      textareaRef.current.style.height     = `${singleH}px`
+      textareaRef.current.style.whiteSpace = 'nowrap'
+    }
+    setIsMultiline(false)
     textareaRef.current?.focus()
 
     if (name === 'event') {
@@ -1396,7 +1451,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                   ref={overlayRef}
                   aria-hidden="true"
                   className="pointer-events-none absolute inset-0 font-body text-[14px] leading-normal overflow-hidden"
-                  style={{ paddingTop: 12, paddingBottom: 12, fontVariationSettings: '"opsz" 14', whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: 'var(--color-primary)' }}
+                  style={{ paddingTop: 12, paddingBottom: 12, fontVariationSettings: '"opsz" 14', whiteSpace: isMultiline ? 'pre-wrap' : 'nowrap', wordBreak: isMultiline ? 'break-word' : 'normal', color: 'var(--color-primary)' }}
                 >
                   {renderHighlightedInput(text)}
                 </div>
@@ -1410,7 +1465,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                   rows={1}
                   onFocus={() => setIsFocused(true)}
                   className="relative w-full bg-transparent font-body text-[14px] placeholder:text-muted resize-none focus:outline-none leading-normal"
-                  style={{ paddingTop: 12, paddingBottom: 12, maxHeight: 120, fontVariationSettings: '"opsz" 14', color: 'transparent', caretColor: 'var(--color-primary)', overflowY: 'auto', overflowX: 'hidden' }}
+                  style={{ paddingTop: 12, paddingBottom: 12, maxHeight: 120, fontVariationSettings: '"opsz" 14', color: 'transparent', caretColor: 'var(--color-primary)', overflowY: 'auto', overflowX: 'hidden', whiteSpace: isMultiline ? 'pre-wrap' : 'nowrap' }}
                 />
               </div>
               {(() => {
