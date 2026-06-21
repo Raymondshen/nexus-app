@@ -12,7 +12,7 @@ Build: `next build --webpack` (Turbopack breaks next-pwa + proxy.ts)
 ## Database Tables
 ```
 profiles            id, username (unique case-insensitive), first_name, last_name, avatar_class, avatar_url, avatar_storage_key, custom_avatar (bool default false), birthday, is_dev, coins (int default 0), gem_balance (int default 0), last_gem_claim (timestamptz nullable), status (text nullable ≤100 chars), created_at
-crews               id, name, invite_code (6 chars unique), level, total_xp, created_at, is_dm (bool default false), dm_partner_1 (uuid nullable), dm_partner_2 (uuid nullable), image_url, image_storage_key
+crews               id, name, invite_code (6 chars unique), level, total_xp, created_at, is_dm (bool default false), dm_partner_1 (uuid nullable), dm_partner_2 (uuid nullable), image_url, image_storage_key, last_message_preview (text nullable), last_message_at (timestamptz nullable), last_message_sender_id (uuid nullable)
 crew_members        id, crew_id, user_id, class, joined_at, last_seen
 messages            id, crew_id, user_id, content, message_type, element_type, xp_awarded, reactions (jsonb default '{}'), reply_to_id, reply_preview, reply_username, image_url, image_blur_hash, pinned (bool default false), pinned_by (uuid nullable), pinned_at (timestamptz nullable), pin_expires_at (timestamptz nullable), created_at
 crew_xp_log         id, crew_id, user_id, xp_amount, source, created_at
@@ -174,6 +174,7 @@ OG previews: `extractFirstUrl` → `useOGPreview` hook → `<LinkPreviewCard>` b
 - Textarea: auto-resizes from 1 row (48px min) up to 120px (`scrollHeight` in `handleInput`); `py-12`; color transparent + caretColor primary
 - @mention overlay: transparent textarea + `aria-hidden` div; purple `<mark>` for valid tokens; overlay scrollTop synced
 - Slash commands: `/birthdays` → `message_type: 'system'`
+- System message content formats: `JOIN:username` (no inviter) or `JOIN:username:inviterUsername` (with inviter, set by `joinCrewFromWelcomeAction` when a valid unused invite is found); `MessageBubble` parses both formats — `JoinMessage` shows "@username joined the squad" or "invited by @inviter"
 - `InputActionsSheet` (`src/components/chat/InputActionsSheet.tsx`): triggered by `PlusBox` (`[+]`) button; two options — "UPLOAD PHOTO" (`Upload` 16×16, purple border, gated `nexus_chat_camera`) + "CREATE A POLL" (`Chart` 16×16, secondary border); spring slide-up, `pt-24 pb-28 px-16 gap-16`
 - `GifPickerSheet` (`src/components/chat/GifPickerSheet.tsx`): `Search` icon 16×16 in input; "Powered by Klipy" Silkscreen 8px tertiary below; no upload button; spring slide-up, `pt-24 pb-28 px-16`; loads trending on open, switches to search on query input (400ms debounce)
 - **Klipy API** (`src/app/api/gif/route.ts`): two endpoints with **different response shapes** — trending (`/web/common-trending`) returns items in `data.clips[]` with flat `file.thumbnail_url`/`thumbnail_url_webp` and `file_meta.gif/webp` for dimensions; search (`/web/gifs/search`) returns items in `data.data[]` with nested `file.sm/md/hd/xs` sub-objects each containing `gif`/`jpg`/`webp` variants. Both share `data.has_next`. Use separate parsers (`parseClipItem` / `parseSearchItem`) — do NOT unify them.
@@ -210,7 +211,9 @@ Single-row `InboxCardPreview` component: avatar 48px · DM Sans Bold name · sta
 - Outgoing ("Sent friend request"): status `--yellow` · red-bordered `Close` 16×16 icon-only button inline (no fill)
 
 ### HomeClient
-- Realtime: one `messages:{crewId}` broadcast per crew + `postgres_changes UPDATE` on `profiles` + two friendship XP channels (`home-fxp-a/b:{userId}`)
+- Realtime: single `postgres_changes UPDATE` channel on `crews` (`filter: id=in.(crewIds)`, channel `home-crews-preview`) replaces N per-crew broadcast channels; XP-only updates guarded by `updated.last_message_at === cs.lastMessage?.created_at` to prevent false unread increments + `postgres_changes UPDATE` on `profiles` + two friendship XP channels (`home-fxp-a/b:{userId}`)
+- Last-message preview comes from denormalized `crews.last_message_preview/at/sender_id` columns (maintained by `update_crew_last_message` trigger); no `messages` table join on home load
+- Optimistic preview: `homePreviewCache.ts` module-level consume-once Map; `ChatInput` writes on send, `HomeClient` `useState` initializer reads and patches before first render
 - Auto-sort by `lastMessage.created_at` desc; Framer Motion `layout` animates; channel dep `[...crewIds].sort().join(',')`
 - `handleCrewTap`: sets `sessionStorage.nexus_chat_from = '/home'` before push
 
@@ -255,7 +258,6 @@ Server (`unstable_cache` via `createServiceClient()` — NOT `createClient()`):
 |---|---|---|---|
 | Home profile | 60s | `profile:{userId}` | saveBirthdayAction, revalidateProfileAction, updateAvatarAction |
 | Home member profiles + counts | 60s | `crew-members:{crewId}` | joinCrewAction, leaveCrewAction, updateAvatarAction |
-| Home last message preview | 30s | TTL only | — |
 | Home friend profiles | 60s | `profile:{friendId}` | revalidateProfileAction, updateAvatarAction |
 | Home friendships | 60s | `friends:{userId}` | sendFriendRequestAction, acceptFriendRequestAction, removeFriendAction |
 | Active announcements | 60s | `announcements` | all announcement CRUD actions |
@@ -407,6 +409,7 @@ Full-height swipe-up panel with scroll-integrated pull-to-close (`onPanEnd`, thr
 - `20240103000032` — drop old insert_message overloads (ambiguous RPC fix)
 - `20240103000035` — profiles.gem_balance + last_gem_claim, claim_daily_gem, profiles_protect_gem_columns trigger
 - `20240103000036` — messages pin columns, messages_protect_pin_columns trigger, pin_message + unpin_message RPCs
+- `20240103000037` — crews last_message_preview/at/sender_id denormalized columns, update_crew_last_message trigger (skips system msgs, out-of-order guard), backfill from messages, crews added to supabase_realtime publication
 
 Manual SQL applied directly:
 ```sql
