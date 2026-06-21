@@ -9,7 +9,6 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 const useBrowserLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect
 import dynamic from 'next/dynamic'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowBarDown } from 'pixelarticons/react/ArrowBarDown'
 import { format, isToday, isYesterday, isSameDay } from 'date-fns'
 import { createClient } from '@/lib/supabase/client'
 import { useChatStore } from '@/store/chatStore'
@@ -882,10 +881,12 @@ export function MessageList({
             onClick={() => {
               virtualizer.scrollToIndex(items.length - 1, { align: 'end', behavior: 'smooth' })
             }}
-            className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 size-10 flex items-center justify-center overflow-hidden rounded-[56px] bg-black/0 p-2 shadow-[0px_0px_20px_12px_rgba(0,0,0,0.10)]"
+            className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 size-10 inline-flex items-center justify-center gap-2 overflow-hidden rounded-[56px] bg-black/0 p-2 shadow-[0px_0px_20px_12px_rgba(0,0,0,0.10)]"
             aria-label="Scroll to latest messages"
           >
-            <ArrowBarDown style={{ width: 20, height: 20, color: 'var(--color-primary)' }} />
+            <div className="size-5 relative overflow-hidden">
+              <div className="w-3.5 h-4 left-[3.33px] top-[1.67px] absolute bg-primary" />
+            </div>
           </motion.button>
         )}
       </AnimatePresence>

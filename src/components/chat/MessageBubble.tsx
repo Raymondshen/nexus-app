@@ -20,8 +20,6 @@ import { PinDurationSheet } from '@/components/chat/PinDurationSheet'
 import { ChatSheetReact } from '@/components/chat/ChatSheetReact'
 import { ImagePreviewOverlay } from '@/components/ui/ImagePreviewOverlay'
 import { Button } from '@/components/ui/Button'
-import { Cake } from 'pixelarticons/react/Cake'
-import { UserPlus } from 'pixelarticons/react/UserPlus'
 import { CornerDownRight } from 'pixelarticons/react/CornerDownRight'
 
 function ImageBubble({
@@ -951,23 +949,29 @@ function BirthdayMessage({ content }: { content: string }) {
   const username = parts[0] ?? ''
   const dateStr  = parts[1] ?? ''
   const label    = parts.slice(2).join(':')
+  const dotIdx   = label.indexOf('·')
+  const labelA   = dotIdx >= 0 ? label.slice(0, dotIdx + 1).trim() : label
+  const labelB   = dotIdx >= 0 ? label.slice(dotIdx + 1).trim()    : ''
   return (
     <div style={{ marginTop: 'var(--space-6)' }}>
       <div
-        className="border border-purple flex items-center w-full"
-        style={{ padding: 16, gap: 8 }}
+        className="flex items-center w-full rounded-[8px] overflow-hidden border border-[var(--color-purple)] bg-[rgba(17,17,17,0.9)] shadow-[0px_0px_20px_12px_rgba(0,0,0,0.10)]"
+        style={{ padding: 16, gap: 16 }}
       >
-        <Cake style={{ width: 24, height: 24, color: 'var(--color-primary)', flexShrink: 0 }} aria-hidden="true" />
-        <div className="flex flex-1 flex-col" style={{ gap: 0, minWidth: 1 }}>
-          <p
-            className="font-silkscreen leading-normal tracking-[0.1px] whitespace-nowrap"
-            style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}
-          >
-            {label}
+        {/* Pixel cake icon 16×16 */}
+        <div className="size-4 relative overflow-hidden flex-shrink-0">
+          <div className="w-3.5 h-3 left-[0.67px] top-[2px] absolute bg-secondary" />
+        </div>
+        <div className="flex flex-1 flex-col" style={{ gap: 4, minWidth: 1 }}>
+          <p className="font-silkscreen leading-none w-full" style={{ fontSize: 'var(--text-mini)' }}>
+            <span style={{ color: 'var(--color-tertiary)' }}>{labelA}</span>
+            {labelB && <span style={{ color: 'var(--color-secondary)' }}> {labelB}</span>}
           </p>
-          <p className="font-body w-full" style={{ fontSize: 'var(--text-sm)', lineHeight: 0, fontVariationSettings: '"opsz" 14' }}>
-            <span className="leading-normal" style={{ color: 'var(--color-purple)' }}>@{username}</span>
-            {dateStr && <span className="leading-normal" style={{ color: 'var(--color-primary)' }}> · {dateStr}</span>}
+          <p
+            className="font-body font-normal leading-none w-full overflow-hidden text-ellipsis whitespace-nowrap"
+            style={{ fontSize: 'var(--text-sm)', color: 'var(--color-secondary)', fontVariationSettings: '"opsz" 14' }}
+          >
+            @{username}{dateStr && ` · ${dateStr}`}
           </p>
         </div>
       </div>
@@ -976,24 +980,37 @@ function BirthdayMessage({ content }: { content: string }) {
 }
 
 function JoinMessage({ content }: { content: string }) {
-  const username = content.slice('JOIN:'.length)
+  const rest     = content.slice('JOIN:'.length)
+  const sepIdx   = rest.indexOf(':')
+  const username = sepIdx >= 0 ? rest.slice(0, sepIdx) : rest
+  const inviter  = sepIdx >= 0 ? rest.slice(sepIdx + 1) : ''
   return (
     <div style={{ marginTop: 'var(--space-6)', marginBottom: 'var(--space-6)' }}>
       <div
-        className="border border-[var(--color-border)] flex items-center w-full"
-        style={{ padding: 16, gap: 8 }}
+        className="flex items-center w-full rounded-[8px] overflow-hidden border border-[var(--color-purple)] bg-[rgba(17,17,17,0.9)] shadow-[0px_0px_20px_12px_rgba(0,0,0,0.10)]"
+        style={{ padding: 16, gap: 16 }}
       >
-        <UserPlus style={{ width: 24, height: 24, color: 'var(--color-primary)', flexShrink: 0 }} aria-hidden="true" />
-        <div className="flex flex-col min-w-0" style={{ gap: 0 }}>
-          <p
-            className="font-silkscreen leading-normal tracking-[0.1px] whitespace-nowrap"
-            style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}
-          >
-            New squad member joined
+        {/* Pixel party-popper icon 16×16 */}
+        <div className="size-4 relative overflow-hidden flex-shrink-0">
+          <div className="size-3.5 left-[1.33px] top-[1.33px] absolute bg-secondary" />
+        </div>
+        <div className="flex flex-col" style={{ gap: 4, minWidth: 1 }}>
+          <p className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}>
+            New Squad Member Joined!
           </p>
-          <p className="font-body w-full" style={{ fontSize: 'var(--text-sm)', lineHeight: 'normal', fontVariationSettings: '"opsz" 14' }}>
-            <span style={{ color: 'var(--color-primary)' }}>Welcome a new member ·</span>
-            <span style={{ color: 'var(--color-purple)' }}> @{username}</span>
+          <p
+            className="font-body font-normal leading-none w-full overflow-hidden text-ellipsis whitespace-nowrap"
+            style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
+          >
+            <span style={{ color: 'var(--color-purple)' }}>@{username}</span>
+            {inviter ? (
+              <>
+                <span style={{ color: 'var(--color-secondary)' }}> invited by </span>
+                <span style={{ color: 'var(--color-primary)' }}>@{inviter}</span>
+              </>
+            ) : (
+              <span style={{ color: 'var(--color-secondary)' }}> joined the squad</span>
+            )}
           </p>
         </div>
       </div>
