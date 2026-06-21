@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { SlidePage, useSlideBack } from '@/components/ui/SlidePage'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { Calendar } from 'pixelarticons/react/Calendar'
@@ -378,17 +378,15 @@ export function EventPageFull({ crewId, currentUserId }: EventPageFullProps) {
         )}
       </div>
 
-      <AnimatePresence>
-        {showCreate && (
-          <EventCreationSheet
-            crewId={crewId}
-            currentUserId={currentUserId}
-            createMessage
-            onClose={() => setShowCreate(false)}
-            onCreated={() => loadEvents()}
-          />
-        )}
-      </AnimatePresence>
+      {showCreate && (
+        <EventCreationSheet
+          crewId={crewId}
+          currentUserId={currentUserId}
+          createMessage
+          onClose={() => setShowCreate(false)}
+          onCreated={() => loadEvents()}
+        />
+      )}
     </SlidePage>
   )
 }
