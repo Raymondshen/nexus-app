@@ -1,22 +1,20 @@
 /**
  * award-xp Edge Function
  *
- * Three-layer anti-spam system (all layers run server-side only):
+ * Two-layer anti-spam system:
  *
- * LAYER 1 — CONSECUTIVE COOLDOWN (hard stop)
- *   If the same user's previous message in this crew was sent less than 2000ms
- *   ago, this message earns 0 XP and deals 0 damage. Uses messages table.
+ * LAYER 1 — CONSECUTIVE HARD BLOCK
+ *   If the last 3 messages in this crew before the current one are all from
+ *   the same sender, the sender has ≥ 3 in a row — this message earns 0 XP
+ *   and 0 coins. Resets as soon as another user sends a message.
  *
- * LAYER 2 — BURST WINDOW CAP (hard stop)
- *   If the user has already sent 4 or more messages in this crew in the last
- *   30 seconds, the 5th+ message earns 0 XP. Uses messages table.
+ * LAYER 2 — 30-SECOND COOLDOWN (soft block)
+ *   If the sender's previous message in this crew was sent less than 30 s ago,
+ *   this message earns 0 XP and 0 coins (message is still delivered).
  *
- * LAYER 3 — DAILY DIMINISHING RETURNS (multiplier, never a hard stop)
- *   Counts XP-eligible messages sent today (UTC) via crew_xp_log:
- *     Messages  1–30  → multiplier 1.0 (full XP)
- *     Messages 31–60  → multiplier 0.5 (half XP)
- *     Messages 61+    → multiplier 0.1 (floor XP)
- *   The adjusted XP is still written to crew_xp_log and applied to the crew.
+ * XP awards (when neither layer blocks):
+ *   First message of the UTC day in this crew → 10 XP (one-time flat award)
+ *   All subsequent messages                   →  1 XP
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -27,13 +25,8 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-const XP_VALUES: Record<string, number> = {
-  text:     10,
-  voice:    25,
-  image:    20,
-  reaction:  5,
-  system:    0,
-}
+const XP_BASE        = 1    // XP per message
+const XP_FIRST_TODAY = 10   // flat one-time award for first message of the day
 
 const COIN_VALUES: Record<string, number> = {
   text:     1,
@@ -43,9 +36,7 @@ const COIN_VALUES: Record<string, number> = {
   system:   0,
 }
 
-const XP_BONUS_FIRST_TODAY  = 20
-const XP_BONUS_COMBO        = 5
-const BOSS_XP_THRESHOLD     = 500
+const BOSS_XP_THRESHOLD = 500
 
 // Leveling constants — keep in sync with src/lib/config.ts
 const LEVEL_XP_BASE        = 120
@@ -53,11 +44,8 @@ const LEVEL_XP_GROWTH_RATE = 1.0435
 const LEVEL_CAP            = 100
 
 // Anti-spam constants
-const COOLDOWN_MS           = 2_000   // Layer 1: min gap between messages
-const BURST_WINDOW_MS       = 30_000  // Layer 2: burst window
-const BURST_MAX_MESSAGES    = 4       // Layer 2: max messages before cap kicks in
-const DR_TIER1_LIMIT        = 30      // Layer 3: full XP up to this many messages/day
-const DR_TIER2_LIMIT        = 60      // Layer 3: half XP up to this many messages/day
+const COOLDOWN_MS     = 30_000  // Layer 2: soft block if gap < 30 s
+const CONSECUTIVE_MAX = 3       // Layer 1: hard block after this many in a row
 
 function getElementType(content: string, messageType: string): string {
   if (messageType === 'voice')    return 'lightning'
@@ -82,12 +70,6 @@ function getLevelFromXP(xp: number): number {
   return level
 }
 
-function getDailyMultiplier(countBeforeThisMessage: number): number {
-  if (countBeforeThisMessage < DR_TIER1_LIMIT) return 1.0
-  if (countBeforeThisMessage < DR_TIER2_LIMIT) return 0.5
-  return 0.1
-}
-
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: CORS_HEADERS })
@@ -110,12 +92,8 @@ Deno.serve(async (req: Request) => {
     )
 
     // ─── BATCH 1: spam checks + crew data + other members (5 queries in parallel) ─
-    // crew_members is fetched here so the notification can fire immediately after
-    // this batch, without waiting for XP calculation or writes.
-    const burstWindowStart = new Date(Date.now() - BURST_WINDOW_MS).toISOString()
-
-    const [prevMsgsResult, burstResult, crewResult, senderProfileResult, membersResult] = await Promise.all([
-      // Layer 1: most recent prior message from this user in this crew
+    const [prevMsgsResult, consecutiveResult, crewResult, senderProfileResult, membersResult] = await Promise.all([
+      // Layer 2: most recent message from this user in this crew (30 s cooldown)
       supabase
         .from('messages')
         .select('created_at')
@@ -125,14 +103,14 @@ Deno.serve(async (req: Request) => {
         .order('created_at', { ascending: false })
         .limit(1),
 
-      // Layer 2: burst count in last 30s
+      // Layer 1: last CONSECUTIVE_MAX messages in crew (any sender) to detect run
       supabase
         .from('messages')
-        .select('id', { count: 'exact', head: true })
+        .select('user_id')
         .eq('crew_id', crew_id)
-        .eq('user_id', user_id)
         .neq('id', message_id)
-        .gte('created_at', burstWindowStart),
+        .order('created_at', { ascending: false })
+        .limit(CONSECUTIVE_MAX),
 
       // Crew name + XP — needed for both XP path and notifications
       supabase
@@ -157,20 +135,17 @@ Deno.serve(async (req: Request) => {
     ])
 
     // ─── FIRE NOTIFICATION IMMEDIATELY (fire-and-forget) ────────────────────
-    // Notifications don't need to wait for XP writes. Firing here saves ~300ms
-    // vs firing after XP calculation and DB writes.
     if (message_type !== 'reaction') {
-      const otherUserIds   = (membersResult.data ?? []).map((m: { user_id: string }) => m.user_id)
-      const mentionedSet   = new Set(mentionedIds)
-      const fnUrl          = `${Deno.env.get('SUPABASE_URL')}/functions/v1/send-notification`
-      const notifPayload   = {
+      const otherUserIds = (membersResult.data ?? []).map((m: { user_id: string }) => m.user_id)
+      const mentionedSet = new Set(mentionedIds)
+      const fnUrl        = `${Deno.env.get('SUPABASE_URL')}/functions/v1/send-notification`
+      const notifPayload = {
         sender_name:     username ?? 'Someone',
         content_preview: (content ?? '').slice(0, 80),
         crew_name:       crewResult.data?.name ?? '',
         crew_id,
       }
 
-      // Send mention_received to explicitly mentioned users
       if (mentionedSet.size > 0) {
         const validMentioned = otherUserIds.filter((id: string) => mentionedSet.has(id))
         if (validMentioned.length > 0) {
@@ -182,7 +157,6 @@ Deno.serve(async (req: Request) => {
         }
       }
 
-      // Send message_received to non-mentioned other members
       const nonMentionedIds = otherUserIds.filter((id: string) => !mentionedSet.has(id))
       if (nonMentionedIds.length > 0) {
         fetch(fnUrl, {
@@ -195,67 +169,47 @@ Deno.serve(async (req: Request) => {
       console.log(`[award-xp] notifications fired: ${nonMentionedIds.length} message_received, ${mentionedIds.length} mention_received (message ${message_id})`)
     }
 
-    // ─── LAYER 1: CONSECUTIVE COOLDOWN ──────────────────────────────────────
+    // ─── LAYER 1: CONSECUTIVE HARD BLOCK ────────────────────────────────────
     let xpBlocked = false
-    const prevMessage = prevMsgsResult.data?.[0]
-    if (prevMessage) {
-      const gapMs = Date.now() - new Date(prevMessage.created_at as string).getTime()
-      if (gapMs < COOLDOWN_MS) xpBlocked = true
+    const lastMsgs = consecutiveResult.data ?? []
+    if (
+      lastMsgs.length === CONSECUTIVE_MAX &&
+      lastMsgs.every((m: { user_id: string }) => m.user_id === user_id)
+    ) {
+      xpBlocked = true
     }
 
-    // ─── LAYER 2: BURST WINDOW CAP ──────────────────────────────────────────
-    if ((burstResult.count ?? 0) >= BURST_MAX_MESSAGES) xpBlocked = true
+    // ─── LAYER 2: 30-SECOND COOLDOWN (soft block) ───────────────────────────
+    let softBlocked = false
+    const prevMessage = prevMsgsResult.data?.[0]
+    if (!xpBlocked && prevMessage) {
+      const gapMs = Date.now() - new Date(prevMessage.created_at as string).getTime()
+      if (gapMs < COOLDOWN_MS) softBlocked = true
+    }
 
-    const crewBefore  = crewResult.data
-    const isDevUser   = senderProfileResult.data?.is_dev === true
+    const crewBefore = crewResult.data
+    const isDevUser  = senderProfileResult.data?.is_dev === true
 
-    // ─── BASE XP + BONUSES ──────────────────────────────────────────────────
-    // Spam-blocked messages earn 0 XP but still trigger crew notifications.
+    // ─── XP CALCULATION ─────────────────────────────────────────────────────
     let xpAwarded = 0
     let newXP     = 0
     let newLevel  = 1
 
-    if (!xpBlocked) {
-      xpAwarded = XP_VALUES[message_type] ?? 0
-
+    if (!xpBlocked && !softBlocked) {
       const todayStart = new Date()
       todayStart.setUTCHours(0, 0, 0, 0)
-      const todayStartIso    = todayStart.toISOString()
-      const sixtySecondsAgo = new Date(Date.now() - 60_000).toISOString()
+      const todayStartIso = todayStart.toISOString()
 
-      // ─── BATCH 2: bonus queries (3 in parallel, only when not spam-blocked) ─
-      const [todayResult, comboResult, drResult] = await Promise.all([
-        // First message today bonus
-        supabase
-          .from('messages')
-          .select('id', { count: 'exact', head: true })
-          .eq('crew_id', crew_id)
-          .eq('user_id', user_id)
-          .gte('created_at', todayStartIso)
-          .neq('id', message_id),
+      // Check if this is the first message today in this crew
+      const { count: todayCount } = await supabase
+        .from('messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('crew_id', crew_id)
+        .eq('user_id', user_id)
+        .gte('created_at', todayStartIso)
+        .neq('id', message_id)
 
-        // Combo bonus (reply within 60s of someone else)
-        supabase
-          .from('messages')
-          .select('id', { count: 'exact', head: true })
-          .eq('crew_id', crew_id)
-          .neq('user_id', user_id)
-          .gte('created_at', sixtySecondsAgo),
-
-        // Layer 3: daily diminishing returns
-        supabase
-          .from('crew_xp_log')
-          .select('id', { count: 'exact', head: true })
-          .eq('crew_id', crew_id)
-          .eq('user_id', user_id)
-          .gte('created_at', todayStartIso),
-      ])
-
-      if (todayResult.count === 0) xpAwarded += XP_BONUS_FIRST_TODAY
-      if ((comboResult.count ?? 0) > 0) xpAwarded += XP_BONUS_COMBO
-
-      const multiplier = getDailyMultiplier(drResult.count ?? 0)
-      xpAwarded = Math.floor(xpAwarded * multiplier)
+      xpAwarded = todayCount === 0 ? XP_FIRST_TODAY : XP_BASE
     }
 
     // ─── WRITE XP ───────────────────────────────────────────────────────────
@@ -266,7 +220,6 @@ Deno.serve(async (req: Request) => {
       const oldLevel = getLevelFromXP(oldXP)
       newLevel       = getLevelFromXP(newXP)
 
-      // Parallelize all three XP writes
       await Promise.all([
         supabase.from('crew_xp_log').insert({
           crew_id,
@@ -287,8 +240,7 @@ Deno.serve(async (req: Request) => {
           .eq('id', message_id),
       ])
 
-      // Level up notification (dev-only while game events are gated)
-      if (newLevel > getLevelFromXP(oldXP) && isDevUser) {
+      if (newLevel > oldLevel && isDevUser) {
         await supabase.from('messages').insert({
           crew_id,
           user_id,
@@ -301,8 +253,7 @@ Deno.serve(async (req: Request) => {
     }
 
     // ─── AWARD COINS ────────────────────────────────────────────────────────
-    // Coins are awarded for every non-spam message (xpBlocked does not gate coins).
-    const coinsEarned = !xpBlocked ? (COIN_VALUES[message_type] ?? 0) : 0
+    const coinsEarned = (!xpBlocked && !softBlocked) ? (COIN_VALUES[message_type] ?? 0) : 0
     if (coinsEarned > 0) {
       await Promise.all([
         supabase.rpc('increment_user_coins', { p_user_id: user_id, p_amount: coinsEarned }),
@@ -315,7 +266,7 @@ Deno.serve(async (req: Request) => {
       ])
     }
 
-    // Boss spawn — dev-only while game events are gated
+    // ─── BOSS SPAWN (dev-only) ───────────────────────────────────────────────
     const oldThreshold = Math.floor(oldXP / BOSS_XP_THRESHOLD)
     const newThreshold = Math.floor(newXP  / BOSS_XP_THRESHOLD)
 

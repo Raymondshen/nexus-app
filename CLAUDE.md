@@ -61,12 +61,13 @@ All `SECURITY DEFINER`. Declared in `Database.Functions` in `src/types/index.ts`
 
 ## Game Values
 
-XP: text=10 · voice=25 (disabled) · image=20 (disabled) · reaction=5 · poll=0 · first-msg-today=+20 · reply-60s-combo=+5
+XP: first-msg-today=10 (flat, one-time per UTC day) · all other messages=1 · reactions use `react-to-message` (unchanged)
+Anti-spam: gap < 30s since sender's last message → 0 XP, 0 coins (soft block) · >3 consecutive messages from same sender → 0 XP, 0 coins (hard block, resets when another user sends)
 
-Coins: text/voice/image=1 · reaction/system=0 · generate-invite=−25 · seed-to-new-user=+50
+Coins: text/voice/image=1 · reaction/system=0 · generate-invite=−25 · seed-to-new-user=+50 · blocked when xpBlocked or softBlocked
 - `handle_new_user` trigger → 50 signup bonus · invite alphabet: `ABCDEFGHJKLMNPQRSTUVWXYZ23456789`
 - Balance in `profiles.coins`; `chatStore.userCoins`; shown in `AccountPreview` (bare `TokeCircle` 24×16 + Silkscreen number) and profile hero glass badge
-- Tap-tooltip: shows "25 COINS = 1 CREW INVITE" for 2s; coins awarded only when `xpBlocked = false`
+- Tap-tooltip: shows "25 COINS = 1 CREW INVITE" for 2s; coins awarded only when neither anti-spam layer fires
 
 Friendship XP: 1pt per DM send or @mention · 10pt daily cap (local midnight, tracked in `friendship_xp_log` by `sender_id`) · `award-friendship-xp` edge function · fully launched
 - `friendship_xp` cumulative bilateral XP; canonical pair `user_a < user_b`; home card heart badge (purple→pink) + profile hero glass badge; realtime via `home-fxp-a:{userId}` + `home-fxp-b:{userId}`
