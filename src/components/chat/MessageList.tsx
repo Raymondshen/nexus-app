@@ -882,10 +882,17 @@ export function MessageList({
             onClick={() => {
               virtualizer.scrollToIndex(items.length - 1, { align: 'end', behavior: 'smooth' })
             }}
-            className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 size-10 inline-flex items-center justify-center gap-2 overflow-hidden rounded-[56px] bg-black/0 p-2 shadow-[0px_0px_20px_12px_rgba(0,0,0,0.10)]"
+            className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 inline-flex items-center justify-center border border-border"
+            style={{
+              padding: 'var(--x3)',
+              background: 'rgba(0,0,0,0)',
+              backdropFilter: 'blur(7px)',
+              WebkitBackdropFilter: 'blur(7px)',
+              boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)',
+            }}
             aria-label="Scroll to latest messages"
           >
-            <ArrowBarDown style={{ width: 20, height: 20, color: 'var(--color-primary)' }} />
+            <ArrowBarDown style={{ width: 24, height: 24, color: 'var(--color-primary)' }} />
           </motion.button>
         )}
       </AnimatePresence>
