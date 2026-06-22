@@ -152,49 +152,34 @@ export function AccountPageMember({
           style={{ top: 'calc(env(safe-area-inset-top, 0px) + 18px)' }}
         >
           {/* Back button */}
-          <div
-            className="pointer-events-auto flex items-center bg-black border border-border overflow-hidden"
-            style={{ padding: 8, boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)' }}
+          <button
+            onClick={goBack}
+            aria-label="Back"
+            className="pointer-events-auto flex items-center justify-center rounded-[4px]"
+            style={{ padding: 8, backdropFilter: 'blur(7px)', filter: 'drop-shadow(0px 0px 20px rgba(0,0,0,0.1))' }}
           >
-            <button
-              onClick={goBack}
-              aria-label="Back"
-              className="flex items-center justify-center"
-              style={{ width: 24, height: 24 }}
-            >
-              <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
-            </button>
-          </div>
+            <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+          </button>
 
           {/* Owner-only: plus + settings */}
           {isOwner && (
-            <div className="pointer-events-auto flex items-center" style={{ gap: 'var(--space-5)' }}>
-              <div
-                className="flex items-center bg-black border border-border overflow-hidden"
-                style={{ padding: 8, boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)' }}
+            <div className="pointer-events-auto flex items-center" style={{ gap: 8 }}>
+              <button
+                onClick={() => notesRef.current?.openAdd()}
+                aria-label="Add link"
+                className="flex items-center justify-center rounded-[4px]"
+                style={{ padding: 8, backdropFilter: 'blur(7px)', filter: 'drop-shadow(0px 0px 20px rgba(0,0,0,0.1))' }}
               >
-                <button
-                  onClick={() => notesRef.current?.openAdd()}
-                  aria-label="Add link"
-                  className="flex items-center justify-center"
-                  style={{ width: 24, height: 24 }}
-                >
-                  <Plus style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
-                </button>
-              </div>
-              <div
-                className="flex items-center bg-black border border-border overflow-hidden"
-                style={{ padding: 8, boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)' }}
+                <Plus style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+              </button>
+              <button
+                onClick={() => router.push('/profile')}
+                aria-label="Settings"
+                className="flex items-center justify-center rounded-[4px]"
+                style={{ padding: 8, backdropFilter: 'blur(7px)', filter: 'drop-shadow(0px 0px 20px rgba(0,0,0,0.1))' }}
               >
-                <button
-                  onClick={() => router.push('/profile')}
-                  aria-label="Settings"
-                  className="flex items-center justify-center"
-                  style={{ width: 24, height: 24 }}
-                >
-                  <SettingsCog style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
-                </button>
-              </div>
+                <SettingsCog style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+              </button>
             </div>
           )}
         </div>

@@ -11,8 +11,8 @@ import { MagicEdit } from 'pixelarticons/react/MagicEdit'
 import { Bell } from 'pixelarticons/react/Bell'
 import { User } from 'pixelarticons/react/User'
 import { Terminal } from 'pixelarticons/react/Terminal'
-import { TokeCircle } from 'pixelarticons/react/TokeCircle'
-import { Heart } from 'pixelarticons/react/Heart'
+import { Plus } from 'pixelarticons/react/Plus'
+import { SettingsCog } from 'pixelarticons/react/SettingsCog'
 import Image from 'next/image'
 import { isSupabaseStorage, resolveAvatarUrl } from '@/components/ui/Avatar'
 import { createClient } from '@/lib/supabase/client'
@@ -24,6 +24,7 @@ import { BackgroundUploadModal } from '@/components/ui/BackgroundUploadModal'
 import { Button } from '@/components/ui/Button'
 import { MarqueeBanner } from '@/components/ui/MarqueeBanner'
 import { NotesGrid } from './notes/NotesGrid'
+import type { NotesGridHandle } from './notes/NotesGrid'
 import type { PublicNote, BoardSection } from '@/types'
 
 interface ProfileClientProps {
@@ -607,6 +608,7 @@ export function ProfileClient({
   // ── Tab state ─────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<'notes' | 'settings'>('notes')
   const tabDirRef = useRef(1) // +1 = notes→settings (enter from right); -1 = settings→notes (enter from left)
+  const notesRef  = useRef<NotesGridHandle>(null)
   function switchTab(tab: 'notes' | 'settings') {
     if (tab === activeTab) return
     tabDirRef.current = tab === 'notes' ? -1 : 1
@@ -859,28 +861,24 @@ export function ProfileClient({
             <BackButton />
           </div>
 
-          {/* Coin + friendship XP badges — glass effect */}
-          <div className="flex items-center pointer-events-none" style={{ gap: 4 }}>
-            {/* Coin badge */}
-            <div
+          {/* Plus (add link) + SettingsCog — glass effect */}
+          <div className="flex items-center pointer-events-auto" style={{ gap: 8 }}>
+            <button
+              onClick={() => { switchTab('notes'); notesRef.current?.openAdd() }}
+              aria-label="Add link"
               className="flex items-center justify-center rounded-[4px]"
-              style={{ gap: 4, padding: 4, backdropFilter: 'blur(4px)', filter: 'drop-shadow(0px 0px 10px rgba(0,0,0,0.1))' }}
+              style={{ padding: 8, backdropFilter: 'blur(7px)', filter: 'drop-shadow(0px 0px 20px rgba(0,0,0,0.1))' }}
             >
-              <TokeCircle style={{ width: 12, height: 12, color: 'var(--color-primary)' }} aria-hidden="true" />
-              <span className="font-silkscreen leading-none pb-[2px]" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-primary)' }}>
-                {coins.toLocaleString()}
-              </span>
-            </div>
-            {/* Friendship XP badge */}
-            <div
+              <Plus style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+            </button>
+            <button
+              onClick={() => switchTab('settings')}
+              aria-label="Settings"
               className="flex items-center justify-center rounded-[4px]"
-              style={{ gap: 4, padding: '4px 8px', backdropFilter: 'blur(4px)', filter: 'drop-shadow(0px 0px 10px rgba(0,0,0,0.1))' }}
+              style={{ padding: 8, backdropFilter: 'blur(7px)', filter: 'drop-shadow(0px 0px 20px rgba(0,0,0,0.1))' }}
             >
-              <Heart style={{ width: 12, height: 12, color: 'var(--color-primary)' }} aria-hidden="true" />
-              <span className="font-silkscreen leading-none pb-[2px]" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-primary)' }}>
-                {totalFriendshipXP}
-              </span>
-            </div>
+              <SettingsCog style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+            </button>
           </div>
         </div>
 
@@ -919,6 +917,7 @@ export function ProfileClient({
             transition={{ duration: 0.15, ease: [0.4, 0, 0.2, 1] }}
           >
             <NotesGrid
+              ref={notesRef}
               viewerId={userId}
               initialNotes={initialNotes}
               initialSections={initialSections}
