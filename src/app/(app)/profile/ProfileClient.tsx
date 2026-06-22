@@ -23,6 +23,8 @@ import { AvatarUploadModal } from '@/components/ui/AvatarUploadModal'
 import { BackgroundUploadModal } from '@/components/ui/BackgroundUploadModal'
 import { Button } from '@/components/ui/Button'
 import { MarqueeBanner } from '@/components/ui/MarqueeBanner'
+import { NotesGrid } from './notes/NotesGrid'
+import type { PublicNote } from '@/types'
 
 interface ProfileClientProps {
   userId:             string
@@ -42,6 +44,8 @@ interface ProfileClientProps {
   pendingDeleteAt:    string | null
   coins:              number
   totalFriendshipXP:  number
+  initialNotes:       PublicNote[]
+  notesCrews:         Array<{ id: string; name: string }>
 }
 
 // ─── Profile status ticker — wraps shared MarqueeBanner ─────────────────────
@@ -595,9 +599,18 @@ function BackButton() {
 export function ProfileClient({
   userId, userEmail, initialUsername, avatarUrl, avatarClass, customAvatar, backgroundUrl,
   isDev, isGuest, memberSinceYear, totalMessages, groupChats, inviterUsername, initialStatus, pendingDeleteAt,
-  coins, totalFriendshipXP,
+  coins, totalFriendshipXP, initialNotes, notesCrews,
 }: ProfileClientProps) {
   const router = useRouter()
+
+  // ── Tab state ─────────────────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState<'notes' | 'settings'>('settings')
+  const tabDirRef = useRef(1) // +1 = notes→settings (enter from right); -1 = settings→notes (enter from left)
+  function switchTab(tab: 'notes' | 'settings') {
+    if (tab === activeTab) return
+    tabDirRef.current = tab === 'notes' ? -1 : 1
+    setActiveTab(tab)
+  }
 
   // ── Avatar upload + reset ─────────────────────────────────────────────────
   const [localAvatarUrl,    setLocalAvatarUrl]    = useState(avatarUrl)
@@ -878,25 +891,44 @@ export function ProfileClient({
       {/* ── Tab bar ──────────────────────────────────────────────────────────── */}
       <div className="flex flex-shrink-0" style={{ borderBottom: '1px solid var(--color-border)' }}>
         <button
-          onClick={() => router.push('/profile/notes')}
+          onClick={() => switchTab('notes')}
           className="flex-1 flex items-center justify-center font-silkscreen"
-          style={{ height: 40, fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}
+          style={{ height: 40, fontSize: 'var(--text-mini)', color: activeTab === 'notes' ? 'var(--color-primary)' : 'var(--color-tertiary)', boxShadow: activeTab === 'notes' ? 'inset 0 -2px 0 var(--color-purple)' : 'none' }}
         >
           NOTES
         </button>
-        <div
-          className="flex-1 flex items-center justify-center font-silkscreen pointer-events-none"
-          style={{ height: 40, fontSize: 'var(--text-mini)', color: 'var(--color-primary)', boxShadow: 'inset 0 -2px 0 var(--color-purple)' }}
+        <button
+          onClick={() => switchTab('settings')}
+          className="flex-1 flex items-center justify-center font-silkscreen"
+          style={{ height: 40, fontSize: 'var(--text-mini)', color: activeTab === 'settings' ? 'var(--color-primary)' : 'var(--color-tertiary)', boxShadow: activeTab === 'settings' ? 'inset 0 -2px 0 var(--color-purple)' : 'none' }}
         >
           SETTINGS
-        </div>
+        </button>
       </div>
 
-      {/* ── Scrollable body ─────────────────────────────────────────────────── */}
-      <div
-        className="flex-1 overflow-y-auto flex flex-col nexus-scroll"
-        style={{ padding: '24px 16px', paddingBottom: 'max(env(safe-area-inset-bottom), 24px)' }}
-      >
+      {/* ── Tab content ─────────────────────────────────────────────────────── */}
+      <AnimatePresence mode="wait" initial={false}>
+        {activeTab === 'notes' ? (
+          <motion.div
+            key="notes"
+            className="flex-1 min-h-0"
+            initial={{ opacity: 0, x: tabDirRef.current * 16 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: tabDirRef.current * -16 }}
+            transition={{ duration: 0.15, ease: [0.4, 0, 0.2, 1] }}
+          >
+            <NotesGrid userId={userId} initialNotes={initialNotes} crews={notesCrews} />
+          </motion.div>
+        ) : (
+          <motion.div
+            key="settings"
+            className="flex-1 overflow-y-auto flex flex-col nexus-scroll"
+            style={{ padding: '24px 16px', paddingBottom: 'max(env(safe-area-inset-bottom), 24px)' }}
+            initial={{ opacity: 0, x: tabDirRef.current * 16 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: tabDirRef.current * -16 }}
+            transition={{ duration: 0.15, ease: [0.4, 0, 0.2, 1] }}
+          >
         <div className="flex flex-col" style={{ gap: 24 }}>
 
           {/* Edit Profile */}
@@ -975,7 +1007,9 @@ export function ProfileClient({
           )}
 
         </div>
-      </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Edit Profile bottom sheet */}
       <EditProfileSheet

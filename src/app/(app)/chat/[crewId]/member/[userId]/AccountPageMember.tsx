@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import Image from 'next/image'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { isSupabaseStorage, resolveAvatarUrl } from '@/components/ui/Avatar'
 import { useSlideBack } from '@/components/ui/SlidePage'
 import { MarqueeBanner } from '@/components/ui/MarqueeBanner'
@@ -11,7 +11,8 @@ import { Heart } from 'pixelarticons/react/Heart'
 import { TokeCircle } from 'pixelarticons/react/TokeCircle'
 import { Message } from 'pixelarticons/react/Message'
 import { sendFriendRequestAction, acceptFriendRequestAction } from '@/app/(app)/friends/actions'
-import type { AvatarClass } from '@/types'
+import { NotesGrid } from '@/app/(app)/profile/notes/NotesGrid'
+import type { AvatarClass, PublicNote } from '@/types'
 
 type FriendState = 'none' | 'pending_sent' | 'pending_received' | 'accepted'
 
@@ -35,6 +36,8 @@ interface Props {
   globalMessages:   number
   friendshipXP:     number | null
   viewerCoins:      number
+  initialNotes:     PublicNote[]
+  notesCrews:       Array<{ id: string; name: string }>
 }
 
 function deriveFriendState(
@@ -48,6 +51,7 @@ function deriveFriendState(
 }
 
 export function AccountPageMember({
+  crewId,
   userId,
   viewerId,
   isGuest,
@@ -61,6 +65,8 @@ export function AccountPageMember({
   globalMessages,
   friendshipXP,
   viewerCoins,
+  initialNotes,
+  notesCrews,
 }: Props) {
   const goBack = useSlideBack()
   const isSelf = userId === viewerId
@@ -71,6 +77,15 @@ export function AccountPageMember({
   const [friendshipId]        = useState(friendship?.id ?? null)
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState<string | null>(null)
+
+  // ── Tab state ──────────────────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState<'notes' | 'profile'>('profile')
+  const tabDirRef = useRef(1)
+  function switchTab(tab: 'notes' | 'profile') {
+    if (tab === activeTab) return
+    tabDirRef.current = tab === 'notes' ? -1 : 1
+    setActiveTab(tab)
+  }
 
   const initial    = username[0]?.toUpperCase() ?? '?'
   const joinedYear = joinedAt ? new Date(joinedAt).getFullYear() : null
@@ -249,62 +264,105 @@ export function AccountPageMember({
         />
       )}
 
-      {/* ── Body ─────────────────────────────────────────────────────────────── */}
-      <div
-        className="flex-1 overflow-y-auto nexus-scroll flex flex-col px-4 py-4"
-        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 16px)' }}
-      >
-        {!isSelf && (
-          <div className="w-full flex flex-col gap-3">
-            {error && (
-              <p className="font-silkscreen text-[8px] text-[#ef4444] text-center">{error}</p>
-            )}
-
-            {friendState === 'none' && (
-              <button
-                onClick={handleAddFriend}
-                disabled={loading || isGuest}
-                className="w-full h-[48px] flex items-center justify-center gap-[8px] border border-purple overflow-hidden px-[var(--space-5)] py-[var(--space-3)] disabled:opacity-40 active:opacity-70 transition-opacity"
-              >
-                <Heart style={{ width: 16, height: 16, color: 'var(--color-purple)' }} aria-hidden="true" />
-                <span className="font-pixel text-[length:var(--text-mini)] text-purple leading-none whitespace-nowrap">
-                  {loading ? 'SENDING...' : 'ADD FRIEND'}
-                </span>
-              </button>
-            )}
-
-            {friendState === 'pending_sent' && (
-              <div className="w-full h-[48px] flex items-center justify-center border border-border">
-                <span className="font-silkscreen text-[9px] text-tertiary tracking-[0.2px]">REQUEST SENT</span>
-              </div>
-            )}
-
-            {friendState === 'pending_received' && (
-              <button
-                onClick={handleAccept}
-                disabled={loading}
-                className="w-full h-[48px] flex items-center justify-center gap-2 border border-[#22c55e] px-4 py-2 disabled:opacity-40 active:opacity-70 transition-opacity"
-              >
-                <span className="font-pixel text-[8px] text-[#22c55e] leading-none">
-                  {loading ? '...' : 'ACCEPT'}
-                </span>
-              </button>
-            )}
-
-            {friendState === 'accepted' && (
-              <div className="w-full h-[48px] flex items-center justify-center border border-[#22c55e]/40">
-                <span className="font-silkscreen text-[9px] text-[#22c55e] tracking-[0.2px]">COMPANIONS ✓</span>
-              </div>
-            )}
-
-            {isGuest && friendState === 'none' && (
-              <p className="font-silkscreen text-[8px] text-tertiary text-center leading-relaxed">
-                Sign in with Google to add companions
-              </p>
-            )}
-          </div>
-        )}
+      {/* ── Tab bar ──────────────────────────────────────────────────────────── */}
+      <div className="flex flex-shrink-0" style={{ borderBottom: '1px solid var(--color-border)' }}>
+        <button
+          onClick={() => switchTab('notes')}
+          className="flex-1 flex items-center justify-center font-silkscreen"
+          style={{ height: 40, fontSize: 'var(--text-mini)', color: activeTab === 'notes' ? 'var(--color-primary)' : 'var(--color-tertiary)', boxShadow: activeTab === 'notes' ? 'inset 0 -2px 0 var(--color-purple)' : 'none' }}
+        >
+          NOTES
+        </button>
+        <button
+          onClick={() => switchTab('profile')}
+          className="flex-1 flex items-center justify-center font-silkscreen"
+          style={{ height: 40, fontSize: 'var(--text-mini)', color: activeTab === 'profile' ? 'var(--color-primary)' : 'var(--color-tertiary)', boxShadow: activeTab === 'profile' ? 'inset 0 -2px 0 var(--color-purple)' : 'none' }}
+        >
+          PROFILE
+        </button>
       </div>
+
+      {/* ── Tab content ──────────────────────────────────────────────────────── */}
+      <AnimatePresence mode="wait" initial={false}>
+        {activeTab === 'notes' ? (
+          <motion.div
+            key="notes"
+            className="flex-1 min-h-0"
+            initial={{ opacity: 0, x: tabDirRef.current * 16 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: tabDirRef.current * -16 }}
+            transition={{ duration: 0.15, ease: [0.4, 0, 0.2, 1] }}
+          >
+            <NotesGrid
+              userId={viewerId}
+              initialNotes={initialNotes}
+              crews={notesCrews}
+              filterCrewId={crewId}
+            />
+          </motion.div>
+        ) : (
+          <motion.div
+            key="profile"
+            className="flex-1 overflow-y-auto nexus-scroll flex flex-col px-4 py-4"
+            style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 16px)' }}
+            initial={{ opacity: 0, x: tabDirRef.current * 16 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: tabDirRef.current * -16 }}
+            transition={{ duration: 0.15, ease: [0.4, 0, 0.2, 1] }}
+          >
+            {!isSelf && (
+              <div className="w-full flex flex-col gap-3">
+                {error && (
+                  <p className="font-silkscreen text-[8px] text-[#ef4444] text-center">{error}</p>
+                )}
+
+                {friendState === 'none' && (
+                  <button
+                    onClick={handleAddFriend}
+                    disabled={loading || isGuest}
+                    className="w-full h-[48px] flex items-center justify-center gap-[8px] border border-purple overflow-hidden px-[var(--space-5)] py-[var(--space-3)] disabled:opacity-40 active:opacity-70 transition-opacity"
+                  >
+                    <Heart style={{ width: 16, height: 16, color: 'var(--color-purple)' }} aria-hidden="true" />
+                    <span className="font-pixel text-[length:var(--text-mini)] text-purple leading-none whitespace-nowrap">
+                      {loading ? 'SENDING...' : 'ADD FRIEND'}
+                    </span>
+                  </button>
+                )}
+
+                {friendState === 'pending_sent' && (
+                  <div className="w-full h-[48px] flex items-center justify-center border border-border">
+                    <span className="font-silkscreen text-[9px] text-tertiary tracking-[0.2px]">REQUEST SENT</span>
+                  </div>
+                )}
+
+                {friendState === 'pending_received' && (
+                  <button
+                    onClick={handleAccept}
+                    disabled={loading}
+                    className="w-full h-[48px] flex items-center justify-center gap-2 border border-[#22c55e] px-4 py-2 disabled:opacity-40 active:opacity-70 transition-opacity"
+                  >
+                    <span className="font-pixel text-[8px] text-[#22c55e] leading-none">
+                      {loading ? '...' : 'ACCEPT'}
+                    </span>
+                  </button>
+                )}
+
+                {friendState === 'accepted' && (
+                  <div className="w-full h-[48px] flex items-center justify-center border border-[#22c55e]/40">
+                    <span className="font-silkscreen text-[9px] text-[#22c55e] tracking-[0.2px]">COMPANIONS ✓</span>
+                  </div>
+                )}
+
+                {isGuest && friendState === 'none' && (
+                  <p className="font-silkscreen text-[8px] text-tertiary text-center leading-relaxed">
+                    Sign in with Google to add companions
+                  </p>
+                )}
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   )
 }

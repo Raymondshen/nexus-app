@@ -52,18 +52,21 @@ export async function addNoteAction(
   return { note: row as unknown as PublicNote }
 }
 
-export async function fetchMoreNotesAction(cursor: string): Promise<PublicNote[]> {
+export async function fetchMoreNotesAction(cursor: string, crewId?: string): Promise<PublicNote[]> {
   const supabase = await createClient()
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) return []
 
-  const { data } = await supabase
+  let query = supabase
     .from('notes')
     .select(NOTE_COLS)
     .lt('created_at', cursor)
     .order('created_at', { ascending: false })
     .limit(30)
 
+  if (crewId) query = query.eq('crew_id', crewId)
+
+  const { data } = await query
   return (data ?? []) as unknown as PublicNote[]
 }
 

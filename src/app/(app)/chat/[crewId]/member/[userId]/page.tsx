@@ -53,6 +53,8 @@ export default async function MemberProfilePage({ params }: Props) {
     targetMessagesResult,
     friendshipXPResult,
     viewerCoinsResult,
+    crewResult,
+    notesResult,
   ] = await Promise.all([
     supabase
       .from('crew_members')
@@ -96,6 +98,13 @@ export default async function MemberProfilePage({ params }: Props) {
       ? supabase.from('friendship_xp').select('total_xp').eq('user_a', canonA).eq('user_b', canonB).maybeSingle()
       : Promise.resolve({ data: null }),
     supabase.from('profiles').select('coins').eq('id', viewerId).single(),
+    supabase.from('crews').select('name').eq('id', crewId).single(),
+    supabase
+      .from('notes')
+      .select('id, crew_id, created_by, url, og_title, og_image_url, source_domain, created_at')
+      .eq('crew_id', crewId)
+      .order('created_at', { ascending: false })
+      .limit(30),
   ])
 
   // Must be a crew member viewing another crew member
@@ -111,6 +120,8 @@ export default async function MemberProfilePage({ params }: Props) {
   const globalMessages   = targetMessagesResult.count ?? 0
   const friendshipXP     = (friendshipXPResult?.data as { total_xp?: number } | null)?.total_xp ?? null
   const viewerCoins      = (viewerCoinsResult.data as { coins?: number } | null)?.coins ?? 0
+  const crewName         = (crewResult.data as { name?: string } | null)?.name ?? ''
+  const notesCrews       = [{ id: crewId, name: crewName }]
 
   return (
     <SlidePage
@@ -147,6 +158,8 @@ export default async function MemberProfilePage({ params }: Props) {
         globalMessages={globalMessages}
         friendshipXP={friendshipXP}
         viewerCoins={viewerCoins}
+        initialNotes={(notesResult.data ?? []) as unknown as import('@/types').PublicNote[]}
+        notesCrews={notesCrews}
       />
     </SlidePage>
   )

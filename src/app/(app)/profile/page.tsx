@@ -43,7 +43,7 @@ export default async function ProfilePage() {
   if (!session) redirect('/login')
   const user = session.user
 
-  const [profile, messagesResult, crewsResult, inviterUsername, pendingDeletion, coinsResult, friendshipXPResult] = await Promise.all([
+  const [profile, messagesResult, membershipsResult, inviterUsername, pendingDeletion, coinsResult, friendshipXPResult, notesResult] = await Promise.all([
     getCachedProfile(user.id),
     supabase
       .from('messages')
@@ -52,7 +52,7 @@ export default async function ProfilePage() {
       .neq('message_type', 'system'),
     supabase
       .from('crew_members')
-      .select('id', { count: 'estimated', head: true })
+      .select('crew_id')
       .eq('user_id', user.id),
     fetchInviterUsername(user.id),
     supabase
@@ -69,16 +69,37 @@ export default async function ProfilePage() {
       .from('friendship_xp')
       .select('total_xp')
       .or(`user_a.eq.${user.id},user_b.eq.${user.id}`),
+    supabase
+      .from('notes')
+      .select('id, crew_id, created_by, url, og_title, og_image_url, source_domain, created_at')
+      .order('created_at', { ascending: false })
+      .limit(30),
   ])
 
   const pendingDeleteAt = (pendingDeletion.data as { delete_at?: string } | null)?.delete_at ?? null
 
+  const crewIds = (membershipsResult.data ?? []).map(m => (m as { crew_id: string }).crew_id)
+
+  let notesCrews: Array<{ id: string; name: string }> = []
+  if (crewIds.length > 0) {
+    const { data: crewData } = await supabase
+      .from('crews')
+      .select('id, name, is_dm')
+      .in('id', crewIds)
+      .eq('is_dm', false)
+      .order('created_at')
+    notesCrews = (crewData ?? []).map(c => ({
+      id:   (c as { id: string }).id,
+      name: (c as { name: string }).name,
+    }))
+  }
+
   const memberSinceYear = profile?.created_at
     ? new Date(profile.created_at).getFullYear().toString()
     : ''
-  const totalMessages   = messagesResult.count ?? 0
-  const groupChats      = crewsResult.count ?? 0
-  const coins           = (coinsResult.data as { coins?: number } | null)?.coins ?? 0
+  const totalMessages     = messagesResult.count ?? 0
+  const groupChats        = crewIds.length
+  const coins             = (coinsResult.data as { coins?: number } | null)?.coins ?? 0
   const totalFriendshipXP = (friendshipXPResult.data ?? []).reduce((sum, r) => sum + ((r as { total_xp: number }).total_xp ?? 0), 0)
 
   return (
@@ -100,6 +121,8 @@ export default async function ProfilePage() {
       pendingDeleteAt={pendingDeleteAt}
       coins={coins}
       totalFriendshipXP={totalFriendshipXP}
+      initialNotes={(notesResult.data ?? []) as unknown as import('@/types').PublicNote[]}
+      notesCrews={notesCrews}
     />
   )
 }
