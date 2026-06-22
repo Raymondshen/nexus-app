@@ -151,7 +151,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   const channelReadyRef       = useRef(false)
 
   const {
-    addMessage, removeMessage, updateMessage, setCrewXP, receiveXP, addXP,
+    addMessage, removeMessage, updateMessage, setCrewXP, receiveXP, addXPFloat,
     crewXP, crewLevel,
     onlineUserIds, setOnlineUserIds, setLastActive, sweepOnlineUserIds, addUserCoins,
     crewName: storeCrewName, setCrewName,
@@ -584,7 +584,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       tempId,
     }
     addMessage(optimisticMsg)
-    addXP(1)
+    addXPFloat(1)
 
     try {
       const supabase = createClient()
@@ -680,7 +680,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       tempId,
     }
     addMessage(optimisticMsg)
-    addXP(1)
+    addXPFloat(1)
 
     try {
       const supabase = createClient()
@@ -799,7 +799,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       tempId,
     }
     addMessage(optimisticMsg)
-    addXP(1)
+    addXPFloat(1)
 
     try {
       const { data: raw, error } = await supabase.rpc('insert_message', {
