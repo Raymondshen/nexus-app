@@ -925,6 +925,7 @@ export function ProfileClient({
               crews={notesCrews}
               initialCrewId={notesCrews[0]?.id ?? ''}
               lockCrew={false}
+              creatorFilter={userId}
             />
           </motion.div>
         ) : (

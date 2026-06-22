@@ -50,6 +50,7 @@ export function AccountPageMember({
           initialCrewId={crewId}
           lockCrew={false}
           readOnly={!isOwner}
+          creatorFilter={userId}
         />
       </div>
     </>

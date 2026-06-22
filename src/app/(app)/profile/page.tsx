@@ -99,6 +99,7 @@ export default async function ProfilePage() {
       .from('notes')
       .select('id, crew_id, created_by, url, og_title, og_image_url, source_domain, section_id, created_at')
       .in('crew_id', notesCrewIds)
+      .eq('created_by', user.id)
       .order('created_at', { ascending: false })
       .limit(30)
     initialNotes = (notesResult.data ?? []) as unknown as PublicNote[]

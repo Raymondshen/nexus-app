@@ -282,7 +282,6 @@ function MoveToSectionSheet({
 function AddCardSheet({
   sections,
   defaultSectionId,
-  crews,
   defaultCrewId,
   lockCrew,
   onClose,
@@ -290,7 +289,6 @@ function AddCardSheet({
 }: {
   sections:         BoardSection[]
   defaultSectionId: string | null
-  crews:            Array<{ id: string; name: string }>
   defaultCrewId:    string
   lockCrew:         boolean
   onClose:          () => void
@@ -298,7 +296,6 @@ function AddCardSheet({
 }) {
   const [addUrl,    setAddUrl]    = useState('')
   const [sectionId, setSectionId] = useState<string | null>(defaultSectionId)
-  const [crewId,    setCrewId]    = useState(defaultCrewId)
   const [adding,    setAdding]    = useState(false)
   const [addError,  setAddError]  = useState<string | null>(null)
 
@@ -306,7 +303,7 @@ function AddCardSheet({
     const url = addUrl.trim()
     if (!url || adding) return
     setAdding(true)
-    const err = await onAdd(url, sectionId, crewId)
+    const err = await onAdd(url, sectionId, defaultCrewId)
     setAdding(false)
     if (err) { setAddError(err); return }
     setAddUrl(''); onClose()
@@ -318,25 +315,6 @@ function AddCardSheet({
         <p className="font-body font-bold text-primary leading-none" style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}>
           Add to Vibes
         </p>
-
-        {/* Crew picker — only in global (non-lockCrew) mode with multiple crews */}
-        {!lockCrew && crews.length > 1 && (
-          <div className="flex flex-col" style={{ gap: 8 }}>
-            <p className="font-body font-medium text-primary" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}>Squad</p>
-            <div className="flex flex-wrap" style={{ gap: 6 }}>
-              {crews.map(c => (
-                <button
-                  key={c.id}
-                  onClick={() => setCrewId(c.id)}
-                  className="font-silkscreen"
-                  style={{ fontSize: 'var(--text-mini)', padding: '5px 10px', background: 'transparent', border: `1px solid ${crewId === c.id ? 'var(--color-purple)' : 'var(--color-border)'}`, color: crewId === c.id ? 'var(--color-purple)' : 'var(--color-tertiary)' }}
-                >
-                  {c.name.toUpperCase()}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* Section picker — only in lockCrew mode when sections exist */}
         {lockCrew && sections.length > 0 && (
@@ -448,6 +426,7 @@ export interface NotesGridProps {
   initialCrewId:   string
   lockCrew?:       boolean
   readOnly?:       boolean
+  creatorFilter?:  string
 }
 
 export function NotesGrid({
@@ -456,8 +435,9 @@ export function NotesGrid({
   initialSections,
   crews,
   initialCrewId,
-  lockCrew  = false,
-  readOnly  = false,
+  lockCrew      = false,
+  readOnly      = false,
+  creatorFilter,
 }: NotesGridProps) {
   const [notes,        setNotes]        = useState<GridNote[]>(initialNotes)
   const [sections,     setSections]     = useState<BoardSection[]>(initialSections)
@@ -491,7 +471,7 @@ export function NotesGrid({
     try {
       const more = lockCrew
         ? await fetchMoreNotesAction(cursor, initialCrewId)
-        : await fetchMoreNotesGlobalAction(cursor, crewIds)
+        : await fetchMoreNotesGlobalAction(cursor, crewIds, creatorFilter)
       setNotes(prev => [...prev, ...more])
       setHasMore(more.length === 30)
     } finally {
@@ -734,7 +714,6 @@ export function NotesGrid({
           <AddCardSheet
             sections={lockCrew ? sections : []}
             defaultSectionId={addSectionId}
-            crews={crews}
             defaultCrewId={initialCrewId}
             lockCrew={lockCrew}
             onClose={() => setShowAddSheet(false)}
