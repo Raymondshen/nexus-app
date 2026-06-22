@@ -4,6 +4,8 @@ import { createClient } from '@/lib/supabase/server'
 import { fetchOGPreview } from '@/lib/og-preview'
 import type { PublicNote } from '@/types'
 
+const NOTE_COLS = 'id, crew_id, created_by, url, og_title, og_image_url, source_domain, created_at'
+
 export async function addNoteAction(
   crewId: string,
   url: string,
@@ -12,7 +14,6 @@ export async function addNoteAction(
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) return { error: 'Unauthorized' }
 
-  // Validate URL server-side
   let parsedUrl: URL
   try {
     parsedUrl = new URL(url)
@@ -21,7 +22,6 @@ export async function addNoteAction(
     return { error: 'Invalid URL' }
   }
 
-  // Verify crew membership
   const { data: member } = await supabase
     .from('crew_members')
     .select('id')
@@ -40,11 +40,11 @@ export async function addNoteAction(
       crew_id:       crewId,
       created_by:    session.user.id,
       url,
-      og_title:      preview?.title      ?? null,
-      og_image_url:  preview?.image      ?? null,
+      og_title:      preview?.title ?? null,
+      og_image_url:  preview?.image ?? null,
       source_domain: domain || null,
     })
-    .select('id, crew_id, created_by, og_title, og_image_url, source_domain, created_at')
+    .select(NOTE_COLS)
     .single()
 
   if (error) return { error: 'Failed to save note' }
@@ -59,10 +59,25 @@ export async function fetchMoreNotesAction(cursor: string): Promise<PublicNote[]
 
   const { data } = await supabase
     .from('notes')
-    .select('id, crew_id, created_by, og_title, og_image_url, source_domain, created_at')
+    .select(NOTE_COLS)
     .lt('created_at', cursor)
     .order('created_at', { ascending: false })
     .limit(30)
 
   return (data ?? []) as unknown as PublicNote[]
+}
+
+export async function deleteNoteAction(noteId: string): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) return { error: 'Unauthorized' }
+
+  const { error } = await supabase
+    .from('notes')
+    .delete()
+    .eq('id', noteId)
+    .eq('created_by', session.user.id)
+
+  if (error) return { error: 'Failed to delete note' }
+  return {}
 }

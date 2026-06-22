@@ -54,7 +54,7 @@ export default async function NotesPage() {
         .or(`user_a.eq.${userId},user_b.eq.${userId}`),
       supabase
         .from('notes')
-        .select('id, crew_id, created_by, og_title, og_image_url, source_domain, created_at')
+        .select('id, crew_id, created_by, url, og_title, og_image_url, source_domain, created_at')
         .order('created_at', { ascending: false })
         .limit(30),
     ])
