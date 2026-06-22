@@ -24,7 +24,7 @@ import { BackgroundUploadModal } from '@/components/ui/BackgroundUploadModal'
 import { Button } from '@/components/ui/Button'
 import { MarqueeBanner } from '@/components/ui/MarqueeBanner'
 import { NotesGrid } from './notes/NotesGrid'
-import type { PublicNote } from '@/types'
+import type { PublicNote, BoardSection } from '@/types'
 
 interface ProfileClientProps {
   userId:             string
@@ -45,6 +45,7 @@ interface ProfileClientProps {
   coins:              number
   totalFriendshipXP:  number
   initialNotes:       PublicNote[]
+  initialSections:    BoardSection[]
   notesCrews:         Array<{ id: string; name: string }>
 }
 
@@ -599,7 +600,7 @@ function BackButton() {
 export function ProfileClient({
   userId, userEmail, initialUsername, avatarUrl, avatarClass, customAvatar, backgroundUrl,
   isDev, isGuest, memberSinceYear, totalMessages, groupChats, inviterUsername, initialStatus, pendingDeleteAt,
-  coins, totalFriendshipXP, initialNotes, notesCrews,
+  coins, totalFriendshipXP, initialNotes, initialSections, notesCrews,
 }: ProfileClientProps) {
   const router = useRouter()
 
@@ -895,7 +896,7 @@ export function ProfileClient({
           className="flex-1 flex items-center justify-center font-silkscreen"
           style={{ height: 40, fontSize: 'var(--text-mini)', color: activeTab === 'notes' ? 'var(--color-primary)' : 'var(--color-tertiary)', boxShadow: activeTab === 'notes' ? 'inset 0 -2px 0 var(--color-purple)' : 'none' }}
         >
-          NOTES
+          BOARD
         </button>
         <button
           onClick={() => switchTab('settings')}
@@ -917,7 +918,14 @@ export function ProfileClient({
             exit={{ opacity: 0, x: tabDirRef.current * -16 }}
             transition={{ duration: 0.15, ease: [0.4, 0, 0.2, 1] }}
           >
-            <NotesGrid userId={userId} initialNotes={initialNotes} crews={notesCrews} />
+            <NotesGrid
+              viewerId={userId}
+              initialNotes={initialNotes}
+              initialSections={initialSections}
+              crews={notesCrews}
+              initialCrewId={notesCrews[0]?.id ?? ''}
+              lockCrew={false}
+            />
           </motion.div>
         ) : (
           <motion.div

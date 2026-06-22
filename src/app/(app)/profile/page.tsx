@@ -1,6 +1,8 @@
 import { redirect } from 'next/navigation'
 import { unstable_cache } from 'next/cache'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { ProfileClient } from './ProfileClient'
+import type { PublicNote, BoardSection } from '@/types'
 
 async function fetchInviterUsername(userId: string): Promise<string | null> {
   const service = createServiceClient()
@@ -18,8 +20,6 @@ async function fetchInviterUsername(userId: string): Promise<string | null> {
     .single()
   return (prof as { username?: string } | null)?.username ?? null
 }
-import { ProfileClient } from './ProfileClient'
-
 
 function getCachedProfile(userId: string) {
   return unstable_cache(
@@ -43,7 +43,8 @@ export default async function ProfilePage() {
   if (!session) redirect('/login')
   const user = session.user
 
-  const [profile, messagesResult, membershipsResult, inviterUsername, pendingDeletion, coinsResult, friendshipXPResult, notesResult] = await Promise.all([
+  // Batch 1 — everything except board data (board needs crew IDs first)
+  const [profile, messagesResult, membershipsResult, inviterUsername, pendingDeletion, coinsResult, friendshipXPResult] = await Promise.all([
     getCachedProfile(user.id),
     supabase
       .from('messages')
@@ -69,17 +70,11 @@ export default async function ProfilePage() {
       .from('friendship_xp')
       .select('total_xp')
       .or(`user_a.eq.${user.id},user_b.eq.${user.id}`),
-    supabase
-      .from('notes')
-      .select('id, crew_id, created_by, url, og_title, og_image_url, source_domain, created_at')
-      .order('created_at', { ascending: false })
-      .limit(30),
   ])
-
-  const pendingDeleteAt = (pendingDeletion.data as { delete_at?: string } | null)?.delete_at ?? null
 
   const crewIds = (membershipsResult.data ?? []).map(m => (m as { crew_id: string }).crew_id)
 
+  // Fetch non-DM crews for the board crew switcher
   let notesCrews: Array<{ id: string; name: string }> = []
   if (crewIds.length > 0) {
     const { data: crewData } = await supabase
@@ -94,9 +89,32 @@ export default async function ProfilePage() {
     }))
   }
 
-  const memberSinceYear = profile?.created_at
-    ? new Date(profile.created_at).getFullYear().toString()
-    : ''
+  // Batch 2 — board data for first crew
+  let initialNotes: PublicNote[]    = []
+  let initialSections: BoardSection[] = []
+  const firstCrewId = notesCrews[0]?.id ?? ''
+
+  if (firstCrewId) {
+    const [notesResult, sectionsResult] = await Promise.all([
+      supabase
+        .from('notes')
+        .select('id, crew_id, created_by, url, og_title, og_image_url, source_domain, section_id, created_at')
+        .eq('crew_id', firstCrewId)
+        .order('created_at', { ascending: false })
+        .limit(30),
+      supabase
+        .from('board_sections')
+        .select('id, crew_id, created_by, name, position, created_at')
+        .eq('crew_id', firstCrewId)
+        .order('position')
+        .order('created_at'),
+    ])
+    initialNotes    = (notesResult.data    ?? []) as unknown as PublicNote[]
+    initialSections = (sectionsResult.data ?? []) as unknown as BoardSection[]
+  }
+
+  const pendingDeleteAt   = (pendingDeletion.data as { delete_at?: string } | null)?.delete_at ?? null
+  const memberSinceYear   = profile?.created_at ? new Date(profile.created_at).getFullYear().toString() : ''
   const totalMessages     = messagesResult.count ?? 0
   const groupChats        = crewIds.length
   const coins             = (coinsResult.data as { coins?: number } | null)?.coins ?? 0
@@ -121,7 +139,8 @@ export default async function ProfilePage() {
       pendingDeleteAt={pendingDeleteAt}
       coins={coins}
       totalFriendshipXP={totalFriendshipXP}
-      initialNotes={(notesResult.data ?? []) as unknown as import('@/types').PublicNote[]}
+      initialNotes={initialNotes}
+      initialSections={initialSections}
       notesCrews={notesCrews}
     />
   )

@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState } from 'react'
 import Image from 'next/image'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { isSupabaseStorage, resolveAvatarUrl } from '@/components/ui/Avatar'
 import { useSlideBack } from '@/components/ui/SlidePage'
 import { MarqueeBanner } from '@/components/ui/MarqueeBanner'
@@ -12,7 +12,7 @@ import { TokeCircle } from 'pixelarticons/react/TokeCircle'
 import { Message } from 'pixelarticons/react/Message'
 import { sendFriendRequestAction, acceptFriendRequestAction } from '@/app/(app)/friends/actions'
 import { NotesGrid } from '@/app/(app)/profile/notes/NotesGrid'
-import type { AvatarClass, PublicNote } from '@/types'
+import type { AvatarClass, PublicNote, BoardSection } from '@/types'
 
 type FriendState = 'none' | 'pending_sent' | 'pending_received' | 'accepted'
 
@@ -37,6 +37,7 @@ interface Props {
   friendshipXP:     number | null
   viewerCoins:      number
   initialNotes:     PublicNote[]
+  initialSections:  BoardSection[]
   notesCrews:       Array<{ id: string; name: string }>
 }
 
@@ -66,6 +67,7 @@ export function AccountPageMember({
   friendshipXP,
   viewerCoins,
   initialNotes,
+  initialSections,
   notesCrews,
 }: Props) {
   const goBack = useSlideBack()
@@ -77,15 +79,6 @@ export function AccountPageMember({
   const [friendshipId]        = useState(friendship?.id ?? null)
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState<string | null>(null)
-
-  // ── Tab state ──────────────────────────────────────────────────────────────
-  const [activeTab, setActiveTab] = useState<'notes' | 'profile'>('profile')
-  const tabDirRef = useRef(1)
-  function switchTab(tab: 'notes' | 'profile') {
-    if (tab === activeTab) return
-    tabDirRef.current = tab === 'notes' ? -1 : 1
-    setActiveTab(tab)
-  }
 
   const initial    = username[0]?.toUpperCase() ?? '?'
   const joinedYear = joinedAt ? new Date(joinedAt).getFullYear() : null
@@ -116,63 +109,35 @@ export function AccountPageMember({
 
   return (
     <>
-      {/* ── Hero — 280px + safe-area-top ──────────────────────────────────── */}
+      {/* ── Hero ─────────────────────────────────────────────────────────────── */}
       <div
         className="relative flex-shrink-0 w-full bg-black overflow-hidden"
         style={{ height: 'calc(280px + env(safe-area-inset-top, 0px))' }}
       >
-        {/* Background image */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={backgroundUrl ?? '/img/default_image.png'}
-          alt=""
-          aria-hidden
+        <img src={backgroundUrl ?? '/img/default_image.png'} alt="" aria-hidden
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }}
         />
-
-        {/* Gradient: transparent → black */}
-        <div
-          className="absolute inset-0 pointer-events-none"
+        <div className="absolute inset-0 pointer-events-none"
           style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.5) 48.668%, rgba(0,0,0,0.8) 82.216%, rgb(0,0,0) 100%)' }}
         />
 
-        {/* Content pinned to bottom */}
         <div className="absolute inset-0 flex flex-col justify-end gap-[var(--space-5)] p-[var(--space-5)]">
-
-          {/* Avatar + name row */}
           <div className="flex items-center gap-[var(--space-5)] w-full">
-            {/* 56px circle avatar */}
-            <div
-              className="flex-shrink-0 relative overflow-hidden rounded-full"
-              style={{ width: 56, height: 56, background: 'var(--color-primary)' }}
-            >
+            <div className="flex-shrink-0 relative overflow-hidden rounded-full" style={{ width: 56, height: 56, background: 'var(--color-primary)' }}>
               {avatarUrl ? (
-                <Image
-                  src={resolveAvatarUrl(avatarUrl, 56)}
-                  alt={username}
-                  fill
-                  sizes="56px"
-                  className="object-cover"
-                  unoptimized={isSupabaseStorage(avatarUrl)}
-                />
+                <Image src={resolveAvatarUrl(avatarUrl, 56)} alt={username} fill sizes="56px" className="object-cover" unoptimized={isSupabaseStorage(avatarUrl)} />
               ) : (
                 <div className="w-full h-full flex items-center justify-center">
                   <span className="font-pixel text-[12px] text-purple">{initial}</span>
                 </div>
               )}
             </div>
-
-            {/* Name + stats */}
             <div className="flex-1 min-w-0 flex flex-col justify-center leading-none" style={{ gap: 'var(--space-2)' }}>
               {joinedYear && (
-                <p className="font-silkscreen" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>
-                  Member Since {joinedYear}
-                </p>
+                <p className="font-silkscreen" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>Member Since {joinedYear}</p>
               )}
-              <p
-                className="font-body font-bold truncate"
-                style={{ fontSize: 'var(--text-xl)', fontVariationSettings: '"opsz" 14', color: 'var(--color-primary)' }}
-              >
+              <p className="font-body font-bold truncate" style={{ fontSize: 'var(--text-xl)', fontVariationSettings: '"opsz" 14', color: 'var(--color-primary)' }}>
                 {username}
               </p>
               <p className="font-silkscreen" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>
@@ -181,7 +146,6 @@ export function AccountPageMember({
             </div>
           </div>
 
-          {/* Friendship XP bar (hidden for self) */}
           {!isSelf && (
             <div className="flex flex-col w-full" style={{ gap: 'var(--space-3)' }}>
               <p className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)' }}>
@@ -200,56 +164,26 @@ export function AccountPageMember({
           )}
         </div>
 
-        {/* Top gradient for back-button legibility */}
-        <div
-          className="absolute left-0 right-0 top-0 pointer-events-none"
-          style={{
-            height:     'calc(86px + env(safe-area-inset-top, 0px))',
-            background: 'linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.25) 46.158%, rgba(0,0,0,0) 100%)',
-          }}
+        <div className="absolute left-0 right-0 top-0 pointer-events-none"
+          style={{ height: 'calc(86px + env(safe-area-inset-top, 0px))', background: 'linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.25) 46.158%, rgba(0,0,0,0) 100%)' }}
         />
 
-        {/* Top bar — back (left) + glass stat badges (right) */}
-        <div
-          className="absolute z-20 left-0 right-0 flex items-center justify-between pointer-events-none"
+        <div className="absolute z-20 left-0 right-0 flex items-center justify-between pointer-events-none"
           style={{ top: 'calc(env(safe-area-inset-top, 0px) + 18px)', paddingLeft: 16, paddingRight: 16 }}
         >
-          {/* Back button — Figma: transparent bg, glass drop-shadow */}
-          <div
-            className="pointer-events-auto flex items-center p-2 overflow-hidden"
-            style={{ filter: 'drop-shadow(0px 0px 10px rgba(0,0,0,0.4))' }}
-          >
-            <button
-              onClick={goBack}
-              aria-label="Back"
-              className="flex items-center justify-center flex-shrink-0"
-              style={{ width: 24, height: 24 }}
-            >
+          <div className="pointer-events-auto flex items-center p-2 overflow-hidden" style={{ filter: 'drop-shadow(0px 0px 10px rgba(0,0,0,0.4))' }}>
+            <button onClick={goBack} aria-label="Back" className="flex items-center justify-center flex-shrink-0" style={{ width: 24, height: 24 }}>
               <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
             </button>
           </div>
-
-          {/* Glass stat badges */}
           <div className="flex items-center" style={{ gap: 4 }}>
-            {/* Viewer's coins */}
-            <div
-              className="flex items-center justify-center rounded-[4px]"
-              style={{ gap: 4, padding: 4, backdropFilter: 'blur(7px)', filter: 'drop-shadow(0px 0px 10px rgba(0,0,0,0.1))' }}
-            >
+            <div className="flex items-center justify-center rounded-[4px]" style={{ gap: 4, padding: 4, backdropFilter: 'blur(7px)' }}>
               <TokeCircle style={{ width: 12, height: 12, color: 'var(--color-primary)' }} aria-hidden="true" />
-              <span className="font-silkscreen leading-none pb-[2px]" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-primary)' }}>
-                {viewerCoins.toLocaleString()}
-              </span>
+              <span className="font-silkscreen leading-none pb-[2px]" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-primary)' }}>{viewerCoins.toLocaleString()}</span>
             </div>
-            {/* Pair friendship XP */}
-            <div
-              className="flex items-center justify-center rounded-[4px]"
-              style={{ gap: 4, padding: '4px 8px', backdropFilter: 'blur(7px)', filter: 'drop-shadow(0px 0px 10px rgba(0,0,0,0.1))' }}
-            >
+            <div className="flex items-center justify-center rounded-[4px]" style={{ gap: 4, padding: '4px 8px', backdropFilter: 'blur(7px)' }}>
               <Heart style={{ width: 12, height: 12, color: 'var(--color-primary)' }} aria-hidden="true" />
-              <span className="font-silkscreen leading-none pb-[2px]" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-primary)' }}>
-                {bondTotal}
-              </span>
+              <span className="font-silkscreen leading-none pb-[2px]" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-primary)' }}>{bondTotal}</span>
             </div>
           </div>
         </div>
@@ -264,105 +198,57 @@ export function AccountPageMember({
         />
       )}
 
-      {/* ── Tab bar ──────────────────────────────────────────────────────────── */}
-      <div className="flex flex-shrink-0" style={{ borderBottom: '1px solid var(--color-border)' }}>
-        <button
-          onClick={() => switchTab('notes')}
-          className="flex-1 flex items-center justify-center font-silkscreen"
-          style={{ height: 40, fontSize: 'var(--text-mini)', color: activeTab === 'notes' ? 'var(--color-primary)' : 'var(--color-tertiary)', boxShadow: activeTab === 'notes' ? 'inset 0 -2px 0 var(--color-purple)' : 'none' }}
-        >
-          NOTES
-        </button>
-        <button
-          onClick={() => switchTab('profile')}
-          className="flex-1 flex items-center justify-center font-silkscreen"
-          style={{ height: 40, fontSize: 'var(--text-mini)', color: activeTab === 'profile' ? 'var(--color-primary)' : 'var(--color-tertiary)', boxShadow: activeTab === 'profile' ? 'inset 0 -2px 0 var(--color-purple)' : 'none' }}
-        >
-          PROFILE
-        </button>
+      {/* ── Compact friend action (non-self only) ─────────────────────────────── */}
+      {!isSelf && (
+        <div className="flex-shrink-0" style={{ padding: '10px 16px', borderBottom: '1px solid var(--color-border)' }}>
+          {error && <p className="font-silkscreen text-[8px] text-[#ef4444] text-center mb-2">{error}</p>}
+
+          {friendState === 'none' && (
+            <button
+              onClick={handleAddFriend} disabled={loading || isGuest}
+              className="w-full h-[40px] flex items-center justify-center gap-2 border border-purple disabled:opacity-40 active:opacity-70 transition-opacity"
+            >
+              <Heart style={{ width: 14, height: 14, color: 'var(--color-purple)' }} aria-hidden="true" />
+              <span className="font-pixel text-[length:var(--text-mini)] text-purple leading-none whitespace-nowrap">
+                {loading ? 'SENDING...' : 'ADD FRIEND'}
+              </span>
+            </button>
+          )}
+          {friendState === 'pending_sent' && (
+            <div className="w-full h-[40px] flex items-center justify-center border border-border">
+              <span className="font-silkscreen text-[9px] text-tertiary tracking-[0.2px]">REQUEST SENT</span>
+            </div>
+          )}
+          {friendState === 'pending_received' && (
+            <button
+              onClick={handleAccept} disabled={loading}
+              className="w-full h-[40px] flex items-center justify-center gap-2 border border-[#22c55e] disabled:opacity-40 active:opacity-70 transition-opacity"
+            >
+              <span className="font-pixel text-[8px] text-[#22c55e] leading-none">{loading ? '...' : 'ACCEPT FRIEND REQUEST'}</span>
+            </button>
+          )}
+          {friendState === 'accepted' && (
+            <div className="w-full h-[40px] flex items-center justify-center border border-[#22c55e]/40">
+              <span className="font-silkscreen text-[9px] text-[#22c55e] tracking-[0.2px]">COMPANIONS ✓</span>
+            </div>
+          )}
+          {isGuest && friendState === 'none' && (
+            <p className="font-silkscreen text-[8px] text-tertiary text-center mt-1">Sign in with Google to add companions</p>
+          )}
+        </div>
+      )}
+
+      {/* ── Board (fills remaining space) ─────────────────────────────────────── */}
+      <div className="flex-1 min-h-0">
+        <NotesGrid
+          viewerId={viewerId}
+          initialNotes={initialNotes}
+          initialSections={initialSections}
+          crews={notesCrews}
+          initialCrewId={crewId}
+          lockCrew={true}
+        />
       </div>
-
-      {/* ── Tab content ──────────────────────────────────────────────────────── */}
-      <AnimatePresence mode="wait" initial={false}>
-        {activeTab === 'notes' ? (
-          <motion.div
-            key="notes"
-            className="flex-1 min-h-0"
-            initial={{ opacity: 0, x: tabDirRef.current * 16 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: tabDirRef.current * -16 }}
-            transition={{ duration: 0.15, ease: [0.4, 0, 0.2, 1] }}
-          >
-            <NotesGrid
-              userId={viewerId}
-              initialNotes={initialNotes}
-              crews={notesCrews}
-              filterCrewId={crewId}
-            />
-          </motion.div>
-        ) : (
-          <motion.div
-            key="profile"
-            className="flex-1 overflow-y-auto nexus-scroll flex flex-col px-4 py-4"
-            style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 16px)' }}
-            initial={{ opacity: 0, x: tabDirRef.current * 16 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: tabDirRef.current * -16 }}
-            transition={{ duration: 0.15, ease: [0.4, 0, 0.2, 1] }}
-          >
-            {!isSelf && (
-              <div className="w-full flex flex-col gap-3">
-                {error && (
-                  <p className="font-silkscreen text-[8px] text-[#ef4444] text-center">{error}</p>
-                )}
-
-                {friendState === 'none' && (
-                  <button
-                    onClick={handleAddFriend}
-                    disabled={loading || isGuest}
-                    className="w-full h-[48px] flex items-center justify-center gap-[8px] border border-purple overflow-hidden px-[var(--space-5)] py-[var(--space-3)] disabled:opacity-40 active:opacity-70 transition-opacity"
-                  >
-                    <Heart style={{ width: 16, height: 16, color: 'var(--color-purple)' }} aria-hidden="true" />
-                    <span className="font-pixel text-[length:var(--text-mini)] text-purple leading-none whitespace-nowrap">
-                      {loading ? 'SENDING...' : 'ADD FRIEND'}
-                    </span>
-                  </button>
-                )}
-
-                {friendState === 'pending_sent' && (
-                  <div className="w-full h-[48px] flex items-center justify-center border border-border">
-                    <span className="font-silkscreen text-[9px] text-tertiary tracking-[0.2px]">REQUEST SENT</span>
-                  </div>
-                )}
-
-                {friendState === 'pending_received' && (
-                  <button
-                    onClick={handleAccept}
-                    disabled={loading}
-                    className="w-full h-[48px] flex items-center justify-center gap-2 border border-[#22c55e] px-4 py-2 disabled:opacity-40 active:opacity-70 transition-opacity"
-                  >
-                    <span className="font-pixel text-[8px] text-[#22c55e] leading-none">
-                      {loading ? '...' : 'ACCEPT'}
-                    </span>
-                  </button>
-                )}
-
-                {friendState === 'accepted' && (
-                  <div className="w-full h-[48px] flex items-center justify-center border border-[#22c55e]/40">
-                    <span className="font-silkscreen text-[9px] text-[#22c55e] tracking-[0.2px]">COMPANIONS ✓</span>
-                  </div>
-                )}
-
-                {isGuest && friendState === 'none' && (
-                  <p className="font-silkscreen text-[8px] text-tertiary text-center leading-relaxed">
-                    Sign in with Google to add companions
-                  </p>
-                )}
-              </div>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
     </>
   )
 }

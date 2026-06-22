@@ -282,6 +282,7 @@ export interface Note extends Record<string, unknown> {
   og_title:       string | null
   og_image_url:   string | null
   source_domain:  string | null
+  section_id:     string | null
   created_at:     string
 }
 
@@ -294,7 +295,17 @@ export interface PublicNote extends Record<string, unknown> {
   og_title:      string | null
   og_image_url:  string | null
   source_domain: string | null
+  section_id:    string | null
   created_at:    string
+}
+
+export interface BoardSection extends Record<string, unknown> {
+  id:         string
+  crew_id:    string
+  created_by: string
+  name:       string
+  position:   number
+  created_at: string
 }
 
 export type FriendshipStatus = 'pending' | 'accepted'
@@ -466,7 +477,13 @@ export type Database = {
       notes: {
         Row: Note
         Insert: Omit<Note, 'id' | 'created_at'> & { id?: string; created_at?: string }
-        Update: Partial<Pick<Note, 'og_title' | 'og_image_url' | 'source_domain'>>
+        Update: Partial<Pick<Note, 'og_title' | 'og_image_url' | 'source_domain' | 'section_id'>>
+        Relationships: []
+      }
+      board_sections: {
+        Row: BoardSection
+        Insert: Omit<BoardSection, 'id' | 'created_at'> & { id?: string; created_at?: string }
+        Update: Partial<Pick<BoardSection, 'name' | 'position'>>
         Relationships: []
       }
     }

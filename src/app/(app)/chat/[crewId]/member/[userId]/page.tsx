@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { SlidePage } from '@/components/ui/SlidePage'
 import { AccountPageMember } from './AccountPageMember'
-import type { AvatarClass } from '@/types'
+import type { AvatarClass, PublicNote, BoardSection } from '@/types'
 
 interface Props {
   params: Promise<{ crewId: string; userId: string }>
@@ -55,6 +55,7 @@ export default async function MemberProfilePage({ params }: Props) {
     viewerCoinsResult,
     crewResult,
     notesResult,
+    sectionsResult,
   ] = await Promise.all([
     supabase
       .from('crew_members')
@@ -101,10 +102,16 @@ export default async function MemberProfilePage({ params }: Props) {
     supabase.from('crews').select('name').eq('id', crewId).single(),
     supabase
       .from('notes')
-      .select('id, crew_id, created_by, url, og_title, og_image_url, source_domain, created_at')
+      .select('id, crew_id, created_by, url, og_title, og_image_url, source_domain, section_id, created_at')
       .eq('crew_id', crewId)
       .order('created_at', { ascending: false })
       .limit(30),
+    supabase
+      .from('board_sections')
+      .select('id, crew_id, created_by, name, position, created_at')
+      .eq('crew_id', crewId)
+      .order('position')
+      .order('created_at'),
   ])
 
   // Must be a crew member viewing another crew member
@@ -158,7 +165,8 @@ export default async function MemberProfilePage({ params }: Props) {
         globalMessages={globalMessages}
         friendshipXP={friendshipXP}
         viewerCoins={viewerCoins}
-        initialNotes={(notesResult.data ?? []) as unknown as import('@/types').PublicNote[]}
+        initialNotes={(notesResult.data ?? []) as unknown as PublicNote[]}
+        initialSections={(sectionsResult.data ?? []) as unknown as BoardSection[]}
         notesCrews={notesCrews}
       />
     </SlidePage>
