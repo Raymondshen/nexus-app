@@ -31,6 +31,8 @@ squad_definitions   id, crew_id, creator_id, word (1–100 chars, comma-separate
 definition_suggestions  id, definition_id (→ squad_definitions CASCADE), crew_id, suggester_id, suggested_definition (1–500 chars), created_at — UNIQUE(definition_id, suggester_id); REPLICA IDENTITY FULL
 friendship_xp       user_a (uuid), user_b (uuid), total_xp (int) — canonical order: user_a < user_b (UUID); UNIQUE(user_a, user_b)
 friendship_xp_log   id, user_a, user_b, sender_id, xp_awarded (int), source (dm|mention), awarded_at
+notes               id, crew_id, created_by, url, og_title, og_image_url, source_domain, section_id (uuid → board_sections nullable, ON DELETE SET NULL), created_at
+board_sections      id, crew_id, created_by, name (1–100 chars), position (int), created_at — INDEX (crew_id, position, created_at)
 ```
 
 DM channels: `crews` rows with `is_dm = true` · `dm_partner_1 < dm_partner_2` (UUID order) · both partners in `crew_members` class=berserker · filtered from home Squads; shown in Friends only
@@ -252,6 +254,25 @@ Server: verifies friendship → `get_or_create_dm(friendId)` → renders chat. `
 ### Polls
 `message.content = 'POLL:{pollId}'` · `polls` in supabase_realtime · `Chart` → `PollCreatorSheet` → `create_poll` RPC · `vote_on_poll` one toggleable vote · always `showHeader = true`; 0 XP
 
+### Board (`/profile` → BOARD tab · `/chat/[crewId]/member/[userId]`)
+- **Board** = crew-scoped link cards (previously called "notes"). Renamed throughout UI.
+- Always scoped to one crew. Own profile (`/profile`) has crew switcher pills + SETTINGS/BOARD tabs (local state, `AnimatePresence mode="wait"`, 150ms ease slide — no history push). Squad member profile shows board only (minimal nav bar + `NotesGrid`, no hero or profile stats).
+- `notes` table stores cards; `board_sections` stores named groupings per crew.
+- Sections: any crew member can create a section; cards can be assigned on add or moved later (long-press → "Move to Section"). Deleting a section moves its cards to Unsorted (`ON DELETE SET NULL`).
+- `NotesGrid` (`src/app/(app)/profile/notes/NotesGrid.tsx`): all board UI — crew pills, section blocks, card grid, all sheets. Props: `{ viewerId, initialNotes, initialSections, crews, initialCrewId, lockCrew? }`. `lockCrew={true}` hides the crew switcher (used on squad member profile).
+- Actions (`src/app/(app)/profile/notes/actions.ts`):
+  - `addNoteAction(crewId, url, sectionId?)` — fetches OG preview, inserts note
+  - `fetchMoreNotesAction(cursor, crewId)` — keyset pagination, both args required
+  - `deleteNoteAction(noteId)` — creator only
+  - `moveToSectionAction(noteId, sectionId | null)` — moves card; creator only
+  - `fetchCrewBoardAction(crewId)` → `{ notes, sections }` — used on crew switch
+  - `createSectionAction(crewId, name)` → `{ section? }` — crew member only; position = `Date.now()`
+  - `deleteSectionAction(sectionId)` → `{ error? }` — creator only
+- Long-press pattern: 500ms timeout, `hasMoved` ref cancels on movement, `didLongPress` ref prevents tap-open on release → `CardActionSheet` (Open Link · Remove Note for creator · Move to Section)
+- `/profile/notes` → redirects to `/profile` (dead route kept for link safety)
+- `BoardSection` type in `src/types/index.ts`; `notes.Update` includes `section_id`
+- Member profile page (`AccountPageMember`): nav bar (back + username) + `NotesGrid` only — no hero, no friend action, no stats
+
 ### Squad Glossary (`/chat/[crewId]/definitions`)
 `word` stores comma-separated aliases; UNIQUE INDEX `(crew_id, lower(word))`; blue highlight spans, `\b` regex `gi`, sort aliases by length desc
 - Suggestion flow: non-creator → `SuggestDefinitionSheet`; creator → `ReviewSuggestionSheet`; realtime on `definition_suggestions` (REPLICA IDENTITY FULL)
@@ -422,6 +443,7 @@ Full-height swipe-up panel with scroll-integrated pull-to-close (`onPanEnd`, thr
 - `20240103000036` — messages pin columns, messages_protect_pin_columns trigger, pin_message + unpin_message RPCs
 - `20240103000037` — crews last_message_preview/at/sender_id denormalized columns, update_crew_last_message trigger (skips system msgs, out-of-order guard), backfill from messages, crews added to supabase_realtime publication
 - `20240103000038` — profiles.last_active_at (timestamptz nullable), update_active() RPC (SECURITY DEFINER, updates own row only)
+- `20240103000040` — board_sections table + RLS (view: crew members; insert: crew members; delete: creator); notes.section_id FK (ON DELETE SET NULL); notes UPDATE policy (creator only)
 
 Manual SQL applied directly:
 ```sql
@@ -444,6 +466,7 @@ ALTER TABLE crews ADD COLUMN IF NOT EXISTS dm_partner_2 uuid REFERENCES auth.use
 
 ## Supabase Type Rules
 - Row interfaces must extend `Record<string, unknown>` (without it `.from()`/`.rpc()` returns `never`)
+- **Never use `Omit<T, K>` on interfaces that extend `Record<string, unknown>`** — it collapses all named fields to `unknown`, breaking TypeScript inference on query builders. Always write a standalone `interface` with all fields explicitly listed instead.
 - Table definitions must include `Relationships: []`
 - All RPCs declared in `Database.public.Functions` with `Args` + `Returns` before use
 - `supabase/` excluded from `tsconfig.json` (Deno imports incompatible)
