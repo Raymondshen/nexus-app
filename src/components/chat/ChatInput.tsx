@@ -153,7 +153,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   const xpBatchRef            = useRef<{ pending: number; timer: ReturnType<typeof setTimeout> | null }>({ pending: 0, timer: null })
 
   const {
-    addMessage, removeMessage, updateMessage, setCrewXP, receiveXP, addXPFloat,
+    addMessage, removeMessage, updateMessage, setCrewXP, receiveXP, addXPFloat, bumpCrewXP,
     crewXP, crewLevel,
     onlineUserIds, setOnlineUserIds, setLastActive, sweepOnlineUserIds, addUserCoins,
     crewName: storeCrewName, setCrewName,
@@ -440,6 +440,10 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
         const msg = payload.payload as Message
         if (!msg?.id || typeof msg.content !== 'string') return
         addMessage({ ...msg, profile: fallbackProfile(msg.user_id) })
+        // Optimistic XP bump for others' text/image messages — xp_update broadcast reconciles later
+        if (msg.user_id !== userId && (msg.message_type === 'text' || msg.message_type === 'image') && !isDM) {
+          useChatStore.getState().bumpCrewXP()
+        }
       })
       .on('broadcast', { event: 'xp_update' }, (payload) => {
         const { xp_earned, new_total_xp, sender_id } =
@@ -589,6 +593,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       tempId,
     }
     addMessage(optimisticMsg)
+    if (!isDM) bumpCrewXP()
 
     try {
       const supabase = createClient()
@@ -693,6 +698,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       tempId,
     }
     addMessage(optimisticMsg)
+    if (!isDM) bumpCrewXP()
 
     try {
       const supabase = createClient()
@@ -820,6 +826,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       tempId,
     }
     addMessage(optimisticMsg)
+    if (!isDM) bumpCrewXP()
 
     try {
       const { data: raw, error } = await supabase.rpc('insert_message', {

@@ -23,6 +23,7 @@ interface ChatStore {
   setCrewXP:           (xp: number) => void
   addXP:               (amount: number) => void
   addXPFloat:          (amount: number) => void
+  bumpCrewXP:          () => void
   receiveXP:           (earned: number, newTotal: number) => void
   dismissXPFloat:      (id: number) => void
   setOnlineUserIds:    (ids: Set<string>) => void
@@ -100,6 +101,10 @@ export const useChatStore = create<ChatStore>((set) => ({
   // Shows the +XP float without changing the bar — use on send before server confirms.
   addXPFloat: (amount) =>
     set((s) => ({ xpFloats: [...s.xpFloats, { id: ++floatCounter, amount }] })),
+
+  // Optimistically increments the bar by 1 without adding a float — use at send time.
+  bumpCrewXP: () =>
+    set((s) => { const n = s.crewXP + 1; return { crewXP: n, crewLevel: getLevelFromXP(n) } }),
 
   // Sets the authoritative XP total and shows a float — use for remote XP events.
   receiveXP: (earned, newTotal) =>
