@@ -286,7 +286,15 @@ export interface Note extends Record<string, unknown> {
 }
 
 /** Note row with url stripped — safe to send to the client */
-export type PublicNote = Omit<Note, 'url'>
+export interface PublicNote extends Record<string, unknown> {
+  id:            string
+  crew_id:       string
+  created_by:    string
+  og_title:      string | null
+  og_image_url:  string | null
+  source_domain: string | null
+  created_at:    string
+}
 
 export type FriendshipStatus = 'pending' | 'accepted'
 
