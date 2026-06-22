@@ -6,7 +6,6 @@ interface ChatStore {
   messages:            Message[]
   crewXP:              number
   crewLevel:           number
-  xpFloats:            { id: number; amount: number }[]
   onlineUserIds:       Set<string>
   lastActiveMap:       Record<string, number>
   userCoins:           number
@@ -21,11 +20,8 @@ interface ChatStore {
   removeMessage:       (id: string) => void
   updateMessage:       (id: string, patch: Partial<Message>) => void
   setCrewXP:           (xp: number) => void
-  addXP:               (amount: number) => void
-  addXPFloat:          (amount: number) => void
   bumpCrewXP:          () => void
   receiveXP:           (earned: number, newTotal: number) => void
-  dismissXPFloat:      (id: number) => void
   setOnlineUserIds:    (ids: Set<string>) => void
   setLastActive:       (userId: string, ts: number) => void
   sweepOnlineUserIds:  (thresholdMs: number) => void
@@ -43,13 +39,10 @@ interface ChatStore {
   setSquadDetailsOpen:     (open: boolean) => void
 }
 
-let floatCounter = 0
-
 export const useChatStore = create<ChatStore>((set) => ({
   messages:           [],
   crewXP:             0,
   crewLevel:          1,
-  xpFloats:           [],
   onlineUserIds:      new Set<string>(),
   lastActiveMap:      {},
   userCoins:          0,
@@ -87,35 +80,13 @@ export const useChatStore = create<ChatStore>((set) => ({
   setCrewXP: (xp) =>
     set({ crewXP: xp, crewLevel: getLevelFromXP(xp) }),
 
-  addXP: (amount) =>
-    set((s) => {
-      const newXP   = s.crewXP + amount
-      const floatId = ++floatCounter
-      return {
-        crewXP:    newXP,
-        crewLevel: getLevelFromXP(newXP),
-        xpFloats:  [...s.xpFloats, { id: floatId, amount }],
-      }
-    }),
-
-  // Shows the +XP float without changing the bar — use on send before server confirms.
-  addXPFloat: (amount) =>
-    set((s) => ({ xpFloats: [...s.xpFloats, { id: ++floatCounter, amount }] })),
-
-  // Optimistically increments the bar by 1 without adding a float — use at send time.
+  // Optimistically increments the bar by 1 — use at send time; setCrewXP reconciles after server responds.
   bumpCrewXP: () =>
     set((s) => { const n = s.crewXP + 1; return { crewXP: n, crewLevel: getLevelFromXP(n) } }),
 
-  // Sets the authoritative XP total and shows a float — use for remote XP events.
-  receiveXP: (earned, newTotal) =>
-    set((s) => ({
-      crewXP:    newTotal,
-      crewLevel: getLevelFromXP(newTotal),
-      xpFloats:  [...s.xpFloats, { id: ++floatCounter, amount: earned }],
-    })),
-
-  dismissXPFloat: (id) =>
-    set((s) => ({ xpFloats: s.xpFloats.filter((f) => f.id !== id) })),
+  // Sets the authoritative XP total — use for remote XP events received via broadcast.
+  receiveXP: (_, newTotal) =>
+    set({ crewXP: newTotal, crewLevel: getLevelFromXP(newTotal) }),
 
   setOnlineUserIds: (ids) => set({ onlineUserIds: ids }),
 
