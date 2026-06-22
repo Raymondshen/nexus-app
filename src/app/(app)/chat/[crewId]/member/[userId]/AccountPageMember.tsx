@@ -16,12 +16,14 @@ interface Props {
 
 export function AccountPageMember({
   crewId,
+  userId,
   viewerId,
   username,
   initialNotes,
   notesCrews,
 }: Props) {
   const goBack = useSlideBack()
+  const isOwner = viewerId === userId
 
   return (
     <>
@@ -47,6 +49,7 @@ export function AccountPageMember({
           crews={notesCrews}
           initialCrewId={crewId}
           lockCrew={false}
+          readOnly={!isOwner}
         />
       </div>
     </>

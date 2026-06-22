@@ -42,11 +42,13 @@ function isPending(n: GridNote): n is PendingNote {
 function NoteCard({
   note,
   failed,
+  readOnly,
   onImageError,
   onLongPress,
 }: {
   note:         PublicNote
   failed:       boolean
+  readOnly:     boolean
   onImageError: () => void
   onLongPress:  (note: PublicNote) => void
 }) {
@@ -60,9 +62,11 @@ function NoteCard({
   function handlePointerDown(e: React.PointerEvent) {
     if (e.pointerType === 'mouse' && e.button !== 0) return
     hasMoved.current = false; didLongPress.current = false
-    timerRef.current = setTimeout(() => {
-      if (!hasMoved.current) { didLongPress.current = true; onLongPress(note) }
-    }, 500)
+    if (!readOnly) {
+      timerRef.current = setTimeout(() => {
+        if (!hasMoved.current) { didLongPress.current = true; onLongPress(note) }
+      }, 500)
+    }
   }
   function handlePointerMove(e: React.PointerEvent) {
     if (Math.abs(e.movementX) > 3 || Math.abs(e.movementY) > 3) { hasMoved.current = true; cancelPress() }
@@ -80,7 +84,7 @@ function NoteCard({
       style={{ aspectRatio: '1 / 1', position: 'relative', overflow: 'hidden', background: '#111118', cursor: 'pointer', touchAction: 'manipulation', flexShrink: 0 }}
       onPointerDown={handlePointerDown} onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp} onPointerCancel={cancelPress}
-      onContextMenu={(e) => { e.preventDefault(); onLongPress(note) }}
+      onContextMenu={(e) => { e.preventDefault(); if (!readOnly) onLongPress(note) }}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') window.open(note.url, '_blank', 'noopener,noreferrer') }}
     >
       {hasImage ? (
@@ -125,7 +129,7 @@ function AddCard({ onClick }: { onClick: () => void }) {
 // ─── Section block ────────────────────────────────────────────────────────────
 
 function SectionBlock({
-  sectionId, name, notes, pending, failed, viewerId, isCreator,
+  sectionId, name, notes, pending, failed, viewerId, isCreator, readOnly,
   onNoteImageError, onNoteLongPress, onAddCard, onDeleteSection,
 }: {
   sectionId:        string | null
@@ -135,6 +139,7 @@ function SectionBlock({
   failed:           Set<string>
   viewerId:         string
   isCreator:        boolean
+  readOnly:         boolean
   onNoteImageError: (id: string) => void
   onNoteLongPress:  (note: PublicNote) => void
   onAddCard:        (sectionId: string | null) => void
@@ -164,11 +169,12 @@ function SectionBlock({
             key={n.id}
             note={n}
             failed={failed.has(n.id)}
+            readOnly={readOnly}
             onImageError={() => onNoteImageError(n.id)}
             onLongPress={onNoteLongPress}
           />
         ))}
-        <AddCard onClick={() => onAddCard(sectionId)} />
+        {!readOnly && <AddCard onClick={() => onAddCard(sectionId)} />}
       </div>
     </div>
   )
@@ -441,6 +447,7 @@ export interface NotesGridProps {
   crews:           Array<{ id: string; name: string }>
   initialCrewId:   string
   lockCrew?:       boolean
+  readOnly?:       boolean
 }
 
 export function NotesGrid({
@@ -449,7 +456,8 @@ export function NotesGrid({
   initialSections,
   crews,
   initialCrewId,
-  lockCrew = false,
+  lockCrew  = false,
+  readOnly  = false,
 }: NotesGridProps) {
   const [notes,        setNotes]        = useState<GridNote[]>(initialNotes)
   const [sections,     setSections]     = useState<BoardSection[]>(initialSections)
@@ -612,17 +620,19 @@ export function NotesGrid({
       <div className="flex-1 overflow-y-auto nexus-scroll">
         {lockCrew ? (
           <>
-            {/* + SECTION button (lockCrew only) */}
-            <div className="flex justify-end" style={{ padding: '8px 12px' }}>
-              <button
-                onClick={() => setShowCreateSection(true)}
-                className="flex items-center font-silkscreen"
-                style={{ fontSize: 'var(--text-mini)', color: 'var(--color-purple)', gap: 4 }}
-              >
-                <Plus style={{ width: 10, height: 10, color: 'var(--color-purple)' }} aria-hidden="true" />
-                SECTION
-              </button>
-            </div>
+            {/* + SECTION button (lockCrew, editable only) */}
+            {!readOnly && (
+              <div className="flex justify-end" style={{ padding: '8px 12px' }}>
+                <button
+                  onClick={() => setShowCreateSection(true)}
+                  className="flex items-center font-silkscreen"
+                  style={{ fontSize: 'var(--text-mini)', color: 'var(--color-purple)', gap: 4 }}
+                >
+                  <Plus style={{ width: 10, height: 10, color: 'var(--color-purple)' }} aria-hidden="true" />
+                  SECTION
+                </button>
+              </div>
+            )}
 
             {/* Named sections */}
             {grouped.map(({ section, notes: sNotes }) => (
@@ -635,6 +645,7 @@ export function NotesGrid({
                 failed={failedImages}
                 viewerId={viewerId}
                 isCreator={isCreator(section)}
+                readOnly={readOnly}
                 onNoteImageError={(id) => setFailedImages(prev => new Set(prev).add(id))}
                 onNoteLongPress={setActiveNote}
                 onAddCard={(sid) => { setAddSectionId(sid); setShowAddSheet(true) }}
@@ -651,6 +662,7 @@ export function NotesGrid({
               failed={failedImages}
               viewerId={viewerId}
               isCreator={false}
+              readOnly={readOnly}
               onNoteImageError={(id) => setFailedImages(prev => new Set(prev).add(id))}
               onNoteLongPress={setActiveNote}
               onAddCard={(sid) => { setAddSectionId(sid); setShowAddSheet(true) }}
@@ -667,11 +679,12 @@ export function NotesGrid({
                   key={n.id}
                   note={n}
                   failed={failedImages.has(n.id)}
+                  readOnly={readOnly}
                   onImageError={() => setFailedImages(prev => new Set(prev).add(n.id))}
                   onLongPress={setActiveNote}
                 />
               ))}
-              <AddCard onClick={() => { setAddSectionId(null); setShowAddSheet(true) }} />
+              {!readOnly && <AddCard onClick={() => { setAddSectionId(null); setShowAddSheet(true) }} />}
             </div>
           </>
         )}
