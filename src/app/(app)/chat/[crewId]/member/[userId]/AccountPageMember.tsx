@@ -3,16 +3,15 @@
 import { useSlideBack } from '@/components/ui/SlidePage'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { NotesGrid } from '@/app/(app)/profile/notes/NotesGrid'
-import type { PublicNote, BoardSection } from '@/types'
+import type { PublicNote } from '@/types'
 
 interface Props {
-  crewId:          string
-  userId:          string
-  viewerId:        string
-  username:        string
-  initialNotes:    PublicNote[]
-  initialSections: BoardSection[]
-  notesCrews:      Array<{ id: string; name: string }>
+  crewId:       string
+  userId:       string
+  viewerId:     string
+  username:     string
+  initialNotes: PublicNote[]
+  notesCrews:   Array<{ id: string; name: string }>
 }
 
 export function AccountPageMember({
@@ -20,7 +19,6 @@ export function AccountPageMember({
   viewerId,
   username,
   initialNotes,
-  initialSections,
   notesCrews,
 }: Props) {
   const goBack = useSlideBack()
@@ -45,10 +43,10 @@ export function AccountPageMember({
         <NotesGrid
           viewerId={viewerId}
           initialNotes={initialNotes}
-          initialSections={initialSections}
+          initialSections={[]}
           crews={notesCrews}
           initialCrewId={crewId}
-          lockCrew={true}
+          lockCrew={false}
         />
       </div>
     </>

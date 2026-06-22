@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { SlidePage } from '@/components/ui/SlidePage'
 import { AccountPageMember } from './AccountPageMember'
-import type { PublicNote, BoardSection } from '@/types'
+import type { PublicNote } from '@/types'
 
 interface Props {
   params: Promise<{ crewId: string; userId: string }>
@@ -24,7 +24,6 @@ export default async function MemberProfilePage({ params }: Props) {
     targetMembership,
     crewResult,
     notesResult,
-    sectionsResult,
   ] = await Promise.all([
     supabase
       .from('crew_members')
@@ -44,25 +43,20 @@ export default async function MemberProfilePage({ params }: Props) {
       .eq('user_id', userId)
       .maybeSingle(),
     supabase.from('crews').select('name').eq('id', crewId).single(),
+    // Only this user's notes, across all shared crews (RLS enforces crew membership)
     supabase
       .from('notes')
       .select('id, crew_id, created_by, url, og_title, og_image_url, source_domain, section_id, created_at')
-      .eq('crew_id', crewId)
+      .eq('created_by', userId)
       .order('created_at', { ascending: false })
       .limit(30),
-    supabase
-      .from('board_sections')
-      .select('id, crew_id, created_by, name, position, created_at')
-      .eq('crew_id', crewId)
-      .order('position')
-      .order('created_at'),
   ])
 
   if (!viewerMembership.data) redirect('/home')
   if (!targetMembership.data || !profileResult.data) redirect(`/chat/${crewId}`)
 
-  const username  = (profileResult.data as { username: string }).username
-  const crewName  = (crewResult.data as { name?: string } | null)?.name ?? ''
+  const username   = (profileResult.data as { username: string }).username
+  const crewName   = (crewResult.data as { name?: string } | null)?.name ?? ''
   const notesCrews = [{ id: crewId, name: crewName }]
 
   return (
@@ -86,7 +80,6 @@ export default async function MemberProfilePage({ params }: Props) {
         viewerId={viewerId}
         username={username}
         initialNotes={(notesResult.data ?? []) as unknown as PublicNote[]}
-        initialSections={(sectionsResult.data ?? []) as unknown as BoardSection[]}
         notesCrews={notesCrews}
       />
     </SlidePage>
