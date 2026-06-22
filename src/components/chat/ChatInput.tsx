@@ -575,7 +575,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       content:          publicUrlSnapshot,
       message_type:     'image',
       element_type:     null,
-      xp_awarded:       0,
+      xp_awarded:       1,
       reactions:        {},
       created_at:       new Date().toISOString(),
       image_url:        publicUrlSnapshot,
@@ -584,7 +584,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       tempId,
     }
     addMessage(optimisticMsg)
-    addXP(20)
+    addXP(1)
 
     try {
       const supabase = createClient()
@@ -629,7 +629,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       })
         .then((r) => r.json())
         .then((data: { xp_earned?: number; new_total_xp?: number; coins_earned?: number }) => {
-          if (typeof data.xp_earned === 'number' && data.xp_earned > 0) updateMessage(msgId, { xp_awarded: data.xp_earned })
+          if (typeof data.xp_earned === 'number') updateMessage(msgId, { xp_awarded: data.xp_earned })
           if (typeof data.new_total_xp === 'number') {
             setCrewXP(data.new_total_xp)
             if (channelReadyRef.current) msgChannelRef.current?.send({
@@ -671,7 +671,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       content:         gifUrl,
       message_type:    'image',
       element_type:    'nature',
-      xp_awarded:      0,
+      xp_awarded:      1,
       reactions:       {},
       created_at:      new Date().toISOString(),
       image_url:       gifUrl,
@@ -680,7 +680,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       tempId,
     }
     addMessage(optimisticMsg)
-    addXP(20)
+    addXP(1)
 
     try {
       const supabase = createClient()
@@ -722,7 +722,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       })
         .then((r) => r.json())
         .then((data: { xp_earned?: number; new_total_xp?: number; coins_earned?: number }) => {
-          if (typeof data.xp_earned === 'number' && data.xp_earned > 0) updateMessage(msgId, { xp_awarded: data.xp_earned })
+          if (typeof data.xp_earned === 'number') updateMessage(msgId, { xp_awarded: data.xp_earned })
           if (typeof data.new_total_xp === 'number') {
             setCrewXP(data.new_total_xp)
             if (channelReadyRef.current) msgChannelRef.current?.send({
@@ -793,13 +793,13 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     const optimisticMsg: MessageWithProfile = {
       id: tempId, crew_id: crewId, user_id: userId, content,
       message_type: 'text', element_type: null,
-      xp_awarded: 0, reactions: {}, created_at: new Date().toISOString(),
+      xp_awarded: 1, reactions: {}, created_at: new Date().toISOString(),
       profile: userProfile,
       reply_to_id: replyToId, reply_preview: replyPreview, reply_username: replyUsername,
       tempId,
     }
     addMessage(optimisticMsg)
-    addXP(10)
+    addXP(1)
 
     try {
       const { data: raw, error } = await supabase.rpc('insert_message', {
@@ -848,7 +848,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
         .then((r) => r.json())
         .then((data: { xp_earned?: number; new_total_xp?: number; coins_earned?: number; notif_count?: number; notif_results?: unknown[] }) => {
           console.log('[award-xp]', data)
-          if (typeof data.xp_earned === 'number' && data.xp_earned > 0) updateMessage(msgId, { xp_awarded: data.xp_earned })
+          if (typeof data.xp_earned === 'number') updateMessage(msgId, { xp_awarded: data.xp_earned })
           if (typeof data.new_total_xp === 'number') {
             setCrewXP(data.new_total_xp) // sync authoritative total; float already shown optimistically
             if (channelReadyRef.current) msgChannelRef.current?.send({

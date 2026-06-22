@@ -177,11 +177,12 @@ Deno.serve(async (req: Request) => {
 
     const crewBefore = crewResult.data
     const isDevUser  = senderProfileResult.data?.is_dev === true
+    const oldXP      = crewBefore?.total_xp ?? 0
 
     // ─── XP CALCULATION ─────────────────────────────────────────────────────
     let xpAwarded = 0
-    let newXP     = 0
-    let newLevel  = 1
+    let newXP     = oldXP            // stays current when blocked
+    let newLevel  = getLevelFromXP(oldXP)
 
     if (!xpBlocked && !softBlocked) {
       const todayStart = new Date()
@@ -201,8 +202,6 @@ Deno.serve(async (req: Request) => {
     }
 
     // ─── WRITE XP ───────────────────────────────────────────────────────────
-    const oldXP = crewBefore?.total_xp ?? 0
-
     if (xpAwarded > 0) {
       newXP          = oldXP + xpAwarded
       const oldLevel = getLevelFromXP(oldXP)
