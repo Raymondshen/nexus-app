@@ -875,6 +875,23 @@ export function ProfileClient({
       {/* ── Status ticker — full-width row between hero and body ──────────── */}
       {localStatus && <ProfileStatusTicker status={localStatus} />}
 
+      {/* ── Tab bar ──────────────────────────────────────────────────────────── */}
+      <div className="flex flex-shrink-0" style={{ borderBottom: '1px solid var(--color-border)' }}>
+        <button
+          onClick={() => router.push('/profile/notes')}
+          className="flex-1 flex items-center justify-center font-silkscreen"
+          style={{ height: 40, fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}
+        >
+          NOTES
+        </button>
+        <div
+          className="flex-1 flex items-center justify-center font-silkscreen pointer-events-none"
+          style={{ height: 40, fontSize: 'var(--text-mini)', color: 'var(--color-primary)', boxShadow: 'inset 0 -2px 0 var(--color-purple)' }}
+        >
+          SETTINGS
+        </div>
+      </div>
+
       {/* ── Scrollable body ─────────────────────────────────────────────────── */}
       <div
         className="flex-1 overflow-y-auto flex flex-col nexus-scroll"

@@ -1,0 +1,108 @@
+import { redirect } from 'next/navigation'
+import { unstable_cache } from 'next/cache'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { NotesClient } from './NotesClient'
+import type { PublicNote } from '@/types'
+
+function getCachedProfile(userId: string) {
+  return unstable_cache(
+    async () => {
+      const supabase = createServiceClient()
+      const { data } = await supabase
+        .from('profiles')
+        .select('username, avatar_url, is_dev, created_at, custom_avatar, status, background_url')
+        .eq('id', userId)
+        .single()
+      return data as {
+        username: string
+        avatar_url: string | null
+        is_dev: boolean
+        created_at: string
+        custom_avatar: boolean
+        status: string | null
+        background_url: string | null
+      } | null
+    },
+    [`profile:${userId}`],
+    { tags: [`profile:${userId}`], revalidate: 60 },
+  )()
+}
+
+export default async function NotesPage() {
+  const supabase = await createClient()
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) redirect('/login')
+
+  const userId = session.user.id
+
+  const [profile, messagesResult, membershipsResult, coinsResult, friendshipXPResult, notesResult] =
+    await Promise.all([
+      getCachedProfile(userId),
+      supabase
+        .from('messages')
+        .select('id', { count: 'estimated', head: true })
+        .eq('user_id', userId)
+        .neq('message_type', 'system'),
+      supabase
+        .from('crew_members')
+        .select('crew_id')
+        .eq('user_id', userId),
+      supabase.from('profiles').select('coins').eq('id', userId).single(),
+      supabase
+        .from('friendship_xp')
+        .select('total_xp')
+        .or(`user_a.eq.${userId},user_b.eq.${userId}`),
+      supabase
+        .from('notes')
+        .select('id, crew_id, created_by, og_title, og_image_url, source_domain, created_at')
+        .order('created_at', { ascending: false })
+        .limit(30),
+    ])
+
+  const crewIds = (membershipsResult.data ?? []).map(
+    (m) => (m as { crew_id: string }).crew_id,
+  )
+
+  // Fetch non-DM crew names for the add-note crew picker
+  let crews: Array<{ id: string; name: string }> = []
+  if (crewIds.length > 0) {
+    const { data: crewData } = await supabase
+      .from('crews')
+      .select('id, name, is_dm')
+      .in('id', crewIds)
+      .eq('is_dm', false)
+      .order('created_at')
+    crews = (crewData ?? []).map((c) => ({
+      id:   (c as { id: string }).id,
+      name: (c as { name: string }).name,
+    }))
+  }
+
+  const memberSinceYear = profile?.created_at
+    ? new Date(profile.created_at).getFullYear().toString()
+    : ''
+  const totalMessages   = messagesResult.count ?? 0
+  const groupChats      = membershipsResult.data?.length ?? 0
+  const coins           = (coinsResult.data as { coins?: number } | null)?.coins ?? 0
+  const totalFriendshipXP = (friendshipXPResult.data ?? []).reduce(
+    (sum, r) => sum + ((r as { total_xp: number }).total_xp ?? 0),
+    0,
+  )
+
+  return (
+    <NotesClient
+      userId={userId}
+      avatarUrl={profile?.avatar_url ?? null}
+      backgroundUrl={profile?.background_url ?? null}
+      username={profile?.username ?? ''}
+      status={profile?.status ?? null}
+      memberSinceYear={memberSinceYear}
+      totalMessages={totalMessages}
+      groupChats={groupChats}
+      coins={coins}
+      totalFriendshipXP={totalFriendshipXP}
+      crews={crews}
+      initialNotes={(notesResult.data ?? []) as unknown as PublicNote[]}
+    />
+  )
+}

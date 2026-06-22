@@ -274,6 +274,20 @@ export interface PendingDeletion extends Record<string, unknown> {
   delete_at:    string
 }
 
+export interface Note extends Record<string, unknown> {
+  id:             string
+  crew_id:        string
+  created_by:     string
+  url:            string
+  og_title:       string | null
+  og_image_url:   string | null
+  source_domain:  string | null
+  created_at:     string
+}
+
+/** Note row with url stripped — safe to send to the client */
+export type PublicNote = Omit<Note, 'url'>
+
 export type FriendshipStatus = 'pending' | 'accepted'
 
 export interface Friendship extends Record<string, unknown> {
@@ -438,6 +452,12 @@ export type Database = {
         Row: EventRsvp
         Insert: Omit<EventRsvp, 'updated_at'> & { updated_at?: string }
         Update: Partial<Pick<EventRsvp, 'status' | 'updated_at'>>
+        Relationships: []
+      }
+      notes: {
+        Row: Note
+        Insert: Omit<Note, 'id' | 'created_at'> & { id?: string; created_at?: string }
+        Update: Partial<Pick<Note, 'og_title' | 'og_image_url' | 'source_domain'>>
         Relationships: []
       }
     }
