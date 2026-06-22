@@ -605,7 +605,7 @@ export function ProfileClient({
   const router = useRouter()
 
   // ── Tab state ─────────────────────────────────────────────────────────────
-  const [activeTab, setActiveTab] = useState<'notes' | 'settings'>('settings')
+  const [activeTab, setActiveTab] = useState<'notes' | 'settings'>('notes')
   const tabDirRef = useRef(1) // +1 = notes→settings (enter from right); -1 = settings→notes (enter from left)
   function switchTab(tab: 'notes' | 'settings') {
     if (tab === activeTab) return
@@ -896,7 +896,7 @@ export function ProfileClient({
           className="flex-1 flex items-center justify-center font-silkscreen"
           style={{ height: 40, fontSize: 'var(--text-mini)', color: activeTab === 'notes' ? 'var(--color-primary)' : 'var(--color-tertiary)', boxShadow: activeTab === 'notes' ? 'inset 0 -2px 0 var(--color-purple)' : 'none' }}
         >
-          BOARD
+          VIBES
         </button>
         <button
           onClick={() => switchTab('settings')}

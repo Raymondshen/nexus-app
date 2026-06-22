@@ -8,9 +8,9 @@ import { Button } from '@/components/ui/Button'
 import {
   addNoteAction,
   fetchMoreNotesAction,
+  fetchMoreNotesGlobalAction,
   deleteNoteAction,
   moveToSectionAction,
-  fetchCrewBoardAction,
   createSectionAction,
   deleteSectionAction,
 } from './actions'
@@ -50,9 +50,9 @@ function NoteCard({
   onImageError: () => void
   onLongPress:  (note: PublicNote) => void
 }) {
-  const timerRef      = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const hasMoved      = useRef(false)
-  const didLongPress  = useRef(false)
+  const timerRef     = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const hasMoved     = useRef(false)
+  const didLongPress = useRef(false)
 
   function cancelPress() {
     if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null }
@@ -128,13 +128,13 @@ function SectionBlock({
   sectionId, name, notes, pending, failed, viewerId, isCreator,
   onNoteImageError, onNoteLongPress, onAddCard, onDeleteSection,
 }: {
-  sectionId:       string | null
-  name:            string
-  notes:           PublicNote[]
-  pending:         PendingNote[]
-  failed:          Set<string>
-  viewerId:        string
-  isCreator:       boolean
+  sectionId:        string | null
+  name:             string
+  notes:            PublicNote[]
+  pending:          PendingNote[]
+  failed:           Set<string>
+  viewerId:         string
+  isCreator:        boolean
   onNoteImageError: (id: string) => void
   onNoteLongPress:  (note: PublicNote) => void
   onAddCard:        (sectionId: string | null) => void
@@ -142,7 +142,6 @@ function SectionBlock({
 }) {
   return (
     <div style={{ marginBottom: 8 }}>
-      {/* Section header */}
       <div className="flex items-center justify-between" style={{ padding: '12px 12px 6px' }}>
         <span className="font-silkscreen" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)', letterSpacing: '0.05em' }}>
           {name}
@@ -158,8 +157,6 @@ function SectionBlock({
           </button>
         )}
       </div>
-
-      {/* Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 3, paddingLeft: 3, paddingRight: 3 }}>
         {pending.map(n => <PendingNoteCard key={n.id} />)}
         {notes.map(n => (
@@ -207,13 +204,13 @@ function CardActionSheet({
   note, sections, isCreator, deleting,
   onClose, onOpen, onDelete, onMoveToSection,
 }: {
-  note:           PublicNote
-  sections:       BoardSection[]
-  isCreator:      boolean
-  deleting:       boolean
-  onClose:        () => void
-  onOpen:         () => void
-  onDelete:       () => void
+  note:            PublicNote
+  sections:        BoardSection[]
+  isCreator:       boolean
+  deleting:        boolean
+  onClose:         () => void
+  onOpen:          () => void
+  onDelete:        () => void
   onMoveToSection: () => void
 }) {
   return (
@@ -277,23 +274,33 @@ function MoveToSectionSheet({
 }
 
 function AddCardSheet({
-  sections, defaultSectionId, onClose, onAdd,
+  sections,
+  defaultSectionId,
+  crews,
+  defaultCrewId,
+  lockCrew,
+  onClose,
+  onAdd,
 }: {
   sections:         BoardSection[]
   defaultSectionId: string | null
+  crews:            Array<{ id: string; name: string }>
+  defaultCrewId:    string
+  lockCrew:         boolean
   onClose:          () => void
-  onAdd:            (url: string, sectionId: string | null) => Promise<string | null>
+  onAdd:            (url: string, sectionId: string | null, crewId: string) => Promise<string | null>
 }) {
-  const [addUrl,     setAddUrl]     = useState('')
-  const [sectionId,  setSectionId]  = useState<string | null>(defaultSectionId)
-  const [adding,     setAdding]     = useState(false)
-  const [addError,   setAddError]   = useState<string | null>(null)
+  const [addUrl,    setAddUrl]    = useState('')
+  const [sectionId, setSectionId] = useState<string | null>(defaultSectionId)
+  const [crewId,    setCrewId]    = useState(defaultCrewId)
+  const [adding,    setAdding]    = useState(false)
+  const [addError,  setAddError]  = useState<string | null>(null)
 
   async function handleAdd() {
     const url = addUrl.trim()
     if (!url || adding) return
     setAdding(true)
-    const err = await onAdd(url, sectionId)
+    const err = await onAdd(url, sectionId, crewId)
     setAdding(false)
     if (err) { setAddError(err); return }
     setAddUrl(''); onClose()
@@ -303,10 +310,30 @@ function AddCardSheet({
     <Sheet onClose={onClose}>
       <div className="flex flex-col" style={{ gap: 16, padding: 24 }}>
         <p className="font-body font-bold text-primary leading-none" style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}>
-          Add to Board
+          Add to Vibes
         </p>
 
-        {sections.length > 0 && (
+        {/* Crew picker — only in global (non-lockCrew) mode with multiple crews */}
+        {!lockCrew && crews.length > 1 && (
+          <div className="flex flex-col" style={{ gap: 8 }}>
+            <p className="font-body font-medium text-primary" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}>Squad</p>
+            <div className="flex flex-wrap" style={{ gap: 6 }}>
+              {crews.map(c => (
+                <button
+                  key={c.id}
+                  onClick={() => setCrewId(c.id)}
+                  className="font-silkscreen"
+                  style={{ fontSize: 'var(--text-mini)', padding: '5px 10px', background: 'transparent', border: `1px solid ${crewId === c.id ? 'var(--color-purple)' : 'var(--color-border)'}`, color: crewId === c.id ? 'var(--color-purple)' : 'var(--color-tertiary)' }}
+                >
+                  {c.name.toUpperCase()}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Section picker — only in lockCrew mode when sections exist */}
+        {lockCrew && sections.length > 0 && (
           <div className="flex flex-col" style={{ gap: 8 }}>
             <p className="font-body font-medium text-primary" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}>Section</p>
             <div className="flex flex-wrap" style={{ gap: 6 }}>
@@ -349,7 +376,7 @@ function AddCardSheet({
         </div>
 
         <Button onClick={handleAdd} disabled={!addUrl.trim() || adding} loading={adding} className="w-full">
-          ADD TO BOARD
+          ADD TO VIBES
         </Button>
       </div>
     </Sheet>
@@ -362,9 +389,9 @@ function CreateSectionSheet({
   onClose:  () => void
   onCreate: (name: string) => Promise<string | null>
 }) {
-  const [name,    setName]    = useState('')
-  const [saving,  setSaving]  = useState(false)
-  const [error,   setError]   = useState<string | null>(null)
+  const [name,   setName]   = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error,  setError]  = useState<string | null>(null)
 
   async function handleCreate() {
     const n = name.trim()
@@ -408,12 +435,12 @@ function CreateSectionSheet({
 // ─── NotesGrid ────────────────────────────────────────────────────────────────
 
 export interface NotesGridProps {
-  viewerId:         string
-  initialNotes:     PublicNote[]
-  initialSections:  BoardSection[]
-  crews:            Array<{ id: string; name: string }>
-  initialCrewId:    string
-  lockCrew?:        boolean
+  viewerId:        string
+  initialNotes:    PublicNote[]
+  initialSections: BoardSection[]
+  crews:           Array<{ id: string; name: string }>
+  initialCrewId:   string
+  lockCrew?:       boolean
 }
 
 export function NotesGrid({
@@ -424,47 +451,29 @@ export function NotesGrid({
   initialCrewId,
   lockCrew = false,
 }: NotesGridProps) {
-  const [activeCrew,    setActiveCrew]    = useState(initialCrewId)
-  const [notes,         setNotes]         = useState<GridNote[]>(initialNotes)
-  const [sections,      setSections]      = useState<BoardSection[]>(initialSections)
-  const [hasMore,       setHasMore]       = useState(initialNotes.length === 30)
-  const [loadingMore,   setLoadingMore]   = useState(false)
-  const [switchingCrew, setSwitchingCrew] = useState(false)
-  const [failedImages,  setFailedImages]  = useState<Set<string>>(new Set())
+  const [notes,        setNotes]        = useState<GridNote[]>(initialNotes)
+  const [sections,     setSections]     = useState<BoardSection[]>(initialSections)
+  const [hasMore,      setHasMore]      = useState(initialNotes.length === 30)
+  const [loadingMore,  setLoadingMore]  = useState(false)
+  const [failedImages, setFailedImages] = useState<Set<string>>(new Set())
 
   // Card action sheet
-  const [activeNote,   setActiveNote]   = useState<PublicNote | null>(null)
-  const [deleting,     setDeleting]     = useState(false)
+  const [activeNote,    setActiveNote]    = useState<PublicNote | null>(null)
+  const [deleting,      setDeleting]      = useState(false)
   const [showMoveSheet, setShowMoveSheet] = useState(false)
 
   // Add card sheet
-  const [addSectionId,  setAddSectionId]  = useState<string | null>(null)
-  const [showAddSheet,  setShowAddSheet]  = useState(false)
+  const [addSectionId, setAddSectionId] = useState<string | null>(null)
+  const [showAddSheet, setShowAddSheet] = useState(false)
 
-  // Section sheets
+  // Section creation (lockCrew only)
   const [showCreateSection, setShowCreateSection] = useState(false)
-
-  // ── Crew switching ──────────────────────────────────────────────────────────
-  async function switchCrew(crewId: string) {
-    if (crewId === activeCrew || switchingCrew) return
-    setSwitchingCrew(true)
-    setActiveCrew(crewId)
-    setNotes([])
-    setSections([])
-    setHasMore(false)
-    try {
-      const result = await fetchCrewBoardAction(crewId)
-      setNotes(result.notes)
-      setSections(result.sections)
-      setHasMore(result.notes.length === 30)
-    } finally {
-      setSwitchingCrew(false)
-    }
-  }
 
   // ── Pagination ──────────────────────────────────────────────────────────────
   const sentinelRef = useRef<HTMLDivElement>(null)
   const loadMoreRef = useRef<() => void>(() => {})
+
+  const crewIds = useMemo(() => crews.map(c => c.id), [crews])
 
   const loadMore = useCallback(async () => {
     if (loadingMore || !hasMore) return
@@ -472,13 +481,15 @@ export function NotesGrid({
     if (!cursor) return
     setLoadingMore(true)
     try {
-      const more = await fetchMoreNotesAction(cursor, activeCrew)
+      const more = lockCrew
+        ? await fetchMoreNotesAction(cursor, initialCrewId)
+        : await fetchMoreNotesGlobalAction(cursor, crewIds)
       setNotes(prev => [...prev, ...more])
       setHasMore(more.length === 30)
     } finally {
       setLoadingMore(false)
     }
-  }, [loadingMore, hasMore, notes, activeCrew])
+  }, [loadingMore, hasMore, notes, lockCrew, initialCrewId, crewIds])
 
   useEffect(() => { loadMoreRef.current = loadMore }, [loadMore])
 
@@ -494,16 +505,16 @@ export function NotesGrid({
   }, [hasMore])
 
   // ── Add card ────────────────────────────────────────────────────────────────
-  async function handleAdd(url: string, sectionId: string | null): Promise<string | null> {
+  async function handleAdd(url: string, sectionId: string | null, crewId: string): Promise<string | null> {
     const tempId = `pending-${Date.now()}`
     const pending: PendingNote = {
-      id: tempId, crew_id: activeCrew, created_by: viewerId,
+      id: tempId, crew_id: crewId, created_by: viewerId,
       url, og_title: null, og_image_url: null, source_domain: null,
       section_id: sectionId, created_at: new Date().toISOString(), pending: true,
     }
     setNotes(prev => [pending, ...prev])
     try {
-      const result = await addNoteAction(activeCrew, url, sectionId)
+      const result = await addNoteAction(crewId, url, sectionId)
       if (result.error || !result.note) {
         setNotes(prev => prev.filter(n => n.id !== tempId))
         return result.error ?? 'Failed to add card'
@@ -546,7 +557,7 @@ export function NotesGrid({
 
   // ── Create section ──────────────────────────────────────────────────────────
   async function handleCreateSection(name: string): Promise<string | null> {
-    const result = await createSectionAction(activeCrew, name)
+    const result = await createSectionAction(initialCrewId, name)
     if (result.error || !result.section) return result.error ?? 'Failed to create section'
     setSections(prev => [...prev, result.section!])
     return null
@@ -559,9 +570,9 @@ export function NotesGrid({
     await deleteSectionAction(sectionId)
   }
 
-  // ── Group notes by section ──────────────────────────────────────────────────
+  // ── Group notes by section (lockCrew only) ──────────────────────────────────
   const { grouped, unsorted, pendingBySectionId } = useMemo(() => {
-    const realNotes = notes.filter(n => !isPending(n)) as PublicNote[]
+    const realNotes    = notes.filter(n => !isPending(n)) as PublicNote[]
     const pendingNotes = notes.filter(isPending) as PendingNote[]
 
     const byId: Record<string, PublicNote[]> = {}
@@ -577,73 +588,42 @@ export function NotesGrid({
     }
 
     return {
-      grouped:          sections.map(s => ({ section: s, notes: byId[s.id] ?? [] })),
-      unsorted:         byId['__unsorted__'] ?? [],
+      grouped:            sections.map(s => ({ section: s, notes: byId[s.id] ?? [] })),
+      unsorted:           byId['__unsorted__'] ?? [],
       pendingBySectionId: pendingById,
     }
   }, [notes, sections])
 
-  const activeCrew_ = crews.find(c => c.id === activeCrew)
-  const isCreator   = (s: BoardSection) => s.created_by === viewerId
+  const isCreator = (s: BoardSection) => s.created_by === viewerId
+
+  if (crews.length === 0) {
+    return (
+      <div className="flex items-center justify-center" style={{ height: '100%', padding: 48 }}>
+        <p className="font-silkscreen text-center" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)', lineHeight: 2 }}>
+          JOIN A CREW TO START{'\n'}COLLECTING VIBES
+        </p>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col" style={{ height: '100%' }}>
-      {/* ── Board toolbar ─────────────────────────────────────────────────── */}
-      <div className="flex flex-shrink-0 items-center" style={{ padding: '8px 12px', gap: 8, borderBottom: '1px solid var(--color-border)', minHeight: 44 }}>
-        {/* Crew switcher */}
-        {!lockCrew && crews.length > 1 && (
-          <div className="flex-1 flex overflow-x-auto" style={{ gap: 4, scrollbarWidth: 'none' }}>
-            {crews.map(crew => (
-              <button
-                key={crew.id}
-                onClick={() => switchCrew(crew.id)}
-                className="font-silkscreen whitespace-nowrap"
-                style={{
-                  fontSize: 'var(--text-mini)', padding: '4px 8px', flexShrink: 0,
-                  color: activeCrew === crew.id ? 'var(--color-purple)' : 'var(--color-tertiary)',
-                  borderBottom: activeCrew === crew.id ? '1px solid var(--color-purple)' : 'none',
-                }}
-              >
-                {crew.name.toUpperCase()}
-              </button>
-            ))}
-          </div>
-        )}
-        {lockCrew && activeCrew_ && (
-          <span className="flex-1 font-silkscreen truncate" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}>
-            {activeCrew_.name.toUpperCase()}
-          </span>
-        )}
-
-        {/* New section button */}
-        {!switchingCrew && (
-          <button
-            onClick={() => setShowCreateSection(true)}
-            className="flex-shrink-0 flex items-center font-silkscreen"
-            style={{ fontSize: 'var(--text-mini)', color: 'var(--color-purple)', gap: 4 }}
-          >
-            <Plus style={{ width: 10, height: 10, color: 'var(--color-purple)' }} aria-hidden="true" />
-            SECTION
-          </button>
-        )}
-      </div>
-
       {/* ── Scrollable content ─────────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto nexus-scroll">
-        {switchingCrew ? (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 3, padding: 3, marginTop: 3 }}>
-            {Array.from({ length: 6 }, (_, i) => (
-              <div key={i} className="bg-border animate-pulse" style={{ aspectRatio: '1 / 1' }} />
-            ))}
-          </div>
-        ) : crews.length === 0 ? (
-          <div className="flex items-center justify-center" style={{ padding: 48 }}>
-            <p className="font-silkscreen text-center" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)', lineHeight: 2 }}>
-              JOIN A CREW TO START{'\n'}COLLECTING LINKS
-            </p>
-          </div>
-        ) : (
+        {lockCrew ? (
           <>
+            {/* + SECTION button (lockCrew only) */}
+            <div className="flex justify-end" style={{ padding: '8px 12px' }}>
+              <button
+                onClick={() => setShowCreateSection(true)}
+                className="flex items-center font-silkscreen"
+                style={{ fontSize: 'var(--text-mini)', color: 'var(--color-purple)', gap: 4 }}
+              >
+                <Plus style={{ width: 10, height: 10, color: 'var(--color-purple)' }} aria-hidden="true" />
+                SECTION
+              </button>
+            </div>
+
             {/* Named sections */}
             {grouped.map(({ section, notes: sNotes }) => (
               <SectionBlock
@@ -676,18 +656,35 @@ export function NotesGrid({
               onAddCard={(sid) => { setAddSectionId(sid); setShowAddSheet(true) }}
               onDeleteSection={() => {}}
             />
-
-            {hasMore && <div ref={sentinelRef} style={{ height: 1 }} />}
-            {loadingMore && (
-              <div className="flex justify-center" style={{ padding: '16px 0' }}>
-                <div className="flex items-center gap-1">
-                  {[0, 150, 300].map(d => (
-                    <span key={d} className="inline-block w-1 h-1 bg-border animate-bounce" style={{ animationDelay: `${d}ms` }} />
-                  ))}
-                </div>
-              </div>
-            )}
           </>
+        ) : (
+          <>
+            {/* Global flat grid — all squads */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 3, padding: 3, paddingTop: 8 }}>
+              {(notes.filter(isPending) as PendingNote[]).map(n => <PendingNoteCard key={n.id} />)}
+              {(notes.filter(n => !isPending(n)) as PublicNote[]).map(n => (
+                <NoteCard
+                  key={n.id}
+                  note={n}
+                  failed={failedImages.has(n.id)}
+                  onImageError={() => setFailedImages(prev => new Set(prev).add(n.id))}
+                  onLongPress={setActiveNote}
+                />
+              ))}
+              <AddCard onClick={() => { setAddSectionId(null); setShowAddSheet(true) }} />
+            </div>
+          </>
+        )}
+
+        {hasMore && <div ref={sentinelRef} style={{ height: 1 }} />}
+        {loadingMore && (
+          <div className="flex justify-center" style={{ padding: '16px 0' }}>
+            <div className="flex items-center gap-1">
+              {[0, 150, 300].map(d => (
+                <span key={d} className="inline-block w-1 h-1 bg-border animate-bounce" style={{ animationDelay: `${d}ms` }} />
+              ))}
+            </div>
+          </div>
         )}
         <div style={{ height: 'max(env(safe-area-inset-bottom), 24px)' }} />
       </div>
@@ -722,8 +719,11 @@ export function NotesGrid({
       <AnimatePresence>
         {showAddSheet && (
           <AddCardSheet
-            sections={sections}
+            sections={lockCrew ? sections : []}
             defaultSectionId={addSectionId}
+            crews={crews}
+            defaultCrewId={initialCrewId}
+            lockCrew={lockCrew}
             onClose={() => setShowAddSheet(false)}
             onAdd={handleAdd}
           />

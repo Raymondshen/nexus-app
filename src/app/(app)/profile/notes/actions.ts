@@ -55,6 +55,22 @@ export async function addNoteAction(
   return { note: row as unknown as PublicNote }
 }
 
+export async function fetchMoreNotesGlobalAction(cursor: string, crewIds: string[]): Promise<PublicNote[]> {
+  const supabase = await createClient()
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session || !crewIds.length) return []
+
+  const { data } = await supabase
+    .from('notes')
+    .select(NOTE_COLS)
+    .in('crew_id', crewIds)
+    .lt('created_at', cursor)
+    .order('created_at', { ascending: false })
+    .limit(30)
+
+  return (data ?? []) as unknown as PublicNote[]
+}
+
 export async function fetchMoreNotesAction(cursor: string, crewId: string): Promise<PublicNote[]> {
   const supabase = await createClient()
   const { data: { session } } = await supabase.auth.getSession()

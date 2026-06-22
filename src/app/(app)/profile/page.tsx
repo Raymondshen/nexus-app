@@ -89,28 +89,19 @@ export default async function ProfilePage() {
     }))
   }
 
-  // Batch 2 — board data for first crew
-  let initialNotes: PublicNote[]    = []
-  let initialSections: BoardSection[] = []
-  const firstCrewId = notesCrews[0]?.id ?? ''
+  // Batch 2 — notes from all crews (global vibes view, no sections)
+  let initialNotes: PublicNote[]       = []
+  const initialSections: BoardSection[] = []
+  const notesCrewIds = notesCrews.map(c => c.id)
 
-  if (firstCrewId) {
-    const [notesResult, sectionsResult] = await Promise.all([
-      supabase
-        .from('notes')
-        .select('id, crew_id, created_by, url, og_title, og_image_url, source_domain, section_id, created_at')
-        .eq('crew_id', firstCrewId)
-        .order('created_at', { ascending: false })
-        .limit(30),
-      supabase
-        .from('board_sections')
-        .select('id, crew_id, created_by, name, position, created_at')
-        .eq('crew_id', firstCrewId)
-        .order('position')
-        .order('created_at'),
-    ])
-    initialNotes    = (notesResult.data    ?? []) as unknown as PublicNote[]
-    initialSections = (sectionsResult.data ?? []) as unknown as BoardSection[]
+  if (notesCrewIds.length) {
+    const notesResult = await supabase
+      .from('notes')
+      .select('id, crew_id, created_by, url, og_title, og_image_url, source_domain, section_id, created_at')
+      .in('crew_id', notesCrewIds)
+      .order('created_at', { ascending: false })
+      .limit(30)
+    initialNotes = (notesResult.data ?? []) as unknown as PublicNote[]
   }
 
   const pendingDeleteAt   = (pendingDeletion.data as { delete_at?: string } | null)?.delete_at ?? null
