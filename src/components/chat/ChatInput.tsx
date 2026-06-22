@@ -33,6 +33,7 @@ import { SquadDetailsSheet, type MiniMember } from '@/components/chat/SquadDetai
 import { PollCreatorSheet } from '@/components/chat/PollCreatorSheet'
 import { GifPickerSheet } from '@/components/chat/GifPickerSheet'
 import { setHomeLastMessage } from '@/lib/homePreviewCache'
+import { XPGainFloat } from '@/components/game/XPGainFloat'
 import type { Message, MessageWithProfile, Profile } from '@/types'
 
 const MAX_MESSAGE_LENGTH   = 2000
@@ -149,6 +150,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   const typingChannelRef      = useRef<RealtimeChannel | null>(null)
   const msgChannelRef         = useRef<RealtimeChannel | null>(null)
   const channelReadyRef       = useRef(false)
+  const xpBatchRef            = useRef<{ pending: number; timer: ReturnType<typeof setTimeout> | null }>({ pending: 0, timer: null })
 
   const {
     addMessage, removeMessage, updateMessage, setCrewXP, receiveXP, addXPFloat,
@@ -187,6 +189,9 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     if (initialXP !== undefined) setCrewXP(initialXP)
     setCrewName(crewName)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Clean up any pending XP batch timer on unmount
+  useEffect(() => () => { if (xpBatchRef.current.timer) clearTimeout(xpBatchRef.current.timer) }, [])
 
   // Update last_seen every 60s for accurate server-side unread cursors
   useEffect(() => {
@@ -440,9 +445,9 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
         const { xp_earned, new_total_xp, sender_id } =
           payload.payload as { xp_earned: number; new_total_xp: number; sender_id: string }
         if (typeof new_total_xp !== 'number') return
-        if (sender_id === userId)      setCrewXP(new_total_xp)
-        else if (xp_earned > 0)        receiveXP(xp_earned, new_total_xp)
-        else                           setCrewXP(new_total_xp)
+        if (sender_id === userId)               setCrewXP(new_total_xp)
+        else if (xp_earned > 0 && !isDM)        receiveXP(xp_earned, new_total_xp)
+        else                                    setCrewXP(new_total_xp)
       })
       .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
@@ -584,7 +589,6 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       tempId,
     }
     addMessage(optimisticMsg)
-    addXPFloat(1)
 
     try {
       const supabase = createClient()
@@ -638,6 +642,15 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
             })
           }
           if (typeof data.coins_earned === 'number' && data.coins_earned > 0) addUserCoins(data.coins_earned)
+          if (typeof data.xp_earned === 'number' && data.xp_earned > 0 && !isDM) {
+            xpBatchRef.current.pending += data.xp_earned
+            if (xpBatchRef.current.timer) clearTimeout(xpBatchRef.current.timer)
+            xpBatchRef.current.timer = setTimeout(() => {
+              const amt = xpBatchRef.current.pending
+              if (amt > 0) { addXPFloat(amt); xpBatchRef.current.pending = 0 }
+              xpBatchRef.current.timer = null
+            }, 600)
+          }
         })
         .catch(() => {})
 
@@ -680,7 +693,6 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       tempId,
     }
     addMessage(optimisticMsg)
-    addXPFloat(1)
 
     try {
       const supabase = createClient()
@@ -731,6 +743,15 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
             })
           }
           if (typeof data.coins_earned === 'number' && data.coins_earned > 0) addUserCoins(data.coins_earned)
+          if (typeof data.xp_earned === 'number' && data.xp_earned > 0 && !isDM) {
+            xpBatchRef.current.pending += data.xp_earned
+            if (xpBatchRef.current.timer) clearTimeout(xpBatchRef.current.timer)
+            xpBatchRef.current.timer = setTimeout(() => {
+              const amt = xpBatchRef.current.pending
+              if (amt > 0) { addXPFloat(amt); xpBatchRef.current.pending = 0 }
+              xpBatchRef.current.timer = null
+            }, 600)
+          }
         })
         .catch(() => {})
 
@@ -799,7 +820,6 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       tempId,
     }
     addMessage(optimisticMsg)
-    addXPFloat(1)
 
     try {
       const { data: raw, error } = await supabase.rpc('insert_message', {
@@ -850,7 +870,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
           console.log('[award-xp]', data)
           if (typeof data.xp_earned === 'number') updateMessage(msgId, { xp_awarded: data.xp_earned })
           if (typeof data.new_total_xp === 'number') {
-            setCrewXP(data.new_total_xp) // sync authoritative total; float already shown optimistically
+            setCrewXP(data.new_total_xp)
             if (channelReadyRef.current) msgChannelRef.current?.send({
               type: 'broadcast', event: 'xp_update',
               payload: { xp_earned: data.xp_earned ?? 0, new_total_xp: data.new_total_xp, sender_id: userId },
@@ -858,6 +878,15 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
           }
           if (typeof data.coins_earned === 'number' && data.coins_earned > 0) {
             addUserCoins(data.coins_earned)
+          }
+          if (typeof data.xp_earned === 'number' && data.xp_earned > 0 && !isDM) {
+            xpBatchRef.current.pending += data.xp_earned
+            if (xpBatchRef.current.timer) clearTimeout(xpBatchRef.current.timer)
+            xpBatchRef.current.timer = setTimeout(() => {
+              const amt = xpBatchRef.current.pending
+              if (amt > 0) { addXPFloat(amt); xpBatchRef.current.pending = 0 }
+              xpBatchRef.current.timer = null
+            }, 600)
           }
         })
         .catch(() => {})
@@ -1131,6 +1160,9 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
 
       {/* ── Daily gem toast ── */}
       <GemToast visible={gemToastVisible} stacked={!!friendshipToast} />
+
+      {/* ── XP gain float (group chats only) ── */}
+      {!isDM && <XPGainFloat />}
 
       {/* ── DM: "Chatting with" label ── */}
       {isDM && (
