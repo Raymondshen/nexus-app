@@ -24,6 +24,10 @@ export default async function MemberProfilePage({ params }: Props) {
     targetMembership,
     crewResult,
     notesResult,
+    globalMembershipsResult,
+    globalMessagesResult,
+    friendshipXPResult,
+    targetCrewMemberResult,
   ] = await Promise.all([
     supabase
       .from('crew_members')
@@ -33,7 +37,7 @@ export default async function MemberProfilePage({ params }: Props) {
       .maybeSingle(),
     supabase
       .from('profiles')
-      .select('username')
+      .select('username, avatar_url, background_url, status, created_at')
       .eq('id', userId)
       .single(),
     supabase
@@ -43,21 +47,51 @@ export default async function MemberProfilePage({ params }: Props) {
       .eq('user_id', userId)
       .maybeSingle(),
     supabase.from('crews').select('name').eq('id', crewId).single(),
-    // Only this user's notes, across all shared crews (RLS enforces crew membership)
     supabase
       .from('notes')
       .select('id, crew_id, created_by, url, og_title, og_image_url, source_domain, section_id, created_at')
       .eq('created_by', userId)
       .order('created_at', { ascending: false })
       .limit(30),
+    // Global crew count for the member
+    supabase
+      .from('crew_members')
+      .select('crew_id', { count: 'exact', head: true })
+      .eq('user_id', userId),
+    // Global message count for the member
+    supabase
+      .from('messages')
+      .select('id', { count: 'estimated', head: true })
+      .eq('user_id', userId)
+      .neq('message_type', 'system'),
+    // Friendship XP between viewer and member
+    supabase
+      .from('friendship_xp')
+      .select('total_xp')
+      .or(
+        `and(user_a.eq.${viewerId},user_b.eq.${userId}),and(user_a.eq.${userId},user_b.eq.${viewerId})`
+      )
+      .maybeSingle(),
+    // Joined date for this specific crew
+    supabase
+      .from('crew_members')
+      .select('joined_at')
+      .eq('crew_id', crewId)
+      .eq('user_id', userId)
+      .maybeSingle(),
   ])
 
   if (!viewerMembership.data) redirect('/home')
   if (!targetMembership.data || !profileResult.data) redirect(`/chat/${crewId}`)
 
-  const username   = (profileResult.data as { username: string }).username
-  const crewName   = (crewResult.data as { name?: string } | null)?.name ?? ''
-  const notesCrews = [{ id: crewId, name: crewName }]
+  type ProfileRow = { username: string; avatar_url: string | null; background_url: string | null; status: string | null; created_at: string }
+  const profile      = profileResult.data as ProfileRow
+  const crewName     = (crewResult.data as { name?: string } | null)?.name ?? ''
+  const notesCrews   = [{ id: crewId, name: crewName }]
+  const joinedYear   = profile.created_at ? new Date(profile.created_at).getFullYear() : null
+  const globalGroups = globalMembershipsResult.count ?? 0
+  const globalMsgs   = globalMessagesResult.count ?? 0
+  const friendshipXP = (friendshipXPResult.data as { total_xp?: number } | null)?.total_xp ?? null
 
   return (
     <SlidePage
@@ -78,7 +112,14 @@ export default async function MemberProfilePage({ params }: Props) {
         crewId={crewId}
         userId={userId}
         viewerId={viewerId}
-        username={username}
+        username={profile.username}
+        avatarUrl={profile.avatar_url}
+        backgroundUrl={profile.background_url}
+        status={profile.status}
+        joinedYear={joinedYear}
+        globalGroupChats={globalGroups}
+        globalMessages={globalMsgs}
+        friendshipXP={friendshipXP}
         initialNotes={(notesResult.data ?? []) as unknown as PublicNote[]}
         notesCrews={notesCrews}
       />

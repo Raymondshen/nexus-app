@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo, forwardRef, useImperativeHandle } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Plus } from 'pixelarticons/react/Plus'
 import { Close } from 'pixelarticons/react/Close'
@@ -418,6 +418,10 @@ function CreateSectionSheet({
 
 // ─── NotesGrid ────────────────────────────────────────────────────────────────
 
+export interface NotesGridHandle {
+  openAdd: () => void
+}
+
 export interface NotesGridProps {
   viewerId:        string
   initialNotes:    PublicNote[]
@@ -429,7 +433,7 @@ export interface NotesGridProps {
   creatorFilter?:  string
 }
 
-export function NotesGrid({
+export const NotesGrid = forwardRef<NotesGridHandle, NotesGridProps>(function NotesGrid({
   viewerId,
   initialNotes,
   initialSections,
@@ -438,7 +442,7 @@ export function NotesGrid({
   lockCrew      = false,
   readOnly      = false,
   creatorFilter,
-}: NotesGridProps) {
+}: NotesGridProps, ref: React.Ref<NotesGridHandle>) {
   const [notes,        setNotes]        = useState<GridNote[]>(initialNotes)
   const [sections,     setSections]     = useState<BoardSection[]>(initialSections)
   const [hasMore,      setHasMore]      = useState(initialNotes.length === 30)
@@ -453,6 +457,10 @@ export function NotesGrid({
   // Add card sheet
   const [addSectionId, setAddSectionId] = useState<string | null>(null)
   const [showAddSheet, setShowAddSheet] = useState(false)
+
+  useImperativeHandle(ref, () => ({
+    openAdd: () => { setAddSectionId(null); setShowAddSheet(true) },
+  }))
 
   // Section creation (lockCrew only)
   const [showCreateSection, setShowCreateSection] = useState(false)
@@ -732,4 +740,4 @@ export function NotesGrid({
       </AnimatePresence>
     </div>
   )
-}
+})
