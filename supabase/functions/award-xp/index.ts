@@ -1,18 +1,11 @@
 /**
  * award-xp Edge Function
  *
- * Two-layer anti-spam system:
- *
- * LAYER 1 — CONSECUTIVE HARD BLOCK
- *   If the last 3 messages in this crew before the current one are all from
- *   the same sender, the sender has ≥ 3 in a row — this message earns 0 XP
- *   and 0 coins. Resets as soon as another user sends a message.
- *
- * LAYER 2 — 30-SECOND COOLDOWN (soft block)
- *   If the sender's previous message in this crew was sent less than 30 s ago,
+ * Anti-spam: 5-SECOND COOLDOWN
+ *   If the sender's previous message in this crew was sent less than 5 s ago,
  *   this message earns 0 XP and 0 coins (message is still delivered).
  *
- * XP awards (when neither layer blocks):
+ * XP awards (when not blocked):
  *   First message of the UTC day in this crew → 10 XP (one-time flat award)
  *   All subsequent messages                   →  1 XP
  */
@@ -42,8 +35,7 @@ const LEVEL_XP_GROWTH_RATE = 1.0435
 const LEVEL_CAP            = 100
 
 // Anti-spam constants
-const COOLDOWN_MS     = 30_000  // Layer 2: soft block if gap < 30 s
-const CONSECUTIVE_MAX = 3       // Layer 1: hard block after this many in a row
+const COOLDOWN_MS = 5_000  // soft block if gap < 5 s
 
 // Mirror of src/lib/game/xp.ts — keep in sync with levelFromTotalXp
 function getLevelFromXP(xp: number): number {
@@ -79,9 +71,9 @@ Deno.serve(async (req: Request) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     )
 
-    // ─── BATCH 1: spam checks + crew data + other members (5 queries in parallel) ─
-    const [prevMsgsResult, consecutiveResult, crewResult, senderProfileResult, membersResult] = await Promise.all([
-      // Layer 2: most recent message from this user in this crew (30 s cooldown)
+    // ─── BATCH 1: spam check + crew data + other members (4 queries in parallel) ──
+    const [prevMsgsResult, crewResult, senderProfileResult, membersResult] = await Promise.all([
+      // Cooldown: most recent message from this user in this crew (5 s gap check)
       supabase
         .from('messages')
         .select('created_at')
@@ -90,15 +82,6 @@ Deno.serve(async (req: Request) => {
         .neq('id', message_id)
         .order('created_at', { ascending: false })
         .limit(1),
-
-      // Layer 1: last CONSECUTIVE_MAX messages in crew (any sender) to detect run
-      supabase
-        .from('messages')
-        .select('user_id')
-        .eq('crew_id', crew_id)
-        .neq('id', message_id)
-        .order('created_at', { ascending: false })
-        .limit(CONSECUTIVE_MAX),
 
       // Crew name + XP — needed for both XP path and notifications
       supabase
@@ -157,20 +140,10 @@ Deno.serve(async (req: Request) => {
       console.log(`[award-xp] notifications fired: ${nonMentionedIds.length} message_received, ${mentionedIds.length} mention_received (message ${message_id})`)
     }
 
-    // ─── LAYER 1: CONSECUTIVE HARD BLOCK ────────────────────────────────────
-    let xpBlocked = false
-    const lastMsgs = consecutiveResult.data ?? []
-    if (
-      lastMsgs.length === CONSECUTIVE_MAX &&
-      lastMsgs.every((m: { user_id: string }) => m.user_id === user_id)
-    ) {
-      xpBlocked = true
-    }
-
-    // ─── LAYER 2: 30-SECOND COOLDOWN (soft block) ───────────────────────────
+    // ─── 5-SECOND COOLDOWN (soft block) ─────────────────────────────────────
     let softBlocked = false
     const prevMessage = prevMsgsResult.data?.[0]
-    if (!xpBlocked && prevMessage) {
+    if (prevMessage) {
       const gapMs = Date.now() - new Date(prevMessage.created_at as string).getTime()
       if (gapMs < COOLDOWN_MS) softBlocked = true
     }
@@ -184,7 +157,7 @@ Deno.serve(async (req: Request) => {
     let newXP     = oldXP            // stays current when blocked
     let newLevel  = getLevelFromXP(oldXP)
 
-    if (!xpBlocked && !softBlocked) {
+    if (!softBlocked) {
       const todayStart = new Date()
       todayStart.setUTCHours(0, 0, 0, 0)
       const todayStartIso = todayStart.toISOString()
@@ -237,7 +210,7 @@ Deno.serve(async (req: Request) => {
     }
 
     // ─── AWARD COINS ────────────────────────────────────────────────────────
-    const coinsEarned = (!xpBlocked && !softBlocked) ? (COIN_VALUES[message_type] ?? 0) : 0
+    const coinsEarned = !softBlocked ? (COIN_VALUES[message_type] ?? 0) : 0
     if (coinsEarned > 0) {
       await Promise.all([
         supabase.rpc('increment_user_coins', { p_user_id: user_id, p_amount: coinsEarned }),

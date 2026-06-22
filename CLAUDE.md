@@ -62,9 +62,9 @@ All `SECURITY DEFINER`. Declared in `Database.Functions` in `src/types/index.ts`
 ## Game Values
 
 XP: first-msg-today=10 (flat, one-time per UTC day) · all other messages=1 · reactions use `react-to-message` (unchanged)
-Anti-spam: gap < 30s since sender's last message → 0 XP, 0 coins (soft block) · >3 consecutive messages from same sender → 0 XP, 0 coins (hard block, resets when another user sends)
+Anti-spam: gap < 5s since sender's last message → 0 XP, 0 coins (soft block)
 
-Coins: text/voice/image=1 · reaction/system=0 · generate-invite=−25 · seed-to-new-user=+50 · blocked when xpBlocked or softBlocked
+Coins: text/voice/image=1 · reaction/system=0 · generate-invite=−25 · seed-to-new-user=+50 · blocked when softBlocked
 - `handle_new_user` trigger → 50 signup bonus · invite alphabet: `ABCDEFGHJKLMNPQRSTUVWXYZ23456789`
 - Balance in `profiles.coins`; `chatStore.userCoins`; shown in `AccountPreview` (bare `TokeCircle` 24×16 + Silkscreen number) and profile hero glass badge
 - Tap-tooltip: shows "25 COINS = 1 CREW INVITE" for 2s; coins awarded only when neither anti-spam layer fires
@@ -238,9 +238,9 @@ Single-row `InboxCardPreview` component: avatar 48px · DM Sans Bold name · sta
 Server: verifies friendship → `get_or_create_dm(friendId)` → renders chat. `DMOverlayBack`: floating back + friend avatar; initializes `setCrewXP` + `setActiveRaid`; updates `last_seen` every 60s
 
 ### award-xp
-- Batch 1 (parallel): prev msg gap + burst count + crew data + sender `is_dev` + other members
-- Batch 2 (parallel, if not spam-blocked): today msg count + combo count + daily XP log count
-- Anti-spam: hard stop <2000ms gap · hard stop ≥4 msgs/30s · daily multiplier 1.0/0.5/0.1 at 30/60 msgs
+- Batch 1 (parallel): prev msg gap + crew data + sender `is_dev` + other members
+- Batch 2 (parallel, if not soft-blocked): today msg count
+- Anti-spam: gap < 5s since sender's last message → 0 XP, 0 coins
 - Notifications fire-and-forget BEFORE XP writes — do NOT add early returns before notification block
 
 ### Reactions
