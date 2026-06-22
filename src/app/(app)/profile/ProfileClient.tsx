@@ -11,7 +11,6 @@ import { MagicEdit } from 'pixelarticons/react/MagicEdit'
 import { Bell } from 'pixelarticons/react/Bell'
 import { User } from 'pixelarticons/react/User'
 import { Terminal } from 'pixelarticons/react/Terminal'
-import { Plus } from 'pixelarticons/react/Plus'
 import { SettingsCog } from 'pixelarticons/react/SettingsCog'
 import Image from 'next/image'
 import { isSupabaseStorage, resolveAvatarUrl } from '@/components/ui/Avatar'
@@ -588,8 +587,14 @@ function BackButton() {
     <button
       onClick={goBack}
       aria-label="Back"
-      className="flex items-center justify-center flex-shrink-0"
-      style={{ width: 24, height: 24 }}
+      className="flex items-center justify-center border border-border flex-shrink-0"
+      style={{
+        padding: 'var(--x3)',
+        background: 'rgba(0,0,0,0)',
+        backdropFilter: 'blur(7px)',
+        WebkitBackdropFilter: 'blur(7px)',
+        boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)',
+      }}
     >
       <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
     </button>
@@ -854,32 +859,25 @@ export function ProfileClient({
           style={{ top: 'calc(env(safe-area-inset-top, 0px) + 18px)', paddingLeft: 16, paddingRight: 16 }}
         >
           {/* Back button */}
-          <div
-            className="pointer-events-auto flex items-center p-2 overflow-hidden"
-            style={{ filter: 'drop-shadow(0px 0px 10px rgba(0,0,0,0.4))' }}
-          >
+          <div className="pointer-events-auto">
             <BackButton />
           </div>
 
-          {/* Plus (add link) + SettingsCog — glass effect */}
-          <div className="flex items-center pointer-events-auto" style={{ gap: 8 }}>
-            <button
-              onClick={() => { switchTab('notes'); notesRef.current?.openAdd() }}
-              aria-label="Add link"
-              className="flex items-center justify-center rounded-[4px]"
-              style={{ padding: 8, backdropFilter: 'blur(7px)', filter: 'drop-shadow(0px 0px 20px rgba(0,0,0,0.1))' }}
-            >
-              <Plus style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
-            </button>
-            <button
-              onClick={() => switchTab('settings')}
-              aria-label="Settings"
-              className="flex items-center justify-center rounded-[4px]"
-              style={{ padding: 8, backdropFilter: 'blur(7px)', filter: 'drop-shadow(0px 0px 20px rgba(0,0,0,0.1))' }}
-            >
-              <SettingsCog style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
-            </button>
-          </div>
+          {/* SettingsCog — glass effect matching back button */}
+          <button
+            onClick={() => switchTab('settings')}
+            aria-label="Settings"
+            className="flex items-center justify-center border border-border flex-shrink-0 pointer-events-auto"
+            style={{
+              padding: 'var(--x3)',
+              background: 'rgba(0,0,0,0)',
+              backdropFilter: 'blur(7px)',
+              WebkitBackdropFilter: 'blur(7px)',
+              boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)',
+            }}
+          >
+            <SettingsCog style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+          </button>
         </div>
 
       </div>
