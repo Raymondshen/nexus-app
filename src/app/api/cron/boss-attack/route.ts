@@ -12,7 +12,10 @@ export async function GET(req: NextRequest) {
   const fnUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/boss-attack`
   const res = await fetch(fnUrl, {
     method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+    },
   })
 
   const data = await res.json()
