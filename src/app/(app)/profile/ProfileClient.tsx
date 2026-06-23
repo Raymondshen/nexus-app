@@ -11,7 +11,7 @@ import { MagicEdit } from 'pixelarticons/react/MagicEdit'
 import { Bell } from 'pixelarticons/react/Bell'
 import { User } from 'pixelarticons/react/User'
 import { Terminal } from 'pixelarticons/react/Terminal'
-import { SettingsCog } from 'pixelarticons/react/SettingsCog'
+import { SettingsCogIcon } from '@/components/icons/SettingsCogIcon'
 import Image from 'next/image'
 import { isSupabaseStorage, resolveAvatarUrl } from '@/components/ui/Avatar'
 import { createClient } from '@/lib/supabase/client'
@@ -876,7 +876,7 @@ export function ProfileClient({
               boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)',
             }}
           >
-            <SettingsCog style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+            <SettingsCogIcon style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
           </button>
         </div>
 
