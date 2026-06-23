@@ -1578,7 +1578,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                 return (
                   <div className="flex items-center gap-3 flex-shrink-0">
                     {isDevUser && combatEnabled && !isDM && userCombatClass && (
-                      <AbilityButton crewId={crewId} userId={userId} userClass={userCombatClass} />
+                      <AbilityButton crewId={crewId} userId={userId} userClass={userCombatClass} username={userProfile.username} />
                     )}
                     <button
                       onClick={canSendImage ? sendImage : send}

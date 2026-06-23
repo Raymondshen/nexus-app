@@ -668,6 +668,10 @@ export type Database = {
         Args: { p_raid_id: string; p_target_user_id: string }
         Returns: Record<string, unknown>
       }
+      damage_raid: {
+        Args: { p_raid_id: string; p_damage: number; p_user_id: string }
+        Returns: Array<{ current_hp: number; phase: number; defeated_at: string | null }>
+      }
     }
     Enums: Record<string, never>
   }

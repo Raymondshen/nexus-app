@@ -11,9 +11,10 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { format, isToday, isYesterday, isSameDay } from 'date-fns'
 import { createClient } from '@/lib/supabase/client'
 import { useChatStore } from '@/store/chatStore'
+import { useCombatStore } from '@/store/combatStore'
 import { MessageBubble } from './MessageBubble'
 import { ArrowBarDown } from 'pixelarticons/react/ArrowBarDown'
-import type { MessageWithProfile, Message, Profile, AvatarClass, SquadDefinition, SquadDefinitionWithCreator } from '@/types'
+import type { MessageWithProfile, Message, Profile, AvatarClass, SquadDefinition, SquadDefinitionWithCreator, CombatEvent, CombatEventKind } from '@/types'
 
 interface MessageListProps {
   crewId:         string
@@ -88,6 +89,72 @@ function estimateItemSize(item: DisplayItem): number {
 
 const LOAD_OLDER_BATCH = 50
 
+// ─── Combat event parsers (used by realtime INSERT handler) ───────────────────
+
+function parseCombatEvent(content: string): CombatEvent | null {
+  const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+  const ts = Date.now()
+
+  if (content.startsWith('BOSS_SPAWN:')) {
+    const [, name, hp] = content.split(':')
+    return { id, ts, kind: 'phase_transition' as CombatEventKind, text: `⚔ ${name} appears — ${hp} HP` }
+  }
+
+  if (!content.startsWith('COMBAT:')) return null
+  const parts = content.split(':')
+  const type  = parts[1]
+
+  switch (type) {
+    case 'attack': {
+      const isCrit = parts[5] === '1'
+      return { id, ts, kind: (isCrit ? 'player_crit' : 'player_attack') as CombatEventKind, value: Number(parts[3]),
+               text: isCrit ? `${parts[2]} landed a CRIT for ${parts[3]}!` : `${parts[2]} attacked for ${parts[3]}` }
+    }
+    case 'volley':
+      return { id, ts, kind: 'ability_used' as CombatEventKind, value: Number(parts[3]),
+               text: `${parts[2]} uses VOLLEY — ${parts[3]} dmg` }
+    case 'backstab':
+      return { id, ts, kind: 'player_crit' as CombatEventKind, value: Number(parts[3]),
+               text: `${parts[2]} backstabs for ${parts[3]}! (CRIT)` }
+    case 'cast':
+      return { id, ts, kind: 'ability_used' as CombatEventKind, value: Number(parts[3]),
+               text: `${parts[2]} casts for ${parts[3]} dmg` }
+    case 'guard':
+      return { id, ts, kind: 'ability_used' as CombatEventKind, text: `${parts[2]} raises GUARD` }
+    case 'mend':
+      return { id, ts, kind: 'heal' as CombatEventKind, value: Number(parts[3]),
+               text: `${parts[2]} mends — +${parts[3]} HP` }
+    case 'boss_attack':
+      return { id, ts, kind: 'boss_attack' as CombatEventKind, value: Number(parts[3]),
+               text: `Boss strikes ${parts[2]} — ${parts[3]} dmg` }
+    case 'downed':
+      return { id, ts, kind: 'member_downed' as CombatEventKind, text: `${parts[2]} has been downed!` }
+    case 'phase':
+      return { id, ts, kind: 'phase_transition' as CombatEventKind, phase: Number(parts[2]),
+               text: `⚠ Boss enters Phase ${parts[2]}!` }
+    case 'victory':
+      return { id, ts, kind: 'raid_victory' as CombatEventKind,
+               text: `✦ Victory! ${parts[2]} earns ${parts[3]} ${parts.slice(4).join(':')}` }
+    case 'escaped':
+      return { id, ts, kind: 'raid_escaped' as CombatEventKind,
+               text: `${parts.slice(2).join(':')} escaped without defeating the boss.` }
+    default: return null
+  }
+}
+
+// Returns damage-float data for player attacks that deal boss damage; null otherwise
+function parseDamageFloat(content: string): { value: number; isCrit: boolean } | null {
+  if (!content.startsWith('COMBAT:')) return null
+  const parts = content.split(':')
+  switch (parts[1]) {
+    case 'attack':   return { value: Number(parts[3]), isCrit: parts[5] === '1' }
+    case 'volley':   return { value: Number(parts[3]), isCrit: false }
+    case 'backstab': return { value: Number(parts[3]), isCrit: true }
+    case 'cast':     return { value: Number(parts[3]), isCrit: false }
+    default:         return null
+  }
+}
+
 export function MessageList({
   crewId,
   crewName,
@@ -109,6 +176,10 @@ export function MessageList({
   const [devMode] = useState(() => {
     if (typeof window === 'undefined') return false
     return localStorage.getItem('nexus_dev_mode') === '1'
+  })
+  const [combatEnabled] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return localStorage.getItem('nexus_combat_enabled') === '1'
   })
   const [historyLoaded, setHistoryLoaded] = useState(() => {
     if (typeof window === 'undefined') return false
@@ -524,6 +595,22 @@ export function MessageList({
           const raw = payload.new as Message
           if (!raw?.id || typeof raw.content !== 'string') return
           addMessage({ ...raw, profile: resolveProfile(raw.user_id) } as MessageWithProfile)
+          // Feed combat events and damage floats to the combat store (combat toggle only)
+          if (combatEnabled && raw.message_type === 'system') {
+            const store = useCombatStore.getState()
+            const event = parseCombatEvent(raw.content)
+            if (event) store.addCombatEvent(event)
+            const float = parseDamageFloat(raw.content)
+            if (float) {
+              store.spawnDamageFloat({
+                id:     raw.id,
+                value:  float.value,
+                isCrit: float.isCrit,
+                x:      window.innerWidth * 0.5 + (Math.random() * 80 - 40),
+                y:      window.innerHeight * 0.65,
+              })
+            }
+          }
         }
       )
       .on(

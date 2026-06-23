@@ -10,6 +10,7 @@ interface AbilityButtonProps {
   crewId:    string
   userId:    string
   userClass: CombatClass
+  username:  string
 }
 
 const ABILITY_INFO: Record<CombatClass, { name: string; cost: number; key: string; desc: string; color: string }> = {
@@ -20,7 +21,7 @@ const ABILITY_INFO: Record<CombatClass, { name: string; cost: number; key: strin
   mage:    { name: 'CAST',     cost: 55, key: 'cast',     desc: '3× ATK arcane nuke',       color: '#00e5ff' },
 }
 
-export function AbilityButton({ crewId, userId, userClass }: AbilityButtonProps) {
+export function AbilityButton({ crewId, userId, userClass, username }: AbilityButtonProps) {
   const [firing,  setFiring]  = useState(false)
   const [toast,   setToast]   = useState<{ text: string; ok: boolean } | null>(null)
   const { activeRaid, memberStats } = useCombatStore()
@@ -40,7 +41,7 @@ export function AbilityButton({ crewId, userId, userClass }: AbilityButtonProps)
         body: JSON.stringify({
           crew_id:      crewId,
           user_id:      userId,
-          username:     '',
+          username,
           message_type: 'text',
           soft_blocked: false,
           is_ability:   true,
