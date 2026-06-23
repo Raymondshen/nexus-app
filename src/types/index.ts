@@ -308,6 +308,74 @@ export interface BoardSection extends Record<string, unknown> {
   created_at: string
 }
 
+// ─── Combat (Phase 2 — dev-gated) ────────────────────────────────────────────
+
+export type CombatClass = 'warrior' | 'healer' | 'archer' | 'rogue' | 'mage'
+
+export type CombatEventKind =
+  | 'player_attack'
+  | 'player_crit'
+  | 'ability_used'
+  | 'boss_attack'
+  | 'member_downed'
+  | 'member_revived'
+  | 'phase_transition'
+  | 'raid_victory'
+  | 'raid_escaped'
+  | 'heal'
+  | 'self_heal'
+
+export interface CombatEvent {
+  id:        string
+  kind:      CombatEventKind
+  actorId?:  string
+  targetId?: string
+  value?:    number         // damage / heal amount
+  phase?:    number
+  text:      string         // game-voice copy, pre-rendered
+  ts:        number         // Date.now()
+}
+
+export interface ActiveRaid extends Record<string, unknown> {
+  id:                 string
+  crew_id:            string
+  boss_id:            string
+  current_hp:         number
+  max_hp:             number
+  phase:              number
+  started_at:         string
+  expires_at:         string
+  defeated_at:        string | null
+  mvp_user_id:        string | null
+  expiry_notif_sent:  boolean
+  last_boss_attack_at: string | null
+  guard_user_id:       string | null
+  guard_expires_at:    string | null
+  volley_expires_at:   string | null
+}
+
+export interface CombatMember extends Record<string, unknown> {
+  id:               string
+  raid_id:          string
+  user_id:          string
+  class:            CombatClass
+  current_hp:       number
+  max_hp:           number
+  current_mp:       number
+  max_mp:           number
+  is_downed:        boolean
+  downed_at:        string | null
+  guard_expires_at: string | null
+  momentum_stack:   number
+  last_msg_at:      string | null
+  created_at:       string
+}
+
+export interface ReviveToken extends Record<string, unknown> {
+  crew_id: string
+  count:   number
+}
+
 export type FriendshipStatus = 'pending' | 'accepted'
 
 export interface Friendship extends Record<string, unknown> {
@@ -486,6 +554,24 @@ export type Database = {
         Update: Partial<Pick<BoardSection, 'name' | 'position'>>
         Relationships: []
       }
+      active_raids: {
+        Row: ActiveRaid
+        Insert: Omit<ActiveRaid, 'id' | 'expiry_notif_sent' | 'last_boss_attack_at' | 'guard_user_id' | 'guard_expires_at' | 'volley_expires_at'> & { id?: string; expiry_notif_sent?: boolean; last_boss_attack_at?: string | null; guard_user_id?: string | null; guard_expires_at?: string | null; volley_expires_at?: string | null }
+        Update: Partial<Omit<ActiveRaid, 'id'>>
+        Relationships: []
+      }
+      crew_combat_members: {
+        Row: CombatMember
+        Insert: Omit<CombatMember, 'id' | 'created_at' | 'is_downed' | 'momentum_stack'> & { id?: string; created_at?: string; is_downed?: boolean; momentum_stack?: number }
+        Update: Partial<Omit<CombatMember, 'id' | 'raid_id' | 'user_id' | 'created_at'>>
+        Relationships: []
+      }
+      revive_tokens: {
+        Row: ReviveToken
+        Insert: ReviveToken
+        Update: Partial<Pick<ReviveToken, 'count'>>
+        Relationships: []
+      }
     }
     Views: Record<string, never>
     Functions: {
@@ -569,6 +655,18 @@ export type Database = {
       update_active: {
         Args: Record<string, never>
         Returns: void
+      }
+      init_combat_members: {
+        Args: { p_raid_id: string; p_crew_id: string; p_crew_level: number }
+        Returns: void
+      }
+      apply_boss_damage: {
+        Args: { p_raid_id: string; p_member_id: string; p_final_dmg: number }
+        Returns: Array<{ new_hp: number; is_downed: boolean; downed_at: string | null }>
+      }
+      use_revive_token: {
+        Args: { p_raid_id: string; p_target_user_id: string }
+        Returns: Record<string, unknown>
       }
     }
     Enums: Record<string, never>
