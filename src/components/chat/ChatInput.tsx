@@ -113,8 +113,9 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   const [sending,        setSending]        = useState(false)
   const [sendError,      setSendError]      = useState<string | null>(null)
   const [typingUsers,    setTypingUsers]    = useState<string[]>([])
-  const [devMode,        setDevMode]        = useState(false)
+  const [devMode,          setDevMode]          = useState(false)
   const [chatCameraEnabled, setChatCameraEnabled] = useState(false)
+  const [combatEnabled,    setCombatEnabled]    = useState(false)
   const [gemToastVisible,   setGemToastVisible]   = useState(false)
   const [isExpanded,     setIsExpanded]     = useState(false)
   const [memberMsgCounts, setMemberMsgCounts] = useState<Map<string, number>>(new Map())
@@ -186,6 +187,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   useEffect(() => {
     setDevMode(localStorage.getItem('nexus_dev_mode') === '1')
     setChatCameraEnabled(localStorage.getItem('nexus_chat_camera') === '1')
+    setCombatEnabled(localStorage.getItem('nexus_combat_enabled') === '1')
   }, [])
 
   useEffect(() => {
@@ -200,7 +202,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
 
   // Seed combatStore with server-fetched raid/member data (dev only)
   useEffect(() => {
-    if (!isDevUser) return
+    if (!isDevUser || !combatEnabled) return
     const store = useCombatStore.getState()
     store.setActiveRaid(initialRaid ?? null)
     if (initialMemberStats) store.setAllMembers(Object.values(initialMemberStats))
@@ -209,7 +211,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
 
   // Realtime: keep combat state in sync (dev only)
   useEffect(() => {
-    if (!isDevUser) return
+    if (!isDevUser || !combatEnabled) return
     const supabase = createClient()
 
     const combatCh = supabase
@@ -996,13 +998,13 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
 
   // Fire-and-forget attack-boss after award-xp settles (dev only)
   const callAttackBoss = useCallback((messageType: string, softBlocked: boolean) => {
-    if (!isDevUser) return
+    if (!isDevUser || !combatEnabled) return
     fetch(`${SUPABASE_URL}/functions/v1/attack-boss`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
       body:    JSON.stringify({ crew_id: crewId, user_id: userId, username: userProfile.username, message_type: messageType, soft_blocked: softBlocked }),
     }).catch(() => {})
-  }, [isDevUser, crewId, userId, userProfile]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isDevUser, combatEnabled, crewId, userId, userProfile]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) {
     // @mention picker navigation
@@ -1193,15 +1195,15 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     <div
       className="bg-black border-t border-border flex flex-col flex-shrink-0 relative z-[65]"
       style={{
-        paddingTop:    isDevUser ? 0 : 'var(--space-5)',
+        paddingTop:    (isDevUser && combatEnabled) ? 0 : 'var(--space-5)',
         paddingLeft:   'var(--space-5)',
         paddingRight:  'var(--space-5)',
         paddingBottom: 'max(env(safe-area-inset-bottom), 32px)',
         gap:           'var(--space-5)',
       }}
     >
-      {/* ── Combat UI (dev only) ── */}
-      {isDevUser && !isDM && (
+      {/* ── Combat UI (dev only, requires nexus_combat_enabled toggle) ── */}
+      {isDevUser && combatEnabled && !isDM && (
         <>
           <DamageFloatLayer />
           <div style={{ marginLeft: 'calc(-1 * var(--space-5))', marginRight: 'calc(-1 * var(--space-5))' }}>
@@ -1575,7 +1577,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                 const canSend      = canSendImage || canSendText
                 return (
                   <div className="flex items-center gap-3 flex-shrink-0">
-                    {isDevUser && !isDM && userCombatClass && (
+                    {isDevUser && combatEnabled && !isDM && userCombatClass && (
                       <AbilityButton crewId={crewId} userId={userId} userClass={userCombatClass} />
                     )}
                     <button

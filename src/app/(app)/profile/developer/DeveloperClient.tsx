@@ -8,7 +8,16 @@ import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
 import { Plus } from 'pixelarticons/react/Plus'
 import { createAnnouncementAction } from '@/app/(app)/home/actions'
-import { resetFriendshipXPAction, resetGemCooldownAction } from '@/app/(app)/profile/developer/actions'
+import {
+  resetFriendshipXPAction,
+  resetGemCooldownAction,
+  spawnBossAction,
+  forceRaidPhaseAction,
+  endRaidAction,
+  selfDownAction,
+  addReviveTokenAction,
+  resetCombatAction,
+} from '@/app/(app)/profile/developer/actions'
 import { clearGemClaimRecord } from '@/lib/game/gems'
 
 function BackButton() {
@@ -81,18 +90,22 @@ function ToggleRow({ title, description, enabled, onChange }: { title: string; d
   )
 }
 
+type ActionState = 'idle' | 'loading' | 'done' | 'confirm' | 'error'
+
 interface DeveloperClientProps {
-  userId: string
+  userId:       string
   initialCoins: number
+  userCrews:    { id: string; name: string }[]
 }
 
-export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClientProps) {
+export function DeveloperClient({ userId: _userId, initialCoins, userCrews }: DeveloperClientProps) {
   const router = useRouter()
 
   const [devMode,             setDevMode]             = useState(false)
   const [showPush,            setShowPush]            = useState(false)
   const [infiniteCoins,       setInfiniteCoins]       = useState(false)
   const [chatCamera,          setChatCamera]          = useState(false)
+  const [combatEnabled,       setCombatEnabled]       = useState(false)
   const [fxpResetConfirm,     setFxpResetConfirm]     = useState(false)
   const [resettingFXP,        setResettingFXP]        = useState(false)
   const [fxpResetDone,        setFxpResetDone]        = useState(false)
@@ -104,11 +117,23 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
   const [bannerError,         setBannerError]         = useState<string | null>(null)
   const [addedSuccess,        setAddedSuccess]        = useState(false)
 
+  // combat testing
+  const [selectedCrewId,   setSelectedCrewId]   = useState<string>(userCrews[0]?.id ?? '')
+  const [spawnState,       setSpawnState]        = useState<ActionState>('idle')
+  const [phase2State,      setPhase2State]       = useState<ActionState>('idle')
+  const [phase3State,      setPhase3State]       = useState<ActionState>('idle')
+  const [endRaidState,     setEndRaidState]      = useState<ActionState>('idle')
+  const [selfDownState,    setSelfDownState]     = useState<ActionState>('idle')
+  const [reviveState,      setReviveState]       = useState<ActionState>('idle')
+  const [resetState,       setResetState]        = useState<ActionState>('idle')
+  const [combatError,      setCombatError]       = useState<string | null>(null)
+
   useEffect(() => {
     setDevMode(localStorage.getItem('nexus_dev_mode') === '1')
     setShowPush(localStorage.getItem('nexus_push_diag') === '1')
     setInfiniteCoins(localStorage.getItem('nexus_infinite_coins') === '1')
     setChatCamera(localStorage.getItem('nexus_chat_camera') === '1')
+    setCombatEnabled(localStorage.getItem('nexus_combat_enabled') === '1')
   }, [])
 
   function toggleDevMode() {
@@ -139,6 +164,13 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
     setChatCamera(next)
     if (next) localStorage.setItem('nexus_chat_camera', '1')
     else localStorage.removeItem('nexus_chat_camera')
+  }
+
+  function toggleCombatEnabled() {
+    const next = !combatEnabled
+    setCombatEnabled(next)
+    if (next) localStorage.setItem('nexus_combat_enabled', '1')
+    else localStorage.removeItem('nexus_combat_enabled')
   }
 
   async function handleResetFriendshipXP() {
@@ -180,6 +212,84 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
     setTimeout(() => setAddedSuccess(false), 2000)
   }
 
+  // ── Combat action helpers ──────────────────────────────────────────────────
+
+  async function runCombatAction(
+    setState: (s: ActionState) => void,
+    currentState: ActionState,
+    action: () => Promise<{ ok?: boolean; error?: string }>,
+    requiresConfirm = false,
+  ) {
+    if (requiresConfirm && currentState !== 'confirm') { setState('confirm'); return }
+    setState('loading')
+    setCombatError(null)
+    const result = await action()
+    if (result.error) {
+      setCombatError(result.error)
+      setState('error')
+      setTimeout(() => setState('idle'), 3000)
+    } else {
+      setState('done')
+      setTimeout(() => setState('idle'), 2000)
+    }
+  }
+
+  const combatRows: {
+    title:          string
+    description:    string
+    state:          ActionState
+    onPress:        () => void
+    onBlur?:        () => void
+    danger?:        boolean
+  }[] = [
+    {
+      title:       'Spawn Boss',
+      description: 'Force-spawn a random boss raid for the selected squad',
+      state:       spawnState,
+      onPress:     () => runCombatAction(setSpawnState, spawnState, () => spawnBossAction(selectedCrewId)),
+    },
+    {
+      title:       'Force Phase 2',
+      description: 'Advance the active raid to phase 2 (50% HP threshold)',
+      state:       phase2State,
+      onPress:     () => runCombatAction(setPhase2State, phase2State, () => forceRaidPhaseAction(selectedCrewId, 2)),
+    },
+    {
+      title:       'Force Phase 3',
+      description: 'Advance the active raid to phase 3 (20% HP threshold)',
+      state:       phase3State,
+      onPress:     () => runCombatAction(setPhase3State, phase3State, () => forceRaidPhaseAction(selectedCrewId, 3)),
+    },
+    {
+      title:       'End Raid',
+      description: 'Mark the active raid as defeated (no artifact drop)',
+      state:       endRaidState,
+      onPress:     () => runCombatAction(setEndRaidState, endRaidState, () => endRaidAction(selectedCrewId), true),
+      onBlur:      () => setEndRaidState('idle'),
+      danger:      false,
+    },
+    {
+      title:       'Down Yourself',
+      description: 'Set your combat member to downed state for testing revive',
+      state:       selfDownState,
+      onPress:     () => runCombatAction(setSelfDownState, selfDownState, () => selfDownAction(selectedCrewId)),
+    },
+    {
+      title:       'Add Revive Token',
+      description: 'Give the selected squad +1 revive token',
+      state:       reviveState,
+      onPress:     () => runCombatAction(setReviveState, reviveState, () => addReviveTokenAction(selectedCrewId)),
+    },
+    {
+      title:       'Reset Combat',
+      description: 'Delete all raids and combat data for this squad',
+      state:       resetState,
+      onPress:     () => runCombatAction(setResetState, resetState, () => resetCombatAction(selectedCrewId), true),
+      onBlur:      () => setResetState('idle'),
+      danger:      true,
+    },
+  ]
+
   return (
     <SlidePage
       className="bg-black flex flex-col"
@@ -189,18 +299,15 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
       <div
         className="flex-shrink-0 w-full"
         style={{
-          paddingLeft: 'var(--space-5)',
+          paddingLeft:  'var(--space-5)',
           paddingRight: 'var(--space-5)',
-          paddingTop: 'calc(env(safe-area-inset-top, 0px) + var(--space-3))',
+          paddingTop:   'calc(env(safe-area-inset-top, 0px) + var(--space-3))',
           paddingBottom: 'var(--space-3)',
         }}
       >
         <div className="flex h-[40px] items-center" style={{ gap: 'var(--space-3)' }}>
           <BackButton />
-          <p
-            className="font-silkscreen text-primary uppercase leading-none"
-            style={{ fontSize: 'var(--text-xxl)' }}
-          >
+          <p className="font-silkscreen text-primary uppercase leading-none" style={{ fontSize: 'var(--text-xxl)' }}>
             Developer Settings
           </p>
         </div>
@@ -210,23 +317,19 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
       <div
         className="flex-1 overflow-y-auto nexus-scroll flex flex-col"
         style={{
-          gap: 'var(--space-7)',
-          padding: 'var(--space-5)',
+          gap:           'var(--space-7)',
+          padding:       'var(--space-5)',
           paddingBottom: 'max(env(safe-area-inset-bottom), var(--space-5))',
         }}
       >
 
-        {/* Announcements section */}
+        {/* Announcements */}
         <div className="flex flex-col w-full" style={{ gap: 'var(--space-5)' }}>
           <div className="flex flex-col" style={{ gap: 'var(--space-3)' }}>
-            <p
-              className="font-body font-medium text-primary tracking-[0.2px] leading-normal"
-              style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
-            >
+            <p className="font-body font-medium text-primary tracking-[0.2px] leading-normal" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}>
               Announcements
             </p>
 
-            {/* Text input */}
             <div
               className="border flex h-[48px] items-center overflow-hidden w-full"
               style={{ borderColor: 'var(--color-border)', paddingLeft: 'var(--space-5)', paddingRight: 'var(--space-5)' }}
@@ -248,17 +351,16 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
               </p>
             )}
 
-            {/* Add announcement button */}
             <button
               onClick={handleCreateBanner}
               disabled={!newText.trim() || addingBanner}
               className="flex items-center justify-center overflow-hidden w-full disabled:opacity-40"
               style={{
                 background: addedSuccess ? '#22c55e' : 'var(--color-purple)',
-                gap: 'var(--space-3)',
-                paddingLeft: 'var(--space-6)',
+                gap:          'var(--space-3)',
+                paddingLeft:  'var(--space-6)',
                 paddingRight: 'var(--space-6)',
-                paddingTop: 'var(--space-5)',
+                paddingTop:   'var(--space-5)',
                 paddingBottom: 'var(--space-5)',
                 boxShadow: addedSuccess
                   ? '4px 4px 0px 0px rgba(34,197,94,0.5)'
@@ -273,7 +375,6 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
             </button>
           </div>
 
-          {/* Published Announcements row */}
           <NavRow
             title="Published Announcements"
             description="View all published announcements"
@@ -281,12 +382,9 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
           />
         </div>
 
-        {/* Debug section */}
+        {/* Debug */}
         <div className="flex flex-col w-full" style={{ gap: 'var(--space-5)' }}>
-          <p
-            className="font-silkscreen leading-normal tracking-[0.2px] uppercase"
-            style={{ fontSize: 'var(--text-sm)', color: 'var(--color-purple)' }}
-          >
+          <p className="font-silkscreen leading-normal tracking-[0.2px] uppercase" style={{ fontSize: 'var(--text-sm)', color: 'var(--color-purple)' }}>
             Debug
           </p>
 
@@ -304,12 +402,9 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
           />
         </div>
 
-        {/* Features section */}
+        {/* Features */}
         <div className="flex flex-col w-full" style={{ gap: 'var(--space-5)' }}>
-          <p
-            className="font-silkscreen leading-normal tracking-[0.2px] uppercase"
-            style={{ fontSize: 'var(--text-sm)', color: 'var(--color-purple)' }}
-          >
+          <p className="font-silkscreen leading-normal tracking-[0.2px] uppercase" style={{ fontSize: 'var(--text-sm)', color: 'var(--color-purple)' }}>
             Features
           </p>
 
@@ -327,7 +422,14 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
             onChange={toggleChatCamera}
           />
 
-          {/* Reset gem cooldown — two-step confirm */}
+          <ToggleRow
+            title="Combat System"
+            description="Show boss cards, combat HUD, and ability button in chat"
+            enabled={combatEnabled}
+            onChange={toggleCombatEnabled}
+          />
+
+          {/* Reset gem cooldown */}
           <div className="flex items-center w-full" style={{ gap: 'var(--space-3)' }}>
             <div className="flex-1 min-w-0 flex flex-col gap-0 leading-[0] tracking-[0.2px]">
               <p className="font-body font-semibold text-secondary leading-normal" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}>
@@ -344,8 +446,8 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
               className="flex-shrink-0 flex items-center justify-center overflow-hidden disabled:opacity-40"
               style={{
                 background: gemResetDone ? 'var(--color-success)' : gemResetConfirm ? 'var(--color-danger)' : 'var(--color-border)',
-                padding: '4px 10px',
-                minWidth: 64,
+                padding:    '4px 10px',
+                minWidth:   64,
                 transition: 'background 0.15s',
               }}
             >
@@ -355,7 +457,7 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
             </button>
           </div>
 
-          {/* Reset friendship XP — two-step confirm */}
+          {/* Reset friendship XP */}
           <div className="flex items-center w-full" style={{ gap: 'var(--space-3)' }}>
             <div className="flex-1 min-w-0 flex flex-col gap-0 leading-[0] tracking-[0.2px]">
               <p className="font-body font-semibold text-secondary leading-normal" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}>
@@ -372,8 +474,8 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
               className="flex-shrink-0 flex items-center justify-center overflow-hidden disabled:opacity-40"
               style={{
                 background: fxpResetDone ? 'var(--color-success)' : fxpResetConfirm ? 'var(--color-danger)' : 'var(--color-border)',
-                padding: '4px 10px',
-                minWidth: 64,
+                padding:    '4px 10px',
+                minWidth:   64,
                 transition: 'background 0.15s',
               }}
             >
@@ -382,6 +484,86 @@ export function DeveloperClient({ userId: _userId, initialCoins }: DeveloperClie
               </span>
             </button>
           </div>
+        </div>
+
+        {/* Combat Testing */}
+        <div className="flex flex-col w-full" style={{ gap: 'var(--space-5)' }}>
+          <p className="font-silkscreen leading-normal tracking-[0.2px] uppercase" style={{ fontSize: 'var(--text-sm)', color: '#ef4444' }}>
+            Combat Testing
+          </p>
+
+          {/* Crew picker */}
+          {userCrews.length === 0 ? (
+            <p className="font-body text-tertiary leading-normal" style={{ fontSize: 'var(--text-xs)' }}>
+              No squads found.
+            </p>
+          ) : (
+            <div className="flex flex-col" style={{ gap: 'var(--space-3)' }}>
+              <p className="font-body font-normal text-tertiary leading-normal" style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}>
+                Target squad
+              </p>
+              <div className="flex flex-wrap" style={{ gap: 'var(--space-3)' }}>
+                {userCrews.map((crew) => {
+                  const active = selectedCrewId === crew.id
+                  return (
+                    <button
+                      key={crew.id}
+                      onClick={() => { setSelectedCrewId(crew.id); setCombatError(null) }}
+                      className="font-silkscreen leading-none"
+                      style={{
+                        fontSize:   'var(--text-mini)',
+                        padding:    '5px 10px',
+                        background: active ? '#ef444422' : 'transparent',
+                        border:     `1px solid ${active ? '#ef4444' : 'var(--color-border)'}`,
+                        color:      active ? '#ef4444' : 'var(--color-tertiary)',
+                        transition: 'all 0.1s',
+                      }}
+                    >
+                      {crew.name}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {combatError && (
+            <p className="font-pixel leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-danger)' }}>
+              {combatError}
+            </p>
+          )}
+
+          {combatRows.map(({ title, description, state, onPress, onBlur, danger }) => (
+            <div key={title} className="flex items-center w-full" style={{ gap: 'var(--space-3)' }}>
+              <div className="flex-1 min-w-0 flex flex-col gap-0 leading-[0] tracking-[0.2px]">
+                <p
+                  className="font-body font-semibold leading-normal"
+                  style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14', color: danger ? '#ef4444' : 'var(--color-secondary)' }}
+                >
+                  {title}
+                </p>
+                <p className="font-body font-normal text-tertiary leading-normal" style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}>
+                  {description}
+                </p>
+              </div>
+              <button
+                onClick={onPress}
+                disabled={state === 'loading' || !selectedCrewId}
+                onBlur={onBlur}
+                className="flex-shrink-0 flex items-center justify-center overflow-hidden disabled:opacity-40"
+                style={{
+                  background: state === 'done' ? 'var(--color-success)' : state === 'confirm' || state === 'error' ? 'var(--color-danger)' : 'var(--color-border)',
+                  padding:    '4px 10px',
+                  minWidth:   64,
+                  transition: 'background 0.15s',
+                }}
+              >
+                <span className="font-silkscreen leading-none whitespace-nowrap text-primary" style={{ fontSize: 'var(--text-mini)' }}>
+                  {state === 'loading' ? '...' : state === 'done' ? 'Done!' : state === 'confirm' ? 'Sure?' : 'Run'}
+                </span>
+              </button>
+            </div>
+          ))}
         </div>
 
       </div>
