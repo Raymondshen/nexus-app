@@ -8,10 +8,6 @@
     {
       "path": "/api/cron/process-deletions",
       "schedule": "0 3 * * *"
-    },
-    {
-      "path": "/api/cron/boss-attack",
-      "schedule": "*/30 * * * *"
     }
   ],
   "headers": [
