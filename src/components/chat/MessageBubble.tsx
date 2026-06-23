@@ -1031,10 +1031,170 @@ function JoinMessage({ content }: { content: string }) {
   )
 }
 
+// ─── BOSS_SPAWN message ───────────────────────────────────────────────────────
+function BossSpawnMessage({ content }: { content: string }) {
+  // BOSS_SPAWN:bossName:hp
+  const parts    = content.slice('BOSS_SPAWN:'.length).split(':')
+  const bossName = parts[0] ?? 'THE VOID'
+  const hp       = parts[1] ? Number(parts[1]).toLocaleString() : '???'
+  return (
+    <div style={{ marginTop: 'var(--space-6)', marginBottom: 'var(--space-6)' }}>
+      <div
+        className="flex flex-col items-center w-full border text-center"
+        style={{ padding: '12px 16px', gap: 6, background: 'linear-gradient(135deg,#0f0820,#1a0d2e)', borderColor: '#9333ea66' }}
+      >
+        <p className="font-pixel leading-none" style={{ fontSize: 7, color: '#9333ea' }}>⚠ BOSS RAID BEGINS</p>
+        <p className="font-pixel leading-none" style={{ fontSize: 11, color: '#bf5fff', textShadow: '0 0 16px #bf5fff88' }}>
+          ◆ {bossName.toUpperCase()} ◆
+        </p>
+        <p className="font-silkscreen leading-none" style={{ fontSize: 8, color: 'var(--color-tertiary)' }}>{hp} HP · 48hr window</p>
+      </div>
+    </div>
+  )
+}
+
+// ─── COMBAT:* messages ────────────────────────────────────────────────────────
+function CombatMessage({ content }: { content: string }) {
+  // content = COMBAT:type:...
+  const parts = content.split(':')
+  const type  = parts[1] ?? ''
+
+  let text  = content
+  let color = 'var(--color-tertiary)'
+  let bg    = '#0f0820'
+  let border = '#2a1545'
+
+  switch (type) {
+    case 'attack': {
+      // COMBAT:attack:username:dmg:newBossHP:isCrit
+      const username = parts[2] ?? ''
+      const dmg      = parts[3] ?? '0'
+      const hp       = parts[4] ? Number(parts[4]).toLocaleString() : '?'
+      const isCrit   = parts[5] === '1'
+      text   = isCrit
+        ? `⚡ @${username} landed a CRIT — ${dmg} DMG  ▸ Boss HP: ${hp}`
+        : `@${username} attacked — ${dmg} DMG  ▸ Boss HP: ${hp}`
+      color  = isCrit ? 'var(--color-crit)' : 'var(--color-primary)'
+      border = isCrit ? '#fbbf2444' : '#2a1545'
+      break
+    }
+    case 'phase': {
+      // COMBAT:phase:2 or COMBAT:phase:3
+      const phase = parts[2] ?? '2'
+      text  = phase === '3' ? '⚠ PHASE III — THE VOID RAGES' : '⚠ PHASE II — THE VOID HUNGERS'
+      color = phase === '3' ? '#ef4444' : '#f59e0b'
+      bg    = '#1a0d2e'
+      border = phase === '3' ? '#ef444455' : '#f59e0b55'
+      break
+    }
+    case 'victory': {
+      // COMBAT:victory:mvpUsername:rarity:artifactName
+      const mvp      = parts[2] ?? ''
+      const rarity   = parts[3] ?? 'common'
+      const artifact = parts.slice(4).join(':')
+      const rarityColor: Record<string, string> = { legendary: '#ffd700', epic: '#bf5fff', rare: '#3b82f6', common: '#71717a' }
+      text   = `🏆 THE VOID DEFEATED! @${mvp} earned ${artifact}`
+      color  = rarityColor[rarity] ?? '#ffd700'
+      bg     = '#1a1000'
+      border = (rarityColor[rarity] ?? '#ffd700') + '55'
+      break
+    }
+    case 'escaped': {
+      // COMBAT:escaped:crewName
+      text   = '💀 THE VOID ESCAPED — consolation artifact awarded'
+      color  = 'var(--color-tertiary)'
+      border = '#2a1545'
+      break
+    }
+    case 'guard': {
+      // COMBAT:guard:username:mpRemaining/maxMP
+      const username = parts[2] ?? ''
+      text   = `🛡 @${username} activated GUARD — taunting the boss for 60s`
+      color  = '#ef4444'
+      border = '#ef444433'
+      break
+    }
+    case 'mend': {
+      // COMBAT:mend:username:healAmount:mpRemaining/maxMP
+      const username = parts[2] ?? ''
+      const heal     = parts[3] ?? '0'
+      text   = `💚 @${username} cast MEND — healed crew for ${heal} HP`
+      color  = '#22c55e'
+      border = '#22c55e33'
+      break
+    }
+    case 'volley': {
+      // COMBAT:volley:username:dmg:newBossHP:mpRemaining/maxMP
+      const username = parts[2] ?? ''
+      const dmg      = parts[3] ?? '0'
+      const hp       = parts[4] ? Number(parts[4]).toLocaleString() : '?'
+      text   = `🏹 @${username} volleyed — ${dmg} DMG + boss debuffed  ▸ HP: ${hp}`
+      color  = '#ffd700'
+      border = '#ffd70033'
+      break
+    }
+    case 'backstab': {
+      // COMBAT:backstab:username:dmg:newBossHP:mpRemaining/maxMP
+      const username = parts[2] ?? ''
+      const dmg      = parts[3] ?? '0'
+      const hp       = parts[4] ? Number(parts[4]).toLocaleString() : '?'
+      text   = `🗡 @${username} BACKSTABBED — ${dmg} DMG  ▸ HP: ${hp}`
+      color  = '#bf5fff'
+      border = '#bf5fff33'
+      break
+    }
+    case 'cast': {
+      // COMBAT:cast:username:dmg:newBossHP:mpRemaining/maxMP
+      const username = parts[2] ?? ''
+      const dmg      = parts[3] ?? '0'
+      const hp       = parts[4] ? Number(parts[4]).toLocaleString() : '?'
+      text   = `✨ @${username} cast — ${dmg} DMG  ▸ HP: ${hp}`
+      color  = '#00e5ff'
+      border = '#00e5ff33'
+      break
+    }
+    case 'boss_attack': {
+      // COMBAT:boss_attack:username:dmg:newHP
+      const username = parts[2] ?? ''
+      const dmg      = parts[3] ?? '0'
+      text   = `💥 THE VOID struck @${username} for ${dmg} DMG`
+      color  = '#ef4444'
+      bg     = '#1a0505'
+      border = '#ef444444'
+      break
+    }
+    case 'downed': {
+      // COMBAT:downed:username:dmg
+      const username = parts[2] ?? ''
+      const dmg      = parts[3] ?? '0'
+      text   = `💀 @${username} was DOWNED by THE VOID (${dmg} DMG) — needs revive`
+      color  = '#ef4444'
+      bg     = '#1a0505'
+      border = '#ef444466'
+      break
+    }
+    default:
+      text = content
+  }
+
+  return (
+    <div className="flex justify-center" style={{ marginTop: 'var(--space-4)', marginBottom: 'var(--space-4)' }}>
+      <div
+        className="border px-3 py-2 max-w-[90%] text-center"
+        style={{ background: bg, borderColor: border }}
+      >
+        <p className="font-pixel leading-relaxed" style={{ fontSize: 7, color }}>{text}</p>
+      </div>
+    </div>
+  )
+}
+
 function SystemMessage({ message }: { message: MessageWithProfile }) {
   const content = message.content
-  if (content.startsWith('BIRTHDAY:')) return <BirthdayMessage content={content} />
-  if (content.startsWith('JOIN:'))     return <JoinMessage content={content} />
+  if (content.startsWith('BIRTHDAY:'))   return <BirthdayMessage content={content} />
+  if (content.startsWith('JOIN:'))       return <JoinMessage content={content} />
+  if (content.startsWith('BOSS_SPAWN:')) return <BossSpawnMessage content={content} />
+  if (content.startsWith('COMBAT:'))     return <CombatMessage content={content} />
   let bg   = 'bg-surface border-border'
   let icon = '⚙️'
   if (content.startsWith('🎂'))                                                          { bg = 'bg-[#1a0d2e] border-purple/30'; icon = '' }
