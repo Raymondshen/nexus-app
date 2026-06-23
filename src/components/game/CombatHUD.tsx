@@ -1,16 +1,18 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Image from 'next/image'
 import { useCombatStore } from '@/store/combatStore'
 import { isSupabaseStorage, resolveAvatarUrl } from '@/components/ui/Avatar'
-import type { Profile, AvatarClass } from '@/types'
+import { createClient } from '@/lib/supabase/client'
+import type { Profile } from '@/types'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
 
 interface CombatHUDProps {
   memberProfiles: Record<string, Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url'>>
   currentUserId:  string
+  crewId?:        string
 }
 
 const CLASS_COLOR: Record<string, string> = {
@@ -72,9 +74,26 @@ function MPBar({ current, max, cls }: { current: number; max: number; cls: strin
   )
 }
 
-export function CombatHUD({ memberProfiles, currentUserId }: CombatHUDProps) {
+export function CombatHUD({ memberProfiles, currentUserId, crewId }: CombatHUDProps) {
   const [open, setOpen] = useState(false)
+  const [reviving, setReviving] = useState<string | null>(null)
   const { activeRaid, memberStats, reviveTokens } = useCombatStore()
+
+  const handleRevive = useCallback(async (targetUserId: string) => {
+    if (!activeRaid || reviveTokens < 1 || reviving) return
+    setReviving(targetUserId)
+    try {
+      const supabase = createClient()
+      await supabase.rpc('use_revive_token', {
+        p_raid_id:       activeRaid.id,
+        p_target_user_id: targetUserId,
+      })
+    } catch {
+      // RPC error is non-critical — realtime will reconcile state
+    } finally {
+      setReviving(null)
+    }
+  }, [activeRaid, reviveTokens, reviving]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!activeRaid) return null
 
@@ -169,11 +188,24 @@ export function CombatHUD({ memberProfiles, currentUserId }: CombatHUDProps) {
                     </p>
                   </div>
 
-                  {/* Bars */}
-                  <div className="flex-1 flex flex-col gap-1">
-                    <HPBar current={m.current_hp} max={m.max_hp} cls={m.class} downed={m.is_downed} />
-                    <MPBar current={m.current_mp} max={m.max_mp} cls={m.class} />
-                  </div>
+                  {/* Bars or revive button */}
+                  {m.is_downed && reviveTokens > 0 ? (
+                    <div className="flex-1 flex items-center justify-end">
+                      <button
+                        onClick={() => handleRevive(m.user_id)}
+                        disabled={!!reviving}
+                        className="px-3 py-1 font-pixel transition-opacity disabled:opacity-50 active:opacity-60"
+                        style={{ fontSize: 7, color: '#22c55e', background: '#22c55e18', border: '1px solid #22c55e44' }}
+                      >
+                        {reviving === m.user_id ? '...' : 'REVIVE'}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex-1 flex flex-col gap-1">
+                      <HPBar current={m.current_hp} max={m.max_hp} cls={m.class} downed={m.is_downed} />
+                      <MPBar current={m.current_mp} max={m.max_mp} cls={m.class} />
+                    </div>
+                  )}
                 </div>
               )
             })}

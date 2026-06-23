@@ -1206,7 +1206,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
           <DamageFloatLayer />
           <div style={{ marginLeft: 'calc(-1 * var(--space-5))', marginRight: 'calc(-1 * var(--space-5))' }}>
             <BossCard />
-            <CombatHUD memberProfiles={memberProfiles} currentUserId={userId} />
+            <CombatHUD memberProfiles={memberProfiles} currentUserId={userId} crewId={crewId} />
             <CombatLog />
           </div>
           <div style={{ paddingTop: 'var(--space-5)' }} />
