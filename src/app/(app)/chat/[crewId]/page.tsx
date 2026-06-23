@@ -7,7 +7,7 @@ import { ChatInput } from "@/components/chat/ChatInput";
 import { WelcomeDetector } from "@/components/ui/WelcomeDetector";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { SlidePage } from "@/components/ui/SlidePage";
-import type { Profile, Crew, AvatarClass } from "@/types";
+import type { Profile, Crew, AvatarClass, ActiveRaid, CombatMember } from "@/types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -67,7 +67,7 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
   // Stage 2 — cached member profiles + fresh crew in parallel.
   // crew (total_xp) stays uncached — it changes with every message.
   // crew_members fetched fresh for membership check (RLS returns empty for non-members).
-  const [cachedProfiles, crewResult, lastSeenResult, gemResult] = await Promise.all([
+  const [cachedProfiles, crewResult, lastSeenResult, gemResult, isDevResult] = await Promise.all([
     getCachedMemberProfiles(crewId),
     supabase.from("crews").select("id, name, invite_code, level, total_xp, image_url").eq("id", crewId).single(),
     supabase
@@ -75,10 +75,12 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
       .select("user_id, last_seen, class, joined_at")
       .eq("crew_id", crewId),
     supabase.from("profiles").select("gem_balance").eq("id", user.id).single(),
+    supabase.from("profiles").select("is_dev").eq("id", user.id).single(),
   ]);
 
-  const crew    = crewResult.data as Crew | null;
+  const crew       = crewResult.data as Crew | null;
   const gemBalance = (gemResult.data as { gem_balance: number } | null)?.gem_balance ?? 0;
+  const isDevUser  = !!(isDevResult.data as { is_dev: boolean } | null)?.is_dev;
 
   // Membership check — fresh query (RLS returns empty for non-members)
   const lastSeenRows = (lastSeenResult.data ?? []) as MemberRow[]
@@ -95,6 +97,39 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
   const currentMemberRow = lastSeenRows.find((r) => r.user_id === user.id)
   if (!currentMemberRow?.class) {
     redirect(`/onboarding/class?crew=${crewId}`)
+  }
+
+  // Combat data — only fetch for dev users (combat is dev-gated)
+  let initialRaid:         ActiveRaid | null              = null
+  let initialMemberStats:  Record<string, CombatMember>  = {}
+  let initialReviveTokens: number                        = 5
+  if (isDevUser) {
+    const [raidRes, tokenRes] = await Promise.all([
+      supabase
+        .from('active_raids')
+        .select('id, crew_id, boss_id, current_hp, max_hp, phase, started_at, expires_at, defeated_at, last_boss_attack_at, guard_user_id, volley_expires_at')
+        .eq('crew_id', crewId)
+        .is('defeated_at', null)
+        .gt('expires_at', new Date().toISOString())
+        .maybeSingle(),
+      supabase
+        .from('revive_tokens')
+        .select('count')
+        .eq('crew_id', crewId)
+        .maybeSingle(),
+    ])
+    initialRaid         = raidRes.data as ActiveRaid | null
+    initialReviveTokens = (tokenRes.data as { count: number } | null)?.count ?? 5
+
+    if (initialRaid) {
+      const { data: combatMembers } = await supabase
+        .from('crew_combat_members')
+        .select('id, raid_id, user_id, class, current_hp, max_hp, current_mp, max_mp, is_downed, downed_at, momentum_stack, last_msg_at, guard_expires_at')
+        .eq('raid_id', initialRaid.id)
+      initialMemberStats = Object.fromEntries(
+        (combatMembers ?? []).map((m) => [m.user_id, m as CombatMember])
+      )
+    }
   }
 
   // Creator = member with the earliest joined_at
@@ -152,6 +187,11 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
           crewImageUrl={crew.image_url ?? null}
           initialXP={crew.total_xp}
           currentUserId={user.id}
+          isDevUser={isDevUser}
+          userCombatClass={(currentMemberRow?.class as import('@/types').CombatClass | null) ?? null}
+          initialRaid={initialRaid}
+          initialMemberStats={initialMemberStats}
+          initialReviveTokens={initialReviveTokens}
         />
       </ErrorBoundary>
 

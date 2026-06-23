@@ -33,7 +33,13 @@ import { SquadDetailsSheet, type MiniMember } from '@/components/chat/SquadDetai
 import { PollCreatorSheet } from '@/components/chat/PollCreatorSheet'
 import { GifPickerSheet } from '@/components/chat/GifPickerSheet'
 import { setHomeLastMessage } from '@/lib/homePreviewCache'
-import type { Message, MessageWithProfile, Profile } from '@/types'
+import { useCombatStore } from '@/store/combatStore'
+import { BossCard } from '@/components/game/BossCard'
+import { CombatHUD } from '@/components/game/CombatHUD'
+import { CombatLog } from '@/components/game/CombatLog'
+import { AbilityButton } from '@/components/game/AbilityButton'
+import { DamageFloatLayer } from '@/components/game/DamageFloat'
+import type { Message, MessageWithProfile, Profile, ActiveRaid, CombatMember, CombatClass } from '@/types'
 
 const MAX_MESSAGE_LENGTH   = 2000
 const RATE_LIMIT_MAX       = 30
@@ -64,6 +70,11 @@ interface ChatInputProps {
   currentUserId?:      string
   isDM?:               boolean
   dmPartnerId?:        string
+  isDevUser?:          boolean
+  userCombatClass?:    CombatClass | null
+  initialRaid?:        ActiveRaid | null
+  initialMemberStats?: Record<string, CombatMember>
+  initialReviveTokens?: number
 }
 
 function sanitizeMessage(raw: string): string {
@@ -96,7 +107,7 @@ async function tryClaimDailyGem(supabase: ReturnType<typeof createClient>, onCla
 }
 
 
-export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewName, inviteCode, creatorId, crewImageUrl: initialCrewImageUrl, initialXP, isDM, dmPartnerId }: ChatInputProps) {
+export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewName, inviteCode, creatorId, crewImageUrl: initialCrewImageUrl, initialXP, isDM, dmPartnerId, isDevUser, userCombatClass, initialRaid, initialMemberStats, initialReviveTokens }: ChatInputProps) {
   const router = useRouter()
   const [text,           setText]          = useState('')
   const [sending,        setSending]        = useState(false)
@@ -186,6 +197,57 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     if (initialXP !== undefined) setCrewXP(initialXP)
     setCrewName(crewName)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Seed combatStore with server-fetched raid/member data (dev only)
+  useEffect(() => {
+    if (!isDevUser) return
+    const store = useCombatStore.getState()
+    store.setActiveRaid(initialRaid ?? null)
+    if (initialMemberStats) store.setAllMembers(Object.values(initialMemberStats))
+    if (initialReviveTokens !== undefined) store.setReviveTokens(initialReviveTokens)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Realtime: keep combat state in sync (dev only)
+  useEffect(() => {
+    if (!isDevUser) return
+    const supabase = createClient()
+
+    const combatCh = supabase
+      .channel(`combat:${crewId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'crew_combat_members' }, (payload) => {
+        const store = useCombatStore.getState()
+        if (!store.activeRaid) return
+        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+          const row = payload.new as CombatMember
+          if (row.raid_id !== store.activeRaid?.id) return
+          store.setMemberStats(row.user_id, row)
+        }
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'active_raids' }, (payload) => {
+        const store = useCombatStore.getState()
+        const updated = payload.new as ActiveRaid
+        if (updated.crew_id !== crewId) return
+        if (updated.defeated_at) {
+          store.setActiveRaid(null)
+          store.setAllMembers([])
+        } else {
+          store.patchRaid(updated)
+        }
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'active_raids' }, (payload) => {
+        const newRaid = payload.new as ActiveRaid
+        if (newRaid.crew_id !== crewId) return
+        useCombatStore.getState().setActiveRaid(newRaid)
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'revive_tokens' }, (payload) => {
+        const row = payload.new as { crew_id: string; count: number }
+        if (row.crew_id !== crewId) return
+        useCombatStore.getState().setReviveTokens(row.count)
+      })
+      .subscribe()
+
+    return () => { supabase.removeChannel(combatCh) }
+  }, [crewId, isDevUser]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Update last_seen every 60s for accurate server-side unread cursors
   useEffect(() => {
@@ -641,6 +703,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
             })
           }
           if (typeof data.coins_earned === 'number' && data.coins_earned > 0) addUserCoins(data.coins_earned)
+          callAttackBoss('image', (data.xp_earned ?? 0) === 0 && (data.coins_earned ?? 0) === 0)
         })
         .catch(() => {})
 
@@ -734,6 +797,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
             })
           }
           if (typeof data.coins_earned === 'number' && data.coins_earned > 0) addUserCoins(data.coins_earned)
+          callAttackBoss('image', (data.xp_earned ?? 0) === 0 && (data.coins_earned ?? 0) === 0)
         })
         .catch(() => {})
 
@@ -862,6 +926,9 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
           if (typeof data.coins_earned === 'number' && data.coins_earned > 0) {
             addUserCoins(data.coins_earned)
           }
+          // soft_blocked = no XP and no coins awarded (5s gap check fired)
+          const softBlocked = (data.xp_earned ?? 0) === 0 && (data.coins_earned ?? 0) === 0
+          callAttackBoss('text', softBlocked)
         })
         .catch(() => {})
 
@@ -926,6 +993,16 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       inputRef.current?.focus()
     }
   }, [text, sending, crewId, userId, userProfile, addMessage, removeMessage, updateMessage]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Fire-and-forget attack-boss after award-xp settles (dev only)
+  const callAttackBoss = useCallback((messageType: string, softBlocked: boolean) => {
+    if (!isDevUser) return
+    fetch(`${SUPABASE_URL}/functions/v1/attack-boss`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
+      body:    JSON.stringify({ crew_id: crewId, user_id: userId, username: userProfile.username, message_type: messageType, soft_blocked: softBlocked }),
+    }).catch(() => {})
+  }, [isDevUser, crewId, userId, userProfile]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) {
     // @mention picker navigation
@@ -1116,13 +1193,26 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     <div
       className="bg-black border-t border-border flex flex-col flex-shrink-0 relative z-[65]"
       style={{
-        paddingTop:    'var(--space-5)',
+        paddingTop:    isDevUser ? 0 : 'var(--space-5)',
         paddingLeft:   'var(--space-5)',
         paddingRight:  'var(--space-5)',
         paddingBottom: 'max(env(safe-area-inset-bottom), 32px)',
         gap:           'var(--space-5)',
       }}
     >
+      {/* ── Combat UI (dev only) ── */}
+      {isDevUser && !isDM && (
+        <>
+          <DamageFloatLayer />
+          <div style={{ marginLeft: 'calc(-1 * var(--space-5))', marginRight: 'calc(-1 * var(--space-5))' }}>
+            <BossCard />
+            <CombatHUD memberProfiles={memberProfiles} currentUserId={userId} />
+            <CombatLog />
+          </div>
+          <div style={{ paddingTop: 'var(--space-5)' }} />
+        </>
+      )}
+
       {/* ── Friendship XP toast (DM send or group @mention) ── */}
       <FriendshipXPToast
         visible={!!friendshipToast}
@@ -1484,14 +1574,19 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                 const canSendText  = !!text.trim() && !hasMatch
                 const canSend      = canSendImage || canSendText
                 return (
-                  <button
-                    onClick={canSendImage ? sendImage : send}
-                    disabled={!canSend || sending || chatImageUploading}
-                    className={`flex-shrink-0 flex items-center justify-center w-4 h-4 transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${canSend ? 'text-purple' : 'text-muted'}`}
-                    aria-label="Send message"
-                  >
-                    <Send style={{ width: 16, height: 16 }} aria-hidden="true" />
-                  </button>
+                  <div className="flex items-center gap-3 flex-shrink-0">
+                    {isDevUser && !isDM && userCombatClass && (
+                      <AbilityButton crewId={crewId} userId={userId} userClass={userCombatClass} />
+                    )}
+                    <button
+                      onClick={canSendImage ? sendImage : send}
+                      disabled={!canSend || sending || chatImageUploading}
+                      className={`flex items-center justify-center w-4 h-4 transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${canSend ? 'text-purple' : 'text-muted'}`}
+                      aria-label="Send message"
+                    >
+                      <Send style={{ width: 16, height: 16 }} aria-hidden="true" />
+                    </button>
+                  </div>
                 )
               })()}
             </div>
