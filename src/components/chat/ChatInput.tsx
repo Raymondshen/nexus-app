@@ -247,7 +247,12 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'active_raids' }, (payload) => {
         const newRaid = payload.new as ActiveRaid
         if (newRaid.crew_id !== crewId) return
-        useCombatStore.getState().setActiveRaid(newRaid)
+        const store = useCombatStore.getState()
+        // Skip if this INSERT is for a raid already in the store — a late-arriving
+        // Postgres Changes event (after HP patches from COMBAT: messages) would
+        // otherwise overwrite patched HP with the original spawn-time max HP
+        if (store.activeRaid?.id === newRaid.id) return
+        store.setActiveRaid(newRaid)
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'revive_tokens' }, (payload) => {
         const row = payload.new as { crew_id: string; count: number }

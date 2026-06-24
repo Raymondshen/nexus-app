@@ -17,9 +17,9 @@ crew_members        id, crew_id, user_id, class, joined_at, last_seen
 messages            id, crew_id, user_id, content, message_type, element_type, xp_awarded, reactions (jsonb default '{}'), reply_to_id, reply_preview, reply_username, image_url, image_blur_hash, pinned (bool default false), pinned_by (uuid nullable), pinned_at (timestamptz nullable), pin_expires_at (timestamptz nullable), created_at
 crew_xp_log         id, crew_id, user_id, xp_amount, source, created_at
 bosses              id, name, type (void|ghost|flood|scheduled), max_hp, weak_element, description
-active_raids        id, crew_id, boss_id, current_hp, max_hp, phase, started_at, expires_at, defeated_at, mvp_user_id, expiry_notif_sent, last_boss_attack_at (timestamptz nullable), guard_user_id (uuid nullable), guard_expires_at (timestamptz nullable), volley_expires_at (timestamptz nullable)
+active_raids        id, crew_id, boss_id, current_hp, max_hp, phase, started_at, expires_at, defeated_at, mvp_user_id, expiry_notif_sent, last_boss_attack_at (timestamptz nullable), guard_user_id (uuid nullable), guard_expires_at (timestamptz nullable), volley_expires_at (timestamptz nullable) — supabase_realtime
 crew_combat_members id, raid_id (→ active_raids CASCADE), user_id (→ profiles CASCADE), class, current_hp, max_hp, current_mp (default 0), max_mp, is_downed (bool default false), downed_at (timestamptz nullable), guard_expires_at (timestamptz nullable), momentum_stack (int default 0), last_msg_at (timestamptz nullable), created_at — UNIQUE(raid_id, user_id); supabase_realtime
-revive_tokens       crew_id (PK → crews CASCADE), count (int default 5)
+revive_tokens       crew_id (PK → crews CASCADE), count (int default 5) — supabase_realtime
 artifacts           id, crew_id, name, rarity (common|rare|epic|legendary), source_boss_id, earned_at, mvp_user_id, asset_type, metadata
 push_subscriptions  id, user_id, crew_id (nullable), endpoint (UNIQUE), p256dh, auth, created_at
 notification_preferences   user_id (PK), notif_messages, notif_raids, notif_victory, updated_at
@@ -69,7 +69,7 @@ All `SECURITY DEFINER`. Declared in `Database.Functions` in `src/types/index.ts`
 ## Game Values
 
 XP: first-msg-today=10 (flat, one-time per UTC day) · all other messages=1 · reactions use `react-to-message` (unchanged)
-Anti-spam: gap < 5s since sender's last message → 0 XP, 0 coins (soft block)
+Anti-spam: gap < 5s since sender's last message → 0 XP, 0 coins, 0 damage (soft block)
 
 Coins: text/voice/image=1 · reaction/system=0 · generate-invite=−25 · seed-to-new-user=+50 · blocked when softBlocked
 - `handle_new_user` trigger → 50 signup bonus · invite alphabet: `ABCDEFGHJKLMNPQRSTUVWXYZ23456789`
@@ -196,6 +196,7 @@ localStorage:
 - **Scroll**: initial → `scrollTop = scrollHeight`; new Realtime append → `virtualizer.scrollToIndex(last, 'end', smooth)` if near bottom or own send; `skipAutoScrollRef` prevents auto-scroll fighting anchor restoration in the same render cycle
 - **Pinned scroll**: `findIndex` on items array by message id → `virtualizer.scrollToIndex(idx, 'center', smooth)`
 - Postgres Changes UPDATE: skip `reactions:{}` when local has reactions (award-xp race); patch also picks up pin fields (`pinned`, `pinned_by`, `pinned_at`, `pin_expires_at`)
+- **Combat HP/phase source of truth**: on Postgres Changes INSERT for `message_type === 'system'` with combat content, parses the system message to patch combatStore — `COMBAT:attack/volley/backstab/cast` → `patchRaid({ current_hp: parts[4] })`; `COMBAT:phase` → `patchRaid({ phase })`; `COMBAT:victory/escaped` → `setActiveRaid(null)` + `setAllMembers([])`. This is more reliable than `active_raids` realtime UPDATEs, which arrive out of order and would overwrite correct HP with stale values.
 - Each message bubble wrapped in `<div id="msg-{id}">` for legacy DOM scroll-to-pin fallback
 
 ### MessageBubble — text rendering
@@ -220,7 +221,9 @@ OG previews: `extractFirstUrl` → `useOGPreview` hook → `<LinkPreviewCard>` b
 - `GifIcon` (`src/components/icons/GifIcon.tsx`): custom 24×24 SVG with `currentColor` fill; used as GIF button in ChatInput row
 - DM mode hides XP bar + expanded panel
 - Combat gate: `isDevUser && combatEnabled` — all 4 combat hooks (seed effect, realtime effect, `callAttackBoss`, render) check both flags
+- Both the seed effect and realtime subscription have `combatEnabled` in their dep arrays (not just `[]` on mount) — otherwise they run before `localStorage` is read and skip combat setup silently
 - `callAttackBoss` fires fire-and-forget after every message send; no-ops if `!isDevUser || !combatEnabled`
+- `active_raids` Postgres Changes UPDATE handler **only** patches `guard_user_id`, `guard_expires_at`, `volley_expires_at`, `last_boss_attack_at` — it must NOT touch `current_hp` or `phase`; those are owned by COMBAT:* system message INSERTs (see MessageList)
 - `AbilityButton` renders when `isDevUser && combatEnabled && !isDM && userCombatClass && activeRaid`; prop `username` required (passed from `userProfile.username`)
 
 ### Pin Feature (dev-gated: `nexus_pin_feature`)
@@ -252,6 +255,7 @@ OG previews: `extractFirstUrl` → `useOGPreview` hook → `<LinkPreviewCard>` b
 
 **MessageList combat wiring** (`parseCombatEvent` + `parseDamageFloat` — module-level functions before `MessageList` component):
 - On `postgres_changes INSERT` for `message_type === 'system'` when `combatEnabled`: calls `parseCombatEvent(content)` → `combatStore.addCombatEvent(event)` (capped at 200); calls `parseDamageFloat(content)` → `combatStore.spawnDamageFloat(...)` for attack/volley/backstab/cast only; float x = `window.innerWidth * 0.5 + (Math.random() * 80 - 40)`, y = `window.innerHeight * 0.65`
+- Also patches combatStore HP/phase from the same INSERT (see MessageList section above — this is the authoritative path, not `active_raids` realtime UPDATEs)
 
 **combatStore** (`src/store/combatStore.ts`): Zustand store
 - State: `activeRaid | null`, `memberStats: Record<userId, CombatMember>`, `combatEvents: CombatEvent[]` (cap 200), `reviveTokens: number`, `damageFloats: DamageFloat[]`
@@ -260,10 +264,12 @@ OG previews: `extractFirstUrl` → `useOGPreview` hook → `<LinkPreviewCard>` b
 
 **Components** (`src/components/game/`):
 - `AbilityButton` — class-specific ability button; prop `username: string` required; shows MP fill bar + cost; renders `null` when `!activeRaid || !member`
-- `BossCard` — boss display card shown in MessageList for BOSS_SPAWN events
+- `BossCard` — sticky boss HUD reads from combatStore; HP bar uses Framer Motion `animate={{ width }}` (reliable here, not in a virtualizer); countdown timer: `anchor = last_boss_attack_at ?? started_at` — falls back to `started_at` when no boss attack has fired yet (avoids "0s" on fresh spawns)
 - `CombatHUD` — member HP/MP bars + boss phase indicator
 - `CombatLog` — scrollable feed of `CombatEvent[]` from combatStore
 - `DamageFloat` — `position: fixed` viewport-overlay floating damage numbers; spawned per attack event
+
+**BossSpawnMessage** (in `MessageBubble.tsx`): the `BOSS_SPAWN:*` system chat bubble shows a live HP bar by reading `useCombatStore((s) => s.activeRaid)`. Bar uses a plain `<div>` with inline `style={{ width: \`${hpPct}%\`, transition: 'width 0.5s ease-out' }}` — NOT Framer Motion (see Gotchas).
 
 ### SquadDetailsSheet (`src/components/chat/SquadDetailsSheet.tsx`)
 Trigger: swipe-up or chevron-up · sheet: `z-[70]` (above ticker's z-[60], below action sheets z-[80+]) · `maxHeight: 85vh`
@@ -509,6 +515,7 @@ Full-height swipe-up panel with scroll-integrated pull-to-close (`onPanEnd`, thr
 - `20240103000038` — profiles.last_active_at (timestamptz nullable), update_active() RPC (SECURITY DEFINER, updates own row only)
 - `20240103000040` — board_sections table + RLS (view: crew members; insert: crew members; delete: creator); notes.section_id FK (ON DELETE SET NULL); notes UPDATE policy (creator only)
 - `20240103000041` — combat system: `active_raids` combat columns (last_boss_attack_at, guard_user_id/expires_at, volley_expires_at); `crew_combat_members` table + RLS + realtime; `revive_tokens` table + RLS + seed; `init_combat_members`, `apply_boss_damage`, `use_revive_token` RPCs
+- `20240103000042` — `active_raids` + `revive_tokens` added to supabase_realtime publication (required for Postgres Changes UPDATE events to fire on these tables)
 
 Manual SQL applied directly:
 ```sql
@@ -546,3 +553,6 @@ ALTER TABLE crews ADD COLUMN IF NOT EXISTS dm_partner_2 uuid REFERENCES auth.use
 - Optimistic messages carry `tempId: string` (client-only, never sent to server). The TanStack Virtual key is `message.tempId ?? message.id`. Reconciliation **must always** call `updateMessage(tempId, { id: raw.id })` in place — never `removeMessage(tempId)` on success. Removing and re-adding the message causes a virtualizer key swap, which discards the measured height and misaligns scroll position. Only `removeMessage(tempId)` on RPC error (rollback).
 - `insert_message` RPC uses `auth.uid()` internally — returns `null` when called from a service role client. For server-side message inserts (e.g., dev panel `spawnBossAction`), use direct `service.from('messages').insert(...)` instead of the RPC.
 - Vercel Hobby plan only allows daily crons (`0 0 * * *`). Sub-daily expressions like `*/30 * * * *` cause every deployment to fail with "Hobby accounts are limited to daily cron jobs." The `boss-attack` cron was removed from `vercel.json` for this reason. Trigger it from the dev panel or upgrade to Pro for sub-daily scheduling.
+- **Combat HP/phase must come from system message INSERTs, not `active_raids` realtime UPDATEs.** The UPDATE events for `active_raids` arrive out of order relative to the system messages (network/processing jitter) and will overwrite the correct HP the system message just set. Keep the `active_raids` UPDATE handler strictly to guard/volley/timer fields (`guard_user_id`, `guard_expires_at`, `volley_expires_at`, `last_boss_attack_at`).
+- **Don't use Framer Motion `animate={{ width }}` inside a TanStack virtualizer.** With `initial={false}`, Framer Motion has no prior width to interpolate from on first render (the item may not have been mounted before) and snaps to the target value instead of animating. Use a plain `<div>` with CSS `style={{ width: '${pct}%', transition: 'width 0.5s ease-out' }}` for progress bars inside virtualized rows.
+- `init_combat_members` only creates `crew_combat_members` rows for users where `profiles.is_dev = true` AND `crew_members.class` is a combat class (`warrior|healer|archer|rogue|mage`). If a dev user has a chat class (e.g., `berserker`) they won't get a combat row and the HUD won't appear — update their `crew_members.class` to a combat class.

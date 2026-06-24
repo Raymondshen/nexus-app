@@ -615,7 +615,12 @@ export function MessageList({
             const t = p[1]
             if (t === 'attack' || t === 'volley' || t === 'backstab' || t === 'cast') {
               const newHp = Number(p[4])
-              if (!isNaN(newHp)) store.patchRaid({ current_hp: newHp })
+              const curHp = store.activeRaid?.current_hp
+              // Only accept decreasing HP — out-of-order messages (concurrent attackers,
+              // network jitter) must never revert HP to a stale higher value
+              if (!isNaN(newHp) && (curHp === undefined || newHp < curHp)) {
+                store.patchRaid({ current_hp: newHp })
+              }
             } else if (t === 'phase') {
               const newPhase = Number(p[2])
               if (!isNaN(newPhase)) store.patchRaid({ phase: newPhase })
