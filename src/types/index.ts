@@ -361,8 +361,7 @@ export interface CombatMember extends Record<string, unknown> {
   class:            CombatClass
   current_hp:       number
   max_hp:           number
-  current_mp:       number
-  max_mp:           number
+  ability_bank:     number
   is_downed:        boolean
   downed_at:        string | null
   guard_expires_at: string | null

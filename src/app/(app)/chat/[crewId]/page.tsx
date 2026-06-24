@@ -124,7 +124,7 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
     if (initialRaid) {
       const { data: combatMembers } = await supabase
         .from('crew_combat_members')
-        .select('id, raid_id, user_id, class, current_hp, max_hp, current_mp, max_mp, is_downed, downed_at, momentum_stack, last_msg_at, guard_expires_at')
+        .select('id, raid_id, user_id, class, current_hp, max_hp, ability_bank, is_downed, downed_at, momentum_stack, last_msg_at, guard_expires_at')
         .eq('raid_id', initialRaid.id)
       initialMemberStats = Object.fromEntries(
         (combatMembers ?? []).map((m) => [m.user_id, m as CombatMember])

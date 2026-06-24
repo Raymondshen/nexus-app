@@ -31,7 +31,7 @@ const CLASSES: {
     attackDesc:  'ATK-scaled strike. Hits harder at low HP.',
     abilityName: 'GUARD',
     abilityDesc: 'Force the boss to attack you for 60s. Your DEF rises 40%.',
-    abilityCost: 40,
+    abilityCost: 2,
     passiveName: 'LAST STAND',
     passiveDesc: 'Below 30% HP, all damage dealt increases by 20%.',
   },
@@ -43,7 +43,7 @@ const CLASSES: {
     attackDesc:  'Weak hit. Restores 5% of damage dealt back to yourself.',
     abilityName: 'MEND',
     abilityDesc: 'INT-scaled heal to all living crew members. Cannot revive the downed.',
-    abilityCost: 50,
+    abilityCost: 2,
     passiveName: 'SECOND WIND',
     passiveDesc: '+15% to all healing produced — both MEND and Normal Attack self-heal.',
   },
@@ -55,7 +55,7 @@ const CLASSES: {
     attackDesc:  'ATK-scaled hit. High DEX raises crit chance significantly.',
     abilityName: 'VOLLEY',
     abilityDesc: 'Hit + apply a 20% damage-taken debuff on the boss for 30s.',
-    abilityCost: 40,
+    abilityCost: 2,
     passiveName: 'PRECISION',
     passiveDesc: 'Highest natural crit chance in the squad. Aim true.',
   },
@@ -67,7 +67,7 @@ const CLASSES: {
     attackDesc:  'Fast ATK-scaled hit. Consecutive messages stack a damage bonus.',
     abilityName: 'BACKSTAB',
     abilityDesc: 'Guaranteed crit. 2.5× damage if boss is above 50% HP.',
-    abilityCost: 35,
+    abilityCost: 2,
     passiveName: 'MOMENTUM',
     passiveDesc: 'Each message stacks +5% dmg (cap 25%). Resets after 1hr silence.',
   },
@@ -79,7 +79,7 @@ const CLASSES: {
     attackDesc:  'Highest ATK of any class. Hits hardest on every normal attack.',
     abilityName: 'CAST',
     abilityDesc: '3× ATK arcane nuke. Crit-eligible.',
-    abilityCost: 55,
+    abilityCost: 2,
     passiveName: 'ARCANE WARD',
     passiveDesc: 'Below 40% HP, your DEF is multiplied by 1.3 dynamically.',
   },
@@ -87,8 +87,8 @@ const CLASSES: {
 
 // ─── Stat bar ─────────────────────────────────────────────────────────────────
 
-const STAT_KEYS: Array<keyof typeof CLASS_BASE_STATS['warrior']> = ['hp', 'atk', 'def', 'dex', 'mp', 'int']
-const STAT_MAX: Record<string, number> = { hp: 42, mp: 85, atk: 22, dex: 22, def: 24, int: 26 }
+const STAT_KEYS: Array<keyof typeof CLASS_BASE_STATS['warrior']> = ['hp', 'atk', 'def', 'dex', 'int']
+const STAT_MAX: Record<string, number> = { hp: 42, atk: 22, dex: 22, def: 24, int: 26 }
 
 function StatRow({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
   const pct = Math.min(100, (value / max) * 100)
@@ -189,7 +189,7 @@ function ClassSlide({ cls, visible }: { cls: typeof CLASSES[number]; visible: bo
               ABILITY — {cls.abilityName}
             </p>
             <span className="font-silkscreen" style={{ fontSize: 7, color: 'var(--color-tertiary)' }}>
-              {cls.abilityCost} MP
+              Cost: {cls.abilityCost}
             </span>
           </div>
           <p className="font-silkscreen leading-relaxed" style={{ fontSize: 8, color: 'var(--color-secondary)' }}>

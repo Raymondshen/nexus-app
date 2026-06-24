@@ -12,7 +12,7 @@ interface CombatStore {
   patchRaid:         (patch: Partial<ActiveRaid>) => void
   setMemberStats:    (userId: string, stats: CombatMember) => void
   patchMemberHP:     (userId: string, hp: number, downed: boolean, downedAt: string | null) => void
-  patchMemberMP:     (userId: string, mp: number) => void
+  patchMemberBank:   (userId: string, bank: number) => void
   patchMemberMomentum: (userId: string, stack: number) => void
   setAllMembers:     (members: CombatMember[]) => void
   addCombatEvent:    (event: CombatEvent) => void
@@ -52,11 +52,11 @@ export const useCombatStore = create<CombatStore>((set) => ({
       return { memberStats: { ...s.memberStats, [userId]: { ...m, current_hp: hp, is_downed: downed, downed_at: downedAt } } }
     }),
 
-  patchMemberMP: (userId, mp) =>
+  patchMemberBank: (userId, bank) =>
     set((s) => {
       const m = s.memberStats[userId]
       if (!m) return {}
-      return { memberStats: { ...s.memberStats, [userId]: { ...m, current_mp: mp } } }
+      return { memberStats: { ...s.memberStats, [userId]: { ...m, ability_bank: bank } } }
     }),
 
   patchMemberMomentum: (userId, stack) =>

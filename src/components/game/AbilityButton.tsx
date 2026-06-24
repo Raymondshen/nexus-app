@@ -13,12 +13,14 @@ interface AbilityButtonProps {
   username:  string
 }
 
-const ABILITY_INFO: Record<CombatClass, { name: string; cost: number; key: string; desc: string; color: string }> = {
-  warrior: { name: 'GUARD',    cost: 40, key: 'guard',    desc: 'Taunt + DEF+40% for 60s', color: '#ef4444' },
-  healer:  { name: 'MEND',     cost: 50, key: 'mend',     desc: 'Heal all living members',  color: '#22c55e' },
-  archer:  { name: 'VOLLEY',   cost: 40, key: 'volley',   desc: 'Boss takes +20% dmg 30s',  color: '#ffd700' },
-  rogue:   { name: 'BACKSTAB', cost: 35, key: 'backstab', desc: 'Guaranteed crit strike',   color: '#bf5fff' },
-  mage:    { name: 'CAST',     cost: 55, key: 'cast',     desc: '3× ATK arcane nuke',       color: '#00e5ff' },
+const ABILITY_COST = 2  // flat cost for every class
+
+const ABILITY_INFO: Record<CombatClass, { name: string; key: string; desc: string; color: string }> = {
+  warrior: { name: 'GUARD',    key: 'guard',    desc: 'Taunt + DEF+40% for 60s', color: '#ef4444' },
+  healer:  { name: 'MEND',     key: 'mend',     desc: 'Heal all living members',  color: '#22c55e' },
+  archer:  { name: 'VOLLEY',   key: 'volley',   desc: 'Boss takes +20% dmg 30s',  color: '#ffd700' },
+  rogue:   { name: 'BACKSTAB', key: 'backstab', desc: 'Guaranteed crit strike',   color: '#bf5fff' },
+  mage:    { name: 'CAST',     key: 'cast',     desc: '3× ATK arcane nuke',       color: '#00e5ff' },
 }
 
 export function AbilityButton({ crewId, userId, userClass, username }: AbilityButtonProps) {
@@ -26,13 +28,13 @@ export function AbilityButton({ crewId, userId, userClass, username }: AbilityBu
   const [toast,   setToast]   = useState<{ text: string; ok: boolean } | null>(null)
   const { activeRaid, memberStats } = useCombatStore()
 
-  const ability = ABILITY_INFO[userClass]
-  const member  = memberStats[userId]
-  const hasMP   = member ? member.current_mp >= ability.cost : false
-  const downed  = member?.is_downed ?? false
+  const ability   = ABILITY_INFO[userClass]
+  const member    = memberStats[userId]
+  const canAfford = member ? member.ability_bank >= ABILITY_COST : false
+  const downed    = member?.is_downed ?? false
 
   const fire = useCallback(async () => {
-    if (firing || !hasMP || downed || !activeRaid) return
+    if (firing || !canAfford || downed || !activeRaid) return
     setFiring(true)
     try {
       const res = await fetch(`${SUPABASE_URL}/functions/v1/attack-boss`, {
@@ -50,7 +52,7 @@ export function AbilityButton({ crewId, userId, userClass, username }: AbilityBu
       })
       const data = await res.json() as { ability?: string; ability_blocked?: boolean; reason?: string; dmg?: number; heal_amount?: number; downed?: boolean }
       if (data.ability_blocked) {
-        setToast({ text: 'Not enough MP', ok: false })
+        setToast({ text: 'Need 2 charges', ok: false })
       } else if (data.downed) {
         setToast({ text: "You're downed!", ok: false })
       } else {
@@ -63,44 +65,34 @@ export function AbilityButton({ crewId, userId, userClass, username }: AbilityBu
       setFiring(false)
       setTimeout(() => setToast(null), 2000)
     }
-  }, [firing, hasMP, downed, activeRaid, crewId, userId, ability]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [firing, canAfford, downed, activeRaid, crewId, userId, ability]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!activeRaid || !member) return null
 
-  const mpPct  = member ? (member.current_mp / member.max_mp) * 100 : 0
-  const color  = ability.color
+  const color = ability.color
 
   return (
     <div className="relative">
       <button
         onClick={fire}
-        disabled={firing || !hasMP || downed}
+        disabled={firing || !canAfford || downed}
         className="flex flex-col items-center justify-center gap-0.5 transition-opacity disabled:opacity-40"
         style={{
-          width:        56,
-          height:       44,
-          background:   hasMP && !downed ? `${color}18` : '#1a0d2e',
-          border:       `1px solid ${hasMP && !downed ? color + '66' : '#2a1545'}`,
-          position:     'relative',
-          overflow:     'hidden',
+          width:      56,
+          height:     44,
+          background: canAfford && !downed ? `${color}18` : '#1a0d2e',
+          border:     `1px solid ${canAfford && !downed ? color + '66' : '#2a1545'}`,
         }}
-        aria-label={`Use ${ability.name} (${ability.cost} MP)`}
+        aria-label={`Use ${ability.name} (Cost: ${ABILITY_COST})`}
       >
-        {/* MP fill indicator behind content */}
-        <div
-          className="absolute inset-x-0 bottom-0 transition-all duration-300"
-          style={{ height: `${mpPct}%`, background: `${color}18` }}
-        />
-
-        <span className="font-pixel relative z-[1]" style={{ fontSize: 6, color: hasMP ? color : '#6b4f8f' }}>
+        <span className="font-pixel" style={{ fontSize: 6, color: canAfford ? color : '#6b4f8f' }}>
           {ability.name}
         </span>
-        <span className="font-silkscreen relative z-[1]" style={{ fontSize: 7, color: 'var(--color-tertiary)' }}>
-          {member.current_mp}/{ability.cost}MP
+        <span className="font-silkscreen" style={{ fontSize: 7, color: 'var(--color-tertiary)' }}>
+          Cost: {ABILITY_COST}
         </span>
       </button>
 
-      {/* Feedback toast */}
       <AnimatePresence>
         {toast && (
           <motion.div

@@ -4,16 +4,16 @@ import type { CombatClass } from '@/types'
 // ─── Class base stats (Level 1) ──────────────────────────────────────────────
 
 export interface ClassStats {
-  hp: number; mp: number; atk: number
+  hp: number; atk: number
   spd: number; dex: number; def: number; int: number
 }
 
 export const CLASS_BASE_STATS: Record<CombatClass, ClassStats> = {
-  warrior: { hp: 42, mp: 60, atk: 18, spd: 12, dex: 10, def: 24, int:  8 },
-  healer:  { hp: 32, mp: 80, atk:  8, spd: 14, dex: 10, def: 15, int: 26 },
-  archer:  { hp: 28, mp: 65, atk: 16, spd: 16, dex: 22, def: 12, int:  5 },
-  rogue:   { hp: 24, mp: 55, atk: 20, spd: 22, dex: 16, def: 10, int:  5 },
-  mage:    { hp: 24, mp: 85, atk: 22, spd: 13, dex:  8, def:  8, int: 24 },
+  warrior: { hp: 42, atk: 18, spd: 12, dex: 10, def: 24, int:  8 },
+  healer:  { hp: 32, atk:  8, spd: 14, dex: 10, def: 15, int: 26 },
+  archer:  { hp: 28, atk: 16, spd: 16, dex: 22, def: 12, int:  5 },
+  rogue:   { hp: 24, atk: 20, spd: 22, dex: 16, def: 10, int:  5 },
+  mage:    { hp: 24, atk: 22, spd: 13, dex:  8, def:  8, int: 24 },
 }
 
 /** All 7 stats scaled to the given level. */
@@ -22,7 +22,6 @@ export function statsAtLevel(cls: CombatClass, level: number): ClassStats {
   const scale = (v: number) => Math.round(v * (1 + 0.018 * (level - 1)))
   return {
     hp:  scale(base.hp),
-    mp:  scale(base.mp),
     atk: scale(base.atk),
     spd: scale(base.spd),
     dex: scale(base.dex),

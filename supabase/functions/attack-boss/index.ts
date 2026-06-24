@@ -8,9 +8,13 @@
  *   1. Spawn a new boss raid when no active one exists (dev users only)
  *   2. Process player's Normal Attack against the active boss
  *   3. Handle ability use (/guard, /mend, /volley, /backstab, /cast)
- *   4. Fill the player's MP after an eligible attack
+ *   4. Fill the player's Ability Bank after an eligible attack
+ *      Eligibility: text ≥5 chars OR image, not soft-blocked, not exact
+ *      repeat of sender's previous message in this crew.
  *   5. Handle Rogue momentum, Warrior Last Stand, Healer self-heal, Arcane Ward
  *   6. Broadcast combat events on the messages:{crewId} channel
+ *
+ * Ability Bank: all abilities cost 2 charges; eligible messages earn 1 charge.
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -23,18 +27,18 @@ const CORS = {
 
 // ─── Stat formulas (mirrored from src/lib/game/combat.ts) ────────────────────
 
-const CLASS_BASE_STATS: Record<string, { hp: number; mp: number; atk: number; spd: number; dex: number; def: number; int: number }> = {
-  warrior: { hp: 42, mp: 60, atk: 18, spd: 12, dex: 10, def: 24, int:  8 },
-  healer:  { hp: 32, mp: 80, atk:  8, spd: 14, dex: 10, def: 15, int: 26 },
-  archer:  { hp: 28, mp: 65, atk: 16, spd: 16, dex: 22, def: 12, int:  5 },
-  rogue:   { hp: 24, mp: 55, atk: 20, spd: 22, dex: 16, def: 10, int:  5 },
-  mage:    { hp: 24, mp: 85, atk: 22, spd: 13, dex:  8, def:  8, int: 24 },
+const CLASS_BASE_STATS: Record<string, { hp: number; atk: number; spd: number; dex: number; def: number; int: number }> = {
+  warrior: { hp: 42, atk: 18, spd: 12, dex: 10, def: 24, int:  8 },
+  healer:  { hp: 32, atk:  8, spd: 14, dex: 10, def: 15, int: 26 },
+  archer:  { hp: 28, atk: 16, spd: 16, dex: 22, def: 12, int:  5 },
+  rogue:   { hp: 24, atk: 20, spd: 22, dex: 16, def: 10, int:  5 },
+  mage:    { hp: 24, atk: 22, spd: 13, dex:  8, def:  8, int: 24 },
 }
 
 function statsAtLevel(cls: string, level: number) {
   const base = CLASS_BASE_STATS[cls] ?? CLASS_BASE_STATS.warrior
   const scale = (v: number) => Math.round(v * (1 + 0.018 * (level - 1)))
-  return { hp: scale(base.hp), mp: scale(base.mp), atk: scale(base.atk), dex: scale(base.dex), def: scale(base.def), int: scale(base.int) }
+  return { hp: scale(base.hp), atk: scale(base.atk), dex: scale(base.dex), def: scale(base.def), int: scale(base.int) }
 }
 
 function critChance(dex: number) { return Math.min(0.05 + dex * 0.006, 0.50) }
@@ -56,19 +60,13 @@ function bossStatsForLevel(crewLevel: number) {
   }
 }
 
-// MP fill per eligible message
-const MP_FILL = 10
+// Ability Bank constants
+const BANK_COST = 2  // charges spent per ability use (all classes)
+const BANK_FILL = 1  // charges earned per eligible message
+
 // Rogue momentum decay: 1hr
 const ROGUE_DECAY_MS = 60 * 60 * 1000
 
-// Ability MP costs
-const ABILITY_MP: Record<string, number> = {
-  guard:    40,
-  mend:     50,
-  volley:   40,
-  backstab: 35,
-  cast:     55,
-}
 // Ability durations in ms
 const GUARD_DURATION_MS  = 60_000
 const VOLLEY_DURATION_MS = 30_000
@@ -102,7 +100,7 @@ Deno.serve(async (req: Request) => {
   try {
     const {
       crew_id, user_id, username,
-      message_type,      // text|image|reaction|system — used to gate MP fill
+      message_type,      // text|image|reaction|system — used to gate bank fill
       soft_blocked,      // passed from award-xp result (5s cooldown)
       is_ability,        // true when user triggered an ability
       ability_type,      // guard|mend|volley|backstab|cast
@@ -147,12 +145,10 @@ Deno.serve(async (req: Request) => {
 
       if (!crew) return json({ skipped: true, reason: 'no_crew' })
 
-      // Spawn when no raid exists (continuous loop after defeat/expiry)
       const bossStats = bossStatsForLevel(crew.level ?? 1)
       const now = new Date()
-      const expiresAt = new Date(now.getTime() + 48 * 60 * 60 * 1000) // 48h window
+      const expiresAt = new Date(now.getTime() + 48 * 60 * 60 * 1000)
 
-      // Look up The Void boss id
       const { data: boss } = await supabase
         .from('bosses')
         .select('id, name')
@@ -177,20 +173,18 @@ Deno.serve(async (req: Request) => {
 
       if (raidErr || !newRaid) return json({ skipped: true, reason: 'spawn_failed', detail: raidErr?.message })
 
-      // Initialize combat members for dev users in this crew
       await supabase.rpc('init_combat_members', {
         p_raid_id:    newRaid.id,
         p_crew_id:    crew_id,
         p_crew_level: crew.level ?? 1,
       })
 
-      // Broadcast spawn event
       await supabase.from('messages').insert({
         crew_id,
         user_id,
         content:      `BOSS_SPAWN:${boss.name}:${bossStats.hp}`,
         message_type: 'system',
-        element_type: 'void' in {} ? null : null, // arcane?
+        element_type: null,
         xp_awarded:   0,
       })
 
@@ -207,7 +201,6 @@ Deno.serve(async (req: Request) => {
 
     if (!member) return json({ skipped: true, reason: 'no_combat_row' })
 
-    // Downed check (ability use also blocked while downed)
     if (member.is_downed) {
       return json({ downed: true, message: "You're down. Someone needs to revive you." })
     }
@@ -216,33 +209,30 @@ Deno.serve(async (req: Request) => {
     const stats = statsAtLevel(member.class, crewLevel)
 
     // ── ABILITY USE ──────────────────────────────────────────────────────────
-    if (is_ability && ability_type && ABILITY_MP[ability_type] !== undefined) {
-      const mpCost = ABILITY_MP[ability_type]
-      if (member.current_mp < mpCost) {
-        return json({ ability_blocked: true, reason: 'insufficient_mp', current_mp: member.current_mp, cost: mpCost })
+    if (is_ability && ability_type) {
+      if (member.ability_bank < BANK_COST) {
+        return json({ ability_blocked: true, reason: 'insufficient_bank', current_bank: member.ability_bank, cost: BANK_COST })
       }
 
-      const newMP = member.current_mp - mpCost
-      const now   = new Date()
+      const newBank = member.ability_bank - BANK_COST
+      const now     = new Date()
 
       switch (ability_type) {
         case 'guard': {
           const expiresAt = new Date(now.getTime() + GUARD_DURATION_MS).toISOString()
           await Promise.all([
-            supabase.from('crew_combat_members').update({ current_mp: newMP, guard_expires_at: expiresAt }).eq('id', member.id),
+            supabase.from('crew_combat_members').update({ ability_bank: newBank, guard_expires_at: expiresAt }).eq('id', member.id),
             supabase.from('active_raids').update({ guard_user_id: user_id, guard_expires_at: expiresAt }).eq('id', raid.id),
           ])
           await supabase.from('messages').insert({
             crew_id, user_id,
-            content: `COMBAT:guard:${username}:${newMP}/${stats.mp}`,
+            content: `COMBAT:guard:${username}:${newBank}`,
             message_type: 'system', element_type: null, xp_awarded: 0,
           })
-          return json({ ability: 'guard', mp_remaining: newMP, guard_expires_at: expiresAt })
+          return json({ ability: 'guard', bank_remaining: newBank, guard_expires_at: expiresAt })
         }
 
         case 'mend': {
-          // INT-scaled crew-wide heal; does NOT revive downed members
-          // Second Wind passive: +15% to all healing the Healer produces
           const healAmount = Math.max(5, Math.round(stats.int * 1.5 * 1.15))
           const { data: aliveMembers } = await supabase
             .from('crew_combat_members')
@@ -257,23 +247,22 @@ Deno.serve(async (req: Request) => {
           )
           await Promise.all([
             ...updates,
-            supabase.from('crew_combat_members').update({ current_mp: newMP }).eq('id', member.id),
+            supabase.from('crew_combat_members').update({ ability_bank: newBank }).eq('id', member.id),
           ])
           await supabase.from('messages').insert({
             crew_id, user_id,
-            content: `COMBAT:mend:${username}:${healAmount}:${newMP}/${stats.mp}`,
+            content: `COMBAT:mend:${username}:${healAmount}:${newBank}`,
             message_type: 'system', element_type: null, xp_awarded: 0,
           })
-          return json({ ability: 'mend', heal_amount: healAmount, mp_remaining: newMP })
+          return json({ ability: 'mend', heal_amount: healAmount, bank_remaining: newBank })
         }
 
         case 'volley': {
           const expiresAt = new Date(now.getTime() + VOLLEY_DURATION_MS).toISOString()
           await Promise.all([
-            supabase.from('crew_combat_members').update({ current_mp: newMP }).eq('id', member.id),
+            supabase.from('crew_combat_members').update({ ability_bank: newBank }).eq('id', member.id),
             supabase.from('active_raids').update({ volley_expires_at: expiresAt }).eq('id', raid.id),
           ])
-          // Apply volley damage (ATK-scaled hit first)
           const volleyActive = true
           const isCrit       = rollCrit(stats.dex)
           let dmg            = stats.atk
@@ -288,14 +277,13 @@ Deno.serve(async (req: Request) => {
 
           await supabase.from('messages').insert({
             crew_id, user_id,
-            content: `COMBAT:volley:${username}:${dmg}:${Math.max(0, newBossHP)}:${newMP}/${stats.mp}`,
+            content: `COMBAT:volley:${username}:${dmg}:${Math.max(0, newBossHP)}:${newBank}`,
             message_type: 'system', element_type: null, xp_awarded: 0,
           })
-          return json({ ability: 'volley', dmg, new_boss_hp: newBossHP, volley_expires_at: expiresAt, mp_remaining: newMP })
+          return json({ ability: 'volley', dmg, new_boss_hp: newBossHP, volley_expires_at: expiresAt, bank_remaining: newBank })
         }
 
         case 'backstab': {
-          // Guaranteed crit; 2.5× if boss HP > 50%, else standard 1.5×
           const bossHPPct = raid.current_hp / raid.max_hp
           const critMult  = bossHPPct > 0.5 ? 2.5 : 1.5
           const volleyActive = raid.volley_expires_at != null && new Date(raid.volley_expires_at as string) > now
@@ -303,7 +291,7 @@ Deno.serve(async (req: Request) => {
           if (volleyActive) dmg = Math.round(dmg * 1.2)
           dmg = Math.max(1, dmg)
 
-          await supabase.from('crew_combat_members').update({ current_mp: newMP, momentum_stack: 0 }).eq('id', member.id)
+          await supabase.from('crew_combat_members').update({ ability_bank: newBank, momentum_stack: 0 }).eq('id', member.id)
           const { data: raidResult } = await supabase.rpc('damage_raid', {
             p_raid_id: raid.id, p_damage: dmg, p_user_id: user_id,
           })
@@ -312,16 +300,15 @@ Deno.serve(async (req: Request) => {
 
           await supabase.from('messages').insert({
             crew_id, user_id,
-            content: `COMBAT:backstab:${username}:${dmg}:${Math.max(0, newBossHP)}:${newMP}/${stats.mp}`,
+            content: `COMBAT:backstab:${username}:${dmg}:${Math.max(0, newBossHP)}:${newBank}`,
             message_type: 'system', element_type: null, xp_awarded: 0,
           })
 
           if (defeated) await handleVictory(supabase, raid.id, crew_id, user_id, username)
-          return json({ ability: 'backstab', dmg, is_crit: true, new_boss_hp: newBossHP, defeated, mp_remaining: newMP })
+          return json({ ability: 'backstab', dmg, is_crit: true, new_boss_hp: newBossHP, defeated, bank_remaining: newBank })
         }
 
         case 'cast': {
-          // INT-scaled nuke: 3× normal ATK-scaled hit
           const volleyActive = raid.volley_expires_at != null && new Date(raid.volley_expires_at as string) > now
           const isCrit       = rollCrit(stats.dex)
           let dmg            = stats.atk * 3
@@ -329,7 +316,7 @@ Deno.serve(async (req: Request) => {
           if (volleyActive)  dmg = Math.round(dmg * 1.2)
           dmg                = Math.max(1, Math.round(dmg))
 
-          await supabase.from('crew_combat_members').update({ current_mp: newMP }).eq('id', member.id)
+          await supabase.from('crew_combat_members').update({ ability_bank: newBank }).eq('id', member.id)
           const { data: raidResult } = await supabase.rpc('damage_raid', {
             p_raid_id: raid.id, p_damage: dmg, p_user_id: user_id,
           })
@@ -338,49 +325,45 @@ Deno.serve(async (req: Request) => {
 
           await supabase.from('messages').insert({
             crew_id, user_id,
-            content: `COMBAT:cast:${username}:${dmg}:${Math.max(0, newBossHP)}:${newMP}/${stats.mp}`,
+            content: `COMBAT:cast:${username}:${dmg}:${Math.max(0, newBossHP)}:${newBank}`,
             message_type: 'system', element_type: null, xp_awarded: 0,
           })
 
           if (defeated) await handleVictory(supabase, raid.id, crew_id, user_id, username)
-          return json({ ability: 'cast', dmg, is_crit: isCrit, new_boss_hp: newBossHP, defeated, mp_remaining: newMP })
+          return json({ ability: 'cast', dmg, is_crit: isCrit, new_boss_hp: newBossHP, defeated, bank_remaining: newBank })
         }
+
+        default:
+          return json({ skipped: true, reason: 'unknown_ability' })
       }
     }
 
     // ── NORMAL ATTACK ────────────────────────────────────────────────────────
 
-    // Only text/image messages trigger attacks (not system/reaction/poll)
     if (!['text', 'image'].includes(message_type)) return json({ skipped: true, reason: 'message_type' })
-
-    // Soft-blocked messages (sent within 5s of previous) deal no damage — same gate as XP/coins
     if (soft_blocked) return json({ skipped: true, reason: 'soft_blocked' })
 
     const now         = new Date()
     const volleyActive = raid.volley_expires_at != null && new Date(raid.volley_expires_at as string) > now
     const isCrit      = rollCrit(stats.dex)
 
-    // ── Per-class Normal Attack ──────────────────────────────────────────────
     let dmg       = stats.atk
     let selfHeal  = 0
 
-    // Warrior Last Stand: HP < 30% → +20%
     const hpPct = member.current_hp / member.max_hp
     if (member.class === 'warrior' && hpPct < 0.30) dmg = Math.round(dmg * 1.2)
 
-    // Rogue Momentum: +5% per stack, cap 25%; decay if > 1hr since last msg
     let newMomentumStack = member.momentum_stack
     if (member.class === 'rogue') {
       const lastMsgAt = member.last_msg_at ? new Date(member.last_msg_at as string).getTime() : 0
       if (lastMsgAt > 0 && now.getTime() - lastMsgAt > ROGUE_DECAY_MS) {
-        newMomentumStack = 0  // decayed
+        newMomentumStack = 0
       }
       const momentumBonus = Math.min(newMomentumStack * 0.05, 0.25)
       if (momentumBonus > 0) dmg = Math.round(dmg * (1 + momentumBonus))
       newMomentumStack = Math.min(newMomentumStack + 1, 5)
     }
 
-    // Healer: weak attack + 5% self-heal (Second Wind passive: +15%)
     if (member.class === 'healer') {
       if (isCrit) dmg = Math.round(dmg * 1.5)
       if (volleyActive) dmg = Math.round(dmg * 1.2)
@@ -392,10 +375,6 @@ Deno.serve(async (req: Request) => {
       dmg = Math.max(1, dmg)
     }
 
-    // Mage Arcane Ward: HP < 40% → DEF × 1.3 (affects incoming damage only; no outgoing change)
-    // Handled at hit-receive time in boss-attack
-
-    // ── Apply damage to boss ─────────────────────────────────────────────────
     const { data: raidResult } = await supabase.rpc('damage_raid', {
       p_raid_id: raid.id,
       p_damage:  dmg,
@@ -405,20 +384,33 @@ Deno.serve(async (req: Request) => {
     const newPhase   = raidResult?.[0]?.phase ?? raid.phase
     const defeated   = newBossHP === 0
 
-    // ── Fill MP ──────────────────────────────────────────────────────────────
-    const mpFill = soft_blocked ? 0 : MP_FILL
-    const newMP  = Math.min(member.max_mp, member.current_mp + mpFill)
+    // ── Bank eligibility: server-authoritative check ─────────────────────────
+    // Fetch 2 most recent text/image messages from this user in this crew.
+    // Eligible if: text ≥5 chars (images always pass), not exact content repeat.
+    const { data: recentMsgs } = await supabase
+      .from('messages')
+      .select('content, message_type')
+      .eq('crew_id', crew_id)
+      .eq('user_id', user_id)
+      .in('message_type', ['text', 'image'])
+      .order('created_at', { ascending: false })
+      .limit(2)
+
+    const latestMsg  = recentMsgs?.[0]
+    const prevMsg    = recentMsgs?.[1]
+    const tooShort   = message_type === 'text' && (latestMsg?.content?.length ?? 0) < 5
+    const isRepeat   = latestMsg && prevMsg && latestMsg.content === prevMsg.content
+    const bankFill   = (!tooShort && !isRepeat) ? BANK_FILL : 0
+    const newBank    = member.ability_bank + bankFill
 
     // ── Update combat member row ─────────────────────────────────────────────
-    const memberUpdates: Record<string, unknown> = { current_mp: newMP, last_msg_at: now.toISOString() }
+    const memberUpdates: Record<string, unknown> = { ability_bank: newBank, last_msg_at: now.toISOString() }
     if (member.class === 'rogue') memberUpdates.momentum_stack = newMomentumStack
     if (selfHeal > 0) {
       memberUpdates.current_hp = Math.min(member.max_hp, member.current_hp + selfHeal)
     }
     await supabase.from('crew_combat_members').update(memberUpdates).eq('id', member.id)
 
-    // ── Broadcast combat event as system message ─────────────────────────────
-    const copyText = attackCopy(member.class, dmg, isCrit)
     await supabase.from('messages').insert({
       crew_id,
       user_id,
@@ -428,7 +420,6 @@ Deno.serve(async (req: Request) => {
       xp_awarded:   0,
     })
 
-    // ── Phase transition message ─────────────────────────────────────────────
     if (newPhase > raid.phase) {
       await supabase.from('messages').insert({
         crew_id,
@@ -440,7 +431,6 @@ Deno.serve(async (req: Request) => {
       })
     }
 
-    // ── Victory ─────────────────────────────────────────────────────────────
     if (defeated) {
       await handleVictory(supabase, raid.id, crew_id, user_id, username)
     }
@@ -450,11 +440,11 @@ Deno.serve(async (req: Request) => {
       is_crit:      isCrit,
       new_boss_hp:  Math.max(0, newBossHP),
       new_phase:    newPhase,
-      mp_fill:      mpFill,
-      new_mp:       newMP,
+      bank_fill:    bankFill,
+      new_bank:     newBank,
       self_heal:    selfHeal,
       momentum:     newMomentumStack,
-      copy:         copyText,
+      copy:         attackCopy(member.class, dmg, isCrit),
       defeated,
     })
 
@@ -472,7 +462,6 @@ async function handleVictory(
   mvpUserId: string,
   mvpUsername: string,
 ) {
-  // Get boss info for artifact drop
   const { data: raid } = await supabase
     .from('active_raids')
     .select('boss_id, max_hp')
@@ -481,7 +470,6 @@ async function handleVictory(
 
   if (!raid) return
 
-  // Rarity roll: legendary 5%, epic 15%, rare 30%, common 50%
   const roll     = Math.random()
   const rarity   = roll < 0.05 ? 'legendary' : roll < 0.20 ? 'epic' : roll < 0.50 ? 'rare' : 'common'
   const rarities = ['⚔️ Common Shard', '💠 Rare Crystal', '🌑 Epic Fragment', '🌟 Legendary Core']

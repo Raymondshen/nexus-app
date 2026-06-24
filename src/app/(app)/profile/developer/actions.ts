@@ -193,18 +193,15 @@ export async function joinRaidAction(crewId: string): Promise<{ ok?: boolean; er
   const { data: crew } = await service.from('crews').select('level').eq('id', crewId).single()
   const crewLevel = (crew as { level: number } | null)?.level ?? 1
 
-  const BASE: Record<string, { hp: number; mp: number }> = {
-    warrior: { hp: 42, mp: 60 }, healer: { hp: 32, mp: 80 },
-    archer:  { hp: 28, mp: 65 }, rogue:  { hp: 24, mp: 55 },
-    mage:    { hp: 24, mp: 85 },
+  const BASE_HP: Record<string, number> = {
+    warrior: 42, healer: 32, archer: 28, rogue: 24, mage: 24,
   }
-  const { hp: baseHp, mp: baseMp } = BASE[cls] ?? { hp: 30, mp: 60 }
+  const baseHp = BASE_HP[cls] ?? 30
   const maxHp = Math.round(baseHp * (1 + 0.018 * (crewLevel - 1)))
-  const maxMp = Math.round(baseMp * (1 + 0.018 * (crewLevel - 1)))
 
   const { error } = await service.from('crew_combat_members').insert({
     raid_id: raidId, user_id: userId, class: cls,
-    current_hp: maxHp, max_hp: maxHp, current_mp: 0, max_mp: maxMp,
+    current_hp: maxHp, max_hp: maxHp, ability_bank: 0,
   })
   if (error) return { error: error.message }
   return { ok: true }

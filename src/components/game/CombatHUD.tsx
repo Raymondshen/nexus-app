@@ -49,30 +49,7 @@ function HPBar({ current, max, cls, downed }: { current: number; max: number; cl
   )
 }
 
-function MPBar({ current, max, cls }: { current: number; max: number; cls: string }) {
-  const pct   = max > 0 ? (current / max) * 100 : 0
-  const color = CLASS_COLOR[cls] ?? 'var(--color-mp)'
 
-  return (
-    <div>
-      <div className="flex justify-between mb-0.5">
-        <span className="font-pixel" style={{ fontSize: 5, color: 'var(--color-tertiary)' }}>MP</span>
-        <span className="font-silkscreen" style={{ fontSize: 7, color: 'var(--color-tertiary)' }}>
-          {current}/{max}
-        </span>
-      </div>
-      <div className="relative h-[3px] rounded-full overflow-hidden" style={{ background: '#1a0d2e' }}>
-        <motion.div
-          className="absolute inset-y-0 left-0 rounded-full"
-          style={{ background: `${color}88` }}
-          initial={false}
-          animate={{ width: `${pct}%` }}
-          transition={{ duration: 0.35, ease: 'easeOut' }}
-        />
-      </div>
-    </div>
-  )
-}
 
 export function CombatHUD({ memberProfiles, currentUserId, crewId }: CombatHUDProps) {
   const [open, setOpen] = useState(false)
@@ -203,7 +180,12 @@ export function CombatHUD({ memberProfiles, currentUserId, crewId }: CombatHUDPr
                   ) : (
                     <div className="flex-1 flex flex-col gap-1">
                       <HPBar current={m.current_hp} max={m.max_hp} cls={m.class} downed={m.is_downed} />
-                      <MPBar current={m.current_mp} max={m.max_mp} cls={m.class} />
+                      <div className="flex items-center justify-between">
+                        <span className="font-pixel" style={{ fontSize: 5, color: 'var(--color-tertiary)' }}>BANK</span>
+                        <span className="font-silkscreen" style={{ fontSize: 7, color: clsColor }}>
+                          {m.ability_bank}
+                        </span>
+                      </div>
                     </div>
                   )}
                 </div>

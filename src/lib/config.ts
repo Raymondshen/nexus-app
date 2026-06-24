@@ -101,9 +101,6 @@ export const REVIVE_TOKEN_COIN_COST = 20
 /** Free revive tokens each crew starts with */
 export const REVIVE_TOKEN_FREE_COUNT = 5
 
-/** MP filled per eligible message (normal, non-soft-blocked) */
-export const MP_FILL_PER_MESSAGE = 10
-
 /** Rogue momentum resets after this many ms of inactivity in a raid */
 export const ROGUE_MOMENTUM_DECAY_MS = 60 * 60 * 1000  // 1 hour
 
