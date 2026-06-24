@@ -507,6 +507,7 @@ Full-height swipe-up panel with scroll-integrated pull-to-close (`onPanEnd`, thr
 - `20240103000024` — squad_definitions UPDATE policy (creator-only)
 - `20240103000025` — squad_definitions actual_word
 - `20240103000026` — definition_suggestions + RLS + realtime (REPLICA IDENTITY FULL)
+- `20240103000028` — client_errors table
 - `20240103000031` — messages UPDATE policy; insert_message + p_image_url + p_image_blur_hash
 - `20240103000032` — drop old insert_message overloads (ambiguous RPC fix)
 - `20240103000035` — profiles.gem_balance + last_gem_claim, claim_daily_gem, profiles_protect_gem_columns trigger
@@ -516,6 +517,7 @@ Full-height swipe-up panel with scroll-integrated pull-to-close (`onPanEnd`, thr
 - `20240103000040` — board_sections table + RLS (view: crew members; insert: crew members; delete: creator); notes.section_id FK (ON DELETE SET NULL); notes UPDATE policy (creator only)
 - `20240103000041` — combat system: `active_raids` combat columns (last_boss_attack_at, guard_user_id/expires_at, volley_expires_at); `crew_combat_members` table + RLS + realtime; `revive_tokens` table + RLS + seed; `init_combat_members`, `apply_boss_damage`, `use_revive_token` RPCs
 - `20240103000042` — `active_raids` + `revive_tokens` added to supabase_realtime publication (required for Postgres Changes UPDATE events to fire on these tables)
+- `fix_damage_raid_ambiguous_column` — damage_raid: qualify `active_raids.defeated_at` in WHERE clause to fix PL/pgSQL `42702: column reference is ambiguous` error; also updated `20240101000002` local file in-place
 
 Manual SQL applied directly:
 ```sql
@@ -556,3 +558,4 @@ ALTER TABLE crews ADD COLUMN IF NOT EXISTS dm_partner_2 uuid REFERENCES auth.use
 - **Combat HP/phase must come from system message INSERTs, not `active_raids` realtime UPDATEs.** The UPDATE events for `active_raids` arrive out of order relative to the system messages (network/processing jitter) and will overwrite the correct HP the system message just set. Keep the `active_raids` UPDATE handler strictly to guard/volley/timer fields (`guard_user_id`, `guard_expires_at`, `volley_expires_at`, `last_boss_attack_at`).
 - **Don't use Framer Motion `animate={{ width }}` inside a TanStack virtualizer.** With `initial={false}`, Framer Motion has no prior width to interpolate from on first render (the item may not have been mounted before) and snaps to the target value instead of animating. Use a plain `<div>` with CSS `style={{ width: '${pct}%', transition: 'width 0.5s ease-out' }}` for progress bars inside virtualized rows.
 - `init_combat_members` only creates `crew_combat_members` rows for users where `profiles.is_dev = true` AND `crew_members.class` is a combat class (`warrior|healer|archer|rogue|mage`). If a dev user has a chat class (e.g., `berserker`) they won't get a combat row and the HUD won't appear — update their `crew_members.class` to a combat class.
+- **`RETURNS TABLE` in PL/pgSQL creates implicit output variables that shadow same-named table columns.** A function declared `RETURNS TABLE(..., defeated_at timestamptz)` introduces an implicit variable named `defeated_at` inside the function body. Any `WHERE defeated_at IS NULL` in a subsequent SQL statement becomes ambiguous (PostgreSQL `42702`). Always qualify table columns (`active_raids.defeated_at`) inside any function that uses `RETURNS TABLE`. This error is silently swallowed if the RPC caller only destructures `data` and ignores `error` — the function returns nothing and any fallback arithmetic in the caller uses a stale value.

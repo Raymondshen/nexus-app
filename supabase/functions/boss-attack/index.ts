@@ -57,6 +57,9 @@ function bossStatsForLevel(crewLevel: number) {
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
 
+  const url   = new URL(req.url)
+  const force = url.searchParams.get('force') === 'true'
+
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL')!,
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
@@ -128,7 +131,7 @@ Deno.serve(async (req: Request) => {
       const lastAttackAt = raid.last_boss_attack_at ? new Date(raid.last_boss_attack_at as string).getTime() : 0
       const timeSinceLast = now.getTime() - lastAttackAt
 
-      if (timeSinceLast < intervalMs) continue  // not yet time
+      if (!force && timeSinceLast < intervalMs) continue  // not yet time
 
       // Fetch all living members for this raid
       const { data: allMembers } = await supabase

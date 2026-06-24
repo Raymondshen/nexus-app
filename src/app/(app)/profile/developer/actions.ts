@@ -163,6 +163,34 @@ export async function resetCombatAction(crewId: string): Promise<{ ok?: boolean;
   return { ok: true }
 }
 
+export async function triggerBossAttackAction(crewId: string): Promise<{ ok?: boolean; error?: string }> {
+  const auth = await requireDev()
+  if ('error' in auth) return { error: auth.error }
+  const { service } = auth
+
+  const { data: raid } = await service
+    .from('active_raids')
+    .select('id')
+    .eq('crew_id', crewId)
+    .is('defeated_at', null)
+    .maybeSingle()
+  if (!raid) return { error: 'No active raid for this crew.' }
+
+  const fnUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/boss-attack?force=true`
+  const res = await fetch(fnUrl, {
+    method:  'POST',
+    headers: {
+      'Content-Type':  'application/json',
+      'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+    },
+  })
+
+  if (!res.ok) return { error: `boss-attack returned ${res.status}` }
+  const data = await res.json() as { error?: string }
+  if (data.error) return { error: data.error }
+  return { ok: true }
+}
+
 export async function resetFriendshipXPAction(): Promise<{ ok?: boolean; error?: string }> {
   const auth = await requireDev()
   if ('error' in auth) return { error: auth.error }

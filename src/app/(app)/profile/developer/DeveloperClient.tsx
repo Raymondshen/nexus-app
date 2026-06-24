@@ -17,6 +17,7 @@ import {
   selfDownAction,
   addReviveTokenAction,
   resetCombatAction,
+  triggerBossAttackAction,
 } from '@/app/(app)/profile/developer/actions'
 import { clearGemClaimRecord } from '@/lib/game/gems'
 
@@ -126,6 +127,7 @@ export function DeveloperClient({ userId: _userId, initialCoins, userCrews }: De
   const [selfDownState,    setSelfDownState]     = useState<ActionState>('idle')
   const [reviveState,      setReviveState]       = useState<ActionState>('idle')
   const [resetState,       setResetState]        = useState<ActionState>('idle')
+  const [bossAttackState,  setBossAttackState]   = useState<ActionState>('idle')
   const [combatError,      setCombatError]       = useState<string | null>(null)
 
   useEffect(() => {
@@ -279,6 +281,12 @@ export function DeveloperClient({ userId: _userId, initialCoins, userCrews }: De
       description: 'Give the selected squad +1 revive token',
       state:       reviveState,
       onPress:     () => runCombatAction(setReviveState, reviveState, () => addReviveTokenAction(selectedCrewId)),
+    },
+    {
+      title:       'Trigger Boss Attack',
+      description: 'Force boss to attack now, bypassing the 2h/1h timer',
+      state:       bossAttackState,
+      onPress:     () => runCombatAction(setBossAttackState, bossAttackState, () => triggerBossAttackAction(selectedCrewId)),
     },
     {
       title:       'Reset Combat',

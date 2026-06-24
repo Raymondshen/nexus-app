@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useCombatStore } from '@/store/combatStore'
 import { BOSS_ATTACK_INTERVAL_MS } from '@/lib/config'
@@ -10,6 +10,7 @@ export function BossCard() {
   const [prevPhase, setPrevPhase] = useState<number | null>(null)
   const [phaseAlert, setPhaseAlert] = useState(false)
   const [timeToNext, setTimeToNext] = useState('')
+  const triggeredRef = useRef(false)
 
   // Phase transition flash
   useEffect(() => {
@@ -22,9 +23,10 @@ export function BossCard() {
     setPrevPhase(raid.phase)
   }, [raid?.phase]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Next-attack countdown
+  // Next-attack countdown — auto-triggers the boss attack when it reaches 0
   useEffect(() => {
     if (!raid) return
+    triggeredRef.current = false  // reset each cycle (fires again after last_boss_attack_at updates)
     const tick = () => {
       const anchor   = raid.last_boss_attack_at
         ? new Date(raid.last_boss_attack_at).getTime()
@@ -36,6 +38,11 @@ export function BossCard() {
       const m        = Math.floor((ms % 3_600_000) / 60_000)
       const s        = Math.floor((ms % 60_000) / 1000)
       setTimeToNext(h > 0 ? `${h}h ${m}m` : m > 0 ? `${m}m ${s}s` : `${s}s`)
+
+      if (ms === 0 && !triggeredRef.current) {
+        triggeredRef.current = true
+        fetch('/api/combat/boss-attack', { method: 'POST' }).catch(() => {})
+      }
     }
     tick()
     const id = setInterval(tick, 1000)
