@@ -610,6 +610,19 @@ export function MessageList({
                 y:      window.innerHeight * 0.65,
               })
             }
+            // Patch raid HP/phase from message content — more reliable than active_raids realtime
+            const p = raw.content.split(':')
+            const t = p[1]
+            if (t === 'attack' || t === 'volley' || t === 'backstab' || t === 'cast') {
+              const newHp = Number(p[4])
+              if (!isNaN(newHp)) store.patchRaid({ current_hp: newHp })
+            } else if (t === 'phase') {
+              const newPhase = Number(p[2])
+              if (!isNaN(newPhase)) store.patchRaid({ phase: newPhase })
+            } else if (t === 'victory' || t === 'escaped') {
+              store.setActiveRaid(null)
+              store.setAllMembers([])
+            }
           }
         }
       )
