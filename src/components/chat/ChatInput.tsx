@@ -233,7 +233,15 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
           store.setActiveRaid(null)
           store.setAllMembers([])
         } else {
-          store.patchRaid(updated)
+          // Only patch fields not owned by system-message patches.
+          // current_hp and phase are patched from COMBAT:* messages to avoid
+          // stale active_raids UPDATE events racing and reverting correct HP.
+          store.patchRaid({
+            guard_user_id:       updated.guard_user_id,
+            guard_expires_at:    updated.guard_expires_at,
+            volley_expires_at:   updated.volley_expires_at,
+            last_boss_attack_at: updated.last_boss_attack_at,
+          })
         }
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'active_raids' }, (payload) => {
