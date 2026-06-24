@@ -283,7 +283,7 @@ Deno.serve(async (req: Request) => {
           const { data: raidResult } = await supabase.rpc('damage_raid', {
             p_raid_id: raid.id, p_damage: dmg, p_user_id: user_id,
           })
-          const newBossHP = raidResult?.[0]?.current_hp ?? raid.current_hp - dmg
+          const newBossHP = Math.round(raidResult?.[0]?.current_hp ?? raid.current_hp - dmg)
 
           await supabase.from('messages').insert({
             crew_id, user_id,
@@ -306,7 +306,7 @@ Deno.serve(async (req: Request) => {
           const { data: raidResult } = await supabase.rpc('damage_raid', {
             p_raid_id: raid.id, p_damage: dmg, p_user_id: user_id,
           })
-          const newBossHP  = raidResult?.[0]?.current_hp ?? 0
+          const newBossHP  = Math.round(raidResult?.[0]?.current_hp ?? 0)
           const defeated   = newBossHP === 0
 
           await supabase.from('messages').insert({
@@ -332,7 +332,7 @@ Deno.serve(async (req: Request) => {
           const { data: raidResult } = await supabase.rpc('damage_raid', {
             p_raid_id: raid.id, p_damage: dmg, p_user_id: user_id,
           })
-          const newBossHP = raidResult?.[0]?.current_hp ?? 0
+          const newBossHP = Math.round(raidResult?.[0]?.current_hp ?? 0)
           const defeated  = newBossHP === 0
 
           await supabase.from('messages').insert({
@@ -400,7 +400,7 @@ Deno.serve(async (req: Request) => {
       p_damage:  dmg,
       p_user_id: user_id,
     })
-    const newBossHP  = raidResult?.[0]?.current_hp ?? Math.max(0, raid.current_hp - dmg)
+    const newBossHP  = Math.round(raidResult?.[0]?.current_hp ?? Math.max(0, raid.current_hp - dmg))
     const newPhase   = raidResult?.[0]?.phase ?? raid.phase
     const defeated   = newBossHP === 0
 

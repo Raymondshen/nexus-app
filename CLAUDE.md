@@ -248,7 +248,7 @@ OG previews: `extractFirstUrl` → `useOGPreview` hook → `<LinkPreviewCard>` b
 | `COMBAT:guard:{username}:{newMP}/{maxMP}` | Warrior guard |
 | `COMBAT:mend:{username}:{healAmount}:{newMP}/{maxMP}` | Healer mend |
 | `COMBAT:boss_attack:{targetUsername}:{dmg}:{newTargetHP}` | Boss hits player |
-| `COMBAT:downed:{username}` | Player downed |
+| `COMBAT:downed:{username}:{dmg}` | Player downed |
 | `COMBAT:phase:{newPhase}` | Phase transition |
 | `COMBAT:victory:{mvpUsername}:{rarity}:{artifactName}` | Boss defeated |
 | `COMBAT:escaped:{bossName}` | Raid expired without defeat |

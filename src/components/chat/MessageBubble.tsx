@@ -1057,7 +1057,7 @@ function BossSpawnMessage({ content }: { content: string }) {
           ◆ {bossName.toUpperCase()} ◆
         </p>
         <p className="font-silkscreen leading-none" style={{ fontSize: 8, color: 'var(--color-tertiary)' }}>
-          {liveHp.toLocaleString()} / {maxHp.toLocaleString()} HP · 48hr window
+          {Math.round(liveHp).toLocaleString()} / {Math.round(maxHp).toLocaleString()} HP · 48hr window
         </p>
         {/* Live HP bar */}
         <div className="w-full" style={{ marginTop: 2 }}>
@@ -1095,7 +1095,7 @@ function CombatMessage({ content }: { content: string }) {
       // COMBAT:attack:username:dmg:newBossHP:isCrit
       const username = parts[2] ?? ''
       const dmg      = parts[3] ?? '0'
-      const hp       = parts[4] ? Number(parts[4]).toLocaleString() : '?'
+      const hp       = parts[4] ? Math.round(Number(parts[4])).toLocaleString() : '?'
       const isCrit   = parts[5] === '1'
       text   = isCrit
         ? `⚡ @${username} landed a CRIT — ${dmg} DMG  ▸ Boss HP: ${hp}`
@@ -1153,7 +1153,7 @@ function CombatMessage({ content }: { content: string }) {
       // COMBAT:volley:username:dmg:newBossHP:mpRemaining/maxMP
       const username = parts[2] ?? ''
       const dmg      = parts[3] ?? '0'
-      const hp       = parts[4] ? Number(parts[4]).toLocaleString() : '?'
+      const hp       = parts[4] ? Math.round(Number(parts[4])).toLocaleString() : '?'
       text   = `🏹 @${username} volleyed — ${dmg} DMG + boss debuffed  ▸ HP: ${hp}`
       color  = '#ffd700'
       border = '#ffd70033'
@@ -1163,7 +1163,7 @@ function CombatMessage({ content }: { content: string }) {
       // COMBAT:backstab:username:dmg:newBossHP:mpRemaining/maxMP
       const username = parts[2] ?? ''
       const dmg      = parts[3] ?? '0'
-      const hp       = parts[4] ? Number(parts[4]).toLocaleString() : '?'
+      const hp       = parts[4] ? Math.round(Number(parts[4])).toLocaleString() : '?'
       text   = `🗡 @${username} BACKSTABBED — ${dmg} DMG  ▸ HP: ${hp}`
       color  = '#bf5fff'
       border = '#bf5fff33'
@@ -1173,7 +1173,7 @@ function CombatMessage({ content }: { content: string }) {
       // COMBAT:cast:username:dmg:newBossHP:mpRemaining/maxMP
       const username = parts[2] ?? ''
       const dmg      = parts[3] ?? '0'
-      const hp       = parts[4] ? Number(parts[4]).toLocaleString() : '?'
+      const hp       = parts[4] ? Math.round(Number(parts[4])).toLocaleString() : '?'
       text   = `✨ @${username} cast — ${dmg} DMG  ▸ HP: ${hp}`
       color  = '#00e5ff'
       border = '#00e5ff33'

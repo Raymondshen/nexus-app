@@ -118,7 +118,7 @@ export function BossCard() {
           <div className="flex justify-between items-center mb-1">
             <span className="font-pixel" style={{ fontSize: 6, color: '#6b4f8f' }}>VOID HP</span>
             <span className="font-silkscreen" style={{ fontSize: 9, color: 'var(--color-primary)' }}>
-              {raid.current_hp.toLocaleString()} / {raid.max_hp.toLocaleString()}
+              {Math.round(raid.current_hp).toLocaleString()} / {Math.round(raid.max_hp).toLocaleString()}
             </span>
           </div>
           <div className="relative h-[6px] rounded-full overflow-hidden" style={{ background: '#2a1545' }}>

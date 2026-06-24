@@ -614,7 +614,7 @@ export function MessageList({
             const p = raw.content.split(':')
             const t = p[1]
             if (t === 'attack' || t === 'volley' || t === 'backstab' || t === 'cast') {
-              const newHp = Number(p[4])
+              const newHp = Math.round(Number(p[4]))
               const curHp = store.activeRaid?.current_hp
               // Only accept decreasing HP — out-of-order messages (concurrent attackers,
               // network jitter) must never revert HP to a stale higher value
