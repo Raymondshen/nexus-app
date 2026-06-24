@@ -45,7 +45,7 @@ const CLASSES: {
     abilityDesc: 'INT-scaled heal to all living crew members. Cannot revive the downed.',
     abilityCost: 50,
     passiveName: 'SECOND WIND',
-    passiveDesc: '+25% MP regen from messages.',
+    passiveDesc: '+15% to all healing produced — both MEND and Normal Attack self-heal.',
   },
   {
     id:          'archer',
@@ -76,7 +76,7 @@ const CLASSES: {
     name:        'MAGE',
     role:        'HIGH DAMAGE / FRAGILE',
     color:       '#00e5ff',
-    attackDesc:  'ATK+INT nuke. Hardest hitting Normal Attack.',
+    attackDesc:  'Highest ATK of any class. Hits hardest on every normal attack.',
     abilityName: 'CAST',
     abilityDesc: '3× ATK arcane nuke. Crit-eligible.',
     abilityCost: 55,

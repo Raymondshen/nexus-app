@@ -242,7 +242,8 @@ Deno.serve(async (req: Request) => {
 
         case 'mend': {
           // INT-scaled crew-wide heal; does NOT revive downed members
-          const healAmount = Math.max(5, Math.round(stats.int * 1.5))
+          // Second Wind passive: +15% to all healing the Healer produces
+          const healAmount = Math.max(5, Math.round(stats.int * 1.5 * 1.15))
           const { data: aliveMembers } = await supabase
             .from('crew_combat_members')
             .select('id, user_id, current_hp, max_hp')
@@ -379,12 +380,12 @@ Deno.serve(async (req: Request) => {
       newMomentumStack = Math.min(newMomentumStack + 1, 5)
     }
 
-    // Healer: weak attack + 5% self-heal
+    // Healer: weak attack + 5% self-heal (Second Wind passive: +15%)
     if (member.class === 'healer') {
       if (isCrit) dmg = Math.round(dmg * 1.5)
       if (volleyActive) dmg = Math.round(dmg * 1.2)
       dmg = Math.max(1, dmg)
-      selfHeal = Math.max(1, Math.round(dmg * 0.05))
+      selfHeal = Math.max(1, Math.round(dmg * 0.0575))
     } else {
       if (isCrit) dmg = Math.round(dmg * 1.5)
       if (volleyActive) dmg = Math.round(dmg * 1.2)
