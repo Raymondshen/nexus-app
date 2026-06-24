@@ -1,9 +1,6 @@
 /**
  * attack-boss Edge Function
  *
- * Called fire-and-forget from ChatInput after every message send.
- * Dev-gated: skips processing if profiles.is_dev is false.
- *
  * Responsibilities:
  *   1. Spawn a new boss raid when no active one exists (dev users only)
  *   2. Process player's Normal Attack against the active boss
@@ -11,8 +8,11 @@
  *   4. Fill the player's Ability Bank after an eligible attack
  *      Eligibility: text ≥5 chars OR image, not soft-blocked, not exact
  *      repeat of sender's previous message in this crew.
- *   5. Handle Rogue momentum, Warrior Last Stand, Healer self-heal, Arcane Ward
- *   6. Broadcast combat events on the messages:{crewId} channel
+ *   5. Sync ability_bank to crew_members (persistent across raids) on every
+ *      earn/spend — crew_combat_members is the live HUD source, crew_members
+ *      is the persistent store seeded into new raid rows via init_combat_members.
+ *   6. Handle Rogue momentum, Warrior Last Stand, Healer self-heal, Arcane Ward
+ *   7. Broadcast combat events on the messages:{crewId} channel
  *
  * Ability Bank: all abilities cost 2 charges; eligible messages earn 1 charge.
  */
@@ -60,14 +60,9 @@ function bossStatsForLevel(crewLevel: number) {
   }
 }
 
-// Ability Bank constants
-const BANK_COST = 2  // charges spent per ability use (all classes)
-const BANK_FILL = 1  // charges earned per eligible message
-
-// Rogue momentum decay: 1hr
+const BANK_COST = 2   // charges spent per ability use (all classes)
+const BANK_FILL = 1   // charges earned per eligible message
 const ROGUE_DECAY_MS = 60 * 60 * 1000
-
-// Ability durations in ms
 const GUARD_DURATION_MS  = 60_000
 const VOLLEY_DURATION_MS = 30_000
 
@@ -92,6 +87,14 @@ function attackCopy(cls: string, dmg: number, isCrit: boolean): string {
   return `${dmg} DMG`
 }
 
+// Persist bank to crew_members (authoritative store across raids)
+function persistBank(supabase: ReturnType<typeof createClient>, crew_id: string, user_id: string, bank: number) {
+  return supabase.from('crew_members')
+    .update({ ability_bank: bank })
+    .eq('crew_id', crew_id)
+    .eq('user_id', user_id)
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 Deno.serve(async (req: Request) => {
@@ -100,10 +103,10 @@ Deno.serve(async (req: Request) => {
   try {
     const {
       crew_id, user_id, username,
-      message_type,      // text|image|reaction|system — used to gate bank fill
-      soft_blocked,      // passed from award-xp result (5s cooldown)
-      is_ability,        // true when user triggered an ability
-      ability_type,      // guard|mend|volley|backstab|cast
+      message_type,
+      soft_blocked,
+      is_ability,
+      ability_type,
     } = await req.json() as {
       crew_id: string; user_id: string; username: string
       message_type: string; soft_blocked: boolean
@@ -180,12 +183,9 @@ Deno.serve(async (req: Request) => {
       })
 
       await supabase.from('messages').insert({
-        crew_id,
-        user_id,
+        crew_id, user_id,
         content:      `BOSS_SPAWN:${boss.name}:${bossStats.hp}`,
-        message_type: 'system',
-        element_type: null,
-        xp_awarded:   0,
+        message_type: 'system', element_type: null, xp_awarded: 0,
       })
 
       return json({ spawned: true, raid_id: newRaid.id, boss_hp: bossStats.hp })
@@ -223,6 +223,7 @@ Deno.serve(async (req: Request) => {
           await Promise.all([
             supabase.from('crew_combat_members').update({ ability_bank: newBank, guard_expires_at: expiresAt }).eq('id', member.id),
             supabase.from('active_raids').update({ guard_user_id: user_id, guard_expires_at: expiresAt }).eq('id', raid.id),
+            persistBank(supabase, crew_id, user_id, newBank),
           ])
           await supabase.from('messages').insert({
             crew_id, user_id,
@@ -248,6 +249,7 @@ Deno.serve(async (req: Request) => {
           await Promise.all([
             ...updates,
             supabase.from('crew_combat_members').update({ ability_bank: newBank }).eq('id', member.id),
+            persistBank(supabase, crew_id, user_id, newBank),
           ])
           await supabase.from('messages').insert({
             crew_id, user_id,
@@ -262,6 +264,7 @@ Deno.serve(async (req: Request) => {
           await Promise.all([
             supabase.from('crew_combat_members').update({ ability_bank: newBank }).eq('id', member.id),
             supabase.from('active_raids').update({ volley_expires_at: expiresAt }).eq('id', raid.id),
+            persistBank(supabase, crew_id, user_id, newBank),
           ])
           const volleyActive = true
           const isCrit       = rollCrit(stats.dex)
@@ -291,7 +294,10 @@ Deno.serve(async (req: Request) => {
           if (volleyActive) dmg = Math.round(dmg * 1.2)
           dmg = Math.max(1, dmg)
 
-          await supabase.from('crew_combat_members').update({ ability_bank: newBank, momentum_stack: 0 }).eq('id', member.id)
+          await Promise.all([
+            supabase.from('crew_combat_members').update({ ability_bank: newBank, momentum_stack: 0 }).eq('id', member.id),
+            persistBank(supabase, crew_id, user_id, newBank),
+          ])
           const { data: raidResult } = await supabase.rpc('damage_raid', {
             p_raid_id: raid.id, p_damage: dmg, p_user_id: user_id,
           })
@@ -316,7 +322,10 @@ Deno.serve(async (req: Request) => {
           if (volleyActive)  dmg = Math.round(dmg * 1.2)
           dmg                = Math.max(1, Math.round(dmg))
 
-          await supabase.from('crew_combat_members').update({ ability_bank: newBank }).eq('id', member.id)
+          await Promise.all([
+            supabase.from('crew_combat_members').update({ ability_bank: newBank }).eq('id', member.id),
+            persistBank(supabase, crew_id, user_id, newBank),
+          ])
           const { data: raidResult } = await supabase.rpc('damage_raid', {
             p_raid_id: raid.id, p_damage: dmg, p_user_id: user_id,
           })
@@ -376,17 +385,13 @@ Deno.serve(async (req: Request) => {
     }
 
     const { data: raidResult } = await supabase.rpc('damage_raid', {
-      p_raid_id: raid.id,
-      p_damage:  dmg,
-      p_user_id: user_id,
+      p_raid_id: raid.id, p_damage: dmg, p_user_id: user_id,
     })
     const newBossHP  = Math.round(raidResult?.[0]?.current_hp ?? Math.max(0, raid.current_hp - dmg))
     const newPhase   = raidResult?.[0]?.phase ?? raid.phase
     const defeated   = newBossHP === 0
 
-    // ── Bank eligibility: server-authoritative check ─────────────────────────
-    // Fetch 2 most recent text/image messages from this user in this crew.
-    // Eligible if: text ≥5 chars (images always pass), not exact content repeat.
+    // ── Bank eligibility: server-authoritative ───────────────────────────────
     const { data: recentMsgs } = await supabase
       .from('messages')
       .select('content, message_type')
@@ -403,41 +408,34 @@ Deno.serve(async (req: Request) => {
     const bankFill   = (!tooShort && !isRepeat) ? BANK_FILL : 0
     const newBank    = member.ability_bank + bankFill
 
-    // ── Update combat member row ─────────────────────────────────────────────
+    // ── Update combat member + persist bank ──────────────────────────────────
     const memberUpdates: Record<string, unknown> = { ability_bank: newBank, last_msg_at: now.toISOString() }
     if (member.class === 'rogue') memberUpdates.momentum_stack = newMomentumStack
-    if (selfHeal > 0) {
-      memberUpdates.current_hp = Math.min(member.max_hp, member.current_hp + selfHeal)
-    }
-    await supabase.from('crew_combat_members').update(memberUpdates).eq('id', member.id)
+    if (selfHeal > 0) memberUpdates.current_hp = Math.min(member.max_hp, member.current_hp + selfHeal)
+
+    await Promise.all([
+      supabase.from('crew_combat_members').update(memberUpdates).eq('id', member.id),
+      persistBank(supabase, crew_id, user_id, newBank),
+    ])
 
     await supabase.from('messages').insert({
-      crew_id,
-      user_id,
+      crew_id, user_id,
       content:      `COMBAT:attack:${username}:${dmg}:${Math.max(0, newBossHP)}:${isCrit ? '1' : '0'}`,
-      message_type: 'system',
-      element_type: null,
-      xp_awarded:   0,
+      message_type: 'system', element_type: null, xp_awarded: 0,
     })
 
     if (newPhase > raid.phase) {
       await supabase.from('messages').insert({
-        crew_id,
-        user_id,
+        crew_id, user_id,
         content:      `COMBAT:phase:${newPhase}`,
-        message_type: 'system',
-        element_type: null,
-        xp_awarded:   0,
+        message_type: 'system', element_type: null, xp_awarded: 0,
       })
     }
 
-    if (defeated) {
-      await handleVictory(supabase, raid.id, crew_id, user_id, username)
-    }
+    if (defeated) await handleVictory(supabase, raid.id, crew_id, user_id, username)
 
     return json({
-      dmg,
-      is_crit:      isCrit,
+      dmg, is_crit: isCrit,
       new_boss_hp:  Math.max(0, newBossHP),
       new_phase:    newPhase,
       bank_fill:    bankFill,
@@ -470,29 +468,27 @@ async function handleVictory(
 
   if (!raid) return
 
-  const roll     = Math.random()
-  const rarity   = roll < 0.05 ? 'legendary' : roll < 0.20 ? 'epic' : roll < 0.50 ? 'rare' : 'common'
-  const rarities = ['⚔️ Common Shard', '💠 Rare Crystal', '🌑 Epic Fragment', '🌟 Legendary Core']
+  const roll      = Math.random()
+  const rarity    = roll < 0.05 ? 'legendary' : roll < 0.20 ? 'epic' : roll < 0.50 ? 'rare' : 'common'
+  const rarities  = ['⚔️ Common Shard', '💠 Rare Crystal', '🌑 Epic Fragment', '🌟 Legendary Core']
   const rarityIdx = ['common', 'rare', 'epic', 'legendary'].indexOf(rarity)
   const name      = rarities[rarityIdx] ?? rarities[0]
 
   await Promise.all([
     supabase.from('artifacts').insert({
-      crew_id:       crewId,
+      crew_id:        crewId,
       name,
       rarity,
       source_boss_id: raid.boss_id,
-      mvp_user_id:   mvpUserId,
-      asset_type:    'sprite',
-      metadata:      { mvp: mvpUsername },
+      mvp_user_id:    mvpUserId,
+      asset_type:     'sprite',
+      metadata:       { mvp: mvpUsername },
     }),
     supabase.from('messages').insert({
       crew_id:      crewId,
       user_id:      mvpUserId,
       content:      `COMBAT:victory:${mvpUsername}:${rarity}:${name}`,
-      message_type: 'system',
-      element_type: null,
-      xp_awarded:   0,
+      message_type: 'system', element_type: null, xp_awarded: 0,
     }),
   ])
 }

@@ -181,7 +181,7 @@ export function CombatHUD({ memberProfiles, currentUserId, crewId }: CombatHUDPr
                     <div className="flex-1 flex flex-col gap-1">
                       <HPBar current={m.current_hp} max={m.max_hp} cls={m.class} downed={m.is_downed} />
                       <div className="flex items-center justify-between">
-                        <span className="font-pixel" style={{ fontSize: 5, color: 'var(--color-tertiary)' }}>BANK</span>
+                        <span className="font-pixel" style={{ fontSize: 5, color: 'var(--color-tertiary)' }}>MSGS</span>
                         <span className="font-silkscreen" style={{ fontSize: 7, color: clsColor }}>
                           {m.ability_bank}
                         </span>
