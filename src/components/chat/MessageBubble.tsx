@@ -7,6 +7,7 @@ import { isSupabaseStorage, resolveAvatarUrl } from '@/components/ui/Avatar'
 import { format } from 'date-fns'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useChatStore } from '@/store/chatStore'
+import { useCombatStore } from '@/store/combatStore'
 import { createClient } from '@/lib/supabase/client'
 import type { MessageWithProfile, Profile, SquadDefinitionWithCreator } from '@/types'
 import { supabaseImageLoader } from '@/lib/supabase/imageLoader'
@@ -1033,21 +1034,43 @@ function JoinMessage({ content }: { content: string }) {
 
 // ─── BOSS_SPAWN message ───────────────────────────────────────────────────────
 function BossSpawnMessage({ content }: { content: string }) {
-  // BOSS_SPAWN:bossName:hp
+  // BOSS_SPAWN:bossName:maxHp
   const parts    = content.slice('BOSS_SPAWN:'.length).split(':')
   const bossName = parts[0] ?? 'THE VOID'
-  const hp       = parts[1] ? Number(parts[1]).toLocaleString() : '???'
+  const maxHpMsg = parts[1] ? Number(parts[1]) : 0
+
+  const raid        = useCombatStore((s) => s.activeRaid)
+  const liveHp      = raid?.current_hp ?? maxHpMsg
+  const maxHp       = raid?.max_hp ?? maxHpMsg
+  const phase       = raid?.phase ?? 1
+  const hpPct       = maxHp > 0 ? (liveHp / maxHp) * 100 : 100
+  const phaseColor  = phase === 3 ? '#ef4444' : phase === 2 ? '#f59e0b' : '#9333ea'
+
   return (
     <div style={{ marginTop: 'var(--space-6)', marginBottom: 'var(--space-6)' }}>
       <div
         className="flex flex-col items-center w-full border text-center"
-        style={{ padding: '12px 16px', gap: 6, background: 'linear-gradient(135deg,#0f0820,#1a0d2e)', borderColor: '#9333ea66' }}
+        style={{ padding: '12px 16px', gap: 6, background: 'linear-gradient(135deg,#0f0820,#1a0d2e)', borderColor: `${phaseColor}66` }}
       >
-        <p className="font-pixel leading-none" style={{ fontSize: 7, color: '#9333ea' }}>⚠ BOSS RAID BEGINS</p>
+        <p className="font-pixel leading-none" style={{ fontSize: 7, color: phaseColor }}>⚠ BOSS RAID BEGINS</p>
         <p className="font-pixel leading-none" style={{ fontSize: 11, color: '#bf5fff', textShadow: '0 0 16px #bf5fff88' }}>
           ◆ {bossName.toUpperCase()} ◆
         </p>
-        <p className="font-silkscreen leading-none" style={{ fontSize: 8, color: 'var(--color-tertiary)' }}>{hp} HP · 48hr window</p>
+        <p className="font-silkscreen leading-none" style={{ fontSize: 8, color: 'var(--color-tertiary)' }}>
+          {liveHp.toLocaleString()} / {maxHp.toLocaleString()} HP · 48hr window
+        </p>
+        {/* Live HP bar */}
+        <div className="w-full" style={{ marginTop: 2 }}>
+          <div className="relative w-full rounded-full overflow-hidden" style={{ height: 5, background: '#2a1545' }}>
+            <motion.div
+              className="absolute inset-y-0 left-0 rounded-full"
+              style={{ background: `linear-gradient(90deg, ${phaseColor}99, ${phaseColor})` }}
+              initial={false}
+              animate={{ width: `${hpPct}%` }}
+              transition={{ duration: 0.4, ease: 'easeOut' }}
+            />
+          </div>
+        </div>
       </div>
     </div>
   )
