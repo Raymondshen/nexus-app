@@ -62,7 +62,7 @@ All `SECURITY DEFINER`. Declared in `Database.Functions` in `src/types/index.ts`
 - `pin_message(p_message_id, p_duration_minutes?)` → jsonb — admin only, cap=5, duration≤525960 min
 - `unpin_message(p_message_id)` → jsonb — admin only
 - `update_active()` → void — sets `profiles.last_active_at = now()` for caller; used as presence heartbeat
-- `init_combat_members(p_raid_id, p_crew_id, p_crew_level)` → void — creates `crew_combat_members` rows for dev members only; seeds `ability_bank` from `crew_members.ability_bank`
+- `init_combat_members(p_raid_id, p_crew_id, p_crew_level)` → void — creates `crew_combat_members` rows for dev members only; seeds `ability_bank` from `crew_members.ability_bank`; adds HP stat boost from `crew_members.stat_boosts` to `max_hp`
 - `apply_boss_damage(p_raid_id, p_member_id, p_final_dmg)` → `(new_hp, is_downed, downed_at)` — atomic boss-to-member hit
 - `use_revive_token(p_raid_id, p_target_user_id)` → jsonb `{ok, new_hp?, tokens_remaining?}` — spends token, restores target to full HP
 
@@ -103,6 +103,7 @@ Combat System (dev-gated: `nexus_combat_enabled`): 5 combat classes assigned on 
 **Ability Bank**: replaces MP entirely. All abilities cost a flat **2 charges**. Eligible messages earn **1 charge** (text ≥5 chars OR image, not soft-blocked, not exact repeat of sender's prior message). Bank persists across raids: `crew_members.ability_bank` is the durable store; `crew_combat_members.ability_bank` is the live HUD value. Both are synced on every earn/spend by `attack-boss`. New raids are seeded from `crew_members.ability_bank` via `init_combat_members`. CombatHUD shows bank count labeled "MSGS".
 
 Stat scaling: `round(base × (1 + 0.018 × (level - 1)))` · crit chance: `min(0.05 + dex × 0.006, 0.50)` · damage reduction: `boss_dmg × phase_mult × (1 - def / (def + 100))`
+**Stat boosts**: each player earns +1 to a random stat (`hp`, `atk`, `dex`, `def`, `int`) on boss defeat — persisted in `crew_members.stat_boosts` (jsonb). Boosts are additive after level scaling: `stat = round(base × scale) + boost`. HP boost is applied at raid init via `init_combat_members`; all other boosts applied in `statsAtLevel` in `attack-boss`. `COMBAT:stat_up:{username}:{stat}` system messages announce boosts in the combat log.
 Rogue momentum: +5% ATK per stack (cap 25%, max 5 stacks), resets on Backstab, decays if >1h since last message
 Passives: warrior Last Stand (+20% dmg dealt when HP < 30%) · healer Second Wind (+15% to all healing produced — both @mend and self-heal on normal attack; `@mend = int×1.5×1.15`, `selfHeal = dmg×0.0575`) · archer Precision (high DEX = highest natural crit chance) · rogue Momentum (see above) · mage Arcane Ward (DEF×1.3 while HP < 40%, recomputed each incoming hit)
 
@@ -225,6 +226,7 @@ OG previews: `extractFirstUrl` → `useOGPreview` hook → `<LinkPreviewCard>` b
 - DM mode hides XP bar + expanded panel
 - Combat gate: `isDevUser && combatEnabled` — all 4 combat hooks (seed effect, realtime effect, `callAttackBoss`, render) check both flags
 - Both the seed effect and realtime subscription have `combatEnabled` in their dep arrays (not just `[]` on mount) — otherwise they run before `localStorage` is read and skip combat setup silently
+- Seed effect calls `store.clearCombatEvents()` before seeding — scopes the combat log to the current crew's raid; combined with the MessageList replay, this ensures events never bleed across crews or raids
 - `callAttackBoss` fires fire-and-forget after every message send; no-ops if `!isDevUser || !combatEnabled`
 - `active_raids` Postgres Changes UPDATE handler **only** patches `guard_user_id`, `guard_expires_at`, `volley_expires_at`, `last_boss_attack_at` — it must NOT touch `current_hp` or `phase`; those are owned by COMBAT:* system message INSERTs (see MessageList)
 - `AbilityButton` renders when `isDevUser && combatEnabled && !isDM && userCombatClass && activeRaid`; prop `username` required (passed from `userProfile.username`)
@@ -258,12 +260,15 @@ OG previews: `extractFirstUrl` → `useOGPreview` hook → `<LinkPreviewCard>` b
 | `COMBAT:stat_up:{username}:{stat}` | +1 stat awarded on victory (stat ∈ hp\|atk\|dex\|def\|int) |
 
 **MessageList combat wiring** (`parseCombatEvent` + `parseDamageFloat` — module-level functions before `MessageList` component):
-- On `postgres_changes INSERT` for `message_type === 'system'` when `combatEnabled`: calls `parseCombatEvent(content)` → `combatStore.addCombatEvent(event)` (capped at 200); calls `parseDamageFloat(content)` → `combatStore.spawnDamageFloat(...)` for attack/volley/backstab/cast only; float x = `window.innerWidth * 0.5 + (Math.random() * 80 - 40)`, y = `window.innerHeight * 0.65`
+- `parseCombatEvent(content, messageId?, messageTs?)` — uses actual message `id` and `created_at` timestamp when provided so events can be deduplicated across the realtime and replay paths
+- On `postgres_changes INSERT` for `message_type === 'system'` when `combatEnabled`: calls `parseCombatEvent(raw.content, raw.id, Date.parse(raw.created_at))` → `combatStore.addCombatEvent(event)` (capped at 200); calls `parseDamageFloat(content)` → `combatStore.spawnDamageFloat(...)` for attack/volley/backstab/cast only; float x = `window.innerWidth * 0.5 + (Math.random() * 80 - 40)`, y = `window.innerHeight * 0.65`
 - Also patches combatStore HP/phase from the same INSERT (see MessageList section above — this is the authoritative path, not `active_raids` realtime UPDATEs)
+- **Combat log replay**: after the initial DB fetch merges and calls `setMessages(merged)`, filters system messages from `raid.started_at` onward, parses them, and calls `combatStore.replayCombatEvents(events)` — ensures the log persists across page loads without relying solely on realtime events
 
 **combatStore** (`src/store/combatStore.ts`): Zustand store
 - State: `activeRaid | null`, `memberStats: Record<userId, CombatMember>`, `combatEvents: CombatEvent[]` (cap 200), `reviveTokens: number`, `damageFloats: DamageFloat[]`
 - Patches: `patchRaid`, `patchMemberHP(userId, hp, downed, downedAt)`, `patchMemberBank(userId, bank)`, `patchMemberMomentum(userId, stack)`, `setAllMembers(members[])`
+- Events: `addCombatEvent(event)` — appends, cap 200; `replayCombatEvents(events[])` — merges by event `id` (existing live events take precedence), sorts by `ts`, caps at 200; `clearCombatEvents()` — resets to `[]`
 - Floats: `spawnDamageFloat({ id, value, isCrit, x, y })` / `removeDamageFloat(id)`
 
 **Components** (`src/components/game/`):
