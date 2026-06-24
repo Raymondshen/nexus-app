@@ -68,9 +68,8 @@ export function CombatLog() {
   return (
     <div
       style={{
-        background:  '#0a0612',
-        borderTop:   '1px solid var(--color-border)',
-        borderBottom: '1px solid var(--color-border)',
+        background: '#0a0612',
+        borderTop:  '1px solid #1a0d2e',
       }}
     >
       <div

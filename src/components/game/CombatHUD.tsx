@@ -8,6 +8,7 @@ import { isSupabaseStorage, resolveAvatarUrl } from '@/components/ui/Avatar'
 import { createClient } from '@/lib/supabase/client'
 import type { Profile } from '@/types'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
+import { CombatLog } from '@/components/game/CombatLog'
 
 interface CombatHUDProps {
   memberProfiles: Record<string, Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url'>>
@@ -191,6 +192,7 @@ export function CombatHUD({ memberProfiles, currentUserId, crewId }: CombatHUDPr
                 </div>
               )
             })}
+            <CombatLog />
           </motion.div>
         )}
       </AnimatePresence>

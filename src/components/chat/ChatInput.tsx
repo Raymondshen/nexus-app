@@ -37,7 +37,6 @@ import { setHomeLastMessage } from '@/lib/homePreviewCache'
 import { useCombatStore } from '@/store/combatStore'
 import { BossCard } from '@/components/game/BossCard'
 import { CombatHUD } from '@/components/game/CombatHUD'
-import { CombatLog } from '@/components/game/CombatLog'
 import { AbilityButton } from '@/components/game/AbilityButton'
 import { DamageFloatLayer } from '@/components/game/DamageFloat'
 import type { Message, MessageWithProfile, Profile, ActiveRaid, CombatMember, CombatClass } from '@/types'
@@ -1282,7 +1281,6 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
               <>
                 <BossCard />
                 <CombatHUD memberProfiles={memberProfiles} currentUserId={userId} crewId={crewId} />
-                <CombatLog />
               </>
             )}
           </div>

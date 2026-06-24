@@ -429,6 +429,12 @@ export function MessageList({
     for (const msg of messages) {
       if (!msg.id || typeof msg.content !== 'string') continue
 
+      // Combat system messages are shown in CombatLog, not in the chat history
+      if (combatEnabled && msg.message_type === 'system' &&
+          (msg.content.startsWith('COMBAT:') || msg.content.startsWith('BOSS_SPAWN:'))) {
+        continue
+      }
+
       const msgDate = new Date(msg.created_at)
       const msgTime = msgDate.getTime()
 

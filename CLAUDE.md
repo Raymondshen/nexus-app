@@ -196,7 +196,7 @@ localStorage:
 - **Cursor pagination**: scroll-up within 120 px triggers `fetchOlderMessages` — keyset query `WHERE crew_id=? AND created_at < cursor ORDER BY created_at DESC LIMIT 50` hits existing `messages_crew_id_created_at` index; batches prepended via `chatStore.prependMessages` (deduplicates by id)
 - **Scroll restoration after prepend**: capture `scrollTop` + `virtualizer.getTotalSize()` before `prependMessages`; in `useBrowserLayoutEffect` (pre-paint) set `el.scrollTop = prevScrollTop + (newTotalSize - prevTotalSize)` — keeps every visible item at the same pixel row without index arithmetic
 - **Continuous-load guard**: `anchorPendingRef` stays `true` from before `prependMessages` until the layout effect fires; `handleScroll` checks both `isFetchingOlderRef` and `anchorPendingRef` so the window between `finally` and the layout effect cannot trigger a second fetch
-- **Display items**: `useMemo` builds typed `DisplayItem[]` array — `spacer | empty | divider | boss | artifact | level_up | message`; two separate `useMemo` passes for `groupXPMap` + `groupCoinMap`; group leader gets `xpOverride` / `coinOverride` prop
+- **Display items**: `useMemo` builds typed `DisplayItem[]` array — `spacer | empty | divider | boss | artifact | level_up | message`; two separate `useMemo` passes for `groupXPMap` + `groupCoinMap`; group leader gets `xpOverride` / `coinOverride` prop. When `combatEnabled`, system messages whose content starts with `COMBAT:` or `BOSS_SPAWN:` are skipped (early `continue`) — they are shown in `CombatLog` inside the HUD instead of the chat bubble list
 - **Scroll**: initial → `scrollTop = scrollHeight`; new Realtime append → `virtualizer.scrollToIndex(last, 'end', smooth)` if near bottom or own send; `skipAutoScrollRef` prevents auto-scroll fighting anchor restoration in the same render cycle
 - **Pinned scroll**: `findIndex` on items array by message id → `virtualizer.scrollToIndex(idx, 'center', smooth)`
 - Postgres Changes UPDATE: skip `reactions:{}` when local has reactions (award-xp race); patch also picks up pin fields (`pinned`, `pinned_by`, `pinned_at`, `pin_expires_at`)
@@ -274,11 +274,9 @@ OG previews: `extractFirstUrl` → `useOGPreview` hook → `<LinkPreviewCard>` b
 **Components** (`src/components/game/`):
 - `AbilityButton` — class-specific ability button; prop `username: string` required; shows "Cost: 2" + current bank count; disabled when `ability_bank < 2`; renders `null` when `!activeRaid || !member`
 - `BossCard` — sticky boss HUD reads from combatStore; HP bar uses Framer Motion `animate={{ width }}` (reliable here, not in a virtualizer); countdown timer: `anchor = last_boss_attack_at ?? started_at` — falls back to `started_at` when no boss attack has fired yet (avoids "0s" on fresh spawns)
-- `CombatHUD` — member HP bars + "MSGS" bank count row per member + boss phase indicator
-- `CombatLog` — scrollable feed of `CombatEvent[]` from combatStore
+- `CombatHUD` — collapsible panel (toggle row "RAID ACTIVE" + phase + revive count); expanded section shows member HP bars + "MSGS" bank count rows, then `CombatLog` at the bottom; `CombatLog` is rendered only inside this expanded section
+- `CombatLog` — virtualized scrollable feed of `CombatEvent[]` from combatStore; rendered inside `CombatHUD`'s expanded section (not standalone); returns `null` when `events.length === 0`
 - `DamageFloat` — `position: fixed` viewport-overlay floating damage numbers; spawned per attack event
-
-**BossSpawnMessage** (in `MessageBubble.tsx`): the `BOSS_SPAWN:*` system chat bubble shows a live HP bar by reading `useCombatStore((s) => s.activeRaid)`. Bar uses a plain `<div>` with inline `style={{ width: \`${hpPct}%\`, transition: 'width 0.5s ease-out' }}` — NOT Framer Motion (see Gotchas).
 
 ### SquadDetailsSheet (`src/components/chat/SquadDetailsSheet.tsx`)
 Trigger: swipe-up or chevron-up · sheet: `z-[70]` (above ticker's z-[60], below action sheets z-[80+]) · `maxHeight: 85vh`
