@@ -1227,7 +1227,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     <div
       className="bg-black border-t border-border flex flex-col flex-shrink-0 relative z-[65]"
       style={{
-        paddingTop:    (isDevUser && combatEnabled) ? 0 : 'var(--space-5)',
+        paddingTop:    'var(--space-5)',
         paddingLeft:   'var(--space-5)',
         paddingRight:  'var(--space-5)',
         paddingBottom: 'max(env(safe-area-inset-bottom), 32px)',
@@ -1284,7 +1284,6 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
               </>
             )}
           </div>
-          <div style={{ paddingTop: 'var(--space-5)' }} />
         </>
       )}
 
