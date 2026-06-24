@@ -17,7 +17,9 @@ crew_members        id, crew_id, user_id, class, joined_at, last_seen
 messages            id, crew_id, user_id, content, message_type, element_type, xp_awarded, reactions (jsonb default '{}'), reply_to_id, reply_preview, reply_username, image_url, image_blur_hash, pinned (bool default false), pinned_by (uuid nullable), pinned_at (timestamptz nullable), pin_expires_at (timestamptz nullable), created_at
 crew_xp_log         id, crew_id, user_id, xp_amount, source, created_at
 bosses              id, name, type (void|ghost|flood|scheduled), max_hp, weak_element, description
-active_raids        id, crew_id, boss_id, current_hp, max_hp, phase, started_at, expires_at, defeated_at, mvp_user_id, expiry_notif_sent
+active_raids        id, crew_id, boss_id, current_hp, max_hp, phase, started_at, expires_at, defeated_at, mvp_user_id, expiry_notif_sent, last_boss_attack_at (timestamptz nullable), guard_user_id (uuid nullable), guard_expires_at (timestamptz nullable), volley_expires_at (timestamptz nullable)
+crew_combat_members id, raid_id (→ active_raids CASCADE), user_id (→ profiles CASCADE), class, current_hp, max_hp, current_mp (default 0), max_mp, is_downed (bool default false), downed_at (timestamptz nullable), guard_expires_at (timestamptz nullable), momentum_stack (int default 0), last_msg_at (timestamptz nullable), created_at — UNIQUE(raid_id, user_id); supabase_realtime
+revive_tokens       crew_id (PK → crews CASCADE), count (int default 5)
 artifacts           id, crew_id, name, rarity (common|rare|epic|legendary), source_boss_id, earned_at, mvp_user_id, asset_type, metadata
 push_subscriptions  id, user_id, crew_id (nullable), endpoint (UNIQUE), p256dh, auth, created_at
 notification_preferences   user_id (PK), notif_messages, notif_raids, notif_victory, updated_at
@@ -60,6 +62,9 @@ All `SECURITY DEFINER`. Declared in `Database.Functions` in `src/types/index.ts`
 - `pin_message(p_message_id, p_duration_minutes?)` → jsonb — admin only, cap=5, duration≤525960 min
 - `unpin_message(p_message_id)` → jsonb — admin only
 - `update_active()` → void — sets `profiles.last_active_at = now()` for caller; used as presence heartbeat
+- `init_combat_members(p_raid_id, p_crew_id, p_crew_level)` → void — creates `crew_combat_members` rows for dev members only
+- `apply_boss_damage(p_raid_id, p_member_id, p_final_dmg)` → `(new_hp, is_downed, downed_at)` — atomic boss-to-member hit
+- `use_revive_token(p_raid_id, p_target_user_id)` → jsonb `{ok, new_hp?, tokens_remaining?}` — spends token, restores target to full HP
 
 ## Game Values
 
@@ -81,12 +86,29 @@ Gems: 1/day on first message in any crew · `award-gem` edge function + `claim_d
 - Fully launched: `GemCounter` in `FloatingBackButton` right-icon row, `GemToast` on earn always shown; "Reset Gem Cooldown" in dev page nulls `last_gem_claim` for caller + clears idb-keyval key
 
 Boss: The Void at every 500 XP (`BOSS_XP_THRESHOLD`) · 48h window · 3 phases · defeat → artifact drop
+- Artifact rarity roll: legendary 5% / epic 15% / rare 30% / common 50%
+- Phase multipliers: 1→1.0×, 2→1.3×, 3→1.6× boss damage
+- Boss attacks: phase 1/2 = every 2h, phase 3 = every 1h (was Vercel cron `*/30 * * * *` — removed; trigger via dev panel)
+- Downed members auto-regen after 8h without a revive token
+
+Combat System (dev-gated: `nexus_combat_enabled`): 5 combat classes assigned on onboarding class select
+| Class | HP | MP | Ability | Effect |
+|---|---|---|---|---|
+| warrior | 42 | 60 | GUARD (40MP) | Taunt + DEF+40% for 60s |
+| healer | 32 | 80 | MEND (50MP) | INT-scaled crew-wide heal (no revive) |
+| archer | 28 | 65 | VOLLEY (40MP) | Boss takes +20% dmg for 30s + ATK hit |
+| rogue | 24 | 55 | BACKSTAB (35MP) | Guaranteed crit (2.5× if boss HP>50%) |
+| mage | 24 | 85 | CAST (55MP) | 3× ATK arcane nuke |
+
+Stat scaling: `round(base × (1 + 0.018 × (level - 1)))` · MP fill: +10/eligible message (text/image, not soft-blocked) · crit chance: `min(0.05 + dex × 0.006, 0.50)` · damage reduction: `boss_dmg × phase_mult × (1 - def / (def + 100))`
+Rogue momentum: +5% ATK per stack (cap 25%, max 5 stacks), resets on Backstab, decays if >1h since last message
 
 Leveling: exponential curve — `xpForLevel(n) = round(120 × 1.0435^(n-1))` · `LEVEL_CAP = 100` · constants in `src/lib/config.ts` (`LEVEL_XP_BASE=120`, `LEVEL_XP_GROWTH_RATE=1.0435`) · formula mirrored in `award-xp` + `react-to-message` edge functions · 5 tiers every 20 levels: Rookie (1–20) → Adventurer (21–40) → Veteran (41–60) → Elite (61–80) → Mythic (81–100) · `isTierBoundary` flag on level-up `DisplayItem` for future tier-up celebration
 
 Elements: fire=<20 chars · water=>150 chars · lightning=voice · nature=images · shadow=reactions · arcane=daily/system
 
-Classes: Berserker (spam) · Sage (long) · Ghost (silence crit) · Hype Man (reactions) · The Voice (voice) · Meme Lord (images)
+Chat Classes: Berserker (spam) · Sage (long) · Ghost (silence crit) · Hype Man (reactions) · The Voice (voice) · Meme Lord (images)
+Combat Classes (stored in `crew_members.class`): warrior · healer · archer · rogue · mage — same field, swapped at onboarding class select when combat is enabled
 
 Quick-pick emojis: `['🔥','💧','⚡','🌿','🌑','🔮']`
 
@@ -118,7 +140,10 @@ Error copy: invalid → "The Nexus does not recognize this code." · used → "T
 ## Dev Mode
 `profiles.is_dev = true` — grant: `UPDATE profiles SET is_dev = true WHERE id IN (SELECT id FROM auth.users WHERE email = '...')`
 
-Dev section in `/profile/developer`: Announcements · Push Diagnostics (`nexus_push_diag`) · Infinite Coins (`nexus_infinite_coins`) · Spawn Boss Mode (`nexus_dev_mode`) · Chat Camera (`nexus_chat_camera`) · Pin Feature (`nexus_pin_feature`) · Reset Gem Cooldown · AFK Exp (`nexus_afk_exp`) · Reset Friendship XP
+Dev section in `/profile/developer`: Announcements · Push Diagnostics (`nexus_push_diag`) · Infinite Coins (`nexus_infinite_coins`) · Spawn Boss Mode (`nexus_dev_mode`) · Chat Camera (`nexus_chat_camera`) · Pin Feature (`nexus_pin_feature`) · Reset Gem Cooldown · AFK Exp (`nexus_afk_exp`) · Reset Friendship XP · **Combat (`nexus_combat_enabled`)** — FEATURES section toggle
+- Combat Testing panel: crew picker + 7 actions — Spawn Boss, Force Phase 2, Force Phase 3, End Raid, Down Yourself, Add Revive Token, Reset Combat
+- Server actions in `src/app/(app)/profile/developer/actions.ts`: `spawnBossAction`, `forceRaidPhaseAction`, `endRaidAction`, `selfDownAction`, `addReviveTokenAction`, `resetCombatAction` — all protected by `requireDev()`
+- `DeveloperClient` receives `userCrews: { id: string; name: string }[]` prop; fetched via nested select `crew_members → crews(id, name, is_dm)`, DM crews filtered out
 
 Server-side (`award-xp`): boss spawn + `LEVEL_UP:` only when `isDevUser = true`
 
@@ -142,6 +167,7 @@ localStorage:
 | `nexus_afk_exp` | `'1'` |
 | `nexus_chat_camera` | `'1'` |
 | `nexus_pin_feature` | `'1'` |
+| `nexus_combat_enabled` | `'1'` |
 | `nexus_dismissed_banners` | JSON array of IDs |
 
 ## Architecture
@@ -193,6 +219,9 @@ OG previews: `extractFirstUrl` → `useOGPreview` hook → `<LinkPreviewCard>` b
 - **Klipy API** (`src/app/api/gif/route.ts`): two endpoints with **different response shapes** — trending (`/web/common-trending`) returns items in `data.clips[]` with flat `file.thumbnail_url`/`thumbnail_url_webp` and `file_meta.gif/webp` for dimensions; search (`/web/gifs/search`) returns items in `data.data[]` with nested `file.sm/md/hd/xs` sub-objects each containing `gif`/`jpg`/`webp` variants. Both share `data.has_next`. Use separate parsers (`parseClipItem` / `parseSearchItem`) — do NOT unify them.
 - `GifIcon` (`src/components/icons/GifIcon.tsx`): custom 24×24 SVG with `currentColor` fill; used as GIF button in ChatInput row
 - DM mode hides XP bar + expanded panel
+- Combat gate: `isDevUser && combatEnabled` — all 4 combat hooks (seed effect, realtime effect, `callAttackBoss`, render) check both flags
+- `callAttackBoss` fires fire-and-forget after every message send; no-ops if `!isDevUser || !combatEnabled`
+- `AbilityButton` renders when `isDevUser && combatEnabled && !isDM && userCombatClass && activeRaid`; prop `username` required (passed from `userProfile.username`)
 
 ### Pin Feature (dev-gated: `nexus_pin_feature`)
 - Admin = crew member with earliest `joined_at`; cap = 5 active pins per crew (`PIN_MAX_PER_CREW`)
@@ -202,6 +231,39 @@ OG previews: `extractFirstUrl` → `useOGPreview` hook → `<LinkPreviewCard>` b
 - `MarqueeBanner` (`src/components/ui/MarqueeBanner.tsx`): shared marquee; accepts `items[]` for multi-pin continuous scroll (`msg @user • msg @user • …`); also used by ProfileStatusTicker (single `text` prop)
 - `FloatingBackButton`: `Note` icon button (count badge) + ticker strip below nav; ticker filters `hiddenPinIds` (chatStore Set, in-memory); tapping ticker scrolls to first visible pin
 - `selectActivePins(messages)` exported from chatStore; `hiddenPinIds` + `toggleHiddenPin` in chatStore
+
+### Combat System (dev-gated: `nexus_combat_enabled`)
+
+**System message content formats** (all `message_type: 'system'`, inserted directly — NOT via `insert_message` RPC):
+| Content | Meaning |
+|---|---|
+| `BOSS_SPAWN:{bossName}:{maxHP}` | Boss spawned |
+| `COMBAT:attack:{username}:{dmg}:{newBossHP}:{isCrit}` | Normal attack |
+| `COMBAT:volley:{username}:{dmg}:{newBossHP}:{newMP}/{maxMP}` | Archer volley |
+| `COMBAT:backstab:{username}:{dmg}:{newBossHP}:{newMP}/{maxMP}` | Rogue backstab |
+| `COMBAT:cast:{username}:{dmg}:{newBossHP}:{newMP}/{maxMP}` | Mage cast |
+| `COMBAT:guard:{username}:{newMP}/{maxMP}` | Warrior guard |
+| `COMBAT:mend:{username}:{healAmount}:{newMP}/{maxMP}` | Healer mend |
+| `COMBAT:boss_attack:{targetUsername}:{dmg}:{newTargetHP}` | Boss hits player |
+| `COMBAT:downed:{username}` | Player downed |
+| `COMBAT:phase:{newPhase}` | Phase transition |
+| `COMBAT:victory:{mvpUsername}:{rarity}:{artifactName}` | Boss defeated |
+| `COMBAT:escaped:{bossName}` | Raid expired without defeat |
+
+**MessageList combat wiring** (`parseCombatEvent` + `parseDamageFloat` — module-level functions before `MessageList` component):
+- On `postgres_changes INSERT` for `message_type === 'system'` when `combatEnabled`: calls `parseCombatEvent(content)` → `combatStore.addCombatEvent(event)` (capped at 200); calls `parseDamageFloat(content)` → `combatStore.spawnDamageFloat(...)` for attack/volley/backstab/cast only; float x = `window.innerWidth * 0.5 + (Math.random() * 80 - 40)`, y = `window.innerHeight * 0.65`
+
+**combatStore** (`src/store/combatStore.ts`): Zustand store
+- State: `activeRaid | null`, `memberStats: Record<userId, CombatMember>`, `combatEvents: CombatEvent[]` (cap 200), `reviveTokens: number`, `damageFloats: DamageFloat[]`
+- Patches: `patchRaid`, `patchMemberHP(userId, hp, downed, downedAt)`, `patchMemberMP(userId, mp)`, `patchMemberMomentum(userId, stack)`, `setAllMembers(members[])`
+- Floats: `spawnDamageFloat({ id, value, isCrit, x, y })` / `removeDamageFloat(id)`
+
+**Components** (`src/components/game/`):
+- `AbilityButton` — class-specific ability button; prop `username: string` required; shows MP fill bar + cost; renders `null` when `!activeRaid || !member`
+- `BossCard` — boss display card shown in MessageList for BOSS_SPAWN events
+- `CombatHUD` — member HP/MP bars + boss phase indicator
+- `CombatLog` — scrollable feed of `CombatEvent[]` from combatStore
+- `DamageFloat` — `position: fixed` viewport-overlay floating damage numbers; spawned per attack event
 
 ### SquadDetailsSheet (`src/components/chat/SquadDetailsSheet.tsx`)
 Trigger: swipe-up or chevron-up · sheet: `z-[70]` (above ticker's z-[60], below action sheets z-[80+]) · `maxHeight: 85vh`
@@ -310,6 +372,8 @@ supabase functions deploy award-friendship-xp --project-ref tlveyeisjbythssmocth
 supabase functions deploy react-to-message --project-ref tlveyeisjbythssmocth
 supabase functions deploy process-avatar --project-ref tlveyeisjbythssmocth --no-verify-jwt
 supabase functions deploy award-gem --project-ref tlveyeisjbythssmocth
+supabase functions deploy attack-boss --project-ref tlveyeisjbythssmocth
+supabase functions deploy boss-attack --project-ref tlveyeisjbythssmocth
 ```
 
 `git push` does NOT deploy edge functions. Inter-function calls use raw `fetch()`, no Authorization header (never `supabase.functions.invoke()`). `send-notification` accepts `user_id: string` or `user_ids: string[]`.
@@ -444,6 +508,7 @@ Full-height swipe-up panel with scroll-integrated pull-to-close (`onPanEnd`, thr
 - `20240103000037` — crews last_message_preview/at/sender_id denormalized columns, update_crew_last_message trigger (skips system msgs, out-of-order guard), backfill from messages, crews added to supabase_realtime publication
 - `20240103000038` — profiles.last_active_at (timestamptz nullable), update_active() RPC (SECURITY DEFINER, updates own row only)
 - `20240103000040` — board_sections table + RLS (view: crew members; insert: crew members; delete: creator); notes.section_id FK (ON DELETE SET NULL); notes UPDATE policy (creator only)
+- `20240103000041` — combat system: `active_raids` combat columns (last_boss_attack_at, guard_user_id/expires_at, volley_expires_at); `crew_combat_members` table + RLS + realtime; `revive_tokens` table + RLS + seed; `init_combat_members`, `apply_boss_damage`, `use_revive_token` RPCs
 
 Manual SQL applied directly:
 ```sql
@@ -479,3 +544,5 @@ ALTER TABLE crews ADD COLUMN IF NOT EXISTS dm_partner_2 uuid REFERENCES auth.use
 ## Gotchas
 - `CREATE OR REPLACE FUNCTION` only replaces if signature matches exactly. Adding/removing params creates a new overload — multiple all-DEFAULT overloads cause ambiguous RPC errors. Always `DROP FUNCTION` old signatures before recreating with a different param list.
 - Optimistic messages carry `tempId: string` (client-only, never sent to server). The TanStack Virtual key is `message.tempId ?? message.id`. Reconciliation **must always** call `updateMessage(tempId, { id: raw.id })` in place — never `removeMessage(tempId)` on success. Removing and re-adding the message causes a virtualizer key swap, which discards the measured height and misaligns scroll position. Only `removeMessage(tempId)` on RPC error (rollback).
+- `insert_message` RPC uses `auth.uid()` internally — returns `null` when called from a service role client. For server-side message inserts (e.g., dev panel `spawnBossAction`), use direct `service.from('messages').insert(...)` instead of the RPC.
+- Vercel Hobby plan only allows daily crons (`0 0 * * *`). Sub-daily expressions like `*/30 * * * *` cause every deployment to fail with "Hobby accounts are limited to daily cron jobs." The `boss-attack` cron was removed from `vercel.json` for this reason. Trigger it from the dev panel or upgrade to Pro for sub-daily scheduling.
