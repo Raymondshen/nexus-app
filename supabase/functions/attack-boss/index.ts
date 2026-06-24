@@ -35,10 +35,16 @@ const CLASS_BASE_STATS: Record<string, { hp: number; atk: number; spd: number; d
   mage:    { hp: 24, atk: 22, spd: 13, dex:  8, def:  8, int: 24 },
 }
 
-function statsAtLevel(cls: string, level: number) {
+function statsAtLevel(cls: string, level: number, boosts: Record<string, number> = {}) {
   const base = CLASS_BASE_STATS[cls] ?? CLASS_BASE_STATS.warrior
   const scale = (v: number) => Math.round(v * (1 + 0.018 * (level - 1)))
-  return { hp: scale(base.hp), atk: scale(base.atk), dex: scale(base.dex), def: scale(base.def), int: scale(base.int) }
+  return {
+    hp:  scale(base.hp)  + (boosts.hp  ?? 0),
+    atk: scale(base.atk) + (boosts.atk ?? 0),
+    dex: scale(base.dex) + (boosts.dex ?? 0),
+    def: scale(base.def) + (boosts.def ?? 0),
+    int: scale(base.int) + (boosts.int ?? 0),
+  }
 }
 
 function critChance(dex: number) { return Math.min(0.05 + dex * 0.006, 0.50) }
@@ -191,13 +197,11 @@ Deno.serve(async (req: Request) => {
       return json({ spawned: true, raid_id: newRaid.id, boss_hp: bossStats.hp })
     }
 
-    // ── Active raid exists — fetch caller's combat row ───────────────────────
-    const { data: member } = await supabase
-      .from('crew_combat_members')
-      .select('*')
-      .eq('raid_id', raid.id)
-      .eq('user_id', user_id)
-      .maybeSingle()
+    // ── Active raid exists — fetch caller's combat row + persistent stat boosts ─
+    const [{ data: member }, { data: crewMemberRow }] = await Promise.all([
+      supabase.from('crew_combat_members').select('*').eq('raid_id', raid.id).eq('user_id', user_id).maybeSingle(),
+      supabase.from('crew_members').select('stat_boosts').eq('crew_id', crew_id).eq('user_id', user_id).maybeSingle(),
+    ])
 
     if (!member) return json({ skipped: true, reason: 'no_combat_row' })
 
@@ -205,8 +209,9 @@ Deno.serve(async (req: Request) => {
       return json({ downed: true, message: "You're down. Someone needs to revive you." })
     }
 
+    const statBoosts = (crewMemberRow?.stat_boosts ?? {}) as Record<string, number>
     const crewLevel = (await supabase.from('crews').select('level').eq('id', crew_id).single()).data?.level ?? 1
-    const stats = statsAtLevel(member.class, crewLevel)
+    const stats = statsAtLevel(member.class, crewLevel, statBoosts)
 
     // ── ABILITY USE ──────────────────────────────────────────────────────────
     if (is_ability && ability_type) {
@@ -453,6 +458,8 @@ Deno.serve(async (req: Request) => {
 
 // ─── Victory handler ──────────────────────────────────────────────────────────
 
+const VICTORY_STAT_POOL = ['hp', 'atk', 'dex', 'def', 'int']
+
 async function handleVictory(
   supabase: ReturnType<typeof createClient>,
   raidId: string,
@@ -474,7 +481,8 @@ async function handleVictory(
   const rarityIdx = ['common', 'rare', 'epic', 'legendary'].indexOf(rarity)
   const name      = rarities[rarityIdx] ?? rarities[0]
 
-  await Promise.all([
+  // Fetch combat members, their profiles, and existing stat boosts in parallel
+  const [, , { data: raidMembers }] = await Promise.all([
     supabase.from('artifacts').insert({
       crew_id:        crewId,
       name,
@@ -490,5 +498,49 @@ async function handleVictory(
       content:      `COMBAT:victory:${mvpUsername}:${rarity}:${name}`,
       message_type: 'system', element_type: null, xp_awarded: 0,
     }),
+    supabase.from('crew_combat_members').select('user_id').eq('raid_id', raidId),
+  ])
+
+  if (!raidMembers || raidMembers.length === 0) return
+
+  const memberUserIds = raidMembers.map((m: { user_id: string }) => m.user_id)
+
+  const [{ data: memberProfiles }, { data: memberBoostRows }] = await Promise.all([
+    supabase.from('profiles').select('id, username').in('id', memberUserIds),
+    supabase.from('crew_members').select('user_id, stat_boosts').eq('crew_id', crewId).in('user_id', memberUserIds),
+  ])
+
+  const usernameMap = Object.fromEntries(
+    ((memberProfiles ?? []) as Array<{ id: string; username: string }>).map(p => [p.id, p.username])
+  )
+  const boostMap = Object.fromEntries(
+    ((memberBoostRows ?? []) as Array<{ user_id: string; stat_boosts: Record<string, number> }>)
+      .map(r => [r.user_id, r.stat_boosts ?? {}])
+  )
+
+  // Roll a random stat boost for each member, apply, and announce
+  const boostOps = memberUserIds.map((userId: string) => {
+    const stat    = VICTORY_STAT_POOL[Math.floor(Math.random() * VICTORY_STAT_POOL.length)]
+    const current = boostMap[userId] ?? {}
+    const updated = { ...current, [stat]: (current[stat] ?? 0) + 1 }
+    const username = usernameMap[userId] ?? 'Unknown'
+    return { userId, stat, updated, username }
+  })
+
+  await Promise.all([
+    ...boostOps.map(op =>
+      supabase.from('crew_members')
+        .update({ stat_boosts: op.updated })
+        .eq('crew_id', crewId)
+        .eq('user_id', op.userId)
+    ),
+    ...boostOps.map(op =>
+      supabase.from('messages').insert({
+        crew_id:      crewId,
+        user_id:      op.userId,
+        content:      `COMBAT:stat_up:${op.username}:${op.stat}`,
+        message_type: 'system', element_type: null, xp_awarded: 0,
+      })
+    ),
   ])
 }

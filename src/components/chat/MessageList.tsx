@@ -91,9 +91,9 @@ const LOAD_OLDER_BATCH = 50
 
 // ─── Combat event parsers (used by realtime INSERT handler) ───────────────────
 
-function parseCombatEvent(content: string): CombatEvent | null {
-  const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`
-  const ts = Date.now()
+function parseCombatEvent(content: string, messageId?: string, messageTs?: number): CombatEvent | null {
+  const id = messageId ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`
+  const ts = messageTs ?? Date.now()
 
   if (content.startsWith('BOSS_SPAWN:')) {
     const [, name, hp] = content.split(':')
@@ -138,6 +138,9 @@ function parseCombatEvent(content: string): CombatEvent | null {
     case 'escaped':
       return { id, ts, kind: 'raid_escaped' as CombatEventKind,
                text: `${parts.slice(2).join(':')} escaped without defeating the boss.` }
+    case 'stat_up':
+      return { id, ts, kind: 'stat_boost' as CombatEventKind,
+               text: `✦ ${parts[2]} +1 ${parts[3].toUpperCase()}` }
     default: return null
   }
 }
@@ -289,6 +292,19 @@ export function MessageList({
         ].sort((a, b) => a.created_at.localeCompare(b.created_at))
 
         setMessages(merged)
+
+        // Replay combat events from loaded messages so the log persists across page loads
+        if (combatEnabled) {
+          const combatStore = useCombatStore.getState()
+          const raid = combatStore.activeRaid
+          if (raid) {
+            const replayEvents = merged
+              .filter((m) => m.message_type === 'system' && m.created_at >= raid.started_at)
+              .map((m) => parseCombatEvent(m.content, m.id, Date.parse(m.created_at)))
+              .filter((e): e is CombatEvent => e !== null)
+            if (replayEvents.length > 0) combatStore.replayCombatEvents(replayEvents)
+          }
+        }
 
         // Record the oldest message as the pagination cursor
         if (merged.length > 0) {
@@ -598,7 +614,7 @@ export function MessageList({
           // Feed combat events and damage floats to the combat store (combat toggle only)
           if (combatEnabled && raw.message_type === 'system') {
             const store = useCombatStore.getState()
-            const event = parseCombatEvent(raw.content)
+            const event = parseCombatEvent(raw.content, raw.id, Date.parse(raw.created_at))
             if (event) store.addCombatEvent(event)
             const float = parseDamageFloat(raw.content)
             if (float) {

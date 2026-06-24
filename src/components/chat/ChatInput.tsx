@@ -211,6 +211,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   useEffect(() => {
     if (!isDevUser || !combatEnabled) return
     const store = useCombatStore.getState()
+    store.clearCombatEvents()  // Scope log to this crew's current raid
     store.setActiveRaid(initialRaid ?? null)
     if (initialMemberStats) store.setAllMembers(Object.values(initialMemberStats))
     if (initialReviveTokens !== undefined) store.setReviveTokens(initialReviveTokens)

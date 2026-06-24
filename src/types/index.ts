@@ -104,6 +104,8 @@ export interface CrewMember extends Record<string, unknown> {
   class: AvatarClass | null
   joined_at: string
   last_seen: string | null
+  ability_bank: number
+  stat_boosts: Record<string, number>
 }
 
 export interface Message extends Record<string, unknown> {
@@ -324,6 +326,7 @@ export type CombatEventKind =
   | 'raid_escaped'
   | 'heal'
   | 'self_heal'
+  | 'stat_boost'
 
 export interface CombatEvent {
   id:        string

@@ -13,7 +13,7 @@ Build: `next build --webpack` (Turbopack breaks next-pwa + proxy.ts)
 ```
 profiles            id, username (unique case-insensitive), first_name, last_name, avatar_class, avatar_url, avatar_storage_key, custom_avatar (bool default false), birthday, is_dev, coins (int default 0), gem_balance (int default 0), last_gem_claim (timestamptz nullable), status (text nullable ≤100 chars), last_active_at (timestamptz nullable), created_at
 crews               id, name, invite_code (6 chars unique), level, total_xp, created_at, is_dm (bool default false), dm_partner_1 (uuid nullable), dm_partner_2 (uuid nullable), image_url, image_storage_key, last_message_preview (text nullable), last_message_at (timestamptz nullable), last_message_sender_id (uuid nullable)
-crew_members        id, crew_id, user_id, class, joined_at, last_seen, ability_bank (int default 0)
+crew_members        id, crew_id, user_id, class, joined_at, last_seen, ability_bank (int default 0), stat_boosts (jsonb default '{}')
 messages            id, crew_id, user_id, content, message_type, element_type, xp_awarded, reactions (jsonb default '{}'), reply_to_id, reply_preview, reply_username, image_url, image_blur_hash, pinned (bool default false), pinned_by (uuid nullable), pinned_at (timestamptz nullable), pin_expires_at (timestamptz nullable), created_at
 crew_xp_log         id, crew_id, user_id, xp_amount, source, created_at
 bosses              id, name, type (void|ghost|flood|scheduled), max_hp, weak_element, description
@@ -255,6 +255,7 @@ OG previews: `extractFirstUrl` → `useOGPreview` hook → `<LinkPreviewCard>` b
 | `COMBAT:phase:{newPhase}` | Phase transition |
 | `COMBAT:victory:{mvpUsername}:{rarity}:{artifactName}` | Boss defeated |
 | `COMBAT:escaped:{bossName}` | Raid expired without defeat |
+| `COMBAT:stat_up:{username}:{stat}` | +1 stat awarded on victory (stat ∈ hp\|atk\|dex\|def\|int) |
 
 **MessageList combat wiring** (`parseCombatEvent` + `parseDamageFloat` — module-level functions before `MessageList` component):
 - On `postgres_changes INSERT` for `message_type === 'system'` when `combatEnabled`: calls `parseCombatEvent(content)` → `combatStore.addCombatEvent(event)` (capped at 200); calls `parseDamageFloat(content)` → `combatStore.spawnDamageFloat(...)` for attack/volley/backstab/cast only; float x = `window.innerWidth * 0.5 + (Math.random() * 80 - 40)`, y = `window.innerHeight * 0.65`
@@ -523,6 +524,7 @@ Full-height swipe-up panel with scroll-integrated pull-to-close (`onPanEnd`, thr
 - `fix_damage_raid_ambiguous_column` — damage_raid: qualify `active_raids.defeated_at` in WHERE clause to fix PL/pgSQL `42702: column reference is ambiguous` error; also updated `20240101000002` local file in-place
 - `20240103000043` — Ability Bank system: drops `current_mp`/`max_mp` from `crew_combat_members`, adds `ability_bank (int default 0)`; replaces `init_combat_members` (removes MP fields); backfills existing rows from historical message counts
 - `20240103000044` — Bank persistence: adds `crew_members.ability_bank (int default 0)`; backfills from historical eligible messages (text ≥5 chars or image, not exact repeat); syncs active raid rows; replaces `init_combat_members` to seed `ability_bank` from `crew_members.ability_bank`
+- `20240103000045` — Stat boosts: adds `crew_members.stat_boosts (jsonb default '{}')` — persistent per-member stat boosts earned by defeating bosses (+1 random stat on victory); replaces `init_combat_members` to apply HP boost to `max_hp` on raid init; `attack-boss` reads boosts when computing `statsAtLevel`
 
 Manual SQL applied directly:
 ```sql

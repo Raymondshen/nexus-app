@@ -15,8 +15,9 @@ interface CombatStore {
   patchMemberBank:   (userId: string, bank: number) => void
   patchMemberMomentum: (userId: string, stack: number) => void
   setAllMembers:     (members: CombatMember[]) => void
-  addCombatEvent:    (event: CombatEvent) => void
-  clearCombatEvents: () => void
+  addCombatEvent:     (event: CombatEvent) => void
+  replayCombatEvents: (events: CombatEvent[]) => void
+  clearCombatEvents:  () => void
   setReviveTokens:   (count: number) => void
   spawnDamageFloat:  (float: DamageFloat) => void
   removeDamageFloat: (id: string) => void
@@ -73,6 +74,16 @@ export const useCombatStore = create<CombatStore>((set) => ({
     set((s) => ({
       combatEvents: [...s.combatEvents.slice(-199), event],  // cap at 200
     })),
+
+  replayCombatEvents: (events) =>
+    set((s) => {
+      const byId = new Map(s.combatEvents.map((e) => [e.id, e]))
+      for (const e of events) {
+        if (!byId.has(e.id)) byId.set(e.id, e)
+      }
+      const sorted = [...byId.values()].sort((a, b) => a.ts - b.ts)
+      return { combatEvents: sorted.slice(-200) }
+    }),
 
   clearCombatEvents: () => set({ combatEvents: [] }),
 

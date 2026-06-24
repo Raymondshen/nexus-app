@@ -18,6 +18,7 @@ const EVENT_COLOR: Record<string, string> = {
   raid_escaped:     'var(--color-tertiary)',
   heal:             'var(--color-success)',
   self_heal:        'var(--color-success)',
+  stat_boost:       'var(--color-coins)',
 }
 
 function EventRow({ event }: { event: CombatEvent }) {
