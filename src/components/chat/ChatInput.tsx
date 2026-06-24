@@ -26,6 +26,7 @@ import { Close } from 'pixelarticons/react/Close'
 import { InputActionsSheet } from '@/components/chat/InputActionsSheet'
 import { GifIcon } from '@/components/icons/GifIcon'
 import { kickMemberAction, renameCrewAction, birthdaysCommandAction } from '@/app/(app)/chat/actions'
+import { joinRaidAction } from '@/app/(app)/profile/developer/actions'
 import { EventCreationSheet } from '@/components/chat/EventCreationSheet'
 import { CrewImageUploadModal } from '@/components/chat/CrewImageUploadModal'
 import { NotifSheet, type NotifPrefs } from '@/components/chat/NotifSheet'
@@ -137,6 +138,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   const [showEventSheet,  setShowEventSheet]  = useState(false)
   const [isMultiline,     setIsMultiline]     = useState(false)
 
+  const [joiningRaid,        setJoiningRaid]        = useState(false)
   const [chatImageLocalUrl,  setChatImageLocalUrl]  = useState<string | null>(null)
   const [chatImagePublicUrl, setChatImagePublicUrl] = useState<string | null>(null)
   const [chatImageLqip,      setChatImageLqip]      = useState<string | null>(null)
@@ -169,6 +171,11 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     replyTo, setReplyTo,
     squadDetailsOpen, setSquadDetailsOpen,
   } = useChatStore()
+
+  // Reactive combat state — re-renders when raid or member stats change
+  const activeCombatRaid  = useCombatStore((s) => s.activeRaid)
+  const combatMemberStats = useCombatStore((s) => s.memberStats)
+  const hasJoinedRaid     = !!(activeCombatRaid && combatMemberStats[userId])
 
   const liveCrewName = storeCrewName || crewName
 
@@ -1009,15 +1016,27 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     }
   }, [text, sending, crewId, userId, userProfile, addMessage, removeMessage, updateMessage]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Fire-and-forget attack-boss after award-xp settles (dev only)
+  // Fire-and-forget attack-boss after award-xp settles (dev only, joined members only)
   const callAttackBoss = useCallback((messageType: string, softBlocked: boolean) => {
     if (!isDevUser || !combatEnabled) return
+    const { activeRaid, memberStats } = useCombatStore.getState()
+    if (!activeRaid || !memberStats[userId]) return
     fetch(`${SUPABASE_URL}/functions/v1/attack-boss`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
       body:    JSON.stringify({ crew_id: crewId, user_id: userId, username: userProfile.username, message_type: messageType, soft_blocked: softBlocked }),
     }).catch(() => {})
   }, [isDevUser, combatEnabled, crewId, userId, userProfile]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handleJoinRaid() {
+    if (joiningRaid) return
+    setJoiningRaid(true)
+    const result = await joinRaidAction(crewId)
+    setJoiningRaid(false)
+    if (result.error) console.error('[joinRaid]', result.error)
+    // Realtime INSERT on crew_combat_members will update combatStore.memberStats,
+    // which flips hasJoinedRaid and swaps the banner for the full HUD.
+  }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) {
     // @mention picker navigation
@@ -1220,9 +1239,51 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
         <>
           <DamageFloatLayer />
           <div style={{ marginLeft: 'calc(-1 * var(--space-5))', marginRight: 'calc(-1 * var(--space-5))' }}>
-            <BossCard />
-            <CombatHUD memberProfiles={memberProfiles} currentUserId={userId} crewId={crewId} />
-            <CombatLog />
+            {activeCombatRaid && !hasJoinedRaid ? (
+              // JOIN RAID banner — shown when a raid is active but player hasn't joined yet
+              <div
+                style={{
+                  background: 'linear-gradient(135deg, #0f0820 0%, #1a0d2e 100%)',
+                  border: '1px solid #ef444433',
+                  padding: '12px 16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  marginBottom: 2,
+                }}
+              >
+                <div style={{ minWidth: 0 }}>
+                  <p className="font-pixel leading-none" style={{ fontSize: 7, color: '#ef4444', marginBottom: 4 }}>
+                    ◆ THE VOID IS RAGING ◆
+                  </p>
+                  <p className="font-silkscreen leading-none" style={{ fontSize: 9, color: 'var(--color-primary)' }}>
+                    PHASE {activeCombatRaid.phase} · {Math.round(activeCombatRaid.current_hp).toLocaleString()} / {Math.round(activeCombatRaid.max_hp).toLocaleString()} HP
+                  </p>
+                </div>
+                <button
+                  onClick={handleJoinRaid}
+                  disabled={joiningRaid}
+                  className="flex-shrink-0 font-pixel disabled:opacity-50"
+                  style={{
+                    fontSize: 7,
+                    padding: '8px 14px',
+                    background: '#ef4444',
+                    color: 'var(--color-primary)',
+                    letterSpacing: '0.05em',
+                  }}
+                >
+                  {joiningRaid ? '...' : '⚔ JOIN RAID'}
+                </button>
+              </div>
+            ) : (
+              // Full combat HUD — shown after player has joined
+              <>
+                <BossCard />
+                <CombatHUD memberProfiles={memberProfiles} currentUserId={userId} crewId={crewId} />
+                <CombatLog />
+              </>
+            )}
           </div>
           <div style={{ paddingTop: 'var(--space-5)' }} />
         </>
@@ -1590,7 +1651,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                 const canSend      = canSendImage || canSendText
                 return (
                   <div className="flex items-center gap-3 flex-shrink-0">
-                    {isDevUser && combatEnabled && !isDM && userCombatClass && (
+                    {isDevUser && combatEnabled && !isDM && userCombatClass && hasJoinedRaid && (
                       <AbilityButton crewId={crewId} userId={userId} userClass={userCombatClass} username={userProfile.username} />
                     )}
                     <button

@@ -57,13 +57,6 @@ export async function spawnBossAction(crewId: string): Promise<{ ok?: boolean; r
   const { data: crew } = await service.from('crews').select('level').eq('id', crewId).single()
   const crewLevel = (crew as { level?: number } | null)?.level ?? 1
 
-  // init combat members
-  await service.rpc('init_combat_members', {
-    p_raid_id:    raid.id,
-    p_crew_id:    crewId,
-    p_crew_level: crewLevel,
-  })
-
   // system message so the chat shows the boss spawn banner
   await service.from('messages').insert({
     crew_id:      crewId,
@@ -159,6 +152,60 @@ export async function resetCombatAction(crewId: string): Promise<{ ok?: boolean;
   // delete revive tokens first, then active raid (cascade kills combat members)
   await service.from('revive_tokens').delete().eq('crew_id', crewId)
   const { error } = await service.from('active_raids').delete().eq('crew_id', crewId)
+  if (error) return { error: error.message }
+  return { ok: true }
+}
+
+export async function joinRaidAction(crewId: string): Promise<{ ok?: boolean; error?: string }> {
+  const auth = await requireDev()
+  if ('error' in auth) return { error: auth.error }
+  const { session, service } = auth
+  const userId = session.user.id
+
+  const { data: raid } = await service
+    .from('active_raids')
+    .select('id')
+    .eq('crew_id', crewId)
+    .is('defeated_at', null)
+    .maybeSingle()
+  if (!raid) return { error: 'No active raid for this crew.' }
+  const raidId = (raid as { id: string }).id
+
+  // Already joined — idempotent
+  const { data: existing } = await service
+    .from('crew_combat_members')
+    .select('id')
+    .eq('raid_id', raidId)
+    .eq('user_id', userId)
+    .maybeSingle()
+  if (existing) return { ok: true }
+
+  const { data: memberRow } = await service
+    .from('crew_members')
+    .select('class')
+    .eq('crew_id', crewId)
+    .eq('user_id', userId)
+    .single()
+  const cls = (memberRow as { class: string } | null)?.class
+  const COMBAT_CLASSES = ['warrior', 'healer', 'archer', 'rogue', 'mage']
+  if (!cls || !COMBAT_CLASSES.includes(cls)) return { error: 'No combat class assigned.' }
+
+  const { data: crew } = await service.from('crews').select('level').eq('id', crewId).single()
+  const crewLevel = (crew as { level: number } | null)?.level ?? 1
+
+  const BASE: Record<string, { hp: number; mp: number }> = {
+    warrior: { hp: 42, mp: 60 }, healer: { hp: 32, mp: 80 },
+    archer:  { hp: 28, mp: 65 }, rogue:  { hp: 24, mp: 55 },
+    mage:    { hp: 24, mp: 85 },
+  }
+  const { hp: baseHp, mp: baseMp } = BASE[cls] ?? { hp: 30, mp: 60 }
+  const maxHp = Math.round(baseHp * (1 + 0.018 * (crewLevel - 1)))
+  const maxMp = Math.round(baseMp * (1 + 0.018 * (crewLevel - 1)))
+
+  const { error } = await service.from('crew_combat_members').insert({
+    raid_id: raidId, user_id: userId, class: cls,
+    current_hp: maxHp, max_hp: maxHp, current_mp: 0, max_mp: maxMp,
+  })
   if (error) return { error: error.message }
   return { ok: true }
 }
