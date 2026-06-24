@@ -26,9 +26,11 @@ export function BossCard() {
   useEffect(() => {
     if (!raid) return
     const tick = () => {
-      const last    = raid.last_boss_attack_at ? new Date(raid.last_boss_attack_at).getTime() : 0
+      const anchor   = raid.last_boss_attack_at
+        ? new Date(raid.last_boss_attack_at).getTime()
+        : new Date(raid.started_at).getTime()
       const interval = BOSS_ATTACK_INTERVAL_MS[raid.phase as 1 | 2 | 3] ?? BOSS_ATTACK_INTERVAL_MS[1]
-      const nextAt   = last + interval
+      const nextAt   = anchor + interval
       const ms       = Math.max(0, nextAt - Date.now())
       const h        = Math.floor(ms / 3_600_000)
       const m        = Math.floor((ms % 3_600_000) / 60_000)
