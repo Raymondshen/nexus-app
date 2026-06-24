@@ -88,12 +88,6 @@ export function CombatHUD({ memberProfiles, currentUserId, crewId }: CombatHUDPr
       >
         <div className="flex items-center gap-2">
           <span className="font-pixel" style={{ fontSize: 6, color: '#6b4f8f' }}>RAID ACTIVE</span>
-          <span
-            className="font-silkscreen"
-            style={{ fontSize: 7, color: activeRaid.phase === 3 ? '#ef4444' : activeRaid.phase === 2 ? '#f59e0b' : '#9333ea' }}
-          >
-            P{activeRaid.phase}
-          </span>
           {reviveTokens > 0 && (
             <span className="font-silkscreen" style={{ fontSize: 7, color: '#22c55e' }}>
               ✦ {reviveTokens} revives

@@ -321,7 +321,7 @@ export type CombatEventKind =
   | 'boss_attack'
   | 'member_downed'
   | 'member_revived'
-  | 'phase_transition'
+  | 'boss_spawn'
   | 'raid_victory'
   | 'raid_escaped'
   | 'heal'
@@ -334,7 +334,6 @@ export interface CombatEvent {
   actorId?:  string
   targetId?: string
   value?:    number         // damage / heal amount
-  phase?:    number
   text:      string         // game-voice copy, pre-rendered
   ts:        number         // Date.now()
 }

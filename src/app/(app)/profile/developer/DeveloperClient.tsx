@@ -12,7 +12,6 @@ import {
   resetFriendshipXPAction,
   resetGemCooldownAction,
   spawnBossAction,
-  forceRaidPhaseAction,
   endRaidAction,
   selfDownAction,
   addReviveTokenAction,
@@ -121,8 +120,6 @@ export function DeveloperClient({ userId: _userId, initialCoins, userCrews }: De
   // combat testing
   const [selectedCrewId,   setSelectedCrewId]   = useState<string>(userCrews[0]?.id ?? '')
   const [spawnState,       setSpawnState]        = useState<ActionState>('idle')
-  const [phase2State,      setPhase2State]       = useState<ActionState>('idle')
-  const [phase3State,      setPhase3State]       = useState<ActionState>('idle')
   const [endRaidState,     setEndRaidState]      = useState<ActionState>('idle')
   const [selfDownState,    setSelfDownState]     = useState<ActionState>('idle')
   const [reviveState,      setReviveState]       = useState<ActionState>('idle')
@@ -251,18 +248,6 @@ export function DeveloperClient({ userId: _userId, initialCoins, userCrews }: De
       onPress:     () => runCombatAction(setSpawnState, spawnState, () => spawnBossAction(selectedCrewId)),
     },
     {
-      title:       'Force Phase 2',
-      description: 'Advance the active raid to phase 2 (50% HP threshold)',
-      state:       phase2State,
-      onPress:     () => runCombatAction(setPhase2State, phase2State, () => forceRaidPhaseAction(selectedCrewId, 2)),
-    },
-    {
-      title:       'Force Phase 3',
-      description: 'Advance the active raid to phase 3 (20% HP threshold)',
-      state:       phase3State,
-      onPress:     () => runCombatAction(setPhase3State, phase3State, () => forceRaidPhaseAction(selectedCrewId, 3)),
-    },
-    {
       title:       'End Raid',
       description: 'Mark the active raid as defeated (no artifact drop)',
       state:       endRaidState,
@@ -284,7 +269,7 @@ export function DeveloperClient({ userId: _userId, initialCoins, userCrews }: De
     },
     {
       title:       'Trigger Boss Attack',
-      description: 'Force boss to attack now, bypassing the 2h/1h timer',
+      description: 'Force boss to attack now, bypassing the 2h timer',
       state:       bossAttackState,
       onPress:     () => runCombatAction(setBossAttackState, bossAttackState, () => triggerBossAttackAction(selectedCrewId)),
     },

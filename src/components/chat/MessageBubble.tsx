@@ -1042,22 +1042,21 @@ function BossSpawnMessage({ content }: { content: string }) {
   const raid        = useCombatStore((s) => s.activeRaid)
   const liveHp      = raid?.current_hp ?? maxHpMsg
   const maxHp       = raid?.max_hp ?? maxHpMsg
-  const phase       = raid?.phase ?? 1
   const hpPct       = maxHp > 0 ? (liveHp / maxHp) * 100 : 100
-  const phaseColor  = phase === 3 ? '#ef4444' : phase === 2 ? '#f59e0b' : '#9333ea'
+  const bossColor   = '#9333ea'
 
   return (
     <div style={{ marginTop: 'var(--space-6)', marginBottom: 'var(--space-6)' }}>
       <div
         className="flex flex-col items-center w-full border text-center"
-        style={{ padding: '12px 16px', gap: 6, background: 'linear-gradient(135deg,#0f0820,#1a0d2e)', borderColor: `${phaseColor}66` }}
+        style={{ padding: '12px 16px', gap: 6, background: 'linear-gradient(135deg,#0f0820,#1a0d2e)', borderColor: `${bossColor}66` }}
       >
-        <p className="font-pixel leading-none" style={{ fontSize: 7, color: phaseColor }}>⚠ BOSS RAID BEGINS</p>
+        <p className="font-pixel leading-none" style={{ fontSize: 7, color: bossColor }}>⚠ BOSS RAID BEGINS</p>
         <p className="font-pixel leading-none" style={{ fontSize: 11, color: '#bf5fff', textShadow: '0 0 16px #bf5fff88' }}>
           ◆ {bossName.toUpperCase()} ◆
         </p>
         <p className="font-silkscreen leading-none" style={{ fontSize: 8, color: 'var(--color-tertiary)' }}>
-          {Math.round(liveHp).toLocaleString()} / {Math.round(maxHp).toLocaleString()} HP · 48hr window
+          {Math.round(liveHp).toLocaleString()} / {Math.round(maxHp).toLocaleString()} HP · 7-day window
         </p>
         {/* Live HP bar */}
         <div className="w-full" style={{ marginTop: 2 }}>
@@ -1067,7 +1066,7 @@ function BossSpawnMessage({ content }: { content: string }) {
                 position:   'absolute',
                 inset:      '0 auto 0 0',
                 width:      `${hpPct}%`,
-                background: `linear-gradient(90deg, ${phaseColor}88, ${phaseColor})`,
+                background: `linear-gradient(90deg, ${bossColor}88, ${bossColor})`,
                 borderRadius: 2,
                 transition: 'width 0.5s ease-out',
               }}
@@ -1102,15 +1101,6 @@ function CombatMessage({ content }: { content: string }) {
         : `@${username} attacked — ${dmg} DMG  ▸ Boss HP: ${hp}`
       color  = isCrit ? 'var(--color-crit)' : 'var(--color-primary)'
       border = isCrit ? '#fbbf2444' : '#2a1545'
-      break
-    }
-    case 'phase': {
-      // COMBAT:phase:2 or COMBAT:phase:3
-      const phase = parts[2] ?? '2'
-      text  = phase === '3' ? '⚠ PHASE III — THE VOID RAGES' : '⚠ PHASE II — THE VOID HUNGERS'
-      color = phase === '3' ? '#ef4444' : '#f59e0b'
-      bg    = '#1a0d2e'
-      border = phase === '3' ? '#ef444455' : '#f59e0b55'
       break
     }
     case 'victory': {

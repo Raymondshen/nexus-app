@@ -97,7 +97,7 @@ function parseCombatEvent(content: string, messageId?: string, messageTs?: numbe
 
   if (content.startsWith('BOSS_SPAWN:')) {
     const [, name, hp] = content.split(':')
-    return { id, ts, kind: 'phase_transition' as CombatEventKind, text: `⚔ ${name} appears — ${hp} HP` }
+    return { id, ts, kind: 'boss_spawn' as CombatEventKind, text: `⚔ ${name} appears — ${hp} HP` }
   }
 
   if (!content.startsWith('COMBAT:')) return null
@@ -129,9 +129,6 @@ function parseCombatEvent(content: string, messageId?: string, messageTs?: numbe
                text: `Boss strikes ${parts[2]} — ${parts[3]} dmg` }
     case 'downed':
       return { id, ts, kind: 'member_downed' as CombatEventKind, text: `${parts[2]} has been downed!` }
-    case 'phase':
-      return { id, ts, kind: 'phase_transition' as CombatEventKind, phase: Number(parts[2]),
-               text: `⚠ Boss enters Phase ${parts[2]}!` }
     case 'victory':
       return { id, ts, kind: 'raid_victory' as CombatEventKind,
                text: `✦ Victory! ${parts[2]} earns ${parts[3]} ${parts.slice(4).join(':')}` }
@@ -643,9 +640,6 @@ export function MessageList({
               if (!isNaN(newHp) && (curHp === undefined || newHp < curHp)) {
                 store.patchRaid({ current_hp: newHp })
               }
-            } else if (t === 'phase') {
-              const newPhase = Number(p[2])
-              if (!isNaN(newPhase)) store.patchRaid({ phase: newPhase })
             } else if (t === 'victory' || t === 'escaped') {
               store.setActiveRaid(null)
               store.setAllMembers([])

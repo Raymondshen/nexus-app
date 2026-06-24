@@ -13,7 +13,7 @@ const EVENT_COLOR: Record<string, string> = {
   boss_attack:      'var(--color-danger)',
   member_downed:    'var(--color-danger)',
   member_revived:   'var(--color-success)',
-  phase_transition: '#f59e0b',
+  boss_spawn:       '#9333ea',
   raid_victory:     '#ffd700',
   raid_escaped:     'var(--color-tertiary)',
   heal:             'var(--color-success)',

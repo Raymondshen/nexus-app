@@ -7,21 +7,8 @@ import { BOSS_ATTACK_INTERVAL_MS } from '@/lib/config'
 
 export function BossCard() {
   const raid = useCombatStore((s) => s.activeRaid)
-  const [prevPhase, setPrevPhase] = useState<number | null>(null)
-  const [phaseAlert, setPhaseAlert] = useState(false)
   const [timeToNext, setTimeToNext] = useState('')
   const triggeredRef = useRef(false)
-
-  // Phase transition flash
-  useEffect(() => {
-    if (!raid) return
-    if (prevPhase !== null && raid.phase > prevPhase) {
-      setPhaseAlert(true)
-      const t = setTimeout(() => setPhaseAlert(false), 2500)
-      return () => clearTimeout(t)
-    }
-    setPrevPhase(raid.phase)
-  }, [raid?.phase]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Next-attack countdown — auto-triggers the boss attack when it reaches 0
   useEffect(() => {
@@ -31,8 +18,7 @@ export function BossCard() {
       const anchor   = raid.last_boss_attack_at
         ? new Date(raid.last_boss_attack_at).getTime()
         : new Date(raid.started_at).getTime()
-      const interval = BOSS_ATTACK_INTERVAL_MS[raid.phase as 1 | 2 | 3] ?? BOSS_ATTACK_INTERVAL_MS[1]
-      const nextAt   = anchor + interval
+      const nextAt   = anchor + BOSS_ATTACK_INTERVAL_MS
       const ms       = Math.max(0, nextAt - Date.now())
       const h        = Math.floor(ms / 3_600_000)
       const m        = Math.floor((ms % 3_600_000) / 60_000)
@@ -52,7 +38,7 @@ export function BossCard() {
   if (!raid) return null
 
   const hpPct    = (raid.current_hp / raid.max_hp) * 100
-  const phaseColor = raid.phase === 3 ? '#ef4444' : raid.phase === 2 ? '#f59e0b' : '#9333ea'
+  const bossColor = '#9333ea'
 
   return (
     <AnimatePresence>
@@ -64,47 +50,20 @@ export function BossCard() {
         className="relative overflow-hidden"
         style={{
           background:  'linear-gradient(135deg, #0f0820 0%, #1a0d2e 100%)',
-          border:      `1px solid ${phaseColor}44`,
+          border:      `1px solid ${bossColor}44`,
           padding:     '12px 16px',
           marginBottom: 2,
         }}
       >
-        {/* Phase transition overlay */}
-        <AnimatePresence>
-          {phaseAlert && (
-            <motion.div
-              className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: [0, 1, 1, 0] }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 2.5, times: [0, 0.1, 0.7, 1] }}
-              style={{ background: `${phaseColor}22` }}
-            >
-              <span
-                className="font-pixel"
-                style={{ fontSize: 11, color: phaseColor, textShadow: `0 0 20px ${phaseColor}` }}
-              >
-                {raid.phase === 2 ? 'PHASE II — IT HUNGERS' : 'PHASE III — THE VOID RAGES'}
-              </span>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
         <div className="flex items-start justify-between gap-3 mb-3">
           {/* Boss identity */}
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <span className="font-pixel leading-none" style={{ fontSize: 8, color: phaseColor }}>
+              <span className="font-pixel leading-none" style={{ fontSize: 8, color: bossColor }}>
                 ◆ THE VOID ◆
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <span
-                className="font-pixel leading-none"
-                style={{ fontSize: 7, color: '#6b4f8f', background: `${phaseColor}18`, padding: '2px 6px', border: `1px solid ${phaseColor}33` }}
-              >
-                PHASE {raid.phase}
-              </span>
               {raid.volley_expires_at && new Date(raid.volley_expires_at).getTime() > Date.now() && (
                 <span className="font-pixel leading-none" style={{ fontSize: 6, color: '#ffd700', background: '#ffd70018', padding: '2px 5px', border: '1px solid #ffd70033' }}>
                   VOLLEY DEBUFFED
@@ -116,7 +75,7 @@ export function BossCard() {
           {/* Next attack timer */}
           <div className="text-right flex-shrink-0">
             <p className="font-pixel leading-none" style={{ fontSize: 6, color: '#6b4f8f', marginBottom: 3 }}>NEXT ATTACK</p>
-            <p className="font-silkscreen leading-none" style={{ fontSize: 11, color: phaseColor }}>{timeToNext}</p>
+            <p className="font-silkscreen leading-none" style={{ fontSize: 11, color: bossColor }}>{timeToNext}</p>
           </div>
         </div>
 
@@ -131,7 +90,7 @@ export function BossCard() {
           <div className="relative h-[6px] rounded-full overflow-hidden" style={{ background: '#2a1545' }}>
             <motion.div
               className="absolute inset-y-0 left-0 rounded-full"
-              style={{ background: `linear-gradient(90deg, ${phaseColor}99, ${phaseColor})` }}
+              style={{ background: `linear-gradient(90deg, ${bossColor}99, ${bossColor})` }}
               initial={false}
               animate={{ width: `${hpPct}%` }}
               transition={{ duration: 0.4, ease: 'easeOut' }}

@@ -80,17 +80,11 @@ export const KLIPY_TRENDING_REVALIDATE_SECONDS = 300
 
 export const COMBAT_ENABLED_CLASSES = ['warrior', 'healer', 'archer', 'rogue', 'mage'] as const
 
-/** XP threshold between boss spawns (same as Phase 1 loop) */
-export const BOSS_SPAWN_XP_INTERVAL = 500
+/** Boss attack interval — fixed 2 hours for the entire fight */
+export const BOSS_ATTACK_INTERVAL_MS = 2 * 60 * 60 * 1000
 
-/** Boss attack intervals in ms, keyed by phase */
-export const BOSS_ATTACK_INTERVAL_MS: Record<1 | 2 | 3, number> = {
-  1: 2 * 60 * 60 * 1000,   // 2 hours
-  2: 2 * 60 * 60 * 1000,
-  3: 1 * 60 * 60 * 1000,   // 1 hour
-}
-
-export const BOSS_PHASE_MULT: Record<1 | 2 | 3, number> = { 1: 1.0, 2: 1.3, 3: 1.6 }
+/** Flat boss damage multiplier applied every attack */
+export const BOSS_DAMAGE_MULT = 1.3
 
 /** Hours before a downed member naturally revives */
 export const DOWNED_REGEN_HOURS = 8
