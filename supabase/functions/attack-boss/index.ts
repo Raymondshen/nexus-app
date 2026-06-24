@@ -352,6 +352,9 @@ Deno.serve(async (req: Request) => {
     // Only text/image messages trigger attacks (not system/reaction/poll)
     if (!['text', 'image'].includes(message_type)) return json({ skipped: true, reason: 'message_type' })
 
+    // Soft-blocked messages (sent within 5s of previous) deal no damage — same gate as XP/coins
+    if (soft_blocked) return json({ skipped: true, reason: 'soft_blocked' })
+
     const now         = new Date()
     const volleyActive = raid.volley_expires_at != null && new Date(raid.volley_expires_at as string) > now
     const isCrit      = rollCrit(stats.dex)
