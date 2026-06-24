@@ -1061,13 +1061,16 @@ function BossSpawnMessage({ content }: { content: string }) {
         </p>
         {/* Live HP bar */}
         <div className="w-full" style={{ marginTop: 2 }}>
-          <div className="relative w-full rounded-full overflow-hidden" style={{ height: 5, background: '#2a1545' }}>
-            <motion.div
-              className="absolute inset-y-0 left-0 rounded-full"
-              style={{ background: `linear-gradient(90deg, ${phaseColor}99, ${phaseColor})` }}
-              initial={false}
-              animate={{ width: `${hpPct}%` }}
-              transition={{ duration: 0.4, ease: 'easeOut' }}
+          <div className="relative w-full overflow-hidden" style={{ height: 8, background: '#2a1545', borderRadius: 2 }}>
+            <div
+              style={{
+                position:   'absolute',
+                inset:      '0 auto 0 0',
+                width:      `${hpPct}%`,
+                background: `linear-gradient(90deg, ${phaseColor}88, ${phaseColor})`,
+                borderRadius: 2,
+                transition: 'width 0.5s ease-out',
+              }}
             />
           </div>
         </div>
