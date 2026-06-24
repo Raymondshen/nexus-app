@@ -1238,52 +1238,54 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       {isDevUser && combatEnabled && !isDM && (
         <>
           <DamageFloatLayer />
-          <div style={{ marginLeft: 'calc(-1 * var(--space-5))', marginRight: 'calc(-1 * var(--space-5))' }}>
-            {activeCombatRaid && !hasJoinedRaid ? (
-              // JOIN RAID banner — shown when a raid is active but player hasn't joined yet
-              <div
-                style={{
-                  background: 'linear-gradient(135deg, #0f0820 0%, #1a0d2e 100%)',
-                  border: '1px solid #ef444433',
-                  padding: '12px 16px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 12,
-                  marginBottom: 2,
-                }}
-              >
-                <div style={{ minWidth: 0 }}>
-                  <p className="font-pixel leading-none" style={{ fontSize: 7, color: '#ef4444', marginBottom: 4 }}>
-                    ◆ THE VOID IS RAGING ◆
-                  </p>
-                  <p className="font-silkscreen leading-none" style={{ fontSize: 9, color: 'var(--color-primary)' }}>
-                    PHASE {activeCombatRaid.phase} · {Math.round(activeCombatRaid.current_hp).toLocaleString()} / {Math.round(activeCombatRaid.max_hp).toLocaleString()} HP
-                  </p>
-                </div>
-                <button
-                  onClick={handleJoinRaid}
-                  disabled={joiningRaid}
-                  className="flex-shrink-0 font-pixel disabled:opacity-50"
+          {activeCombatRaid && (
+            <div style={{ marginLeft: 'calc(-1 * var(--space-5))', marginRight: 'calc(-1 * var(--space-5))' }}>
+              {!hasJoinedRaid ? (
+                // JOIN RAID banner — shown when a raid is active but player hasn't joined yet
+                <div
                   style={{
-                    fontSize: 7,
-                    padding: '8px 14px',
-                    background: '#ef4444',
-                    color: 'var(--color-primary)',
-                    letterSpacing: '0.05em',
+                    background: 'linear-gradient(135deg, #0f0820 0%, #1a0d2e 100%)',
+                    border: '1px solid #ef444433',
+                    padding: '12px 16px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 12,
+                    marginBottom: 2,
                   }}
                 >
-                  {joiningRaid ? '...' : '⚔ JOIN RAID'}
-                </button>
-              </div>
-            ) : (
-              // Full combat HUD — shown after player has joined
-              <>
-                <BossCard />
-                <CombatHUD memberProfiles={memberProfiles} currentUserId={userId} crewId={crewId} />
-              </>
-            )}
-          </div>
+                  <div style={{ minWidth: 0 }}>
+                    <p className="font-pixel leading-none" style={{ fontSize: 7, color: '#ef4444', marginBottom: 4 }}>
+                      ◆ THE VOID IS RAGING ◆
+                    </p>
+                    <p className="font-silkscreen leading-none" style={{ fontSize: 9, color: 'var(--color-primary)' }}>
+                      PHASE {activeCombatRaid.phase} · {Math.round(activeCombatRaid.current_hp).toLocaleString()} / {Math.round(activeCombatRaid.max_hp).toLocaleString()} HP
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleJoinRaid}
+                    disabled={joiningRaid}
+                    className="flex-shrink-0 font-pixel disabled:opacity-50"
+                    style={{
+                      fontSize: 7,
+                      padding: '8px 14px',
+                      background: '#ef4444',
+                      color: 'var(--color-primary)',
+                      letterSpacing: '0.05em',
+                    }}
+                  >
+                    {joiningRaid ? '...' : '⚔ JOIN RAID'}
+                  </button>
+                </div>
+              ) : (
+                // Full combat HUD — shown after player has joined
+                <>
+                  <BossCard />
+                  <CombatHUD memberProfiles={memberProfiles} currentUserId={userId} crewId={crewId} />
+                </>
+              )}
+            </div>
+          )}
         </>
       )}
 
