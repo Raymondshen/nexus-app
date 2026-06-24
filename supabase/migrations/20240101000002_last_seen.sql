@@ -37,10 +37,11 @@ begin
   where ar.id = p_raid_id;
 
   -- Atomically decrement HP
+  -- Qualify active_raids.defeated_at to avoid ambiguity with the RETURNS TABLE output column
   update active_raids
   set current_hp = greatest(0, active_raids.current_hp - p_damage)
   where id = p_raid_id
-    and defeated_at is null
+    and active_raids.defeated_at is null
   returning active_raids.current_hp into v_new_hp;
 
   if v_new_hp is null then
