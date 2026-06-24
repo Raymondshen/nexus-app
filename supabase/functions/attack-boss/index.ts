@@ -144,58 +144,8 @@ Deno.serve(async (req: Request) => {
       .gt('expires_at', new Date().toISOString())
       .maybeSingle()
 
-    // ── No active raid — try to spawn one ────────────────────────────────────
-    if (!raid) {
-      const { data: crew } = await supabase
-        .from('crews')
-        .select('total_xp, level')
-        .eq('id', crew_id)
-        .single()
-
-      if (!crew) return json({ skipped: true, reason: 'no_crew' })
-
-      const bossStats = bossStatsForLevel(crew.level ?? 1)
-      const now = new Date()
-      const expiresAt = new Date(now.getTime() + 48 * 60 * 60 * 1000)
-
-      const { data: boss } = await supabase
-        .from('bosses')
-        .select('id, name')
-        .eq('type', 'void')
-        .limit(1)
-        .maybeSingle()
-
-      if (!boss) return json({ skipped: true, reason: 'no_boss_template' })
-
-      const { data: newRaid, error: raidErr } = await supabase
-        .from('active_raids')
-        .insert({
-          crew_id,
-          boss_id:    boss.id,
-          current_hp: bossStats.hp,
-          max_hp:     bossStats.hp,
-          phase:      1,
-          expires_at: expiresAt.toISOString(),
-        })
-        .select()
-        .single()
-
-      if (raidErr || !newRaid) return json({ skipped: true, reason: 'spawn_failed', detail: raidErr?.message })
-
-      await supabase.rpc('init_combat_members', {
-        p_raid_id:    newRaid.id,
-        p_crew_id:    crew_id,
-        p_crew_level: crew.level ?? 1,
-      })
-
-      await supabase.from('messages').insert({
-        crew_id, user_id,
-        content:      `BOSS_SPAWN:${boss.name}:${bossStats.hp}`,
-        message_type: 'system', element_type: null, xp_awarded: 0,
-      })
-
-      return json({ spawned: true, raid_id: newRaid.id, boss_hp: bossStats.hp })
-    }
+    // ── No active raid — nothing to do (boss spawns on weekly Sunday cron) ───
+    if (!raid) return json({ skipped: true, reason: 'no_active_raid' })
 
     // ── Active raid exists — fetch caller's combat row + persistent stat boosts ─
     const [{ data: member }, { data: crewMemberRow }] = await Promise.all([
@@ -393,7 +343,6 @@ Deno.serve(async (req: Request) => {
       p_raid_id: raid.id, p_damage: dmg, p_user_id: user_id,
     })
     const newBossHP  = Math.round(raidResult?.[0]?.current_hp ?? Math.max(0, raid.current_hp - dmg))
-    const newPhase   = raidResult?.[0]?.phase ?? raid.phase
     const defeated   = newBossHP === 0
 
     // ── Bank eligibility: server-authoritative ───────────────────────────────
@@ -429,20 +378,11 @@ Deno.serve(async (req: Request) => {
       message_type: 'system', element_type: null, xp_awarded: 0,
     })
 
-    if (newPhase > raid.phase) {
-      await supabase.from('messages').insert({
-        crew_id, user_id,
-        content:      `COMBAT:phase:${newPhase}`,
-        message_type: 'system', element_type: null, xp_awarded: 0,
-      })
-    }
-
     if (defeated) await handleVictory(supabase, raid.id, crew_id, user_id, username)
 
     return json({
       dmg, is_crit: isCrit,
       new_boss_hp:  Math.max(0, newBossHP),
-      new_phase:    newPhase,
       bank_fill:    bankFill,
       new_bank:     newBank,
       self_heal:    selfHeal,

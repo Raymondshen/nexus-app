@@ -17,14 +17,8 @@ const CORS = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-// Boss attack intervals by phase (ms)
-const ATTACK_INTERVAL_MS: Record<number, number> = {
-  1: 2 * 60 * 60 * 1000,   // 2h
-  2: 2 * 60 * 60 * 1000,
-  3: 1 * 60 * 60 * 1000,   // 1h
-}
-
-const PHASE_MULT: Record<number, number> = { 1: 1.0, 2: 1.3, 3: 1.6 }
+const ATTACK_INTERVAL_MS = 2 * 60 * 60 * 1000  // 2 hours, fixed
+const PHASE_MULT         = 1.3                  // flat damage multiplier
 const DOWNED_REGEN_MS = 8 * 60 * 60 * 1000  // 8 hours
 
 // CLASS_BASE_STATS and bossStatsForLevel mirrored from combat.ts
@@ -92,46 +86,11 @@ Deno.serve(async (req: Request) => {
         results.push({ type: 'natural_revive', user_id: dm.user_id, raid_id: raid.id })
       }
 
-      // Raid expiry check (boss HP still > 0 when time runs out)
-      if (new Date(raid.expires_at as string) <= now) {
-        await supabase.from('active_raids').update({ defeated_at: now.toISOString() }).eq('id', raid.id)
-
-        const { data: crewInfo } = await supabase.from('crews').select('name').eq('id', raid.crew_id).single()
-
-        // Consolation: flat common artifact
-        const { data: raidFull } = await supabase.from('active_raids').select('boss_id, crew_id').eq('id', raid.id).single()
-        if (raidFull) {
-          await Promise.all([
-            supabase.from('artifacts').insert({
-              crew_id:        raidFull.crew_id,
-              name:           '⚔️ Common Shard',
-              rarity:         'common',
-              source_boss_id: raidFull.boss_id,
-              mvp_user_id:    (await supabase.from('crew_combat_members').select('user_id').eq('raid_id', raid.id).limit(1).single()).data?.user_id ?? '',
-              asset_type:     'sprite',
-              metadata:       { consolation: true },
-            }),
-            supabase.from('messages').insert({
-              crew_id:      raid.crew_id,
-              user_id:      (await supabase.from('crew_members').select('user_id').eq('crew_id', raid.crew_id).limit(1).single()).data?.user_id ?? '',
-              content:      `COMBAT:escaped:${crewInfo?.name ?? 'The void'}`,
-              message_type: 'system',
-              element_type: null,
-              xp_awarded:   0,
-            }),
-          ])
-        }
-
-        results.push({ type: 'raid_expired', raid_id: raid.id })
-        continue
-      }
-
       // Boss attack interval check
-      const intervalMs  = ATTACK_INTERVAL_MS[raid.phase as number] ?? ATTACK_INTERVAL_MS[1]
       const lastAttackAt = raid.last_boss_attack_at ? new Date(raid.last_boss_attack_at as string).getTime() : 0
       const timeSinceLast = now.getTime() - lastAttackAt
 
-      if (!force && timeSinceLast < intervalMs) continue  // not yet time
+      if (!force && timeSinceLast < ATTACK_INTERVAL_MS) continue  // not yet time
 
       // Fetch all living members for this raid
       const { data: allMembers } = await supabase
@@ -154,21 +113,15 @@ Deno.serve(async (req: Request) => {
         // Warrior taunt: attack guard_user_id if they're alive
         const guardMember = livingMembers.find((m: { user_id: string }) => m.user_id === guardUserId)
         target = guardMember ?? livingMembers[Math.floor(Math.random() * livingMembers.length)]
-      } else if (raid.phase === 1) {
-        // Phase 1: random
-        target = livingMembers[Math.floor(Math.random() * livingMembers.length)]
       } else {
-        // Phase 2/3: lowest current HP (skip downed, already filtered)
-        target = livingMembers.reduce((min: typeof livingMembers[number], m: typeof livingMembers[number]) =>
-          m.current_hp < min.current_hp ? m : min,
-        livingMembers[0])
+        target = livingMembers[Math.floor(Math.random() * livingMembers.length)]
       }
 
       // Compute damage
       const { data: crew } = await supabase.from('crews').select('level').eq('id', raid.crew_id).single()
       const crewLevel = crew?.level ?? 1
       const { dmg: baseDmg } = bossStatsForLevel(crewLevel)
-      const phaseMult = PHASE_MULT[raid.phase as number] ?? 1.0
+      const phaseMult = PHASE_MULT
 
       // DEF calculation — check Mage Arcane Ward and Warrior guard bonus
       let def = defAtLevel(target.class, crewLevel)
