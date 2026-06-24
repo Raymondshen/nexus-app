@@ -207,7 +207,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     store.setActiveRaid(initialRaid ?? null)
     if (initialMemberStats) store.setAllMembers(Object.values(initialMemberStats))
     if (initialReviveTokens !== undefined) store.setReviveTokens(initialReviveTokens)
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [combatEnabled]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Realtime: keep combat state in sync (dev only)
   useEffect(() => {
@@ -249,7 +249,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       .subscribe()
 
     return () => { supabase.removeChannel(combatCh) }
-  }, [crewId, isDevUser]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [crewId, isDevUser, combatEnabled]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Update last_seen every 60s for accurate server-side unread cursors
   useEffect(() => {
