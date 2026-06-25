@@ -260,6 +260,17 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
         // otherwise overwrite patched HP with the original spawn-time max HP
         if (store.activeRaid?.id === newRaid.id) return
         store.setActiveRaid(newRaid)
+        // Fetch crew_combat_members immediately — Postgres Changes events across
+        // tables have no ordering guarantee, so crew_combat_members INSERTs from
+        // init_combat_members may have already arrived (and been dropped because
+        // activeRaid was null). Re-fetch now that the raid is set.
+        supabase
+          .from('crew_combat_members')
+          .select('id, raid_id, user_id, class, current_hp, max_hp, ability_bank, is_downed, downed_at, momentum_stack, last_msg_at, guard_expires_at')
+          .eq('raid_id', newRaid.id)
+          .then(({ data: members }) => {
+            if (members && members.length > 0) store.setAllMembers(members as CombatMember[])
+          })
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'revive_tokens' }, (payload) => {
         const row = payload.new as { crew_id: string; count: number }
@@ -1259,7 +1270,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                       ◆ THE VOID IS RAGING ◆
                     </p>
                     <p className="font-silkscreen leading-none" style={{ fontSize: 9, color: 'var(--color-primary)' }}>
-                      PHASE {activeCombatRaid.phase} · {Math.round(activeCombatRaid.current_hp).toLocaleString()} / {Math.round(activeCombatRaid.max_hp).toLocaleString()} HP
+                      {Math.round(activeCombatRaid.current_hp).toLocaleString()} / {Math.round(activeCombatRaid.max_hp).toLocaleString()} HP
                     </p>
                   </div>
                   <button

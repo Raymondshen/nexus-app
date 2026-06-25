@@ -107,7 +107,7 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
     const [raidRes, tokenRes] = await Promise.all([
       supabase
         .from('active_raids')
-        .select('id, crew_id, boss_id, current_hp, max_hp, phase, started_at, expires_at, defeated_at, last_boss_attack_at, guard_user_id, volley_expires_at')
+        .select('id, crew_id, boss_id, current_hp, max_hp, phase, started_at, expires_at, defeated_at, last_boss_attack_at, guard_user_id, guard_expires_at, volley_expires_at')
         .eq('crew_id', crewId)
         .is('defeated_at', null)
         .gt('expires_at', new Date().toISOString())

@@ -57,6 +57,13 @@ export async function spawnBossAction(crewId: string): Promise<{ ok?: boolean; r
   const { data: crew } = await service.from('crews').select('level').eq('id', crewId).single()
   const crewLevel = (crew as { level?: number } | null)?.level ?? 1
 
+  // Create crew_combat_members rows for all eligible dev members
+  await service.rpc('init_combat_members', {
+    p_raid_id:    raid.id,
+    p_crew_id:    crewId,
+    p_crew_level: crewLevel,
+  })
+
   // system message so the chat shows the boss spawn banner
   await service.from('messages').insert({
     crew_id:      crewId,
@@ -180,28 +187,27 @@ export async function joinRaidAction(crewId: string): Promise<{ ok?: boolean; er
     .maybeSingle()
   if (existing) return { ok: true }
 
-  const { data: memberRow } = await service
-    .from('crew_members')
-    .select('class')
-    .eq('crew_id', crewId)
-    .eq('user_id', userId)
-    .single()
+  const [{ data: memberRow }, { data: crew }] = await Promise.all([
+    service.from('crew_members').select('class, ability_bank, stat_boosts').eq('crew_id', crewId).eq('user_id', userId).single(),
+    service.from('crews').select('level').eq('id', crewId).single(),
+  ])
   const cls = (memberRow as { class: string } | null)?.class
   const COMBAT_CLASSES = ['warrior', 'healer', 'archer', 'rogue', 'mage']
   if (!cls || !COMBAT_CLASSES.includes(cls)) return { error: 'No combat class assigned.' }
 
-  const { data: crew } = await service.from('crews').select('level').eq('id', crewId).single()
   const crewLevel = (crew as { level: number } | null)?.level ?? 1
+  const statBoosts = ((memberRow as { stat_boosts?: Record<string, number> } | null)?.stat_boosts ?? {}) as Record<string, number>
+  const abilityBank = ((memberRow as { ability_bank?: number } | null)?.ability_bank ?? 0)
 
   const BASE_HP: Record<string, number> = {
     warrior: 42, healer: 32, archer: 28, rogue: 24, mage: 24,
   }
   const baseHp = BASE_HP[cls] ?? 30
-  const maxHp = Math.round(baseHp * (1 + 0.018 * (crewLevel - 1)))
+  const maxHp = Math.round(baseHp * (1 + 0.018 * (crewLevel - 1))) + (statBoosts.hp ?? 0)
 
   const { error } = await service.from('crew_combat_members').insert({
     raid_id: raidId, user_id: userId, class: cls,
-    current_hp: maxHp, max_hp: maxHp, ability_bank: 0,
+    current_hp: maxHp, max_hp: maxHp, ability_bank: abilityBank,
   })
   if (error) return { error: error.message }
   return { ok: true }
