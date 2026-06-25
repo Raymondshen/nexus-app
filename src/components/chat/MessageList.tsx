@@ -226,6 +226,10 @@ export function MessageList({
         const parsed = JSON.parse(raw) as MessageWithProfile[]
         if (Array.isArray(parsed)) {
           setMessages(parsed)
+          // Seed the pagination cursor so fetchOlderMessages can load history
+          // even before the background DB fetch sets it. Without this, the
+          // auto-fill effect fires but oldestCursorRef is null and bails.
+          if (parsed.length > 0) oldestCursorRef.current = parsed[0].created_at
           return
         }
       }
