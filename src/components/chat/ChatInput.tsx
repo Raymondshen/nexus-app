@@ -26,7 +26,6 @@ import { Close } from 'pixelarticons/react/Close'
 import { InputActionsSheet } from '@/components/chat/InputActionsSheet'
 import { GifIcon } from '@/components/icons/GifIcon'
 import { kickMemberAction, renameCrewAction, birthdaysCommandAction } from '@/app/(app)/chat/actions'
-import { joinRaidAction } from '@/app/(app)/profile/developer/actions'
 import { EventCreationSheet } from '@/components/chat/EventCreationSheet'
 import { CrewImageUploadModal } from '@/components/chat/CrewImageUploadModal'
 import { NotifSheet, type NotifPrefs } from '@/components/chat/NotifSheet'
@@ -35,8 +34,6 @@ import { PollCreatorSheet } from '@/components/chat/PollCreatorSheet'
 import { GifPickerSheet } from '@/components/chat/GifPickerSheet'
 import { setHomeLastMessage } from '@/lib/homePreviewCache'
 import { useCombatStore } from '@/store/combatStore'
-import { BossCard } from '@/components/game/BossCard'
-import { CombatHUD } from '@/components/game/CombatHUD'
 import { AbilityButton } from '@/components/game/AbilityButton'
 import { DamageFloatLayer } from '@/components/game/DamageFloat'
 import type { Message, MessageWithProfile, Profile, ActiveRaid, CombatMember, CombatClass } from '@/types'
@@ -137,7 +134,6 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   const [showEventSheet,  setShowEventSheet]  = useState(false)
   const [isMultiline,     setIsMultiline]     = useState(false)
 
-  const [joiningRaid,        setJoiningRaid]        = useState(false)
   const [chatImageLocalUrl,  setChatImageLocalUrl]  = useState<string | null>(null)
   const [chatImagePublicUrl, setChatImagePublicUrl] = useState<string | null>(null)
   const [chatImageLqip,      setChatImageLqip]      = useState<string | null>(null)
@@ -1039,15 +1035,6 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     }).catch(() => {})
   }, [isDevUser, combatEnabled, crewId, userId, userProfile]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function handleJoinRaid() {
-    if (joiningRaid) return
-    setJoiningRaid(true)
-    const result = await joinRaidAction(crewId)
-    setJoiningRaid(false)
-    if (result.error) console.error('[joinRaid]', result.error)
-    // Realtime INSERT on crew_combat_members will update combatStore.memberStats,
-    // which flips hasJoinedRaid and swaps the banner for the full HUD.
-  }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) {
     // @mention picker navigation
@@ -1236,7 +1223,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
 
   return (
     <div
-      className="bg-black border-t border-border flex flex-col flex-shrink-0 relative z-[65]"
+      className={`bg-black border-t ${isDevUser && combatEnabled && !isDM && hasJoinedRaid ? 'border-[var(--color-danger)]' : 'border-border'} flex flex-col flex-shrink-0 relative z-[65]`}
       style={{
         paddingTop:    'var(--space-5)',
         paddingLeft:   'var(--space-5)',
@@ -1247,57 +1234,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     >
       {/* ── Combat UI (dev only, requires nexus_combat_enabled toggle) ── */}
       {isDevUser && combatEnabled && !isDM && (
-        <>
-          <DamageFloatLayer />
-          {activeCombatRaid && (
-            <div style={{ marginLeft: 'calc(-1 * var(--space-5))', marginRight: 'calc(-1 * var(--space-5))' }}>
-              {!hasJoinedRaid ? (
-                // JOIN RAID banner — shown when a raid is active but player hasn't joined yet
-                <div
-                  style={{
-                    background: 'linear-gradient(135deg, #0f0820 0%, #1a0d2e 100%)',
-                    border: '1px solid #ef444433',
-                    padding: '12px 16px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: 12,
-                    marginBottom: 2,
-                  }}
-                >
-                  <div style={{ minWidth: 0 }}>
-                    <p className="font-pixel leading-none" style={{ fontSize: 7, color: '#ef4444', marginBottom: 4 }}>
-                      ◆ THE VOID IS RAGING ◆
-                    </p>
-                    <p className="font-silkscreen leading-none" style={{ fontSize: 9, color: 'var(--color-primary)' }}>
-                      {Math.round(activeCombatRaid.current_hp).toLocaleString()} / {Math.round(activeCombatRaid.max_hp).toLocaleString()} HP
-                    </p>
-                  </div>
-                  <button
-                    onClick={handleJoinRaid}
-                    disabled={joiningRaid}
-                    className="flex-shrink-0 font-pixel disabled:opacity-50"
-                    style={{
-                      fontSize: 7,
-                      padding: '8px 14px',
-                      background: '#ef4444',
-                      color: 'var(--color-primary)',
-                      letterSpacing: '0.05em',
-                    }}
-                  >
-                    {joiningRaid ? '...' : '⚔ JOIN RAID'}
-                  </button>
-                </div>
-              ) : (
-                // Full combat HUD — shown after player has joined
-                <>
-                  <BossCard />
-                  <CombatHUD memberProfiles={memberProfiles} currentUserId={userId} crewId={crewId} />
-                </>
-              )}
-            </div>
-          )}
-        </>
+        <DamageFloatLayer />
       )}
 
       {/* ── Friendship XP toast (DM send or group @mention) ── */}
@@ -1389,23 +1326,41 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
           />
         </button>
 
-        {/* XP indicator */}
-        <div className="flex flex-col w-full" style={{ gap: 'var(--space-3)' }}>
-          <p className="font-silkscreen text-tertiary leading-[0] w-full" style={{ fontSize: 0 }}>
-            <span className="leading-none" style={{ fontSize: 8 }}>{getXPInCurrentLevel(crewXP)} / {getXPForCurrentLevel(crewXP)}XP</span>
-            {totalMessages > 0 && <>
-              <span className="leading-none" style={{ fontSize: 8 }}>{` · `}</span>
-              <span className="leading-none text-secondary" style={{ fontSize: 8 }}>{totalMessages.toLocaleString()} total Squad msg.</span>
-            </>}
-          </p>
-          <div className="bg-surface h-1 overflow-hidden w-full relative">
-            <motion.div
-              className="absolute left-0 top-0 h-full bg-purple"
-              animate={{ width: `${xpProgress}%` }}
-              transition={{ type: 'spring', stiffness: 300, damping: 28 }}
-            />
+        {/* XP / Boss HP indicator */}
+        {isDevUser && combatEnabled && !isDM && hasJoinedRaid && activeCombatRaid ? (
+          <div className="flex flex-col w-full" style={{ gap: 'var(--space-3)' }}>
+            <p className="font-silkscreen leading-none w-full" style={{ fontSize: 8, color: 'var(--color-danger)' }}>
+              BOSS HP : {String(Math.round(activeCombatRaid.current_hp)).padStart(4, '0')}/{String(Math.round(activeCombatRaid.max_hp)).padStart(4, '0')}
+            </p>
+            <div className="bg-surface overflow-hidden w-full relative" style={{ height: 4 }}>
+              <div
+                className="absolute left-0 top-0 h-full"
+                style={{
+                  width:      `${(activeCombatRaid.current_hp / activeCombatRaid.max_hp) * 100}%`,
+                  background: 'var(--color-danger)',
+                  transition: 'width 0.4s ease-out',
+                }}
+              />
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="flex flex-col w-full" style={{ gap: 'var(--space-3)' }}>
+            <p className="font-silkscreen text-tertiary leading-[0] w-full" style={{ fontSize: 0 }}>
+              <span className="leading-none" style={{ fontSize: 8 }}>{getXPInCurrentLevel(crewXP)} / {getXPForCurrentLevel(crewXP)}XP</span>
+              {totalMessages > 0 && <>
+                <span className="leading-none" style={{ fontSize: 8 }}>{` · `}</span>
+                <span className="leading-none text-secondary" style={{ fontSize: 8 }}>{totalMessages.toLocaleString()} total Squad msg.</span>
+              </>}
+            </p>
+            <div className="bg-surface h-1 overflow-hidden w-full relative">
+              <motion.div
+                className="absolute left-0 top-0 h-full bg-purple"
+                animate={{ width: `${xpProgress}%` }}
+                transition={{ type: 'spring', stiffness: 300, damping: 28 }}
+              />
+            </div>
+          </div>
+        )}
       </motion.div>}
 
       {/* ── Status indicators + input — fade out when expanded ── */}

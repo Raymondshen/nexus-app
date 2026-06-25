@@ -229,7 +229,7 @@ OG previews: `extractFirstUrl` → `useOGPreview` hook → `<LinkPreviewCard>` b
 - Seed effect calls `store.clearCombatEvents()` before seeding — scopes the combat log to the current crew's raid; combined with the MessageList replay, this ensures events never bleed across crews or raids
 - `callAttackBoss` fires fire-and-forget after every message send; no-ops if `!isDevUser || !combatEnabled`
 - `active_raids` Postgres Changes UPDATE handler **only** patches `guard_user_id`, `guard_expires_at`, `volley_expires_at`, `last_boss_attack_at` — it must NOT touch `current_hp` or `phase`; those are owned by COMBAT:* system message INSERTs (see MessageList)
-- `AbilityButton` renders when `isDevUser && combatEnabled && !isDM && userCombatClass && activeRaid`; prop `username` required (passed from `userProfile.username`)
+- `AbilityButton` renders when `isDevUser && combatEnabled && !isDM && userCombatClass && hasJoinedRaid`; prop `username` required (passed from `userProfile.username`)
 
 ### Pin Feature (dev-gated: `nexus_pin_feature`)
 - Admin = crew member with earliest `joined_at`; cap = 5 active pins per crew (`PIN_MAX_PER_CREW`)
@@ -273,8 +273,8 @@ OG previews: `extractFirstUrl` → `useOGPreview` hook → `<LinkPreviewCard>` b
 
 **Components** (`src/components/game/`):
 - `AbilityButton` — class-specific ability button; prop `username: string` required; shows "Cost: 2" + current bank count; disabled when `ability_bank < 2`; renders `null` when `!activeRaid || !member`
-- `BossCard` — sticky boss HUD reads from combatStore; HP bar uses Framer Motion `animate={{ width }}` (reliable here, not in a virtualizer); countdown timer: `anchor = last_boss_attack_at ?? started_at` — falls back to `started_at` when no boss attack has fired yet (avoids "0s" on fresh spawns)
-- `CombatHUD` — collapsible panel (toggle row "RAID ACTIVE" + phase + revive count); expanded section shows member HP bars + "MSGS" bank count rows, then `CombatLog` at the bottom; `CombatLog` is rendered only inside this expanded section
+- `BossCard` — file exists but is no longer rendered anywhere; timer countdown logic absorbed into `CombatHUD`
+- `CombatHUD` — red marquee banner ("RAID IN PROGRESS TAP BANNER TO VIEW") always visible at top; tap toggles expanded panel which slides open **below** the banner. Expanded panel (top→bottom): boss name + last dmg (Silkscreen 12px) · next attack timer + expiry (Silkscreen 11px) · `CombatLog` · member HP list (username 9px + HP bar + hp/max or "DOWNED"). DOM order: `<RaidMarquee>` first, `<AnimatePresence>` panel second — banner is always above the panel. Props: `currentUserId`, `crewId?`, `isDevUser?`, `memberProfiles?: Record<string, { username }>`. Placed as sibling between `MessageList` and `ChatInput` in the chat page flex column; `flex-shrink-0` so it pushes MessageList up as the panel expands. All members auto-join on boss spawn via `init_combat_members` — no manual "JOIN RAID" button.
 - `CombatLog` — virtualized scrollable feed of `CombatEvent[]` from combatStore; rendered inside `CombatHUD`'s expanded section (not standalone); returns `null` when `events.length === 0`
 - `DamageFloat` — `position: fixed` viewport-overlay floating damage numbers; spawned per attack event
 

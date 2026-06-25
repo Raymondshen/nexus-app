@@ -4,6 +4,7 @@ import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { FloatingBackButton } from "@/components/chat/FloatingBackButton";
 import { MessageList } from "@/components/chat/MessageList";
 import { ChatInput } from "@/components/chat/ChatInput";
+import { CombatHUD } from "@/components/game/CombatHUD";
 import { WelcomeDetector } from "@/components/ui/WelcomeDetector";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { SlidePage } from "@/components/ui/SlidePage";
@@ -170,6 +171,8 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
           creatorId={creatorId}
         />
       </ErrorBoundary>
+
+      <CombatHUD currentUserId={user.id} crewId={crewId} isDevUser={isDevUser} memberProfiles={memberProfiles} />
 
       <ErrorBoundary>
         <ChatInput
