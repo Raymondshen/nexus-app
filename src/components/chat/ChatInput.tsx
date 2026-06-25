@@ -34,7 +34,6 @@ import { PollCreatorSheet } from '@/components/chat/PollCreatorSheet'
 import { GifPickerSheet } from '@/components/chat/GifPickerSheet'
 import { setHomeLastMessage } from '@/lib/homePreviewCache'
 import { useCombatStore } from '@/store/combatStore'
-import { AbilityButton } from '@/components/game/AbilityButton'
 import { DamageFloatLayer } from '@/components/game/DamageFloat'
 import type { Message, MessageWithProfile, Profile, ActiveRaid, CombatMember, CombatClass } from '@/types'
 
@@ -1617,9 +1616,6 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                 const canSend      = canSendImage || canSendText
                 return (
                   <div className="flex items-center gap-3 flex-shrink-0">
-                    {isDevUser && combatEnabled && !isDM && userCombatClass && hasJoinedRaid && (
-                      <AbilityButton crewId={crewId} userId={userId} userClass={userCombatClass} username={userProfile.username} />
-                    )}
                     <button
                       onClick={canSendImage ? sendImage : send}
                       disabled={!canSend || sending || chatImageUploading}

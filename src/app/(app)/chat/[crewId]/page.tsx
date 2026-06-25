@@ -172,7 +172,13 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
         />
       </ErrorBoundary>
 
-      <CombatHUD currentUserId={user.id} crewId={crewId} isDevUser={isDevUser} memberProfiles={memberProfiles} />
+      <CombatHUD
+        currentUserId={user.id}
+        crewId={crewId}
+        isDevUser={isDevUser}
+        memberProfiles={memberProfiles}
+        userCombatClass={(currentMemberRow?.class as import('@/types').CombatClass | null) ?? undefined}
+      />
 
       <ErrorBoundary>
         <ChatInput
