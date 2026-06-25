@@ -5,12 +5,10 @@
  *
  * Execution order per spec:
  *   1. Soft-fail any active raids whose expires_at has passed (boss escaped).
- *   2. Spawn a new boss for every crew that has ≥1 dev combat member and
- *      no current active raid.
+ *   2. Spawn a new boss for every qualifying crew with no current active raid.
  *
- * "Qualifying crew": has at least one crew_members row with class in
- * (warrior|healer|archer|rogue|mage) for a user where profiles.is_dev = true,
- * and is not a DM crew (crews.is_dm = false).
+ * "Qualifying crew": has at least one crew_members row with a combat class
+ * (warrior|healer|archer|rogue|mage) and is not a DM crew (crews.is_dm = false).
  *
  * expires_at for each new raid = next Sunday 00:00 UTC (7 days from now).
  * Timezone assumption: UTC throughout (no crew-local timezone concept exists).
@@ -103,31 +101,17 @@ Deno.serve(async (req: Request) => {
 
     // ── STEP 2: Spawn new raids for qualifying crews ─────────────────────────
 
-    // Find all dev user IDs
-    const { data: devUsers } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('is_dev', true)
-
-    const devUserIds = ((devUsers ?? []) as Array<{ id: string }>).map(p => p.id)
-    if (devUserIds.length === 0) {
-      return new Response(JSON.stringify({ processed: results.length, results }), {
-        headers: { ...CORS, 'Content-Type': 'application/json' },
-      })
-    }
-
-    // Find crew_ids with dev combat members (excluding DM crews)
-    const { data: devMembers } = await supabase
+    // Find all non-DM crews that have at least one member with a combat class
+    const { data: combatMembers } = await supabase
       .from('crew_members')
       .select('crew_id')
       .in('class', COMBAT_CLASSES)
-      .in('user_id', devUserIds)
 
-    const allQualifyingIds = [...new Set(
-      ((devMembers ?? []) as Array<{ crew_id: string }>).map(r => r.crew_id)
+    const allCandidateIds = [...new Set(
+      ((combatMembers ?? []) as Array<{ crew_id: string }>).map(r => r.crew_id)
     )]
 
-    if (allQualifyingIds.length === 0) {
+    if (allCandidateIds.length === 0) {
       return new Response(JSON.stringify({ processed: results.length, results }), {
         headers: { ...CORS, 'Content-Type': 'application/json' },
       })
@@ -138,10 +122,10 @@ Deno.serve(async (req: Request) => {
       .from('crews')
       .select('id')
       .eq('is_dm', true)
-      .in('id', allQualifyingIds)
+      .in('id', allCandidateIds)
 
-    const dmCrewIds = new Set(((dmCrews ?? []) as Array<{ id: string }>).map(c => c.id))
-    const qualifyingCrewIds = allQualifyingIds.filter(id => !dmCrewIds.has(id))
+    const dmCrewIds       = new Set(((dmCrews ?? []) as Array<{ id: string }>).map(c => c.id))
+    const qualifyingCrewIds = allCandidateIds.filter(id => !dmCrewIds.has(id))
 
     // Skip crews that already have an active raid
     const { data: existingRaids } = await supabase
