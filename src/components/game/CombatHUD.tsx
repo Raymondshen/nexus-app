@@ -280,6 +280,8 @@ export function CombatHUD({ currentUserId, crewId, memberProfiles, userCombatCla
 
                       const pct      = member.max_hp > 0 ? (member.current_hp / member.max_hp) * 100 : 0
                       const barColor = member.is_downed ? 'var(--color-tertiary)' : pct <= 30 ? 'var(--color-danger)' : 'var(--color-success)'
+                      const bank     = member.ability_bank ?? 0
+                      const canUse   = bank >= 2
                       return (
                         <div key={uid} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <span
@@ -293,6 +295,12 @@ export function CombatHUD({ currentUserId, crewId, memberProfiles, userCombatCla
                           </div>
                           <span className="font-silkscreen leading-none flex-shrink-0" style={{ fontSize: 9, color: member.is_downed ? 'var(--color-danger)' : 'var(--color-tertiary)', width: 52, textAlign: 'right' }}>
                             {member.is_downed ? 'DOWNED' : `${Math.round(member.current_hp)}/${Math.round(member.max_hp)}`}
+                          </span>
+                          <span
+                            className="font-silkscreen leading-none flex-shrink-0"
+                            style={{ fontSize: 9, color: canUse ? 'var(--color-purple)' : 'var(--color-tertiary)', width: 32, textAlign: 'right', opacity: member.is_downed ? 0.4 : 1 }}
+                          >
+                            {bank}M
                           </span>
                         </div>
                       )
