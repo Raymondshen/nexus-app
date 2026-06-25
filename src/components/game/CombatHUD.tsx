@@ -10,10 +10,9 @@ import { BOSS_ATTACK_INTERVAL_MS } from '@/lib/config'
 import type { CombatClass } from '@/types'
 
 interface CombatHUDProps {
-  currentUserId:   string
-  crewId?:         string
-  isDevUser?:      boolean
-  memberProfiles?: Record<string, { username: string }>
+  currentUserId:    string
+  crewId?:          string
+  memberProfiles?:  Record<string, { username: string }>
   userCombatClass?: CombatClass
 }
 
@@ -140,7 +139,7 @@ function ReviveButton({ raidId, tokens }: { raidId: string; tokens: number }) {
   )
 }
 
-export function CombatHUD({ currentUserId, crewId, isDevUser, memberProfiles, userCombatClass }: CombatHUDProps) {
+export function CombatHUD({ currentUserId, crewId, memberProfiles, userCombatClass }: CombatHUDProps) {
   const [open,          setOpen]          = useState(false)
   const [combatEnabled, setCombatEnabled] = useState(false)
   const [timeToNext,    setTimeToNext]    = useState('')
@@ -181,7 +180,7 @@ export function CombatHUD({ currentUserId, crewId, isDevUser, memberProfiles, us
 
   const hasJoinedRaid = !!(activeRaid && memberStats[currentUserId])
 
-  if (!isDevUser || !combatEnabled || !hasJoinedRaid || !activeRaid) return null
+  if (!combatEnabled || !hasJoinedRaid || !activeRaid) return null
 
   // Boss name from spawn event
   const spawnEvent = combatEvents.find((e) => e.kind === 'boss_spawn')

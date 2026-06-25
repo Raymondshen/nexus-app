@@ -72,7 +72,7 @@ Deno.serve(async (req: Request) => {
     )
 
     // ─── BATCH 1: spam check + crew data + other members (4 queries in parallel) ──
-    const [prevMsgsResult, crewResult, senderProfileResult, membersResult] = await Promise.all([
+    const [prevMsgsResult, crewResult, membersResult] = await Promise.all([
       // Cooldown: most recent message from this user in this crew (5 s gap check)
       supabase
         .from('messages')
@@ -88,13 +88,6 @@ Deno.serve(async (req: Request) => {
         .from('crews')
         .select('total_xp, level, name')
         .eq('id', crew_id)
-        .single(),
-
-      // Sender dev flag — boss spawns and game events are dev-only for now
-      supabase
-        .from('profiles')
-        .select('is_dev')
-        .eq('id', user_id)
         .single(),
 
       // Other crew members — fetched here so notification fires immediately
@@ -149,7 +142,6 @@ Deno.serve(async (req: Request) => {
     }
 
     const crewBefore = crewResult.data
-    const isDevUser  = senderProfileResult.data?.is_dev === true
     const oldXP      = crewBefore?.total_xp ?? 0
 
     // ─── XP CALCULATION ─────────────────────────────────────────────────────
@@ -197,7 +189,7 @@ Deno.serve(async (req: Request) => {
           .eq('id', message_id),
       ])
 
-      if (newLevel > oldLevel && isDevUser) {
+      if (newLevel > oldLevel) {
         await supabase.from('messages').insert({
           crew_id,
           user_id,
