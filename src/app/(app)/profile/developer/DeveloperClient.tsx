@@ -105,7 +105,6 @@ export function DeveloperClient({ userId: _userId, initialCoins, userCrews }: De
   const [showPush,            setShowPush]            = useState(false)
   const [infiniteCoins,       setInfiniteCoins]       = useState(false)
   const [chatCamera,          setChatCamera]          = useState(false)
-  const [combatEnabled,       setCombatEnabled]       = useState(false)
   const [fxpResetConfirm,     setFxpResetConfirm]     = useState(false)
   const [resettingFXP,        setResettingFXP]        = useState(false)
   const [fxpResetDone,        setFxpResetDone]        = useState(false)
@@ -132,7 +131,6 @@ export function DeveloperClient({ userId: _userId, initialCoins, userCrews }: De
     setShowPush(localStorage.getItem('nexus_push_diag') === '1')
     setInfiniteCoins(localStorage.getItem('nexus_infinite_coins') === '1')
     setChatCamera(localStorage.getItem('nexus_chat_camera') === '1')
-    setCombatEnabled(localStorage.getItem('nexus_combat_enabled') === '1')
   }, [])
 
   function toggleDevMode() {
@@ -163,13 +161,6 @@ export function DeveloperClient({ userId: _userId, initialCoins, userCrews }: De
     setChatCamera(next)
     if (next) localStorage.setItem('nexus_chat_camera', '1')
     else localStorage.removeItem('nexus_chat_camera')
-  }
-
-  function toggleCombatEnabled() {
-    const next = !combatEnabled
-    setCombatEnabled(next)
-    if (next) localStorage.setItem('nexus_combat_enabled', '1')
-    else localStorage.removeItem('nexus_combat_enabled')
   }
 
   async function handleResetFriendshipXP() {
@@ -413,13 +404,6 @@ export function DeveloperClient({ userId: _userId, initialCoins, userCrews }: De
             description="Enable image upload button in chat input"
             enabled={chatCamera}
             onChange={toggleChatCamera}
-          />
-
-          <ToggleRow
-            title="Combat System"
-            description="Show boss cards, combat HUD, and ability button in chat"
-            enabled={combatEnabled}
-            onChange={toggleCombatEnabled}
           />
 
           {/* Reset gem cooldown */}

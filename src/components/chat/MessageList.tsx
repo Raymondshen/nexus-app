@@ -177,10 +177,6 @@ export function MessageList({
     if (typeof window === 'undefined') return false
     return localStorage.getItem('nexus_dev_mode') === '1'
   })
-  const [combatEnabled] = useState(() => {
-    if (typeof window === 'undefined') return false
-    return localStorage.getItem('nexus_combat_enabled') === '1'
-  })
   const [historyLoaded, setHistoryLoaded] = useState(() => {
     if (typeof window === 'undefined') return false
     try {
@@ -291,7 +287,7 @@ export function MessageList({
         setMessages(merged)
 
         // Replay combat events from loaded messages so the log persists across page loads
-        if (combatEnabled) {
+        {
           const combatStore = useCombatStore.getState()
           const raid = combatStore.activeRaid
           if (raid) {
@@ -427,7 +423,7 @@ export function MessageList({
       if (!msg.id || typeof msg.content !== 'string') continue
 
       // Combat system messages are shown in CombatLog, not in the chat history
-      if (combatEnabled && msg.message_type === 'system' &&
+      if (msg.message_type === 'system' &&
           (msg.content.startsWith('COMBAT:') || msg.content.startsWith('BOSS_SPAWN:'))) {
         continue
       }
@@ -615,7 +611,7 @@ export function MessageList({
           if (!raw?.id || typeof raw.content !== 'string') return
           addMessage({ ...raw, profile: resolveProfile(raw.user_id) } as MessageWithProfile)
           // Feed combat events and damage floats to the combat store (combat toggle only)
-          if (combatEnabled && raw.message_type === 'system') {
+          if (raw.message_type === 'system') {
             const store = useCombatStore.getState()
             const event = parseCombatEvent(raw.content, raw.id, Date.parse(raw.created_at))
             if (event) store.addCombatEvent(event)

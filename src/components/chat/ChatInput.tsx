@@ -110,7 +110,6 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   const [typingUsers,    setTypingUsers]    = useState<string[]>([])
   const [devMode,          setDevMode]          = useState(false)
   const [chatCameraEnabled, setChatCameraEnabled] = useState(false)
-  const [combatEnabled,    setCombatEnabled]    = useState(false)
   const [gemToastVisible,   setGemToastVisible]   = useState(false)
   const [isExpanded,     setIsExpanded]     = useState(false)
   const [memberMsgCounts, setMemberMsgCounts] = useState<Map<string, number>>(new Map())
@@ -187,7 +186,6 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   useEffect(() => {
     setDevMode(localStorage.getItem('nexus_dev_mode') === '1')
     setChatCameraEnabled(localStorage.getItem('nexus_chat_camera') === '1')
-    setCombatEnabled(localStorage.getItem('nexus_combat_enabled') === '1')
   }, [])
 
   useEffect(() => {
@@ -202,17 +200,15 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
 
   // Seed combatStore with server-fetched raid/member data
   useEffect(() => {
-    if (!combatEnabled) return
     const store = useCombatStore.getState()
     store.clearCombatEvents()  // Scope log to this crew's current raid
     store.setActiveRaid(initialRaid ?? null)
     if (initialMemberStats) store.setAllMembers(Object.values(initialMemberStats))
     if (initialReviveTokens !== undefined) store.setReviveTokens(initialReviveTokens)
-  }, [combatEnabled]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Realtime: keep combat state in sync
   useEffect(() => {
-    if (!combatEnabled) return
     const supabase = createClient()
 
     const combatCh = supabase
@@ -274,7 +270,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       .subscribe()
 
     return () => { supabase.removeChannel(combatCh) }
-  }, [crewId, combatEnabled]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [crewId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Update last_seen every 60s for accurate server-side unread cursors
   useEffect(() => {
@@ -1023,7 +1019,6 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
 
   // Fire-and-forget attack-boss after award-xp settles (joined members only)
   const callAttackBoss = useCallback((messageType: string, softBlocked: boolean) => {
-    if (!combatEnabled) return
     const { activeRaid, memberStats } = useCombatStore.getState()
     if (!activeRaid || !memberStats[userId]) return
     fetch(`${SUPABASE_URL}/functions/v1/attack-boss`, {
@@ -1031,7 +1026,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
       body:    JSON.stringify({ crew_id: crewId, user_id: userId, username: userProfile.username, message_type: messageType, soft_blocked: softBlocked }),
     }).catch(() => {})
-  }, [combatEnabled, crewId, userId, userProfile]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [crewId, userId, userProfile]) // eslint-disable-line react-hooks/exhaustive-deps
 
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) {
@@ -1221,7 +1216,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
 
   return (
     <div
-      className={`bg-black border-t ${combatEnabled && !isDM && hasJoinedRaid ? 'border-[var(--color-danger)]' : 'border-border'} flex flex-col flex-shrink-0 relative z-[65]`}
+      className={`bg-black border-t ${!isDM && hasJoinedRaid ? 'border-[var(--color-danger)]' : 'border-border'} flex flex-col flex-shrink-0 relative z-[65]`}
       style={{
         paddingTop:    'var(--space-5)',
         paddingLeft:   'var(--space-5)',
@@ -1230,8 +1225,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
         gap:           'var(--space-5)',
       }}
     >
-      {/* ── Combat UI (dev only, requires nexus_combat_enabled toggle) ── */}
-      {combatEnabled && !isDM && (
+      {!isDM && (
         <DamageFloatLayer />
       )}
 
@@ -1325,7 +1319,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
         </button>
 
         {/* XP / Boss HP indicator */}
-        {combatEnabled && !isDM && hasJoinedRaid && activeCombatRaid ? (
+        {!isDM && hasJoinedRaid && activeCombatRaid ? (
           <div className="flex flex-col w-full" style={{ gap: 'var(--space-3)' }}>
             <p className="font-silkscreen leading-none w-full" style={{ fontSize: 8, color: 'var(--color-danger)' }}>
               BOSS HP : {String(Math.round(activeCombatRaid.current_hp)).padStart(4, '0')}/{String(Math.round(activeCombatRaid.max_hp)).padStart(4, '0')}

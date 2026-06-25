@@ -140,19 +140,14 @@ function ReviveButton({ raidId, tokens }: { raidId: string; tokens: number }) {
 }
 
 export function CombatHUD({ currentUserId, crewId, memberProfiles, userCombatClass }: CombatHUDProps) {
-  const [open,          setOpen]          = useState(false)
-  const [combatEnabled, setCombatEnabled] = useState(false)
-  const [timeToNext,    setTimeToNext]    = useState('')
-  const triggeredRef                      = useRef(false)
+  const [open,       setOpen]       = useState(false)
+  const [timeToNext, setTimeToNext] = useState('')
+  const triggeredRef                = useRef(false)
 
   const activeRaid    = useCombatStore((s) => s.activeRaid)
   const memberStats   = useCombatStore((s) => s.memberStats)
   const combatEvents  = useCombatStore((s) => s.combatEvents)
   const reviveTokens  = useCombatStore((s) => s.reviveTokens)
-
-  useEffect(() => {
-    setCombatEnabled(localStorage.getItem('nexus_combat_enabled') === '1')
-  }, [])
 
   // Next-attack countdown
   useEffect(() => {
@@ -180,7 +175,7 @@ export function CombatHUD({ currentUserId, crewId, memberProfiles, userCombatCla
 
   const hasJoinedRaid = !!(activeRaid && memberStats[currentUserId])
 
-  if (!combatEnabled || !hasJoinedRaid || !activeRaid) return null
+  if (!hasJoinedRaid || !activeRaid) return null
 
   // Boss name from spawn event
   const spawnEvent = combatEvents.find((e) => e.kind === 'boss_spawn')
