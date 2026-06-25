@@ -494,6 +494,16 @@ export function MessageList({
     // Skip when a prepend is in progress — anchor restoration handles scroll instead
     if (skipAutoScrollRef.current) { skipAutoScrollRef.current = false; return }
     const lastMsg = messages[messages.length - 1]
+    // Combat system messages are filtered from the chat display (shown in CombatLog inside
+    // the HUD instead). Auto-scrolling the chat for them would keep users pinned to the
+    // bottom and prevent them from reading history while a raid is active.
+    if (
+      lastMsg?.message_type === 'system' &&
+      typeof lastMsg.content === 'string' &&
+      (lastMsg.content.startsWith('COMBAT:') || lastMsg.content.startsWith('BOSS_SPAWN:'))
+    ) {
+      return
+    }
     const ownSend = !!lastMsg && lastMsg.user_id === currentUserId
     if (ownSend || isNearBottomRef.current) {
       virtualizer.scrollToIndex(items.length - 1, { align: 'end', behavior: 'smooth' })
