@@ -588,6 +588,23 @@ export function MessageList({
     }
   }, [crewId, hasMore, prependMessages]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Auto-fill: when the visible items don't overflow the scroll container (because the
+  // initial batch of 50 messages is dominated by COMBAT/BOSS_SPAWN system messages that
+  // are filtered from the chat display), the user can never scroll up and handleScroll
+  // never fires — pagination is stuck. Keep fetching older batches until the viewport
+  // has enough real chat messages to scroll through.
+  useEffect(() => {
+    if (!historyLoaded || !hasMore) return
+    const raf = requestAnimationFrame(() => {
+      const el = scrollRef.current
+      if (!el || isFetchingOlderRef.current || anchorPendingRef.current) return
+      if (el.scrollHeight <= el.clientHeight) {
+        fetchOlderMessages()
+      }
+    })
+    return () => cancelAnimationFrame(raf)
+  }, [historyLoaded, items.length, hasMore]) // eslint-disable-line react-hooks/exhaustive-deps
+
   function handleScroll() {
     const el = scrollRef.current
     if (!el) return
