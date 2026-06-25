@@ -241,31 +241,62 @@ export function CombatHUD({ currentUserId, crewId, memberProfiles, userCombatCla
               {/* Combat log */}
               <CombatLog />
 
-              {/* Member HP list */}
-              {Object.values(memberStats).length > 0 && (
+              {/* Member HP list — all crew members */}
+              {memberProfiles && Object.keys(memberProfiles).length > 0 && (
                 <div style={{ paddingLeft: 16, paddingRight: 16, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {Object.values(memberStats).map((member) => {
-                    const uname    = memberProfiles?.[member.user_id]?.username ?? member.user_id.slice(0, 8)
-                    const pct      = member.max_hp > 0 ? (member.current_hp / member.max_hp) * 100 : 0
-                    const barColor = member.is_downed ? 'var(--color-tertiary)' : pct <= 30 ? 'var(--color-danger)' : 'var(--color-success)'
-                    const isMe     = member.user_id === currentUserId
-                    return (
-                      <div key={member.user_id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span
-                          className="font-silkscreen leading-none flex-shrink-0"
-                          style={{ fontSize: 9, color: member.is_downed ? 'var(--color-tertiary)' : isMe ? 'var(--color-purple)' : 'var(--color-secondary)', width: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                        >
-                          {isMe ? '▶ ' : ''}{uname}
-                        </span>
-                        <div className="flex-1 bg-surface overflow-hidden" style={{ height: 3 }}>
-                          <div style={{ width: `${pct}%`, height: '100%', background: barColor, transition: 'width 0.4s ease-out' }} />
+                  <span className="font-silkscreen leading-none" style={{ fontSize: 9, color: 'var(--color-tertiary)', marginBottom: 2 }}>
+                    PARTY
+                  </span>
+                  {Object.keys(memberProfiles)
+                    .sort((a, b) => {
+                      if (a === currentUserId) return -1
+                      if (b === currentUserId) return 1
+                      const ma = memberStats[a]
+                      const mb = memberStats[b]
+                      if (ma?.is_downed && !mb?.is_downed) return 1
+                      if (!ma?.is_downed && mb?.is_downed) return -1
+                      const pctA = ma ? (ma.current_hp / (ma.max_hp || 1)) : 1
+                      const pctB = mb ? (mb.current_hp / (mb.max_hp || 1)) : 1
+                      return pctB - pctA
+                    })
+                    .map((uid) => {
+                      const uname  = memberProfiles[uid]?.username ?? uid.slice(0, 8)
+                      const member = memberStats[uid]
+                      const isMe   = uid === currentUserId
+
+                      if (!member) {
+                        return (
+                          <div key={uid} style={{ display: 'flex', alignItems: 'center', gap: 8, opacity: 0.3 }}>
+                            <span className="font-silkscreen leading-none flex-shrink-0" style={{ fontSize: 9, color: 'var(--color-tertiary)', width: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {uname}
+                            </span>
+                            <div className="flex-1 bg-surface" style={{ height: 3 }} />
+                            <span className="font-silkscreen leading-none flex-shrink-0" style={{ fontSize: 9, color: 'var(--color-tertiary)', width: 52, textAlign: 'right' }}>
+                              —
+                            </span>
+                          </div>
+                        )
+                      }
+
+                      const pct      = member.max_hp > 0 ? (member.current_hp / member.max_hp) * 100 : 0
+                      const barColor = member.is_downed ? 'var(--color-tertiary)' : pct <= 30 ? 'var(--color-danger)' : 'var(--color-success)'
+                      return (
+                        <div key={uid} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span
+                            className="font-silkscreen leading-none flex-shrink-0"
+                            style={{ fontSize: 9, color: member.is_downed ? 'var(--color-tertiary)' : isMe ? 'var(--color-purple)' : 'var(--color-secondary)', width: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                          >
+                            {isMe ? '▶ ' : ''}{uname}
+                          </span>
+                          <div className="flex-1 bg-surface overflow-hidden" style={{ height: 3 }}>
+                            <div style={{ width: `${pct}%`, height: '100%', background: barColor, transition: 'width 0.4s ease-out' }} />
+                          </div>
+                          <span className="font-silkscreen leading-none flex-shrink-0" style={{ fontSize: 9, color: member.is_downed ? 'var(--color-danger)' : 'var(--color-tertiary)', width: 52, textAlign: 'right' }}>
+                            {member.is_downed ? 'DOWNED' : `${Math.round(member.current_hp)}/${Math.round(member.max_hp)}`}
+                          </span>
                         </div>
-                        <span className="font-silkscreen leading-none flex-shrink-0" style={{ fontSize: 9, color: member.is_downed ? 'var(--color-danger)' : 'var(--color-tertiary)', width: 52, textAlign: 'right' }}>
-                          {member.is_downed ? 'DOWNED' : `${Math.round(member.current_hp)}/${Math.round(member.max_hp)}`}
-                        </span>
-                      </div>
-                    )
-                  })}
+                      )
+                    })}
                 </div>
               )}
 
