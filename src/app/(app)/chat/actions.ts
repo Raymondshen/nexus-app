@@ -62,6 +62,27 @@ export async function updateCrewImageAction(
   return {}
 }
 
+export async function updateCrewBackgroundImageAction(
+  crewId: string,
+  imageUrl: string,
+): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  const service = createServiceClient()
+  const { error } = await service
+    .from('crews')
+    .update({ background_image_url: imageUrl })
+    .eq('id', crewId)
+
+  if (error) return { error: error.message }
+
+  revalidateTag(`crew-members:${crewId}`, 'max')
+  revalidatePath('/home')
+  return {}
+}
+
 export async function kickMemberAction(
   crewId: string,
   targetUserId: string,

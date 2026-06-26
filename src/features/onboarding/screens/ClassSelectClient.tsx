@@ -1,218 +1,75 @@
 'use client'
 
-import { useState, useCallback } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { useActionState } from 'react'
-import { PixelSprite, spriteInfoFor } from '@/shared/components/game/PixelSprite'
-import { Button } from '@/shared/components/ui/Button'
+import { useState, useActionState } from 'react'
+import { useRouter } from 'next/navigation'
 import { selectClassAction } from '@/app/(app)/onboarding/class/actions'
+import { spriteIdFor } from '@/shared/components/game/PixelSprite'
 import { CLASS_BASE_STATS } from '@/features/combat/utils/combat'
 import type { AvatarClass, CombatClass } from '@/types'
 
 // ─── Class metadata ───────────────────────────────────────────────────────────
 
 const CLASSES: {
-  id: CombatClass
-  name: string
-  role: string
-  color: string
-  attackDesc:  string
-  abilityName: string
-  abilityDesc: string
-  abilityCost: number
-  passiveName: string
-  passiveDesc: string
+  id:           CombatClass
+  name:         string
+  role:         string
+  attackDesc:   string
+  abilityName:  string
+  abilityDesc:  string
+  passiveName:  string
+  passiveDesc:  string
 }[] = [
   {
     id:          'warrior',
     name:        'WARRIOR',
-    role:        'TANK / DPS',
-    color:       '#ef4444',
-    attackDesc:  'ATK-scaled strike. Hits harder at low HP.',
-    abilityName: 'GUARD',
-    abilityDesc: 'Force the boss to attack you for 60s. Your DEF rises 40%.',
-    abilityCost: 2,
-    passiveName: 'LAST STAND',
-    passiveDesc: 'Below 30% HP, all damage dealt increases by 20%.',
+    role:        'tank/dps',
+    attackDesc:  'atk-scaled strike. hits harder at low hp.',
+    abilityName: 'guard',
+    abilityDesc: 'force the boss to attack you for 60s. your def rises 40%.',
+    passiveName: 'last stand',
+    passiveDesc: 'below 30% hp, all damage dealt increases by 20%.',
   },
   {
     id:          'healer',
     name:        'HEALER',
-    role:        'SUPPORT / SUSTAIN',
-    color:       '#22c55e',
-    attackDesc:  'Weak hit. Restores 5% of damage dealt back to yourself.',
-    abilityName: 'MEND',
-    abilityDesc: 'INT-scaled heal to all living crew members. Cannot revive the downed.',
-    abilityCost: 2,
-    passiveName: 'SECOND WIND',
-    passiveDesc: '+15% to all healing produced — both MEND and Normal Attack self-heal.',
+    role:        'support/sustain',
+    attackDesc:  'weak hit. restores 5% of damage dealt back to yourself.',
+    abilityName: 'mend',
+    abilityDesc: 'int-scaled heal to all living crew members. cannot revive the downed.',
+    passiveName: 'second wind',
+    passiveDesc: '+15% to all healing — both mend and normal attack self-heal.',
   },
   {
     id:          'archer',
     name:        'ARCHER',
-    role:        'DPS / ACCURACY',
-    color:       '#ffd700',
-    attackDesc:  'ATK-scaled hit. High DEX raises crit chance significantly.',
-    abilityName: 'VOLLEY',
-    abilityDesc: 'Hit + apply a 20% damage-taken debuff on the boss for 30s.',
-    abilityCost: 2,
-    passiveName: 'PRECISION',
-    passiveDesc: 'Highest natural crit chance in the squad. Aim true.',
+    role:        'dps/accuracy',
+    attackDesc:  'atk-scaled hit. high dex raises crit chance significantly.',
+    abilityName: 'volley',
+    abilityDesc: 'hit + apply a 20% damage-taken debuff on the boss for 30s.',
+    passiveName: 'precision',
+    passiveDesc: 'highest natural crit chance in the squad. aim true.',
   },
   {
     id:          'rogue',
     name:        'ROGUE',
-    role:        'BURST / SPEED',
-    color:       '#bf5fff',
-    attackDesc:  'Fast ATK-scaled hit. Consecutive messages stack a damage bonus.',
-    abilityName: 'BACKSTAB',
-    abilityDesc: 'Guaranteed crit. 2.5× damage if boss is above 50% HP.',
-    abilityCost: 2,
-    passiveName: 'MOMENTUM',
-    passiveDesc: 'Each message stacks +5% dmg (cap 25%). Resets after 1hr silence.',
+    role:        'burst/speed',
+    attackDesc:  'fast atk-scaled hit. consecutive messages stack a damage bonus.',
+    abilityName: 'backstab',
+    abilityDesc: 'guaranteed crit. 2.5× damage if boss is above 50% hp.',
+    passiveName: 'momentum',
+    passiveDesc: 'each message stacks +5% dmg (cap 25%). resets after 1hr silence.',
   },
   {
     id:          'mage',
     name:        'MAGE',
-    role:        'HIGH DAMAGE / FRAGILE',
-    color:       '#00e5ff',
-    attackDesc:  'Highest ATK of any class. Hits hardest on every normal attack.',
-    abilityName: 'CAST',
-    abilityDesc: '3× ATK arcane nuke. Crit-eligible.',
-    abilityCost: 2,
-    passiveName: 'ARCANE WARD',
-    passiveDesc: 'Below 40% HP, your DEF is multiplied by 1.3 dynamically.',
+    role:        'high damage/fragile',
+    attackDesc:  'highest atk of any class. hits hardest on every normal attack.',
+    abilityName: 'cast',
+    abilityDesc: '3× atk arcane nuke. crit-eligible.',
+    passiveName: 'arcane ward',
+    passiveDesc: 'below 40% hp, your def is multiplied by 1.3 dynamically.',
   },
 ]
-
-// ─── Stat bar ─────────────────────────────────────────────────────────────────
-
-const STAT_KEYS: Array<keyof typeof CLASS_BASE_STATS['warrior']> = ['hp', 'atk', 'def', 'dex', 'int']
-const STAT_MAX: Record<string, number> = { hp: 42, atk: 22, dex: 22, def: 24, int: 26 }
-
-function StatRow({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
-  const pct = Math.min(100, (value / max) * 100)
-  return (
-    <div className="flex items-center gap-2">
-      <span className="font-pixel w-[18px] text-right flex-shrink-0" style={{ fontSize: 6, color: 'var(--color-tertiary)' }}>
-        {label.toUpperCase()}
-      </span>
-      <div className="flex-1 h-[5px] rounded-full overflow-hidden" style={{ background: '#1a0d2e' }}>
-        <motion.div
-          className="h-full rounded-full"
-          style={{ background: `${color}bb` }}
-          initial={{ width: 0 }}
-          animate={{ width: `${pct}%` }}
-          transition={{ duration: 0.5, ease: 'easeOut', delay: 0.05 }}
-        />
-      </div>
-      <span className="font-silkscreen flex-shrink-0" style={{ fontSize: 7, color: 'var(--color-primary)', width: 16, textAlign: 'right' }}>
-        {value}
-      </span>
-    </div>
-  )
-}
-
-// ─── Class slide ─────────────────────────────────────────────────────────────
-
-function ClassSlide({ cls, visible }: { cls: typeof CLASSES[number]; visible: boolean }) {
-  const spriteInfo = spriteInfoFor(cls.id as AvatarClass)
-  const stats      = CLASS_BASE_STATS[cls.id]
-
-  return (
-    <div className="flex flex-col items-center w-full" style={{ gap: 20 }}>
-      {/* Sprite */}
-      <div
-        className="flex items-center justify-center relative"
-        style={{
-          width:        140,
-          height:       140,
-          background:   `radial-gradient(circle, ${cls.color}18 0%, transparent 70%)`,
-          border:       `1px solid ${cls.color}33`,
-        }}
-      >
-        {spriteInfo ? (
-          <PixelSprite spriteId={spriteInfo.id} nativePx={spriteInfo.nativePx} scale={4} animate={visible} />
-        ) : (
-          <div style={{ width: 96, height: 96, background: `${cls.color}22`, border: `1px solid ${cls.color}44` }} />
-        )}
-        {/* Glow ring */}
-        <div
-          className="absolute inset-0 pointer-events-none"
-          style={{ boxShadow: `inset 0 0 30px ${cls.color}22`, border: `1px solid ${cls.color}33` }}
-        />
-      </div>
-
-      {/* Class name + role */}
-      <div className="text-center">
-        <h2 className="font-pixel" style={{ fontSize: 14, color: cls.color, textShadow: `0 0 16px ${cls.color}88` }}>
-          {cls.name}
-        </h2>
-        <p className="font-silkscreen mt-1" style={{ fontSize: 8, color: 'var(--color-tertiary)' }}>
-          {cls.role}
-        </p>
-      </div>
-
-      {/* Stat block */}
-      <div className="w-full flex flex-col gap-2 px-2">
-        {STAT_KEYS.map((k) => (
-          <StatRow
-            key={k}
-            label={k}
-            value={stats[k]}
-            max={STAT_MAX[k] ?? 30}
-            color={cls.color}
-          />
-        ))}
-      </div>
-
-      {/* Kit */}
-      <div className="w-full flex flex-col gap-2">
-        {/* Normal Attack */}
-        <div
-          className="px-3 py-2"
-          style={{ background: `${cls.color}0a`, border: `1px solid ${cls.color}22` }}
-        >
-          <p className="font-pixel mb-1" style={{ fontSize: 6, color: cls.color }}>NORMAL ATTACK</p>
-          <p className="font-silkscreen leading-relaxed" style={{ fontSize: 8, color: 'var(--color-secondary)' }}>
-            {cls.attackDesc}
-          </p>
-        </div>
-
-        {/* Ability */}
-        <div
-          className="px-3 py-2"
-          style={{ background: `${cls.color}0a`, border: `1px solid ${cls.color}33` }}
-        >
-          <div className="flex items-center justify-between mb-1">
-            <p className="font-pixel" style={{ fontSize: 6, color: cls.color }}>
-              ABILITY — {cls.abilityName}
-            </p>
-            <span className="font-silkscreen" style={{ fontSize: 7, color: 'var(--color-tertiary)' }}>
-              Cost: {cls.abilityCost}
-            </span>
-          </div>
-          <p className="font-silkscreen leading-relaxed" style={{ fontSize: 8, color: 'var(--color-secondary)' }}>
-            {cls.abilityDesc}
-          </p>
-        </div>
-
-        {/* Passive */}
-        <div
-          className="px-3 py-2"
-          style={{ background: '#0f0820', border: '1px solid #2a1545' }}
-        >
-          <p className="font-pixel mb-1" style={{ fontSize: 6, color: '#6b4f8f' }}>
-            PASSIVE — {cls.passiveName}
-          </p>
-          <p className="font-silkscreen leading-relaxed" style={{ fontSize: 8, color: 'var(--color-tertiary)' }}>
-            {cls.passiveDesc}
-          </p>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
@@ -225,137 +82,180 @@ export default function ClassSelectClient({
   welcome: boolean
   invite:  string | null
 }) {
-  const [idx,     setIdx]     = useState(0)
-  const [dir,     setDir]     = useState(0)  // 1 = forward, -1 = back
-  const [state,   action, isPending] = useActionState(selectClassAction, null)
+  const router = useRouter()
+  const [idx, setIdx] = useState(0)
+  const [state, action, isPending] = useActionState(selectClassAction, null)
 
-  const go = useCallback((delta: number) => {
-    setDir(delta)
-    setIdx((i) => (i + delta + CLASSES.length) % CLASSES.length)
-  }, [])
-
-  const selected = CLASSES[idx]
+  const selected  = CLASSES[idx]
+  const spriteId  = spriteIdFor(selected.id as AvatarClass)
+  const stats     = CLASS_BASE_STATS[selected.id]
 
   return (
-    <div
-      className="min-h-screen flex flex-col bg-[#0a0612] relative overflow-hidden"
-      style={{ maxWidth: 390, margin: '0 auto' }}
-    >
-      {/* Scan-line overlay */}
+    <div className="min-h-screen bg-black flex flex-col justify-end">
       <div
-        className="pointer-events-none fixed inset-0 z-0"
+        className="bg-[var(--color-surface-sheet)] rounded-tl-[16px] rounded-tr-[16px] flex flex-col overflow-y-auto nexus-scroll"
         style={{
-          background: 'repeating-linear-gradient(to bottom, transparent 0px, transparent 2px, rgba(0,0,0,0.08) 2px, rgba(0,0,0,0.08) 4px)',
+          gap:           16,
+          paddingTop:    16,
+          paddingLeft:   16,
+          paddingRight:  16,
+          paddingBottom: 'max(env(safe-area-inset-bottom), 28px)',
+          maxHeight:     '92vh',
         }}
-      />
-
-      {/* Header */}
-      <div className="relative z-10 text-center pt-12 pb-4 px-4 flex-shrink-0">
-        <h1
-          className="font-pixel"
-          style={{ fontSize: 18, color: '#bf5fff', textShadow: '0 0 30px rgba(191,95,255,0.9), 0 0 60px rgba(191,95,255,0.3)' }}
-        >
-          NEXUS
-        </h1>
-        <p className="font-pixel mt-2" style={{ fontSize: 8, color: 'var(--color-tertiary)' }}>
-          CHOOSE YOUR CLASS
-        </p>
-      </div>
-
-      {/* Carousel */}
-      <div className="relative z-10 flex-1 px-4 overflow-hidden">
-        {/* Slide counter */}
-        <div className="flex items-center justify-center gap-1.5 mb-4">
-          {CLASSES.map((_, i) => (
-            <button
-              key={i}
-              onClick={() => go(i - idx)}
-              className="rounded-full transition-all duration-200"
-              style={{
-                width:      i === idx ? 16 : 6,
-                height:     6,
-                background: i === idx ? selected.color : '#2a1545',
-              }}
-              aria-label={`Go to ${CLASSES[i].name}`}
-            />
-          ))}
-        </div>
-
-        <AnimatePresence mode="popLayout" initial={false} custom={dir}>
-          <motion.div
-            key={idx}
-            custom={dir}
-            variants={{
-              enter:  (d: number) => ({ x: d > 0 ? 320 : -320, opacity: 0 }),
-              center: { x: 0, opacity: 1 },
-              exit:   (d: number) => ({ x: d > 0 ? -320 : 320, opacity: 0 }),
-            }}
-            initial="enter"
-            animate="center"
-            exit="exit"
-            transition={{ type: 'spring', stiffness: 340, damping: 34 }}
-            drag="x"
-            dragConstraints={{ left: 0, right: 0 }}
-            dragElastic={0.2}
-            onDragEnd={(_, info) => {
-              if (info.offset.x < -60 || info.velocity.x < -300) go(1)
-              else if (info.offset.x > 60 || info.velocity.x > 300) go(-1)
-            }}
-            className="w-full"
-          >
-            <ClassSlide cls={selected} visible={true} />
-          </motion.div>
-        </AnimatePresence>
-      </div>
-
-      {/* Navigation + confirm */}
-      <div className="relative z-10 flex-shrink-0 px-4 pb-8 pt-4" style={{ paddingBottom: 'calc(32px + env(safe-area-inset-bottom))' }}>
-        {state?.error && (
-          <div className="mb-3 px-3 py-2" style={{ background: '#ff444410', border: '1px solid #ff444440' }}>
-            <p className="font-pixel" style={{ fontSize: 7, color: '#ff4444' }}>{state.error}</p>
+      >
+        {/* ── Header ──────────────────────────────────────────────────────── */}
+        <div className="flex flex-col flex-shrink-0" style={{ gap: 8 }}>
+          <p className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}>
+            Squad Sh**t...
+          </p>
+          <div className="flex flex-col" style={{ gap: 4 }}>
+            <p className="font-body font-bold text-primary leading-none" style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}>
+              Choose Your Class
+            </p>
+            <p className="font-body font-light text-tertiary leading-none" style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}>
+              You cannot change your class afterwards.
+            </p>
           </div>
-        )}
-
-        {/* Arrow navigation */}
-        <div className="flex items-center justify-between mb-3">
-          <button
-            onClick={() => go(-1)}
-            className="flex items-center gap-1 px-3 py-2 transition-opacity active:opacity-60"
-            style={{ background: '#1a0d2e', border: '1px solid #2a1545' }}
-          >
-            <span className="font-pixel" style={{ fontSize: 7, color: 'var(--color-tertiary)' }}>← PREV</span>
-          </button>
-          <span className="font-pixel" style={{ fontSize: 7, color: 'var(--color-muted)' }}>
-            {idx + 1} / {CLASSES.length}
-          </span>
-          <button
-            onClick={() => go(1)}
-            className="flex items-center gap-1 px-3 py-2 transition-opacity active:opacity-60"
-            style={{ background: '#1a0d2e', border: '1px solid #2a1545' }}
-          >
-            <span className="font-pixel" style={{ fontSize: 7, color: 'var(--color-tertiary)' }}>NEXT →</span>
-          </button>
         </div>
 
-        <form action={action}>
-          <input type="hidden" name="class"   value={selected.id} />
-          <input type="hidden" name="crewId"  value={crewId} />
-          <input type="hidden" name="welcome" value={welcome ? '1' : '0'} />
-          {invite && <input type="hidden" name="invite" value={invite} />}
-          <Button
-            type="submit"
-            variant="filled"
-            loading={isPending}
-            className="w-full"
-            style={{
-              background:  selected.color,
-              border:      'none',
-              boxShadow:   `0 0 20px ${selected.color}44`,
-            }}
+        {/* ── Class selector row ───────────────────────────────────────────── */}
+        <div className="flex items-center justify-between flex-shrink-0">
+          {CLASSES.map((cls, i) => {
+            const id         = spriteIdFor(cls.id as AvatarClass)
+            const isSelected = i === idx
+            return (
+              <button
+                key={cls.id}
+                type="button"
+                onClick={() => setIdx(i)}
+                className="flex items-center justify-center overflow-hidden"
+                style={{
+                  width:      48,
+                  height:     48,
+                  background: 'var(--color-surface-sheet)',
+                  border:     `1px solid ${isSelected ? 'var(--color-purple)' : 'var(--color-border-hover)'}`,
+                  flexShrink: 0,
+                }}
+              >
+                {id && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={`/sprites/${id}/south.png`}
+                    alt={cls.name}
+                    style={{ width: '100%', height: '100%', objectFit: 'contain', imageRendering: 'pixelated' }}
+                  />
+                )}
+              </button>
+            )
+          })}
+        </div>
+
+        {/* ── Class detail ─────────────────────────────────────────────────── */}
+        <div className="flex flex-col flex-shrink-0" style={{ gap: 8 }}>
+
+          {/* Stat row */}
+          <div className="flex items-center justify-between">
+            {/* Left: sprite + name */}
+            <div className="flex items-center" style={{ gap: 8 }}>
+              {/* 56px container with 80px sprite centred (overflows) */}
+              <div className="relative flex-shrink-0" style={{ width: 56, height: 56 }}>
+                {spriteId && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={`/sprites/${spriteId}/south.png`}
+                    alt={selected.name}
+                    style={{
+                      position:        'absolute',
+                      top:             '50%',
+                      left:            '50%',
+                      transform:       'translate(-50%, -50%)',
+                      width:           80,
+                      height:          80,
+                      imageRendering:  'pixelated',
+                      maxWidth:        'none',
+                      objectFit:       'contain',
+                    }}
+                  />
+                )}
+              </div>
+
+              {/* Name / level / role */}
+              <div className="flex flex-col" style={{ gap: 4 }}>
+                <span className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>
+                  lv. 1
+                </span>
+                <span className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-md)', color: 'var(--color-primary)' }}>
+                  {selected.name}
+                </span>
+                <span className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}>
+                  {selected.role}
+                </span>
+              </div>
+            </div>
+
+            {/* Right: stats grid */}
+            <div className="flex items-start" style={{ gap: 8 }}>
+              <div className="flex flex-col" style={{ gap: 8 }}>
+                <span className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>HP: {stats.hp}</span>
+                <span className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>ATK: {stats.atk}</span>
+                <span className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>DEF: {stats.def}</span>
+              </div>
+              <div className="flex flex-col" style={{ gap: 8 }}>
+                <span className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>Dex: {stats.dex}</span>
+                <span className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>int: {stats.int}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Ability descriptions */}
+          <div className="flex flex-col" style={{ gap: 16 }}>
+            <p className="font-silkscreen leading-normal" style={{ fontSize: 11, color: 'var(--color-secondary)' }}>
+              <span style={{ color: '#f59e0b' }}>normal attack</span>
+              {` - ${selected.attackDesc}`}
+            </p>
+            <p className="font-silkscreen leading-normal" style={{ fontSize: 11, color: 'var(--color-secondary)' }}>
+              <span style={{ color: '#f59e0b' }}>ability {selected.abilityName}</span>
+              {` - ${selected.abilityDesc}`}
+            </p>
+            <p className="font-silkscreen leading-normal" style={{ fontSize: 11, color: 'var(--color-secondary)' }}>
+              <span style={{ color: '#60a5fa' }}>passive {selected.passiveName}</span>
+              {` - ${selected.passiveDesc}`}
+            </p>
+          </div>
+        </div>
+
+        {/* ── Buttons ──────────────────────────────────────────────────────── */}
+        <div className="flex flex-col flex-shrink-0" style={{ gap: 20 }}>
+          {state?.error && (
+            <p className="font-silkscreen" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-danger)' }}>
+              {state.error}
+            </p>
+          )}
+
+          <form action={action}>
+            <input type="hidden" name="class"   value={selected.id} />
+            <input type="hidden" name="crewId"  value={crewId} />
+            <input type="hidden" name="welcome" value={welcome ? '1' : '0'} />
+            {invite && <input type="hidden" name="invite" value={invite} />}
+            <button
+              type="submit"
+              disabled={isPending}
+              className="w-full flex items-center justify-center font-silkscreen text-primary bg-[var(--color-purple)] overflow-hidden disabled:opacity-40"
+              style={{ fontSize: 'var(--text-xs)', height: 48, boxShadow: '4px 4px 0 rgba(168,85,247,0.5)' }}
+            >
+              {isPending ? '...' : 'Join the squad'}
+            </button>
+          </form>
+
+          <button
+            type="button"
+            onClick={() => router.push('/home')}
+            className="w-full flex items-center justify-center font-silkscreen overflow-hidden"
+            style={{ height: 48, fontSize: 'var(--text-xs)', color: 'var(--red)', border: '1px solid var(--red)' }}
           >
-            ENTER AS {selected.name}
-          </Button>
-        </form>
+            Cancel
+          </button>
+        </div>
       </div>
     </div>
   )

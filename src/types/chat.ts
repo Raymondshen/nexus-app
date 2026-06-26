@@ -13,6 +13,7 @@ export interface Crew extends Record<string, unknown> {
   dm_partner_2?: string | null
   image_url?: string | null
   image_storage_key?: string | null
+  background_image_url?: string | null
   last_message_preview?: string | null
   last_message_at?: string | null
   last_message_sender_id?: string | null

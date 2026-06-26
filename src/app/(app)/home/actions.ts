@@ -194,6 +194,76 @@ export async function deleteAnnouncementAction(id: string): Promise<{ ok?: boole
   return { ok: true }
 }
 
+// Crew invite code alphabet (same as app_invites, no ambiguous chars)
+const CREW_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+function genCrewCode() {
+  return Array.from({ length: 6 }, () => CREW_CODE_CHARS[Math.floor(Math.random() * CREW_CODE_CHARS.length)]).join('')
+}
+
+export async function createCrewFromHomeAction(
+  name: string,
+): Promise<{ crewId: string } | { error: string }> {
+  const supabase = await createSupabaseClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  const cleaned = name.trim().replace(/<[^>]*>/g, '').slice(0, 30)
+  if (cleaned.length < 2) return { error: 'Squad name must be at least 2 characters.' }
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const { data: crewId, error } = await supabase.rpc('create_crew', {
+      p_name:        cleaned,
+      p_invite_code: genCrewCode(),
+    })
+    if (!error && crewId) {
+      revalidatePath('/home')
+      return { crewId: crewId as string }
+    }
+    if (error && !error.message.includes('unique')) return { error: error.message }
+  }
+  return { error: 'Could not generate a unique invite code. Try again.' }
+}
+
+export async function joinCrewFromHomeAction(
+  inviteCode: string,
+): Promise<{ crewId: string } | { error: string }> {
+  const supabase = await createSupabaseClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  const code = inviteCode.trim().toUpperCase()
+  if (code.length !== 6) return { error: 'Enter the full 6-character code.' }
+
+  const { data: crewId, error } = await supabase.rpc('join_crew', { p_invite_code: code })
+
+  if (error || !crewId) {
+    const msg = error?.message ?? ''
+    if (msg.toLowerCase().includes('not found') || msg.toLowerCase().includes('does not exist')) {
+      return { error: 'No crew found with that code.' }
+    }
+    return { error: msg || 'Could not join crew.' }
+  }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('username')
+    .eq('id', user.id)
+    .single()
+
+  await supabase.from('messages').insert({
+    crew_id:      crewId as string,
+    user_id:      user.id,
+    content:      `JOIN:${(profile as { username?: string } | null)?.username ?? 'warrior'}`,
+    message_type: 'system',
+    element_type: null,
+    xp_awarded:   0,
+  })
+
+  revalidatePath('/home')
+  revalidateTag(`crew-members:${crewId}`, 'max')
+  return { crewId: crewId as string }
+}
+
 export async function leaveCrewAction(
   crewId: string,
   token:  string,

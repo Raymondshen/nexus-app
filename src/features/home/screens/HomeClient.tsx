@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useEffect, useLayoutEffect, useRef, useCallback, useActionState } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence, useMotionValue, animate } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
+import { Upload } from 'pixelarticons/react/Upload'
 import { TokeCircle } from 'pixelarticons/react/TokeCircle'
 import { Heart } from 'pixelarticons/react/Heart'
 import { Copy } from 'pixelarticons/react/Copy'
@@ -14,9 +15,8 @@ import { MailRight } from 'pixelarticons/react/MailRight'
 import Image from 'next/image'
 import { isSupabaseStorage, resolveAvatarUrl } from '@/shared/components/ui/Avatar'
 import { createClient } from '@/shared/supabase/client'
-import { createCrewAction } from '@/app/(app)/onboarding/create/actions'
-import { joinCrewAction }   from '@/app/(app)/onboarding/join/actions'
-import { leaveCrewAction } from '@/app/(app)/home/actions'
+import { leaveCrewAction, createCrewFromHomeAction, joinCrewFromHomeAction } from '@/app/(app)/home/actions'
+import { updateCrewImageAction, updateCrewBackgroundImageAction } from '@/app/(app)/chat/actions'
 import { Button } from '@/shared/components/ui/Button'
 import type { CrewSummary } from '@/app/(app)/home/page'
 import type { Message, MessageWithProfile } from '@/types'
@@ -305,6 +305,34 @@ function AccountPreview({
 
 type SheetView = 'menu' | 'create' | 'join'
 
+async function resizeImageToBlob(file: File, w: number, h: number): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const img     = new window.Image()
+    const blobUrl = URL.createObjectURL(file)
+    img.onload = () => {
+      URL.revokeObjectURL(blobUrl)
+      const canvas   = document.createElement('canvas')
+      canvas.width   = w
+      canvas.height  = h
+      const ratio    = w / h
+      const srcRatio = img.width / img.height
+      let sx = 0, sy = 0, sw = img.width, sh = img.height
+      if (srcRatio > ratio) {
+        sw = Math.round(img.height * ratio)
+        sx = Math.round((img.width - sw) / 2)
+      } else {
+        sh = Math.round(img.width / ratio)
+        sy = Math.round((img.height - sh) / 2)
+      }
+      const ctx = canvas.getContext('2d')!
+      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, w, h)
+      canvas.toBlob((b) => b ? resolve(b) : reject(new Error('toBlob failed')), 'image/webp', 0.85)
+    }
+    img.onerror = reject
+    img.src     = blobUrl
+  })
+}
+
 function HomeActionSheet({
   onClose,
   coins,
@@ -316,11 +344,108 @@ function HomeActionSheet({
   infiniteCoins: boolean
   onOpenArsenal: () => void
 }) {
+  const router = useRouter()
   const [view, setView] = useState<SheetView>('menu')
 
-  const [createState, createAction, createPending] = useActionState(createCrewAction, null)
-  const [joinState,   joinAction,   joinPending]   = useActionState(joinCrewAction,   null)
-  const [joinCode, setJoinCode] = useState('')
+  // ── Join state ───────────────────────────────────────────────────────────
+  const [joinCode,    setJoinCode]    = useState('')
+  const [joinLoading, setJoinLoading] = useState(false)
+  const [joinError,   setJoinError]   = useState<string | null>(null)
+
+  // ── Create state ─────────────────────────────────────────────────────────
+  const [squadName,           setSquadName]           = useState('')
+  const [profilePhotoFile,    setProfilePhotoFile]    = useState<File | null>(null)
+  const [profilePhotoPreview, setProfilePhotoPreview] = useState<string | null>(null)
+  const [backgroundFile,      setBackgroundFile]      = useState<File | null>(null)
+  const [backgroundPreview,   setBackgroundPreview]   = useState<string | null>(null)
+  const [creating,            setCreating]            = useState(false)
+  const [createError,         setCreateError]         = useState<string | null>(null)
+
+  const profilePhotoRef = useRef<HTMLInputElement>(null)
+  const backgroundRef   = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    return () => {
+      if (profilePhotoPreview) URL.revokeObjectURL(profilePhotoPreview)
+      if (backgroundPreview)   URL.revokeObjectURL(backgroundPreview)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function handleProfilePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (profilePhotoPreview) URL.revokeObjectURL(profilePhotoPreview)
+    setProfilePhotoFile(file)
+    setProfilePhotoPreview(URL.createObjectURL(file))
+    e.target.value = ''
+  }
+
+  function handleBackgroundChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (backgroundPreview) URL.revokeObjectURL(backgroundPreview)
+    setBackgroundFile(file)
+    setBackgroundPreview(URL.createObjectURL(file))
+    e.target.value = ''
+  }
+
+  async function handleCreate() {
+    if (creating || squadName.trim().length < 2) return
+    setCreating(true)
+    setCreateError(null)
+    try {
+      const result = await createCrewFromHomeAction(squadName)
+      if ('error' in result) { setCreateError(result.error); setCreating(false); return }
+      const { crewId } = result
+      const supabase   = createClient()
+
+      if (profilePhotoFile) {
+        try {
+          const ts   = Date.now()
+          const blob = await resizeImageToBlob(profilePhotoFile, 256, 256)
+          const path = `${crewId}/${ts}-256.webp`
+          const { error: upErr } = await supabase.storage.from('crew-images')
+            .upload(path, blob, { contentType: 'image/webp', cacheControl: '31536000' })
+          if (!upErr) {
+            const { data: { publicUrl } } = supabase.storage.from('crew-images').getPublicUrl(path)
+            await updateCrewImageAction(crewId, publicUrl, `${crewId}/${ts}`)
+          }
+        } catch { /* non-fatal */ }
+      }
+
+      if (backgroundFile) {
+        try {
+          const ts   = Date.now() + 1
+          const blob = await resizeImageToBlob(backgroundFile, 1080, 608)
+          const path = `${crewId}/bg-${ts}.webp`
+          const { error: upErr } = await supabase.storage.from('crew-images')
+            .upload(path, blob, { contentType: 'image/webp', cacheControl: '31536000' })
+          if (!upErr) {
+            const { data: { publicUrl } } = supabase.storage.from('crew-images').getPublicUrl(path)
+            await updateCrewBackgroundImageAction(crewId, publicUrl)
+          }
+        } catch { /* non-fatal */ }
+      }
+
+      sessionStorage.setItem('nexus_chat_from', '/home')
+      router.push(`/onboarding/class?crew=${crewId}`)
+      onClose()
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : 'Something went wrong')
+      setCreating(false)
+    }
+  }
+
+  async function handleJoin() {
+    if (joinLoading || joinCode.length !== 6) return
+    setJoinLoading(true)
+    setJoinError(null)
+    const result = await joinCrewFromHomeAction(joinCode)
+    if ('error' in result) { setJoinError(result.error); setJoinLoading(false); return }
+    sessionStorage.setItem('nexus_chat_from', '/home')
+    router.push(`/chat/${result.crewId}`)
+    onClose()
+  }
 
   function handleJoinCodeChange(e: React.ChangeEvent<HTMLInputElement>) {
     setJoinCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))
@@ -330,57 +455,129 @@ function HomeActionSheet({
     if (view === 'create') {
       return (
         <>
-          <p
-            className="font-body font-bold text-primary leading-none"
-            style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}
-          >
-            Create a Squad
+          {/* Header */}
+          <div className="flex flex-col flex-shrink-0" style={{ gap: 4 }}>
+            <p className="font-silkscreen leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}>
+              SQUAD SH**T
+            </p>
+            <h2 className="font-body font-bold text-primary leading-none" style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}>
+              Create a squad
+            </h2>
+          </div>
+
+          {/* Preview label */}
+          <p className="font-silkscreen leading-none flex-shrink-0" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}>
+            Squad Card Preview
           </p>
 
-          {createState?.error && (
-            <div className="border px-3 py-2" style={{ background: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.5)' }}>
-              <p className="font-silkscreen" style={{ fontSize: 'var(--text-mini)', color: 'var(--red)' }}>{createState.error}</p>
+          {/* Squad Card Preview */}
+          <div className="relative w-full overflow-hidden flex-shrink-0" style={{ height: 180 }}>
+            {backgroundPreview ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img src={backgroundPreview} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+              <div style={{ position: 'absolute', inset: 0, background: 'var(--color-surface)' }} />
+            )}
+            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.5) 50%, rgba(0,0,0,0.85) 100%)' }} />
+            <div style={{ position: 'relative', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                <div style={{ width: 40, height: 40, overflow: 'hidden', flexShrink: 0, background: profilePhotoPreview ? 'transparent' : '#27272a' }}>
+                  {profilePhotoPreview && (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img src={profilePhotoPreview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  )}
+                </div>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <p className="font-body font-bold text-primary leading-none" style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}>
+                    {squadName || 'Squad Name'}
+                  </p>
+                  <p className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}>
+                    1 members
+                  </p>
+                </div>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}>0/100 XP</span>
+                  <span className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}>0 total Squad msg.</span>
+                </div>
+                <div style={{ height: 4, background: 'rgba(255,255,255,0.1)', borderRadius: 2 }}>
+                  <div style={{ width: '0%', height: '100%', background: 'var(--color-xp)', borderRadius: 2 }} />
+                </div>
+              </div>
             </div>
-          )}
+          </div>
 
-          <form action={createAction} className="flex flex-col" style={{ gap: 'var(--space-7)' }}>
-            <div className="flex flex-col" style={{ gap: 'var(--space-3)' }}>
-              <p
-                className="font-body leading-none tracking-[0.2px]"
-                style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14', fontWeight: 500 }}
-              >
-                <span className="text-primary">Squad Name </span>
-                <span style={{ color: 'var(--red)' }}>*</span>
+          {/* Upload buttons */}
+          <div className="flex flex-shrink-0" style={{ gap: 8 }}>
+            <button
+              type="button"
+              onClick={() => profilePhotoRef.current?.click()}
+              className="flex-1 flex items-center justify-center overflow-hidden"
+              style={{ height: 48, gap: 8, border: '1px solid var(--color-purple)' }}
+            >
+              <Upload style={{ width: 16, height: 16, color: 'var(--color-purple)' }} aria-hidden="true" />
+              <span className="font-silkscreen leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-xxs)', color: 'var(--color-purple)' }}>
+                Profile Photo
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => backgroundRef.current?.click()}
+              className="flex-1 flex items-center justify-center overflow-hidden"
+              style={{ height: 48, gap: 8, border: '1px solid var(--color-purple)' }}
+            >
+              <Upload style={{ width: 16, height: 16, color: 'var(--color-purple)' }} aria-hidden="true" />
+              <span className="font-silkscreen leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-xxs)', color: 'var(--color-purple)' }}>
+                Background Image
+              </span>
+            </button>
+          </div>
+          <input ref={profilePhotoRef} type="file" accept="image/*" onChange={handleProfilePhotoChange} className="hidden" aria-hidden="true" />
+          <input ref={backgroundRef}   type="file" accept="image/*" onChange={handleBackgroundChange}   className="hidden" aria-hidden="true" />
+
+          {/* Squad Name input */}
+          <div className="flex flex-col flex-shrink-0" style={{ gap: 8 }}>
+            <p className="font-body leading-none tracking-[0.2px]" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14', fontWeight: 500 }}>
+              <span className="text-primary">Squad Name </span>
+              <span style={{ color: 'var(--red)' }}>*</span>
+            </p>
+            <input
+              value={squadName}
+              onChange={(e) => setSquadName(e.target.value.slice(0, 30))}
+              placeholder="BFF Hangout, Family, etc..."
+              autoFocus
+              className="w-full bg-black text-primary placeholder:text-muted font-body font-normal focus:outline-none focus:border-[var(--color-purple)] transition-colors"
+              style={{ border: '1px solid var(--color-border-hover)', padding: 12, fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
+            />
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex flex-col flex-shrink-0" style={{ gap: 16 }}>
+            {createError && (
+              <p className="font-silkscreen" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-danger)' }}>
+                {createError}
               </p>
-              <input
-                name="crewName"
-                type="text"
-                placeholder="BFF Hangout, Family, etc..."
-                required
-                minLength={2}
-                maxLength={30}
-                autoComplete="off"
-                autoFocus
-                className="w-full bg-[var(--background)] font-body font-normal text-primary placeholder:text-muted focus:outline-none"
-                style={{ border: '1px solid #3f3f46', padding: 12, fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
-              />
-            </div>
-            <div className="flex flex-col" style={{ gap: 'var(--space-5)' }}>
-              <Button type="submit" shadow loading={createPending} className="w-full">
-                CREATE SQUAD
-              </Button>
-              <Button
-                type="button"
-                variant="outlined"
-                color="red"
-                shadow
-                className="w-full h-[48px]"
-                onClick={() => setView('menu')}
-              >
-                CANCEL CREATION
-              </Button>
-            </div>
-          </form>
+            )}
+            <button
+              type="button"
+              onClick={handleCreate}
+              disabled={creating || squadName.trim().length < 2}
+              className="w-full flex items-center justify-center font-silkscreen text-primary bg-[var(--color-purple)] overflow-hidden disabled:opacity-40"
+              style={{ fontSize: 'var(--text-xs)', height: 48, boxShadow: '4px 4px 0 rgba(168,85,247,0.5)' }}
+            >
+              {creating ? '...' : 'CREATE SQUAD'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setView('menu')}
+              disabled={creating}
+              className="w-full flex items-center justify-center font-silkscreen overflow-hidden disabled:opacity-40"
+              style={{ height: 48, fontSize: 'var(--text-xs)', color: 'var(--red)', border: '1px solid var(--red)' }}
+            >
+              CANCEL
+            </button>
+          </div>
         </>
       )
     }
@@ -388,25 +585,19 @@ function HomeActionSheet({
     if (view === 'join') {
       return (
         <>
-          <p
-            className="font-body font-bold text-primary leading-none"
-            style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}
-          >
+          <p className="font-body font-bold text-primary leading-none" style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}>
             Join a Squad
           </p>
 
-          {joinState?.error && (
+          {joinError && (
             <div className="border px-3 py-2" style={{ background: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.5)' }}>
-              <p className="font-silkscreen" style={{ fontSize: 'var(--text-mini)', color: 'var(--red)' }}>{joinState.error}</p>
+              <p className="font-silkscreen" style={{ fontSize: 'var(--text-mini)', color: 'var(--red)' }}>{joinError}</p>
             </div>
           )}
 
-          <form action={joinAction} className="flex flex-col" style={{ gap: 'var(--space-7)' }}>
+          <div className="flex flex-col" style={{ gap: 'var(--space-7)' }}>
             <div className="flex flex-col" style={{ gap: 'var(--space-3)' }}>
-              <p
-                className="font-body leading-none tracking-[0.2px]"
-                style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14', fontWeight: 500 }}
-              >
+              <p className="font-body leading-none tracking-[0.2px]" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14', fontWeight: 500 }}>
                 <span className="text-primary">Enter Invite Code </span>
                 <span style={{ color: 'var(--red)' }}>*</span>
               </p>
@@ -419,30 +610,28 @@ function HomeActionSheet({
                 className="w-full bg-[var(--background)] font-silkscreen text-primary placeholder:text-muted focus:outline-none text-center uppercase tracking-[0.4em] placeholder:tracking-[0.2em]"
                 style={{ border: '1px solid var(--color-purple)', padding: 12, fontSize: 'var(--text-xxl)' }}
               />
-              <input type="hidden" name="inviteCode" value={joinCode} />
             </div>
             <div className="flex flex-col" style={{ gap: 'var(--space-5)' }}>
-              <Button
-                type="submit"
-                shadow
-                loading={joinPending}
-                disabled={joinCode.length !== 6}
-                className="w-full"
-              >
-                JOIN THE SQUAD
-              </Button>
-              <Button
+              <button
                 type="button"
-                variant="outlined"
-                color="red"
-                shadow
-                className="w-full h-[48px]"
+                onClick={handleJoin}
+                disabled={joinLoading || joinCode.length !== 6}
+                className="w-full flex items-center justify-center font-silkscreen text-primary bg-[var(--color-purple)] overflow-hidden disabled:opacity-40"
+                style={{ fontSize: 'var(--text-xs)', height: 48, boxShadow: '4px 4px 0 rgba(168,85,247,0.5)' }}
+              >
+                {joinLoading ? '...' : 'JOIN THE SQUAD'}
+              </button>
+              <button
+                type="button"
                 onClick={() => setView('menu')}
+                disabled={joinLoading}
+                className="w-full flex items-center justify-center font-silkscreen overflow-hidden disabled:opacity-40"
+                style={{ height: 48, fontSize: 'var(--text-xs)', color: 'var(--red)', border: '1px solid var(--red)' }}
               >
                 NEVER MIND...
-              </Button>
+              </button>
             </div>
-          </form>
+          </div>
         </>
       )
     }
@@ -452,10 +641,7 @@ function HomeActionSheet({
       <>
         <div className="flex flex-col" style={{ gap: 'var(--space-3)' }}>
           <p className="font-silkscreen leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}>SQUAD SH**!</p>
-          <h2
-            className="font-body font-bold text-primary leading-none"
-            style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}
-          >
+          <h2 className="font-body font-bold text-primary leading-none" style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}>
             What would you like to do?
           </h2>
         </div>
@@ -483,7 +669,6 @@ function HomeActionSheet({
             </p>
           </div>
         </div>
-
       </>
     )
   })()
@@ -501,18 +686,29 @@ function HomeActionSheet({
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
-        transition={{ type: 'spring', stiffness: 280, damping: 26 }}
-        drag="y"
+        transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+        drag={creating || joinLoading ? false : 'y'}
         dragConstraints={{ top: 0, bottom: 0 }}
         dragElastic={{ top: 0, bottom: 1 }}
         onDragEnd={(_, info) => {
           if (info.offset.y > 80 || info.velocity.y > 400) onClose()
         }}
-        className="relative w-full max-w-[480px] bg-[var(--background)] border-t border-border flex flex-col gap-[var(--space-7)] px-[16px] overflow-hidden"
-        style={{ paddingTop: 'var(--space-5)', paddingBottom: 'max(env(safe-area-inset-bottom), var(--space-8))' }}
+        className="relative w-full max-w-[480px] bg-[var(--color-surface-sheet)] rounded-tl-[16px] rounded-tr-[16px] overflow-hidden"
+        style={{ maxHeight: '90vh' }}
         onClick={(e) => e.stopPropagation()}
       >
-        {sheetContent}
+        <div
+          className="overflow-y-auto nexus-scroll flex flex-col"
+          style={{
+            gap:           view === 'create' ? 20 : 'var(--space-7)',
+            paddingTop:    24,
+            paddingLeft:   16,
+            paddingRight:  16,
+            paddingBottom: 'max(env(safe-area-inset-bottom), 28px)',
+          }}
+        >
+          {sheetContent}
+        </div>
       </motion.div>
     </motion.div>
   )
