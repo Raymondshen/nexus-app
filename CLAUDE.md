@@ -73,7 +73,7 @@ Anti-spam: gap < 5s since sender's last message → 0 XP, 0 coins, 0 damage (sof
 
 Coins: text/voice/image=1 · reaction/system=0 · generate-invite=−25 · seed-to-new-user=+50 · blocked when softBlocked
 - `handle_new_user` trigger → 50 signup bonus · invite alphabet: `ABCDEFGHJKLMNPQRSTUVWXYZ23456789`
-- Balance in `profiles.coins`; `chatStore.userCoins`; shown in `AccountPreview` (bare `TokeCircle` 24×16 + Silkscreen number) and profile hero glass badge
+- Balance in `profiles.coins`; `chatStore.userCoins`; shown in `AccountPreview` (currency pill row: gems → coins → FXP heart) and profile hero glass badge
 
 Friendship XP: 1pt per DM send or @mention · 10pt daily cap (local midnight, tracked in `friendship_xp_log` by `sender_id`) · `award-friendship-xp` edge function · **dev-gated: `nexus_friendship_xp`**
 - `friendship_xp` cumulative bilateral XP; canonical pair `user_a < user_b`; realtime via `home-fxp-a:{userId}` + `home-fxp-b:{userId}` (channels only open when flag is ON)
@@ -221,7 +221,7 @@ src/
 │   └── components/
 │       ├── ui/                 Button, Input, Avatar, DelayedSkeleton,
 │       │                       ErrorBoundary, SessionRefresher
-│       ├── banners/            MarqueeBanner, AnnouncementBanner, GuestBanner
+│       ├── banners/            TickerBanner, AnnouncementBanner, GuestBanner
 │       ├── overlays/           AvatarUploadModal, BackgroundUploadModal, ImagePreviewOverlay
 │       ├── pwa/                InstallPrompt, SWRegister, WelcomeDetector,
 │       │                       NotificationPrompt, PushRefresh, PushDebugFAB, BadgeClear
@@ -344,6 +344,14 @@ Single-row `InboxCardPreview`: avatar 48px · DM Sans Bold name · status subtit
 - Incoming: green `Check` 16×16 + red `Close` 16×16 inline
 - Outgoing: red-bordered `Close` 16×16 inline (no fill)
 
+### TickerBanner (`src/shared/components/banners/TickerBanner.tsx`)
+Single variant only — no pinned or multi-item mode. Props: `text: string`, `icon: React.ReactNode`, `quoted?: boolean`.
+- Container: `overflow-hidden border-t border-b border-border px-2`, `paddingTop/Bottom: 12px`
+- Each scroll unit: `[icon][gap 4px][text]` + `Dot` separator (2×2px `#d9d9d9`, `border border-border-hover`, `marginLeft/Right: 8px`)
+- Text: `font-silkscreen --text-xxs var(--color-secondary) leading-none`
+- Copy count + `animPx` computed via `useLayoutEffect` on `text` change; duration = `Math.max(21, text.length * 0.28 + 15)`
+- Used in: `ProfileClient` + `AccountPageMember` (status ticker) · `AccountPreview` in `HomeClient` (status ticker at card bottom)
+
 ### HomeClient
 - Realtime: single `postgres_changes UPDATE` on `crews` (`home-crews-preview`) + `postgres_changes UPDATE` on `profiles` + two friendship XP channels (`home-fxp-a/b:{userId}`)
 - Last-message preview from denormalized `crews.last_message_preview/at/sender_id` — no `messages` join on home load
@@ -384,6 +392,26 @@ Server: verifies friendship → `get_or_create_dm(friendId)` → renders chat. `
 
 ### Pixel Sprites
 `public/sprites/{spriteId}/{direction}.png` · 8 directions · 24×24px · plain `<img imageRendering: pixelated>` (never `next/image`) · `maxWidth: 'none'` required
+
+### AccountPreview (`HomeClient`)
+Card: `bg-[#111] border border-border rounded-[8px] overflow-hidden pt-4 pb-0 gap-4 flex-col`
+- Details row (`px-4`): avatar 48×48 rounded-full · name/stats column (flex-1) · `ChevronRight` 24×24
+- Stats line: "Lifetime msg: {totalMessages}" — silkscreen mini tertiary
+- Username: DM Sans Bold xl, primary
+- Currency pills (left→right): `DiamondGem` 12×12 purple + gradient text → dot → `TokeCircle` 12×12 coins → (FXP gate) dot + `Heart` + gradient text
+- Single full-width invite button (`px-4`): `bg-purple`, `Copy` icon 12×12, `boxShadow: 4px 4px 0 rgba(168,85,247,0.5)`
+- `TickerBanner` flush at card bottom (no px padding wrapper — fills card width)
+
+### SquadCardPreview (`HomeClient`)
+Container: `flex items-center gap-4 h-12 w-full`
+- **Group photo** (left): `bg-primary` white `48×48` non-interactive box — crew image or initial letter in black
+- **Details column** (flex-1, 3 rows, gap-2):
+  - Row 1: `lv. {crew.level}` · 2px dot · `Total MSG. {crew.total_xp}` [unread only: · dot · `+N unread msg` in `var(--green)` flex-1]
+  - Row 2: crew name (DM Sans Bold md, primary, flex-1 truncate) + timestamp (DM Sans Light xs, muted, shrink-0) — timestamp only when `lastMessage` exists
+  - Row 3 (state-based):
+    - **default** (no message): muted, regular — "Your party's journey begins here."
+    - **active** (read): secondary, regular — last message content
+    - **unread**: primary, **medium weight** — last message content
 
 ### AnnouncementBanner
 Below `AccountPreview` · `bg-[var(--color-blue)]/10 border border-[var(--color-blue)]` · swipe `'x'`, `dragElastic 0.15`, 40px threshold · pagination dots for 2+ banners
@@ -472,8 +500,7 @@ Icons (`pixelarticons`):
 | SquadDetailsEditSheet — upload | `Upload` | 16×16, `var(--color-purple)` |
 | ChatInput — creator | `Crown` | 12×12, `var(--color-coins)` |
 | Coin badge | `TokeCircle` | 24×16 (not square) |
-| AccountPreview — friends | `Notebook` | 12×12, `var(--color-purple)` |
-| AccountPreview — invite | `Plus` | 12×12, `var(--color-primary)` |
+| AccountPreview — invite | `Copy` | 12×12, `var(--color-primary)` |
 | Copy / confirm | `Copy`, `Check` | 12×12 |
 
 ## Bottom Sheet Patterns

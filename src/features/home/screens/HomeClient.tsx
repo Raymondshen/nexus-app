@@ -7,9 +7,9 @@ import type { PanInfo } from 'framer-motion'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
 import { TokeCircle } from 'pixelarticons/react/TokeCircle'
 import { Heart } from 'pixelarticons/react/Heart'
-import { Notebook } from 'pixelarticons/react/Notebook'
-import { Plus } from 'pixelarticons/react/Plus'
+import { Copy } from 'pixelarticons/react/Copy'
 import { Message as MessageIcon } from 'pixelarticons/react/Message'
+import { TickerBanner } from '@/shared/components/banners/TickerBanner'
 import { MailRight } from 'pixelarticons/react/MailRight'
 import Image from 'next/image'
 import { isSupabaseStorage, resolveAvatarUrl } from '@/shared/components/ui/Avatar'
@@ -26,7 +26,6 @@ import { AnnouncementBanner } from '@/shared/components/banners/AnnouncementBann
 import type { AnnouncementItem } from '@/shared/components/banners/AnnouncementBanner'
 import { DiamondGem } from 'pixelarticons/react/DiamondGem'
 import { isGemGateOpen } from '@/shared/utils/gems'
-import { getXPInCurrentLevel, getXPForCurrentLevel, getLevelFromXP } from '@/shared/utils/xp'
 import { GEM_DAILY_LIMIT } from '@/shared/constants/config'
 import { consumeHomeLastMessage } from '@/features/home/utils/homePreviewCache'
 
@@ -71,60 +70,6 @@ function relativeTime(iso: string): string {
   } catch {
     return ''
   }
-}
-
-// ─── Home status ticker ───────────────────────────────────────────────────────
-
-function HomeStatusTicker({ status }: { status: string }) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const itemRef      = useRef<HTMLSpanElement>(null)
-  const [numCopies, setNumCopies] = useState(6)
-  const [animPx,    setAnimPx]    = useState(0)
-
-  useLayoutEffect(() => {
-    const container = containerRef.current
-    const item      = itemRef.current
-    if (!container || !item) return
-    const cw = container.clientWidth
-    const iw = item.offsetWidth
-    if (iw <= 0) return
-    const halfNeeded = Math.ceil(cw / iw) + 1
-    const n          = Math.max(4, halfNeeded % 2 === 0 ? halfNeeded * 2 : (halfNeeded + 1) * 2)
-    setNumCopies(n)
-    setAnimPx(iw * (n / 2))
-  }, [status])
-
-  const duration = Math.max(21, status.length * 0.28 + 15)
-
-  return (
-    <div
-      ref={containerRef}
-      className="overflow-hidden border-t border-b border-border px-2"
-      style={{ paddingTop: 7, paddingBottom: 7 }}
-    >
-      <motion.div
-        key={status}
-        className="flex"
-        initial={{ x: 0 }}
-        animate={{ x: animPx > 0 ? [0, -animPx] : 0 }}
-        transition={{ duration, repeat: Infinity, ease: 'linear', repeatType: 'loop' }}
-      >
-        {Array.from({ length: numCopies }, (_, i) => (
-          <span
-            key={i}
-            ref={i === 0 ? itemRef : undefined}
-            className="inline-flex items-center flex-shrink-0 whitespace-nowrap pr-2"
-            style={{ gap: 4 }}
-          >
-            <MessageIcon style={{ width: 8, height: 8, color: 'var(--color-tertiary)' }} aria-hidden="true" />
-            <span className="font-silkscreen text-[length:var(--text-mini)] text-tertiary leading-none">
-              &ldquo;{status}&rdquo;
-            </span>
-          </span>
-        ))}
-      </motion.div>
-    </div>
-  )
 }
 
 // ─── Account preview ─────────────────────────────────────────────────────────
@@ -176,14 +121,14 @@ function AccountPreview({
 }) {
   return (
     <div
-      className="bg-[rgba(17,17,17,0.5)] border border-border rounded-[8px] overflow-hidden flex flex-col gap-[var(--space-5)] cursor-pointer active:opacity-80 transition-opacity"
-      style={{ padding: 'var(--space-5)' }}
+      className="bg-[#111] border border-border rounded-[8px] overflow-hidden flex flex-col gap-4 cursor-pointer active:opacity-80 transition-opacity"
+      style={{ paddingTop: 16 }}
       onClick={onEditProfile}
       role="button"
       aria-label="Edit profile"
     >
       {/* Details row */}
-      <div className="flex items-start gap-[var(--space-5)]">
+      <div className="flex items-center gap-4 px-4">
         {/* Avatar 48×48 */}
         <div className="w-12 h-12 flex-shrink-0 overflow-hidden relative bg-primary rounded-full">
           {avatarUrl ? (
@@ -195,18 +140,57 @@ function AccountPreview({
           )}
         </div>
 
-        {/* Name + stats + currency row */}
-        <div className="flex-1 min-w-0 flex flex-col gap-[var(--space-2)] justify-center leading-none">
-          <span className="font-silkscreen text-[length:var(--text-mini)] text-secondary leading-none">
-            {crewCount} group chat{crewCount !== 1 ? 's' : ''} · {totalMessages.toLocaleString()} msg
+        {/* Name + stats + currency */}
+        <div className="flex-1 min-w-0 flex flex-col gap-[var(--space-2)] justify-center">
+          <span className="font-silkscreen text-[length:var(--text-mini)] text-tertiary leading-none">
+            Lifetime msg: {totalMessages.toLocaleString()}
           </span>
           <span className="font-body font-bold text-[length:var(--text-xl)] text-primary leading-none truncate" style={{ fontVariationSettings: '"opsz" 14' }}>
             {username}
           </span>
 
-          {/* Currency pills — horizontal row (Figma 189:969) */}
+          {/* Currency pills */}
           <div className="flex items-center gap-[var(--space-3)]">
-            {/* Coin */}
+            {/* Gems (purple gradient) */}
+            <div className="relative">
+              <button
+                onClick={(e) => { e.stopPropagation(); onGemTap() }}
+                aria-label={`${gemBalance} gems`}
+                className="flex items-center gap-[var(--space-2)]"
+              >
+                <DiamondGem style={{ width: 12, height: 12, color: 'var(--color-purple)' }} aria-hidden="true" />
+                <span
+                  className="font-silkscreen leading-none"
+                  style={{
+                    fontSize: 'var(--text-xxs)',
+                    background: 'linear-gradient(to right, var(--color-purple), #d946ef)',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    backgroundClip: 'text',
+                  }}
+                >
+                  {gemBalance}
+                </span>
+              </button>
+              <AnimatePresence>
+                {showGemTip && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute left-0 top-full mt-1 z-50 whitespace-nowrap font-silkscreen text-[8px] text-primary bg-surface border border-border px-2 py-1"
+                  >
+                    {claimedGemToday ? `${GEM_DAILY_LIMIT}/${GEM_DAILY_LIMIT} DAILY GEMS` : `0/${GEM_DAILY_LIMIT} DAILY GEMS`}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Separator */}
+            <div className="w-[2px] h-[2px] bg-border-hover flex-shrink-0" aria-hidden="true" />
+
+            {/* Coins */}
             <div className="relative">
               <button
                 onClick={(e) => { e.stopPropagation(); onCoinTap() }}
@@ -214,7 +198,7 @@ function AccountPreview({
                 className="flex items-center gap-[var(--space-2)]"
               >
                 <TokeCircle style={{ width: 12, height: 12, color: 'var(--color-coins)' }} aria-hidden="true" />
-                <span className="font-silkscreen leading-none pb-[2px]" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-coins)' }}>
+                <span className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-xxs)', color: 'var(--color-coins)' }}>
                   {infiniteCoins ? '∞' : coins.toLocaleString()}
                 </span>
               </button>
@@ -245,9 +229,9 @@ function AccountPreview({
                   >
                     <Heart style={{ width: 12, height: 12, color: 'var(--color-purple)' }} aria-hidden="true" />
                     <span
-                      className="font-silkscreen leading-none pb-[2px]"
+                      className="font-silkscreen leading-none"
                       style={{
-                        fontSize: 'var(--text-xs)',
+                        fontSize: 'var(--text-xxs)',
                         background: 'linear-gradient(to right, var(--color-purple), #d946ef)',
                         WebkitBackgroundClip: 'text',
                         WebkitTextFillColor: 'transparent',
@@ -273,55 +257,16 @@ function AccountPreview({
                 </div>
               </>
             )}
-
-            {/* Gem balance */}
-            <>
-              <div className="w-[2px] h-[2px] bg-border-hover flex-shrink-0" aria-hidden="true" />
-                <div className="relative">
-                  <button
-                    onClick={(e) => { e.stopPropagation(); onGemTap() }}
-                    aria-label={`${gemBalance} gems`}
-                    className="flex items-center gap-[var(--space-2)]"
-                  >
-                    <DiamondGem style={{ width: 12, height: 12, color: 'var(--color-blue)' }} />
-                    <span className="font-silkscreen leading-none pb-[2px]" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-blue)' }}>
-                      {gemBalance}
-                    </span>
-                  </button>
-                  <AnimatePresence>
-                    {showGemTip && (
-                      <motion.div
-                        initial={{ opacity: 0, y: -4 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -4 }}
-                        transition={{ duration: 0.15 }}
-                        className="absolute left-0 top-full mt-1 z-50 whitespace-nowrap font-silkscreen text-[8px] text-primary bg-surface border border-border px-2 py-1"
-                      >
-                        {claimedGemToday ? `${GEM_DAILY_LIMIT}/${GEM_DAILY_LIMIT} DAILY GEMS` : `0/${GEM_DAILY_LIMIT} DAILY GEMS`}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-            </>
           </div>
         </div>
-      </div>
 
-      {/* Status ticker */}
-      <div className="overflow-hidden">
-        {status
-          ? <HomeStatusTicker status={status} />
-          : (
-            <p className="font-silkscreen text-[length:var(--text-mini)] text-tertiary leading-none">
-              &ldquo;Whats the mood today...&rdquo;
-            </p>
-          )
-        }
+        {/* Chevron — indicates card is tappable */}
+        <ChevronRight style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
       </div>
 
       {/* AFK XP bar — dev-only feature flag: nexus_afk_exp */}
       {afkExpEnabled && (
-        <div className="flex items-stretch gap-2">
+        <div className="flex items-stretch gap-2 px-4">
           <div className="flex-1 flex flex-col gap-2 justify-center">
             <span className="font-silkscreen text-[8px] text-primary">
               AFK EXP ACCUMULATED · 100 / 100 XP
@@ -334,25 +279,24 @@ function AccountPreview({
         </div>
       )}
 
-      {/* Action buttons */}
-      <div className="flex" style={{ gap: 'var(--space-5)' }}>
-        <button
-          onClick={(e) => { e.stopPropagation(); onFriends() }}
-          className="flex-1 flex items-center justify-center font-silkscreen text-[length:var(--text-xxs)] text-purple leading-none border border-purple bg-black active:opacity-70 transition-opacity"
-          style={{ gap: 'var(--space-2)', padding: '12px 16px', boxShadow: '4px 4px 0px 0px rgba(168,85,247,0.5)' }}
-        >
-          <Notebook style={{ width: 12, height: 12, color: 'var(--color-purple)' }} aria-hidden="true" />
-          friends
-        </button>
+      {/* Invite Squad — full-width purple button */}
+      <div className="px-4">
         <button
           onClick={(e) => { e.stopPropagation(); onInviteSquad() }}
-          className="flex-1 flex items-center justify-center font-silkscreen text-[length:var(--text-xxs)] text-primary leading-none bg-purple active:opacity-70 transition-opacity"
-          style={{ gap: 'var(--space-2)', padding: '12px 16px', boxShadow: '4px 4px 0px 0px rgba(168,85,247,0.5)' }}
+          className="w-full flex items-center justify-center gap-2 bg-purple font-silkscreen text-[length:var(--text-xxs)] text-primary leading-none overflow-hidden active:opacity-70 transition-opacity"
+          style={{ padding: '12px 16px', boxShadow: '4px 4px 0px 0px rgba(168,85,247,0.5)' }}
         >
-          <Plus style={{ width: 12, height: 12, color: 'var(--color-primary)' }} aria-hidden="true" />
+          <Copy style={{ width: 12, height: 12, color: 'var(--color-primary)' }} aria-hidden="true" />
           Invite squad
         </button>
       </div>
+
+      {/* Status ticker — full-width, flush at card bottom */}
+      <TickerBanner
+        text={status ?? 'Whats the mood today...'}
+        icon={<MessageIcon style={{ width: 8, height: 8, color: 'var(--color-secondary)' }} aria-hidden="true" />}
+        quoted
+      />
     </div>
   )
 }
@@ -652,36 +596,23 @@ function LeaveConfirmSheet({
 
 // ─── Crew card content ────────────────────────────────────────────────────────
 
-const CREW_AVATAR_COLORS = ['#bf5fff', '#00e5ff', '#ffd700', '#ff4444', '#66bb6a', '#ff9800']
-
-function SquadCardPreview({ summary, onAvatarTap }: { summary: CrewSummary; onAvatarTap?: () => void }) {
+function SquadCardPreview({ summary }: { summary: CrewSummary }) {
   const { crew, lastMessage, unreadCount } = summary
-  const hasUnread   = unreadCount > 0
-  const xpInLevel   = getXPInCurrentLevel(crew.total_xp)
-  const colorIndex  = crew.name.charCodeAt(0) % CREW_AVATAR_COLORS.length
-  const avatarColor = CREW_AVATAR_COLORS[colorIndex]
-  const imageUrl    = crew.image_url as string | null | undefined
+  const hasUnread = unreadCount > 0
+  const imageUrl  = crew.image_url as string | null | undefined
+  const state     = !lastMessage ? 'default' : hasUnread ? 'unread' : 'active'
 
   return (
     <div className="w-full flex items-center gap-4 h-12">
-      {/* Crew avatar — 48×48px per Figma node 189:2197 */}
-      <button
-        className="flex-shrink-0 w-12 h-12 overflow-hidden flex items-center justify-center font-pixel text-[10px] active:opacity-70 transition-opacity"
-        style={!imageUrl ? {
-          background:  avatarColor + '22',
-          border:      `1px solid ${avatarColor}60`,
-          color:       avatarColor,
-        } : undefined}
-        onClick={(e) => { e.stopPropagation(); onAvatarTap?.() }}
-        aria-label={`View ${crew.name} info`}
-      >
+      {/* Group photo — white 48×48 box */}
+      <div className="flex-shrink-0 w-12 h-12 overflow-hidden bg-primary flex items-center justify-center font-pixel text-[10px] text-black">
         {imageUrl ? (
-          <div className="relative w-full h-full pointer-events-none">
+          <div className="relative w-full h-full">
             <Image
-              src={resolveAvatarUrl(imageUrl, 40)}
+              src={resolveAvatarUrl(imageUrl, 48)}
               alt={crew.name}
               fill
-              sizes="40px"
+              sizes="48px"
               className="object-cover"
               unoptimized={isSupabaseStorage(imageUrl)}
             />
@@ -689,27 +620,43 @@ function SquadCardPreview({ summary, onAvatarTap }: { summary: CrewSummary; onAv
         ) : (
           crew.name[0]?.toUpperCase()
         )}
-      </button>
+      </div>
 
-      {/* Content — flat 3-row column, 4px gap per Figma node 189:2198 */}
-      <div className="flex-1 min-w-0 flex flex-col gap-[var(--space-2)] justify-center leading-none">
-        {/* XP / level */}
-        <span className="font-silkscreen text-[8px] text-tertiary whitespace-nowrap leading-none">
-          {xpInLevel}/{getXPForCurrentLevel(crew.total_xp)} XP · Lv. {getLevelFromXP(crew.total_xp)}
-          {hasUnread ? ` · +${unreadCount} new` : ''}
-        </span>
-
-        {/* Crew name + timestamp */}
+      {/* Group details — 3-row column */}
+      <div className="flex-1 min-w-0 flex flex-col gap-[var(--space-2)] h-full justify-center">
+        {/* Row 1: level · total msg [· unread count (unread only)] */}
         <div className="flex items-center gap-2 w-full">
+          <span className="font-silkscreen text-[length:var(--text-mini)] text-tertiary leading-none whitespace-nowrap">
+            lv. {crew.level}
+          </span>
+          <div className="w-[2px] h-[2px] bg-border flex-shrink-0" />
+          <span className="font-silkscreen text-[length:var(--text-mini)] text-tertiary leading-none whitespace-nowrap">
+            Total MSG. {crew.total_xp.toLocaleString()}
+          </span>
+          {hasUnread && (
+            <>
+              <div className="w-[2px] h-[2px] bg-border flex-shrink-0" />
+              <span
+                className="font-silkscreen text-[length:var(--text-mini)] leading-none flex-1 min-w-0 truncate"
+                style={{ color: 'var(--green)' }}
+              >
+                +{unreadCount} unread msg
+              </span>
+            </>
+          )}
+        </div>
+
+        {/* Row 2: crew name + timestamp */}
+        <div className="flex items-center gap-2 w-full leading-none">
           <span
-            className="font-body font-bold text-[16px] leading-none text-primary truncate flex-1 min-w-0"
+            className="font-body font-bold text-[length:var(--text-md)] text-primary leading-none flex-1 min-w-0 truncate"
             style={{ fontVariationSettings: '"opsz" 14' }}
           >
             {crew.name}
           </span>
           {lastMessage && (
             <span
-              className="font-body font-light text-[12px] leading-none text-muted flex-shrink-0 whitespace-nowrap"
+              className="font-body font-light text-[length:var(--text-xs)] text-muted leading-none flex-shrink-0 whitespace-nowrap"
               style={{ fontVariationSettings: '"opsz" 14' }}
             >
               {relativeTime(lastMessage.created_at)}
@@ -717,17 +664,16 @@ function SquadCardPreview({ summary, onAvatarTap }: { summary: CrewSummary; onAv
           )}
         </div>
 
-        {/* Last message preview */}
+        {/* Row 3: last message preview */}
         <p
-          className="font-body font-normal text-[14px] leading-none truncate w-full"
-          style={{
-            color: lastMessage
-              ? hasUnread ? 'var(--color-secondary)' : 'var(--color-tertiary)'
-              : 'var(--color-muted)',
-            fontVariationSettings: '"opsz" 14',
-          }}
+          className={`font-body leading-none truncate w-full text-[length:var(--text-sm)] ${
+            state === 'unread' ? 'font-medium text-primary'   :
+            state === 'active' ? 'font-normal text-secondary' :
+                                 'font-normal text-muted'
+          }`}
+          style={{ fontVariationSettings: '"opsz" 14' }}
         >
-          {lastMessage ? truncate(lastMessage.content, 44) : 'Group journey just started… send a message'}
+          {lastMessage ? truncate(lastMessage.content, 44) : "Your party's journey begins here."}
         </p>
       </div>
     </div>
@@ -833,7 +779,7 @@ function SwipeableCrewCard({
           onClick={handleClick}
           whileTap={{ scale: open ? 1 : 0.98 }}
         >
-          <SquadCardPreview summary={summary} onAvatarTap={onTap} />
+          <SquadCardPreview summary={summary} />
         </motion.div>
 
         <button

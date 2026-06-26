@@ -6,7 +6,7 @@ import Image from 'next/image'
 import { motion } from 'framer-motion'
 import { isSupabaseStorage, resolveAvatarUrl } from '@/shared/components/ui/Avatar'
 import { useSlideBack } from '@/app/layouts/SlidePage'
-import { MarqueeBanner } from '@/shared/components/banners/MarqueeBanner'
+import { TickerBanner } from '@/shared/components/banners/TickerBanner'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { Plus } from 'pixelarticons/react/Plus'
 import { SettingsCog } from 'pixelarticons/react/SettingsCog'
@@ -195,7 +195,7 @@ export function AccountPageMember({
 
       {/* ── Status ticker ────────────────────────────────────────────────────── */}
       {status && (
-        <MarqueeBanner
+        <TickerBanner
           text={status}
           icon={<Message style={{ width: 8, height: 8, color: 'var(--color-tertiary)' }} aria-hidden="true" />}
           quoted

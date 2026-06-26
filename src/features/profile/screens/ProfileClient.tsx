@@ -21,7 +21,7 @@ import { NotifSheet, type NotifPrefs } from '@/features/chat/components/sheets/N
 import { AvatarUploadModal } from '@/shared/components/overlays/AvatarUploadModal'
 import { BackgroundUploadModal } from '@/shared/components/overlays/BackgroundUploadModal'
 import { Button } from '@/shared/components/ui/Button'
-import { MarqueeBanner } from '@/shared/components/banners/MarqueeBanner'
+import { TickerBanner } from '@/shared/components/banners/TickerBanner'
 import { NotesGrid } from '@/features/profile/components/NotesGrid'
 import type { NotesGridHandle } from '@/features/profile/components/NotesGrid'
 import type { PublicNote, BoardSection } from '@/types'
@@ -49,11 +49,11 @@ interface ProfileClientProps {
   notesCrews:         Array<{ id: string; name: string }>
 }
 
-// ─── Profile status ticker — wraps shared MarqueeBanner ─────────────────────
+// ─── Profile status ticker — wraps shared TickerBanner ─────────────────────
 
 function ProfileStatusTicker({ status }: { status: string }) {
   return (
-    <MarqueeBanner
+    <TickerBanner
       text={status}
       icon={<Message style={{ width: 8, height: 8, color: 'var(--color-tertiary)' }} aria-hidden="true" />}
       quoted
