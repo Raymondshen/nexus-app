@@ -1,7 +1,7 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
-import { fetchOGPreview } from '@/lib/og-preview'
+import { createClient } from '@/shared/supabase/server'
+import { fetchOGPreview } from '@/shared/utils/og-preview'
 import type { PublicNote, BoardSection } from '@/types'
 
 const NOTE_COLS    = 'id, crew_id, created_by, url, og_title, og_image_url, source_domain, section_id, created_at'

@@ -1,12 +1,12 @@
 import type { ReactNode } from 'react'
-import { GuestBanner } from '@/components/ui/GuestBanner'
-import { InstallPrompt } from '@/components/ui/InstallPrompt'
-import { NotificationPrompt } from '@/components/ui/NotificationPrompt'
-import { PushRefresh } from '@/components/ui/PushRefresh'
-import { SessionRefresher } from '@/components/ui/SessionRefresher'
-import { BadgeClear } from '@/components/ui/BadgeClear'
-import { PushDebugFAB } from '@/components/ui/PushDebugFAB'
-import { ErrorLogger } from '@/components/ui/ErrorLogger'
+import { GuestBanner } from '@/shared/components/banners/GuestBanner'
+import { InstallPrompt } from '@/shared/components/pwa/InstallPrompt'
+import { NotificationPrompt } from '@/shared/components/pwa/NotificationPrompt'
+import { PushRefresh } from '@/shared/components/pwa/PushRefresh'
+import { SessionRefresher } from '@/shared/components/ui/SessionRefresher'
+import { BadgeClear } from '@/shared/components/pwa/BadgeClear'
+import { PushDebugFAB } from '@/shared/components/pwa/PushDebugFAB'
+import { ErrorLogger } from '@/shared/utils/ErrorLogger'
 
 // Auth protection is handled by middleware — no getUser() call needed here.
 export default function AppLayout({ children }: { children: ReactNode }) {

@@ -1,11 +1,11 @@
 import { redirect } from 'next/navigation'
 import { unstable_cache } from 'next/cache'
-import { createClient, createServiceClient } from '@/lib/supabase/server'
-import { DMOverlayBack } from '@/components/chat/DMOverlayBack'
-import { MessageList } from '@/components/chat/MessageList'
-import { ChatInput } from '@/components/chat/ChatInput'
-import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
-import { SlidePage } from '@/components/ui/SlidePage'
+import { createClient, createServiceClient } from '@/shared/supabase/server'
+import { DMOverlayBack } from '@/features/chat/components/navigation/DMOverlayBack'
+import { MessageList } from '@/features/chat/components/messages/MessageList'
+import { ChatInput } from '@/features/chat/components/input/ChatInput'
+import { ErrorBoundary } from '@/shared/components/ui/ErrorBoundary'
+import { SlidePage } from '@/app/layouts/SlidePage'
 import type { Profile, AvatarClass } from '@/types'
 
 type MemberProfile = Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url' | 'status'>

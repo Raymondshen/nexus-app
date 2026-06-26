@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
-import { FriendsClient } from './FriendsClient'
-import type { FriendEntry } from './FriendsClient'
+import { createClient } from '@/shared/supabase/server'
+import { FriendsClient } from '@/features/friends/screens/FriendsClient'
+import type { FriendEntry } from '@/features/friends/screens/FriendsClient'
 import type { Friendship, FriendProfile } from '@/types'
 
 type DmMemberRow = {

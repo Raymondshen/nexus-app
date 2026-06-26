@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { createClient } from '@/shared/supabase/server'
 import type { SquadDefinition, DefinitionSuggestion } from '@/types'
 
 export async function createDefinitionAction(

@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from 'next/server'
-import { KLIPY_API_BASE_URL, KLIPY_PAGE_SIZE, KLIPY_TRENDING_REVALIDATE_SECONDS } from '@/lib/config'
+import { KLIPY_API_BASE_URL, KLIPY_PAGE_SIZE, KLIPY_TRENDING_REVALIDATE_SECONDS } from '@/shared/constants/config'
 
 export const dynamic = 'force-dynamic'
 

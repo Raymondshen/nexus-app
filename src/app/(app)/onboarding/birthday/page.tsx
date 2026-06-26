@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
-import BirthdayClient from './BirthdayClient'
+import { createClient } from '@/shared/supabase/server'
+import BirthdayClient from '@/features/onboarding/screens/BirthdayClient'
 
 export default async function BirthdayPage({
   searchParams,

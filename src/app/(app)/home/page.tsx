@@ -1,10 +1,10 @@
 import { redirect } from 'next/navigation'
 import { unstable_cache } from 'next/cache'
-import { createClient, createServiceClient } from '@/lib/supabase/server'
-import { HomeClient } from './HomeClient'
-import type { FriendSummary } from './HomeClient'
+import { createClient, createServiceClient } from '@/shared/supabase/server'
+import { HomeClient } from '@/features/home/screens/HomeClient'
+import type { FriendSummary } from '@/features/home/screens/HomeClient'
 import type { Crew } from '@/types'
-import type { AnnouncementItem } from '@/components/ui/AnnouncementBanner'
+import type { AnnouncementItem } from '@/shared/components/banners/AnnouncementBanner'
 
 function buildFriends(
   friendshipRows: Array<{ id: string; requester_id: string; addressee_id: string }>,

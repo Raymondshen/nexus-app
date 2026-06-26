@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from 'react'
 import Link from 'next/link'
-import { Button } from '@/components/ui/Button'
+import { Button } from '@/shared/components/ui/Button'
 import { joinCrewAction } from './actions'
 
 export default function JoinCrewPage() {

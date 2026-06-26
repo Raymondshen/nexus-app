@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidatePath, revalidateTag } from 'next/cache'
-import { createClient } from '@/lib/supabase/server'
+import { createClient } from '@/shared/supabase/server'
 
 export async function sendFriendRequestAction(addresseeId: string): Promise<{ ok?: boolean; error?: string }> {
   const supabase = await createClient()

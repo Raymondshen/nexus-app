@@ -1,8 +1,8 @@
 import { redirect } from 'next/navigation'
 import { unstable_cache } from 'next/cache'
-import { createClient, createServiceClient } from '@/lib/supabase/server'
-import { VaultClient } from '@/components/game/VaultClient'
-import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
+import { createClient, createServiceClient } from '@/shared/supabase/server'
+import { VaultClient } from '@/features/combat/screens/VaultClient'
+import { ErrorBoundary } from '@/shared/components/ui/ErrorBoundary'
 import type { Crew, CrewMember } from '@/types'
 
 interface VaultPageProps {

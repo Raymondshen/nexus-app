@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
-import { createClient, createServiceClient } from '@/lib/supabase/server'
-import { ErrorLogsClient } from './ErrorLogsClient'
+import { createClient, createServiceClient } from '@/shared/supabase/server'
+import { ErrorLogsClient } from '@/features/profile/screens/ErrorLogsClient'
 import type { ClientError } from '@/types'
 
 export default async function ErrorLogsPage() {

@@ -40,7 +40,7 @@ board_sections      id, crew_id, created_by, name (1–100 chars), position (int
 DM channels: `crews` rows with `is_dm = true` · `dm_partner_1 < dm_partner_2` (UUID order) · both partners in `crew_members` class=berserker · filtered from home Squads; shown in Friends only
 
 ## Postgres Functions
-All `SECURITY DEFINER`. Declared in `Database.Functions` in `src/types/index.ts`.
+All `SECURITY DEFINER`. Declared in `Database.Functions` in `src/types/index.ts` (re-exports `Database` type from sub-files).
 
 - `create_crew(p_name, p_invite_code)` → uuid
 - `join_crew(p_invite_code)` → uuid
@@ -82,7 +82,7 @@ Friendship XP: 1pt per DM send or @mention · 10pt daily cap (local midnight, tr
 
 Gems: 1/day on first message in any crew · `award-gem` edge function + `claim_daily_gem` RPC are sole authority — client never awards
 - `profiles.gem_balance` + `last_gem_claim`; both blocked from client writes by `profiles_protect_gem_columns` trigger
-- Client gate (`src/lib/game/gems.ts`, idb-keyval `nexus_gem_claimed_at`): display/debounce only; checked in `ChatInput.send()` fire-and-forget
+- Client gate (`src/shared/utils/gems.ts`, idb-keyval `nexus_gem_claimed_at`): display/debounce only; checked in `ChatInput.send()` fire-and-forget
 - Fully launched: `GemCounter` in `FloatingBackButton` right-icon row, `GemToast` on earn always shown; "Reset Gem Cooldown" in dev page nulls `last_gem_claim` for caller + clears idb-keyval key
 
 Boss: The Void at every 500 XP (`BOSS_XP_THRESHOLD`) · 48h window · 3 phases · defeat → artifact drop
@@ -107,7 +107,7 @@ Stat scaling: `round(base × (1 + 0.018 × (level - 1)))` · crit chance: `min(0
 Rogue momentum: +5% ATK per stack (cap 25%, max 5 stacks), resets on Backstab, decays if >1h since last message
 Passives: warrior Last Stand (+20% dmg dealt when HP < 30%) · healer Second Wind (+15% to all healing produced — both @mend and self-heal on normal attack; `@mend = int×1.5×1.15`, `selfHeal = dmg×0.0575`) · archer Precision (high DEX = highest natural crit chance) · rogue Momentum (see above) · mage Arcane Ward (DEF×1.3 while HP < 40%, recomputed each incoming hit)
 
-Leveling: exponential curve — `xpForLevel(n) = round(120 × 1.0435^(n-1))` · `LEVEL_CAP = 100` · constants in `src/lib/config.ts` (`LEVEL_XP_BASE=120`, `LEVEL_XP_GROWTH_RATE=1.0435`) · formula mirrored in `award-xp` + `react-to-message` edge functions · 5 tiers every 20 levels: Rookie (1–20) → Adventurer (21–40) → Veteran (41–60) → Elite (61–80) → Mythic (81–100) · `isTierBoundary` flag on level-up `DisplayItem` for future tier-up celebration
+Leveling: exponential curve — `xpForLevel(n) = round(120 × 1.0435^(n-1))` · `LEVEL_CAP = 100` · constants in `src/shared/constants/config.ts` (`LEVEL_XP_BASE=120`, `LEVEL_XP_GROWTH_RATE=1.0435`) · formula mirrored in `award-xp` + `react-to-message` edge functions · 5 tiers every 20 levels: Rookie (1–20) → Adventurer (21–40) → Veteran (41–60) → Elite (61–80) → Mythic (81–100) · `isTierBoundary` flag on level-up `DisplayItem` for future tier-up celebration
 
 Elements: fire=<20 chars · water=>150 chars · lightning=voice · nature=images · shadow=reactions · arcane=daily/system
 
@@ -175,6 +175,82 @@ localStorage:
 
 ## Architecture
 
+### Source Layout (feature-based)
+```
+src/
+├── app/                        Next.js routing (page.tsx / layout.tsx stay here — never move them)
+│   ├── layouts/SlidePage.tsx   Page transition wrapper + useSlideBack()
+│   ├── navigation/BottomNav.tsx
+│   └── (app)/…/page.tsx        Server components only; import Clients from features/
+├── features/
+│   ├── chat/
+│   │   ├── components/
+│   │   │   ├── input/          ChatInput, InputActionsSheet, GifPickerSheet
+│   │   │   ├── messages/       MessageList, MessageBubble, LinkPreviewCard
+│   │   │   ├── sheets/         SquadDetailsSheet, PinDurationSheet, PinListSheet,
+│   │   │   │                   NotifSheet, CrewImageUploadModal, DefinitionCreateSheet,
+│   │   │   │                   SuggestDefinitionSheet, ReviewSuggestionSheet, ChatSheetReact
+│   │   │   ├── polls/          PollCard, PollCreatorSheet
+│   │   │   ├── header/         ChatHeader, DMHeader
+│   │   │   └── navigation/     FloatingBackButton, DMOverlayBack, ShareModal
+│   │   └── screens/            DefinitionsClient
+│   ├── combat/
+│   │   ├── components/         CombatHUD, CombatLog, AbilityButton, BossCard, DamageFloat
+│   │   ├── screens/            VaultClient
+│   │   └── utils/combat.ts     Stat scaling, class helpers
+│   ├── events/
+│   │   ├── components/         EventCreationSheet, EventRegistrationSheet,
+│   │   │                       EventSheetBottomPreview, EventCard, EventCardMessage
+│   │   └── screens/            GroupEventsClient, EventPageInfoClient
+│   ├── home/
+│   │   ├── components/         InviteArsenal
+│   │   ├── screens/            HomeClient
+│   │   └── utils/homePreviewCache.ts
+│   ├── friends/
+│   │   └── screens/            FriendsClient, InboxClient
+│   ├── auth/
+│   │   └── screens/            LoginForm
+│   ├── onboarding/
+│   │   └── screens/            BirthdayClient, ClassSelectClient, WelcomeClient
+│   └── profile/
+│       ├── components/         NotesGrid, AccountPageMember
+│       └── screens/            ProfileClient, DeveloperClient, AnnouncementsClient,
+│                               ErrorLogsClient, MemberProfileClient
+├── shared/
+│   ├── supabase/               client.ts, server.ts, auth.ts, imageLoader.ts
+│   ├── constants/config.ts     BOSS_XP_THRESHOLD, LEVEL_XP_BASE, etc.
+│   ├── utils/                  xp.ts, gems.ts, notifications.ts, sounds.ts,
+│   │                           og-preview.ts, imageCompress.ts, imageProcessing.ts,
+│   │                           index.ts (cn/clsx helpers), ErrorLogger.tsx
+│   ├── hooks/useOGPreview.ts
+│   ├── icons/                  Campfire.tsx, GifIcon.tsx, SettingsCogIcon.tsx
+│   └── components/
+│       ├── ui/                 Button, Input, Avatar, DelayedSkeleton,
+│       │                       ErrorBoundary, SessionRefresher
+│       ├── banners/            MarqueeBanner, AnnouncementBanner, GuestBanner
+│       ├── overlays/           AvatarUploadModal, BackgroundUploadModal, ImagePreviewOverlay
+│       ├── pwa/                InstallPrompt, SWRegister, WelcomeDetector,
+│       │                       NotificationPrompt, PushRefresh, PushDebugFAB, BadgeClear
+│       └── game/               PixelSprite, GemToast, LevelUpBanner, CoinIcon,
+│                               FriendshipXPBar, FriendshipXPToast, GemCounter
+├── store/                      chatStore.ts, combatStore.ts (cross-feature — stay here)
+└── types/
+    ├── index.ts                Re-export barrel + Database type (import from '@/types' — unchanged)
+    ├── shared.ts               AvatarClass, MessageType, OGPreview, GuestUser
+    ├── profile.ts              Profile, GemClaimResult, CoinLog, FriendshipXP, FriendshipXPLog
+    ├── chat.ts                 Crew, CrewMember, Message, MessageWithProfile, CrewXPLog,
+    │                           Announcement, Poll, SquadDefinition, DefinitionSuggestion
+    ├── notifications.ts        PushSubscription, NotificationPreferences, CrewNotificationPreferences
+    ├── friends.ts              FriendshipStatus, Friendship, FriendProfile
+    ├── events.ts               EventRsvpStatus, Event, EventRsvp
+    ├── board.ts                Note, PublicNote, BoardSection
+    ├── combat.ts               CombatClass, CombatEventKind, CombatEvent, ActiveRaid,
+    │                           CombatMember, ReviveToken
+    └── system.ts               ReservedUser, AppInvite, ClientError, PendingDeletion
+```
+
+**Rules:** `app/(app)/*/page.tsx` are server components only — they import Client components from `features/`. Server actions (`actions.ts`) stay colocated with their route in `app/`. `src/proxy.ts` stays at root (Next.js middleware — never rename or duplicate as `middleware.ts`). Stores stay at `src/store/` because both chatStore and combatStore are used across multiple features. All type sub-files are re-exported from `src/types/index.ts` — import from `'@/types'` everywhere (zero import-path churn). Sub-file imports (`'@/types/combat'` etc.) are also valid for direct domain use.
+
 ### Realtime / Messaging
 - Channel `messages:{crewId}`: broadcast (sender→instant) + Postgres Changes INSERT (backup) + presence (typing only) + typing
 - `addMessage` deduplicates by id; broadcast payload has no profile (resolved from `profilesRef`)
@@ -218,10 +294,10 @@ OG previews: `extractFirstUrl` → `useOGPreview` hook → `<LinkPreviewCard>` b
 - @mention overlay: transparent input/textarea + `aria-hidden` div; purple `<mark>` for valid tokens; overlay scroll synced to active field (effect re-registers on `isMultiline` change)
 - Slash commands: `/birthdays` → `message_type: 'system'`
 - System message content formats: `JOIN:username` (no inviter) or `JOIN:username:inviterUsername` (with inviter, set by `joinCrewFromWelcomeAction` when a valid unused invite is found); `MessageBubble` parses both formats — `JoinMessage` shows "@username joined the squad" or "invited by @inviter"
-- `InputActionsSheet` (`src/components/chat/InputActionsSheet.tsx`): triggered by `PlusBox` (`[+]`) button; two options — "UPLOAD PHOTO" (`Upload` 16×16, purple border, gated `nexus_chat_camera`) + "CREATE A POLL" (`Chart` 16×16, secondary border); spring slide-up, `pt-24 pb-28 px-16 gap-16`
-- `GifPickerSheet` (`src/components/chat/GifPickerSheet.tsx`): `Search` icon 16×16 in input; "Powered by Klipy" Silkscreen 8px tertiary below; no upload button; spring slide-up, `pt-24 pb-28 px-16`; loads trending on open, switches to search on query input (400ms debounce)
+- `InputActionsSheet` (`src/features/chat/components/input/InputActionsSheet.tsx`): triggered by `PlusBox` (`[+]`) button; two options — "UPLOAD PHOTO" (`Upload` 16×16, purple border, gated `nexus_chat_camera`) + "CREATE A POLL" (`Chart` 16×16, secondary border); spring slide-up, `pt-24 pb-28 px-16 gap-16`
+- `GifPickerSheet` (`src/features/chat/components/input/GifPickerSheet.tsx`): `Search` icon 16×16 in input; "Powered by Klipy" Silkscreen 8px tertiary below; no upload button; spring slide-up, `pt-24 pb-28 px-16`; loads trending on open, switches to search on query input (400ms debounce)
 - **Klipy API** (`src/app/api/gif/route.ts`): two endpoints with **different response shapes** — trending (`/web/common-trending`) returns items in `data.clips[]` with flat `file.thumbnail_url`/`thumbnail_url_webp` and `file_meta.gif/webp` for dimensions; search (`/web/gifs/search`) returns items in `data.data[]` with nested `file.sm/md/hd/xs` sub-objects each containing `gif`/`jpg`/`webp` variants. Both share `data.has_next`. Use separate parsers (`parseClipItem` / `parseSearchItem`) — do NOT unify them.
-- `GifIcon` (`src/components/icons/GifIcon.tsx`): custom 24×24 SVG with `currentColor` fill; used as GIF button in ChatInput row
+- `GifIcon` (`src/shared/icons/GifIcon.tsx`): custom 24×24 SVG with `currentColor` fill; used as GIF button in ChatInput row
 - DM mode hides XP bar + expanded panel
 - Combat is always-on — no feature gate; all combat hooks (seed effect, realtime effect, `callAttackBoss`) run unconditionally on mount
 - Seed effect calls `store.clearCombatEvents()` before seeding — scopes the combat log to the current crew's raid; combined with the MessageList replay, this ensures events never bleed across crews or raids
@@ -232,9 +308,9 @@ OG previews: `extractFirstUrl` → `useOGPreview` hook → `<LinkPreviewCard>` b
 ### Pin Feature (dev-gated: `nexus_pin_feature`)
 - Admin = crew member with earliest `joined_at`; cap = 5 active pins per crew (`PIN_MAX_PER_CREW`)
 - `pin_message` / `unpin_message` RPCs only — `messages_protect_pin_columns` trigger blocks direct client writes
-- `PinDurationSheet` (`src/components/chat/PinDurationSheet.tsx`): single-step sheet — message preview (content + "Sent by : @username") + duration `<select>` dropdown (7 presets: 15 min → 1 month + Permanent; `ChevronRight` rotated 90° as indicator) + "PIN IT" button (h-48 bg-purple Silkscreen); `bg-black border-t border-[#27272a]`; opened from long-press sheet
-- `PinListSheet` (`src/components/chat/PinListSheet.tsx`): lists active pins; `bg-black` no border-top; header "Pinned Messages" DM Sans Bold 16px; each item: content (Medium 14px secondary) + "Sent by : @user · [expiry]" (Regular 12px tertiary + blue #60a5fa); **admin-only action row** (entire row hidden for non-admins) = "Unpin message" (left, red, 12px) + "Display" label + 40×24px toggle (purple ON thumb-right / #71717a OFF thumb-left); `h-px bg-border/40` dividers with `margin: 12px 0`
-- `MarqueeBanner` (`src/components/ui/MarqueeBanner.tsx`): shared marquee; accepts `items[]` for multi-pin continuous scroll (`msg @user • msg @user • …`); also used by ProfileStatusTicker (single `text` prop)
+- `PinDurationSheet` (`src/features/chat/components/sheets/PinDurationSheet.tsx`): single-step sheet — message preview (content + "Sent by : @username") + duration `<select>` dropdown (7 presets: 15 min → 1 month + Permanent; `ChevronRight` rotated 90° as indicator) + "PIN IT" button (h-48 bg-purple Silkscreen); `bg-black border-t border-[#27272a]`; opened from long-press sheet
+- `PinListSheet` (`src/features/chat/components/sheets/PinListSheet.tsx`): lists active pins; `bg-black` no border-top; header "Pinned Messages" DM Sans Bold 16px; each item: content (Medium 14px secondary) + "Sent by : @user · [expiry]" (Regular 12px tertiary + blue #60a5fa); **admin-only action row** (entire row hidden for non-admins) = "Unpin message" (left, red, 12px) + "Display" label + 40×24px toggle (purple ON thumb-right / #71717a OFF thumb-left); `h-px bg-border/40` dividers with `margin: 12px 0`
+- `MarqueeBanner` (`src/shared/components/banners/MarqueeBanner.tsx`): shared marquee; accepts `items[]` for multi-pin continuous scroll (`msg @user • msg @user • …`); also used by ProfileStatusTicker (single `text` prop)
 - `FloatingBackButton`: `Note` icon button (count badge) + ticker strip below nav; ticker filters `hiddenPinIds` (chatStore Set, in-memory); tapping ticker scrolls to first visible pin
 - `selectActivePins(messages)` exported from chatStore; `hiddenPinIds` + `toggleHiddenPin` in chatStore
 
@@ -269,14 +345,14 @@ OG previews: `extractFirstUrl` → `useOGPreview` hook → `<LinkPreviewCard>` b
 - Events: `addCombatEvent(event)` — appends, cap 200; `replayCombatEvents(events[])` — merges by event `id` (existing live events take precedence), sorts by `ts`, caps at 200; `clearCombatEvents()` — resets to `[]`
 - Floats: `spawnDamageFloat({ id, value, isCrit, x, y })` / `removeDamageFloat(id)`
 
-**Components** (`src/components/game/`):
+**Components** (`src/features/combat/components/`):
 - `AbilityButton` — class-specific ability button; prop `username: string` required; shows "Cost: 2" + current bank count; disabled when `ability_bank < 2`; renders `null` when `!activeRaid || !member`
 - `BossCard` — file exists but is no longer rendered anywhere; timer countdown logic absorbed into `CombatHUD`
 - `CombatHUD` — red marquee banner ("RAID IN PROGRESS TAP BANNER TO VIEW") always visible at top; tap toggles expanded panel which slides open **below** the banner. Expanded panel (top→bottom): boss name + last dmg (Silkscreen 12px) · next attack timer + expiry (Silkscreen 11px) · `CombatLog` · member HP list (username 9px + HP bar + hp/max or "DOWNED"). DOM order: `<RaidMarquee>` first, `<AnimatePresence>` panel second — banner is always above the panel. Props: `currentUserId`, `crewId?`, `isDevUser?`, `memberProfiles?: Record<string, { username }>`. Placed as sibling between `MessageList` and `ChatInput` in the chat page flex column; `flex-shrink-0` so it pushes MessageList up as the panel expands. All members auto-join on boss spawn via `init_combat_members` — no manual "JOIN RAID" button.
 - `CombatLog` — virtualized scrollable feed of `CombatEvent[]` from combatStore; rendered inside `CombatHUD`'s expanded section (not standalone); returns `null` when `events.length === 0`
 - `DamageFloat` — `position: fixed` viewport-overlay floating damage numbers; spawned per attack event
 
-### SquadDetailsSheet (`src/components/chat/SquadDetailsSheet.tsx`)
+### SquadDetailsSheet (`src/features/chat/components/sheets/SquadDetailsSheet.tsx`)
 Trigger: swipe-up or chevron-up · sheet: `z-[70]` (above ticker's z-[60], below action sheets z-[80+]) · `maxHeight: 85vh`
 - Header icons (right, `gap-[--space-5]`): `MagicEdit` (rename, creator only) · `Bell` (notifs) · `Library` (→ `/chat/[crewId]/definitions`) · `ChevronRight` rotated 90° (close)
 - Member row right side: `User` 16×24 (→ profile) · `MailRight` 16×24 (→ `/dm/[memberId]`, hidden for own row) · `UserMinus` 24×24 red (remove, creator only on others)
@@ -291,7 +367,7 @@ Trigger: swipe-up or chevron-up · sheet: `z-[70]` (above ticker's z-[60], below
 - Buttons: `<Button>Save Changes</Button>` + `<Button variant="outlined" color="red">Cancel</Button>`, `gap: --space-5`
 - Props stripped to: `crewName`, `memberCount`, `crewImageUrl`, `crewXP`, `xpProgress`, `totalMessages`, `onUploadPhoto`, `onSave`, `onClose` (no members/onlineUserIds/memberMsgCounts/crewLevel)
 
-### InboxClient (`src/app/(app)/friends/inbox/InboxClient.tsx`)
+### InboxClient (`src/features/friends/screens/InboxClient.tsx`)
 Single-row `InboxCardPreview` component: avatar 48px · DM Sans Bold name · status subtitle (DM Sans 14px)
 - Incoming ("Wants to be your friend"): status `--color-secondary` · green `Check` 16×16 + red `Close` 16×16 icon-only buttons inline
 - Outgoing ("Sent friend request"): status `--yellow` · red-bordered `Close` 16×16 icon-only button inline (no fill)
@@ -303,7 +379,7 @@ Single-row `InboxCardPreview` component: avatar 48px · DM Sans Bold name · sta
 - Auto-sort by `lastMessage.created_at` desc; Framer Motion `layout` animates; channel dep `[...crewIds].sort().join(',')`
 - `handleCrewTap`: sets `sessionStorage.nexus_chat_from = '/home'` before push
 
-### Page Transitions (`src/components/ui/SlidePage.tsx`)
+### Page Transitions (`src/app/layouts/SlidePage.tsx`)
 - Enter: spring 380/36; skipped on back-nav via `_skipNextSlideEnter` module flag
 - Exit: ease-in 150ms; navigation fires in `.then()` after animation
 - `nativeSwipe`: no touch handlers (iOS native gesture); `useSlideBack()` hook — use instead of `router.back()`
@@ -332,7 +408,7 @@ Server: verifies friendship → `get_or_create_dm(friendId)` → renders chat. `
 - Always scoped to one crew. Own profile (`/profile`) has crew switcher pills + SETTINGS/BOARD tabs (local state, `AnimatePresence mode="wait"`, 150ms ease slide — no history push). Squad member profile shows board only (minimal nav bar + `NotesGrid`, no hero or profile stats).
 - `notes` table stores cards; `board_sections` stores named groupings per crew.
 - Sections: any crew member can create a section; cards can be assigned on add or moved later (long-press → "Move to Section"). Deleting a section moves its cards to Unsorted (`ON DELETE SET NULL`).
-- `NotesGrid` (`src/app/(app)/profile/notes/NotesGrid.tsx`): all board UI — crew pills, section blocks, card grid, all sheets. Props: `{ viewerId, initialNotes, initialSections, crews, initialCrewId, lockCrew? }`. `lockCrew={true}` hides the crew switcher (used on squad member profile).
+- `NotesGrid` (`src/features/profile/components/NotesGrid.tsx`): all board UI — crew pills, section blocks, card grid, all sheets. Props: `{ viewerId, initialNotes, initialSections, crews, initialCrewId, lockCrew? }`. `lockCrew={true}` hides the crew switcher (used on squad member profile).
 - Actions (`src/app/(app)/profile/notes/actions.ts`):
   - `addNoteAction(crewId, url, sectionId?)` — fetches OG preview, inserts note
   - `fetchMoreNotesAction(cursor, crewId)` — keyset pagination, both args required
@@ -343,7 +419,7 @@ Server: verifies friendship → `get_or_create_dm(friendId)` → renders chat. `
   - `deleteSectionAction(sectionId)` → `{ error? }` — creator only
 - Long-press pattern: 500ms timeout, `hasMoved` ref cancels on movement, `didLongPress` ref prevents tap-open on release → `CardActionSheet` (Open Link · Remove Note for creator · Move to Section)
 - `/profile/notes` → redirects to `/profile` (dead route kept for link safety)
-- `BoardSection` type in `src/types/index.ts`; `notes.Update` includes `section_id`
+- `BoardSection` type in `src/types/board.ts` (re-exported from `@/types`); `notes.Update` includes `section_id`
 - Member profile page (`AccountPageMember`): nav bar (back + username) + `NotesGrid` only — no hero, no friend action, no stats
 
 ### Squad Glossary (`/chat/[crewId]/definitions`)

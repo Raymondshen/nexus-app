@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/shared/supabase/server'
 
 async function requireDev() {
   const supabase = await createClient()

@@ -1,14 +1,14 @@
 import { redirect } from "next/navigation";
 import { unstable_cache } from "next/cache"
-import { createClient, createServiceClient } from "@/lib/supabase/server";
-import { FloatingBackButton } from "@/components/chat/FloatingBackButton";
-import { MessageList } from "@/components/chat/MessageList";
-import { ChatInput } from "@/components/chat/ChatInput";
-import { CombatHUD } from "@/components/game/CombatHUD";
-import { WelcomeDetector } from "@/components/ui/WelcomeDetector";
-import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
-import { SlidePage } from "@/components/ui/SlidePage";
-import type { Profile, Crew, AvatarClass, ActiveRaid, CombatMember } from "@/types";
+import { createClient, createServiceClient } from "@/shared/supabase/server";
+import { FloatingBackButton } from "@/features/chat/components/navigation/FloatingBackButton";
+import { MessageList } from "@/features/chat/components/messages/MessageList";
+import { ChatInput } from "@/features/chat/components/input/ChatInput";
+import { CombatHUD } from "@/features/combat/components/CombatHUD";
+import { WelcomeDetector } from "@/shared/components/pwa/WelcomeDetector";
+import { ErrorBoundary } from "@/shared/components/ui/ErrorBoundary";
+import { SlidePage } from "@/app/layouts/SlidePage";
+import type { Profile, Crew, AvatarClass, ActiveRaid, CombatMember, CombatClass } from "@/types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -173,7 +173,7 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
         currentUserId={user.id}
         crewId={crewId}
         memberProfiles={memberProfiles}
-        userCombatClass={(currentMemberRow?.class as import('@/types').CombatClass | null) ?? undefined}
+        userCombatClass={(currentMemberRow?.class as CombatClass | null) ?? undefined}
       />
 
       <ErrorBoundary>
@@ -192,7 +192,7 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
           crewImageUrl={crew.image_url ?? null}
           initialXP={crew.total_xp}
           currentUserId={user.id}
-          userCombatClass={(currentMemberRow?.class as import('@/types').CombatClass | null) ?? null}
+          userCombatClass={(currentMemberRow?.class as CombatClass | null) ?? null}
           initialRaid={initialRaid}
           initialMemberStats={initialMemberStats}
           initialReviveTokens={initialReviveTokens}

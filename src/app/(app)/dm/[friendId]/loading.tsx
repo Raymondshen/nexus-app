@@ -1,4 +1,4 @@
-import DelayedSkeleton from '@/components/ui/DelayedSkeleton'
+import DelayedSkeleton from '@/shared/components/ui/DelayedSkeleton'
 
 export default function DMLoading() {
   return (

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { OG_PREVIEW } from '@/lib/config'
-import { fetchOGPreview } from '@/lib/og-preview'
+import { OG_PREVIEW } from '@/shared/constants/config'
+import { fetchOGPreview } from '@/shared/utils/og-preview'
 
 export async function GET(req: NextRequest) {
   const rawUrl = new URL(req.url).searchParams.get('url')

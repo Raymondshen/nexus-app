@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
-import ClassSelectClient from './ClassSelectClient'
+import { createClient } from '@/shared/supabase/server'
+import ClassSelectClient from '@/features/onboarding/screens/ClassSelectClient'
 
 export default async function ClassSelectPage({
   searchParams,

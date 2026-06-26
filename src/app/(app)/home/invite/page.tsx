@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
-import { InvitePage } from '../InviteArsenal'
+import { createClient } from '@/shared/supabase/server'
+import { InvitePage } from '@/features/home/components/InviteArsenal'
 
 export default async function InvitePageRoute() {
   const supabase = await createClient()

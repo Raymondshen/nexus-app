@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
-import { createClient, createServiceClient } from '@/lib/supabase/server'
-import { AnnouncementsClient } from './AnnouncementsClient'
+import { createClient, createServiceClient } from '@/shared/supabase/server'
+import { AnnouncementsClient } from '@/features/profile/screens/AnnouncementsClient'
 import type { Announcement } from '@/types'
 
 export default async function AnnouncementsPage() {

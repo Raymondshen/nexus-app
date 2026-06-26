@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
-import { SlidePage } from '@/components/ui/SlidePage'
-import { AccountPageMember } from './AccountPageMember'
+import { createClient } from '@/shared/supabase/server'
+import { SlidePage } from '@/app/layouts/SlidePage'
+import { AccountPageMember } from '@/features/profile/components/AccountPageMember'
 import type { PublicNote } from '@/types'
 
 interface Props {

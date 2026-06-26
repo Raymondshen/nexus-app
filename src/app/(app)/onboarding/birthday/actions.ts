@@ -2,7 +2,7 @@
 
 import { redirect } from 'next/navigation'
 import { revalidateTag } from 'next/cache'
-import { createClient } from '@/lib/supabase/server'
+import { createClient } from '@/shared/supabase/server'
 
 export async function saveBirthdayAction(
   _prevState: { error: string } | null,

@@ -1,6 +1,6 @@
 import { notFound, redirect } from 'next/navigation'
-import { createClient, createServiceClient } from '@/lib/supabase/server'
-import { EventPageInfoClient } from './EventPageInfoClient'
+import { createClient, createServiceClient } from '@/shared/supabase/server'
+import { EventPageInfoClient } from '@/features/events/screens/EventPageInfoClient'
 import type { Event } from '@/types'
 
 interface EventPageInfoPageProps {

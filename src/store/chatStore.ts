@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { Message, MessageWithProfile } from '@/types'
-import { getLevelFromXP } from '@/lib/game/xp'
+import { getLevelFromXP } from '@/shared/utils/xp'
 
 interface ChatStore {
   messages:            Message[]

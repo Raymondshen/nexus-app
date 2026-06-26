@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
-import { createClient, createServiceClient } from '@/lib/supabase/server'
-import WelcomeClient from './WelcomeClient'
+import { createClient, createServiceClient } from '@/shared/supabase/server'
+import WelcomeClient from '@/features/onboarding/screens/WelcomeClient'
 
 export default async function WelcomePage({
   searchParams,

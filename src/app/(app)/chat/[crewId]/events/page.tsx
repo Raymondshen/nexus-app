@@ -1,6 +1,6 @@
 import { notFound, redirect } from 'next/navigation'
-import { createClient, createServiceClient } from '@/lib/supabase/server'
-import { GroupEventsClient } from './GroupEventsClient'
+import { createClient, createServiceClient } from '@/shared/supabase/server'
+import { GroupEventsClient } from '@/features/events/screens/GroupEventsClient'
 
 interface EventsPageProps {
   params: Promise<{ crewId: string }>

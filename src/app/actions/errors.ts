@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/shared/supabase/server'
 
 export async function logClientErrorAction(payload: {
   message: string

@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
-import { DefinitionsClient } from './DefinitionsClient'
+import { createClient } from '@/shared/supabase/server'
+import { DefinitionsClient } from '@/features/chat/screens/DefinitionsClient'
 import type { SquadDefinition, SquadDefinitionWithCreator } from '@/types'
 
 interface DefinitionsPageProps {

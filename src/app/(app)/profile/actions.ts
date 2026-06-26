@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidateTag } from 'next/cache'
-import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/shared/supabase/server'
 
 export async function revalidateProfileAction() {
   const supabase = await createClient()

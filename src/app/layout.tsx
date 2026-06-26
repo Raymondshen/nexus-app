@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Press_Start_2P, DM_Sans, Silkscreen } from 'next/font/google'
-import { validateConfig } from '@/lib/config'
-import { SWRegister } from '@/components/ui/SWRegister'
+import { validateConfig } from '@/shared/constants/config'
+import { SWRegister } from '@/shared/components/pwa/SWRegister'
 import './globals.css'
 
 const pressStart2P = Press_Start_2P({

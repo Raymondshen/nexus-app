@@ -2,7 +2,7 @@
 
 import { redirect } from 'next/navigation'
 import { revalidatePath, revalidateTag } from 'next/cache'
-import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/shared/supabase/server'
 
 export async function joinCrewFromWelcomeAction(
   _prevState: { error: string } | null,

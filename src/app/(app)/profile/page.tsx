@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { unstable_cache } from 'next/cache'
-import { createClient, createServiceClient } from '@/lib/supabase/server'
-import { ProfileClient } from './ProfileClient'
+import { createClient, createServiceClient } from '@/shared/supabase/server'
+import { ProfileClient } from '@/features/profile/screens/ProfileClient'
 import type { PublicNote, BoardSection } from '@/types'
 
 async function fetchInviterUsername(userId: string): Promise<string | null> {

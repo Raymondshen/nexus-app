@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidatePath, revalidateTag } from 'next/cache'
-import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/shared/supabase/server'
 import type { MessageType, EventRsvpStatus } from '@/types'
 
 export async function updateCrewImageAction(

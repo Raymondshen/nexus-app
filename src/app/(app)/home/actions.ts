@@ -2,7 +2,7 @@
 
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { createClient } from '@supabase/supabase-js'
-import { createClient as createSupabaseClient, createServiceClient } from '@/lib/supabase/server'
+import { createClient as createSupabaseClient, createServiceClient } from '@/shared/supabase/server'
 import type { Database, AppInvite, Announcement } from '@/types'
 
 export interface InviteCodeData {

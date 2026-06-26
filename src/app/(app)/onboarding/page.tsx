@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/server'
+import { createClient } from '@/shared/supabase/server'
 
 export default async function OnboardingPage() {
   const supabase = await createClient()

@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
-import { createClient, createServiceClient } from '@/lib/supabase/server'
-import { DeveloperClient } from './DeveloperClient'
+import { createClient, createServiceClient } from '@/shared/supabase/server'
+import { DeveloperClient } from '@/features/profile/screens/DeveloperClient'
 
 export default async function DeveloperPage() {
   const supabase = await createClient()
