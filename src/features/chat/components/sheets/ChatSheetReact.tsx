@@ -40,7 +40,7 @@ export function ChatSheetReact({
       {/* Sheet */}
       <motion.div
         key="react-sheet"
-        className="fixed bottom-0 left-0 right-0 z-[90] bg-black border-t border-border"
+        className="fixed bottom-0 left-0 right-0 z-[90] bg-[var(--color-surface-sheet)] rounded-tl-[16px] rounded-tr-[16px]"
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
         exit={{ y: '100%' }}

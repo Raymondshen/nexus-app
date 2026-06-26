@@ -185,7 +185,7 @@ function EditProfileSheet({
           >
             <div className="absolute inset-0 bg-black/60" />
             <motion.div
-              className="relative w-full max-w-[480px] bg-black border-t border-[var(--color-border)] flex flex-col overflow-hidden"
+              className="relative w-full max-w-[480px] bg-[var(--color-surface-sheet)] rounded-tl-[16px] rounded-tr-[16px] flex flex-col overflow-hidden"
               initial={{ y: '100%' }}
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
@@ -495,7 +495,7 @@ function AccountDetailsSheet({
             transition={{ type: 'spring', stiffness: 320, damping: 32 }}
           >
             <div
-              className="bg-black border-t border-border overflow-hidden flex flex-col gap-[var(--space-7)]"
+              className="bg-[var(--color-surface-sheet)] rounded-tl-[16px] rounded-tr-[16px] overflow-hidden flex flex-col gap-[var(--space-7)]"
               style={{
                 paddingTop: 'var(--space-7)',
                 paddingLeft: 'var(--space-5)',

@@ -842,7 +842,7 @@ export function MessageBubble({
                 dragConstraints={{ top: 0, bottom: 0 }}
                 dragElastic={{ top: 0, bottom: 1 }}
                 onDragEnd={(_, info) => { if (info.offset.y > 80 || info.velocity.y > 400) setActiveDefinition(null) }}
-                className="fixed bottom-0 left-0 right-0 z-[80] bg-black border-t border-border flex flex-col px-4"
+                className="fixed bottom-0 left-0 right-0 z-[80] bg-[var(--color-surface-sheet)] rounded-tl-[16px] rounded-tr-[16px] flex flex-col px-4"
                 style={{ gap: 'var(--space-7)', paddingTop: 12, paddingBottom: 'max(env(safe-area-inset-bottom), 28px)' }}
                 onClick={(e) => e.stopPropagation()}
               >

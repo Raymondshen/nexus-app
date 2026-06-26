@@ -192,7 +192,7 @@ function Sheet({ onClose, children }: { onClose: () => void; children: React.Rea
         onClick={onClose}
       />
       <motion.div
-        className="fixed bottom-0 left-0 right-0 z-[70] bg-black border-t border-border"
+        className="fixed bottom-0 left-0 right-0 z-[70] bg-[var(--color-surface-sheet)] rounded-tl-[16px] rounded-tr-[16px]"
         style={{ maxWidth: 480, marginLeft: 'auto', marginRight: 'auto', paddingBottom: 'max(28px, env(safe-area-inset-bottom))' }}
         initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
         transition={SHEET_SPRING}

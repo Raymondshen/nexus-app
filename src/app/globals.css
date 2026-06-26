@@ -13,6 +13,7 @@
   --color-border-hover: #3f3f46;    /* border-hover #3F3F46 */
   --color-border:       #27272a;    /* border       #27272A */
   --color-surface:      #111111;    /* surface      #111111 */
+  --color-surface-sheet:#0d0d0d;    /* surface-sheet #0D0D0D */
   --color-background:   #000000;    /* background   #000000 */
   --color-purple:       #a855f7;    /* purple       #A855F7 */
   --color-blue:         #60a5fa;    /* blue         #60A5FA */
@@ -77,7 +78,8 @@
   --muted:        var(--color-muted);
   --border:       var(--color-border);
   --border-hover: var(--color-border-hover);
-  --surface:      var(--color-surface);
+  --surface:       var(--color-surface);
+  --surface-sheet: var(--color-surface-sheet);
   --purple:       var(--color-purple);
   --blue:         var(--color-blue);
   --green:        var(--color-green);

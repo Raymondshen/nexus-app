@@ -327,7 +327,7 @@ export function EventSheetBottomPreview({ crewId, onClose }: EventSheetBottomPre
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
         transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-        className="fixed left-0 right-0 bottom-0 z-[80] bg-black border-t border-[var(--color-border)] flex flex-col overflow-hidden"
+        className="fixed left-0 right-0 bottom-0 z-[80] bg-[var(--color-surface-sheet)] rounded-tl-[16px] rounded-tr-[16px] flex flex-col overflow-hidden"
         style={{ top: 'calc(env(safe-area-inset-top, 0px) + 72px)' }}
         onClick={(e) => e.stopPropagation()}
       >

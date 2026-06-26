@@ -29,7 +29,7 @@ export function EventRegistrationSheet({ onStayGoing, onNotGoing, onClose }: Eve
         dragConstraints={{ top: 0, bottom: 0 }}
         dragElastic={{ top: 0, bottom: 1 }}
         onDragEnd={(_, info) => { if (info.offset.y > 80 || info.velocity.y > 400) onClose() }}
-        className="relative w-full max-w-[480px] bg-black border-t border-[var(--color-border)]"
+        className="relative w-full max-w-[480px] bg-[var(--color-surface-sheet)] rounded-tl-[16px] rounded-tr-[16px]"
         onClick={(e) => e.stopPropagation()}
       >
         <div

@@ -47,7 +47,7 @@ export function DefinitionCreateSheet({
         onClick={onClose}
       />
       <motion.div
-        className="fixed bottom-0 left-0 right-0 z-[100] bg-black border-t border-border flex flex-col gap-[var(--space-7)] px-4 pt-6 overflow-y-auto"
+        className="fixed bottom-0 left-0 right-0 z-[100] bg-[var(--color-surface-sheet)] rounded-tl-[16px] rounded-tr-[16px] flex flex-col gap-[var(--space-7)] px-4 pt-6 overflow-y-auto"
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
         exit={{ y: '100%' }}

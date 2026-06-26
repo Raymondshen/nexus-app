@@ -95,7 +95,7 @@ export function PinDurationSheet({ message, onClose, onPinned }: PinDurationShee
       />
       <motion.div
         key="pin-sheet"
-        className="fixed bottom-0 left-0 right-0 z-[90] bg-black border-t border-border flex flex-col"
+        className="fixed bottom-0 left-0 right-0 z-[90] bg-[var(--color-surface-sheet)] rounded-tl-[16px] rounded-tr-[16px] flex flex-col"
         style={{
           paddingTop: 24,
           paddingLeft: 16,

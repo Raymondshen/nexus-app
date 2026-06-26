@@ -54,7 +54,7 @@ export function SuggestDefinitionSheet({
 
       {/* Sheet — Figma 143:660 */}
       <motion.div
-        className="fixed bottom-0 left-0 right-0 bg-black border-t border-border flex flex-col px-4 overflow-y-auto"
+        className="fixed bottom-0 left-0 right-0 bg-[var(--color-surface-sheet)] rounded-tl-[16px] rounded-tr-[16px] flex flex-col px-4 overflow-y-auto"
         style={{ zIndex: zBase + 10, gap: 'var(--space-7)', maxHeight: '90vh', paddingTop: 12, paddingBottom: 'max(env(safe-area-inset-bottom), 28px)' }}
         initial={{ y: '100%' }}
         animate={{ y: 0 }}

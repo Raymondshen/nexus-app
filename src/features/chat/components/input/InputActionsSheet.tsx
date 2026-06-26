@@ -25,7 +25,7 @@ export function InputActionsSheet({ showUploadPhoto, onUploadPhoto, onCreatePoll
       />
 
       <motion.div
-        className="fixed bottom-0 left-0 right-0 z-[70] bg-black border-t border-border flex flex-col"
+        className="fixed bottom-0 left-0 right-0 z-[70] bg-[var(--color-surface-sheet)] rounded-tl-[16px] rounded-tr-[16px] flex flex-col"
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
         exit={{ y: '100%' }}

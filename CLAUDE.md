@@ -519,7 +519,7 @@ Backdrop tap + drag-to-dismiss. Spring `stiffness 320, damping 32`.
 />
 {/* Sheet */}
 <motion.div
-  className="fixed bottom-0 left-0 right-0 z-[70] bg-black border-t border-border"
+  className="fixed bottom-0 left-0 right-0 z-[70] bg-[var(--color-surface-sheet)] rounded-tl-[16px] rounded-tr-[16px]"
   initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
   transition={{ type: 'spring', stiffness: 320, damping: 32 }}
   drag="y"
