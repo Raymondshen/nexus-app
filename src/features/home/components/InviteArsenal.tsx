@@ -1,14 +1,15 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import Image from 'next/image'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createClient } from '@/shared/supabase/client'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
-import { Copy } from 'pixelarticons/react/Copy'
 import { Check } from 'pixelarticons/react/Check'
 import { SlidePage, useSlideBack } from '@/app/layouts/SlidePage'
 import { useChatStore } from '@/store/chatStore'
 import { generateAppInviteAction, getInviteCodesAction } from '@/app/(app)/home/actions'
+import { resolveAvatarUrl, isSupabaseStorage } from '@/shared/components/ui/Avatar'
 import type { InviteCodeData } from '@/app/(app)/home/actions'
 
 interface InvitePageProps {
@@ -28,7 +29,7 @@ function BackButton() {
       <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-primary)', flexShrink: 0 }} aria-hidden="true" />
       <span
         className="font-silkscreen text-primary leading-none uppercase"
-        style={{ fontSize: 'var(--text-xxl, 24px)' }}
+        style={{ fontSize: 'var(--text-xl, 20px)' }}
       >
         Invite Code
       </span>
@@ -102,7 +103,14 @@ export function InvitePage({ userId, initialCoins }: InvitePageProps) {
 
   const canAfford = infiniteCoins || coins >= 25
 
+  // unclaimed first
   const sortedCodes = [...codes].sort((a, b) => Number(a.used) - Number(b.used))
+
+  // group into rows of 2
+  const rows: InviteCodeData[][] = []
+  for (let i = 0; i < sortedCodes.length; i += 2) {
+    rows.push(sortedCodes.slice(i, i + 2))
+  }
 
   return (
     <SlidePage className="min-h-screen bg-black flex flex-col">
@@ -120,10 +128,10 @@ export function InvitePage({ userId, initialCoins }: InvitePageProps) {
         </div>
       </div>
 
-      {/* ── Scrollable code list ── */}
+      {/* ── Scrollable code grid ── */}
       <div
         className="flex-1 overflow-y-auto nexus-scroll px-4"
-        style={{ paddingTop: 16, paddingBottom: 140 }}
+        style={{ paddingTop: 8, paddingBottom: 140 }}
       >
         {loading ? (
           <div className="flex items-center justify-center py-16">
@@ -136,16 +144,19 @@ export function InvitePage({ userId, initialCoins }: InvitePageProps) {
             </p>
           </div>
         ) : (
-          <div className="flex flex-col" style={{ gap: 24 }}>
-            {sortedCodes.map((invite, index) => (
-              <div key={invite.id} className="flex flex-col" style={{ gap: 24 }}>
-                <InviteCodeRow
-                  invite={invite}
-                  copiedId={copiedId}
-                  onCopy={handleCopy}
-                />
-                {index < sortedCodes.length - 1 && (
-                  <div className="w-full border-t border-border" />
+          <div className="flex flex-col" style={{ gap: 16 }}>
+            {rows.map((row, rowIdx) => (
+              <div key={rowIdx} className="flex" style={{ gap: 16 }}>
+                {row.map(invite => (
+                  <InviteCard
+                    key={invite.id}
+                    invite={invite}
+                    copiedId={copiedId}
+                    onCopy={handleCopy}
+                  />
+                ))}
+                {row.length === 1 && (
+                  <div style={{ flex: '1 0 0', minWidth: 0 }} />
                 )}
               </div>
             ))}
@@ -184,7 +195,7 @@ export function InvitePage({ userId, initialCoins }: InvitePageProps) {
           </span>
         </button>
 
-        <p className="font-silkscreen leading-none" style={{ fontSize: 11 }}>
+        <p className="font-silkscreen leading-none" style={{ fontSize: 8 }}>
           <span style={{ color: 'var(--color-tertiary)' }}>25 COINS = INVITE CODE · </span>
           <span style={{ color: 'var(--color-coins)' }}>
             {infiniteCoins ? '∞' : coins.toLocaleString()} COINS
@@ -217,7 +228,7 @@ export function InvitePage({ userId, initialCoins }: InvitePageProps) {
   )
 }
 
-function InviteCodeRow({
+function InviteCard({
   invite,
   copiedId,
   onCopy,
@@ -229,81 +240,130 @@ function InviteCodeRow({
   const isUsed   = invite.used
   const isCopied = copiedId === invite.id
 
-  const formattedDate = (() => {
-    try {
-      return new Date(invite.created_at).toLocaleDateString('en-US', {
-        month: 'long',
-        day:   'numeric',
-        year:  'numeric',
-      })
-    } catch {
-      return ''
-    }
-  })()
-
   return (
-    <div className="flex flex-col" style={{ gap: 24 }}>
-      {/* Row 1: code + action button */}
-      <div className="flex items-center justify-between">
+    <div
+      className="flex flex-col"
+      style={{
+        flex:         '1 0 0',
+        minWidth:     0,
+        gap:          16,
+        padding:      16,
+        border:       '1px solid var(--color-border)',
+        borderRadius: 8,
+        background:   isUsed ? 'black' : '#0d0d0d',
+      }}
+    >
+      {/* Code + status dot */}
+      <div className="flex items-center justify-between w-full">
         <span
-          className="font-silkscreen text-white leading-none"
-          style={{ fontSize: 24, letterSpacing: '0.2px' }}
+          className="font-silkscreen leading-none"
+          style={{
+            fontSize:      'var(--text-xl, 20px)',
+            letterSpacing: '0.2px',
+            color:         isUsed ? 'var(--color-muted)' : 'var(--color-primary)',
+          }}
         >
           {invite.code}
         </span>
-
-        {isUsed ? (
-          <div
-            className="flex items-center flex-shrink-0 bg-black border border-muted"
-            style={{ gap: 8, paddingLeft: 16, paddingRight: 16, paddingTop: 8, paddingBottom: 8, boxShadow: '4px 4px 0px 0px rgba(113,113,122,0.5)' }}
-          >
-            <Copy style={{ width: 12, height: 12, color: 'var(--color-muted)', flexShrink: 0 }} aria-hidden="true" />
-            <span className="font-silkscreen text-muted leading-none" style={{ fontSize: 11 }}>CLAIMED</span>
-          </div>
-        ) : (
-          <button
-            onClick={() => onCopy(invite.code, invite.id)}
-            className="flex items-center flex-shrink-0 bg-black border border-purple active:opacity-70 transition-opacity"
-            style={{ gap: 8, paddingLeft: 16, paddingRight: 16, paddingTop: 8, paddingBottom: 8, boxShadow: '4px 4px 0px 0px rgba(168,85,247,0.5)' }}
-            aria-label={`Copy code ${invite.code}`}
-          >
-            {isCopied ? (
-              <Check style={{ width: 12, height: 12, color: 'var(--color-purple)', flexShrink: 0 }} aria-hidden="true" />
-            ) : (
-              <Copy style={{ width: 12, height: 12, color: 'var(--color-purple)', flexShrink: 0 }} aria-hidden="true" />
-            )}
-            <span className="font-silkscreen text-purple leading-none" style={{ fontSize: 11 }}>
-              {isCopied ? 'COPIED!' : 'COPY CODE'}
-            </span>
-          </button>
-        )}
+        <div
+          style={{
+            width:        16,
+            height:       16,
+            borderRadius: '50%',
+            border:       '1px solid var(--color-border)',
+            background:   isUsed ? 'transparent' : 'var(--color-purple)',
+            flexShrink:   0,
+          }}
+        />
       </div>
 
-      {/* Row 2: date + status */}
-      <div className="flex items-center justify-between" style={{ gap: 8 }}>
-        <span
-          className="font-body flex-1 min-w-0 text-tertiary leading-none"
-          style={{ fontSize: 11, fontVariationSettings: '"opsz" 14' }}
+      {/* Profile image + status label */}
+      <div className="flex flex-col" style={{ gap: 4 }}>
+        <div
+          className="relative overflow-hidden w-full"
+          style={{
+            height:     140,
+            background: 'var(--color-surface)',
+            border:     '1px solid var(--color-border)',
+          }}
         >
-          {formattedDate}
+          {isUsed && invite.used_by_avatar_url ? (
+            <Image
+              src={resolveAvatarUrl(invite.used_by_avatar_url, 128)}
+              alt={invite.used_by_username ?? ''}
+              fill
+              className="object-cover"
+              unoptimized={isSupabaseStorage(invite.used_by_avatar_url)}
+            />
+          ) : (
+            <span
+              className="absolute font-silkscreen text-white leading-none"
+              style={{
+                fontSize: 48,
+                top:      'calc(50% - 24px)',
+                left:     'calc(50% - 24px)',
+              }}
+            >
+              👾
+            </span>
+          )}
+        </div>
+        <span
+          className="font-silkscreen leading-none"
+          style={{
+            fontSize: 'var(--text-mini, 8px)',
+            color:    isUsed ? 'var(--green, #22c55e)' : 'var(--color-tertiary)',
+          }}
+        >
+          {isUsed
+            ? `Claimed ${invite.used_by_username ?? ''}`
+            : 'Not yet claimed'}
         </span>
-
-        {isUsed ? (
-          <span
-            className="font-body text-right leading-none"
-            style={{ fontSize: 11, color: '#22c55e', fontVariationSettings: '"opsz" 14' }}
-          >
-            Claimed by : {invite.used_by_username ?? 'unknown'}
-          </span>
-        ) : (
-          <span
-            className="font-body text-muted text-right leading-none whitespace-nowrap"
-            style={{ fontSize: 11, fontVariationSettings: '"opsz" 14' }}
-          >
-            Unclaimed
-          </span>
-        )}
       </div>
+
+      {/* Action button */}
+      {isUsed ? (
+        <div
+          className="flex items-center justify-center w-full"
+          style={{
+            border:        '1px solid var(--color-border)',
+            paddingTop:    12,
+            paddingBottom: 12,
+            paddingLeft:   16,
+            paddingRight:  16,
+          }}
+        >
+          <span
+            className="font-silkscreen leading-none"
+            style={{ fontSize: 'var(--text-xxs, 11px)', color: 'var(--color-muted)' }}
+          >
+            CLAIMED
+          </span>
+        </div>
+      ) : (
+        <button
+          onClick={() => onCopy(invite.code, invite.id)}
+          className="flex items-center justify-center gap-2 w-full active:opacity-70 transition-opacity"
+          style={{
+            border:        '1px solid var(--color-purple)',
+            paddingTop:    12,
+            paddingBottom: 12,
+            paddingLeft:   16,
+            paddingRight:  16,
+          }}
+          aria-label={`Copy invite code ${invite.code}`}
+        >
+          {isCopied && (
+            <Check style={{ width: 10, height: 10, color: 'var(--color-purple)', flexShrink: 0 }} aria-hidden="true" />
+          )}
+          <span
+            className="font-silkscreen leading-none"
+            style={{ fontSize: 'var(--text-xxs, 11px)', color: 'var(--color-purple)' }}
+          >
+            {isCopied ? 'COPIED!' : 'TAP TO COPY'}
+          </span>
+        </button>
+      )}
     </div>
   )
 }

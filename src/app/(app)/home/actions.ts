@@ -6,11 +6,12 @@ import { createClient as createSupabaseClient, createServiceClient } from '@/sha
 import type { Database, AppInvite, Announcement } from '@/types'
 
 export interface InviteCodeData {
-  id:               string
-  code:             string
-  used:             boolean
-  created_at:       string
-  used_by_username: string | null
+  id:                  string
+  code:                string
+  used:                boolean
+  created_at:          string
+  used_by_username:    string | null
+  used_by_avatar_url:  string | null
 }
 
 // No ambiguous chars: no 0, O, I, 1
@@ -105,24 +106,27 @@ export async function getInviteCodesAction(): Promise<
     .map(r => r.used_by)
     .filter((id): id is string => id !== null)
 
-  const usernameMap: Record<string, string> = {}
+  const usernameMap:  Record<string, string> = {}
+  const avatarUrlMap: Record<string, string> = {}
   if (usedByIds.length > 0) {
     const { data: profiles } = await service
       .from('profiles')
-      .select('id, username')
+      .select('id, username, avatar_url')
       .in('id', usedByIds)
     for (const p of (profiles ?? [])) {
-      usernameMap[p.id as string] = p.username as string
+      usernameMap[p.id as string]  = p.username as string
+      if (p.avatar_url) avatarUrlMap[p.id as string] = p.avatar_url as string
     }
   }
 
   return {
     codes: inviteRows.map(r => ({
-      id:               r.id,
-      code:             r.code,
-      used:             r.used,
-      created_at:       r.created_at,
-      used_by_username: r.used_by ? (usernameMap[r.used_by] ?? null) : null,
+      id:                 r.id,
+      code:               r.code,
+      used:               r.used,
+      created_at:         r.created_at,
+      used_by_username:   r.used_by ? (usernameMap[r.used_by] ?? null) : null,
+      used_by_avatar_url: r.used_by ? (avatarUrlMap[r.used_by] ?? null) : null,
     })),
   }
 }
