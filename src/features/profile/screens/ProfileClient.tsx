@@ -746,6 +746,15 @@ export function ProfileClient({
     return () => window.removeEventListener('nexus-afk-exp-change', handler)
   }, [])
 
+  // ── Friendship XP (dev feature flag) ─────────────────────────────────────
+  const [fxpEnabled, setFxpEnabled] = useState(false)
+  useEffect(() => {
+    setFxpEnabled(localStorage.getItem('nexus_friendship_xp') === '1')
+    const handler = (e: Event) => setFxpEnabled((e as CustomEvent<{ on: boolean }>).detail.on)
+    window.addEventListener('nexus-friendship-xp-change', handler)
+    return () => window.removeEventListener('nexus-friendship-xp-change', handler)
+  }, [])
+
   const initial      = localUsername[0]?.toUpperCase() ?? '?'
   const msgFormatted = totalMessages.toLocaleString()
 
@@ -814,16 +823,18 @@ export function ProfileClient({
             </div>
           </div>
 
-          {/* Friendship XP bar */}
-          <div className="flex flex-col w-full" style={{ gap: 8 }}>
-            <p className="font-silkscreen leading-none w-full" style={{ fontSize: 'var(--text-mini)' }}>
-              <span style={{ color: 'var(--color-secondary)' }}>Friendship lv {fxpLevel}</span>
-              <span style={{ color: 'var(--color-tertiary)' }}>{` · ${fxpProgress} / 100xp`}</span>
-            </p>
-            <div className="w-full overflow-hidden" style={{ height: 4, background: 'var(--color-surface)' }}>
-              <div style={{ width: `${fxpPercent}%`, height: 4, background: 'linear-gradient(to right, #a855f7, #d946ef)' }} />
+          {/* Friendship XP bar — dev-gated: nexus_friendship_xp */}
+          {fxpEnabled && (
+            <div className="flex flex-col w-full" style={{ gap: 8 }}>
+              <p className="font-silkscreen leading-none w-full" style={{ fontSize: 'var(--text-mini)' }}>
+                <span style={{ color: 'var(--color-secondary)' }}>Friendship lv {fxpLevel}</span>
+                <span style={{ color: 'var(--color-tertiary)' }}>{` · ${fxpProgress} / 100xp`}</span>
+              </p>
+              <div className="w-full overflow-hidden" style={{ height: 4, background: 'var(--color-surface)' }}>
+                <div style={{ width: `${fxpPercent}%`, height: 4, background: 'linear-gradient(to right, #a855f7, #d946ef)' }} />
+              </div>
             </div>
-          </div>
+          )}
 
           {/* AFK EXP row — dev-only */}
           {afkExp && (

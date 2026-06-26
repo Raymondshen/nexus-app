@@ -143,6 +143,7 @@ function AccountPreview({
   onCoinTap,
   onFriends,
   onInviteSquad,
+  fxpEnabled,
   totalFriendshipXP,
   showHeartTip,
   onHeartTap,
@@ -164,6 +165,7 @@ function AccountPreview({
   onCoinTap:         () => void
   onFriends:            () => void
   onInviteSquad:        () => void
+  fxpEnabled:           boolean
   totalFriendshipXP:    number
   showHeartTip:         boolean
   onHeartTap:           () => void
@@ -231,43 +233,46 @@ function AccountPreview({
               </AnimatePresence>
             </div>
 
-            <div className="w-[2px] h-[2px] bg-border-hover flex-shrink-0" aria-hidden="true" />
-
-            {/* Friendship XP */}
-            <div className="relative">
-              <button
-                onClick={(e) => { e.stopPropagation(); onHeartTap() }}
-                aria-label={`${totalFriendshipXP} friendship points`}
-                className="flex items-center gap-[var(--space-2)]"
-              >
-                <Heart style={{ width: 12, height: 12, color: 'var(--color-purple)' }} aria-hidden="true" />
-                <span
-                  className="font-silkscreen leading-none pb-[2px]"
-                  style={{
-                    fontSize: 'var(--text-xs)',
-                    background: 'linear-gradient(to right, var(--color-purple), #d946ef)',
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                    backgroundClip: 'text',
-                  }}
-                >
-                  {totalFriendshipXP}
-                </span>
-              </button>
-              <AnimatePresence>
-                {showHeartTip && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -4 }}
-                    transition={{ duration: 0.15 }}
-                    className="absolute left-0 top-full mt-1 z-50 whitespace-nowrap font-silkscreen text-[8px] text-primary bg-surface border border-border px-2 py-1"
+            {/* Friendship XP — dev-gated: nexus_friendship_xp */}
+            {fxpEnabled && (
+              <>
+                <div className="w-[2px] h-[2px] bg-border-hover flex-shrink-0" aria-hidden="true" />
+                <div className="relative">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onHeartTap() }}
+                    aria-label={`${totalFriendshipXP} friendship points`}
+                    className="flex items-center gap-[var(--space-2)]"
                   >
-                    EARN FRIENDSHIP POINTS, SPEND ON COSMETICS SOON
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
+                    <Heart style={{ width: 12, height: 12, color: 'var(--color-purple)' }} aria-hidden="true" />
+                    <span
+                      className="font-silkscreen leading-none pb-[2px]"
+                      style={{
+                        fontSize: 'var(--text-xs)',
+                        background: 'linear-gradient(to right, var(--color-purple), #d946ef)',
+                        WebkitBackgroundClip: 'text',
+                        WebkitTextFillColor: 'transparent',
+                        backgroundClip: 'text',
+                      }}
+                    >
+                      {totalFriendshipXP}
+                    </span>
+                  </button>
+                  <AnimatePresence>
+                    {showHeartTip && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -4 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute left-0 top-full mt-1 z-50 whitespace-nowrap font-silkscreen text-[8px] text-primary bg-surface border border-border px-2 py-1"
+                      >
+                        EARN FRIENDSHIP POINTS, SPEND ON COSMETICS SOON
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </>
+            )}
 
             {/* Gem balance */}
             <>
@@ -916,6 +921,7 @@ export function HomeClient({
     return base
   })
   const [localFriendshipXP,    setLocalFriendshipXP]    = useState(totalFriendshipXP)
+  const [fxpEnabled,           setFxpEnabled]           = useState(false)
   const [showCoinTip,          setShowCoinTip]          = useState(false)
   const [showHeartTip,         setShowHeartTip]         = useState(false)
   const [infiniteCoins,        setInfiniteCoins]        = useState(false)
@@ -960,6 +966,16 @@ export function HomeClient({
     return () => window.removeEventListener('nexus-afk-exp-change', onFlagChange)
   }, [])
 
+  // Sync Friendship XP feature flag from localStorage + listen for dev-section toggle
+  useEffect(() => {
+    setFxpEnabled(localStorage.getItem('nexus_friendship_xp') === '1')
+    function onFlagChange(e: Event) {
+      setFxpEnabled((e as CustomEvent<{ on: boolean }>).detail.on)
+    }
+    window.addEventListener('nexus-friendship-xp-change', onFlagChange)
+    return () => window.removeEventListener('nexus-friendship-xp-change', onFlagChange)
+  }, [])
+
   useEffect(() => {
     isGemGateOpen().then((open) => setClaimedGemToday(!open))
   }, [])
@@ -1002,8 +1018,9 @@ export function HomeClient({
     return () => { supabase.removeChannel(ch) }
   }, [userId])
 
-  // Realtime: live friendship XP total — re-fetch sum on any insert/update to friendship_xp
+  // Realtime: live friendship XP total — dev-gated: nexus_friendship_xp
   useEffect(() => {
+    if (!fxpEnabled) return
     const supabase = createClient()
     async function refetchFriendshipXP() {
       const { data } = await supabase
@@ -1022,7 +1039,7 @@ export function HomeClient({
       .on('postgres_changes', { event: '*', schema: 'public', table: 'friendship_xp', filter: `user_b=eq.${userId}` }, refetchFriendshipXP)
       .subscribe()
     return () => { supabase.removeChannel(chA); supabase.removeChannel(chB) }
-  }, [userId])
+  }, [userId, fxpEnabled])
 
   const crewIds = crews.map((c) => c.crew.id)
 
@@ -1173,6 +1190,7 @@ export function HomeClient({
           }}
           onFriends={() => router.push('/friends')}
           onInviteSquad={() => setShowCreate(true)}
+          fxpEnabled={fxpEnabled}
           totalFriendshipXP={localFriendshipXP}
           showHeartTip={showHeartTip}
           onHeartTap={() => {

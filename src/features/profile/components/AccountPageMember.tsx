@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { motion } from 'framer-motion'
@@ -52,6 +52,14 @@ export function AccountPageMember({
   const router      = useRouter()
   const isOwner     = viewerId === userId
   const notesRef    = useRef<NotesGridHandle>(null)
+
+  const [fxpEnabled, setFxpEnabled] = useState(false)
+  useEffect(() => {
+    setFxpEnabled(localStorage.getItem('nexus_friendship_xp') === '1')
+    const handler = (e: Event) => setFxpEnabled((e as CustomEvent<{ on: boolean }>).detail.on)
+    window.addEventListener('nexus-friendship-xp-change', handler)
+    return () => window.removeEventListener('nexus-friendship-xp-change', handler)
+  }, [])
 
   const initial    = username[0]?.toUpperCase() ?? '?'
   const bondTotal  = friendshipXP ?? 0
@@ -118,8 +126,8 @@ export function AccountPageMember({
             </div>
           </div>
 
-          {/* Friendship XP bar — hidden on own profile */}
-          {!isOwner && (
+          {/* Friendship XP bar — hidden on own profile; dev-gated: nexus_friendship_xp */}
+          {!isOwner && fxpEnabled && (
             <div className="flex flex-col w-full" style={{ gap: 'var(--space-3)' }}>
               <p className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}>
                 <span style={{ color: 'var(--color-secondary)' }}>Friendship lv {bondLevel}</span>

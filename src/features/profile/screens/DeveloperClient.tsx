@@ -105,6 +105,7 @@ export function DeveloperClient({ userId: _userId, initialCoins, userCrews }: De
   const [showPush,            setShowPush]            = useState(false)
   const [infiniteCoins,       setInfiniteCoins]       = useState(false)
   const [chatCamera,          setChatCamera]          = useState(false)
+  const [friendshipXP,        setFriendshipXP]        = useState(false)
   const [fxpResetConfirm,     setFxpResetConfirm]     = useState(false)
   const [resettingFXP,        setResettingFXP]        = useState(false)
   const [fxpResetDone,        setFxpResetDone]        = useState(false)
@@ -131,6 +132,7 @@ export function DeveloperClient({ userId: _userId, initialCoins, userCrews }: De
     setShowPush(localStorage.getItem('nexus_push_diag') === '1')
     setInfiniteCoins(localStorage.getItem('nexus_infinite_coins') === '1')
     setChatCamera(localStorage.getItem('nexus_chat_camera') === '1')
+    setFriendshipXP(localStorage.getItem('nexus_friendship_xp') === '1')
   }, [])
 
   function toggleDevMode() {
@@ -161,6 +163,14 @@ export function DeveloperClient({ userId: _userId, initialCoins, userCrews }: De
     setChatCamera(next)
     if (next) localStorage.setItem('nexus_chat_camera', '1')
     else localStorage.removeItem('nexus_chat_camera')
+  }
+
+  function toggleFriendshipXP() {
+    const next = !friendshipXP
+    setFriendshipXP(next)
+    if (next) localStorage.setItem('nexus_friendship_xp', '1')
+    else localStorage.removeItem('nexus_friendship_xp')
+    window.dispatchEvent(new CustomEvent('nexus-friendship-xp-change', { detail: { on: next } }))
   }
 
   async function handleResetFriendshipXP() {
@@ -404,6 +414,13 @@ export function DeveloperClient({ userId: _userId, initialCoins, userCrews }: De
             description="Enable image upload button in chat input"
             enabled={chatCamera}
             onChange={toggleChatCamera}
+          />
+
+          <ToggleRow
+            title="Friendship XP System"
+            description="DM and @mention XP, bond progress bar, and toast"
+            enabled={friendshipXP}
+            onChange={toggleFriendshipXP}
           />
 
           {/* Reset gem cooldown */}

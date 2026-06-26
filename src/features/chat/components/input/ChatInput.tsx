@@ -110,6 +110,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   const [typingUsers,    setTypingUsers]    = useState<string[]>([])
   const [devMode,          setDevMode]          = useState(false)
   const [chatCameraEnabled, setChatCameraEnabled] = useState(false)
+  const [fxpEnabled,        setFxpEnabled]        = useState(false)
   const [gemToastVisible,   setGemToastVisible]   = useState(false)
   const [isExpanded,     setIsExpanded]     = useState(false)
   const [memberMsgCounts, setMemberMsgCounts] = useState<Map<string, number>>(new Map())
@@ -186,6 +187,10 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   useEffect(() => {
     setDevMode(localStorage.getItem('nexus_dev_mode') === '1')
     setChatCameraEnabled(localStorage.getItem('nexus_chat_camera') === '1')
+    setFxpEnabled(localStorage.getItem('nexus_friendship_xp') === '1')
+    function onFxpChange(e: Event) { setFxpEnabled((e as CustomEvent<{ on: boolean }>).detail.on) }
+    window.addEventListener('nexus-friendship-xp-change', onFxpChange)
+    return () => window.removeEventListener('nexus-friendship-xp-change', onFxpChange)
   }, [])
 
   useEffect(() => {
@@ -954,53 +959,55 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
         })
         .catch(() => {})
 
-      // Friendship XP — shared helper: fade-in 200ms, hold 2000ms, then exit animation (400ms) runs
-      const showFriendshipToast = (totalXP: number, xpAwarded: number, partnerName: string, dailyCount: number) => {
-        if (friendshipToastTimerRef.current) clearTimeout(friendshipToastTimerRef.current)
-        setFriendshipToast({ totalXP, xpAwarded, partnerName, dailyCount })
-        friendshipToastTimerRef.current = setTimeout(() => setFriendshipToast(null), 2200)
-      }
+      if (fxpEnabled) {
+        // Friendship XP — shared helper: fade-in 200ms, hold 2000ms, then exit animation (400ms) runs
+        const showFriendshipToast = (totalXP: number, xpAwarded: number, partnerName: string, dailyCount: number) => {
+          if (friendshipToastTimerRef.current) clearTimeout(friendshipToastTimerRef.current)
+          setFriendshipToast({ totalXP, xpAwarded, partnerName, dailyCount })
+          friendshipToastTimerRef.current = setTimeout(() => setFriendshipToast(null), 2200)
+        }
 
-      // Local midnight as UTC ISO string — used by the server to compute the daily limit window
-      const now = new Date()
-      const localMidnightUTC = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).toISOString()
+        // Local midnight as UTC ISO string — used by the server to compute the daily limit window
+        const now = new Date()
+        const localMidnightUTC = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).toISOString()
 
-      // Friendship XP — DM send
-      if (isDM && dmPartnerId) {
-        const dmPartnerName = liveCrewName
-        fetch(`${SUPABASE_URL}/functions/v1/award-friendship-xp`, {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
-          body:    JSON.stringify({ user_a_id: userId, user_b_id: dmPartnerId, source: 'dm', local_midnight_utc: localMidnightUTC }),
-        })
-          .then((r) => r.json())
-          .then((data: { total_xp?: number; xp_awarded?: number; skipped?: boolean; daily_count?: number }) => {
-            if (typeof data.total_xp === 'number' && (data.xp_awarded ?? 0) > 0) {
-              showFriendshipToast(data.total_xp, data.xp_awarded!, dmPartnerName, data.daily_count ?? 1)
-            }
-          })
-          .catch(() => {})
-      }
-
-      // Friendship XP — @mention in group chat (toast for first awarded pair)
-      if (!isDM && mentionedUserIds.length > 0) {
-        let toastShown = false
-        mentionedUserIds.forEach((friendId) => {
-          const partnerName = profilesRef.current[friendId]?.username ?? 'Friend'
+        // Friendship XP — DM send
+        if (isDM && dmPartnerId) {
+          const dmPartnerName = liveCrewName
           fetch(`${SUPABASE_URL}/functions/v1/award-friendship-xp`, {
             method:  'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
-            body:    JSON.stringify({ user_a_id: userId, user_b_id: friendId, source: 'mention', local_midnight_utc: localMidnightUTC }),
+            body:    JSON.stringify({ user_a_id: userId, user_b_id: dmPartnerId, source: 'dm', local_midnight_utc: localMidnightUTC }),
           })
             .then((r) => r.json())
             .then((data: { total_xp?: number; xp_awarded?: number; skipped?: boolean; daily_count?: number }) => {
-              if (!toastShown && typeof data.total_xp === 'number' && (data.xp_awarded ?? 0) > 0) {
-                toastShown = true
-                showFriendshipToast(data.total_xp, data.xp_awarded!, partnerName, data.daily_count ?? 1)
+              if (typeof data.total_xp === 'number' && (data.xp_awarded ?? 0) > 0) {
+                showFriendshipToast(data.total_xp, data.xp_awarded!, dmPartnerName, data.daily_count ?? 1)
               }
             })
             .catch(() => {})
-        })
+        }
+
+        // Friendship XP — @mention in group chat (toast for first awarded pair)
+        if (!isDM && mentionedUserIds.length > 0) {
+          let toastShown = false
+          mentionedUserIds.forEach((friendId) => {
+            const partnerName = profilesRef.current[friendId]?.username ?? 'Friend'
+            fetch(`${SUPABASE_URL}/functions/v1/award-friendship-xp`, {
+              method:  'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
+              body:    JSON.stringify({ user_a_id: userId, user_b_id: friendId, source: 'mention', local_midnight_utc: localMidnightUTC }),
+            })
+              .then((r) => r.json())
+              .then((data: { total_xp?: number; xp_awarded?: number; skipped?: boolean; daily_count?: number }) => {
+                if (!toastShown && typeof data.total_xp === 'number' && (data.xp_awarded ?? 0) > 0) {
+                  toastShown = true
+                  showFriendshipToast(data.total_xp, data.xp_awarded!, partnerName, data.daily_count ?? 1)
+                }
+              })
+              .catch(() => {})
+          })
+        }
       }
 
     } catch (err) {
@@ -1228,14 +1235,16 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
         <DamageFloatLayer />
       )}
 
-      {/* ── Friendship XP toast (DM send or group @mention) ── */}
-      <FriendshipXPToast
-        visible={!!friendshipToast}
-        xpAwarded={friendshipToast?.xpAwarded ?? 0}
-        totalXP={friendshipToast?.totalXP ?? 0}
-        partnerName={friendshipToast?.partnerName ?? ''}
-        dailyCount={friendshipToast?.dailyCount ?? 1}
-      />
+      {/* ── Friendship XP toast (DM send or group @mention) — dev-gated: nexus_friendship_xp ── */}
+      {fxpEnabled && (
+        <FriendshipXPToast
+          visible={!!friendshipToast}
+          xpAwarded={friendshipToast?.xpAwarded ?? 0}
+          totalXP={friendshipToast?.totalXP ?? 0}
+          partnerName={friendshipToast?.partnerName ?? ''}
+          dailyCount={friendshipToast?.dailyCount ?? 1}
+        />
+      )}
 
       {/* ── Daily gem toast ── */}
       <GemToast visible={gemToastVisible} stacked={!!friendshipToast} />
