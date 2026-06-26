@@ -31,6 +31,7 @@ import { DiamondGem } from 'pixelarticons/react/DiamondGem'
 import { isGemGateOpen } from '@/shared/utils/gems'
 import { GEM_DAILY_LIMIT } from '@/shared/constants/config'
 import { consumeHomeLastMessage } from '@/features/home/utils/homePreviewCache'
+import { resizeImageToBlob } from '@/shared/utils/imageCompress'
 
 export interface FriendSummary {
   id:            string
@@ -369,34 +370,6 @@ const JOIN_CLASSES: {
     passiveDesc: 'below 40% hp, your def is multiplied by 1.3 dynamically.',
   },
 ]
-
-async function resizeImageToBlob(file: File, w: number, h: number): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    const img     = new window.Image()
-    const blobUrl = URL.createObjectURL(file)
-    img.onload = () => {
-      URL.revokeObjectURL(blobUrl)
-      const canvas   = document.createElement('canvas')
-      canvas.width   = w
-      canvas.height  = h
-      const ratio    = w / h
-      const srcRatio = img.width / img.height
-      let sx = 0, sy = 0, sw = img.width, sh = img.height
-      if (srcRatio > ratio) {
-        sw = Math.round(img.height * ratio)
-        sx = Math.round((img.width - sw) / 2)
-      } else {
-        sh = Math.round(img.width / ratio)
-        sy = Math.round((img.height - sh) / 2)
-      }
-      const ctx = canvas.getContext('2d')!
-      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, w, h)
-      canvas.toBlob((b) => b ? resolve(b) : reject(new Error('toBlob failed')), 'image/webp', 0.85)
-    }
-    img.onerror = reject
-    img.src     = blobUrl
-  })
-}
 
 function HomeActionSheet({
   onClose,

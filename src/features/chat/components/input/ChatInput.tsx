@@ -25,7 +25,8 @@ import { Undo } from 'pixelarticons/react/Undo'
 import { Close } from 'pixelarticons/react/Close'
 import { InputActionsSheet } from '@/features/chat/components/input/InputActionsSheet'
 import { GifIcon } from '@/shared/icons/GifIcon'
-import { kickMemberAction, renameCrewAction, birthdaysCommandAction } from '@/app/(app)/chat/actions'
+import { kickMemberAction, renameCrewAction, birthdaysCommandAction, updateCrewBackgroundImageAction } from '@/app/(app)/chat/actions'
+import { resizeImageToBlob } from '@/shared/utils/imageCompress'
 import { EventCreationSheet } from '@/features/events/components/EventCreationSheet'
 import { CrewImageUploadModal } from '@/features/chat/components/sheets/CrewImageUploadModal'
 import { NotifSheet, type NotifPrefs } from '@/features/chat/components/sheets/NotifSheet'
@@ -61,8 +62,9 @@ interface ChatInputProps {
   crewName:       string
   inviteCode?:    string
   creatorId?:     string
-  crewImageUrl?:       string | null
-  initialXP?:          number
+  crewImageUrl?:           string | null
+  crewBackgroundImageUrl?: string | null
+  initialXP?:              number
   currentUserId?:      string
   isDM?:               boolean
   dmPartnerId?:        string
@@ -102,7 +104,7 @@ async function tryClaimDailyGem(supabase: ReturnType<typeof createClient>, onCla
 }
 
 
-export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewName, inviteCode, creatorId, crewImageUrl: initialCrewImageUrl, initialXP, isDM, dmPartnerId, userCombatClass, initialRaid, initialMemberStats, initialReviveTokens }: ChatInputProps) {
+export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewName, inviteCode, creatorId, crewImageUrl: initialCrewImageUrl, crewBackgroundImageUrl: initialCrewBgUrl, initialXP, isDM, dmPartnerId, userCombatClass, initialRaid, initialMemberStats, initialReviveTokens }: ChatInputProps) {
   const router = useRouter()
   const [text,           setText]          = useState('')
   const [sending,        setSending]        = useState(false)
@@ -121,6 +123,8 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   const [kickedIds,      setKickedIds]      = useState<Set<string>>(new Set())
   const [crewImageUrl,   setCrewImageUrl]   = useState<string | null>(initialCrewImageUrl ?? null)
   const [crewImageFile,  setCrewImageFile]  = useState<File | null>(null)
+  const [crewBgUrl,      setCrewBgUrl]      = useState<string | null>(initialCrewBgUrl ?? null)
+  const [bgUploading,    setBgUploading]    = useState(false)
   const [showNotif,       setShowNotif]       = useState(false)
   const [notifPrefs,      setNotifPrefs]      = useState<NotifPrefs>({ messages: true, mentions: true })
   const [showPollCreator,   setShowPollCreator]   = useState(false)
@@ -148,6 +152,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   const textRef               = useRef('')
   const overlayRef            = useRef<HTMLDivElement>(null)
   const crewImageInputRef     = useRef<HTMLInputElement>(null)
+  const crewBgInputRef        = useRef<HTMLInputElement>(null)
   const chatImageInputRef     = useRef<HTMLInputElement>(null)
   const rateRef               = useRef({ count: 0, resetAt: Date.now() + RATE_LIMIT_WINDOW })
   const typingTimerRef        = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -1722,7 +1727,9 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
             currentUserId={userId}
             memberMsgCounts={memberMsgCounts}
             loadingCounts={loadingCounts}
+            crewBackgroundImageUrl={crewBgUrl}
             onUploadPhoto={() => crewImageInputRef.current?.click()}
+            onUploadBackground={() => crewBgInputRef.current?.click()}
             onNotifPress={() => setShowNotif(true)}
             onSave={async (newName) => {
               const trimmed = newName.trim()
@@ -1771,6 +1778,34 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
           const f = e.target.files?.[0]
           if (f) setCrewImageFile(f)
           e.target.value = ''
+        }}
+      />
+
+      {/* Background image picker */}
+      <input
+        ref={crewBgInputRef}
+        type="file"
+        accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif"
+        style={{ position: 'fixed', top: -1, left: -1, width: 1, height: 1, opacity: 0, pointerEvents: 'none' }}
+        onChange={async (e) => {
+          const file = e.target.files?.[0]
+          e.target.value = ''
+          if (!file || bgUploading) return
+          setBgUploading(true)
+          try {
+            const supabase = createClient()
+            const ts       = Date.now()
+            const blob     = await resizeImageToBlob(file, 1080, 608)
+            const path     = `${crewId}/bg-${ts}.webp`
+            const { error: upErr } = await supabase.storage.from('crew-images')
+              .upload(path, blob, { contentType: 'image/webp', cacheControl: '31536000' })
+            if (!upErr) {
+              const { data: { publicUrl } } = supabase.storage.from('crew-images').getPublicUrl(path)
+              await updateCrewBackgroundImageAction(crewId, publicUrl)
+              setCrewBgUrl(publicUrl)
+            }
+          } catch { /* non-fatal */ }
+          setBgUploading(false)
         }}
       />
 

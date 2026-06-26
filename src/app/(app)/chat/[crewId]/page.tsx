@@ -70,7 +70,7 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
   // crew_members fetched fresh for membership check (RLS returns empty for non-members).
   const [cachedProfiles, crewResult, lastSeenResult, gemResult] = await Promise.all([
     getCachedMemberProfiles(crewId),
-    supabase.from("crews").select("id, name, invite_code, level, total_xp, image_url").eq("id", crewId).single(),
+    supabase.from("crews").select("id, name, invite_code, level, total_xp, image_url, background_image_url").eq("id", crewId).single(),
     supabase
       .from("crew_members")
       .select("user_id, last_seen, class, joined_at")
@@ -190,6 +190,7 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
           inviteCode={crew.invite_code}
           creatorId={creatorId ?? undefined}
           crewImageUrl={crew.image_url ?? null}
+          crewBackgroundImageUrl={(crew as { background_image_url?: string | null }).background_image_url ?? null}
           initialXP={crew.total_xp}
           currentUserId={user.id}
           userCombatClass={(currentMemberRow?.class as CombatClass | null) ?? null}

@@ -35,29 +35,31 @@ export type MiniMember = {
 }
 
 interface SquadDetailsSheetProps {
-  crewId:          string
-  crewName:        string
-  memberCount:     number
-  crewImageUrl:    string | null
-  members:         MiniMember[]
-  onlineUserIds:   Set<string>
-  crewXP:          number
-  crewLevel:       number
-  xpProgress:      number
-  totalMessages:   number
-  inviteCode?:     string
-  creatorId?:      string
-  currentUserId:   string
-  memberMsgCounts: Map<string, number>
-  loadingCounts:   boolean
-  onUploadPhoto:    () => void
-  onNotifPress:     () => void
-  onSave:           (newName: string) => Promise<void>
-  onTapMember:      (memberId: string) => void
-  onDMPress?:       (memberId: string) => void
-  onOpenGlossary?:  () => void
-  onRemoveMember?:  (member: MiniMember) => void
-  onClose:          () => void
+  crewId:                  string
+  crewName:                string
+  memberCount:             number
+  crewImageUrl:            string | null
+  crewBackgroundImageUrl?: string | null
+  members:                 MiniMember[]
+  onlineUserIds:           Set<string>
+  crewXP:                  number
+  crewLevel:               number
+  xpProgress:              number
+  totalMessages:           number
+  inviteCode?:             string
+  creatorId?:              string
+  currentUserId:           string
+  memberMsgCounts:         Map<string, number>
+  loadingCounts:           boolean
+  onUploadPhoto:           () => void
+  onUploadBackground?:     () => void
+  onNotifPress:            () => void
+  onSave:                  (newName: string) => Promise<void>
+  onTapMember:             (memberId: string) => void
+  onDMPress?:              (memberId: string) => void
+  onOpenGlossary?:         () => void
+  onRemoveMember?:         (member: MiniMember) => void
+  onClose:                 () => void
 }
 
 function StatusTicker({ status }: { status: string }) {
@@ -206,21 +208,23 @@ function MemberListRow({
 // ─── Squad Details Edit Sheet (Figma 113:516) ────────────────────────────────
 
 interface SquadDetailsEditSheetProps {
-  crewName:      string
-  memberCount:   number
-  crewImageUrl:  string | null
-  crewXP:        number
-  xpProgress:    number
-  totalMessages: number
-  onUploadPhoto: () => void
-  onSave:        (newName: string) => Promise<void>
-  onClose:       () => void
+  crewName:               string
+  memberCount:            number
+  crewImageUrl:           string | null
+  crewBackgroundImageUrl: string | null
+  crewXP:                 number
+  xpProgress:             number
+  totalMessages:          number
+  onUploadPhoto:          () => void
+  onUploadBackground:     () => void
+  onSave:                 (newName: string) => Promise<void>
+  onClose:                () => void
 }
 
 function SquadDetailsEditSheet({
-  crewName, memberCount, crewImageUrl,
+  crewName, memberCount, crewImageUrl, crewBackgroundImageUrl,
   crewXP, xpProgress, totalMessages,
-  onUploadPhoto, onSave, onClose,
+  onUploadPhoto, onUploadBackground, onSave, onClose,
 }: SquadDetailsEditSheetProps) {
   const [nameValue, setNameValue] = useState(crewName)
   const [saving,    setSaving]    = useState(false)
@@ -236,7 +240,7 @@ function SquadDetailsEditSheet({
 
   return (
     <>
-      {/* Backdrop — above the squad details sheet (z-[50]) */}
+      {/* Backdrop */}
       <motion.div
         className="fixed inset-0 z-[80] bg-black/60"
         initial={{ opacity: 0 }}
@@ -246,7 +250,6 @@ function SquadDetailsEditSheet({
         onClick={onClose}
       />
 
-      {/* Sheet — Figma 113:516: bg-black border-t border-border flex-col gap-[--x7] pt-[--x7] pb-[--md] px-[--md] */}
       <motion.div
         className="fixed bottom-0 left-0 right-0 z-[81] bg-[var(--color-surface-sheet)] rounded-tl-[16px] rounded-tr-[16px] flex flex-col overflow-y-auto nexus-scroll"
         initial={{ y: '100%' }}
@@ -254,119 +257,188 @@ function SquadDetailsEditSheet({
         exit={{ y: '100%' }}
         transition={{ type: 'spring', stiffness: 320, damping: 32 }}
         style={{
-          maxHeight: '90vh',
-          gap: 'var(--space-7)',
-          padding: 'var(--space-7) var(--space-5)',
-          paddingBottom: 'max(env(safe-area-inset-bottom), var(--space-5))',
+          maxHeight:     '90vh',
+          gap:           16,
+          paddingTop:    16,
+          paddingLeft:   16,
+          paddingRight:  16,
+          paddingBottom: 'max(env(safe-area-inset-bottom), 28px)',
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* group_header — 180px, title row top + XP bar bottom (Figma 214:5744) */}
-        <div className="flex flex-col justify-between flex-shrink-0" style={{ height: 180 }}>
-          {/* header_container: image + name/count (Figma 214:5745) */}
-          <div className="flex items-center" style={{ gap: 'var(--space-3)' }}>
-            <div className="relative flex-shrink-0 overflow-hidden" style={{ width: 40, height: 40 }}>
-              {crewImageUrl ? (
-                <div className="relative w-full h-full">
-                  <Image src={crewImageUrl} alt={nameValue || crewName} fill sizes="40px" className="object-cover" unoptimized={isSupabaseStorage(crewImageUrl)} />
-                </div>
-              ) : (
-                <div className="w-full h-full bg-purple" />
-              )}
-            </div>
-            <div className="flex flex-col min-w-0" style={{ gap: 'var(--space-2)' }}>
-              <p
-                className="font-body font-black text-primary leading-none truncate"
-                style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}
-              >
-                {nameValue || crewName}
-              </p>
-              <p className="font-silkscreen text-secondary leading-none" style={{ fontSize: 'var(--text-xxs)' }}>
-                {memberCount} {memberCount === 1 ? 'member' : 'members'}
-              </p>
-            </div>
-          </div>
-
-          {/* XP bar pinned to bottom (Figma 214:5757) */}
-          <div className="flex flex-col w-full" style={{ gap: 'var(--space-3)' }}>
-            <p className="leading-[0] text-[0px] font-silkscreen">
-              <span className="leading-none text-tertiary" style={{ fontSize: 'var(--text-mini)' }}>
-                {`${getXPInCurrentLevel(crewXP)} / ${getXPForCurrentLevel(crewXP)}XP`}
-              </span>
-              {totalMessages > 0 && (
-                <>
-                  <span className="leading-none text-tertiary" style={{ fontSize: 'var(--text-mini)' }}>{` · `}</span>
-                  <span className="leading-none text-secondary" style={{ fontSize: 'var(--text-mini)' }}>
-                    {totalMessages.toLocaleString()} total Squad msg.
-                  </span>
-                </>
-              )}
+        {/* ── Header ── */}
+        <div className="flex flex-col flex-shrink-0" style={{ gap: 8 }}>
+          <p className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}>
+            Edit {crewName}
+          </p>
+          <div className="flex flex-col" style={{ gap: 4 }}>
+            <p className="font-body font-bold text-primary leading-none" style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}>
+              Edit {crewName}
             </p>
-            <div className="bg-surface overflow-hidden w-full relative" style={{ height: 4 }}>
-              <motion.div
-                className="absolute left-0 top-0 h-full bg-purple"
-                animate={{ width: `${xpProgress}%` }}
-                transition={{ type: 'spring', stiffness: 300, damping: 28 }}
-              />
+            <p className="font-body font-light text-tertiary leading-none" style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}>
+              Invite friends, create a squad, or share your invite code.
+            </p>
+          </div>
+        </div>
+
+        {/* ── Squad Card Preview ── */}
+        <div className="flex flex-col flex-shrink-0" style={{ gap: 8 }}>
+          <p className="font-body font-medium text-primary leading-none" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}>
+            Squad Card Preview
+          </p>
+
+          {/* 180px group header card */}
+          <div className="relative w-full overflow-hidden flex-shrink-0 flex flex-col justify-between" style={{ height: 180, padding: 8 }}>
+            {/* Background */}
+            {crewBackgroundImageUrl ? (
+              <div className="absolute inset-0 pointer-events-none">
+                <Image
+                  src={crewBackgroundImageUrl}
+                  alt=""
+                  fill
+                  sizes="(max-width: 480px) 100vw, 480px"
+                  className="object-cover"
+                  unoptimized={isSupabaseStorage(crewBackgroundImageUrl)}
+                />
+              </div>
+            ) : (
+              <div className="absolute inset-0 bg-[var(--color-surface)]" />
+            )}
+            {/* Gradient overlay */}
+            <div
+              className="absolute inset-0 pointer-events-none"
+              style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.604) 33%, rgba(0,0,0,0.6) 66%, rgba(0,0,0,0.8) 100%)' }}
+            />
+
+            {/* Top: crew image + name + member count */}
+            <div className="relative flex items-center justify-between w-full flex-shrink-0">
+              <div className="flex items-center flex-1 min-w-0" style={{ gap: 16 }}>
+                <div className="relative flex-shrink-0 overflow-hidden" style={{ width: 40, height: 40 }}>
+                  {crewImageUrl ? (
+                    <Image src={crewImageUrl} alt={nameValue || crewName} fill sizes="40px" className="object-cover" unoptimized={isSupabaseStorage(crewImageUrl)} />
+                  ) : (
+                    <div className="w-full h-full bg-[var(--color-primary)] flex items-center justify-center">
+                      <span className="font-body font-black text-black leading-none" style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}>
+                        {(nameValue || crewName).charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                  )}
+                </div>
+                <div className="flex flex-col" style={{ gap: 4 }}>
+                  <p className="font-body font-black leading-none" style={{ fontSize: 'var(--text-md)', color: 'var(--color-secondary)', fontVariationSettings: '"opsz" 14' }}>
+                    {(nameValue || crewName).toUpperCase()}
+                  </p>
+                  <p className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>
+                    {memberCount} {memberCount === 1 ? 'member' : 'members'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom: XP indicator + bar */}
+            <div className="relative flex flex-col w-full flex-shrink-0" style={{ gap: 8 }}>
+              <p className="leading-[0] text-[0px] font-silkscreen">
+                <span className="leading-none text-tertiary" style={{ fontSize: 'var(--text-mini)' }}>
+                  {`${getXPInCurrentLevel(crewXP)} / ${getXPForCurrentLevel(crewXP)}XP`}
+                </span>
+                {totalMessages > 0 && (
+                  <>
+                    <span className="leading-none text-tertiary" style={{ fontSize: 'var(--text-mini)' }}>{` · `}</span>
+                    <span className="leading-none text-secondary" style={{ fontSize: 'var(--text-mini)' }}>
+                      {totalMessages.toLocaleString()} total Squad msg.
+                    </span>
+                  </>
+                )}
+              </p>
+              <div className="bg-[var(--color-surface)] overflow-hidden w-full relative" style={{ height: 4 }}>
+                <div
+                  className="absolute left-0 top-0 h-full bg-purple"
+                  style={{ width: `${xpProgress}%`, transition: 'width 0.5s ease-out' }}
+                />
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Fields — gap-[--x5] (Figma 113:528) */}
-        <div className="flex flex-col flex-shrink-0" style={{ gap: 'var(--space-5)' }}>
-
-          {/* Squad Name — Figma 113:529 */}
-          <div className="flex flex-col" style={{ gap: 'var(--space-3)' }}>
-            <p
-              className="font-body font-medium text-primary tracking-[0.2px] leading-normal"
-              style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
-            >
-              Squad Name
+        {/* ── Upload buttons (side by side) ── */}
+        <div className="flex flex-shrink-0 w-full" style={{ gap: 16 }}>
+          {/* Profile Photo */}
+          <div className="flex flex-col flex-1 min-w-0" style={{ gap: 8 }}>
+            <p className="font-body font-medium text-primary leading-none" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}>
+              Profile Photo
             </p>
-            {/* Input — Figma 113:533: bg-black border border-[#3f3f46] h-[48px] p-[12px] */}
-            <input
-              value={nameValue}
-              onChange={(e) => setNameValue(e.target.value.slice(0, 30))}
-              onKeyDown={(e) => { if (e.key === 'Enter') handleSave() }}
-              maxLength={30}
-              placeholder={crewName}
-              className="w-full h-12 bg-black font-body text-primary placeholder:text-muted focus:outline-none transition-colors"
-              style={{ border: '1px solid #3f3f46', padding: 12, fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
-              autoComplete="off"
-              autoCapitalize="off"
-            />
-          </div>
-
-          {/* Squad Profile Picture — Figma 113:535 */}
-          <div className="flex flex-col" style={{ gap: 'var(--space-3)' }}>
-            <p
-              className="font-body font-medium text-primary tracking-[0.2px] leading-normal"
-              style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
-            >
-              Squad Profile Picture
-            </p>
-            {/* Upload button — Figma 214:5767: full-width, purple border, icon + label */}
             <button
+              type="button"
               onClick={onUploadPhoto}
-              className="flex items-center justify-center w-full h-12 border border-purple active:opacity-70 transition-opacity"
-              style={{ gap: 'var(--space-3)', paddingLeft: 'var(--space-5)', paddingRight: 'var(--space-5)' }}
+              disabled={saving}
+              className="flex items-center justify-center w-full h-12 border border-[var(--color-purple)] active:opacity-70 transition-opacity disabled:opacity-40"
+              style={{ gap: 8 }}
             >
               <Upload style={{ width: 16, height: 16, color: 'var(--color-purple)' }} aria-hidden="true" />
               <span className="font-silkscreen leading-none pb-0.5" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-purple)' }}>
-                upload photo
+                Upload
+              </span>
+            </button>
+          </div>
+
+          {/* Background Image */}
+          <div className="flex flex-col flex-1 min-w-0" style={{ gap: 8 }}>
+            <p className="font-body font-medium text-primary leading-none" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}>
+              Background Image
+            </p>
+            <button
+              type="button"
+              onClick={onUploadBackground}
+              disabled={saving}
+              className="flex items-center justify-center w-full h-12 border border-[var(--color-purple)] active:opacity-70 transition-opacity disabled:opacity-40"
+              style={{ gap: 8 }}
+            >
+              <Upload style={{ width: 16, height: 16, color: 'var(--color-purple)' }} aria-hidden="true" />
+              <span className="font-silkscreen leading-none pb-0.5" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-purple)' }}>
+                Upload
               </span>
             </button>
           </div>
         </div>
 
-        {/* Buttons — Figma 113:541: flex-col gap-[--x5] */}
-        <div className="flex flex-col flex-shrink-0" style={{ gap: 'var(--space-5)' }}>
-          <Button onClick={handleSave} disabled={saving} loading={saving} className="w-full">
-            Save Changes
-          </Button>
-          <Button variant="outlined" color="red" onClick={onClose} disabled={saving} className="w-full">
+        {/* ── Squad Name ── */}
+        <div className="flex flex-col flex-shrink-0" style={{ gap: 8 }}>
+          <p className="font-body font-medium text-primary leading-none" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}>
+            Squad Name
+          </p>
+          <input
+            value={nameValue}
+            onChange={(e) => setNameValue(e.target.value.slice(0, 30))}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleSave() }}
+            maxLength={30}
+            placeholder={crewName}
+            className="w-full h-12 bg-[var(--color-surface-sheet)] font-body text-primary placeholder:text-muted focus:outline-none"
+            style={{ border: '1px solid var(--color-border-hover)', padding: 12, fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
+            autoComplete="off"
+            autoCapitalize="off"
+          />
+        </div>
+
+        {/* ── Buttons ── */}
+        <div className="flex flex-col flex-shrink-0" style={{ gap: 20 }}>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            className="w-full flex items-center justify-center font-silkscreen text-primary bg-[var(--color-purple)] overflow-hidden disabled:opacity-40"
+            style={{ fontSize: 'var(--text-xs)', height: 48, boxShadow: '4px 4px 0 rgba(168,85,247,0.5)' }}
+          >
+            {saving ? '...' : 'Save Changes'}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            className="w-full flex items-center justify-center font-silkscreen overflow-hidden disabled:opacity-40"
+            style={{ height: 48, fontSize: 'var(--text-xs)', color: 'var(--red)', border: '1px solid var(--red)' }}
+          >
             Cancel
-          </Button>
+          </button>
         </div>
       </motion.div>
     </>
@@ -376,10 +448,10 @@ function SquadDetailsEditSheet({
 // ─── SquadDetailsSheet ────────────────────────────────────────────────────────
 
 export function SquadDetailsSheet({
-  crewId, crewName, memberCount, crewImageUrl, members, onlineUserIds,
+  crewId, crewName, memberCount, crewImageUrl, crewBackgroundImageUrl, members, onlineUserIds,
   crewXP, crewLevel, xpProgress, totalMessages, inviteCode, creatorId,
   currentUserId, memberMsgCounts, loadingCounts,
-  onUploadPhoto, onNotifPress, onSave, onTapMember, onDMPress, onOpenGlossary, onRemoveMember, onClose,
+  onUploadPhoto, onUploadBackground, onNotifPress, onSave, onTapMember, onDMPress, onOpenGlossary, onRemoveMember, onClose,
 }: SquadDetailsSheetProps) {
   const [copied,         setCopied]         = useState(false)
   const [showSquadEdit,  setShowSquadEdit]  = useState(false)
@@ -631,10 +703,12 @@ export function SquadDetailsSheet({
             crewName={crewName}
             memberCount={memberCount}
             crewImageUrl={crewImageUrl}
+            crewBackgroundImageUrl={crewBackgroundImageUrl ?? null}
             crewXP={crewXP}
             xpProgress={xpProgress}
             totalMessages={totalMessages}
             onUploadPhoto={onUploadPhoto}
+            onUploadBackground={onUploadBackground ?? (() => {})}
             onSave={onSave}
             onClose={() => setShowSquadEdit(false)}
           />

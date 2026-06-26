@@ -1,3 +1,35 @@
+/**
+ * Center-crop `file` to the exact `w×h` pixel ratio then encode as WebP at 0.85 quality.
+ * Used for crew profile photos (256×256) and background images (1080×608).
+ */
+export async function resizeImageToBlob(file: File, w: number, h: number): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const img     = new window.Image()
+    const blobUrl = URL.createObjectURL(file)
+    img.onload = () => {
+      URL.revokeObjectURL(blobUrl)
+      const canvas   = document.createElement('canvas')
+      canvas.width   = w
+      canvas.height  = h
+      const ratio    = w / h
+      const srcRatio = img.width / img.height
+      let sx = 0, sy = 0, sw = img.width, sh = img.height
+      if (srcRatio > ratio) {
+        sw = Math.round(img.height * ratio)
+        sx = Math.round((img.width - sw) / 2)
+      } else {
+        sh = Math.round(img.width / ratio)
+        sy = Math.round((img.height - sh) / 2)
+      }
+      const ctx = canvas.getContext('2d')!
+      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, w, h)
+      canvas.toBlob((b) => b ? resolve(b) : reject(new Error('toBlob failed')), 'image/webp', 0.85)
+    }
+    img.onerror = reject
+    img.src     = blobUrl
+  })
+}
+
 // Shared canvas → compressed Blob utility used by all image upload modals.
 // Enforces a 200 KB hard limit by stepping down quality, then falling back to
 // JPEG (for Safari which can't produce WebP from canvas), and returning the
