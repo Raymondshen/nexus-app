@@ -12,7 +12,7 @@ Build: `next build --webpack` (Turbopack breaks next-pwa + proxy.ts)
 ## Database Tables
 ```
 profiles            id, username (unique case-insensitive), first_name, last_name, avatar_class, avatar_url, avatar_storage_key, custom_avatar (bool default false), birthday, is_dev, coins (int default 0), gem_balance (int default 0), last_gem_claim (timestamptz nullable), status (text nullable ≤100 chars), last_active_at (timestamptz nullable), created_at
-crews               id, name, invite_code (6 chars unique), level, total_xp, created_at, is_dm (bool default false), dm_partner_1 (uuid nullable), dm_partner_2 (uuid nullable), image_url, image_storage_key, last_message_preview (text nullable), last_message_at (timestamptz nullable), last_message_sender_id (uuid nullable)
+crews               id, name, invite_code (6 chars unique), level, total_xp, created_at, is_dm (bool default false), dm_partner_1 (uuid nullable), dm_partner_2 (uuid nullable), image_url, image_storage_key, background_image_url (text nullable), last_message_preview (text nullable), last_message_at (timestamptz nullable), last_message_sender_id (uuid nullable)
 crew_members        id, crew_id, user_id, class, joined_at, last_seen, ability_bank (int default 0), stat_boosts (jsonb default '{}')
 messages            id, crew_id, user_id, content, message_type, element_type, xp_awarded, reactions (jsonb default '{}'), reply_to_id, reply_preview, reply_username, image_url, image_blur_hash, pinned (bool default false), pinned_by (uuid nullable), pinned_at (timestamptz nullable), pin_expires_at (timestamptz nullable), created_at
 crew_xp_log         id, crew_id, user_id, xp_amount, source, created_at
@@ -276,7 +276,7 @@ Long-press sheet (500ms / right-click) → emoji quick-pick + Reply + Copy Text 
 OG previews: `extractFirstUrl` → `useOGPreview` hook → `<LinkPreviewCard>` below body; text-only messages without `image_url` only.
 
 ### ChatInput
-- Props: `{ crewId, userId, userProfile, memberProfiles, crewName, inviteCode?, creatorId?, isDM? }`
+- Props: `{ crewId, userId, userProfile, memberProfiles, crewName, inviteCode?, creatorId?, isDM?, crewImageUrl?, crewBackgroundImageUrl? }`
 - Send flow: `addMessage(optimisticMsg)` synchronously (with `tempId`) → `insert_message` RPC → reconcile: `updateMessage(tempId, { id: raw.id })` in place (never remove-and-reinsert) → broadcast → `award-xp` → `attack-boss`; on RPC error `removeMessage(tempId)` rollback
 - Input row (inactive): `PlusBox` 24×24 + `GifIcon` 24×24 outside border box, 16px gaps; border `#27272a`. Focused: icons slide out (`width→0`), border → `--color-purple`
 - **Hybrid input/textarea**: renders `<input>` by default; swaps to `<textarea>` (3-line cap) when text width exceeds container. Detected via hidden `<span ref={mirrorRef}>` measured against `innerContainerRef`. `isMultiline` state + `isMultilineRef` kept in sync; `useLayoutEffect([isMultiline])` focuses new element and restores caret in same paint. `getActiveField()` / `focusField()` abstract over both refs.
@@ -284,6 +284,7 @@ OG previews: `extractFirstUrl` → `useOGPreview` hook → `<LinkPreviewCard>` b
 - **Klipy API** (`src/app/api/gif/route.ts`): trending (`/web/common-trending`) → items in `data.clips[]` with flat `file.thumbnail_url`; search (`/web/gifs/search`) → items in `data.data[]` with nested `file.sm/md/hd/xs` sub-objects. Use separate parsers (`parseClipItem` / `parseSearchItem`) — do NOT unify.
 - Combat is always-on: `callAttackBoss` fires after every send; `active_raids` UPDATE handler patches only `guard_user_id`, `guard_expires_at`, `volley_expires_at`, `last_boss_attack_at` — never `current_hp` or `phase`
 - `AbilityButton` renders when `!isDM && userCombatClass && hasJoinedRaid`; prop `username` required
+- Background image upload: hidden `crewBgInputRef` → `resizeImageToBlob(file, 1080, 608)` → `crew-images/{crewId}/bg-{ts}.webp` → `updateCrewBackgroundImageAction` → passes updated URL + `onUploadBackground` callback to `SquadDetailsSheet`
 
 ### Pin Feature (dev-gated: `nexus_pin_feature`)
 - Admin = crew member with earliest `joined_at`; cap = 5 active pins per crew (`PIN_MAX_PER_CREW`)
@@ -335,9 +336,12 @@ Trigger: swipe-up · z-[70] · `maxHeight: 85vh`
 - Member row: `User` 16×24 (profile) · `MailRight` 16×24 (DM, hidden own row) · `UserMinus` 24×24 red (remove, creator only)
 
 `SquadDetailsEditSheet` — triggered by `MagicEdit`, z-[80]/z-[81], `maxHeight: 90vh`
-- No title — opens directly to group header (180px); XP bar pinned to bottom of header block
-- Fields: Squad Name first → Squad Profile Picture (upload button)
-- Props: `crewName`, `memberCount`, `crewImageUrl`, `crewXP`, `xpProgress`, `totalMessages`, `onUploadPhoto`, `onSave`, `onClose`
+- Header: eyebrow (silkscreen mini tertiary) + title (DM Sans Bold md) + subtitle (DM Sans Light xs tertiary)
+- "Squad Card Preview" label (DM Sans Medium sm) + 180px live group header preview: background image fill + gradient overlay, crew avatar/initial, crew name (DM Sans Black), member count, XP text + progress bar; CSS `transition: width 0.5s ease-out` on bar (NOT Framer Motion)
+- Side-by-side upload buttons (flex row, gap 16): "Profile Photo" + "Background Image", each `h-48` with purple border, `Upload` 16×16 purple + "Upload" silkscreen text
+- Squad Name input: `bg-[var(--color-surface-sheet)] border border-[var(--color-border-hover)] h-[48px] p-[12px]`
+- "Save Changes" (bg-purple + `boxShadow: '4px 4px 0 rgba(168,85,247,0.5)'`) + "Cancel" (red border) — native buttons
+- Props: `crewName`, `memberCount`, `crewImageUrl`, `crewBackgroundImageUrl`, `crewXP`, `xpProgress`, `totalMessages`, `onUploadPhoto`, `onUploadBackground`, `onSave`, `onClose`
 
 ### InboxClient (`src/features/friends/screens/InboxClient.tsx`)
 Single-row `InboxCardPreview`: avatar 48px · DM Sans Bold name · status subtitle
@@ -357,6 +361,10 @@ Single variant only — no pinned or multi-item mode. Props: `text: string`, `ic
 - Last-message preview from denormalized `crews.last_message_preview/at/sender_id` — no `messages` join on home load
 - Optimistic preview: `homePreviewCache.ts` consume-once Map; `ChatInput` writes on send, `HomeClient` reads before first render
 - Auto-sort by `lastMessage.created_at` desc; Framer Motion `layout` animates
+- `SheetView` union: `'menu' | 'create' | 'join' | 'class'`; `'class'` is the post-join class picker
+- Join flow: `handleJoin` → `joinCrewFromHomeAction` (returns crew info + memberCount) → `view === 'class'` with class picker sheet; `handleClassJoin` → `joinSelectClassAction(crewId, cls)` (no redirect) → `router.push('/chat/...')`
+- `joinSelectClassAction` in `src/app/(app)/home/actions.ts`: updates `crew_members.class`, revalidates tag, returns `{ ok: true }` — client controls navigation
+- Group chat list section: label = "Group chat" (font-silkscreen text-xs primary); card gap = 20px; label-to-list gap = 20px
 
 ### Page Transitions (`src/app/layouts/SlidePage.tsx`)
 - Enter: spring 380/36; skipped on back-nav via `_skipNextSlideEnter` module flag
@@ -467,6 +475,8 @@ New notification type checklist:
 - `resolveAvatarUrl(url, displaySize)` on every avatar src (swaps `-256` → `-128` for ≤ 64px)
 - Plain `<img>`: pixel sprites · crop target · hero backgrounds in `ProfileClient.tsx`
 - Avatar upload: `AvatarUploadModal` → `react-image-crop` → canvas → 128+256px WebP → bucket `avatars`; `process-avatar` edge fn → 64/128/256px AVIF; `custom_avatar = true` blocks Google photo overwrite
+- Crew background image: `resizeImageToBlob(file, 1080, 608)` → `crew-images/{crewId}/bg-{ts}.webp`; `updateCrewBackgroundImageAction` stores public URL in `crews.background_image_url`
+- `resizeImageToBlob(file, w, h)` in `src/shared/utils/imageCompress.ts`: center-crop canvas → WebP 0.85 quality; used for crew profile 256×256 and background 1080×608
 
 ## Design Tokens (`src/app/globals.css`)
 Colors: `--color-primary` · `--color-surface` · `--color-border` · `--color-purple` · `--color-blue` · `--color-tertiary` · `--color-secondary` · `--color-paper-150`
@@ -563,6 +573,7 @@ ALTER TABLE crews ADD COLUMN IF NOT EXISTS is_dm boolean NOT NULL DEFAULT false;
 ALTER TABLE crews ADD COLUMN IF NOT EXISTS dm_partner_1 uuid REFERENCES auth.users(id);
 ALTER TABLE crews ADD COLUMN IF NOT EXISTS dm_partner_2 uuid REFERENCES auth.users(id);
 -- get_or_create_dm fn + friendships table DDL: see git history 2026-06-04
+ALTER TABLE crews ADD COLUMN IF NOT EXISTS background_image_url text;
 ```
 
 ## Development Rules
