@@ -226,7 +226,13 @@ export async function createCrewFromHomeAction(
 
 export async function joinCrewFromHomeAction(
   inviteCode: string,
-): Promise<{ crewId: string } | { error: string }> {
+): Promise<{
+  crewId:                 string
+  crewName:               string
+  crewImageUrl:           string | null
+  crewBackgroundImageUrl: string | null
+  memberCount:            number
+} | { error: string }> {
   const supabase = await createSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Not authenticated' }
@@ -244,14 +250,16 @@ export async function joinCrewFromHomeAction(
     return { error: msg || 'Could not join crew.' }
   }
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('username')
-    .eq('id', user.id)
-    .single()
+  const id = crewId as string
+
+  const [{ data: profile }, { data: crewRow }, { count }] = await Promise.all([
+    supabase.from('profiles').select('username').eq('id', user.id).single(),
+    supabase.from('crews').select('name, image_url, background_image_url').eq('id', id).single(),
+    supabase.from('crew_members').select('id', { count: 'exact', head: true }).eq('crew_id', id),
+  ])
 
   await supabase.from('messages').insert({
-    crew_id:      crewId as string,
+    crew_id:      id,
     user_id:      user.id,
     content:      `JOIN:${(profile as { username?: string } | null)?.username ?? 'warrior'}`,
     message_type: 'system',
@@ -259,9 +267,41 @@ export async function joinCrewFromHomeAction(
     xp_awarded:   0,
   })
 
+  const crew = crewRow as { name?: string; image_url?: string | null; background_image_url?: string | null } | null
+
   revalidatePath('/home')
+  revalidateTag(`crew-members:${id}`, 'max')
+  return {
+    crewId:                 id,
+    crewName:               crew?.name ?? '',
+    crewImageUrl:           crew?.image_url ?? null,
+    crewBackgroundImageUrl: crew?.background_image_url ?? null,
+    memberCount:            count ?? 1,
+  }
+}
+
+export async function joinSelectClassAction(
+  crewId: string,
+  cls:    string,
+): Promise<{ ok: true } | { error: string }> {
+  const validClasses = ['warrior', 'healer', 'archer', 'rogue', 'mage']
+  if (!validClasses.includes(cls)) return { error: 'Invalid class.' }
+
+  const supabase = await createSupabaseClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  const { error } = await supabase
+    .from('crew_members')
+    .update({ class: cls })
+    .eq('crew_id', crewId)
+    .eq('user_id', user.id)
+
+  if (error) return { error: error.message }
+
   revalidateTag(`crew-members:${crewId}`, 'max')
-  return { crewId: crewId as string }
+  revalidatePath('/home')
+  return { ok: true }
 }
 
 export async function leaveCrewAction(
