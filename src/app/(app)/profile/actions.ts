@@ -2,6 +2,7 @@
 
 import { revalidateTag } from 'next/cache'
 import { createClient, createServiceClient } from '@/shared/supabase/server'
+import type { ProfilePhoto } from '@/types'
 
 export async function revalidateProfileAction() {
   const supabase = await createClient()
@@ -273,4 +274,57 @@ export async function resetBackgroundAction(): Promise<{ error: string | null }>
   const crewIds = ((memberships ?? []) as { crew_id: string }[]).map((r) => r.crew_id)
   await revalidateUserCaches(userId, crewIds)
   return { error: null }
+}
+
+// ── Profile Photos ─────────────────────────────────────────────────────────────
+
+const PROFILE_PHOTOS_BUCKET = 'profile-photos'
+
+export async function addPhotoAction(
+  url: string,
+  storageKey: string,
+): Promise<{ photo?: ProfilePhoto; error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  const { data: row, error } = await supabase
+    .from('profile_photos')
+    .insert({ user_id: user.id, url, storage_key: storageKey })
+    .select('id, user_id, url, storage_key, created_at')
+    .single()
+
+  if (error) return { error: error.message }
+  return { photo: row as unknown as ProfilePhoto }
+}
+
+export async function deletePhotoAction(photoId: string): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
+
+  // Fetch storage key before deleting so we can remove the file
+  const { data: photo, error: fetchErr } = await supabase
+    .from('profile_photos')
+    .select('storage_key')
+    .eq('id', photoId)
+    .eq('user_id', user.id)
+    .single()
+
+  if (fetchErr || !photo) return { error: 'Photo not found' }
+
+  const { error: deleteErr } = await supabase
+    .from('profile_photos')
+    .delete()
+    .eq('id', photoId)
+    .eq('user_id', user.id)
+
+  if (deleteErr) return { error: deleteErr.message }
+
+  // Delete storage file — non-blocking, failure is acceptable
+  const key = (photo as { storage_key: string }).storage_key
+  const service = createServiceClient()
+  service.storage.from(PROFILE_PHOTOS_BUCKET).remove([key]).catch(() => {})
+
+  return {}
 }

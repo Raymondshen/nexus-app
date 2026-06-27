@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/shared/supabase/server'
 import { SlidePage } from '@/app/layouts/SlidePage'
 import { AccountPageMember } from '@/features/profile/components/AccountPageMember'
-import type { PublicNote } from '@/types'
+import type { PublicNote, ProfilePhoto } from '@/types'
 
 interface Props {
   params: Promise<{ crewId: string; userId: string }>
@@ -28,6 +28,7 @@ export default async function MemberProfilePage({ params }: Props) {
     globalMessagesResult,
     friendshipXPResult,
     targetCrewMemberResult,
+    photosResult,
   ] = await Promise.all([
     supabase
       .from('crew_members')
@@ -79,6 +80,13 @@ export default async function MemberProfilePage({ params }: Props) {
       .eq('crew_id', crewId)
       .eq('user_id', userId)
       .maybeSingle(),
+    // Profile photos for the member
+    supabase
+      .from('profile_photos')
+      .select('id, user_id, url, storage_key, created_at')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(30),
   ])
 
   if (!viewerMembership.data) redirect('/home')
@@ -91,7 +99,8 @@ export default async function MemberProfilePage({ params }: Props) {
   const joinedYear   = profile.created_at ? new Date(profile.created_at).getFullYear() : null
   const globalGroups = globalMembershipsResult.count ?? 0
   const globalMsgs   = globalMessagesResult.count ?? 0
-  const friendshipXP = (friendshipXPResult.data as { total_xp?: number } | null)?.total_xp ?? null
+  const friendshipXP   = (friendshipXPResult.data as { total_xp?: number } | null)?.total_xp ?? null
+  const initialPhotos  = (photosResult.data ?? []) as unknown as ProfilePhoto[]
 
   return (
     <SlidePage
@@ -122,6 +131,7 @@ export default async function MemberProfilePage({ params }: Props) {
         friendshipXP={friendshipXP}
         initialNotes={(notesResult.data ?? []) as unknown as PublicNote[]}
         notesCrews={notesCrews}
+        initialPhotos={initialPhotos}
       />
     </SlidePage>
   )

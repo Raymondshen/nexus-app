@@ -10,7 +10,7 @@ export * from './combat'
 export * from './system'
 
 // ─── Local imports for use in Database type ───────────────────────────────────
-import type { Profile, GemClaimResult, CoinLog, FriendshipXP, FriendshipXPLog } from './profile'
+import type { Profile, GemClaimResult, CoinLog, FriendshipXP, FriendshipXPLog, ProfilePhoto } from './profile'
 import type { Crew, CrewMember, Message, CrewXPLog, Announcement, Poll, SquadDefinition, DefinitionSuggestion } from './chat'
 import type { PushSubscription, NotificationPreferences, CrewNotificationMute, CrewNotificationPreferences } from './notifications'
 import type { Friendship } from './friends'
@@ -28,6 +28,12 @@ export type Database = {
         Row: Profile
         Insert: Omit<Profile, 'created_at' | 'avatar_url' | 'coins' | 'custom_avatar' | 'gem_balance' | 'last_gem_claim' | 'is_dev'> & { created_at?: string; avatar_url?: string | null; coins?: number; custom_avatar?: boolean; gem_balance?: number; last_gem_claim?: string | null; is_dev?: boolean }
         Update: Partial<Omit<Profile, 'id'>>
+        Relationships: []
+      }
+      profile_photos: {
+        Row: ProfilePhoto
+        Insert: Omit<ProfilePhoto, 'id' | 'created_at'> & { id?: string; created_at?: string }
+        Update: Partial<Omit<ProfilePhoto, 'id' | 'created_at'>>
         Relationships: []
       }
       coin_log: {

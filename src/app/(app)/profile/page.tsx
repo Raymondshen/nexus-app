@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { unstable_cache } from 'next/cache'
 import { createClient, createServiceClient } from '@/shared/supabase/server'
 import { ProfileClient } from '@/features/profile/screens/ProfileClient'
-import type { PublicNote, BoardSection } from '@/types'
+import type { PublicNote, BoardSection, ProfilePhoto } from '@/types'
 
 async function fetchInviterUsername(userId: string): Promise<string | null> {
   const service = createServiceClient()
@@ -44,7 +44,7 @@ export default async function ProfilePage() {
   const user = session.user
 
   // Batch 1 — everything except board data (board needs crew IDs first)
-  const [profile, messagesResult, membershipsResult, inviterUsername, pendingDeletion, coinsResult, friendshipXPResult] = await Promise.all([
+  const [profile, messagesResult, membershipsResult, inviterUsername, pendingDeletion, coinsResult, friendshipXPResult, photosResult] = await Promise.all([
     getCachedProfile(user.id),
     supabase
       .from('messages')
@@ -70,6 +70,12 @@ export default async function ProfilePage() {
       .from('friendship_xp')
       .select('total_xp')
       .or(`user_a.eq.${user.id},user_b.eq.${user.id}`),
+    supabase
+      .from('profile_photos')
+      .select('id, user_id, url, storage_key, created_at')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(30),
   ])
 
   const crewIds = (membershipsResult.data ?? []).map(m => (m as { crew_id: string }).crew_id)
@@ -111,6 +117,7 @@ export default async function ProfilePage() {
   const groupChats        = crewIds.length
   const coins             = (coinsResult.data as { coins?: number } | null)?.coins ?? 0
   const totalFriendshipXP = (friendshipXPResult.data ?? []).reduce((sum, r) => sum + ((r as { total_xp: number }).total_xp ?? 0), 0)
+  const initialPhotos     = (photosResult.data ?? []) as unknown as ProfilePhoto[]
 
   return (
     <ProfileClient
@@ -134,6 +141,7 @@ export default async function ProfilePage() {
       initialNotes={initialNotes}
       initialSections={initialSections}
       notesCrews={notesCrews}
+      initialPhotos={initialPhotos}
     />
   )
 }

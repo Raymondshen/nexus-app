@@ -23,7 +23,8 @@ import { BackgroundUploadModal } from '@/shared/components/overlays/BackgroundUp
 import { Button } from '@/shared/components/ui/Button'
 import { TickerBanner } from '@/shared/components/banners/TickerBanner'
 import { VibesGrid } from '@/features/profile/components/VibesGrid'
-import type { PublicNote, BoardSection } from '@/types'
+import { PhotosGrid } from '@/features/profile/components/PhotosGrid'
+import type { PublicNote, BoardSection, ProfilePhoto } from '@/types'
 
 interface ProfileClientProps {
   userId:             string
@@ -46,6 +47,7 @@ interface ProfileClientProps {
   initialNotes:       PublicNote[]
   initialSections:    BoardSection[]
   notesCrews:         Array<{ id: string; name: string }>
+  initialPhotos:      ProfilePhoto[]
 }
 
 // ─── Profile status ticker — wraps shared TickerBanner ─────────────────────
@@ -605,16 +607,18 @@ function BackButton() {
 export function ProfileClient({
   userId, userEmail, initialUsername, avatarUrl, avatarClass, customAvatar, backgroundUrl,
   isDev, isGuest, memberSinceYear, totalMessages, groupChats, inviterUsername, initialStatus, pendingDeleteAt,
-  coins, totalFriendshipXP, initialNotes, initialSections, notesCrews,
+  coins, totalFriendshipXP, initialNotes, initialSections, notesCrews, initialPhotos,
 }: ProfileClientProps) {
   const router = useRouter()
 
   // ── Tab state ─────────────────────────────────────────────────────────────
-  const [activeTab, setActiveTab] = useState<'notes' | 'settings'>('notes')
-  const tabDirRef = useRef(1) // +1 = notes→settings (enter from right); -1 = settings→notes (enter from left)
-  function switchTab(tab: 'notes' | 'settings') {
+  type ProfileTab = 'notes' | 'photos' | 'settings'
+  const TAB_ORDER: Record<ProfileTab, number> = { notes: 0, photos: 1, settings: 2 }
+  const [activeTab, setActiveTab] = useState<ProfileTab>('notes')
+  const tabDirRef = useRef(1)
+  function switchTab(tab: ProfileTab) {
     if (tab === activeTab) return
-    tabDirRef.current = tab === 'notes' ? -1 : 1
+    tabDirRef.current = TAB_ORDER[tab] > TAB_ORDER[activeTab] ? 1 : -1
     setActiveTab(tab)
   }
 
@@ -875,7 +879,7 @@ export function ProfileClient({
           {/* SettingsCog — glass effect matching back button */}
           <button
             onClick={() => switchTab('settings')}
-            aria-label="Settings"
+            aria-label="Profile settings"
             className="flex items-center justify-center border border-border flex-shrink-0 pointer-events-auto"
             style={{
               padding: 'var(--x3)',
@@ -896,20 +900,21 @@ export function ProfileClient({
 
       {/* ── Tab bar ──────────────────────────────────────────────────────────── */}
       <div className="flex flex-shrink-0" style={{ borderBottom: '1px solid var(--color-border)' }}>
-        <button
-          onClick={() => switchTab('notes')}
-          className="flex-1 flex items-center justify-center font-silkscreen"
-          style={{ height: 40, fontSize: 'var(--text-mini)', color: activeTab === 'notes' ? 'var(--color-primary)' : 'var(--color-tertiary)', boxShadow: activeTab === 'notes' ? 'inset 0 -2px 0 var(--color-purple)' : 'none' }}
-        >
-          VIBES
-        </button>
-        <button
-          onClick={() => switchTab('settings')}
-          className="flex-1 flex items-center justify-center font-silkscreen"
-          style={{ height: 40, fontSize: 'var(--text-mini)', color: activeTab === 'settings' ? 'var(--color-primary)' : 'var(--color-tertiary)', boxShadow: activeTab === 'settings' ? 'inset 0 -2px 0 var(--color-purple)' : 'none' }}
-        >
-          SETTINGS
-        </button>
+        {(['notes', 'photos', 'settings'] as const).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => switchTab(tab)}
+            className="flex-1 flex items-center justify-center font-silkscreen"
+            style={{
+              height:    40,
+              fontSize:  'var(--text-mini)',
+              color:     activeTab === tab ? 'var(--color-primary)' : 'var(--color-tertiary)',
+              boxShadow: activeTab === tab ? 'inset 0 -2px 0 var(--color-purple)' : 'none',
+            }}
+          >
+            {tab === 'notes' ? 'VIBES' : tab === 'photos' ? 'PHOTOS' : 'SETTINGS'}
+          </button>
+        ))}
       </div>
 
       {/* ── Tab content ─────────────────────────────────────────────────────── */}
@@ -926,6 +931,21 @@ export function ProfileClient({
             <VibesGrid
               initialVinyls={initialNotes}
               crews={notesCrews}
+              isOwner={true}
+            />
+          </motion.div>
+        ) : activeTab === 'photos' ? (
+          <motion.div
+            key="photos"
+            className="flex-1 min-h-0"
+            initial={{ opacity: 0, x: tabDirRef.current * 16 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: tabDirRef.current * -16 }}
+            transition={{ duration: 0.15, ease: [0.4, 0, 0.2, 1] }}
+          >
+            <PhotosGrid
+              initialPhotos={initialPhotos}
+              userId={userId}
               isOwner={true}
             />
           </motion.div>

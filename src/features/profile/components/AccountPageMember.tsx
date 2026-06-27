@@ -14,7 +14,8 @@ import { Message } from 'pixelarticons/react/Message'
 import { NotesGrid } from '@/features/profile/components/NotesGrid'
 import type { NotesGridHandle } from '@/features/profile/components/NotesGrid'
 import { VibesGrid } from '@/features/profile/components/VibesGrid'
-import type { PublicNote } from '@/types'
+import { PhotosGrid } from '@/features/profile/components/PhotosGrid'
+import type { PublicNote, ProfilePhoto } from '@/types'
 
 interface Props {
   crewId:           string
@@ -30,6 +31,7 @@ interface Props {
   friendshipXP:     number | null
   initialNotes:     PublicNote[]
   notesCrews:       Array<{ id: string; name: string }>
+  initialPhotos:    ProfilePhoto[]
 }
 
 const BOND_XP_PER_LEVEL = 100
@@ -48,17 +50,20 @@ export function AccountPageMember({
   friendshipXP,
   initialNotes,
   notesCrews,
+  initialPhotos,
 }: Props) {
   const goBack      = useSlideBack()
   const router      = useRouter()
   const isOwner     = viewerId === userId
   const notesRef    = useRef<NotesGridHandle>(null)
 
-  const [activeTab, setActiveTab] = useState<'vibes' | 'board'>('vibes')
-  const tabDirRef   = useRef(1) // +1 = vibes→board (enter from right); -1 = board→vibes (enter from left)
-  function switchTab(tab: 'vibes' | 'board') {
+  type MemberTab = 'vibes' | 'photos' | 'board'
+  const TAB_ORDER: Record<MemberTab, number> = { vibes: 0, photos: 1, board: 2 }
+  const [activeTab, setActiveTab] = useState<MemberTab>('vibes')
+  const tabDirRef   = useRef(1)
+  function switchTab(tab: MemberTab) {
     if (tab === activeTab) return
-    tabDirRef.current = tab === 'board' ? 1 : -1
+    tabDirRef.current = TAB_ORDER[tab] > TAB_ORDER[activeTab] ? 1 : -1
     setActiveTab(tab)
   }
 
@@ -215,30 +220,21 @@ export function AccountPageMember({
 
       {/* ── Tab bar ──────────────────────────────────────────────────────────── */}
       <div className="flex flex-shrink-0" style={{ borderBottom: '1px solid var(--color-border)' }}>
-        <button
-          onClick={() => switchTab('vibes')}
-          className="flex-1 flex items-center justify-center font-silkscreen"
-          style={{
-            height:    40,
-            fontSize:  'var(--text-mini)',
-            color:     activeTab === 'vibes' ? 'var(--color-primary)' : 'var(--color-tertiary)',
-            boxShadow: activeTab === 'vibes' ? 'inset 0 -2px 0 var(--color-purple)' : 'none',
-          }}
-        >
-          VIBES
-        </button>
-        <button
-          onClick={() => switchTab('board')}
-          className="flex-1 flex items-center justify-center font-silkscreen"
-          style={{
-            height:    40,
-            fontSize:  'var(--text-mini)',
-            color:     activeTab === 'board' ? 'var(--color-primary)' : 'var(--color-tertiary)',
-            boxShadow: activeTab === 'board' ? 'inset 0 -2px 0 var(--color-purple)' : 'none',
-          }}
-        >
-          BOARD
-        </button>
+        {(['vibes', 'photos', 'board'] as const).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => switchTab(tab)}
+            className="flex-1 flex items-center justify-center font-silkscreen"
+            style={{
+              height:    40,
+              fontSize:  'var(--text-mini)',
+              color:     activeTab === tab ? 'var(--color-primary)' : 'var(--color-tertiary)',
+              boxShadow: activeTab === tab ? 'inset 0 -2px 0 var(--color-purple)' : 'none',
+            }}
+          >
+            {tab === 'vibes' ? 'VIBES' : tab === 'photos' ? 'PHOTOS' : 'BOARD'}
+          </button>
+        ))}
       </div>
 
       {/* ── Tab content ─────────────────────────────────────────────────────── */}
@@ -255,6 +251,21 @@ export function AccountPageMember({
             <VibesGrid
               initialVinyls={initialNotes}
               crews={notesCrews}
+              isOwner={isOwner}
+            />
+          </motion.div>
+        ) : activeTab === 'photos' ? (
+          <motion.div
+            key="photos"
+            className="flex-1 min-h-0"
+            initial={{ opacity: 0, x: tabDirRef.current * 16 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: tabDirRef.current * -16 }}
+            transition={{ duration: 0.15, ease: [0.4, 0, 0.2, 1] }}
+          >
+            <PhotosGrid
+              initialPhotos={initialPhotos}
+              userId={userId}
               isOwner={isOwner}
             />
           </motion.div>

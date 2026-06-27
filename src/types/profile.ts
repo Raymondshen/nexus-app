@@ -53,3 +53,11 @@ export interface FriendshipXPLog extends Record<string, unknown> {
   source: 'dm' | 'mention'
   awarded_at: string
 }
+
+export interface ProfilePhoto extends Record<string, unknown> {
+  id:          string
+  user_id:     string
+  url:         string
+  storage_key: string
+  created_at:  string
+}
