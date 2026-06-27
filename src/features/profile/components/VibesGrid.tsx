@@ -208,7 +208,7 @@ function VinylTrack({
 
   return (
     <div
-      className="relative flex flex-col items-center min-w-0 flex-1 overflow-hidden"
+      className="relative flex flex-col items-center min-w-0 flex-1"
       style={{ height: 105 }}
       onPointerDown={isOwner ? onPointerDown : undefined}
       onPointerUp={isOwner ? cancelPress : undefined}
@@ -222,7 +222,7 @@ function VinylTrack({
           <motion.div
             className="absolute pointer-events-none"
             style={{ inset: '-13px', borderRadius: '50%', overflow: 'hidden' }}
-            animate={{ opacity: [0.5, 0.85, 0.5], scale: [0.9, 1.0, 0.9] }}
+            animate={{ opacity: [0.5, 0.85, 0.5], scale: [0.97, 1.0, 0.97] }}
             transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -619,7 +619,7 @@ export function VibesGrid({ initialVinyls, crews, isOwner }: VibesGridProps) {
           paddingBottom: 'max(env(safe-area-inset-bottom), 24px)',
         }}
       >
-        <div className="flex flex-col w-full" style={{ gap: 8 }}>
+        <div className="flex flex-col w-full" style={{ gap: 20 }}>
           {rows.map((row, ri) => (
             <div
               key={ri}
