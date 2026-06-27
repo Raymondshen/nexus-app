@@ -208,7 +208,7 @@ src/
 │   ├── onboarding/
 │   │   └── screens/            BirthdayClient, ClassSelectClient, WelcomeClient
 │   └── profile/
-│       ├── components/         NotesGrid, AccountPageMember
+│       ├── components/         NotesGrid, AccountPageMember, VibesGrid
 │       └── screens/            ProfileClient, DeveloperClient, AnnouncementsClient,
 │                               ErrorLogsClient, MemberProfileClient
 ├── shared/
@@ -396,6 +396,14 @@ Server: verifies friendship → `get_or_create_dm(friendId)` → renders chat. `
 - Actions in `src/app/(app)/profile/notes/actions.ts`: `addNoteAction`, `fetchMoreNotesAction`, `deleteNoteAction`, `moveToSectionAction`, `fetchCrewBoardAction`, `createSectionAction`, `deleteSectionAction`
 - Long-press (500ms) → `CardActionSheet`: Open Link · Remove Note (creator) · Move to Section
 - `AccountPageMember`: nav bar (back + username) + `NotesGrid` only — no hero, no stats
+
+### Vibes (`/profile` → VIBES tab)
+Music link cards shown as spinning vinyl discs. `VibesGrid` (`src/features/profile/components/VibesGrid.tsx`).
+- Only YouTube, Spotify, Apple Music, SoundCloud URLs accepted (`MUSIC_DOMAINS` set + `isMusicUrl`)
+- `VinylTrack`: 105×105 circle (`borderRadius: 56, overflow-hidden`) with album art (`absolute inset-0 object-cover`) + 8×8 center hole (`bg-background, border-border`) + glass label (`absolute bottom-0 left-0 w-full p-8`, fully transparent bg) with silkscreen 8px title text truncated. No ambient fill — disc shows crisp circular album art only.
+- `AddSlot`: same circle dimensions, dashed border, pixel + icon centered
+- `AddVibeSheet`: standard bottom sheet; validates URL → `addNoteAction` → prepends to grid
+- Rows of 3 (`flex gap-8`); incomplete rows padded with `flex-1` spacers
 
 ### Squad Glossary (`/chat/[crewId]/definitions`)
 `word` stores comma-separated aliases; UNIQUE INDEX `(crew_id, lower(word))`; blue highlight spans, `\b` regex `gi`, sort aliases by length desc

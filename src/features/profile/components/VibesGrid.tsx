@@ -34,16 +34,7 @@ function isMusicNote(n: PublicNote): boolean {
   return !!n.source_domain && MUSIC_DOMAINS.has(normHost(n.source_domain))
 }
 
-// ─── VinylTrack — spinning disc + floating title label ───────────────────────
-//
-// Structure (matches Figma node 329:3298):
-//   track  — relative, flex-col, items-center, flex-1
-//     disc  — the spinning <a>: 105×105, rounded-[56px], flex center, p-8, overflow-hidden
-//       img  — absolute inset-0, object-cover (album art)
-//       hole — relative in flex flow, 8×8, black, bordered (center vinyl hole)
-//     label — absolute bottom-0 left-0, w-[115px], p-8, transparent bg (glass effect)
-//       p   — silkscreen 8px, truncated, centered
-//     ×btn  — absolute top-right, owner only
+// ─── VinylTrack — spinning disc + floating title label (Figma 329:3298) ──────
 
 function VinylTrack({
   note,
@@ -54,7 +45,7 @@ function VinylTrack({
     // Track column — relative so the label can be positioned inside
     <div className="relative flex flex-col items-center min-w-0 flex-1">
 
-      {/* Spinning disc — the <a> IS the disc container */}
+      {/* Spinning disc */}
       <a
         href={note.url}
         target="_blank"
@@ -67,22 +58,7 @@ function VinylTrack({
         }}
         aria-label={note.og_title ?? 'Open link'}
       >
-        {/* Ambient fill — blurred image as background, clipped to the disc circle by overflow-hidden */}
-        {note.og_image_url && (
-          <div
-            aria-hidden
-            style={{
-              position:           'absolute',
-              inset:              -20,
-              backgroundImage:    `url(${note.og_image_url})`,
-              backgroundSize:     'cover',
-              backgroundPosition: 'center',
-              filter:             'blur(24px) saturate(1.3)',
-            }}
-          />
-        )}
-
-        {/* Album art — fills the entire disc */}
+        {/* Album art — fills the circle */}
         {note.og_image_url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -103,7 +79,7 @@ function VinylTrack({
           <div style={{ position: 'absolute', inset: 0, background: 'var(--color-surface)', borderRadius: 56 }} />
         )}
 
-        {/* Center hole — relative (in-flow), centered by parent flex */}
+        {/* Center hole — in-flow, centered by parent flex */}
         <div
           className="relative flex-shrink-0"
           style={{
@@ -116,15 +92,10 @@ function VinylTrack({
         />
       </a>
 
-      {/* Title label — transparent glass overlay at bottom of track */}
-      {/* bg: rgba(0,0,0,0) = fully transparent; text floats over the spinning disc */}
+      {/* Glass label — transparent overlay at disc bottom; text floats over the spinning art */}
       <div
-        className="absolute bottom-0 left-0 flex flex-col items-center justify-center"
-        style={{
-          width:      115,
-          padding:    8,
-          background: 'rgba(0,0,0,0)',
-        }}
+        className="absolute bottom-0 left-0 w-full flex flex-col items-center justify-center"
+        style={{ padding: 8 }}
       >
         <p
           className="font-silkscreen leading-none text-primary text-center w-full"
@@ -133,7 +104,6 @@ function VinylTrack({
             overflow:     'hidden',
             textOverflow: 'ellipsis',
             whiteSpace:   'nowrap',
-            wordBreak:    'break-word',
           }}
         >
           {note.og_title ?? note.url}
@@ -144,11 +114,7 @@ function VinylTrack({
   )
 }
 
-// ─── AddSlot — empty dashed disc placeholder (no label, same size as disc) ───
-//
-// Matches Figma node 329:3311:
-//   105×105 circle, bg-surface, border-dashed border-border, overflow-clip
-//   pixel + icon: 24×24 wrapper, icon at inset-[16.67%]
+// ─── AddSlot — empty dashed disc placeholder ─────────────────────────────────
 
 function AddSlot({ onClick }: { onClick: () => void }) {
   return (
@@ -356,11 +322,6 @@ function AddVibeSheet({
 }
 
 // ─── VibesGrid (main export) ──────────────────────────────────────────────────
-//
-// Outer layout matches Figma node 285:1866 / 285:1867:
-//   body  — pt-24 px-16, flex-col gap-8 (the outer padding + row gaps)
-//   rows  — flex gap-8 items-start overflow-clip shrink-0 w-full
-//   tracks — flex-1 flex-col items-center (filled by VinylTrack / AddSlot)
 
 export interface VibesGridProps {
   initialNotes: PublicNote[]
