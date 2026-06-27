@@ -369,6 +369,18 @@ Single variant only — no pinned or multi-item mode. Props: `text: string`, `ic
 - `joinSelectClassAction` in `src/app/(app)/home/actions.ts`: updates `crew_members.class`, revalidates tag, returns `{ ok: true }` — client controls navigation
 - Group chat list section: label = "Group chat" (font-silkscreen text-xs primary); card gap = 20px; label-to-list gap = 20px
 
+### HomeCrewDetailsSheet (`HomeClient`)
+Triggered by long-press (500ms) on a crew card. Standard bottom sheet pattern (z-[60]/z-[70], spring 320/32, drag-to-dismiss).
+
+Layout (flex col, `max-h: 85vh`, `overflow-hidden`):
+1. **Group header** (180px, `flex-shrink-0`) — background image + `linear-gradient(180deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.604) 33%, rgba(0,0,0,0.6) 66%, rgba(0,0,0,0.8) 100%)` overlay; top row: 40×40 crew image + crew name (DM Sans Black md secondary uppercase) + member count (Silkscreen mini secondary) | ChevronRight rotated 90° close; bottom: XP text (Silkscreen mini) + 4px progress bar (bg-purple)
+2. **Invite card** (`flex-shrink-0`, px-4 pt-4) — `bg-surface border border-border`, p-16; label "Invite new members" (Silkscreen mini primary); code: Silkscreen xl, gradient `from-[#a855f7] to-[#d946ef]` + `textShadow: '0px 0px 3px #a855f7'`; purple "Copy Code" button (py-12 px-16, shadow, toggles green "copied" on click)
+3. **Members label** (`flex-shrink-0`, px-4 pt-4) — "Members" Silkscreen xs primary
+4. **Member list** (`flex-1 overflow-y-auto nexus-scroll`, px-4 pt-4, `min-h-0`) — only scrollable region; gap 20px between rows
+5. **Leave Squad** (`flex-shrink-0`, px-4 pt-4, pb-safe-area/28px) — full-width h-48 border-red button, `/icons/leave-pixel.svg` 16×16 + "leave squad" Silkscreen xs red
+
+`HomeSquadMemberRow`: 32px circular avatar + `<PixelSprite spriteId nativePx scale={1} animate />` (walk cycle, 180ms/frame, pixel-bob) + name column (DM Sans Bold md primary + `Crown` 12×12 `#f59e0b` if `isCreator`) + subtitle (Silkscreen mini secondary: class · msg count). Creator = member with earliest `joined_at` (fetched in the same query); determined via O(n) reduce on `rawMembers`.
+
 ### Page Transitions (`src/app/layouts/SlidePage.tsx`)
 - Enter: spring 380/36; skipped on back-nav via `_skipNextSlideEnter` module flag
 - Exit: ease-in 150ms; navigation fires in `.then()` after animation
