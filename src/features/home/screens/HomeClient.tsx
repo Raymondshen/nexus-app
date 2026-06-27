@@ -10,6 +10,7 @@ import { TokeCircle } from 'pixelarticons/react/TokeCircle'
 import { Heart } from 'pixelarticons/react/Heart'
 import { Copy } from 'pixelarticons/react/Copy'
 import { Check } from 'pixelarticons/react/Check'
+import { Crown } from 'pixelarticons/react/Crown'
 import { Message as MessageIcon } from 'pixelarticons/react/Message'
 import { TickerBanner } from '@/shared/components/banners/TickerBanner'
 import { MailRight } from 'pixelarticons/react/MailRight'
@@ -1333,6 +1334,7 @@ interface SheetMember {
   avatar_class: string | null
   combatClass:  string | null
   msgCount:     number
+  isCreator:    boolean
 }
 
 function HomeSquadMemberRow({ member }: { member: SheetMember }) {
@@ -1380,12 +1382,17 @@ function HomeSquadMemberRow({ member }: { member: SheetMember }) {
 
       {/* Name + class · msg count */}
       <div className="flex flex-col gap-1 min-w-0 flex-1">
-        <p
-          className="font-body font-bold text-primary truncate leading-none"
-          style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}
-        >
-          {member.username}
-        </p>
+        <div className="flex items-center gap-1 min-w-0">
+          <p
+            className="font-body font-bold text-primary truncate leading-none"
+            style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}
+          >
+            {member.username}
+          </p>
+          {member.isCreator && (
+            <Crown style={{ width: 12, height: 12, color: '#f59e0b', flexShrink: 0 }} aria-hidden="true" />
+          )}
+        </div>
         <p className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>
           {classLabel} · {member.msgCount.toLocaleString()} msg.
         </p>
@@ -1424,7 +1431,7 @@ function HomeCrewDetailsSheet({
       const [membersResult, msgCountResult, crewResult] = await Promise.all([
         supabase
           .from('crew_members')
-          .select('user_id, class, profiles(username, avatar_url, avatar_class)')
+          .select('user_id, class, joined_at, profiles(username, avatar_url, avatar_class)')
           .eq('crew_id', crew.id),
         supabase.rpc('get_crew_member_msg_counts', { p_crew_id: crew.id }),
         needsBg
@@ -1439,13 +1446,19 @@ function HomeCrewDetailsSheet({
         msgMap.set(row.user_id, row.msg_count)
       }
 
-      const list: SheetMember[] = (
-        (membersResult.data ?? []) as unknown as Array<{
-          user_id: string
-          class:   string | null
-          profiles: { username: string; avatar_url: string | null; avatar_class: string | null } | null
-        }>
-      )
+      const rawMembers = (membersResult.data ?? []) as unknown as Array<{
+        user_id:   string
+        class:     string | null
+        joined_at: string
+        profiles:  { username: string; avatar_url: string | null; avatar_class: string | null } | null
+      }>
+
+      const creatorId = rawMembers.reduce<{ id: string; ts: string } | null>((earliest, m) => {
+        if (earliest === null || m.joined_at < earliest.ts) return { id: m.user_id, ts: m.joined_at }
+        return earliest
+      }, null)?.id ?? null
+
+      const list: SheetMember[] = rawMembers
         .map((m) => ({
           user_id:      m.user_id,
           username:     m.profiles?.username     ?? 'Unknown',
@@ -1453,6 +1466,7 @@ function HomeCrewDetailsSheet({
           avatar_class: m.profiles?.avatar_class ?? null,
           combatClass:  m.class,
           msgCount:     msgMap.get(m.user_id) ?? 0,
+          isCreator:    m.user_id === creatorId,
         }))
         .sort((a, b) => b.msgCount - a.msgCount)
 
@@ -1616,8 +1630,8 @@ function HomeCrewDetailsSheet({
                 Invite new members
               </p>
               <p
-                className="font-silkscreen leading-none tracking-[0.2px]"
-                style={{ fontSize: 'var(--text-xl)', color: 'var(--color-purple)', textShadow: '0px 0px 3px var(--color-purple)' }}
+                className="font-silkscreen leading-none tracking-[0.2px] bg-clip-text bg-gradient-to-r from-[#a855f7] to-[#d946ef] text-transparent"
+                style={{ fontSize: 'var(--text-xl)', textShadow: '0px 0px 3px #a855f7' }}
               >
                 {crew.invite_code}
               </p>
