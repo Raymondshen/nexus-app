@@ -105,6 +105,7 @@ export function DeveloperClient({ userId: _userId, initialCoins, userCrews }: De
   const [showPush,            setShowPush]            = useState(false)
   const [infiniteCoins,       setInfiniteCoins]       = useState(false)
   const [chatCamera,          setChatCamera]          = useState(false)
+  const [pollFeature,         setPollFeature]         = useState(false)
   const [friendshipXP,        setFriendshipXP]        = useState(false)
   const [fxpResetConfirm,     setFxpResetConfirm]     = useState(false)
   const [resettingFXP,        setResettingFXP]        = useState(false)
@@ -132,6 +133,7 @@ export function DeveloperClient({ userId: _userId, initialCoins, userCrews }: De
     setShowPush(localStorage.getItem('nexus_push_diag') === '1')
     setInfiniteCoins(localStorage.getItem('nexus_infinite_coins') === '1')
     setChatCamera(localStorage.getItem('nexus_chat_camera') === '1')
+    setPollFeature(localStorage.getItem('nexus_poll_feature') === '1')
     setFriendshipXP(localStorage.getItem('nexus_friendship_xp') === '1')
   }, [])
 
@@ -163,6 +165,14 @@ export function DeveloperClient({ userId: _userId, initialCoins, userCrews }: De
     setChatCamera(next)
     if (next) localStorage.setItem('nexus_chat_camera', '1')
     else localStorage.removeItem('nexus_chat_camera')
+  }
+
+  function togglePollFeature() {
+    const next = !pollFeature
+    setPollFeature(next)
+    if (next) localStorage.setItem('nexus_poll_feature', '1')
+    else localStorage.removeItem('nexus_poll_feature')
+    window.dispatchEvent(new CustomEvent('nexus-poll-feature-change', { detail: { on: next } }))
   }
 
   function toggleFriendshipXP() {
@@ -411,9 +421,16 @@ export function DeveloperClient({ userId: _userId, initialCoins, userCrews }: De
 
           <ToggleRow
             title="Chat Camera"
-            description="Enable image upload button in chat input"
+            description="Enable legacy camera dev flag (no longer gates photo upload)"
             enabled={chatCamera}
             onChange={toggleChatCamera}
+          />
+
+          <ToggleRow
+            title="Poll Feature"
+            description="Show poll creation button in chat input"
+            enabled={pollFeature}
+            onChange={togglePollFeature}
           />
 
           <ToggleRow

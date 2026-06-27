@@ -138,7 +138,7 @@ Error copy: invalid → "The Nexus does not recognize this code." · used → "T
 ## Dev Mode
 `profiles.is_dev = true` — grant: `UPDATE profiles SET is_dev = true WHERE id IN (SELECT id FROM auth.users WHERE email = '...')`
 
-Dev section in `/profile/developer`: Announcements · Push Diagnostics (`nexus_push_diag`) · Infinite Coins (`nexus_infinite_coins`) · Spawn Boss Mode (`nexus_dev_mode`) · Chat Camera (`nexus_chat_camera`) · Friendship XP System (`nexus_friendship_xp`) · Pin Feature (`nexus_pin_feature`) · Reset Gem Cooldown · AFK Exp (`nexus_afk_exp`) · Reset Friendship XP
+Dev section in `/profile/developer`: Announcements · Push Diagnostics (`nexus_push_diag`) · Infinite Coins (`nexus_infinite_coins`) · Spawn Boss Mode (`nexus_dev_mode`) · Chat Camera (`nexus_chat_camera`) · Poll Feature (`nexus_poll_feature`) · Friendship XP System (`nexus_friendship_xp`) · Pin Feature (`nexus_pin_feature`) · Reset Gem Cooldown · AFK Exp (`nexus_afk_exp`) · Reset Friendship XP
 - Combat Testing panel: crew picker + 7 actions — Spawn Boss, Force Phase 2, Force Phase 3, End Raid, Down Yourself, Add Revive Token, Reset Combat
 - Server actions in `src/app/(app)/profile/developer/actions.ts`: `spawnBossAction`, `forceRaidPhaseAction`, `endRaidAction`, `selfDownAction`, `addReviveTokenAction`, `resetCombatAction` — all protected by `requireDev()`
 - `DeveloperClient` receives `userCrews: { id: string; name: string }[]` prop; fetched via nested select `crew_members → crews(id, name, is_dm)`, DM crews filtered out
@@ -164,6 +164,7 @@ localStorage:
 | `nexus_afk_exp` | `'1'` |
 | `nexus_chat_camera` | `'1'` |
 | `nexus_friendship_xp` | `'1'` |
+| `nexus_poll_feature` | `'1'` |
 | `nexus_pin_feature` | `'1'` |
 | `nexus_dismissed_banners` | JSON array of IDs |
 
@@ -278,7 +279,9 @@ OG previews: `extractFirstUrl` → `useOGPreview` hook → `<LinkPreviewCard>` b
 ### ChatInput
 - Props: `{ crewId, userId, userProfile, memberProfiles, crewName, inviteCode?, creatorId?, isDM?, crewImageUrl?, crewBackgroundImageUrl? }`
 - Send flow: `addMessage(optimisticMsg)` synchronously (with `tempId`) → `insert_message` RPC → reconcile: `updateMessage(tempId, { id: raw.id })` in place (never remove-and-reinsert) → broadcast → `award-xp` → `attack-boss`; on RPC error `removeMessage(tempId)` rollback
-- Input row (inactive): `PlusBox` 24×24 + `GifIcon` 24×24 outside border box, 16px gaps; border `#27272a`. Focused: icons slide out (`width→0`), border → `--color-purple`
+- Input row (inactive): `GifIcon` 24×24 + `Attachment` 24×24 outside border box, 16px gaps; border `#27272a`. Focused: icons slide out (`width→0`), border → `--color-purple`. When `nexus_poll_feature` is ON, a third `Chart` 24×24 icon appears (width→104, else 64).
+- Photo upload: `Attachment` icon always visible; tapping directly triggers `chatImageInputRef.current?.click()` — no dev gate. Preview bar shows whenever `chatImageLocalUrl` is set.
+- Poll feature: dev-gated (`nexus_poll_feature`). When enabled, `Chart` icon appears in left group; tapping opens `PollCreatorSheet`. Toggle in `/profile/developer` Features section.
 - **Hybrid input/textarea**: renders `<input>` by default; swaps to `<textarea>` (3-line cap) when text width exceeds container. Detected via hidden `<span ref={mirrorRef}>` measured against `innerContainerRef`. `isMultiline` state + `isMultilineRef` kept in sync; `useLayoutEffect([isMultiline])` focuses new element and restores caret in same paint. `getActiveField()` / `focusField()` abstract over both refs.
 - @mention overlay: transparent field + `aria-hidden` div; purple `<mark>` for valid tokens; scroll synced on `isMultiline` change
 - **Klipy API** (`src/app/api/gif/route.ts`): trending (`/web/common-trending`) → items in `data.clips[]` with flat `file.thumbnail_url`; search (`/web/gifs/search`) → items in `data.data[]` with nested `file.sm/md/hd/xs` sub-objects. Use separate parsers (`parseClipItem` / `parseSearchItem`) — do NOT unify.
@@ -598,7 +601,7 @@ ALTER TABLE crews ADD COLUMN IF NOT EXISTS background_image_url text;
 
 ## Disabled Features
 - Voice notes: UI removed; `XP_VALUES['voice']` + element `lightning` still defined server-side
-- Image upload in chat: dev-only via `nexus_chat_camera`; upload logic + `chat-images` bucket fully functional
+- Poll creation in chat: dev-gated via `nexus_poll_feature`; toggle in `/profile/developer` dispatches `nexus-poll-feature-change` event
 
 ## Gotchas
 - `CREATE OR REPLACE FUNCTION` only replaces if signature matches exactly. Adding/removing params creates a new overload — multiple all-DEFAULT overloads cause ambiguous RPC errors. Always `DROP FUNCTION` old signatures before recreating with a different param list.

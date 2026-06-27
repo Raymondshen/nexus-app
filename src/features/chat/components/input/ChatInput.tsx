@@ -19,11 +19,11 @@ import { IMAGE_CONFIG } from '@/shared/constants/config'
 import { isGemGateOpen, recordGemClaim } from '@/shared/utils/gems'
 import type { GemClaimResult } from '@/types'
 import { Send } from 'pixelarticons/react/Send'
-import { PlusBox } from 'pixelarticons/react/PlusBox'
+import { Attachment } from 'pixelarticons/react/Attachment'
+import { Chart } from 'pixelarticons/react/Chart'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
 import { Undo } from 'pixelarticons/react/Undo'
 import { Close } from 'pixelarticons/react/Close'
-import { InputActionsSheet } from '@/features/chat/components/input/InputActionsSheet'
 import { GifIcon } from '@/shared/icons/GifIcon'
 import { kickMemberAction, renameCrewAction, birthdaysCommandAction, updateCrewBackgroundImageAction } from '@/app/(app)/chat/actions'
 import { resizeImageToBlob } from '@/shared/utils/imageCompress'
@@ -111,8 +111,8 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   const [sendError,      setSendError]      = useState<string | null>(null)
   const [typingUsers,    setTypingUsers]    = useState<string[]>([])
   const [devMode,          setDevMode]          = useState(false)
-  const [chatCameraEnabled, setChatCameraEnabled] = useState(false)
-  const [fxpEnabled,        setFxpEnabled]        = useState(false)
+  const [pollEnabled,      setPollEnabled]       = useState(false)
+  const [fxpEnabled,       setFxpEnabled]        = useState(false)
   const [gemToastVisible,   setGemToastVisible]   = useState(false)
   const [isExpanded,     setIsExpanded]     = useState(false)
   const [memberMsgCounts, setMemberMsgCounts] = useState<Map<string, number>>(new Map())
@@ -127,9 +127,8 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   const [bgUploading,    setBgUploading]    = useState(false)
   const [showNotif,       setShowNotif]       = useState(false)
   const [notifPrefs,      setNotifPrefs]      = useState<NotifPrefs>({ messages: true, mentions: true })
-  const [showPollCreator,   setShowPollCreator]   = useState(false)
-  const [showGifPicker,     setShowGifPicker]     = useState(false)
-  const [showActionsSheet,  setShowActionsSheet]  = useState(false)
+  const [showPollCreator, setShowPollCreator] = useState(false)
+  const [showGifPicker,   setShowGifPicker]   = useState(false)
   const [mentionQuery,    setMentionQuery]    = useState<string | null>(null)
   const [mentionIndex,    setMentionIndex]    = useState(0)
   const [isFocused,       setIsFocused]       = useState(false)
@@ -191,11 +190,16 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
 
   useEffect(() => {
     setDevMode(localStorage.getItem('nexus_dev_mode') === '1')
-    setChatCameraEnabled(localStorage.getItem('nexus_chat_camera') === '1')
     setFxpEnabled(localStorage.getItem('nexus_friendship_xp') === '1')
-    function onFxpChange(e: Event) { setFxpEnabled((e as CustomEvent<{ on: boolean }>).detail.on) }
+    setPollEnabled(localStorage.getItem('nexus_poll_feature') === '1')
+    function onFxpChange(e: Event)  { setFxpEnabled((e as CustomEvent<{ on: boolean }>).detail.on) }
+    function onPollChange(e: Event) { setPollEnabled((e as CustomEvent<{ on: boolean }>).detail.on) }
     window.addEventListener('nexus-friendship-xp-change', onFxpChange)
-    return () => window.removeEventListener('nexus-friendship-xp-change', onFxpChange)
+    window.addEventListener('nexus-poll-feature-change', onPollChange)
+    return () => {
+      window.removeEventListener('nexus-friendship-xp-change', onFxpChange)
+      window.removeEventListener('nexus-poll-feature-change', onPollChange)
+    }
   }, [])
 
   useEffect(() => {
@@ -1416,8 +1420,8 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
           </div>
         )}
 
-        {/* ── Image attachment preview (dev camera only) ── */}
-        {chatCameraEnabled && chatImageLocalUrl && (
+        {/* ── Image attachment preview ── */}
+        {chatImageLocalUrl && (
           <div
             className="flex items-center overflow-hidden"
             style={{ border: '1px solid var(--color-border)', background: 'rgba(255,255,255,0.03)', padding: '8px 12px', gap: 'var(--space-3)', marginBottom: 'var(--space-2)' }}
@@ -1529,21 +1533,13 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
           })()}
 
           <div className="flex items-center" style={{ gap: 16 }}>
-            {/* [+] and GIF icons — outside the input border, slide out on focus */}
+            {/* GIF + Attachment icons — outside the input border, slide out on focus */}
             <motion.div
               className="flex-shrink-0 overflow-hidden flex items-center"
-              animate={{ width: isFocused ? 0 : 64, opacity: isFocused ? 0 : 1, marginRight: isFocused ? -16 : 0 }}
+              animate={{ width: isFocused ? 0 : (pollEnabled ? 104 : 64), opacity: isFocused ? 0 : 1, marginRight: isFocused ? -16 : 0 }}
               transition={{ type: 'spring', stiffness: 320, damping: 28 }}
               style={{ pointerEvents: isFocused ? 'none' : 'auto', gap: 16 }}
             >
-              <button
-                onClick={() => setShowActionsSheet(true)}
-                className="flex-shrink-0 flex items-center justify-center text-tertiary active:text-purple"
-                style={{ width: 24, height: 24 }}
-                aria-label="More options"
-              >
-                <PlusBox style={{ width: 24, height: 24 }} aria-hidden="true" />
-              </button>
               <button
                 onClick={() => setShowGifPicker(true)}
                 className="flex-shrink-0 flex items-center justify-center text-tertiary active:text-purple"
@@ -1552,6 +1548,24 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
               >
                 <GifIcon style={{ width: 24, height: 24 }} aria-hidden="true" />
               </button>
+              <button
+                onClick={() => chatImageInputRef.current?.click()}
+                className="flex-shrink-0 flex items-center justify-center text-tertiary active:text-purple"
+                style={{ width: 24, height: 24 }}
+                aria-label="Upload photo"
+              >
+                <Attachment style={{ width: 24, height: 24 }} aria-hidden="true" />
+              </button>
+              {pollEnabled && (
+                <button
+                  onClick={() => setShowPollCreator(true)}
+                  className="flex-shrink-0 flex items-center justify-center text-tertiary active:text-purple"
+                  style={{ width: 24, height: 24 }}
+                  aria-label="Create poll"
+                >
+                  <Chart style={{ width: 24, height: 24 }} aria-hidden="true" />
+                </button>
+              )}
             </motion.div>
 
             {/* Input container — outline turns purple on focus */}
@@ -1845,17 +1859,6 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
           <GifPickerSheet
             onSelect={(gifUrl) => { setShowGifPicker(false); void sendGif(gifUrl) }}
             onClose={() => setShowGifPicker(false)}
-          />
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {showActionsSheet && (
-          <InputActionsSheet
-            showUploadPhoto={true}
-            onUploadPhoto={() => chatImageInputRef.current?.click()}
-            onCreatePoll={() => setShowPollCreator(true)}
-            onClose={() => setShowActionsSheet(false)}
           />
         )}
       </AnimatePresence>
