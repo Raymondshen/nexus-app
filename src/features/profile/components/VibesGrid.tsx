@@ -63,8 +63,7 @@ function VinylTrack({
         style={{
           width:        105,
           height:       105,
-          borderRadius: 56,   /* --x15: 56px → full circle */
-          padding:      8,
+          borderRadius: 56,
         }}
         aria-label={note.og_title ?? 'Open link'}
       >
