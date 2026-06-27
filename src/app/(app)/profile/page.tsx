@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { unstable_cache } from 'next/cache'
 import { createClient, createServiceClient } from '@/shared/supabase/server'
 import { ProfileClient } from '@/features/profile/screens/ProfileClient'
-import type { PublicNote, BoardSection, ProfilePhoto } from '@/types'
+import type { PublicNote, ProfilePhoto } from '@/types'
 
 async function fetchInviterUsername(userId: string): Promise<string | null> {
   const service = createServiceClient()
@@ -27,10 +27,10 @@ function getCachedProfile(userId: string) {
       const supabase = createServiceClient()
       const { data } = await supabase
         .from('profiles')
-        .select('username, avatar_url, avatar_class, is_dev, created_at, custom_avatar, status, background_url')
+        .select('username, avatar_url, is_dev, created_at, custom_avatar, status, background_url')
         .eq('id', userId)
         .single()
-      return data as { username: string; avatar_url: string | null; avatar_class: string | null; is_dev: boolean; created_at: string; custom_avatar: boolean; status: string | null; background_url: string | null } | null
+      return data as { username: string; avatar_url: string | null; is_dev: boolean; created_at: string; custom_avatar: boolean; status: string | null; background_url: string | null } | null
     },
     [`profile:${userId}`],
     { tags: [`profile:${userId}`], revalidate: 60 }
@@ -44,7 +44,7 @@ export default async function ProfilePage() {
   const user = session.user
 
   // Batch 1 — everything except board data (board needs crew IDs first)
-  const [profile, messagesResult, membershipsResult, inviterUsername, pendingDeletion, coinsResult, friendshipXPResult, photosResult] = await Promise.all([
+  const [profile, messagesResult, membershipsResult, inviterUsername, friendshipXPResult, photosResult] = await Promise.all([
     getCachedProfile(user.id),
     supabase
       .from('messages')
@@ -56,16 +56,6 @@ export default async function ProfilePage() {
       .select('crew_id')
       .eq('user_id', user.id),
     fetchInviterUsername(user.id),
-    supabase
-      .from('pending_deletions')
-      .select('delete_at')
-      .eq('user_id', user.id)
-      .maybeSingle(),
-    supabase
-      .from('profiles')
-      .select('coins')
-      .eq('id', user.id)
-      .single(),
     supabase
       .from('friendship_xp')
       .select('total_xp')
@@ -96,8 +86,7 @@ export default async function ProfilePage() {
   }
 
   // Batch 2 — notes from all crews (global vibes view, no sections)
-  let initialNotes: PublicNote[]       = []
-  const initialSections: BoardSection[] = []
+  let initialNotes: PublicNote[] = []
   const notesCrewIds = notesCrews.map(c => c.id)
 
   if (notesCrewIds.length) {
@@ -111,35 +100,26 @@ export default async function ProfilePage() {
     initialNotes = (notesResult.data ?? []) as unknown as PublicNote[]
   }
 
-  const pendingDeleteAt   = (pendingDeletion.data as { delete_at?: string } | null)?.delete_at ?? null
   const memberSinceYear   = profile?.created_at ? new Date(profile.created_at).getFullYear().toString() : ''
   const totalMessages     = messagesResult.count ?? 0
   const groupChats        = crewIds.length
-  const coins             = (coinsResult.data as { coins?: number } | null)?.coins ?? 0
   const totalFriendshipXP = (friendshipXPResult.data ?? []).reduce((sum, r) => sum + ((r as { total_xp: number }).total_xp ?? 0), 0)
   const initialPhotos     = (photosResult.data ?? []) as unknown as ProfilePhoto[]
 
   return (
     <ProfileClient
       userId={user.id}
-      userEmail={user.email ?? ''}
       initialUsername={profile?.username ?? ''}
       avatarUrl={profile?.avatar_url ?? null}
-      avatarClass={profile?.avatar_class ?? null}
-      customAvatar={profile?.custom_avatar === true}
       backgroundUrl={profile?.background_url ?? null}
       isDev={profile?.is_dev === true}
-      isGuest={user.is_anonymous === true}
       memberSinceYear={memberSinceYear}
       totalMessages={totalMessages}
       groupChats={groupChats}
       inviterUsername={inviterUsername}
       initialStatus={profile?.status ?? null}
-      pendingDeleteAt={pendingDeleteAt}
-      coins={coins}
       totalFriendshipXP={totalFriendshipXP}
       initialNotes={initialNotes}
-      initialSections={initialSections}
       notesCrews={notesCrews}
       initialPhotos={initialPhotos}
     />

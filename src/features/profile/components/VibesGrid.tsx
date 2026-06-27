@@ -275,6 +275,18 @@ function VinylTrack({
             <div style={{ position: 'absolute', inset: 0, background: 'var(--color-surface)', borderRadius: 56 }} />
           )}
 
+          {/* Glass gradient — darkens bottom so label text is legible */}
+          <div
+            aria-hidden
+            style={{
+              position:     'absolute',
+              inset:        0,
+              borderRadius: 56,
+              background:   'linear-gradient(to bottom, rgba(0,0,0,0) 40%, rgba(0,0,0,0.75) 100%)',
+              pointerEvents:'none',
+            }}
+          />
+
           {/* Center hole — in-flow, centered by parent flex */}
           <div
             className="relative flex-shrink-0"
@@ -289,7 +301,7 @@ function VinylTrack({
         </a>
       </div>
 
-      {/* Glass label — transparent overlay at disc bottom; text floats over the spinning art */}
+      {/* Glass label — floats over the darkened bottom of the disc */}
       <div
         className="absolute bottom-0 left-0 w-full flex flex-col items-center justify-center"
         style={{ padding: 8 }}
