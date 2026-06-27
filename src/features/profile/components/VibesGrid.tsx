@@ -52,23 +52,7 @@ function VinylTrack({
 }) {
   return (
     // Track column — relative so the label can be positioned inside
-    <div className="relative flex flex-col items-center min-w-0 flex-1 overflow-hidden">
-
-      {/* Ambient fill — blurred copy of the same image colors the space around the disc */}
-      {note.og_image_url && (
-        <div
-          aria-hidden
-          style={{
-            position:           'absolute',
-            inset:              -20,
-            backgroundImage:    `url(${note.og_image_url})`,
-            backgroundSize:     'cover',
-            backgroundPosition: 'center',
-            filter:             'blur(24px) saturate(1.3)',
-            opacity:            0.9,
-          }}
-        />
-      )}
+    <div className="relative flex flex-col items-center min-w-0 flex-1">
 
       {/* Spinning disc — the <a> IS the disc container */}
       <a
@@ -83,6 +67,21 @@ function VinylTrack({
         }}
         aria-label={note.og_title ?? 'Open link'}
       >
+        {/* Ambient fill — blurred image as background, clipped to the disc circle by overflow-hidden */}
+        {note.og_image_url && (
+          <div
+            aria-hidden
+            style={{
+              position:           'absolute',
+              inset:              -20,
+              backgroundImage:    `url(${note.og_image_url})`,
+              backgroundSize:     'cover',
+              backgroundPosition: 'center',
+              filter:             'blur(24px) saturate(1.3)',
+            }}
+          />
+        )}
+
         {/* Album art — fills the entire disc */}
         {note.og_image_url ? (
           // eslint-disable-next-line @next/next/no-img-element
