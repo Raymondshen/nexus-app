@@ -401,6 +401,7 @@ Server: verifies friendship → `get_or_create_dm(friendId)` → renders chat. `
 Music link cards shown as spinning vinyl discs. `VibesGrid` (`src/features/profile/components/VibesGrid.tsx`).
 - Only YouTube, Spotify, Apple Music, SoundCloud URLs accepted (`MUSIC_DOMAINS` set + `isMusicUrl`)
 - `VinylTrack`: 105×105 circle (`borderRadius: 56, overflow-hidden`) with album art (`absolute inset-0 object-cover`) + 8×8 center hole (`bg-background, border-border`) + glass label (`absolute bottom-0 left-0 w-full p-8`, fully transparent bg) with silkscreen 8px title text truncated. No ambient fill — disc shows crisp circular album art only.
+- **Pin**: owner long-press (500ms) → `VinylActionSheet` ("Open Link" / "Pin as Favorite" / "Unpin"). Pinned ID stored in `localStorage` (`nexus_vibes_pinned`). Pinned note is always sorted to index 0 via `orderedNotes` (`useMemo`). Only the pinned disc gets `animate-vinyl`; all others are static. Toggling pin via `handleTogglePin` in `VibesGrid`.
 - `AddSlot`: same circle dimensions, dashed border, pixel + icon centered
 - `AddVibeSheet`: standard bottom sheet; validates URL → `addNoteAction` → prepends to grid
 - Rows of 3 (`flex gap-8`); incomplete rows padded with `flex-1` spacers

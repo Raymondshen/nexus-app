@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useEffect } from 'react'
+import { useState, useTransition, useEffect, useRef, useMemo } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Close } from 'pixelarticons/react/Close'
 import { addNoteAction } from '@/app/(app)/profile/notes/actions'
@@ -34,28 +34,140 @@ function isMusicNote(n: PublicNote): boolean {
   return !!n.source_domain && MUSIC_DOMAINS.has(normHost(n.source_domain))
 }
 
+const VIBES_PINNED_KEY = 'nexus_vibes_pinned'
+
+// ─── VinylActionSheet — long-press context menu ───────────────────────────────
+
+function VinylActionSheet({
+  note,
+  isPinned,
+  onTogglePin,
+  onClose,
+}: {
+  note:         PublicNote
+  isPinned:     boolean
+  onTogglePin:  () => void
+  onClose:      () => void
+}) {
+  return (
+    <>
+      {/* Backdrop */}
+      <motion.div
+        className="fixed inset-0 z-[60] bg-black/60"
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        onClick={onClose}
+      />
+
+      {/* Sheet */}
+      <motion.div
+        className="fixed bottom-0 left-0 right-0 z-[70] bg-[var(--color-surface-sheet)] rounded-tl-[16px] rounded-tr-[16px]"
+        initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+        transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+        drag="y"
+        dragConstraints={{ top: 0, bottom: 0 }}
+        dragElastic={{ top: 0, bottom: 1 }}
+        onDragEnd={(_, info) => { if (info.offset.y > 80 || info.velocity.y > 400) onClose() }}
+        onClick={(e) => e.stopPropagation()}
+        style={{ paddingBottom: 'max(28px, env(safe-area-inset-bottom))' }}
+      >
+        <div className="flex flex-col" style={{ padding: 24, gap: 4 }}>
+
+          {/* Track title eyebrow */}
+          {note.og_title && (
+            <p
+              className="font-silkscreen leading-none text-tertiary"
+              style={{ fontSize: 'var(--text-mini)', marginBottom: 12 }}
+            >
+              {note.og_title}
+            </p>
+          )}
+
+          {/* Open Link */}
+          <button
+            className="flex items-center text-left w-full"
+            style={{ height: 48 }}
+            onClick={() => { window.open(note.url, '_blank', 'noopener,noreferrer'); onClose() }}
+          >
+            <span
+              className="font-body font-medium text-primary"
+              style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
+            >
+              Open Link
+            </span>
+          </button>
+
+          {/* Pin / Unpin */}
+          <button
+            className="flex items-center text-left w-full"
+            style={{ height: 48 }}
+            onClick={() => { onTogglePin(); onClose() }}
+          >
+            <span
+              className="font-body font-medium"
+              style={{
+                fontSize:              'var(--text-sm)',
+                fontVariationSettings: '"opsz" 14',
+                color: isPinned ? 'var(--color-danger)' : 'var(--color-purple)',
+              }}
+            >
+              {isPinned ? 'Unpin' : 'Pin as Favorite'}
+            </span>
+          </button>
+
+        </div>
+      </motion.div>
+    </>
+  )
+}
+
 // ─── VinylTrack — spinning disc + floating title label (Figma 329:3298) ──────
 
 function VinylTrack({
   note,
+  isPinned,
+  isOwner,
+  onTogglePin,
 }: {
-  note: PublicNote
+  note:        PublicNote
+  isPinned:    boolean
+  isOwner:     boolean
+  onTogglePin: () => void
 }) {
-  return (
-    // Track column — relative so the label can be positioned inside
-    <div className="relative flex flex-col items-center min-w-0 flex-1">
+  const [showActions, setShowActions] = useState(false)
+  const timerRef  = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const firedRef  = useRef(false)
 
+  function onPointerDown() {
+    firedRef.current = false
+    timerRef.current = setTimeout(() => {
+      firedRef.current = true
+      setShowActions(true)
+    }, 500)
+  }
+
+  function cancelPress() {
+    if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null }
+  }
+
+  function handleLinkClick(e: React.MouseEvent) {
+    if (firedRef.current) { e.preventDefault(); firedRef.current = false }
+  }
+
+  return (
+    <div
+      className="relative flex flex-col items-center min-w-0 flex-1"
+      onPointerDown={isOwner ? onPointerDown : undefined}
+      onPointerUp={isOwner ? cancelPress : undefined}
+      onPointerLeave={isOwner ? cancelPress : undefined}
+    >
       {/* Spinning disc */}
       <a
         href={note.url}
         target="_blank"
         rel="noopener noreferrer"
-        className="animate-vinyl relative flex items-center justify-center overflow-hidden flex-shrink-0"
-        style={{
-          width:        105,
-          height:       105,
-          borderRadius: 56,
-        }}
+        onClick={handleLinkClick}
+        className={`${isPinned ? 'animate-vinyl' : ''} relative flex items-center justify-center overflow-hidden flex-shrink-0`}
+        style={{ width: 105, height: 105, borderRadius: 56 }}
         aria-label={note.og_title ?? 'Open link'}
       >
         {/* Album art — fills the circle */}
@@ -83,11 +195,11 @@ function VinylTrack({
         <div
           className="relative flex-shrink-0"
           style={{
-            width:        8,
-            height:       8,
+            width:      8,
+            height:     8,
             borderRadius: 56,
-            background:   'var(--color-background)',
-            border:       '1px solid var(--color-border)',
+            background: 'var(--color-background)',
+            border:     '1px solid var(--color-border)',
           }}
         />
       </a>
@@ -99,17 +211,22 @@ function VinylTrack({
       >
         <p
           className="font-silkscreen leading-none text-primary text-center w-full"
-          style={{
-            fontSize:     8,
-            overflow:     'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace:   'nowrap',
-          }}
+          style={{ fontSize: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
         >
           {note.og_title ?? note.url}
         </p>
       </div>
 
+      <AnimatePresence>
+        {showActions && (
+          <VinylActionSheet
+            note={note}
+            isPinned={isPinned}
+            onTogglePin={onTogglePin}
+            onClose={() => setShowActions(false)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   )
 }
@@ -133,10 +250,7 @@ function AddSlot({ onClick }: { onClick: () => void }) {
       >
         {/* Pixel + icon — 24×24 outer, icon at inset ~16.67% */}
         <div className="relative overflow-hidden flex-shrink-0" style={{ width: 24, height: 24 }}>
-          <div
-            className="absolute"
-            style={{ inset: '16.67%' }}
-          >
+          <div className="absolute" style={{ inset: '16.67%' }}>
             <svg
               viewBox="0 0 14 14"
               fill="none"
@@ -332,16 +446,38 @@ export interface VibesGridProps {
 export function VibesGrid({ initialNotes, crews, isOwner }: VibesGridProps) {
   const [notes,   setNotes]   = useState<PublicNote[]>(() => initialNotes.filter(isMusicNote))
   const [showAdd, setShowAdd] = useState(false)
+  const [pinnedId, setPinnedId] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null
+    return localStorage.getItem(VIBES_PINNED_KEY)
+  })
 
   function handleAdd(note: PublicNote) {
     setNotes(prev => [note, ...prev])
   }
 
+  function handleTogglePin(noteId: string) {
+    setPinnedId(prev => {
+      const next = prev === noteId ? null : noteId
+      if (next) localStorage.setItem(VIBES_PINNED_KEY, next)
+      else localStorage.removeItem(VIBES_PINNED_KEY)
+      return next
+    })
+  }
+
   const canAdd = isOwner && crews.length > 0
 
-  // Build flat item list: filled notes + optional add slot at end
+  // Pinned note always floats to the first slot
+  const orderedNotes = useMemo(() => {
+    if (!pinnedId) return notes
+    const idx = notes.findIndex(n => n.id === pinnedId)
+    if (idx <= 0) return notes
+    const arr = [...notes]
+    arr.unshift(arr.splice(idx, 1)[0])
+    return arr
+  }, [notes, pinnedId])
+
   const items: Array<PublicNote | 'add'> = [
-    ...notes,
+    ...orderedNotes,
     ...(canAdd ? (['add'] as const) : []),
   ]
 
@@ -358,7 +494,7 @@ export function VibesGrid({ initialNotes, crews, isOwner }: VibesGridProps) {
     )
   }
 
-  // Chunk items into rows of 3 to match Figma row-based flex layout
+  // Chunk items into rows of 3
   const rows: Array<typeof items> = []
   for (let i = 0; i < items.length; i += 3) {
     rows.push(items.slice(i, i + 3))
@@ -375,26 +511,27 @@ export function VibesGrid({ initialNotes, crews, isOwner }: VibesGridProps) {
           paddingBottom: 'max(env(safe-area-inset-bottom), 24px)',
         }}
       >
-        {/* Outer flex-col: gap-8 between rows (matches Figma inner content container) */}
         <div className="flex flex-col w-full" style={{ gap: 8 }}>
           {rows.map((row, ri) => (
-            // Row: flex gap-8 items-start overflow-clip shrink-0 w-full
             <div
               key={ri}
               className="flex items-start w-full overflow-hidden flex-shrink-0"
               style={{ gap: 8 }}
             >
-              {row.map((item, ci) =>
+              {row.map((item) =>
                 item === 'add' ? (
                   <AddSlot key="__add" onClick={() => setShowAdd(true)} />
                 ) : (
                   <VinylTrack
                     key={item.id}
                     note={item}
+                    isPinned={pinnedId === item.id}
+                    isOwner={isOwner}
+                    onTogglePin={() => handleTogglePin(item.id)}
                   />
                 )
               )}
-              {/* Pad incomplete last row so tracks stay left-aligned and same width */}
+              {/* Pad incomplete last row so tracks stay left-aligned at consistent width */}
               {row.length === 1 && <div className="flex-1 min-w-0" />}
               {row.length === 1 && <div className="flex-1 min-w-0" />}
               {row.length === 2 && <div className="flex-1 min-w-0" />}
