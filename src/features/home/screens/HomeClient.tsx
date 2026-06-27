@@ -1240,7 +1240,7 @@ function SwipeableCrewCard({
       longPressRef.current  = null
       longPressedRef.current = true
       onLongPress()
-    }, 2000)
+    }, 500)
   }
 
   function handlePointerMove(e: React.PointerEvent) {
