@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useEffect, useRef, useMemo } from 'react'
+import { useState, useTransition, useEffect, useRef, useMemo, useCallback } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Close } from 'pixelarticons/react/Close'
 import { addNoteAction } from '@/app/(app)/profile/notes/actions'
@@ -32,6 +32,20 @@ function isMusicUrl(url: string): boolean {
 
 function isMusicNote(n: PublicNote): boolean {
   return !!n.source_domain && MUSIC_DOMAINS.has(normHost(n.source_domain))
+}
+
+// YouTube hqdefault thumbnails are 480×360 (4:3) with black bars baked in.
+// Upgrade to maxresdefault (1280×720, 16:9, no bars) at render time.
+function resolveYtThumbnail(url: string): string {
+  try {
+    if (new URL(url).hostname !== 'i.ytimg.com') return url
+  } catch { return url }
+  return url.replace(/\/(hq|mq|sd|)default\.jpg(\?.*)?$/, '/maxresdefault.jpg')
+}
+
+function ytFallback(url: string): string {
+  // maxresdefault may 404 for older videos — fall back to mqdefault (320×180, 16:9)
+  return url.replace('/maxresdefault.jpg', '/mqdefault.jpg')
 }
 
 const VIBES_PINNED_KEY = 'nexus_vibes_pinned'
@@ -134,8 +148,19 @@ function VinylTrack({
   onTogglePin: () => void
 }) {
   const [showActions, setShowActions] = useState(false)
+  const [imgSrc, setImgSrc] = useState<string | null>(() =>
+    note.og_image_url ? resolveYtThumbnail(note.og_image_url) : null
+  )
   const timerRef  = useRef<ReturnType<typeof setTimeout> | null>(null)
   const firedRef  = useRef(false)
+
+  const handleImgError = useCallback(() => {
+    setImgSrc(prev => {
+      if (!prev) return prev
+      if (prev.includes('/maxresdefault.jpg')) return ytFallback(prev)
+      return prev
+    })
+  }, [])
 
   function onPointerDown() {
     firedRef.current = false
@@ -171,20 +196,22 @@ function VinylTrack({
         aria-label={note.og_title ?? 'Open link'}
       >
         {/* Album art — fills the circle */}
-        {note.og_image_url ? (
+        {imgSrc ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={note.og_image_url}
+            src={imgSrc}
             alt=""
+            onError={handleImgError}
             style={{
-              position:      'absolute',
-              inset:         0,
-              width:         '100%',
-              height:        '100%',
-              objectFit:     'cover',
-              pointerEvents: 'none',
-              borderRadius:  56,
-              maxWidth:      'none',
+              position:       'absolute',
+              inset:          0,
+              width:          '100%',
+              height:         '100%',
+              objectFit:      'cover',
+              objectPosition: 'center',
+              pointerEvents:  'none',
+              borderRadius:   56,
+              maxWidth:       'none',
             }}
           />
         ) : (
