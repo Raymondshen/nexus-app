@@ -3,7 +3,7 @@
 import { useState, useTransition, useEffect } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Close } from 'pixelarticons/react/Close'
-import { addNoteAction, deleteNoteAction } from '@/app/(app)/profile/notes/actions'
+import { addNoteAction } from '@/app/(app)/profile/notes/actions'
 import type { PublicNote } from '@/types'
 
 // ─── Music platform validation ────────────────────────────────────────────────
@@ -47,26 +47,11 @@ function isMusicNote(n: PublicNote): boolean {
 
 function VinylTrack({
   note,
-  isOwner,
-  onDelete,
 }: {
-  note:     PublicNote
-  isOwner:  boolean
-  onDelete: (id: string) => void
+  note: PublicNote
 }) {
-  const [, startDelete] = useTransition()
-
-  function handleDelete(e: React.MouseEvent) {
-    e.preventDefault()
-    e.stopPropagation()
-    startDelete(async () => {
-      await deleteNoteAction(note.id)
-      onDelete(note.id)
-    })
-  }
-
   return (
-    // Track column — relative so the label and delete button can be positioned inside
+    // Track column — relative so the label can be positioned inside
     <div className="relative flex flex-col items-center min-w-0 flex-1">
 
       {/* Spinning disc — the <a> IS the disc container */}
@@ -141,25 +126,6 @@ function VinylTrack({
         </p>
       </div>
 
-      {/* Delete button — owner only, static (outside the spinning disc) */}
-      {isOwner && (
-        <button
-          onClick={handleDelete}
-          aria-label="Remove vibe"
-          className="absolute z-10 flex items-center justify-center"
-          style={{
-            top:        -4,
-            right:      -4,
-            width:      18,
-            height:     18,
-            borderRadius: '50%',
-            background: '#ef4444',
-            border:     '1px solid rgba(255,255,255,0.15)',
-          }}
-        >
-          <Close style={{ width: 10, height: 10, color: 'white' }} />
-        </button>
-      )}
     </div>
   )
 }
@@ -392,10 +358,6 @@ export function VibesGrid({ initialNotes, crews, isOwner }: VibesGridProps) {
   const [notes,   setNotes]   = useState<PublicNote[]>(() => initialNotes.filter(isMusicNote))
   const [showAdd, setShowAdd] = useState(false)
 
-  function handleDelete(id: string) {
-    setNotes(prev => prev.filter(n => n.id !== id))
-  }
-
   function handleAdd(note: PublicNote) {
     setNotes(prev => [note, ...prev])
   }
@@ -454,8 +416,6 @@ export function VibesGrid({ initialNotes, crews, isOwner }: VibesGridProps) {
                   <VinylTrack
                     key={item.id}
                     note={item}
-                    isOwner={isOwner}
-                    onDelete={handleDelete}
                   />
                 )
               )}
