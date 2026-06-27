@@ -34,7 +34,16 @@ function isMusicNote(n: PublicNote): boolean {
   return !!n.source_domain && MUSIC_DOMAINS.has(normHost(n.source_domain))
 }
 
-// ─── VinylTrack — single spinning disc + title ────────────────────────────────
+// ─── VinylTrack — spinning disc + floating title label ───────────────────────
+//
+// Structure (matches Figma node 329:3298):
+//   track  — relative, flex-col, items-center, flex-1
+//     disc  — the spinning <a>: 105×105, rounded-[56px], flex center, p-8, overflow-hidden
+//       img  — absolute inset-0, object-cover (album art)
+//       hole — relative in flex flow, 8×8, black, bordered (center vinyl hole)
+//     label — absolute bottom-0 left-0, w-[115px], p-8, transparent bg (glass effect)
+//       p   — silkscreen 8px, truncated, centered
+//     ×btn  — absolute top-right, owner only
 
 function VinylTrack({
   note,
@@ -57,155 +66,145 @@ function VinylTrack({
   }
 
   return (
-    <div className="flex flex-col items-center w-full" style={{ minWidth: 0 }}>
-      {/* Relative wrapper — positions delete button outside the spinning element */}
-      <div className="relative flex-shrink-0" style={{ width: 105, height: 105 }}>
+    // Track column — relative so the label and delete button can be positioned inside
+    <div className="relative flex flex-col items-center min-w-0 flex-1">
 
-        {/* Spinning disc (as <a>) */}
-        <a
-          href={note.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="animate-vinyl absolute inset-0 overflow-hidden flex items-center justify-center"
-          style={{ borderRadius: '50%' }}
-          aria-label={note.og_title ?? 'Open link'}
-        >
-          {note.og_image_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={note.og_image_url}
-              alt=""
-              style={{
-                position: 'absolute', inset: 0,
-                width: '100%', height: '100%',
-                objectFit: 'cover',
-                pointerEvents: 'none',
-              }}
-            />
-          ) : (
-            <div style={{ position: 'absolute', inset: 0, background: '#1a1a1a' }} />
-          )}
-
-          {/* Center hole — rendered last so it sits on top of the image */}
-          <div
+      {/* Spinning disc — the <a> IS the disc container */}
+      <a
+        href={note.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="animate-vinyl relative flex items-center justify-center overflow-hidden flex-shrink-0"
+        style={{
+          width:        105,
+          height:       105,
+          borderRadius: 56,   /* --x15: 56px → full circle */
+          padding:      8,
+        }}
+        aria-label={note.og_title ?? 'Open link'}
+      >
+        {/* Album art — fills the entire disc */}
+        {note.og_image_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={note.og_image_url}
+            alt=""
             style={{
-              position: 'absolute',
-              width: 8, height: 8,
-              borderRadius: '50%',
-              background: 'black',
-              border: '1px solid #27272a',
-              flexShrink: 0,
+              position:      'absolute',
+              inset:         0,
+              width:         '100%',
+              height:        '100%',
+              objectFit:     'cover',
+              pointerEvents: 'none',
+              borderRadius:  56,
+              maxWidth:      'none',
             }}
           />
-        </a>
-
-        {/* Delete button — sibling of the spinning <a>, not inside it */}
-        {isOwner && (
-          <button
-            onClick={handleDelete}
-            aria-label="Remove vibe"
-            style={{
-              position: 'absolute', top: -4, right: -4, zIndex: 10,
-              width: 18, height: 18,
-              borderRadius: '50%',
-              background: '#ef4444',
-              border: '1px solid rgba(255,255,255,0.15)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}
-          >
-            <Close style={{ width: 10, height: 10, color: 'white' }} />
-          </button>
+        ) : (
+          <div style={{ position: 'absolute', inset: 0, background: 'var(--color-surface)', borderRadius: 56 }} />
         )}
-      </div>
 
-      {/* Title strip */}
+        {/* Center hole — relative (in-flow), centered by parent flex */}
+        <div
+          className="relative flex-shrink-0"
+          style={{
+            width:        8,
+            height:       8,
+            borderRadius: 56,
+            background:   'var(--color-background)',
+            border:       '1px solid var(--color-border)',
+          }}
+        />
+      </a>
+
+      {/* Title label — transparent glass overlay at bottom of track */}
+      {/* bg: rgba(0,0,0,0) = fully transparent; text floats over the spinning disc */}
       <div
+        className="absolute bottom-0 left-0 flex flex-col items-center justify-center"
         style={{
-          marginTop: 4,
-          borderTop: '1px solid var(--color-border)',
-          borderBottom: '1px solid var(--color-border)',
-          background: 'black',
-          padding: '4px',
-          width: '100%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
+          width:      115,
+          padding:    8,
+          background: 'rgba(0,0,0,0)',
         }}
       >
-        <span
-          className="font-silkscreen leading-none text-primary text-center"
+        <p
+          className="font-silkscreen leading-none text-primary text-center w-full"
           style={{
-            fontSize: 'var(--text-mini)',
-            display: 'block',
-            width: '100%',
-            overflow: 'hidden',
+            fontSize:     8,
+            overflow:     'hidden',
             textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
+            whiteSpace:   'nowrap',
+            wordBreak:    'break-word',
           }}
         >
           {note.og_title ?? note.url}
-        </span>
+        </p>
       </div>
+
+      {/* Delete button — owner only, static (outside the spinning disc) */}
+      {isOwner && (
+        <button
+          onClick={handleDelete}
+          aria-label="Remove vibe"
+          className="absolute z-10 flex items-center justify-center"
+          style={{
+            top:        -4,
+            right:      -4,
+            width:      18,
+            height:     18,
+            borderRadius: '50%',
+            background: '#ef4444',
+            border:     '1px solid rgba(255,255,255,0.15)',
+          }}
+        >
+          <Close style={{ width: 10, height: 10, color: 'white' }} />
+        </button>
+      )}
     </div>
   )
 }
 
-// ─── AddSlot — dashed circle placeholder ─────────────────────────────────────
+// ─── AddSlot — empty dashed disc placeholder (no label, same size as disc) ───
+//
+// Matches Figma node 329:3311:
+//   105×105 circle, bg-surface, border-dashed border-border, overflow-clip
+//   pixel + icon: 24×24 wrapper, icon at inset-[16.67%]
 
 function AddSlot({ onClick }: { onClick: () => void }) {
   return (
-    <button
-      onClick={onClick}
-      className="flex flex-col items-center w-full"
-      style={{ minWidth: 0 }}
-      aria-label="Add music link"
-    >
-      <div
+    <div className="relative flex flex-col items-center min-w-0 flex-1">
+      <button
+        onClick={onClick}
+        className="relative flex items-center justify-center overflow-hidden flex-shrink-0"
         style={{
-          width: 100, height: 100,
-          borderRadius: '50%',
-          border: '1px dashed var(--color-border)',
-          background: 'var(--color-surface)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          flexShrink: 0,
+          width:        105,
+          height:       105,
+          borderRadius: 56,
+          background:   'var(--color-surface)',
+          border:       '1px dashed var(--color-border)',
         }}
+        aria-label="Add music link"
       >
-        {/* Pixel + icon */}
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
-          <rect x="7" y="2" width="2" height="12" fill="var(--color-tertiary)" />
-          <rect x="2" y="7" width="12" height="2" fill="var(--color-tertiary)" />
-        </svg>
-      </div>
-
-      <div
-        style={{
-          marginTop: 4,
-          borderTop: '1px solid var(--color-border)',
-          borderBottom: '1px solid var(--color-border)',
-          background: 'black',
-          padding: '4px',
-          width: '100%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <span
-          className="font-silkscreen leading-none text-center"
-          style={{
-            fontSize: 'var(--text-mini)',
-            color: 'var(--color-tertiary)',
-            display: 'block',
-            width: '100%',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          add a vibe
-        </span>
-      </div>
-    </button>
+        {/* Pixel + icon — 24×24 outer, icon at inset ~16.67% */}
+        <div className="relative overflow-hidden flex-shrink-0" style={{ width: 24, height: 24 }}>
+          <div
+            className="absolute"
+            style={{ inset: '16.67%' }}
+          >
+            <svg
+              viewBox="0 0 14 14"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              aria-hidden
+              style={{ width: '100%', height: '100%' }}
+            >
+              <rect x="6"  y="0"  width="2" height="14" fill="var(--color-tertiary)" />
+              <rect x="0"  y="6"  width="14" height="2" fill="var(--color-tertiary)" />
+            </svg>
+          </div>
+        </div>
+      </button>
+    </div>
   )
 }
 
@@ -355,9 +354,9 @@ function AddVibeSheet({
                 disabled={adding || !url.trim()}
                 className="w-full flex items-center justify-center disabled:opacity-50"
                 style={{
-                  height: 48,
+                  height:     48,
                   background: 'var(--color-purple)',
-                  boxShadow: '4px 4px 0 rgba(168,85,247,0.5)',
+                  boxShadow:  '4px 4px 0 rgba(168,85,247,0.5)',
                 }}
               >
                 <span
@@ -377,6 +376,11 @@ function AddVibeSheet({
 }
 
 // ─── VibesGrid (main export) ──────────────────────────────────────────────────
+//
+// Outer layout matches Figma node 285:1866 / 285:1867:
+//   body  — pt-24 px-16, flex-col gap-8 (the outer padding + row gaps)
+//   rows  — flex gap-8 items-start overflow-clip shrink-0 w-full
+//   tracks — flex-1 flex-col items-center (filled by VinylTrack / AddSlot)
 
 export interface VibesGridProps {
   initialNotes: PublicNote[]
@@ -398,7 +402,7 @@ export function VibesGrid({ initialNotes, crews, isOwner }: VibesGridProps) {
 
   const canAdd = isOwner && crews.length > 0
 
-  // Build grid items: existing vibes + one add slot for the owner
+  // Build flat item list: filled notes + optional add slot at end
   const items: Array<PublicNote | 'add'> = [
     ...notes,
     ...(canAdd ? (['add'] as const) : []),
@@ -417,34 +421,50 @@ export function VibesGrid({ initialNotes, crews, isOwner }: VibesGridProps) {
     )
   }
 
+  // Chunk items into rows of 3 to match Figma row-based flex layout
+  const rows: Array<typeof items> = []
+  for (let i = 0; i < items.length; i += 3) {
+    rows.push(items.slice(i, i + 3))
+  }
+
   return (
     <>
       <div
         className="h-full overflow-y-auto nexus-scroll"
         style={{
-          padding: '24px 16px',
+          paddingTop:    24,
+          paddingLeft:   16,
+          paddingRight:  16,
           paddingBottom: 'max(env(safe-area-inset-bottom), 24px)',
         }}
       >
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(3, 1fr)',
-            gap: 8,
-          }}
-        >
-          {items.map((item) =>
-            item === 'add' ? (
-              <AddSlot key="__add" onClick={() => setShowAdd(true)} />
-            ) : (
-              <VinylTrack
-                key={item.id}
-                note={item}
-                isOwner={isOwner}
-                onDelete={handleDelete}
-              />
-            )
-          )}
+        {/* Outer flex-col: gap-8 between rows (matches Figma inner content container) */}
+        <div className="flex flex-col w-full" style={{ gap: 8 }}>
+          {rows.map((row, ri) => (
+            // Row: flex gap-8 items-start overflow-clip shrink-0 w-full
+            <div
+              key={ri}
+              className="flex items-start w-full overflow-hidden flex-shrink-0"
+              style={{ gap: 8 }}
+            >
+              {row.map((item, ci) =>
+                item === 'add' ? (
+                  <AddSlot key="__add" onClick={() => setShowAdd(true)} />
+                ) : (
+                  <VinylTrack
+                    key={item.id}
+                    note={item}
+                    isOwner={isOwner}
+                    onDelete={handleDelete}
+                  />
+                )
+              )}
+              {/* Pad incomplete last row so tracks stay left-aligned and same width */}
+              {row.length === 1 && <div className="flex-1 min-w-0" />}
+              {row.length === 1 && <div className="flex-1 min-w-0" />}
+              {row.length === 2 && <div className="flex-1 min-w-0" />}
+            </div>
+          ))}
         </div>
       </div>
 
