@@ -222,7 +222,7 @@ function VinylTrack({
           <motion.div
             className="absolute pointer-events-none"
             style={{ inset: '-13px', borderRadius: '50%', overflow: 'hidden' }}
-            animate={{ opacity: [0.5, 0.85, 0.5], scale: [0.97, 1.0, 0.97] }}
+            animate={{ opacity: [0.5, 0.8, 0.5], scale: [0.97, 1.0, 0.97] }}
             transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
