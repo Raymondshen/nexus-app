@@ -52,7 +52,23 @@ function VinylTrack({
 }) {
   return (
     // Track column — relative so the label can be positioned inside
-    <div className="relative flex flex-col items-center min-w-0 flex-1">
+    <div className="relative flex flex-col items-center min-w-0 flex-1 overflow-hidden">
+
+      {/* Ambient fill — blurred copy of the same image colors the space around the disc */}
+      {note.og_image_url && (
+        <div
+          aria-hidden
+          style={{
+            position:           'absolute',
+            inset:              -20,
+            backgroundImage:    `url(${note.og_image_url})`,
+            backgroundSize:     'cover',
+            backgroundPosition: 'center',
+            filter:             'blur(24px) saturate(1.3)',
+            opacity:            0.9,
+          }}
+        />
+      )}
 
       {/* Spinning disc — the <a> IS the disc container */}
       <a
