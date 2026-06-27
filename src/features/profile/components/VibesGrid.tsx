@@ -185,51 +185,80 @@ function VinylTrack({
       onPointerUp={isOwner ? cancelPress : undefined}
       onPointerLeave={isOwner ? cancelPress : undefined}
     >
-      {/* Spinning disc */}
-      <a
-        href={note.url}
-        target="_blank"
-        rel="noopener noreferrer"
-        onClick={handleLinkClick}
-        className={`${isPinned ? 'animate-vinyl' : ''} relative flex items-center justify-center overflow-hidden flex-shrink-0`}
-        style={{ width: 105, height: 105, borderRadius: 56 }}
-        aria-label={note.og_title ?? 'Open link'}
-      >
-        {/* Album art — fills the circle */}
-        {imgSrc ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={imgSrc}
-            alt=""
-            onError={handleImgError}
-            style={{
-              position:       'absolute',
-              inset:          0,
-              width:          '100%',
-              height:         '100%',
-              objectFit:      'cover',
-              objectPosition: 'center',
-              pointerEvents:  'none',
-              borderRadius:   56,
-              maxWidth:       'none',
-            }}
-          />
-        ) : (
-          <div style={{ position: 'absolute', inset: 0, background: 'var(--color-surface)', borderRadius: 56 }} />
+      {/* Disc + glow wrapper — explicit 105×105 block so the glow can position against it */}
+      <div className="relative flex-shrink-0" style={{ width: 105, height: 105 }}>
+
+        {/* Ambient glow for pinned track — blurred album art behind the disc */}
+        {isPinned && imgSrc && (
+          <motion.div
+            className="absolute pointer-events-none"
+            style={{ inset: '-13px', borderRadius: '50%', overflow: 'hidden' }}
+            animate={{ opacity: [0.5, 0.85, 0.5], scale: [0.9, 1.0, 0.9] }}
+            transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={imgSrc}
+              alt=""
+              aria-hidden
+              style={{
+                width:         '100%',
+                height:        '100%',
+                objectFit:     'cover',
+                filter:        'blur(12px) saturate(1.8) brightness(1.1)',
+                transform:     'scale(1.2)',
+                pointerEvents: 'none',
+              }}
+            />
+          </motion.div>
         )}
 
-        {/* Center hole — in-flow, centered by parent flex */}
-        <div
-          className="relative flex-shrink-0"
-          style={{
-            width:      8,
-            height:     8,
-            borderRadius: 56,
-            background: 'var(--color-background)',
-            border:     '1px solid var(--color-border)',
-          }}
-        />
-      </a>
+        {/* Spinning disc */}
+        <a
+          href={note.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={handleLinkClick}
+          className={`${isPinned ? 'animate-vinyl' : ''} absolute inset-0 flex items-center justify-center overflow-hidden`}
+          style={{ borderRadius: 56 }}
+          aria-label={note.og_title ?? 'Open link'}
+        >
+          {/* Album art — fills the circle */}
+          {imgSrc ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={imgSrc}
+              alt=""
+              onError={handleImgError}
+              style={{
+                position:       'absolute',
+                inset:          0,
+                width:          '100%',
+                height:         '100%',
+                objectFit:      'cover',
+                objectPosition: 'center',
+                pointerEvents:  'none',
+                borderRadius:   56,
+                maxWidth:       'none',
+              }}
+            />
+          ) : (
+            <div style={{ position: 'absolute', inset: 0, background: 'var(--color-surface)', borderRadius: 56 }} />
+          )}
+
+          {/* Center hole — in-flow, centered by parent flex */}
+          <div
+            className="relative flex-shrink-0"
+            style={{
+              width:        8,
+              height:       8,
+              borderRadius: 56,
+              background:   'var(--color-background)',
+              border:       '1px solid var(--color-border)',
+            }}
+          />
+        </a>
+      </div>
 
       {/* Glass label — transparent overlay at disc bottom; text floats over the spinning art */}
       <div
@@ -542,7 +571,7 @@ export function VibesGrid({ initialNotes, crews, isOwner }: VibesGridProps) {
           {rows.map((row, ri) => (
             <div
               key={ri}
-              className="flex items-start w-full overflow-hidden flex-shrink-0"
+              className="flex items-start w-full flex-shrink-0"
               style={{ gap: 8 }}
             >
               {row.map((item) =>
