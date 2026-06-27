@@ -9,6 +9,7 @@ import { Upload } from 'pixelarticons/react/Upload'
 import { TokeCircle } from 'pixelarticons/react/TokeCircle'
 import { Heart } from 'pixelarticons/react/Heart'
 import { Copy } from 'pixelarticons/react/Copy'
+import { Check } from 'pixelarticons/react/Check'
 import { Message as MessageIcon } from 'pixelarticons/react/Message'
 import { TickerBanner } from '@/shared/components/banners/TickerBanner'
 import { MailRight } from 'pixelarticons/react/MailRight'
@@ -18,7 +19,7 @@ import { createClient } from '@/shared/supabase/client'
 import { leaveCrewAction, createCrewFromHomeAction, joinCrewFromHomeAction, joinSelectClassAction } from '@/app/(app)/home/actions'
 import { spriteIdFor } from '@/shared/components/game/PixelSprite'
 import { CLASS_BASE_STATS } from '@/features/combat/utils/combat'
-import type { CombatClass } from '@/types'
+import type { AvatarClass, CombatClass } from '@/types'
 import { updateCrewImageAction, updateCrewBackgroundImageAction } from '@/app/(app)/chat/actions'
 import { Button } from '@/shared/components/ui/Button'
 import type { CrewSummary } from '@/app/(app)/home/page'
@@ -32,6 +33,7 @@ import { isGemGateOpen } from '@/shared/utils/gems'
 import { GEM_DAILY_LIMIT } from '@/shared/constants/config'
 import { consumeHomeLastMessage } from '@/features/home/utils/homePreviewCache'
 import { resizeImageToBlob } from '@/shared/utils/imageCompress'
+import { getXPInCurrentLevel, getXPForCurrentLevel, getXPProgress } from '@/shared/utils/xp'
 
 export interface FriendSummary {
   id:            string
@@ -1170,16 +1172,21 @@ function SwipeableCrewCard({
   onLeaveRequest,
   openCardId,
   onOpen,
+  onLongPress,
 }: {
   summary:        CrewSummary
   onTap:          () => void
   onLeaveRequest: () => void
   openCardId:     string | null
   onOpen:         (id: string) => void
+  onLongPress:    () => void
 }) {
   const x           = useMotionValue(0)
   const [open, setOpen] = useState(false)
-  const wasDragging = useRef(false)
+  const wasDragging    = useRef(false)
+  const longPressRef   = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const longPressedRef = useRef(false)
+  const pointerStartRef = useRef<{ x: number; y: number } | null>(null)
 
   useEffect(() => {
     if (openCardId !== summary.crew.id) {
@@ -1187,6 +1194,9 @@ function SwipeableCrewCard({
       setOpen(false)
     }
   }, [openCardId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Clear any pending timer on unmount
+  useEffect(() => () => { if (longPressRef.current) clearTimeout(longPressRef.current) }, [])
 
   function snapTo(target: number, isOpen: boolean) {
     animate(x, target, { type: 'spring', stiffness: 300, damping: 28 })
@@ -1204,11 +1214,40 @@ function SwipeableCrewCard({
 
   function handleClick() {
     if (wasDragging.current) return
+    if (longPressedRef.current) {
+      longPressedRef.current = false
+      return
+    }
     if (open) {
       snapTo(0, false)
     } else {
       onTap()
     }
+  }
+
+  function cancelLongPress() {
+    if (longPressRef.current !== null) {
+      clearTimeout(longPressRef.current)
+      longPressRef.current = null
+    }
+    pointerStartRef.current = null
+  }
+
+  function handlePointerDown(e: React.PointerEvent) {
+    pointerStartRef.current = { x: e.clientX, y: e.clientY }
+    cancelLongPress()
+    longPressRef.current = setTimeout(() => {
+      longPressRef.current  = null
+      longPressedRef.current = true
+      onLongPress()
+    }, 2000)
+  }
+
+  function handlePointerMove(e: React.PointerEvent) {
+    if (!pointerStartRef.current) return
+    const dx = e.clientX - pointerStartRef.current.x
+    const dy = e.clientY - pointerStartRef.current.y
+    if (dx * dx + dy * dy > 100) cancelLongPress()  // > 10px movement
   }
 
   return (
@@ -1219,13 +1258,17 @@ function SwipeableCrewCard({
         dragConstraints={{ left: -LEAVE_REVEAL, right: 0 }}
         dragElastic={{ left: 0.05, right: 0.1 }}
         style={{ x, width: `calc(100% + ${LEAVE_REVEAL}px)`, gap: LEAVE_GAP }}
-        onDragStart={() => { wasDragging.current = true; onOpen(summary.crew.id) }}
+        onDragStart={() => { wasDragging.current = true; cancelLongPress(); onOpen(summary.crew.id) }}
         onDragEnd={handleDragEnd}
       >
         <motion.div
           className="flex-1 min-w-0 bg-black cursor-pointer"
           onClick={handleClick}
           whileTap={{ scale: open ? 1 : 0.98 }}
+          onPointerDown={handlePointerDown}
+          onPointerUp={cancelLongPress}
+          onPointerLeave={cancelLongPress}
+          onPointerMove={handlePointerMove}
         >
           <SquadCardPreview summary={summary} />
         </motion.div>
@@ -1237,6 +1280,7 @@ function SwipeableCrewCard({
           tabIndex={open ? 0 : -1}
           aria-label={`Leave ${summary.crew.name}`}
         >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/icons/leave-pixel.svg"
             alt=""
@@ -1274,6 +1318,390 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
   )
 }
 
+// ─── Home Squad Details Sheet ─────────────────────────────────────────────────
+
+const HOME_CLASS_LABELS: Record<string, string> = {
+  berserker: 'Berserker', sage: 'Sage', ghost: 'Ghost', hype_man: 'Hype Man',
+  the_voice: 'The Voice', meme_lord: 'Meme Lord', mage: 'Mage', warrior: 'Warrior',
+  rogue: 'Rogue', healer: 'Healer', archer: 'Archer',
+}
+
+interface SheetMember {
+  user_id:      string
+  username:     string
+  avatar_url:   string | null
+  avatar_class: string | null
+  combatClass:  string | null
+  msgCount:     number
+}
+
+function HomeSquadMemberRow({ member }: { member: SheetMember }) {
+  const spriteId = spriteIdFor(member.avatar_class as AvatarClass)
+  const url      = member.avatar_url
+  const initial  = member.username[0]?.toUpperCase() ?? '?'
+  const classLabel = member.combatClass
+    ? (HOME_CLASS_LABELS[member.combatClass] ?? member.combatClass)
+    : 'Unknown'
+
+  return (
+    <div className="flex items-center gap-3">
+      {/* 32px avatar */}
+      <div className="relative flex-shrink-0 w-8 h-8 rounded-full overflow-hidden bg-surface flex items-center justify-center">
+        {url ? (
+          <div className="relative w-full h-full">
+            <Image
+              src={resolveAvatarUrl(url, 32)}
+              alt={member.username}
+              fill
+              sizes="32px"
+              className="object-cover"
+              unoptimized={isSupabaseStorage(url)}
+            />
+          </div>
+        ) : (
+          <span className="font-pixel text-[8px] text-purple">{initial}</span>
+        )}
+      </div>
+
+      {/* 32px pixel sprite */}
+      <div className="w-8 h-8 flex-shrink-0 flex items-center justify-center overflow-hidden">
+        {spriteId ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={`/sprites/${spriteId}/south.png`}
+            alt=""
+            aria-hidden="true"
+            style={{ width: 32, height: 32, imageRendering: 'pixelated', maxWidth: 'none', objectFit: 'contain' }}
+          />
+        ) : (
+          <span className="font-pixel text-[8px] text-purple">{initial}</span>
+        )}
+      </div>
+
+      {/* Name + class · msg count */}
+      <div className="flex flex-col gap-1 min-w-0 flex-1">
+        <p
+          className="font-body font-bold text-primary truncate leading-none"
+          style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}
+        >
+          {member.username}
+        </p>
+        <p className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>
+          {classLabel} · {member.msgCount.toLocaleString()} msg.
+        </p>
+      </div>
+    </div>
+  )
+}
+
+function HomeCrewDetailsSheet({
+  summary,
+  onLeaveRequest,
+  onClose,
+}: {
+  summary:         CrewSummary
+  onLeaveRequest:  () => void
+  onClose:         () => void
+}) {
+  const { crew, memberCount } = summary
+  const [members, setMembers] = useState<SheetMember[]>([])
+  const [bgUrl,   setBgUrl]   = useState<string | null>(
+    (crew.background_image_url as string | null | undefined) ?? null,
+  )
+  const [loading, setLoading] = useState(true)
+  const [copied,  setCopied]  = useState(false)
+
+  const xpProgress = getXPProgress(crew.total_xp)
+  const imageUrl   = crew.image_url as string | null | undefined
+
+  useEffect(() => {
+    const supabase  = createClient()
+    let cancelled   = false
+
+    async function fetchData() {
+      const needsBg = !bgUrl
+
+      const [membersResult, msgCountResult, crewResult] = await Promise.all([
+        supabase
+          .from('crew_members')
+          .select('user_id, class, profiles(username, avatar_url, avatar_class)')
+          .eq('crew_id', crew.id),
+        supabase.rpc('get_crew_member_msg_counts', { p_crew_id: crew.id }),
+        needsBg
+          ? supabase.from('crews').select('background_image_url').eq('id', crew.id).single()
+          : Promise.resolve({ data: null as unknown }),
+      ])
+
+      if (cancelled) return
+
+      const msgMap = new Map<string, number>()
+      for (const row of (msgCountResult.data ?? []) as Array<{ user_id: string; msg_count: number }>) {
+        msgMap.set(row.user_id, row.msg_count)
+      }
+
+      const list: SheetMember[] = (
+        (membersResult.data ?? []) as unknown as Array<{
+          user_id: string
+          class:   string | null
+          profiles: { username: string; avatar_url: string | null; avatar_class: string | null } | null
+        }>
+      )
+        .map((m) => ({
+          user_id:      m.user_id,
+          username:     m.profiles?.username     ?? 'Unknown',
+          avatar_url:   m.profiles?.avatar_url   ?? null,
+          avatar_class: m.profiles?.avatar_class ?? null,
+          combatClass:  m.class,
+          msgCount:     msgMap.get(m.user_id) ?? 0,
+        }))
+        .sort((a, b) => b.msgCount - a.msgCount)
+
+      setMembers(list)
+
+      if (needsBg && crewResult.data) {
+        const bg = (crewResult.data as { background_image_url?: string | null }).background_image_url
+        if (bg) setBgUrl(bg)
+      }
+
+      setLoading(false)
+    }
+
+    fetchData()
+    return () => { cancelled = true }
+  }, [crew.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function handleCopyCode() {
+    if (!crew.invite_code || copied) return
+    navigator.clipboard.writeText(`Come join my squad on Nexus app ${crew.invite_code}`).catch(() => {})
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1000)
+  }
+
+  return (
+    <>
+      {/* Backdrop */}
+      <motion.div
+        className="fixed inset-0 z-[60] bg-black/60"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+      />
+
+      {/* Sheet */}
+      <motion.div
+        className="fixed bottom-0 left-0 right-0 z-[70] bg-[var(--color-surface-sheet)] rounded-tl-[16px] rounded-tr-[16px] flex flex-col overflow-hidden"
+        initial={{ y: '100%' }}
+        animate={{ y: 0 }}
+        exit={{ y: '100%' }}
+        transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+        drag="y"
+        dragConstraints={{ top: 0, bottom: 0 }}
+        dragElastic={{ top: 0, bottom: 1 }}
+        onDragEnd={(_, info) => { if (info.offset.y > 80 || info.velocity.y > 400) onClose() }}
+        style={{ maxHeight: '85vh' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* ── Group header — 180px (matches SquadDetailsSheet pattern) ── */}
+        <div
+          className="relative flex-shrink-0 flex flex-col justify-between rounded-tl-[16px] rounded-tr-[16px] overflow-hidden"
+          style={{ height: 180, padding: 16 }}
+        >
+          {bgUrl ? (
+            <div className="absolute inset-0 pointer-events-none">
+              <Image
+                src={bgUrl}
+                alt=""
+                fill
+                sizes="(max-width: 480px) 100vw, 480px"
+                className="object-cover"
+                unoptimized={isSupabaseStorage(bgUrl)}
+              />
+            </div>
+          ) : (
+            <div className="absolute inset-0 bg-[var(--color-surface)]" />
+          )}
+          <div
+            className="absolute inset-0 pointer-events-none"
+            style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.604) 33%, rgba(0,0,0,0.6) 66%, rgba(0,0,0,0.8) 100%)' }}
+          />
+
+          {/* Top row: crew image + name/count | close */}
+          <div className="relative flex items-start justify-between">
+            <div className="flex items-center min-w-0 flex-1" style={{ gap: 16 }}>
+              <div className="relative flex-shrink-0 overflow-hidden" style={{ width: 40, height: 40 }}>
+                {imageUrl ? (
+                  <div className="relative w-full h-full">
+                    <Image
+                      src={resolveAvatarUrl(imageUrl, 40)}
+                      alt={crew.name}
+                      fill
+                      sizes="40px"
+                      className="object-cover"
+                      unoptimized={isSupabaseStorage(imageUrl)}
+                    />
+                  </div>
+                ) : (
+                  <div className="w-full h-full bg-[var(--color-primary)] flex items-center justify-center">
+                    <span
+                      className="font-body font-black text-black leading-none"
+                      style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}
+                    >
+                      {crew.name.charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-col min-w-0" style={{ gap: 4 }}>
+                <p
+                  className="font-body font-black leading-none truncate uppercase"
+                  style={{ fontSize: 'var(--text-md)', color: 'var(--color-secondary)', fontVariationSettings: '"opsz" 14' }}
+                >
+                  {crew.name}
+                </p>
+                <p className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>
+                  {memberCount} {memberCount === 1 ? 'member' : 'members'}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="flex items-center justify-center flex-shrink-0"
+              style={{ width: 24, height: 24 }}
+              aria-label="Close"
+            >
+              <ChevronRight
+                style={{ width: 24, height: 24, color: 'var(--color-tertiary)', transform: 'rotate(90deg)' }}
+                aria-hidden="true"
+              />
+            </button>
+          </div>
+
+          {/* XP bar */}
+          <div className="relative flex flex-col w-full" style={{ gap: 8 }}>
+            <p className="leading-[0] text-[0px] font-silkscreen w-full">
+              <span className="leading-none text-tertiary" style={{ fontSize: 'var(--text-mini)' }}>
+                {`${getXPInCurrentLevel(crew.total_xp)} / ${getXPForCurrentLevel(crew.total_xp)}XP`}
+              </span>
+              <span className="leading-none text-tertiary" style={{ fontSize: 'var(--text-mini)' }}>{` · `}</span>
+              <span className="leading-none text-secondary" style={{ fontSize: 'var(--text-mini)' }}>
+                {crew.total_xp.toLocaleString()} total Squad msg.
+              </span>
+            </p>
+            <div className="bg-[var(--color-surface)] overflow-hidden w-full relative" style={{ height: 4 }}>
+              <div
+                className="absolute left-0 top-0 h-full bg-purple"
+                style={{ width: `${xpProgress}%`, transition: 'width 0.5s ease-out' }}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* ── Scrollable content ── */}
+        <div
+          className="flex-1 overflow-y-auto nexus-scroll flex flex-col"
+          style={{
+            gap:           16,
+            padding:       16,
+            paddingBottom: 'max(env(safe-area-inset-bottom), 28px)',
+          }}
+        >
+          {/* Invite section */}
+          <div
+            className="flex items-center justify-between overflow-hidden"
+            style={{ padding: 16, background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}
+          >
+            <div className="flex flex-col" style={{ gap: 4 }}>
+              <p className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-primary)' }}>
+                Invite new members
+              </p>
+              <p
+                className="font-silkscreen leading-none tracking-[0.2px]"
+                style={{ fontSize: 'var(--text-xl)', color: 'var(--color-purple)', textShadow: '0px 0px 3px var(--color-purple)' }}
+              >
+                {crew.invite_code}
+              </p>
+            </div>
+            <button
+              onClick={handleCopyCode}
+              className="flex items-center flex-shrink-0 transition-colors duration-150"
+              style={{
+                gap: 8,
+                padding: '12px 16px',
+                ...(copied
+                  ? { backgroundColor: 'var(--color-success)', boxShadow: '4px 4px 0px 0px rgba(34,197,94,0.5)' }
+                  : { backgroundColor: 'var(--color-purple)', boxShadow: '4px 4px 0px 0px rgba(168,85,247,0.5)' }
+                ),
+              }}
+            >
+              {copied ? (
+                <>
+                  <Check style={{ width: 12, height: 12, color: 'var(--color-primary)' }} aria-hidden="true" />
+                  <span className="font-silkscreen leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-xxs)', color: 'var(--color-primary)' }}>
+                    copied
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Copy style={{ width: 12, height: 12, color: 'var(--color-primary)' }} aria-hidden="true" />
+                  <span className="font-silkscreen leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-xxs)', color: 'var(--color-primary)' }}>
+                    Copy Code
+                  </span>
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* Members section */}
+          <div className="flex flex-col" style={{ gap: 20 }}>
+            <p className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-primary)' }}>
+              Members
+            </p>
+            {loading ? (
+              <div className="flex flex-col" style={{ gap: 20 }}>
+                {Array.from({ length: Math.min(memberCount, 5) }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-border animate-pulse flex-shrink-0" />
+                    <div className="w-8 h-8 bg-border animate-pulse flex-shrink-0" />
+                    <div className="flex flex-col gap-2 flex-1">
+                      <div className="h-4 w-28 bg-border animate-pulse" />
+                      <div className="h-2 w-20 bg-border animate-pulse" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col" style={{ gap: 20 }}>
+                {members.map((m) => (
+                  <HomeSquadMemberRow key={m.user_id} member={m} />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Leave Squad */}
+          <button
+            type="button"
+            onClick={onLeaveRequest}
+            className="w-full flex items-center justify-center gap-2 font-silkscreen overflow-hidden"
+            style={{ height: 48, fontSize: 'var(--text-xs)', color: 'var(--red)', border: '1px solid var(--red)' }}
+            aria-label="Leave squad"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/icons/leave-pixel.svg"
+              alt=""
+              aria-hidden="true"
+              style={{ width: 16, height: 16, imageRendering: 'pixelated', maxWidth: 'none' }}
+            />
+            leave squad
+          </button>
+        </div>
+      </motion.div>
+    </>
+  )
+}
+
 // ─── HomeClient ───────────────────────────────────────────────────────────────
 
 export function HomeClient({
@@ -1303,6 +1731,7 @@ export function HomeClient({
   )
   const [showCreate,        setShowCreate]        = useState(false)
   const [openCardId,        setOpenCardId]        = useState<string | null>(null)
+  const [detailsTarget,     setDetailsTarget]     = useState<CrewSummary | null>(null)
   const [leaveTarget,       setLeaveTarget]       = useState<CrewSummary | null>(null)
   const [leaving,           setLeaving]           = useState(false)
   const [leaveError,        setLeaveError]        = useState<string | null>(null)
@@ -1633,6 +2062,7 @@ export function HomeClient({
                     summary={summary}
                     onTap={() => handleCrewTap(summary.crew.id)}
                     onLeaveRequest={() => { setLeaveTarget(summary); setLeaveError(null) }}
+                    onLongPress={() => setDetailsTarget(summary)}
                     openCardId={openCardId}
                     onOpen={setOpenCardId}
                   />
@@ -1652,6 +2082,19 @@ export function HomeClient({
             coins={coins}
             infiniteCoins={infiniteCoins}
             onOpenArsenal={handleOpenArsenal}
+          />
+        )}
+        {detailsTarget && !leaveTarget && (
+          <HomeCrewDetailsSheet
+            key="details-sheet"
+            summary={detailsTarget}
+            onLeaveRequest={() => {
+              const target = detailsTarget
+              setDetailsTarget(null)
+              setLeaveTarget(target)
+              setLeaveError(null)
+            }}
+            onClose={() => setDetailsTarget(null)}
           />
         )}
         {leaveTarget && (
