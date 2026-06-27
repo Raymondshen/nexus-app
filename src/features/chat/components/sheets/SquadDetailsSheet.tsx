@@ -522,10 +522,31 @@ export function SquadDetailsSheet({
         <div className="flex-shrink-0 flex flex-col gap-4 px-4 pt-6">
 
           {/* group_header — 180px tall, title row at top, XP bar at bottom */}
-          <div className="flex flex-col justify-between" style={{ height: 180 }}>
+          <div className="relative flex flex-col justify-between overflow-hidden" style={{ height: 180, padding: 8, marginLeft: -16, marginRight: -16 }}>
+
+            {/* Background image */}
+            {crewBackgroundImageUrl ? (
+              <div className="absolute inset-0 pointer-events-none">
+                <Image
+                  src={crewBackgroundImageUrl}
+                  alt=""
+                  fill
+                  sizes="(max-width: 480px) 100vw, 480px"
+                  className="object-cover"
+                  unoptimized={isSupabaseStorage(crewBackgroundImageUrl)}
+                />
+              </div>
+            ) : (
+              <div className="absolute inset-0 bg-[var(--color-surface)]" />
+            )}
+            {/* Gradient overlay */}
+            <div
+              className="absolute inset-0 pointer-events-none"
+              style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.5) 40%, rgba(0,0,0,0.5) 60%, rgba(0,0,0,0.85) 100%)' }}
+            />
 
             {/* Title row: crew image + name/count | action buttons */}
-            <div className="flex items-start justify-between">
+            <div className="relative flex items-start justify-between">
               <div className="flex items-center gap-2 min-w-0 flex-1">
                 {/* 40×40 crew image */}
                 <div className="relative flex-shrink-0 overflow-hidden" style={{ width: 'var(--space-11)', height: 'var(--space-11)' }}>
@@ -595,7 +616,7 @@ export function SquadDetailsSheet({
             </div>
 
             {/* XP bar (pinned to bottom of 180px block) */}
-            <div className="flex flex-col w-full" style={{ gap: 'var(--space-3)' }}>
+            <div className="relative flex flex-col w-full" style={{ gap: 'var(--space-3)' }}>
               <p className="leading-[0] text-[0px] font-silkscreen w-full">
                 <span className="leading-none text-tertiary" style={{ fontSize: 'var(--text-mini)' }}>
                   {`${getXPInCurrentLevel(crewXP)} / ${getXPForCurrentLevel(crewXP)}XP`}

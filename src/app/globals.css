@@ -193,3 +193,11 @@ body {
     opacity: 1;
   }
 }
+
+@keyframes vinyl-spin {
+  to { transform: rotate(360deg); }
+}
+
+.animate-vinyl {
+  animation: vinyl-spin 10s linear infinite;
+}

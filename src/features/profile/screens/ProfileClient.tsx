@@ -22,8 +22,7 @@ import { AvatarUploadModal } from '@/shared/components/overlays/AvatarUploadModa
 import { BackgroundUploadModal } from '@/shared/components/overlays/BackgroundUploadModal'
 import { Button } from '@/shared/components/ui/Button'
 import { TickerBanner } from '@/shared/components/banners/TickerBanner'
-import { NotesGrid } from '@/features/profile/components/NotesGrid'
-import type { NotesGridHandle } from '@/features/profile/components/NotesGrid'
+import { VibesGrid } from '@/features/profile/components/VibesGrid'
 import type { PublicNote, BoardSection } from '@/types'
 
 interface ProfileClientProps {
@@ -613,7 +612,6 @@ export function ProfileClient({
   // ── Tab state ─────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<'notes' | 'settings'>('notes')
   const tabDirRef = useRef(1) // +1 = notes→settings (enter from right); -1 = settings→notes (enter from left)
-  const notesRef  = useRef<NotesGridHandle>(null)
   function switchTab(tab: 'notes' | 'settings') {
     if (tab === activeTab) return
     tabDirRef.current = tab === 'notes' ? -1 : 1
@@ -925,15 +923,10 @@ export function ProfileClient({
             exit={{ opacity: 0, x: tabDirRef.current * -16 }}
             transition={{ duration: 0.15, ease: [0.4, 0, 0.2, 1] }}
           >
-            <NotesGrid
-              ref={notesRef}
-              viewerId={userId}
+            <VibesGrid
               initialNotes={initialNotes}
-              initialSections={initialSections}
               crews={notesCrews}
-              initialCrewId={notesCrews[0]?.id ?? ''}
-              lockCrew={false}
-              creatorFilter={userId}
+              isOwner={true}
             />
           </motion.div>
         ) : (
