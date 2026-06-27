@@ -3,7 +3,7 @@
 import { useState, useTransition, useEffect, useRef, useMemo, useCallback } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Close } from 'pixelarticons/react/Close'
-import { addNoteAction } from '@/app/(app)/profile/notes/actions'
+import { addNoteAction, deleteNoteAction } from '@/app/(app)/profile/notes/actions'
 import type { PublicNote } from '@/types'
 
 // ─── Music platform validation ────────────────────────────────────────────────
@@ -55,13 +55,17 @@ const VIBES_PINNED_KEY = 'nexus_vibes_pinned'
 function VinylActionSheet({
   note,
   isPinned,
+  isOwner,
   onTogglePin,
+  onRemove,
   onClose,
 }: {
-  note:         PublicNote
-  isPinned:     boolean
-  onTogglePin:  () => void
-  onClose:      () => void
+  note:        PublicNote
+  isPinned:    boolean
+  isOwner:     boolean
+  onTogglePin: () => void
+  onRemove:    () => void
+  onClose:     () => void
 }) {
   return (
     <>
@@ -110,23 +114,45 @@ function VinylActionSheet({
             </span>
           </button>
 
-          {/* Pin / Unpin */}
-          <button
-            className="flex items-center text-left w-full"
-            style={{ height: 48 }}
-            onClick={() => { onTogglePin(); onClose() }}
-          >
-            <span
-              className="font-body font-medium"
-              style={{
-                fontSize:              'var(--text-sm)',
-                fontVariationSettings: '"opsz" 14',
-                color: isPinned ? 'var(--color-danger)' : 'var(--color-purple)',
-              }}
+          {/* Pin / Unpin — owner only */}
+          {isOwner && (
+            <button
+              className="flex items-center text-left w-full"
+              style={{ height: 48 }}
+              onClick={() => { onTogglePin(); onClose() }}
             >
-              {isPinned ? 'Unpin' : 'Pin as Favorite'}
-            </span>
-          </button>
+              <span
+                className="font-body font-medium"
+                style={{
+                  fontSize:              'var(--text-sm)',
+                  fontVariationSettings: '"opsz" 14',
+                  color: isPinned ? 'var(--color-danger)' : 'var(--color-purple)',
+                }}
+              >
+                {isPinned ? 'Unpin' : 'Pin as Favorite'}
+              </span>
+            </button>
+          )}
+
+          {/* Remove — owner only */}
+          {isOwner && (
+            <button
+              className="flex items-center text-left w-full"
+              style={{ height: 48 }}
+              onClick={() => { onRemove(); onClose() }}
+            >
+              <span
+                className="font-body font-medium"
+                style={{
+                  fontSize:              'var(--text-sm)',
+                  fontVariationSettings: '"opsz" 14',
+                  color:                 'var(--color-danger)',
+                }}
+              >
+                Remove Vibe
+              </span>
+            </button>
+          )}
 
         </div>
       </motion.div>
@@ -141,11 +167,13 @@ function VinylTrack({
   isPinned,
   isOwner,
   onTogglePin,
+  onRemove,
 }: {
   note:        PublicNote
   isPinned:    boolean
   isOwner:     boolean
   onTogglePin: () => void
+  onRemove:    () => void
 }) {
   const [showActions, setShowActions] = useState(false)
   const [imgSrc, setImgSrc] = useState<string | null>(() =>
@@ -180,7 +208,8 @@ function VinylTrack({
 
   return (
     <div
-      className="relative flex flex-col items-center min-w-0 flex-1"
+      className="relative flex flex-col items-center min-w-0 flex-1 overflow-hidden"
+      style={{ height: 105 }}
       onPointerDown={isOwner ? onPointerDown : undefined}
       onPointerUp={isOwner ? cancelPress : undefined}
       onPointerLeave={isOwner ? cancelPress : undefined}
@@ -278,7 +307,9 @@ function VinylTrack({
           <VinylActionSheet
             note={note}
             isPinned={isPinned}
+            isOwner={isOwner}
             onTogglePin={onTogglePin}
+            onRemove={onRemove}
             onClose={() => setShowActions(false)}
           />
         )}
@@ -494,46 +525,55 @@ function AddVibeSheet({
 // ─── VibesGrid (main export) ──────────────────────────────────────────────────
 
 export interface VibesGridProps {
-  initialNotes: PublicNote[]
-  crews:        Array<{ id: string; name: string }>
-  isOwner:      boolean
+  initialVinyls: PublicNote[]
+  crews:         Array<{ id: string; name: string }>
+  isOwner:       boolean
 }
 
-export function VibesGrid({ initialNotes, crews, isOwner }: VibesGridProps) {
-  const [notes,   setNotes]   = useState<PublicNote[]>(() => initialNotes.filter(isMusicNote))
+export function VibesGrid({ initialVinyls, crews, isOwner }: VibesGridProps) {
+  const [vinyls,  setVinyls]  = useState<PublicNote[]>(() => initialVinyls.filter(isMusicNote))
   const [showAdd, setShowAdd] = useState(false)
   const [pinnedId, setPinnedId] = useState<string | null>(() => {
     if (typeof window === 'undefined') return null
     return localStorage.getItem(VIBES_PINNED_KEY)
   })
 
-  function handleAdd(note: PublicNote) {
-    setNotes(prev => [note, ...prev])
+  function handleAdd(vinyl: PublicNote) {
+    setVinyls(prev => [vinyl, ...prev])
   }
 
-  function handleTogglePin(noteId: string) {
+  function handleTogglePin(vinylId: string) {
     setPinnedId(prev => {
-      const next = prev === noteId ? null : noteId
+      const next = prev === vinylId ? null : vinylId
       if (next) localStorage.setItem(VIBES_PINNED_KEY, next)
       else localStorage.removeItem(VIBES_PINNED_KEY)
       return next
     })
   }
 
+  function handleRemove(vinylId: string) {
+    setVinyls(prev => prev.filter(v => v.id !== vinylId))
+    if (pinnedId === vinylId) {
+      setPinnedId(null)
+      localStorage.removeItem(VIBES_PINNED_KEY)
+    }
+    deleteNoteAction(vinylId)
+  }
+
   const canAdd = isOwner && crews.length > 0
 
-  // Pinned note always floats to the first slot
-  const orderedNotes = useMemo(() => {
-    if (!pinnedId) return notes
-    const idx = notes.findIndex(n => n.id === pinnedId)
-    if (idx <= 0) return notes
-    const arr = [...notes]
+  // Pinned vinyl always floats to the first slot
+  const orderedVinyls = useMemo(() => {
+    if (!pinnedId) return vinyls
+    const idx = vinyls.findIndex(v => v.id === pinnedId)
+    if (idx <= 0) return vinyls
+    const arr = [...vinyls]
     arr.unshift(arr.splice(idx, 1)[0])
     return arr
-  }, [notes, pinnedId])
+  }, [vinyls, pinnedId])
 
   const items: Array<PublicNote | 'add'> = [
-    ...orderedNotes,
+    ...orderedVinyls,
     ...(canAdd ? (['add'] as const) : []),
   ]
 
@@ -584,6 +624,7 @@ export function VibesGrid({ initialNotes, crews, isOwner }: VibesGridProps) {
                     isPinned={pinnedId === item.id}
                     isOwner={isOwner}
                     onTogglePin={() => handleTogglePin(item.id)}
+                    onRemove={() => handleRemove(item.id)}
                   />
                 )
               )}

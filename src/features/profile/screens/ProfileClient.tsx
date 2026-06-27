@@ -924,7 +924,7 @@ export function ProfileClient({
             transition={{ duration: 0.15, ease: [0.4, 0, 0.2, 1] }}
           >
             <VibesGrid
-              initialNotes={initialNotes}
+              initialVinyls={initialNotes}
               crews={notesCrews}
               isOwner={true}
             />
