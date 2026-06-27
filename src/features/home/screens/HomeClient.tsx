@@ -18,7 +18,7 @@ import Image from 'next/image'
 import { isSupabaseStorage, resolveAvatarUrl } from '@/shared/components/ui/Avatar'
 import { createClient } from '@/shared/supabase/client'
 import { leaveCrewAction, createCrewFromHomeAction, joinCrewFromHomeAction, joinSelectClassAction } from '@/app/(app)/home/actions'
-import { spriteIdFor } from '@/shared/components/game/PixelSprite'
+import { PixelSprite, spriteIdFor, spriteInfoFor } from '@/shared/components/game/PixelSprite'
 import { CLASS_BASE_STATS } from '@/features/combat/utils/combat'
 import type { AvatarClass, CombatClass } from '@/types'
 import { updateCrewImageAction, updateCrewBackgroundImageAction } from '@/app/(app)/chat/actions'
@@ -1338,9 +1338,9 @@ interface SheetMember {
 }
 
 function HomeSquadMemberRow({ member }: { member: SheetMember }) {
-  const spriteId = spriteIdFor(member.avatar_class as AvatarClass)
-  const url      = member.avatar_url
-  const initial  = member.username[0]?.toUpperCase() ?? '?'
+  const spriteInfo = spriteInfoFor(member.avatar_class as AvatarClass)
+  const url        = member.avatar_url
+  const initial    = member.username[0]?.toUpperCase() ?? '?'
   const classLabel = member.combatClass
     ? (HOME_CLASS_LABELS[member.combatClass] ?? member.combatClass)
     : 'Unknown'
@@ -1365,16 +1365,10 @@ function HomeSquadMemberRow({ member }: { member: SheetMember }) {
         )}
       </div>
 
-      {/* 32px pixel sprite */}
+      {/* 32px pixel sprite — animated walk cycle */}
       <div className="w-8 h-8 flex-shrink-0 flex items-center justify-center overflow-hidden">
-        {spriteId ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={`/sprites/${spriteId}/south.png`}
-            alt=""
-            aria-hidden="true"
-            style={{ width: 32, height: 32, imageRendering: 'pixelated', maxWidth: 'none', objectFit: 'contain' }}
-          />
+        {spriteInfo ? (
+          <PixelSprite spriteId={spriteInfo.id} nativePx={spriteInfo.nativePx} scale={1} animate />
         ) : (
           <span className="font-pixel text-[8px] text-purple">{initial}</span>
         )}
@@ -1611,16 +1605,8 @@ function HomeCrewDetailsSheet({
           </div>
         </div>
 
-        {/* ── Scrollable content ── */}
-        <div
-          className="flex-1 overflow-y-auto nexus-scroll flex flex-col"
-          style={{
-            gap:           16,
-            padding:       16,
-            paddingBottom: 'max(env(safe-area-inset-bottom), 28px)',
-          }}
-        >
-          {/* Invite section */}
+        {/* ── Invite card — fixed (not scrollable) ── */}
+        <div className="flex-shrink-0 px-4 pt-4">
           <div
             className="flex items-center justify-between overflow-hidden"
             style={{ padding: 16, background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}
@@ -1665,35 +1651,44 @@ function HomeCrewDetailsSheet({
               )}
             </button>
           </div>
+        </div>
 
-          {/* Members section */}
-          <div className="flex flex-col" style={{ gap: 20 }}>
-            <p className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-primary)' }}>
-              Members
-            </p>
-            {loading ? (
-              <div className="flex flex-col" style={{ gap: 20 }}>
-                {Array.from({ length: Math.min(memberCount, 5) }).map((_, i) => (
-                  <div key={i} className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-border animate-pulse flex-shrink-0" />
-                    <div className="w-8 h-8 bg-border animate-pulse flex-shrink-0" />
-                    <div className="flex flex-col gap-2 flex-1">
-                      <div className="h-4 w-28 bg-border animate-pulse" />
-                      <div className="h-2 w-20 bg-border animate-pulse" />
-                    </div>
+        {/* ── Members label — fixed ── */}
+        <div className="flex-shrink-0 px-4 pt-4">
+          <p className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-primary)' }}>
+            Members
+          </p>
+        </div>
+
+        {/* ── Scrollable member list ── */}
+        <div className="flex-1 overflow-y-auto nexus-scroll px-4 pt-4 min-h-0">
+          {loading ? (
+            <div className="flex flex-col" style={{ gap: 20 }}>
+              {Array.from({ length: Math.min(memberCount, 5) }).map((_, i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-border animate-pulse flex-shrink-0" />
+                  <div className="w-8 h-8 bg-border animate-pulse flex-shrink-0" />
+                  <div className="flex flex-col gap-2 flex-1">
+                    <div className="h-4 w-28 bg-border animate-pulse" />
+                    <div className="h-2 w-20 bg-border animate-pulse" />
                   </div>
-                ))}
-              </div>
-            ) : (
-              <div className="flex flex-col" style={{ gap: 20 }}>
-                {members.map((m) => (
-                  <HomeSquadMemberRow key={m.user_id} member={m} />
-                ))}
-              </div>
-            )}
-          </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-col" style={{ gap: 20 }}>
+              {members.map((m) => (
+                <HomeSquadMemberRow key={m.user_id} member={m} />
+              ))}
+            </div>
+          )}
+        </div>
 
-          {/* Leave Squad */}
+        {/* ── Leave Squad — fixed (not scrollable) ── */}
+        <div
+          className="flex-shrink-0 px-4 pt-4"
+          style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 28px)' }}
+        >
           <button
             type="button"
             onClick={onLeaveRequest}
