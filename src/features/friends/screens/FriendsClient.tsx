@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
-import { isSupabaseStorage, resolveAvatarUrl } from '@/shared/components/ui/Avatar'
+import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
 import { motion, useMotionValue, animate } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
 import { SlidePage, useSlideBack } from '@/app/layouts/SlidePage'
@@ -115,12 +115,12 @@ function UserAvatar({ profile, size = 40 }: { profile: FriendProfile | null; siz
     >
       {profile?.avatar_url ? (
         <Image
-          src={resolveAvatarUrl(profile.avatar_url, size)}
+          src={profile.avatar_url}
           alt={profile.username}
           fill
           sizes={`${size}px`}
           className="object-cover"
-          unoptimized={isSupabaseStorage(profile.avatar_url)}
+          loader={supabaseImageLoader}
         />
       ) : (
         <div className="w-full h-full flex items-center justify-center font-pixel text-[10px] text-black">

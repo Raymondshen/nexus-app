@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Image from 'next/image'
+import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
 import { createClient } from '@/shared/supabase/client'
 import { upsertEventRsvpAction } from '@/app/(app)/chat/actions'
 import type { Event, EventRsvp, EventRsvpStatus } from '@/types'
@@ -106,7 +107,7 @@ export function EventCard({ eventId, currentUserId }: EventCardProps) {
             fill
             sizes="300px"
             className="object-cover"
-            unoptimized
+            loader={supabaseImageLoader}
           />
           {isPast && (
             <div className="absolute inset-0 bg-black/50 flex items-end p-2">

@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react'
 import Image from 'next/image'
-import { isSupabaseStorage, resolveAvatarUrl } from '@/shared/components/ui/Avatar'
+import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
 import { SlidePage, useSlideBack } from '@/app/layouts/SlidePage'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { Check } from 'pixelarticons/react/Check'
@@ -33,12 +33,12 @@ function UserAvatar({ profile, size = 48 }: { profile: FriendProfile | null; siz
     >
       {profile?.avatar_url ? (
         <Image
-          src={resolveAvatarUrl(profile.avatar_url, size)}
+          src={profile.avatar_url}
           alt={profile.username}
           fill
           sizes={`${size}px`}
           className="object-cover"
-          unoptimized={isSupabaseStorage(profile.avatar_url)}
+          loader={supabaseImageLoader}
         />
       ) : (
         <div className="w-full h-full flex items-center justify-center font-pixel text-[10px] text-black">

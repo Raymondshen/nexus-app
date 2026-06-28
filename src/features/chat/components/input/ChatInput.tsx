@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
 import Image from 'next/image'
-import { isSupabaseStorage, resolveAvatarUrl } from '@/shared/components/ui/Avatar'
+import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { createClient } from '@/shared/supabase/client'
 import { getXPProgress, getXPInCurrentLevel, getXPForCurrentLevel } from '@/shared/utils/xp'
@@ -1280,7 +1280,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
           <div className="flex items-center flex-shrink-0" style={{ gap: 8 }}>
             <div className="relative flex-shrink-0 overflow-hidden bg-surface" style={{ width: 24, height: 24 }}>
               {crewImageUrl && (
-                <Image src={crewImageUrl} alt={liveCrewName} fill sizes="24px" className="object-cover" unoptimized={isSupabaseStorage(crewImageUrl)} />
+                <Image src={crewImageUrl} alt={liveCrewName} fill sizes="24px" className="object-cover" loader={supabaseImageLoader} />
               )}
             </div>
             <div className="flex flex-col" style={{ gap: 2 }}>
@@ -1307,7 +1307,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                   <div className="rounded-full overflow-hidden bg-surface flex items-center justify-center" style={{ width: 24, height: 24 }}>
                     {url ? (
                       <div className="relative w-full h-full">
-                        <Image src={resolveAvatarUrl(url, 24)} alt={m.username} fill sizes="24px" className="object-cover" unoptimized={isSupabaseStorage(url)} />
+                        <Image src={url} alt={m.username} fill sizes="24px" className="object-cover" loader={supabaseImageLoader} />
                       </div>
                     ) : (
                       <span className="font-pixel text-[length:var(--text-mini)] text-purple">{initial}</span>
@@ -1478,7 +1478,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                       <div className="w-6 h-6 flex-shrink-0 overflow-hidden bg-surface flex items-center justify-center">
                         {url ? (
                           <div className="relative w-full h-full">
-                            <Image src={resolveAvatarUrl(url, 24)} alt={m.username} fill sizes="24px" className="object-cover" unoptimized={isSupabaseStorage(url)} />
+                            <Image src={url} alt={m.username} fill sizes="24px" className="object-cover" loader={supabaseImageLoader} />
                           </div>
                         ) : (
                           <span className="font-pixel text-[length:var(--text-mini)] text-purple">{initial}</span>

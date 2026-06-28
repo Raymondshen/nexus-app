@@ -69,6 +69,15 @@ const pwaConfig = {
         expiration: { maxEntries: 500, maxAgeSeconds: 30 * 24 * 60 * 60 },
       },
     },
+    // Supabase render/image API (resized versions): CacheFirst, 30 days
+    {
+      urlPattern: /^https:\/\/.*\.supabase\.co\/storage\/v1\/render\/image\/public\/.*/i,
+      handler: 'CacheFirst',
+      options: {
+        cacheName: 'nexus-rendered-images',
+        expiration: { maxEntries: 500, maxAgeSeconds: 30 * 24 * 60 * 60 },
+      },
+    },
     // Supabase Storage (all other public buckets): CacheFirst, 30 days
     {
       urlPattern: /^https:\/\/.*\.supabase\.co\/storage\/v1\/object\/public\/.*/i,

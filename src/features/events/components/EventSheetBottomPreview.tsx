@@ -8,7 +8,7 @@ import { motion } from 'framer-motion'
 import { createClient } from '@/shared/supabase/client'
 import { format } from 'date-fns'
 import { Calendar } from 'pixelarticons/react/Calendar'
-import { resolveAvatarUrl, isSupabaseStorage } from '@/shared/components/ui/Avatar'
+import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
 import type { Event } from '@/types'
 
 const DEFAULT_EVENT_IMAGE = '/img/eventDefaultImage.png'
@@ -72,7 +72,7 @@ function EventCardPreview({
           fill
           sizes="480px"
           className="object-cover"
-          unoptimized={!isLocal && isSupabaseStorage(coverSrc)}
+          loader={supabaseImageLoader}
         />
       </div>
 
@@ -157,12 +157,12 @@ function EventCardPreview({
                 >
                   {profile.avatar_url ? (
                     <Image
-                      src={resolveAvatarUrl(profile.avatar_url, 24)}
+                      src={profile.avatar_url}
                       alt={profile.username}
                       fill
                       sizes="24px"
                       className="object-cover"
-                      unoptimized={isSupabaseStorage(profile.avatar_url)}
+                      loader={supabaseImageLoader}
                     />
                   ) : (
                     <div

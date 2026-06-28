@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { AnimatePresence, motion } from 'framer-motion'
-import { isSupabaseStorage, resolveAvatarUrl } from '@/shared/components/ui/Avatar'
+import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
 import { useSlideBack } from '@/app/layouts/SlidePage'
 import { TickerBanner } from '@/shared/components/banners/TickerBanner'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
@@ -107,12 +107,12 @@ export function AccountPageMember({
             <div className="flex-shrink-0 bg-border overflow-hidden relative" style={{ width: 56, height: 56 }}>
               {avatarUrl ? (
                 <Image
-                  src={resolveAvatarUrl(avatarUrl, 56)}
+                  src={avatarUrl}
                   alt={username}
                   fill
                   sizes="56px"
                   className="object-cover"
-                  unoptimized={isSupabaseStorage(avatarUrl)}
+                  loader={supabaseImageLoader}
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center">

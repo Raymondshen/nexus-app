@@ -3,7 +3,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import Image from 'next/image'
-import { isSupabaseStorage, resolveAvatarUrl } from '@/shared/components/ui/Avatar'
 import { format } from 'date-fns'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useChatStore } from '@/store/chatStore'
@@ -482,7 +481,7 @@ export function MessageBubble({
             <div className="w-8 h-8 rounded-full bg-surface flex items-center justify-center overflow-hidden">
               {pollAvatarUrl ? (
                 <div className="relative w-full h-full">
-                  <Image src={resolveAvatarUrl(pollAvatarUrl, 32)} alt={message.profile.username} fill sizes="32px" className="object-cover" unoptimized={isSupabaseStorage(pollAvatarUrl)} />
+                  <Image src={pollAvatarUrl} alt={message.profile.username} fill sizes="32px" className="object-cover" loader={supabaseImageLoader} />
                 </div>
               ) : (
                 <span className="font-pixel text-[8px] text-purple">{pollInitial}</span>
@@ -534,7 +533,7 @@ export function MessageBubble({
             <div className="w-8 h-8 rounded-full bg-surface flex items-center justify-center overflow-hidden">
               {eventAvatarUrl ? (
                 <div className="relative w-full h-full">
-                  <Image src={resolveAvatarUrl(eventAvatarUrl, 32)} alt={message.profile.username} fill sizes="32px" className="object-cover" unoptimized={isSupabaseStorage(eventAvatarUrl)} />
+                  <Image src={eventAvatarUrl} alt={message.profile.username} fill sizes="32px" className="object-cover" loader={supabaseImageLoader} />
                 </div>
               ) : (
                 <span className="font-pixel text-[8px] text-purple">{eventInitial}</span>
@@ -598,7 +597,7 @@ export function MessageBubble({
             <div className="w-8 h-8 rounded-full bg-surface flex items-center justify-center overflow-hidden">
               {avatarUrl ? (
                 <div className="relative w-full h-full">
-                  <Image src={resolveAvatarUrl(avatarUrl, 32)} alt={message.profile.username} fill sizes="32px" className="object-cover" unoptimized={isSupabaseStorage(avatarUrl)} />
+                  <Image src={avatarUrl} alt={message.profile.username} fill sizes="32px" className="object-cover" loader={supabaseImageLoader} />
                 </div>
               ) : (
                 <span className="font-pixel text-[8px] text-purple">{initial}</span>
@@ -670,12 +669,12 @@ export function MessageBubble({
                 <div className="relative w-[16px] h-[16px] rounded-full bg-surface overflow-hidden flex-shrink-0">
                   {replyAvatarUrl ? (
                     <Image
-                      src={resolveAvatarUrl(replyAvatarUrl, 16)}
+                      src={replyAvatarUrl}
                       alt={message.reply_username ?? ''}
                       fill
                       sizes="16px"
                       className="object-cover"
-                      unoptimized={isSupabaseStorage(replyAvatarUrl)}
+                      loader={supabaseImageLoader}
                     />
                   ) : (
                     <span className="absolute inset-0 flex items-center justify-center font-pixel text-[4px] text-purple">

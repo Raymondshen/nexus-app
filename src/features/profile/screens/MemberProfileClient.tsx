@@ -3,7 +3,7 @@
 import { useState, useLayoutEffect, useRef } from 'react'
 import Image from 'next/image'
 import { motion } from 'framer-motion'
-import { isSupabaseStorage, resolveAvatarUrl } from '@/shared/components/ui/Avatar'
+import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
 import { useSlideBack } from '@/app/layouts/SlidePage'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { UserPlus } from 'pixelarticons/react/UserPlus'
@@ -184,12 +184,12 @@ export function MemberProfileClient({
             <div className="flex-shrink-0 bg-border overflow-hidden relative" style={{ width: 56, height: 56 }}>
               {avatarUrl ? (
                 <Image
-                  src={resolveAvatarUrl(avatarUrl, 56)}
+                  src={avatarUrl}
                   alt={username}
                   fill
                   sizes="56px"
                   className="object-cover"
-                  unoptimized={isSupabaseStorage(avatarUrl)}
+                  loader={supabaseImageLoader}
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center">

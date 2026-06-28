@@ -4,7 +4,7 @@ import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
 import Image from 'next/image'
-import { isSupabaseStorage, resolveAvatarUrl } from '@/shared/components/ui/Avatar'
+import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
 import { Button } from '@/shared/components/ui/Button'
 import { getXPInCurrentLevel, getXPForCurrentLevel } from '@/shared/utils/xp'
 import { PixelSprite, spriteInfoFor } from '@/shared/components/game/PixelSprite'
@@ -141,7 +141,7 @@ function MemberListRow({
           <div className="w-8 h-8 overflow-hidden rounded-full bg-surface flex items-center justify-center">
             {url ? (
               <div className="relative w-full h-full">
-                <Image src={resolveAvatarUrl(url, 32)} alt={profile.username} fill sizes="32px" className="object-cover" unoptimized={isSupabaseStorage(url)} />
+                <Image src={url} alt={profile.username} fill sizes="32px" className="object-cover" loader={supabaseImageLoader} />
               </div>
             ) : (
               <span className="font-pixel text-[8px] text-purple">{initial}</span>
@@ -298,7 +298,7 @@ function SquadDetailsEditSheet({
                   fill
                   sizes="(max-width: 480px) 100vw, 480px"
                   className="object-cover"
-                  unoptimized={isSupabaseStorage(crewBackgroundImageUrl)}
+                  loader={supabaseImageLoader}
                 />
               </div>
             ) : (
@@ -315,7 +315,7 @@ function SquadDetailsEditSheet({
               <div className="flex items-center flex-1 min-w-0" style={{ gap: 16 }}>
                 <div className="relative flex-shrink-0 overflow-hidden" style={{ width: 40, height: 40 }}>
                   {crewImageUrl ? (
-                    <Image src={crewImageUrl} alt={nameValue || crewName} fill sizes="40px" className="object-cover" unoptimized={isSupabaseStorage(crewImageUrl)} />
+                    <Image src={crewImageUrl} alt={nameValue || crewName} fill sizes="40px" className="object-cover" loader={supabaseImageLoader} />
                   ) : (
                     <div className="w-full h-full bg-[var(--color-primary)] flex items-center justify-center">
                       <span className="font-body font-black text-black leading-none" style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}>
@@ -533,7 +533,7 @@ export function SquadDetailsSheet({
                   fill
                   sizes="(max-width: 480px) 100vw, 480px"
                   className="object-cover"
-                  unoptimized={isSupabaseStorage(crewBackgroundImageUrl)}
+                  loader={supabaseImageLoader}
                 />
               </div>
             ) : (
@@ -552,7 +552,7 @@ export function SquadDetailsSheet({
                 <div className="relative flex-shrink-0 overflow-hidden" style={{ width: 'var(--space-11)', height: 'var(--space-11)' }}>
                   {crewImageUrl ? (
                     <div className="relative w-full h-full">
-                      <Image src={crewImageUrl} alt={crewName} fill sizes="40px" className="object-cover" unoptimized={isSupabaseStorage(crewImageUrl)} />
+                      <Image src={crewImageUrl} alt={crewName} fill sizes="40px" className="object-cover" loader={supabaseImageLoader} />
                     </div>
                   ) : (
                     <div className="w-full h-full bg-purple" />

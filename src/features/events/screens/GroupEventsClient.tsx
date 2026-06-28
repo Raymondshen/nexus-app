@@ -9,7 +9,7 @@ import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { Calendar } from 'pixelarticons/react/Calendar'
 import { createClient } from '@/shared/supabase/client'
 import { EventCreationSheet } from '@/features/events/components/EventCreationSheet'
-import { resolveAvatarUrl, isSupabaseStorage } from '@/shared/components/ui/Avatar'
+import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
 import { format } from 'date-fns'
 import type { Event } from '@/types'
 
@@ -73,7 +73,7 @@ function EventCardPreview({ event, crewId }: { event: EnrichedEvent; crewId: str
           fill
           sizes="480px"
           className="object-cover"
-          unoptimized={!isLocal && isSupabaseStorage(coverSrc)}
+          loader={supabaseImageLoader}
         />
       </div>
 
@@ -153,12 +153,12 @@ function EventCardPreview({ event, crewId }: { event: EnrichedEvent; crewId: str
                 >
                   {profile.avatar_url ? (
                     <Image
-                      src={resolveAvatarUrl(profile.avatar_url, 24)}
+                      src={profile.avatar_url}
                       alt={profile.username}
                       fill
                       sizes="24px"
                       className="object-cover"
-                      unoptimized={isSupabaseStorage(profile.avatar_url)}
+                      loader={supabaseImageLoader}
                     />
                   ) : (
                     <div

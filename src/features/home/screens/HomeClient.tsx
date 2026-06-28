@@ -15,7 +15,7 @@ import { Message as MessageIcon } from 'pixelarticons/react/Message'
 import { TickerBanner } from '@/shared/components/banners/TickerBanner'
 import { MailRight } from 'pixelarticons/react/MailRight'
 import Image from 'next/image'
-import { isSupabaseStorage, resolveAvatarUrl } from '@/shared/components/ui/Avatar'
+import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
 import { createClient } from '@/shared/supabase/client'
 import { leaveCrewAction, createCrewFromHomeAction, joinCrewFromHomeAction, joinSelectClassAction } from '@/app/(app)/home/actions'
 import { PixelSprite, spriteIdFor, spriteInfoFor } from '@/shared/components/game/PixelSprite'
@@ -139,7 +139,7 @@ function AccountPreview({
         {/* Avatar 48×48 */}
         <div className="w-12 h-12 flex-shrink-0 overflow-hidden relative bg-primary rounded-full">
           {avatarUrl ? (
-            <Image src={resolveAvatarUrl(avatarUrl, 48)} alt={username} fill sizes="48px" className="object-cover" priority unoptimized={isSupabaseStorage(avatarUrl)} />
+            <Image src={avatarUrl} alt={username} fill sizes="48px" className="object-cover" priority loader={supabaseImageLoader} />
           ) : (
             <div className="w-full h-full flex items-center justify-center font-pixel text-[10px] text-black">
               {username[0]?.toUpperCase() ?? '?'}
@@ -1064,12 +1064,12 @@ function SquadCardPreview({ summary }: { summary: CrewSummary }) {
         {imageUrl ? (
           <div className="relative w-full h-full">
             <Image
-              src={resolveAvatarUrl(imageUrl, 48)}
+              src={imageUrl}
               alt={crew.name}
               fill
               sizes="48px"
               className="object-cover"
-              unoptimized={isSupabaseStorage(imageUrl)}
+              loader={supabaseImageLoader}
             />
           </div>
         ) : (
@@ -1356,12 +1356,12 @@ function HomeSquadMemberRow({ member }: { member: SheetMember }) {
         {url ? (
           <div className="relative w-full h-full">
             <Image
-              src={resolveAvatarUrl(url, 32)}
+              src={url}
               alt={member.username}
               fill
               sizes="32px"
               className="object-cover"
-              unoptimized={isSupabaseStorage(url)}
+              loader={supabaseImageLoader}
             />
           </div>
         ) : (
@@ -1527,7 +1527,7 @@ function HomeCrewDetailsSheet({
                 fill
                 sizes="(max-width: 480px) 100vw, 480px"
                 className="object-cover"
-                unoptimized={isSupabaseStorage(bgUrl)}
+                loader={supabaseImageLoader}
               />
             </div>
           ) : (
@@ -1545,12 +1545,12 @@ function HomeCrewDetailsSheet({
                 {imageUrl ? (
                   <div className="relative w-full h-full">
                     <Image
-                      src={resolveAvatarUrl(imageUrl, 40)}
+                      src={imageUrl}
                       alt={crew.name}
                       fill
                       sizes="40px"
                       className="object-cover"
-                      unoptimized={isSupabaseStorage(imageUrl)}
+                      loader={supabaseImageLoader}
                     />
                   </div>
                 ) : (

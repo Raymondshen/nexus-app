@@ -9,7 +9,7 @@ import { Calendar } from 'pixelarticons/react/Calendar'
 import { Check } from 'pixelarticons/react/Check'
 import { Close } from 'pixelarticons/react/Close'
 import { MagicEdit } from 'pixelarticons/react/MagicEdit'
-import { resolveAvatarUrl, isSupabaseStorage } from '@/shared/components/ui/Avatar'
+import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
 import { upsertEventRsvpAction } from '@/app/(app)/chat/actions'
 import { EventCreationSheet } from '@/features/events/components/EventCreationSheet'
 import { EventRegistrationSheet } from '@/features/events/components/EventRegistrationSheet'
@@ -152,7 +152,7 @@ export function EventPageInfoClient({
           priority
           sizes="480px"
           className="object-cover pointer-events-none select-none"
-          unoptimized={!isLocal && isSupabaseStorage(coverSrc)}
+          loader={supabaseImageLoader}
         />
 
         {/* Gradient overlay */}
@@ -347,12 +347,12 @@ export function EventPageInfoClient({
                 >
                   {profile.avatar_url ? (
                     <Image
-                      src={resolveAvatarUrl(profile.avatar_url, 32)}
+                      src={profile.avatar_url}
                       alt={profile.username}
                       fill
                       sizes="32px"
                       className="object-cover"
-                      unoptimized={isSupabaseStorage(profile.avatar_url)}
+                      loader={supabaseImageLoader}
                     />
                   ) : (
                     <div
