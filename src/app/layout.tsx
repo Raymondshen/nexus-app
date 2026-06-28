@@ -78,13 +78,13 @@ export const viewport: Viewport = {
   viewportFit:   'cover',
 }
 
+validateConfig()
+
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  validateConfig()
-
   return (
     <html lang="en" className={`${pressStart2P.variable} ${dmSans.variable} ${silkscreen.variable}`}>
       <body className="min-h-screen bg-[#0a0612] text-white antialiased">

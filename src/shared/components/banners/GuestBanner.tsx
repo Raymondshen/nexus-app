@@ -16,8 +16,8 @@ export function GuestBanner() {
     if (!guestUsername) return
 
     const supabase = createClient()
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user?.email) {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user?.email) {
         localStorage.removeItem('guest_username')
         localStorage.removeItem('guest_data')
       } else {
