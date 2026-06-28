@@ -113,6 +113,8 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   const [devMode,          setDevMode]          = useState(false)
   const [pollEnabled,      setPollEnabled]       = useState(false)
   const [fxpEnabled,       setFxpEnabled]        = useState(false)
+  const [combatEnabled,    setCombatEnabled]     = useState(false)
+  const combatEnabledRef                         = useRef(false)
   const [gemToastVisible,   setGemToastVisible]   = useState(false)
   const [isExpanded,     setIsExpanded]     = useState(false)
   const [memberMsgCounts, setMemberMsgCounts] = useState<Map<string, number>>(new Map())
@@ -192,13 +194,23 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     setDevMode(localStorage.getItem('nexus_dev_mode') === '1')
     setFxpEnabled(localStorage.getItem('nexus_friendship_xp') === '1')
     setPollEnabled(localStorage.getItem('nexus_poll_feature') === '1')
-    function onFxpChange(e: Event)  { setFxpEnabled((e as CustomEvent<{ on: boolean }>).detail.on) }
-    function onPollChange(e: Event) { setPollEnabled((e as CustomEvent<{ on: boolean }>).detail.on) }
+    const combatOn = localStorage.getItem('nexus_combat_system') === '1'
+    setCombatEnabled(combatOn)
+    combatEnabledRef.current = combatOn
+    function onFxpChange(e: Event)    { setFxpEnabled((e as CustomEvent<{ on: boolean }>).detail.on) }
+    function onPollChange(e: Event)   { setPollEnabled((e as CustomEvent<{ on: boolean }>).detail.on) }
+    function onCombatChange(e: Event) {
+      const on = (e as CustomEvent<{ on: boolean }>).detail.on
+      setCombatEnabled(on)
+      combatEnabledRef.current = on
+    }
     window.addEventListener('nexus-friendship-xp-change', onFxpChange)
     window.addEventListener('nexus-poll-feature-change', onPollChange)
+    window.addEventListener('nexus-combat-system-change', onCombatChange)
     return () => {
       window.removeEventListener('nexus-friendship-xp-change', onFxpChange)
       window.removeEventListener('nexus-poll-feature-change', onPollChange)
+      window.removeEventListener('nexus-combat-system-change', onCombatChange)
     }
   }, [])
 
@@ -1035,7 +1047,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   // Fire-and-forget attack-boss after award-xp settles (joined members only)
   const callAttackBoss = useCallback((messageType: string, softBlocked: boolean) => {
     const { activeRaid, memberStats } = useCombatStore.getState()
-    if (!activeRaid || !memberStats[userId]) return
+    if (!combatEnabledRef.current || !activeRaid || !memberStats[userId]) return
     fetch(`${SUPABASE_URL}/functions/v1/attack-boss`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
@@ -1231,7 +1243,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
 
   return (
     <div
-      className={`bg-black border-t ${!isDM && hasJoinedRaid ? 'border-[var(--color-danger)]' : 'border-border'} flex flex-col flex-shrink-0 relative z-[65]`}
+      className={`bg-black border-t ${!isDM && combatEnabled && hasJoinedRaid ? 'border-[var(--color-danger)]' : 'border-border'} flex flex-col flex-shrink-0 relative z-[65]`}
       style={{
         paddingTop:    'var(--space-5)',
         paddingLeft:   'var(--space-5)',
@@ -1240,7 +1252,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
         gap:           'var(--space-5)',
       }}
     >
-      {!isDM && (
+      {!isDM && combatEnabled && (
         <DamageFloatLayer />
       )}
 
@@ -1336,7 +1348,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
         </button>
 
         {/* XP / Boss HP indicator */}
-        {!isDM && hasJoinedRaid && activeCombatRaid ? (
+        {!isDM && combatEnabled && hasJoinedRaid && activeCombatRaid ? (
           <div className="flex flex-col w-full" style={{ gap: 'var(--space-3)' }}>
             <p className="font-silkscreen leading-none w-full" style={{ fontSize: 8, color: 'var(--color-danger)' }}>
               BOSS HP : {String(Math.round(activeCombatRaid.current_hp)).padStart(4, '0')}/{String(Math.round(activeCombatRaid.max_hp)).padStart(4, '0')}

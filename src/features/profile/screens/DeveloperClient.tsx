@@ -107,6 +107,7 @@ export function DeveloperClient({ userId: _userId, initialCoins, userCrews }: De
   const [chatCamera,          setChatCamera]          = useState(false)
   const [pollFeature,         setPollFeature]         = useState(false)
   const [friendshipXP,        setFriendshipXP]        = useState(false)
+  const [combatSystem,        setCombatSystem]        = useState(false)
   const [fxpResetConfirm,     setFxpResetConfirm]     = useState(false)
   const [resettingFXP,        setResettingFXP]        = useState(false)
   const [fxpResetDone,        setFxpResetDone]        = useState(false)
@@ -135,6 +136,7 @@ export function DeveloperClient({ userId: _userId, initialCoins, userCrews }: De
     setChatCamera(localStorage.getItem('nexus_chat_camera') === '1')
     setPollFeature(localStorage.getItem('nexus_poll_feature') === '1')
     setFriendshipXP(localStorage.getItem('nexus_friendship_xp') === '1')
+    setCombatSystem(localStorage.getItem('nexus_combat_system') === '1')
   }, [])
 
   function toggleDevMode() {
@@ -181,6 +183,14 @@ export function DeveloperClient({ userId: _userId, initialCoins, userCrews }: De
     if (next) localStorage.setItem('nexus_friendship_xp', '1')
     else localStorage.removeItem('nexus_friendship_xp')
     window.dispatchEvent(new CustomEvent('nexus-friendship-xp-change', { detail: { on: next } }))
+  }
+
+  function toggleCombatSystem() {
+    const next = !combatSystem
+    setCombatSystem(next)
+    if (next) localStorage.setItem('nexus_combat_system', '1')
+    else localStorage.removeItem('nexus_combat_system')
+    window.dispatchEvent(new CustomEvent('nexus-combat-system-change', { detail: { on: next } }))
   }
 
   async function handleResetFriendshipXP() {
@@ -438,6 +448,13 @@ export function DeveloperClient({ userId: _userId, initialCoins, userCrews }: De
             description="DM and @mention XP, bond progress bar, and toast"
             enabled={friendshipXP}
             onChange={toggleFriendshipXP}
+          />
+
+          <ToggleRow
+            title="Combat System"
+            description="Show raid HUD, boss damage floats, and ability controls"
+            enabled={combatSystem}
+            onChange={toggleCombatSystem}
           />
 
           {/* Reset gem cooldown */}

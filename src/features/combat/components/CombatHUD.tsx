@@ -140,9 +140,19 @@ function ReviveButton({ raidId, tokens }: { raidId: string; tokens: number }) {
 }
 
 export function CombatHUD({ currentUserId, crewId, memberProfiles, userCombatClass }: CombatHUDProps) {
-  const [open,       setOpen]       = useState(false)
-  const [timeToNext, setTimeToNext] = useState('')
-  const triggeredRef                = useRef(false)
+  const [open,          setOpen]          = useState(false)
+  const [timeToNext,    setTimeToNext]    = useState('')
+  const [combatEnabled, setCombatEnabled] = useState(false)
+  const triggeredRef                      = useRef(false)
+
+  useEffect(() => {
+    setCombatEnabled(localStorage.getItem('nexus_combat_system') === '1')
+    function onCombatChange(e: Event) {
+      setCombatEnabled((e as CustomEvent<{ on: boolean }>).detail.on)
+    }
+    window.addEventListener('nexus-combat-system-change', onCombatChange)
+    return () => window.removeEventListener('nexus-combat-system-change', onCombatChange)
+  }, [])
 
   const activeRaid    = useCombatStore((s) => s.activeRaid)
   const memberStats   = useCombatStore((s) => s.memberStats)
@@ -175,7 +185,7 @@ export function CombatHUD({ currentUserId, crewId, memberProfiles, userCombatCla
 
   const hasJoinedRaid = !!(activeRaid && memberStats[currentUserId])
 
-  if (!hasJoinedRaid || !activeRaid) return null
+  if (!combatEnabled || !hasJoinedRaid || !activeRaid) return null
 
   // Boss name from spawn event
   const spawnEvent = combatEvents.find((e) => e.kind === 'boss_spawn')
