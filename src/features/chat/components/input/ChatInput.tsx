@@ -112,6 +112,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   const [typingUsers,    setTypingUsers]    = useState<string[]>([])
   const [devMode,          setDevMode]          = useState(false)
   const [pollEnabled,      setPollEnabled]       = useState(false)
+  const [eventsEnabled,    setEventsEnabled]     = useState(false)
   const [fxpEnabled,       setFxpEnabled]        = useState(false)
   const [combatEnabled,    setCombatEnabled]     = useState(false)
   const combatEnabledRef                         = useRef(false)
@@ -194,11 +195,13 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     setDevMode(localStorage.getItem('nexus_dev_mode') === '1')
     setFxpEnabled(localStorage.getItem('nexus_friendship_xp') === '1')
     setPollEnabled(localStorage.getItem('nexus_poll_feature') === '1')
+    setEventsEnabled(localStorage.getItem('nexus_events_enabled') === '1')
     const combatOn = localStorage.getItem('nexus_combat_system') === '1'
     setCombatEnabled(combatOn)
     combatEnabledRef.current = combatOn
     function onFxpChange(e: Event)    { setFxpEnabled((e as CustomEvent<{ on: boolean }>).detail.on) }
     function onPollChange(e: Event)   { setPollEnabled((e as CustomEvent<{ on: boolean }>).detail.on) }
+    function onEventsChange(e: Event) { setEventsEnabled((e as CustomEvent<{ on: boolean }>).detail.on) }
     function onCombatChange(e: Event) {
       const on = (e as CustomEvent<{ on: boolean }>).detail.on
       setCombatEnabled(on)
@@ -206,10 +209,12 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     }
     window.addEventListener('nexus-friendship-xp-change', onFxpChange)
     window.addEventListener('nexus-poll-feature-change', onPollChange)
+    window.addEventListener('nexus-events-feature-change', onEventsChange)
     window.addEventListener('nexus-combat-system-change', onCombatChange)
     return () => {
       window.removeEventListener('nexus-friendship-xp-change', onFxpChange)
       window.removeEventListener('nexus-poll-feature-change', onPollChange)
+      window.removeEventListener('nexus-events-feature-change', onEventsChange)
       window.removeEventListener('nexus-combat-system-change', onCombatChange)
     }
   }, [])
@@ -1075,7 +1080,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       const isCmd = text.startsWith('/') && !text.includes(' ')
       if (isCmd) {
         const filter   = text.slice(1).toLowerCase()
-        const matches  = SLASH_COMMANDS.filter((c) => c.name.startsWith(filter))
+        const matches  = SLASH_COMMANDS.filter((c) => c.name.startsWith(filter) && (c.name !== 'event' || eventsEnabled))
         if (matches.length === 1) { executeCommand(matches[0].name); return }
       }
       send()
@@ -1118,7 +1123,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     else focusField()
 
     if (name === 'event') {
-      setShowEventSheet(true)
+      if (eventsEnabled) setShowEventSheet(true)
       return
     }
 
@@ -1512,7 +1517,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
           {(() => {
             const isCmd = text.startsWith('/') && !text.includes(' ')
             const filter = isCmd ? text.slice(1).toLowerCase() : ''
-            const matches = isCmd ? SLASH_COMMANDS.filter((c) => c.name.startsWith(filter)) : []
+            const matches = isCmd ? SLASH_COMMANDS.filter((c) => c.name.startsWith(filter) && (c.name !== 'event' || eventsEnabled)) : []
             if (!isCmd || matches.length === 0) return null
             return (
               <AnimatePresence>
@@ -1876,7 +1881,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       </AnimatePresence>
 
       <AnimatePresence>
-        {showEventSheet && (
+        {showEventSheet && eventsEnabled && (
           <EventCreationSheet
             crewId={crewId}
             currentUserId={userId}

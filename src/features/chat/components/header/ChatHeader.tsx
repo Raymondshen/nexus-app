@@ -162,6 +162,9 @@ export function ChatHeader({
   useEffect(() => {
     setDevMode(localStorage.getItem('nexus_dev_mode') === '1')
     setEventsEnabled(localStorage.getItem('nexus_events_enabled') === '1')
+    function onEventsChange(e: Event) { setEventsEnabled((e as CustomEvent<{ on: boolean }>).detail.on) }
+    window.addEventListener('nexus-events-feature-change', onEventsChange)
+    return () => window.removeEventListener('nexus-events-feature-change', onEventsChange)
   }, [])
 
   // Seed the store with the server-fetched name on mount

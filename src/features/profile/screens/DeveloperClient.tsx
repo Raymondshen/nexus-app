@@ -106,6 +106,7 @@ export function DeveloperClient({ userId: _userId, initialCoins, userCrews }: De
   const [infiniteCoins,       setInfiniteCoins]       = useState(false)
   const [chatCamera,          setChatCamera]          = useState(false)
   const [pollFeature,         setPollFeature]         = useState(false)
+  const [eventsFeature,       setEventsFeature]       = useState(false)
   const [friendshipXP,        setFriendshipXP]        = useState(false)
   const [combatSystem,        setCombatSystem]        = useState(false)
   const [fxpResetConfirm,     setFxpResetConfirm]     = useState(false)
@@ -135,6 +136,7 @@ export function DeveloperClient({ userId: _userId, initialCoins, userCrews }: De
     setInfiniteCoins(localStorage.getItem('nexus_infinite_coins') === '1')
     setChatCamera(localStorage.getItem('nexus_chat_camera') === '1')
     setPollFeature(localStorage.getItem('nexus_poll_feature') === '1')
+    setEventsFeature(localStorage.getItem('nexus_events_enabled') === '1')
     setFriendshipXP(localStorage.getItem('nexus_friendship_xp') === '1')
     setCombatSystem(localStorage.getItem('nexus_combat_system') === '1')
   }, [])
@@ -175,6 +177,14 @@ export function DeveloperClient({ userId: _userId, initialCoins, userCrews }: De
     if (next) localStorage.setItem('nexus_poll_feature', '1')
     else localStorage.removeItem('nexus_poll_feature')
     window.dispatchEvent(new CustomEvent('nexus-poll-feature-change', { detail: { on: next } }))
+  }
+
+  function toggleEventsFeature() {
+    const next = !eventsFeature
+    setEventsFeature(next)
+    if (next) localStorage.setItem('nexus_events_enabled', '1')
+    else localStorage.removeItem('nexus_events_enabled')
+    window.dispatchEvent(new CustomEvent('nexus-events-feature-change', { detail: { on: next } }))
   }
 
   function toggleFriendshipXP() {
@@ -441,6 +451,13 @@ export function DeveloperClient({ userId: _userId, initialCoins, userCrews }: De
             description="Show poll creation button in chat input"
             enabled={pollFeature}
             onChange={togglePollFeature}
+          />
+
+          <ToggleRow
+            title="Events Feature"
+            description="Enable group event creation and calendar in chat"
+            enabled={eventsFeature}
+            onChange={toggleEventsFeature}
           />
 
           <ToggleRow
