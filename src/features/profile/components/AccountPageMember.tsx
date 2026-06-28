@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -8,11 +8,8 @@ import { isSupabaseStorage, resolveAvatarUrl } from '@/shared/components/ui/Avat
 import { useSlideBack } from '@/app/layouts/SlidePage'
 import { TickerBanner } from '@/shared/components/banners/TickerBanner'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
-import { Plus } from 'pixelarticons/react/Plus'
 import { SettingsCog } from 'pixelarticons/react/SettingsCog'
 import { Message } from 'pixelarticons/react/Message'
-import { NotesGrid } from '@/features/profile/components/NotesGrid'
-import type { NotesGridHandle } from '@/features/profile/components/NotesGrid'
 import { VibesGrid } from '@/features/profile/components/VibesGrid'
 import { PhotosGrid } from '@/features/profile/components/PhotosGrid'
 import type { PublicNote, ProfilePhoto } from '@/types'
@@ -55,11 +52,10 @@ export function AccountPageMember({
   const goBack      = useSlideBack()
   const router      = useRouter()
   const isOwner     = viewerId === userId
-  const notesRef    = useRef<NotesGridHandle>(null)
 
-  type MemberTab = 'vibes' | 'photos' | 'board'
-  const TAB_ORDER: Record<MemberTab, number> = { vibes: 0, photos: 1, board: 2 }
-  const [activeTab, setActiveTab] = useState<MemberTab>('vibes')
+  type MemberTab = 'photos' | 'vibes'
+  const TAB_ORDER: Record<MemberTab, number> = { photos: 0, vibes: 1 }
+  const [activeTab, setActiveTab] = useState<MemberTab>('photos')
   const tabDirRef   = useRef(1)
   function switchTab(tab: MemberTab) {
     if (tab === activeTab) return
@@ -183,28 +179,16 @@ export function AccountPageMember({
             <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
           </button>
 
-          {/* Owner-only: plus (board only) + settings */}
+          {/* Owner-only: settings */}
           {isOwner && (
-            <div className="pointer-events-auto flex items-center" style={{ gap: 8 }}>
-              {activeTab === 'board' && (
-                <button
-                  onClick={() => notesRef.current?.openAdd()}
-                  aria-label="Add link"
-                  className="flex items-center justify-center rounded-[4px]"
-                  style={{ padding: 8, backdropFilter: 'blur(7px)', filter: 'drop-shadow(0px 0px 20px rgba(0,0,0,0.1))' }}
-                >
-                  <Plus style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
-                </button>
-              )}
-              <button
-                onClick={() => router.push('/profile')}
-                aria-label="Settings"
-                className="flex items-center justify-center rounded-[4px]"
-                style={{ padding: 8, backdropFilter: 'blur(7px)', filter: 'drop-shadow(0px 0px 20px rgba(0,0,0,0.1))' }}
-              >
-                <SettingsCog style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
-              </button>
-            </div>
+            <button
+              onClick={() => router.push('/profile')}
+              aria-label="Settings"
+              className="pointer-events-auto flex items-center justify-center rounded-[4px]"
+              style={{ padding: 8, backdropFilter: 'blur(7px)', filter: 'drop-shadow(0px 0px 20px rgba(0,0,0,0.1))' }}
+            >
+              <SettingsCog style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+            </button>
           )}
         </div>
       </div>
@@ -220,7 +204,7 @@ export function AccountPageMember({
 
       {/* ── Tab bar ──────────────────────────────────────────────────────────── */}
       <div className="flex flex-shrink-0" style={{ borderBottom: '1px solid var(--color-border)' }}>
-        {(['vibes', 'photos', 'board'] as const).map((tab) => (
+        {(['photos', 'vibes'] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => switchTab(tab)}
@@ -232,29 +216,14 @@ export function AccountPageMember({
               boxShadow: activeTab === tab ? 'inset 0 -2px 0 var(--color-purple)' : 'none',
             }}
           >
-            {tab === 'vibes' ? 'VIBES' : tab === 'photos' ? 'PHOTOS' : 'BOARD'}
+            {tab === 'photos' ? 'PHOTOS' : 'VIBES'}
           </button>
         ))}
       </div>
 
       {/* ── Tab content ─────────────────────────────────────────────────────── */}
       <AnimatePresence mode="wait" initial={false}>
-        {activeTab === 'vibes' ? (
-          <motion.div
-            key="vibes"
-            className="flex-1 min-h-0"
-            initial={{ opacity: 0, x: tabDirRef.current * 16 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: tabDirRef.current * -16 }}
-            transition={{ duration: 0.15, ease: [0.4, 0, 0.2, 1] }}
-          >
-            <VibesGrid
-              initialVinyls={initialNotes}
-              crews={notesCrews}
-              isOwner={isOwner}
-            />
-          </motion.div>
-        ) : activeTab === 'photos' ? (
+        {activeTab === 'photos' ? (
           <motion.div
             key="photos"
             className="flex-1 min-h-0"
@@ -271,23 +240,17 @@ export function AccountPageMember({
           </motion.div>
         ) : (
           <motion.div
-            key="board"
+            key="vibes"
             className="flex-1 min-h-0"
             initial={{ opacity: 0, x: tabDirRef.current * 16 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: tabDirRef.current * -16 }}
             transition={{ duration: 0.15, ease: [0.4, 0, 0.2, 1] }}
           >
-            <NotesGrid
-              ref={notesRef}
-              viewerId={viewerId}
-              initialNotes={initialNotes}
-              initialSections={[]}
+            <VibesGrid
+              initialVinyls={initialNotes}
               crews={notesCrews}
-              initialCrewId={crewId}
-              lockCrew={false}
-              readOnly={!isOwner}
-              creatorFilter={userId}
+              isOwner={isOwner}
             />
           </motion.div>
         )}
