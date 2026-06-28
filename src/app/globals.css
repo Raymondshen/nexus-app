@@ -154,6 +154,17 @@
 *::after {
   box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+
+/* Re-enable selection for all interactive input elements */
+input,
+textarea {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
 }
 
 html,
@@ -169,7 +180,7 @@ body {
   overscroll-behavior-y: contain;
 }
 
-/* Prevent native text-selection callout on long-press in chat (iOS + Android) */
+/* Kept for compatibility — now covered by the global * rule above */
 .chat-no-select {
   -webkit-user-select: none;
   -webkit-touch-callout: none;
