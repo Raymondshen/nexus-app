@@ -26,6 +26,8 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
 
   const [showPinList,      setShowPinList]      = useState(false)
   const [showEventPreview, setShowEventPreview] = useState(false)
+  const [devMode,          setDevMode]          = useState(false)
+  const [eventsEnabled,    setEventsEnabled]    = useState(false)
 
   useEffect(() => {
     const from = sessionStorage.getItem('nexus_chat_from')
@@ -35,6 +37,14 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
     const current = window.location.pathname + window.location.search
     window.history.replaceState({ __NA: true }, '', '/home')
     window.history.pushState(null, '', current)
+  }, [])
+
+  useEffect(() => {
+    setDevMode(localStorage.getItem('nexus_dev_mode') === '1')
+    setEventsEnabled(localStorage.getItem('nexus_events_enabled') === '1')
+    function onEventsChange(e: Event) { setEventsEnabled((e as CustomEvent<{ on: boolean }>).detail.on) }
+    window.addEventListener('nexus-events-feature-change', onEventsChange)
+    return () => window.removeEventListener('nexus-events-feature-change', onEventsChange)
   }, [])
 
   // Seed store with server-fetched gem balance
@@ -99,20 +109,22 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
               />
             </button>
 
-            <button
-              onClick={() => setShowEventPreview(true)}
-              aria-label="Group events"
-              className="flex items-center justify-center border border-border flex-shrink-0"
-              style={{
-                padding: 'var(--x3)',
-                background: 'rgba(0,0,0,0)',
-                backdropFilter: 'blur(7px)',
-                WebkitBackdropFilter: 'blur(7px)',
-                boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)',
-              }}
-            >
-              <Calendar2 style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
-            </button>
+            {devMode && eventsEnabled && (
+              <button
+                onClick={() => setShowEventPreview(true)}
+                aria-label="Group events"
+                className="flex items-center justify-center border border-border flex-shrink-0"
+                style={{
+                  padding: 'var(--x3)',
+                  background: 'rgba(0,0,0,0)',
+                  backdropFilter: 'blur(7px)',
+                  WebkitBackdropFilter: 'blur(7px)',
+                  boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)',
+                }}
+              >
+                <Calendar2 style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+              </button>
+            )}
 
             <button
               onClick={() => setSquadDetailsOpen(true)}
@@ -144,7 +156,7 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
       </AnimatePresence>
 
       <AnimatePresence>
-        {showEventPreview && (
+        {showEventPreview && devMode && eventsEnabled && (
           <EventSheetBottomPreview
             crewId={crewId}
             currentUserId={currentUserId}
