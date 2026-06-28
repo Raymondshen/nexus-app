@@ -478,13 +478,11 @@ export function MessageBubble({
             onClick={onAvatarTap ? () => onAvatarTap(message.user_id) : undefined}
             style={onAvatarTap ? { cursor: 'pointer' } : undefined}
           >
-            <div className="w-8 h-8 rounded-full bg-surface flex items-center justify-center overflow-hidden">
+            <div className="relative w-8 h-8 rounded-full bg-surface overflow-hidden">
               {pollAvatarUrl ? (
-                <div className="relative w-full h-full">
-                  <Image src={pollAvatarUrl} alt={message.profile.username} fill sizes="32px" className="object-cover" loader={supabaseImageLoader} />
-                </div>
+                <Image src={pollAvatarUrl} alt={message.profile.username} fill sizes="32px" className="object-cover" loader={supabaseImageLoader} />
               ) : (
-                <span className="font-pixel text-[8px] text-purple">{pollInitial}</span>
+                <span className="absolute inset-0 flex items-center justify-center font-pixel text-[8px] text-purple">{pollInitial}</span>
               )}
             </div>
             {pollIsOnline && (
@@ -530,13 +528,11 @@ export function MessageBubble({
             onClick={onAvatarTap ? () => onAvatarTap(message.user_id) : undefined}
             style={onAvatarTap ? { cursor: 'pointer' } : undefined}
           >
-            <div className="w-8 h-8 rounded-full bg-surface flex items-center justify-center overflow-hidden">
+            <div className="relative w-8 h-8 rounded-full bg-surface overflow-hidden">
               {eventAvatarUrl ? (
-                <div className="relative w-full h-full">
-                  <Image src={eventAvatarUrl} alt={message.profile.username} fill sizes="32px" className="object-cover" loader={supabaseImageLoader} />
-                </div>
+                <Image src={eventAvatarUrl} alt={message.profile.username} fill sizes="32px" className="object-cover" loader={supabaseImageLoader} />
               ) : (
-                <span className="font-pixel text-[8px] text-purple">{eventInitial}</span>
+                <span className="absolute inset-0 flex items-center justify-center font-pixel text-[8px] text-purple">{eventInitial}</span>
               )}
             </div>
             {eventIsOnline && (
@@ -594,13 +590,11 @@ export function MessageBubble({
             onTouchStart={onAvatarTap ? (e) => e.stopPropagation() : undefined}
             style={onAvatarTap ? { cursor: 'pointer' } : undefined}
           >
-            <div className="w-8 h-8 rounded-full bg-surface flex items-center justify-center overflow-hidden">
+            <div className="relative w-8 h-8 rounded-full bg-surface overflow-hidden">
               {avatarUrl ? (
-                <div className="relative w-full h-full">
-                  <Image src={avatarUrl} alt={message.profile.username} fill sizes="32px" className="object-cover" loader={supabaseImageLoader} />
-                </div>
+                <Image src={avatarUrl} alt={message.profile.username} fill sizes="32px" className="object-cover" loader={supabaseImageLoader} />
               ) : (
-                <span className="font-pixel text-[8px] text-purple">{initial}</span>
+                <span className="absolute inset-0 flex items-center justify-center font-pixel text-[8px] text-purple">{initial}</span>
               )}
             </div>
             {isOnline && (
