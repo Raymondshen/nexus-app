@@ -452,13 +452,17 @@ function HomeActionSheet({
 
       if (profilePhotoFile) {
         try {
-          const ts   = Date.now()
-          const blob = await resizeImageToBlob(profilePhotoFile, 256, 256)
-          const path = `${crewId}/${ts}-256.webp`
-          const { error: upErr } = await supabase.storage.from('crew-images')
-            .upload(path, blob, { contentType: 'image/webp', cacheControl: '31536000' })
-          if (!upErr) {
-            const { data: { publicUrl } } = supabase.storage.from('crew-images').getPublicUrl(path)
+          const ts = Date.now()
+          const [blob256, blob128] = await Promise.all([
+            resizeImageToBlob(profilePhotoFile, 256, 256),
+            resizeImageToBlob(profilePhotoFile, 128, 128),
+          ])
+          const [res256] = await Promise.all([
+            supabase.storage.from('crew-images').upload(`${crewId}/${ts}-256.webp`, blob256, { contentType: 'image/webp', cacheControl: '31536000' }),
+            supabase.storage.from('crew-images').upload(`${crewId}/${ts}-128.webp`, blob128, { contentType: 'image/webp', cacheControl: '31536000' }),
+          ])
+          if (!res256.error) {
+            const { data: { publicUrl } } = supabase.storage.from('crew-images').getPublicUrl(`${crewId}/${ts}-256.webp`)
             await updateCrewImageAction(crewId, publicUrl, `${crewId}/${ts}`)
           }
         } catch { /* non-fatal */ }
