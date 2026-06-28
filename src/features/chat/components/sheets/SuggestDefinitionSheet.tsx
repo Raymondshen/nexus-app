@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { suggestDefinitionAction } from '@/app/(app)/chat/[crewId]/definitions/actions'
 import { Button } from '@/shared/components/ui/Button'
@@ -28,6 +28,9 @@ export function SuggestDefinitionSheet({
   const [suggestion, setSuggestion] = useState('')
   const [error,      setError]      = useState('')
   const [saving,     setSaving]     = useState(false)
+
+  const suggestionRef = useRef<HTMLTextAreaElement>(null)
+  useEffect(() => { suggestionRef.current?.blur() }, [])
 
   async function handleSuggest() {
     if (!suggestion.trim()) { setError('Please write your suggestion.'); return }
@@ -117,6 +120,7 @@ export function SuggestDefinitionSheet({
             Suggest a new definition
           </p>
           <textarea
+            ref={suggestionRef}
             value={suggestion}
             onChange={(e) => setSuggestion(e.target.value)}
             maxLength={500}

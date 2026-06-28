@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { createDefinitionAction } from '@/app/(app)/chat/[crewId]/definitions/actions'
 import { Button } from '@/shared/components/ui/Button'
@@ -24,6 +24,9 @@ export function DefinitionCreateSheet({
   const [definition, setDefinition] = useState('')
   const [error,      setError]      = useState('')
   const [saving,     setSaving]     = useState(false)
+
+  const wordInputRef = useRef<HTMLInputElement>(null)
+  useEffect(() => { wordInputRef.current?.blur() }, [])
 
   async function handleSave() {
     if (!word.trim())       { setError('Word is required.'); return }
@@ -72,6 +75,7 @@ export function DefinitionCreateSheet({
               Words attached to definition
             </p>
             <input
+              ref={wordInputRef}
               value={word}
               onChange={(e) => setWord(e.target.value)}
               maxLength={100}

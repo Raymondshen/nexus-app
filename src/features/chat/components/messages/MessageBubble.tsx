@@ -480,7 +480,7 @@ export function MessageBubble({
           >
             <div className="relative w-8 h-8 rounded-full bg-surface overflow-hidden">
               {pollAvatarUrl ? (
-                <Image src={pollAvatarUrl} alt={message.profile.username} fill sizes="32px" className="object-cover" loader={supabaseImageLoader} />
+                <Image src={pollAvatarUrl} alt={message.profile.username} fill sizes="32px" className="object-contain" loader={supabaseImageLoader} />
               ) : (
                 <span className="absolute inset-0 flex items-center justify-center font-pixel text-[8px] text-purple">{pollInitial}</span>
               )}
@@ -530,7 +530,7 @@ export function MessageBubble({
           >
             <div className="relative w-8 h-8 rounded-full bg-surface overflow-hidden">
               {eventAvatarUrl ? (
-                <Image src={eventAvatarUrl} alt={message.profile.username} fill sizes="32px" className="object-cover" loader={supabaseImageLoader} />
+                <Image src={eventAvatarUrl} alt={message.profile.username} fill sizes="32px" className="object-contain" loader={supabaseImageLoader} />
               ) : (
                 <span className="absolute inset-0 flex items-center justify-center font-pixel text-[8px] text-purple">{eventInitial}</span>
               )}
@@ -592,7 +592,7 @@ export function MessageBubble({
           >
             <div className="relative w-8 h-8 rounded-full bg-surface overflow-hidden">
               {avatarUrl ? (
-                <Image src={avatarUrl} alt={message.profile.username} fill sizes="32px" className="object-cover" loader={supabaseImageLoader} />
+                <Image src={avatarUrl} alt={message.profile.username} fill sizes="32px" className="object-contain" loader={supabaseImageLoader} />
               ) : (
                 <span className="absolute inset-0 flex items-center justify-center font-pixel text-[8px] text-purple">{initial}</span>
               )}
@@ -659,7 +659,7 @@ export function MessageBubble({
                 onTouchStart={(e) => e.stopPropagation()}
                 onTouchEnd={(e) => e.stopPropagation()}
               >
-                <CornerDownRight style={{ width: 16, height: 16, color: 'var(--color-purple)', flexShrink: 0 }} />
+                <CornerDownRight style={{ width: 16, height: 16, color: 'var(--color-tertiary)', flexShrink: 0 }} />
                 <div className="relative w-[16px] h-[16px] rounded-full bg-surface overflow-hidden flex-shrink-0">
                   {replyAvatarUrl ? (
                     <Image
@@ -667,7 +667,7 @@ export function MessageBubble({
                       alt={message.reply_username ?? ''}
                       fill
                       sizes="16px"
-                      className="object-cover"
+                      className="object-contain"
                       loader={supabaseImageLoader}
                     />
                   ) : (

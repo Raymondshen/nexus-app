@@ -70,10 +70,13 @@ export function GifPickerSheet({ onSelect, onClose }: GifPickerSheetProps) {
   const [page,    setPage]    = useState(1)
   const [hasNext, setHasNext] = useState(false)
 
-  const sentinelRef  = useRef<HTMLDivElement>(null)
-  const prevQueryRef = useRef('')
-  const loadingRef   = useRef(true)
+  const sentinelRef    = useRef<HTMLDivElement>(null)
+  const prevQueryRef   = useRef('')
+  const loadingRef     = useRef(true)
+  const searchInputRef = useRef<HTMLInputElement>(null)
   loadingRef.current = loading
+
+  useEffect(() => { searchInputRef.current?.blur() }, [])
 
   const fetchGifs = useCallback(async (q: string, pageNum: number, append: boolean) => {
     setLoading(true)
@@ -153,6 +156,7 @@ export function GifPickerSheet({ onSelect, onClose }: GifPickerSheetProps) {
           <div className="flex items-center border border-border h-12 px-4" style={{ gap: 8 }}>
             <Search style={{ width: 16, height: 16, color: 'var(--color-muted)', flexShrink: 0 }} />
             <input
+              ref={searchInputRef}
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}

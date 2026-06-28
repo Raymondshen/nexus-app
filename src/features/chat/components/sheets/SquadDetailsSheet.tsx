@@ -229,6 +229,9 @@ function SquadDetailsEditSheet({
   const [nameValue, setNameValue] = useState(crewName)
   const [saving,    setSaving]    = useState(false)
 
+  const nameInputRef = useRef<HTMLInputElement>(null)
+  useEffect(() => { nameInputRef.current?.blur() }, [])
+
   async function handleSave() {
     const trimmed = nameValue.trim()
     if (!trimmed || trimmed.length < 2) return
@@ -407,6 +410,7 @@ function SquadDetailsEditSheet({
             Squad Name
           </p>
           <input
+            ref={nameInputRef}
             value={nameValue}
             onChange={(e) => setNameValue(e.target.value.slice(0, 30))}
             onKeyDown={(e) => { if (e.key === 'Enter') handleSave() }}

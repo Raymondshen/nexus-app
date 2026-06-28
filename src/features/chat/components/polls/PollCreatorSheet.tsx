@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Close } from 'pixelarticons/react/Close'
 import { PlusBox } from 'pixelarticons/react/PlusBox'
@@ -29,6 +29,9 @@ export function PollCreatorSheet({ crewId, userProfile, onClose, onCreated }: Po
   const [duration,   setDuration]   = useState<DurationValue>(30)
   const [submitting, setSubmitting] = useState(false)
   const [error,      setError]      = useState<string | null>(null)
+
+  const questionRef = useRef<HTMLTextAreaElement>(null)
+  useEffect(() => { questionRef.current?.blur() }, [])
 
   function addOption() {
     if (options.length < 5) setOptions((prev) => [...prev, ''])
@@ -132,6 +135,7 @@ export function PollCreatorSheet({ crewId, userProfile, onClose, onCreated }: Po
                 Question
               </p>
               <textarea
+                ref={questionRef}
                 value={question}
                 onChange={(e) => setQuestion(e.target.value.slice(0, 200))}
                 placeholder="What do you want to ask?"

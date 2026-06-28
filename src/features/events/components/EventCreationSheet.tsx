@@ -96,7 +96,10 @@ export function EventCreationSheet({
 
   const [coverImageFile,    setCoverImageFile]    = useState<File | null>(null)
   const [coverImagePreview, setCoverImagePreview] = useState<string | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const fileInputRef  = useRef<HTMLInputElement>(null)
+  const titleInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => { titleInputRef.current?.blur() }, [])
 
   useEffect(() => {
     if (!coverImageFile) { setCoverImagePreview(null); return }
@@ -280,6 +283,7 @@ export function EventCreationSheet({
                 <span style={{ color: 'var(--red)', lineHeight: 'normal' }}>*</span>
               </p>
               <input
+                ref={titleInputRef}
                 value={title}
                 onChange={(e) => setTitle(e.target.value.slice(0, 100))}
                 placeholder="Option 1..."
