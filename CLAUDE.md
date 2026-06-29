@@ -526,7 +526,8 @@ New notification type checklist:
 
 ## Images
 - `next/image` everywhere with `loader={supabaseImageLoader}` for general Supabase storage images
-- **Avatar images must use `avatarImageLoader`** (`src/shared/supabase/imageLoader.ts`) — forces square 1:1 output: Supabase render API gets both `width` and `height` (same value) so non-square sources are center-cropped; Google photo URLs get the `-c` square-crop suffix at the correct size. Use on all avatar `<Image>` elements; never use `supabaseImageLoader` for avatars.
+- **Avatar images must use `avatarImageLoader`** (`src/shared/supabase/imageLoader.ts`) — forces square 1:1 output: Supabase render API gets both `width` and `height` (same value) so non-square sources are center-cropped; Google photo URLs get the `-c` square-crop suffix at the correct size. Use on all person/user avatar `<Image>` elements; never use `supabaseImageLoader` for avatars. The shared `Avatar` component (`src/shared/components/ui/Avatar.tsx`) already uses this. Files that render both person avatars AND crew/event images must import both loaders (`import { supabaseImageLoader, avatarImageLoader } from ...`).
+- Non-avatar images use `supabaseImageLoader`: crew images (`crew.image_url`), crew backgrounds, event covers, photo grid, OG link previews — anything that is not a person's face.
 - Plain `<img>`: pixel sprites · crop target · hero backgrounds in `ProfileClient.tsx` · Vibes OG thumbnails (external URLs, not Supabase storage)
 - Avatar upload: `AvatarUploadModal` → `react-image-crop` → canvas → 128+256px WebP → bucket `avatars`; `process-avatar` edge fn → 64/128/256px AVIF; `custom_avatar = true` blocks Google photo overwrite
 - Crew background image: `resizeImageToBlob(file, 1080, 608)` → `crew-images/{crewId}/bg-{ts}.webp`; `updateCrewBackgroundImageAction` stores public URL in `crews.background_image_url`
