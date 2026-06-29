@@ -9,7 +9,7 @@ import { useChatStore } from '@/store/chatStore'
 import { useCombatStore } from '@/store/combatStore'
 import { createClient } from '@/shared/supabase/client'
 import type { MessageWithProfile, Profile, SquadDefinitionWithCreator } from '@/types'
-import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
+import { supabaseImageLoader, avatarImageLoader } from '@/shared/supabase/imageLoader'
 import { extractFirstUrl } from '@/shared/utils'
 import { useOGPreview } from '@/shared/hooks/useOGPreview'
 import { LinkPreviewCard } from '@/features/chat/components/messages/LinkPreviewCard'
@@ -480,7 +480,7 @@ export function MessageBubble({
           >
             <div className="relative w-8 h-8 rounded-full bg-surface overflow-hidden">
               {pollAvatarUrl ? (
-                <Image src={pollAvatarUrl} alt={message.profile.username} fill sizes="32px" className="object-cover" loader={supabaseImageLoader} />
+                <Image src={pollAvatarUrl} alt={message.profile.username} fill sizes="32px" className="object-cover" loader={avatarImageLoader} />
               ) : (
                 <span className="absolute inset-0 flex items-center justify-center font-pixel text-[8px] text-purple">{pollInitial}</span>
               )}
@@ -530,7 +530,7 @@ export function MessageBubble({
           >
             <div className="relative w-8 h-8 rounded-full bg-surface overflow-hidden">
               {eventAvatarUrl ? (
-                <Image src={eventAvatarUrl} alt={message.profile.username} fill sizes="32px" className="object-cover" loader={supabaseImageLoader} />
+                <Image src={eventAvatarUrl} alt={message.profile.username} fill sizes="32px" className="object-cover" loader={avatarImageLoader} />
               ) : (
                 <span className="absolute inset-0 flex items-center justify-center font-pixel text-[8px] text-purple">{eventInitial}</span>
               )}
@@ -592,7 +592,7 @@ export function MessageBubble({
           >
             <div className="relative w-8 h-8 rounded-full bg-surface overflow-hidden">
               {avatarUrl ? (
-                <Image src={avatarUrl} alt={message.profile.username} fill sizes="32px" className="object-cover" loader={supabaseImageLoader} />
+                <Image src={avatarUrl} alt={message.profile.username} fill sizes="32px" className="object-cover" loader={avatarImageLoader} />
               ) : (
                 <span className="absolute inset-0 flex items-center justify-center font-pixel text-[8px] text-purple">{initial}</span>
               )}
@@ -668,7 +668,7 @@ export function MessageBubble({
                       fill
                       sizes="16px"
                       className="object-cover"
-                      loader={supabaseImageLoader}
+                      loader={avatarImageLoader}
                     />
                   ) : (
                     <span className="absolute inset-0 flex items-center justify-center font-pixel text-[4px] text-purple">
