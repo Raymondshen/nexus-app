@@ -272,6 +272,10 @@ src/
 ### MessageBubble — text rendering
 `renderMessageContent` — splits on `@username` tokens, then `renderWithLinks` + `renderWithDefinitions` on each segment. Early returns for `message_type === 'system'` and `'poll'`.
 
+Avatar images (32px primary, 16px reply) use `avatarImageLoader` — forces 1:1 square crop for consistent circle fill across all user avatar types.
+
+Reply row: `CornerDownRight` icon uses `var(--color-tertiary)` (muted). Reply avatar is 16×16 with `object-cover` + `avatarImageLoader`.
+
 Long-press sheet (500ms / right-click) → emoji quick-pick + Reply + Copy Text + Pin (admin only). `PinDurationSheet` portal opens when pin tapped.
 
 OG previews: `extractFirstUrl` → `useOGPreview` hook → `<LinkPreviewCard>` below body; text-only messages without `image_url` only.
@@ -498,8 +502,8 @@ New notification type checklist:
 - Debugging: 401 = deployed without `--no-verify-jwt`; `expired_deleted` = APNs 410'd → FORCE RESUB
 
 ## Images
-- `next/image` everywhere; `unoptimized={isSupabaseStorage(url)}` on every Supabase image
-- `resolveAvatarUrl(url, displaySize)` on every avatar src (swaps `-256` → `-128` for ≤ 64px)
+- `next/image` everywhere with `loader={supabaseImageLoader}` for general Supabase storage images
+- **Avatar images must use `avatarImageLoader`** (`src/shared/supabase/imageLoader.ts`) — forces square 1:1 output: Supabase render API gets both `width` and `height` (same value) so non-square sources are center-cropped; Google photo URLs get the `-c` square-crop suffix at the correct size. Use on all avatar `<Image>` elements; never use `supabaseImageLoader` for avatars.
 - Plain `<img>`: pixel sprites · crop target · hero backgrounds in `ProfileClient.tsx`
 - Avatar upload: `AvatarUploadModal` → `react-image-crop` → canvas → 128+256px WebP → bucket `avatars`; `process-avatar` edge fn → 64/128/256px AVIF; `custom_avatar = true` blocks Google photo overwrite
 - Crew background image: `resizeImageToBlob(file, 1080, 608)` → `crew-images/{crewId}/bg-{ts}.webp`; `updateCrewBackgroundImageAction` stores public URL in `crews.background_image_url`
@@ -570,6 +574,8 @@ Backdrop tap + drag-to-dismiss. Spring `stiffness 320, damping 32`.
 ```
 
 Upload modals use `drag={saving ? false : 'y'}` — sheet locked during active upload.
+
+**Keyboard suppression on open**: every sheet that contains an input or textarea must blur it immediately on mount to prevent the mobile keyboard from auto-popping when the sheet animates in. Pattern — `const inputRef = useRef<HTMLInputElement>(null); useEffect(() => { inputRef.current?.blur() }, [])` — apply the ref to the first focusable field.
 
 ### Panel (SquadDetailsSheet only — do not use elsewhere)
 Full-height swipe-up with scroll-integrated pull-to-close (`onPanEnd`, threshold offset > 60 or vel > 300). Do not replicate for new sheets.
