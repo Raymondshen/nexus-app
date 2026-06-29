@@ -2,8 +2,10 @@
 
 import { useState, useRef, useCallback } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
+import Image from 'next/image'
 import { addPhotoAction, deletePhotoAction } from '@/app/(app)/profile/actions'
 import { resizeImageToBlob } from '@/shared/utils/imageCompress'
+import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
 import { createClient } from '@/shared/supabase/client'
 import type { ProfilePhoto } from '@/types'
 
@@ -124,20 +126,15 @@ function PhotoCell({
       onPointerLeave={cancelPress}
       onClick={handleTap}
     >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
+      <Image
         src={photo.url}
         alt=""
-        style={{
-          position:       'absolute',
-          inset:          0,
-          width:          '100%',
-          height:         '100%',
-          objectFit:      'cover',
-          objectPosition: 'center',
-          pointerEvents:  'none',
-        }}
+        fill
+        sizes="(max-width: 480px) 33vw, 160px"
+        className="object-cover"
+        style={{ pointerEvents: 'none' }}
         loading="lazy"
+        loader={supabaseImageLoader}
       />
 
       <AnimatePresence>
