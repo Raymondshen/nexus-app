@@ -149,7 +149,8 @@ Client-side (`localStorage.nexus_dev_mode === '1'`): `MessageList` hides boss/ar
 
 ## Storage Keys
 
-sessionStorage: `nexus-msgs-{crewId}` (JSON, 50 msg cap) · `nexus_chat_from` (`'/home'`)
+sessionStorage: `nexus-msgs-{crewId}` (envelope `{ messages: MessageWithProfile[], savedAt: number }`, 50 msg cap) · `nexus_chat_from` (`'/home'`)
+IndexedDB (idb-keyval): `nexus-msgs-{crewId}` — same envelope as sessionStorage; survives iOS PWA kill/relaunch where sessionStorage is cleared
 
 localStorage:
 | Key | Value |
@@ -263,7 +264,12 @@ src/
 
 ### MessageList
 - **Virtualization**: `useVirtualizer` (absolute-position, `measureElement`, `overscan: 5`). `getItemKey` uses `message.tempId ?? message.id` — `tempId` keeps the virtualizer key stable through optimistic→real reconciliation.
-- **Initial load**: stale-while-revalidate — `nexus-msgs-{crewId}` sessionStorage → immediate render; background fetch newest 50 merges with in-flight Realtime msgs; `setMessages([])` before load prevents crew bleed
+- **Initial load** (three-tier cache):
+  1. `useBrowserLayoutEffect` reads sessionStorage `nexus-msgs-{crewId}` synchronously → instant render if present (same-session navigation)
+  2. `useEffect` checks cache envelope `savedAt`: if < 30s old → skip DB fetch entirely (Realtime delivers any delta); if sessionStorage is empty → reads IDB (survives iOS PWA kill, ~5ms async) → shows cached messages, then proceeds to DB fetch to merge
+  3. DB fetch (when needed): newest 50 messages, merged with in-flight Realtime msgs; result written to both sessionStorage and IDB
+  - `setMessages([])` before load prevents crew bleed
+- **Definitions fetch**: resolves creator usernames from `profilesRef.current` (already-loaded member profiles) first; only queries DB for creators who left the crew — eliminates the sequential profile round-trip in the common case
 - **Cursor pagination**: scroll-up within 120px → `fetchOlderMessages` — keyset `WHERE created_at < cursor ORDER BY created_at DESC LIMIT 50`; batches prepended via `chatStore.prependMessages`
 - **Scroll restoration after prepend**: capture `scrollTop` + `virtualizer.getTotalSize()` before prepend; in `useBrowserLayoutEffect` set `el.scrollTop = prevScrollTop + (newTotalSize - prevTotalSize)`
 - **Display items**: single merged `useMemo` pass returns both `groupXPMap` and `groupCoinMap`; builds typed `DisplayItem[]` — `spacer | empty | divider | boss | artifact | level_up | message`; group leader gets `xpOverride` / `coinOverride`. System messages starting with `COMBAT:` or `BOSS_SPAWN:` always skipped — shown in `CombatLog` inside HUD.
@@ -388,7 +394,7 @@ Layout (flex col, `max-h: 85vh`, `overflow-hidden`):
 
 ### Page Transitions (`src/app/layouts/SlidePage.tsx`)
 - Enter: spring 380/36; skipped on back-nav via `_skipNextSlideEnter` module flag
-- Exit: ease-in 150ms; navigation fires in `.then()` after animation
+- Exit: ease-in 150ms; `goBack()` fires `router.replace/back` **simultaneously** with the animation start — the chat page is `position:fixed` so it overlays the previous page while sliding, giving the destination 150ms of free loading time. Swipe-to-close uses the same pattern.
 - `nativeSwipe`: no touch handlers; `useSlideBack()` — use instead of `router.back()`
 
 ### DM — `/dm/[friendId]`
@@ -471,12 +477,12 @@ Server (`unstable_cache` via `createServiceClient()` — NOT `createClient()`):
 | Cache | TTL | Tag | Invalidated by |
 |---|---|---|---|
 | Home profile | 60s | `profile:{userId}` | saveBirthdayAction, revalidateProfileAction, updateAvatarAction |
-| Home member profiles + counts | 60s | `crew-members:{crewId}` | joinCrewAction, leaveCrewAction, updateAvatarAction |
-| Home friend profiles | 60s | `profile:{friendId}` | revalidateProfileAction, updateAvatarAction |
-| Home friendships | 60s | `friends:{userId}` | sendFriendRequestAction, acceptFriendRequestAction, removeFriendAction |
-| Active announcements | 60s | `announcements` | all announcement CRUD actions |
+| Home member profiles + counts | 300s | `crew-members:{crewId}` | joinCrewAction, leaveCrewAction, updateAvatarAction |
+| Home friend profiles | 300s | `profile:{friendId}` | revalidateProfileAction, updateAvatarAction |
+| Home friendships | 300s | `friends:{userId}` | sendFriendRequestAction, acceptFriendRequestAction, removeFriendAction |
+| Active announcements | 300s | `announcements` | all announcement CRUD actions |
 | Vault crew + artifacts | 300s | `vault:{crewId}`, `artifacts:{crewId}` | TTL only |
-| Chat member profiles | 60s | `crew-members:{crewId}` | joinCrewAction, leaveCrewAction |
+| Chat member profiles | 300s | `crew-members:{crewId}` | joinCrewAction, leaveCrewAction |
 | Profile page | 60s | `profile:{userId}` | revalidateProfileAction |
 
 Never cache: `crews.total_xp` · `crews.level` · `active_raids` · `crew_members.last_seen` · auth sessions
@@ -506,6 +512,13 @@ New notification type checklist:
 
 ## PWA / Push
 - SW: `public/sw-push.js` — handwritten, no workbox; no multi-arg `importScripts()` (kills iOS Safari)
+- `manifest.json` `start_url: "/home"` — avoids 2-hop redirect chain (`/ → /onboarding → /home`) on icon launch
+- `globals.css`: `touch-action: manipulation` on `button, a, [role="button"], label, select, summary` — eliminates 300ms iOS tap delay
+- **sw-push.js caching** (in addition to push handling):
+  - `nexus-pages-v1` — StaleWhileRevalidate for app navigation (`/home`, `/chat/`, `/vault/`, `/friends`, `/profile`, `/dm/`): serve cached HTML instantly on background-resume, update cache in background. Auth redirects (non-`ok`) are never cached. Bump version string to purge on breaking deploys (activate handler auto-purges old versions).
+  - `nexus-static-v1` — CacheFirst for `/_next/static/` (content-addressed, immutable URLs safe to serve forever)
+  - `nexus-images-v1` — CacheFirst for Supabase Storage chat images / backgrounds
+- `sw.js` (workbox, generated by next-pwa) is **never registered** — `SWRegister` only registers `sw-push.js`. The `runtimeCaching` rules in `next.config.ts` are dead code. All caching is in `sw-push.js`.
 - Strip `badge` from `showNotification` (iOS rejects); notification `tag` must be unique per notification (`-{timestamp}`)
 - Subscribe: INSERT only, no delete-first; `23505` = success; on failure auto-unsubscribe + fresh APNs token
 - VAPID vars in Supabase Edge Function secrets; `VAPID_SUBJECT` must be `mailto:` URI
@@ -653,3 +666,5 @@ ALTER TABLE crews ADD COLUMN IF NOT EXISTS background_image_url text;
 - **Don't use Framer Motion `animate={{ width }}` inside a TanStack virtualizer.** With `initial={false}`, Framer has no prior width on first render and snaps instead of animating. Use a plain `<div>` with CSS `transition: width 0.5s ease-out` for progress bars inside virtualized rows.
 - `init_combat_members` only creates rows for `profiles.is_dev = true` AND `crew_members.class` is a combat class. A dev user with a chat class (e.g., `berserker`) gets no combat row — update `crew_members.class` to a combat class.
 - **`RETURNS TABLE` creates implicit output variables that shadow same-named columns.** `RETURNS TABLE(..., defeated_at timestamptz)` makes `WHERE defeated_at IS NULL` ambiguous (PostgreSQL `42702`). Always qualify: `active_raids.defeated_at`.
+- **iOS Safari clears sessionStorage when a PWA is killed and relaunched.** The message cache uses IDB as a persistent mirror (`idb-keyval`). Always write to both; read sessionStorage first (sync) then fall back to IDB (async, ~5ms). Never rely on sessionStorage alone for data that must survive app kill.
+- **`SwipeableCrewCard` (HomeClient)**: `wasDragging` flag is set in `onDragEnd` only when `|offset.x| > 5px`, not in `onDragStart`. Setting it in `onDragStart` caused the double-tap bug (Framer fires `onDragStart` for micro-movements, which blocked `onClick`).

@@ -78,7 +78,7 @@ function getCachedFriendships(userId: string) {
       return (data ?? []) as FriendshipRow[]
     },
     [`home-friendships:${userId}`],
-    { tags: [`friends:${userId}`], revalidate: 60 }
+    { tags: [`friends:${userId}`], revalidate: 300 }
   )()
 }
 
@@ -99,7 +99,7 @@ function getCachedFriendProfiles(friendIds: string[]) {
       return (data ?? []) as Array<{ id: string; username: string; avatar_url: string | null }>
     },
     [`home-friend-profiles:${sorted.join(',')}`],
-    { tags: sorted.map(id => `profile:${id}`), revalidate: 60 }
+    { tags: sorted.map(id => `profile:${id}`), revalidate: 300 }
   )()
 }
 
@@ -116,7 +116,7 @@ function getCachedHomeMembers(crewIds: string[]) {
       return (data ?? []) as unknown as MemberRow[]
     },
     [`home-crew-members:${sorted.join(',')}`],
-    { tags: sorted.map(id => `crew-members:${id}`), revalidate: 60 }
+    { tags: sorted.map(id => `crew-members:${id}`), revalidate: 300 }
   )()
 }
 
@@ -133,7 +133,7 @@ function getCachedAnnouncements() {
       return (data ?? []) as AnnouncementItem[]
     },
     ['announcements'],
-    { tags: ['announcements'], revalidate: 60 }
+    { tags: ['announcements'], revalidate: 300 }
   )()
 }
 

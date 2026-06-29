@@ -167,6 +167,17 @@ textarea {
   -webkit-touch-callout: default;
 }
 
+/* Eliminate 300ms tap delay on interactive elements without disabling scroll */
+button,
+a,
+[role="button"],
+[role="link"],
+label,
+select,
+summary {
+  touch-action: manipulation;
+}
+
 html,
 body {
   height: 100%;

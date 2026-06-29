@@ -42,7 +42,7 @@ function getCachedMemberProfiles(crewId: string) {
       }) as { user_id: string; profile: (MemberProfile & { birthday: string | null }) | null }[]
     },
     [`chat-member-profiles:${crewId}`],
-    { tags: [`crew-members:${crewId}`], revalidate: 60 }
+    { tags: [`crew-members:${crewId}`], revalidate: 300 }
   )()
 }
 
@@ -65,10 +65,13 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
   if (!session) redirect("/login");
   const user = session.user;
 
-  // Stage 2 — cached member profiles + fresh crew in parallel.
+  // Stage 2 — all 6 queries in parallel.
+  // raid + token were previously a sequential Stage 3 (they only need crewId
+  // from Stage 1, not any Stage 2 result), so we move them here to eliminate
+  // one full server round-trip on every chat open.
   // crew (total_xp) stays uncached — it changes with every message.
   // crew_members fetched fresh for membership check (RLS returns empty for non-members).
-  const [cachedProfiles, crewResult, lastSeenResult, gemResult] = await Promise.all([
+  const [cachedProfiles, crewResult, lastSeenResult, gemResult, raidRes, tokenRes] = await Promise.all([
     getCachedMemberProfiles(crewId),
     supabase.from("crews").select("id, name, invite_code, level, total_xp, image_url, background_image_url").eq("id", crewId).single(),
     supabase
@@ -76,6 +79,18 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
       .select("user_id, last_seen, class, joined_at")
       .eq("crew_id", crewId),
     supabase.from("profiles").select("gem_balance").eq("id", user.id).single(),
+    supabase
+      .from('active_raids')
+      .select('id, crew_id, boss_id, current_hp, max_hp, phase, started_at, expires_at, defeated_at, last_boss_attack_at, guard_user_id, guard_expires_at, volley_expires_at')
+      .eq('crew_id', crewId)
+      .is('defeated_at', null)
+      .gt('expires_at', new Date().toISOString())
+      .maybeSingle(),
+    supabase
+      .from('revive_tokens')
+      .select('count')
+      .eq('crew_id', crewId)
+      .maybeSingle(),
   ]);
 
   const crew       = crewResult.data as Crew | null;
@@ -98,25 +113,11 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
     redirect(`/onboarding/class?crew=${crewId}`)
   }
 
-  // Combat data — fetched for all users
+  // Combat data — results from the parallel Stage 2 queries above
   let initialRaid:         ActiveRaid | null              = null
   let initialMemberStats:  Record<string, CombatMember>  = {}
   let initialReviveTokens: number                        = 5
 
-  const [raidRes, tokenRes] = await Promise.all([
-    supabase
-      .from('active_raids')
-      .select('id, crew_id, boss_id, current_hp, max_hp, phase, started_at, expires_at, defeated_at, last_boss_attack_at, guard_user_id, guard_expires_at, volley_expires_at')
-      .eq('crew_id', crewId)
-      .is('defeated_at', null)
-      .gt('expires_at', new Date().toISOString())
-      .maybeSingle(),
-    supabase
-      .from('revive_tokens')
-      .select('count')
-      .eq('crew_id', crewId)
-      .maybeSingle(),
-  ])
   initialRaid         = raidRes.data as ActiveRaid | null
   initialReviveTokens = (tokenRes.data as { count: number } | null)?.count ?? 5
 

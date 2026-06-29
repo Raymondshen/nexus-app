@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useCallback, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { useVirtualizer } from '@tanstack/react-virtual'
+import { get as idbGet, set as idbSet } from 'idb-keyval'
 
 // Fires synchronously before the browser paints on the client; falls back to
 // useEffect on the server (SSR) where useLayoutEffect is not available.
@@ -88,6 +89,9 @@ function estimateItemSize(item: DisplayItem): number {
 }
 
 const LOAD_OLDER_BATCH = 50
+
+// Envelope stored in both sessionStorage (sync, fast) and IDB (persistent across iOS PWA kills)
+type MsgCache = { messages: MessageWithProfile[]; savedAt: number }
 
 // ─── Combat event parsers (used by realtime INSERT handler) ───────────────────
 
@@ -181,7 +185,11 @@ export function MessageList({
     if (typeof window === 'undefined') return false
     try {
       const raw = sessionStorage.getItem(`nexus-msgs-${crewId}`)
-      return raw !== null && Array.isArray(JSON.parse(raw))
+      if (!raw) return false
+      const parsed = JSON.parse(raw)
+      // Support old format (plain array) and new format ({ messages, savedAt })
+      const msgs = Array.isArray(parsed) ? parsed : parsed?.messages
+      return Array.isArray(msgs) && msgs.length > 0
     } catch { return false }
   })
 
@@ -223,13 +231,15 @@ export function MessageList({
     try {
       const raw = sessionStorage.getItem(cacheKey)
       if (raw) {
-        const parsed = JSON.parse(raw) as MessageWithProfile[]
-        if (Array.isArray(parsed)) {
-          setMessages(parsed)
+        const parsed = JSON.parse(raw)
+        // Support old format (plain array) and new format ({ messages, savedAt })
+        const msgs = (Array.isArray(parsed) ? parsed : parsed?.messages) as MessageWithProfile[] | undefined
+        if (Array.isArray(msgs) && msgs.length > 0) {
+          setMessages(msgs)
           // Seed the pagination cursor so fetchOlderMessages can load history
           // even before the background DB fetch sets it. Without this, the
           // auto-fill effect fires but oldestCursorRef is null and bails.
-          if (parsed.length > 0) oldestCursorRef.current = parsed[0].created_at
+          if (msgs.length > 0) oldestCursorRef.current = msgs[0].created_at
           return
         }
       }
@@ -247,6 +257,37 @@ export function MessageList({
 
     ;(async () => {
       try {
+        // ── Freshness fast-path ────────────────────────────────────────────────
+        // Cache written within the last 30s is still fresh — the Realtime channel
+        // will deliver any messages that arrived since the snapshot. Skipping the
+        // DB fetch eliminates a Supabase round-trip on quick back-and-forth navigation.
+        const rawSync = sessionStorage.getItem(cacheKey)
+        if (rawSync) {
+          try {
+            const parsed = JSON.parse(rawSync)
+            if (!Array.isArray(parsed) && typeof parsed.savedAt === 'number' && Date.now() - parsed.savedAt < 30_000) {
+              clearTimeout(fallbackTimer)
+              if (!cancelled) setHistoryLoaded(true)
+              return
+            }
+          } catch {}
+        } else {
+          // ── IDB cold-start path ──────────────────────────────────────────────
+          // sessionStorage is empty — either a new tab, app kill (iOS Safari clears
+          // sessionStorage on PWA suspend/resume), or first visit. Check IDB for a
+          // snapshot from the previous session so the chat feels instant on reopen.
+          const idbEntry = await idbGet<MsgCache>(cacheKey).catch(() => null)
+          if (idbEntry?.messages && Array.isArray(idbEntry.messages) && idbEntry.messages.length > 0 && !cancelled) {
+            setMessages(idbEntry.messages)
+            setHistoryLoaded(true)
+            if (idbEntry.messages.length > 0) oldestCursorRef.current = idbEntry.messages[0].created_at
+            // Populate sessionStorage so the next navigation uses the fast sync path
+            try { sessionStorage.setItem(cacheKey, JSON.stringify(idbEntry)) } catch {}
+          }
+          // Always proceed with the DB fetch to merge messages posted since the IDB snapshot
+        }
+
+        // ── Full DB fetch ──────────────────────────────────────────────────────
         const supabase = createClient()
         const { data } = await supabase
           .from('messages')
@@ -265,8 +306,12 @@ export function MessageList({
             },
           }))
 
+        const cacheEntry: MsgCache = { messages: fetched.slice(-LOAD_OLDER_BATCH), savedAt: Date.now() }
         if (cancelled) {
-          try { sessionStorage.setItem(cacheKey, JSON.stringify(fetched.slice(-LOAD_OLDER_BATCH))) } catch {}
+          // Component unmounted before we could apply — still update the cache so
+          // the next mount benefits from the freshly fetched data.
+          try { sessionStorage.setItem(cacheKey, JSON.stringify(cacheEntry)) } catch {}
+          idbSet(cacheKey, cacheEntry).catch(() => {})
           return
         }
 
@@ -310,9 +355,10 @@ export function MessageList({
         // If the server returned fewer than LOAD_OLDER_BATCH, we're at the beginning
         if (rows.length < LOAD_OLDER_BATCH) setHasMore(false)
 
-        try {
-          sessionStorage.setItem(cacheKey, JSON.stringify(merged.slice(-LOAD_OLDER_BATCH)))
-        } catch {}
+        // Write to sessionStorage (sync, fast) and IDB (persists across iOS PWA kills)
+        const mergedEntry: MsgCache = { messages: merged.slice(-LOAD_OLDER_BATCH) as MessageWithProfile[], savedAt: Date.now() }
+        try { sessionStorage.setItem(cacheKey, JSON.stringify(mergedEntry)) } catch {}
+        idbSet(cacheKey, mergedEntry).catch(() => {})
       } catch {
         // Realtime still delivers live messages
       } finally {
@@ -672,11 +718,16 @@ export function MessageList({
               const cacheKey = `nexus-msgs-${crewId}`
               const cached = sessionStorage.getItem(cacheKey)
               if (cached) {
-                const msgs = JSON.parse(cached) as { id: string; [k: string]: unknown }[]
-                const idx = msgs.findIndex((m) => m.id === raw.id)
-                if (idx !== -1) {
-                  msgs[idx] = { ...msgs[idx], reactions: patch.reactions }
-                  sessionStorage.setItem(cacheKey, JSON.stringify(msgs))
+                const parsedCache = JSON.parse(cached)
+                // Support old format (plain array) and new format ({ messages, savedAt })
+                const msgs = (Array.isArray(parsedCache) ? parsedCache : parsedCache?.messages) as { id: string; [k: string]: unknown }[] | undefined
+                if (Array.isArray(msgs)) {
+                  const idx = msgs.findIndex((m) => m.id === raw.id)
+                  if (idx !== -1) {
+                    msgs[idx] = { ...msgs[idx], reactions: patch.reactions }
+                    const updated = Array.isArray(parsedCache) ? msgs : { ...parsedCache, messages: msgs }
+                    sessionStorage.setItem(cacheKey, JSON.stringify(updated))
+                  }
                 }
               }
             } catch {}
@@ -719,14 +770,25 @@ export function MessageList({
       if (cancelled) return
 
       const defs = (data ?? []) as SquadDefinition[]
-      const creatorIds = [...new Set(defs.map((d) => d.creator_id))]
       const creatorMap: Record<string, string> = {}
+      const unknownIds: string[] = []
 
-      if (creatorIds.length > 0) {
+      // Resolve creator usernames from already-loaded member profiles first.
+      // Only falls back to a DB query for creators who have left the crew.
+      for (const d of defs) {
+        const cached = profilesRef.current[d.creator_id]
+        if (cached) {
+          creatorMap[d.creator_id] = cached.username
+        } else if (!creatorMap[d.creator_id]) {
+          unknownIds.push(d.creator_id)
+        }
+      }
+
+      if (unknownIds.length > 0) {
         const { data: profiles } = await supabase
           .from('profiles')
           .select('id, username')
-          .in('id', creatorIds)
+          .in('id', [...new Set(unknownIds)])
         for (const p of (profiles ?? []) as { id: string; username: string }[]) {
           creatorMap[p.id] = p.username
         }

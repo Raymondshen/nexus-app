@@ -1,21 +1,99 @@
-// Cache name for Supabase Storage chat images (cache-first strategy).
-var NEXUS_IMAGE_CACHE   = 'nexus-images-v1'
-var SUPABASE_IMAGES_RE  = /\/storage\/v1\/object\/public\/(chat-images|backgrounds)\//
+// ─── Cache names ─────────────────────────────────────────────────────────────
+
+// Supabase Storage chat images — CacheFirst
+var NEXUS_IMAGE_CACHE  = 'nexus-images-v1'
+var SUPABASE_IMAGES_RE = /\/storage\/v1\/object\/public\/(chat-images|backgrounds)\//
+
+// Next.js static chunks, CSS, fonts — CacheFirst (content-addressed, immutable)
+// next-pwa generates sw.js (workbox) but iOS Safari crashes on its multi-arg
+// importScripts call, so sw-push.js is the only registered SW. The workbox
+// runtimeCaching rules in next.config.ts never apply. We replicate the most
+// impactful ones here using the vanilla Cache API.
+var NEXUS_STATIC_CACHE = 'nexus-static-v1'
+
+// App-shell HTML — StaleWhileRevalidate
+// Bounded to authenticated app paths; /login and /auth are excluded so
+// unauthenticated users always get a fresh redirect from the server.
+// Bump the version string when a deploy would make old HTML incompatible
+// (the activate handler below purges previous versions automatically).
+var NEXUS_PAGES_CACHE = 'nexus-pages-v1'
+var NEXUS_PAGE_PATHS  = ['/home', '/chat/', '/vault/', '/friends', '/profile', '/dm/']
+
+function isAppPage(pathname) {
+  for (var i = 0; i < NEXUS_PAGE_PATHS.length; i++) {
+    var p = NEXUS_PAGE_PATHS[i]
+    if (pathname === p || pathname.startsWith(p)) return true
+  }
+  return false
+}
+
+// ─── Fetch handler ────────────────────────────────────────────────────────────
 
 self.addEventListener('fetch', function(event) {
-  if (!SUPABASE_IMAGES_RE.test(event.request.url)) return
+  var request = event.request
+  var url     = request.url
+
+  // ── StaleWhileRevalidate for app navigation ──────────────────────────────
+  // On background-resume (Android kills + user taps icon), the SW serves the
+  // cached HTML immediately so the app appears in <100ms. The network fetch
+  // runs in parallel to update the cache for next time. Auth redirects (302)
+  // are NOT cached (response.ok = false) so unauthenticated flows are unaffected.
+  if (request.mode === 'navigate') {
+    var path = new URL(url).pathname
+    if (isAppPage(path)) {
+      event.respondWith(
+        caches.open(NEXUS_PAGES_CACHE).then(function(cache) {
+          return cache.match(request).then(function(cached) {
+            var networkFetch = fetch(request).then(function(response) {
+              if (response.ok) cache.put(request, response.clone())
+              return response
+            }).catch(function() {
+              return cached || caches.match('/offline.html')
+            })
+            // Serve stale HTML immediately; network response updates cache in bg
+            return cached || networkFetch
+          })
+        })
+      )
+      return
+    }
+  }
+
+  // ── CacheFirst for Next.js static assets (JS/CSS/fonts) ─────────────────
+  // /_next/static/ URLs are content-addressed (build hash in path) so they
+  // are safe to serve from cache indefinitely — a new deploy always creates
+  // new URLs for changed files.
+  if (url.includes('/_next/static/')) {
+    event.respondWith(
+      caches.open(NEXUS_STATIC_CACHE).then(function(cache) {
+        return cache.match(request).then(function(cached) {
+          if (cached) return cached
+          return fetch(request).then(function(response) {
+            if (response.ok) cache.put(request, response.clone())
+            return response
+          })
+        })
+      })
+    )
+    return
+  }
+
+  // ── CacheFirst for Supabase Storage chat images ──────────────────────────
+  if (!SUPABASE_IMAGES_RE.test(url)) return
   event.respondWith(
     caches.open(NEXUS_IMAGE_CACHE).then(function(cache) {
-      return cache.match(event.request).then(function(cached) {
+      return cache.match(request).then(function(cached) {
         if (cached) return cached
-        return fetch(event.request).then(function(response) {
-          if (response.ok) cache.put(event.request, response.clone())
+        return fetch(request).then(function(response) {
+          if (response.ok) cache.put(request, response.clone())
           return response
         })
       })
     })
   )
 })
+
+// ─── Lifecycle ────────────────────────────────────────────────────────────────
 
 // Minimal push-only service worker for Nexus.
 // Intentionally has zero importScripts / workbox dependencies — the
@@ -27,8 +105,22 @@ self.addEventListener('install', () => {
 })
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim())
+  event.waitUntil(
+    Promise.all([
+      self.clients.claim(),
+      // Purge page cache entries from previous SW versions. When NEXUS_PAGES_CACHE
+      // is bumped, old cached HTML (which may reference stale JS chunk URLs) is
+      // removed so the next navigation fetches a fresh page from the network.
+      caches.keys().then(function(keys) {
+        return Promise.all(keys.filter(function(k) {
+          return k.startsWith('nexus-pages-') && k !== NEXUS_PAGES_CACHE
+        }).map(function(k) { return caches.delete(k) }))
+      }),
+    ])
+  )
 })
+
+// ─── Push notifications ───────────────────────────────────────────────────────
 
 self.addEventListener('push', (event) => {
   let title = 'Nexus'

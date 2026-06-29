@@ -1186,6 +1186,7 @@ function SwipeableCrewCard({
   onOpen:         (id: string) => void
   onLongPress:    () => void
 }) {
+  const router          = useRouter()
   const x           = useMotionValue(0)
   const [open, setOpen] = useState(false)
   const wasDragging    = useRef(false)
@@ -1209,7 +1210,14 @@ function SwipeableCrewCard({
   }
 
   function handleDragEnd(_: unknown, info: PanInfo) {
-    setTimeout(() => { wasDragging.current = false }, 50)
+    // Only mark as dragged when the finger actually moved — Framer Motion fires
+    // onDragStart even for micro-movements (1–2px), causing onClick to be swallowed
+    // and requiring a double-tap to navigate. Setting the flag synchronously here
+    // (so onClick sees it) and only for real drags fixes the issue.
+    if (Math.abs(info.offset.x) > 5) {
+      wasDragging.current = true
+      setTimeout(() => { wasDragging.current = false }, 50)
+    }
     if (info.offset.x < -(LEAVE_REVEAL / 2)) {
       snapTo(-LEAVE_REVEAL, true)
     } else {
@@ -1239,6 +1247,8 @@ function SwipeableCrewCard({
   }
 
   function handlePointerDown(e: React.PointerEvent) {
+    // Prefetch on press — gives Next.js 100–300ms head start before navigation
+    router.prefetch(`/chat/${summary.crew.id}`)
     pointerStartRef.current = { x: e.clientX, y: e.clientY }
     cancelLongPress()
     longPressRef.current = setTimeout(() => {
@@ -1263,7 +1273,7 @@ function SwipeableCrewCard({
         dragConstraints={{ left: -LEAVE_REVEAL, right: 0 }}
         dragElastic={{ left: 0.05, right: 0.1 }}
         style={{ x, width: `calc(100% + ${LEAVE_REVEAL}px)`, gap: LEAVE_GAP }}
-        onDragStart={() => { wasDragging.current = true; cancelLongPress(); onOpen(summary.crew.id) }}
+        onDragStart={() => { cancelLongPress(); onOpen(summary.crew.id) }}
         onDragEnd={handleDragEnd}
       >
         <motion.div

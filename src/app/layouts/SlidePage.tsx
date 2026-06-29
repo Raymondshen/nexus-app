@@ -45,12 +45,14 @@ export function SlidePage({ children, className, style, backHref, nativeSwipe }:
     if (exiting.current) return
     exiting.current = true
     if (!backHref) _skipNextSlideEnter = true
+    // Fire navigation and animation simultaneously — the chat page is position:fixed
+    // so it overlays the previous page while sliding away, giving the destination
+    // 150ms of free loading time. Matches what the swipe-to-close gesture already does.
+    if (backHref) router.replace(backHref)
+    else router.back()
     controls.start({
       x: '100%',
       transition: { type: 'tween', ease: [0.32, 0, 0.67, 0], duration: 0.15 },
-    }).then(() => {
-      if (backHref) router.replace(backHref)
-      else router.back()
     })
   }, [controls, router, backHref]) // eslint-disable-line react-hooks/exhaustive-deps
 

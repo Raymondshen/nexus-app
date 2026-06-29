@@ -2,7 +2,7 @@
   "name": "Nexus",
   "short_name": "Nexus",
   "description": "Your crew. Your war.",
-  "start_url": "/",
+  "start_url": "/home",
   "display": "standalone",
   "orientation": "portrait",
   "theme_color": "#0a0612",

@@ -4,7 +4,7 @@ import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
 import Image from 'next/image'
-import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
+import { supabaseImageLoader, avatarImageLoader } from '@/shared/supabase/imageLoader'
 import { Button } from '@/shared/components/ui/Button'
 import { getXPInCurrentLevel, getXPForCurrentLevel } from '@/shared/utils/xp'
 import { PixelSprite, spriteInfoFor } from '@/shared/components/game/PixelSprite'
@@ -141,7 +141,7 @@ function MemberListRow({
           <div className="w-8 h-8 overflow-hidden rounded-full bg-surface flex items-center justify-center">
             {url ? (
               <div className="relative w-full h-full">
-                <Image src={url} alt={profile.username} fill sizes="32px" className="object-cover" loader={supabaseImageLoader} />
+                <Image src={url} alt={profile.username} fill sizes="32px" className="object-cover" loader={avatarImageLoader} />
               </div>
             ) : (
               <span className="font-pixel text-[8px] text-purple">{initial}</span>
