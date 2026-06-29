@@ -343,12 +343,36 @@ export function MessageBubble({
   }
 
   // ─── Long-press + swipe-to-reply handlers ───────────────────────────────────
+  function resetSwipeDOM() {
+    if (contentRef.current) {
+      contentRef.current.style.transition = 'transform 0.28s cubic-bezier(0.25,0.46,0.45,0.94)'
+      contentRef.current.style.transform  = 'translateX(0)'
+    }
+    if (replyIconRef.current) {
+      replyIconRef.current.style.transition = 'opacity 0.28s,transform 0.28s'
+      replyIconRef.current.style.opacity    = '0'
+      replyIconRef.current.style.transform  = 'translateY(-50%) scale(0.5)'
+    }
+  }
+
   function handleTouchStart(e: React.TouchEvent) {
     hasMoved.current = false
     longPressTimer.current = setTimeout(() => {
       if (!hasMoved.current) setSheetOpen(true)
     }, 300)
     if (!isOwn) {
+      // Always snap back to zero before tracking a new gesture — prevents a
+      // stuck bubble (from a prior cancelled gesture) from corrupting the dx
+      // calculation on the next swipe.
+      if (contentRef.current) {
+        contentRef.current.style.transition = 'none'
+        contentRef.current.style.transform  = 'translateX(0)'
+      }
+      if (replyIconRef.current) {
+        replyIconRef.current.style.transition = 'none'
+        replyIconRef.current.style.opacity    = '0'
+        replyIconRef.current.style.transform  = 'translateY(-50%) scale(0.5)'
+      }
       const t = e.touches[0]
       touchStartXRef.current    = t.clientX
       touchStartYRef.current    = t.clientY
@@ -362,16 +386,16 @@ export function MessageBubble({
       const wasCommitted        = swipeCommittedRef.current
       isDraggingXRef.current    = false
       swipeCommittedRef.current = false
-      if (contentRef.current) {
-        contentRef.current.style.transition = 'transform 0.28s cubic-bezier(0.25,0.46,0.45,0.94)'
-        contentRef.current.style.transform  = 'translateX(0)'
-      }
-      if (replyIconRef.current) {
-        replyIconRef.current.style.transition = 'opacity 0.28s,transform 0.28s'
-        replyIconRef.current.style.opacity    = '0'
-        replyIconRef.current.style.transform  = 'translateY(-50%) scale(0.5)'
-      }
+      resetSwipeDOM()
       if (wasCommitted) setReplyTo({ ...message })
+    }
+  }
+  function handleTouchCancel() {
+    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null }
+    if (!isOwn && isDraggingXRef.current) {
+      isDraggingXRef.current    = false
+      swipeCommittedRef.current = false
+      resetSwipeDOM()
     }
   }
   function handleTouchMove(e: React.TouchEvent) {
@@ -644,6 +668,7 @@ export function MessageBubble({
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
         onTouchMove={handleTouchMove}
+        onTouchCancel={handleTouchCancel}
       >
         {/* Swipe-to-reply icon — revealed as bubble slides left */}
         {!isOwn && (
