@@ -21,6 +21,7 @@ import { ChatSheetReact } from '@/features/chat/components/sheets/ChatSheetReact
 import { ImagePreviewOverlay } from '@/shared/components/overlays/ImagePreviewOverlay'
 import { Button } from '@/shared/components/ui/Button'
 import { CornerDownRight } from 'pixelarticons/react/CornerDownRight'
+import { CornerUpLeft } from 'pixelarticons/react/CornerUpLeft'
 import { Cake } from 'pixelarticons/react/Cake'
 import { PartyPopper } from 'pixelarticons/react/PartyPopper'
 
@@ -264,6 +265,15 @@ export function MessageBubble({
   const imgTouchStartTimeRef = useRef(0)
   const imgLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Swipe-to-reply (other messages only)
+  const SWIPE_THRESHOLD    = 64
+  const touchStartXRef     = useRef(0)
+  const touchStartYRef     = useRef(0)
+  const isDraggingXRef     = useRef(false)
+  const swipeCommittedRef  = useRef(false)
+  const contentRef         = useRef<HTMLDivElement>(null)
+  const replyIconRef       = useRef<HTMLDivElement>(null)
+
   const onlineUserIds = useChatStore((s) => s.onlineUserIds)
   const updateMessage = useChatStore((s) => s.updateMessage)
   const setReplyTo    = useChatStore((s) => s.setReplyTo)
@@ -332,19 +342,72 @@ export function MessageBubble({
     }, 700)
   }
 
-  // ─── Long-press handlers (500 ms, cancelled on scroll) ──────────────────────
-  function handleTouchStart() {
+  // ─── Long-press + swipe-to-reply handlers ───────────────────────────────────
+  function handleTouchStart(e: React.TouchEvent) {
     hasMoved.current = false
     longPressTimer.current = setTimeout(() => {
       if (!hasMoved.current) setSheetOpen(true)
     }, 300)
+    if (!isOwn) {
+      const t = e.touches[0]
+      touchStartXRef.current    = t.clientX
+      touchStartYRef.current    = t.clientY
+      isDraggingXRef.current    = false
+      swipeCommittedRef.current = false
+    }
   }
   function handleTouchEnd() {
     if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null }
+    if (!isOwn && isDraggingXRef.current) {
+      const wasCommitted        = swipeCommittedRef.current
+      isDraggingXRef.current    = false
+      swipeCommittedRef.current = false
+      if (contentRef.current) {
+        contentRef.current.style.transition = 'transform 0.28s cubic-bezier(0.25,0.46,0.45,0.94)'
+        contentRef.current.style.transform  = 'translateX(0)'
+      }
+      if (replyIconRef.current) {
+        replyIconRef.current.style.transition = 'opacity 0.28s,transform 0.28s'
+        replyIconRef.current.style.opacity    = '0'
+        replyIconRef.current.style.transform  = 'translateY(-50%) scale(0.5)'
+      }
+      if (wasCommitted) setReplyTo({ ...message })
+    }
   }
-  function handleTouchMove() {
+  function handleTouchMove(e: React.TouchEvent) {
     hasMoved.current = true
     if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null }
+    if (!isOwn) {
+      const t  = e.touches[0]
+      const dx = t.clientX - touchStartXRef.current
+      const dy = Math.abs(t.clientY - touchStartYRef.current)
+      if (!isDraggingXRef.current) {
+        if (Math.abs(dx) < 5 && dy < 5) return
+        if (dy > Math.abs(dx) || dx > 0) return   // vertical scroll or right swipe
+        isDraggingXRef.current = true
+      }
+      // Rubber-band past threshold
+      const clamped = Math.min(0, dx)
+      const x = clamped > -SWIPE_THRESHOLD
+        ? clamped
+        : -SWIPE_THRESHOLD + (clamped + SWIPE_THRESHOLD) * 0.3
+      if (contentRef.current) {
+        contentRef.current.style.transition = 'none'
+        contentRef.current.style.transform  = `translateX(${x}px)`
+      }
+      const progress = Math.min(1, Math.abs(dx) / SWIPE_THRESHOLD)
+      if (replyIconRef.current) {
+        replyIconRef.current.style.transition = 'none'
+        replyIconRef.current.style.opacity    = String(progress)
+        replyIconRef.current.style.transform  = `translateY(-50%) scale(${0.5 + progress * 0.5})`
+      }
+      if (dx <= -SWIPE_THRESHOLD && !swipeCommittedRef.current) {
+        swipeCommittedRef.current = true
+        try { navigator.vibrate(10) } catch {}
+      } else if (dx > -SWIPE_THRESHOLD) {
+        swipeCommittedRef.current = false
+      }
+    }
   }
 
   // ─── Image tap / long-press handlers ────────────────────────────────────────
@@ -576,12 +639,23 @@ export function MessageBubble({
   return (
     <>
       <div
-        className={`flex gap-[8px] items-start w-full select-none ${showHeader ? 'pt-[var(--space-6)] pb-0' : 'pt-[var(--space-2)] pb-0'}`}
+        className={`relative flex gap-[8px] items-start w-full select-none ${showHeader ? 'pt-[var(--space-6)] pb-0' : 'pt-[var(--space-2)] pb-0'}`}
         onContextMenu={(e) => { e.preventDefault(); setSheetOpen(true) }}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
         onTouchMove={handleTouchMove}
       >
+        {/* Swipe-to-reply icon — revealed as bubble slides left */}
+        {!isOwn && (
+          <div
+            ref={replyIconRef}
+            className="pointer-events-none"
+            style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%) scale(0.5)', opacity: 0, zIndex: 2 }}
+          >
+            <CornerUpLeft style={{ width: 20, height: 20, color: 'var(--color-purple)' }} />
+          </div>
+        )}
+
         {/* Avatar — only rendered for the first message in a group */}
         {showHeader && (
           <div
@@ -604,7 +678,7 @@ export function MessageBubble({
         )}
 
         {/* Message content — pl-10 aligns continuation text with grouped messages */}
-        <div className={`flex-1 min-w-0 flex flex-col gap-0 ${!showHeader ? 'pl-10' : ''}`}>
+        <div ref={contentRef} className={`flex-1 min-w-0 flex flex-col gap-0 ${!showHeader ? 'pl-10' : ''}`}>
 
           {/* Header row: username · class · xp · timestamp */}
           {showHeader && (
