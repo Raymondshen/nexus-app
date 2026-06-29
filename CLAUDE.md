@@ -35,6 +35,7 @@ friendship_xp       user_a (uuid), user_b (uuid), total_xp (int) — canonical o
 friendship_xp_log   id, user_a, user_b, sender_id, xp_awarded (int), source (dm|mention), awarded_at
 notes               id, crew_id, created_by, url, og_title, og_image_url, source_domain, section_id (uuid → board_sections nullable, ON DELETE SET NULL), created_at
 board_sections      id, crew_id, created_by, name (1–100 chars), position (int), created_at — INDEX (crew_id, position, created_at)
+profile_photos      id, user_id, url, storage_key, created_at — max 30 per user; stored in `profile-photos` bucket
 ```
 
 DM channels: `crews` rows with `is_dm = true` · `dm_partner_1 < dm_partner_2` (UUID order) · both partners in `crew_members` class=berserker · filtered from home Squads; shown in Friends only
@@ -208,7 +209,7 @@ src/
 │   ├── onboarding/
 │   │   └── screens/            BirthdayClient, ClassSelectClient, WelcomeClient
 │   └── profile/
-│       ├── components/         NotesGrid, AccountPageMember, VibesGrid
+│       ├── components/         NotesGrid, AccountPageMember, VibesGrid, PhotosGrid
 │       └── screens/            ProfileClient, DeveloperClient, AnnouncementsClient,
 │                               ErrorLogsClient, MemberProfileClient
 ├── shared/
@@ -413,6 +414,15 @@ Server: verifies friendship → `get_or_create_dm(friendId)` → renders chat. `
 - Long-press (500ms) → `CardActionSheet`: Open Link · Remove Note (creator) · Move to Section
 - `AccountPageMember`: nav bar (back + username) + `NotesGrid` only — no hero, no stats
 
+### Photos (`/profile` → PHOTOS tab)
+Photo gallery. `PhotosGrid` (`src/features/profile/components/PhotosGrid.tsx`).
+- Upload: `resizeImageToBlob(file, 800, 800)` → WebP 0.85 → `profile-photos` bucket; max 15 MB input, max 30 photos
+- Display: `next/image` + `supabaseImageLoader`, `sizes="(max-width: 480px) 33vw, 160px"` — Supabase render API serves grid-sized thumbnails
+- "View Photo" opens the raw storage URL in a new tab (full 800×800 WebP)
+- **Long-press** (500ms) → `PhotoActionSheet` — "View Photo" · "Remove Photo" (owner only). `deletePhotoAction` fire-and-forget (optimistic remove)
+- Actions: `addPhotoAction(url, storageKey)` · `deletePhotoAction(photoId)` — in `src/app/(app)/profile/actions.ts`
+- Rows of 3 (`flex gap-4`); incomplete rows padded with `flex-1` spacers; `AddPhotoCell` dashed tile at end when owner and under limit
+
 ### Vibes (`/profile` → VIBES tab)
 Music link cards shown as spinning vinyl discs. `VibesGrid` (`src/features/profile/components/VibesGrid.tsx`).
 - Only YouTube, Spotify, Apple Music, SoundCloud URLs accepted (`MUSIC_DOMAINS` set + `isMusicUrl`)
@@ -504,9 +514,10 @@ New notification type checklist:
 ## Images
 - `next/image` everywhere with `loader={supabaseImageLoader}` for general Supabase storage images
 - **Avatar images must use `avatarImageLoader`** (`src/shared/supabase/imageLoader.ts`) — forces square 1:1 output: Supabase render API gets both `width` and `height` (same value) so non-square sources are center-cropped; Google photo URLs get the `-c` square-crop suffix at the correct size. Use on all avatar `<Image>` elements; never use `supabaseImageLoader` for avatars.
-- Plain `<img>`: pixel sprites · crop target · hero backgrounds in `ProfileClient.tsx`
+- Plain `<img>`: pixel sprites · crop target · hero backgrounds in `ProfileClient.tsx` · Vibes OG thumbnails (external URLs, not Supabase storage)
 - Avatar upload: `AvatarUploadModal` → `react-image-crop` → canvas → 128+256px WebP → bucket `avatars`; `process-avatar` edge fn → 64/128/256px AVIF; `custom_avatar = true` blocks Google photo overwrite
 - Crew background image: `resizeImageToBlob(file, 1080, 608)` → `crew-images/{crewId}/bg-{ts}.webp`; `updateCrewBackgroundImageAction` stores public URL in `crews.background_image_url`
+- Profile photos: `resizeImageToBlob(file, 800, 800)` → WebP 0.85 → `profile-photos` bucket; displayed via `next/image` + `supabaseImageLoader`
 - `resizeImageToBlob(file, w, h)` in `src/shared/utils/imageCompress.ts`: center-crop canvas → WebP 0.85 quality; used for crew profile 256×256 and background 1080×608
 
 ## Design Tokens (`src/app/globals.css`)
