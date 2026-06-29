@@ -9,7 +9,7 @@ import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { Calendar } from 'pixelarticons/react/Calendar'
 import { createClient } from '@/shared/supabase/client'
 import { EventCreationSheet } from '@/features/events/components/EventCreationSheet'
-import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
+import { supabaseImageLoader, avatarImageLoader } from '@/shared/supabase/imageLoader'
 import { format } from 'date-fns'
 import type { Event } from '@/types'
 
@@ -158,7 +158,7 @@ function EventCardPreview({ event, crewId }: { event: EnrichedEvent; crewId: str
                       fill
                       sizes="24px"
                       className="object-cover"
-                      loader={supabaseImageLoader}
+                      loader={avatarImageLoader}
                     />
                   ) : (
                     <div

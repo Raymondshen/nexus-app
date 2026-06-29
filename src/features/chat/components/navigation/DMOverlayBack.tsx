@@ -4,7 +4,7 @@ import { useEffect } from 'react'
 import { useSlideBack } from '@/app/layouts/SlidePage'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import Image from 'next/image'
-import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
+import { avatarImageLoader } from '@/shared/supabase/imageLoader'
 import { useChatStore } from '@/store/chatStore'
 import { createClient } from '@/shared/supabase/client'
 
@@ -81,7 +81,7 @@ export function DMOverlayBack({
               sizes="24px"
               className="object-cover"
               priority
-              loader={supabaseImageLoader}
+              loader={avatarImageLoader}
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center font-pixel text-[8px] text-primary">

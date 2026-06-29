@@ -15,7 +15,7 @@ import { Message as MessageIcon } from 'pixelarticons/react/Message'
 import { TickerBanner } from '@/shared/components/banners/TickerBanner'
 import { MailRight } from 'pixelarticons/react/MailRight'
 import Image from 'next/image'
-import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
+import { supabaseImageLoader, avatarImageLoader } from '@/shared/supabase/imageLoader'
 import { createClient } from '@/shared/supabase/client'
 import { leaveCrewAction, createCrewFromHomeAction, joinCrewFromHomeAction, joinSelectClassAction } from '@/app/(app)/home/actions'
 import { PixelSprite, spriteIdFor, spriteInfoFor } from '@/shared/components/game/PixelSprite'
@@ -139,7 +139,7 @@ function AccountPreview({
         {/* Avatar 48×48 */}
         <div className="w-12 h-12 flex-shrink-0 overflow-hidden relative bg-primary rounded-full">
           {avatarUrl ? (
-            <Image src={avatarUrl} alt={username} fill sizes="48px" className="object-cover" priority loader={supabaseImageLoader} />
+            <Image src={avatarUrl} alt={username} fill sizes="48px" className="object-cover" priority loader={avatarImageLoader} />
           ) : (
             <div className="w-full h-full flex items-center justify-center font-pixel text-[10px] text-black">
               {username[0]?.toUpperCase() ?? '?'}
@@ -1371,7 +1371,7 @@ function HomeSquadMemberRow({ member }: { member: SheetMember }) {
               fill
               sizes="32px"
               className="object-cover"
-              loader={supabaseImageLoader}
+              loader={avatarImageLoader}
             />
           </div>
         ) : (

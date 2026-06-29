@@ -4,7 +4,7 @@ import { useEffect } from 'react'
 import { useSlideBack } from '@/app/layouts/SlidePage'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import Image from 'next/image'
-import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
+import { avatarImageLoader } from '@/shared/supabase/imageLoader'
 import { useChatStore } from '@/store/chatStore'
 import { createClient } from '@/shared/supabase/client'
 
@@ -65,7 +65,7 @@ export function DMHeader({
 
         <div className="flex-shrink-0 w-8 h-8 overflow-hidden relative bg-border">
           {friendAvatarUrl ? (
-            <Image src={friendAvatarUrl} alt={friendUsername} fill sizes="32px" className="object-cover" priority loader={supabaseImageLoader} />
+            <Image src={friendAvatarUrl} alt={friendUsername} fill sizes="32px" className="object-cover" priority loader={avatarImageLoader} />
           ) : (
             <div className="w-full h-full flex items-center justify-center font-pixel text-[10px] text-primary">
               {friendUsername[0]?.toUpperCase() ?? '?'}

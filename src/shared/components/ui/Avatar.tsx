@@ -2,7 +2,7 @@
 
 import Image from 'next/image'
 import { useState } from 'react'
-import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
+import { avatarImageLoader } from '@/shared/supabase/imageLoader'
 
 interface AvatarProps {
   username:   string
@@ -30,7 +30,7 @@ export function Avatar({ username, avatarUrl, size = 28, className = '', style, 
           sizes={`${size}px`}
           className="object-cover"
           priority={priority}
-          loader={supabaseImageLoader}
+          loader={avatarImageLoader}
           onError={() => setImgError(true)}
         />
       </div>

@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { AnimatePresence, motion } from 'framer-motion'
-import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
+import { avatarImageLoader } from '@/shared/supabase/imageLoader'
 import { useSlideBack } from '@/app/layouts/SlidePage'
 import { TickerBanner } from '@/shared/components/banners/TickerBanner'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
@@ -112,7 +112,7 @@ export function AccountPageMember({
                   fill
                   sizes="56px"
                   className="object-cover"
-                  loader={supabaseImageLoader}
+                  loader={avatarImageLoader}
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center">

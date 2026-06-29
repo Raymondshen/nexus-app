@@ -8,7 +8,7 @@ import { motion } from 'framer-motion'
 import { createClient } from '@/shared/supabase/client'
 import { format } from 'date-fns'
 import { Calendar } from 'pixelarticons/react/Calendar'
-import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
+import { supabaseImageLoader, avatarImageLoader } from '@/shared/supabase/imageLoader'
 import type { Event } from '@/types'
 
 const DEFAULT_EVENT_IMAGE = '/img/eventDefaultImage.png'
@@ -162,7 +162,7 @@ function EventCardPreview({
                       fill
                       sizes="24px"
                       className="object-cover"
-                      loader={supabaseImageLoader}
+                      loader={avatarImageLoader}
                     />
                   ) : (
                     <div

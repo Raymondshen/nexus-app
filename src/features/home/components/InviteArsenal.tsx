@@ -9,7 +9,7 @@ import { Check } from 'pixelarticons/react/Check'
 import { SlidePage, useSlideBack } from '@/app/layouts/SlidePage'
 import { useChatStore } from '@/store/chatStore'
 import { generateAppInviteAction, getInviteCodesAction } from '@/app/(app)/home/actions'
-import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
+import { avatarImageLoader } from '@/shared/supabase/imageLoader'
 import type { InviteCodeData } from '@/app/(app)/home/actions'
 
 interface InvitePageProps {
@@ -293,7 +293,7 @@ function InviteCard({
               alt={invite.used_by_username ?? ''}
               fill
               className="object-cover"
-              loader={supabaseImageLoader}
+              loader={avatarImageLoader}
             />
           ) : (
             <span

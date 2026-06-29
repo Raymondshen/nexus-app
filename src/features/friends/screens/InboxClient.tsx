@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react'
 import Image from 'next/image'
-import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
+import { avatarImageLoader } from '@/shared/supabase/imageLoader'
 import { SlidePage, useSlideBack } from '@/app/layouts/SlidePage'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { Check } from 'pixelarticons/react/Check'
@@ -38,7 +38,7 @@ function UserAvatar({ profile, size = 48 }: { profile: FriendProfile | null; siz
           fill
           sizes={`${size}px`}
           className="object-cover"
-          loader={supabaseImageLoader}
+          loader={avatarImageLoader}
         />
       ) : (
         <div className="w-full h-full flex items-center justify-center font-pixel text-[10px] text-black">

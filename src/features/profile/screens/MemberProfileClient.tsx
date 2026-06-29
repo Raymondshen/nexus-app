@@ -3,7 +3,7 @@
 import { useState, useLayoutEffect, useRef } from 'react'
 import Image from 'next/image'
 import { motion } from 'framer-motion'
-import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
+import { avatarImageLoader } from '@/shared/supabase/imageLoader'
 import { useSlideBack } from '@/app/layouts/SlidePage'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { UserPlus } from 'pixelarticons/react/UserPlus'
@@ -189,7 +189,7 @@ export function MemberProfileClient({
                   fill
                   sizes="56px"
                   className="object-cover"
-                  loader={supabaseImageLoader}
+                  loader={avatarImageLoader}
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center">

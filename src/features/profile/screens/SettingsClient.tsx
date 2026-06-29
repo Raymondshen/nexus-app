@@ -11,7 +11,7 @@ import { Bell } from 'pixelarticons/react/Bell'
 import { User } from 'pixelarticons/react/User'
 import { Terminal } from 'pixelarticons/react/Terminal'
 import Image from 'next/image'
-import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
+import { avatarImageLoader } from '@/shared/supabase/imageLoader'
 import { createClient } from '@/shared/supabase/client'
 import { signOut } from '@/shared/supabase/auth'
 import {
@@ -190,7 +190,7 @@ function EditProfileSheet({
                       aria-label="Change photo"
                     >
                       {avatarUrl ? (
-                        <Image src={avatarUrl} alt={previewName} fill sizes="56px" className="object-cover" loader={supabaseImageLoader} />
+                        <Image src={avatarUrl} alt={previewName} fill sizes="56px" className="object-cover" loader={avatarImageLoader} />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
                           <span className="font-pixel text-[12px] text-purple">{initial}</span>

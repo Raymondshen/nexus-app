@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
-import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
+import { avatarImageLoader } from '@/shared/supabase/imageLoader'
 import { motion, useMotionValue, animate } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
 import { SlidePage, useSlideBack } from '@/app/layouts/SlidePage'
@@ -120,7 +120,7 @@ function UserAvatar({ profile, size = 40 }: { profile: FriendProfile | null; siz
           fill
           sizes={`${size}px`}
           className="object-cover"
-          loader={supabaseImageLoader}
+          loader={avatarImageLoader}
         />
       ) : (
         <div className="w-full h-full flex items-center justify-center font-pixel text-[10px] text-black">
