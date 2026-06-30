@@ -5,7 +5,6 @@ import { motion, AnimatePresence } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
 import Image from 'next/image'
 import { supabaseImageLoader, avatarImageLoader } from '@/shared/supabase/imageLoader'
-import { Button } from '@/shared/components/ui/Button'
 import { getXPInCurrentLevel, getXPForCurrentLevel } from '@/shared/utils/xp'
 import { PixelSprite, spriteInfoFor } from '@/shared/components/game/PixelSprite'
 import { MagicEdit } from 'pixelarticons/react/MagicEdit'
@@ -59,6 +58,7 @@ interface SquadDetailsSheetProps {
   onDMPress?:              (memberId: string) => void
   onOpenGlossary?:         () => void
   onRemoveMember?:         (member: MiniMember) => void
+  onLeave?:                () => void
   onClose:                 () => void
 }
 
@@ -68,8 +68,6 @@ function StatusTicker({ status }: { status: string }) {
   const [numCopies, setNumCopies] = useState(6)
   const [animPx,    setAnimPx]    = useState(0)
 
-  // Measure after each status change so we always fill the full container width.
-  // useLayoutEffect runs before paint → no visible flash on first render.
   useLayoutEffect(() => {
     const container = containerRef.current
     const item      = itemRef.current
@@ -77,8 +75,6 @@ function StatusTicker({ status }: { status: string }) {
     const cw = container.clientWidth
     const iw = item.offsetWidth
     if (iw <= 0) return
-    // Need track ≥ 2× container so ticker fills the visible area.
-    // Keep copy count even so the -half animation is seamless.
     const halfNeeded = Math.ceil(cw / iw) + 1
     const n          = Math.max(4, halfNeeded % 2 === 0 ? halfNeeded * 2 : (halfNeeded + 1) * 2)
     setNumCopies(n)
@@ -132,9 +128,9 @@ function MemberListRow({
   return (
     <div className="flex flex-col gap-[var(--space-3)]">
       <div
-        className="flex items-center gap-3 active:opacity-70 transition-opacity"
+        className="flex items-center active:opacity-70 transition-opacity h-8"
+        style={onTap ? { gap: 12, cursor: 'pointer' } : { gap: 12 }}
         onClick={onTap}
-        style={onTap ? { cursor: 'pointer' } : undefined}
       >
         {/* Profile photo + online dot */}
         <div className="relative flex-shrink-0">
@@ -152,7 +148,7 @@ function MemberListRow({
           )}
         </div>
 
-        {/* Pixel sprite — no background, overflow clips */}
+        {/* Pixel sprite */}
         <div className="w-8 h-8 flex-shrink-0 flex items-center justify-center overflow-hidden">
           {spriteInfo ? (
             <PixelSprite spriteId={spriteInfo.id} nativePx={spriteInfo.nativePx} scale={1.5} animate />
@@ -162,50 +158,50 @@ function MemberListRow({
         </div>
 
         {/* Name + class · msg count */}
-        <div className="flex flex-col gap-1 justify-center min-w-0 flex-1">
-          <div className="flex items-center gap-1">
+        <div className="flex flex-col gap-1 justify-center min-w-0 flex-1 h-full">
+          <div className="flex items-center" style={{ gap: 4 }}>
             <p className="font-body font-bold text-white truncate leading-none" style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}>{profile.username}</p>
             {isCreator && (
-              <Crown style={{ width: 12, height: 12, color: '#f59e0b' }} aria-hidden="true" />
+              <Crown style={{ width: 12, height: 12, color: '#f59e0b', flexShrink: 0 }} aria-hidden="true" />
             )}
           </div>
-          <p className="font-silkscreen text-[8px] text-secondary leading-none">
+          <p className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>
             {loading ? '...' : `${classLabel} · ${msgCount.toLocaleString()} msg.`}
           </p>
         </div>
 
         {/* Action buttons: remove (creator only) + DM */}
-        <div className="flex items-center flex-shrink-0" style={{ gap: 'var(--space-5)' }}>
+        <div className="flex items-center flex-shrink-0" style={{ gap: 16 }}>
           {onRemove && (
             <button
               onClick={(e) => { e.stopPropagation(); onRemove() }}
               className="flex items-center justify-center active:opacity-70 transition-opacity"
-              style={{ width: 'var(--space-6)', height: 'var(--space-6)' }}
+              style={{ width: 24, height: 24 }}
               aria-label={`Remove ${profile.username}`}
             >
-              <UserX style={{ width: 'var(--space-6)', height: 'var(--space-6)', color: 'var(--color-danger)' }} aria-hidden="true" />
+              <UserX style={{ width: 24, height: 24, color: 'var(--color-danger)' }} aria-hidden="true" />
             </button>
           )}
           {onDM && (
             <button
               onClick={(e) => { e.stopPropagation(); onDM() }}
               className="flex items-center justify-center active:opacity-70 transition-opacity"
-              style={{ width: 'var(--space-6)', height: 'var(--space-6)' }}
+              style={{ width: 24, height: 24 }}
               aria-label={`Message ${profile.username}`}
             >
-              <MailRight style={{ width: 'var(--space-6)', height: 'var(--space-6)', color: 'var(--color-secondary)' }} aria-hidden="true" />
+              <MailRight style={{ width: 24, height: 24, color: 'var(--color-secondary)' }} aria-hidden="true" />
             </button>
           )}
         </div>
       </div>
 
-      {/* Status ticker — only renders when the member has a status */}
+      {/* Status ticker */}
       {profile.status && <StatusTicker status={profile.status} />}
     </div>
   )
 }
 
-// ─── Squad Details Edit Sheet (Figma 113:516) ────────────────────────────────
+// ─── Squad Details Edit Sheet ─────────────────────────────────────────────────
 
 interface SquadDetailsEditSheetProps {
   crewName:               string
@@ -290,9 +286,7 @@ function SquadDetailsEditSheet({
             Squad Card Preview
           </p>
 
-          {/* 180px group header card */}
           <div className="relative w-full overflow-hidden flex-shrink-0 flex flex-col justify-between" style={{ height: 180, padding: 8 }}>
-            {/* Background */}
             {crewBackgroundImageUrl ? (
               <div className="absolute inset-0 pointer-events-none">
                 <Image
@@ -307,13 +301,11 @@ function SquadDetailsEditSheet({
             ) : (
               <div className="absolute inset-0 bg-[var(--color-surface)]" />
             )}
-            {/* Gradient overlay */}
             <div
               className="absolute inset-0 pointer-events-none"
               style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.604) 33%, rgba(0,0,0,0.6) 66%, rgba(0,0,0,0.8) 100%)' }}
             />
 
-            {/* Top: crew image + name + member count */}
             <div className="relative flex items-center justify-between w-full flex-shrink-0">
               <div className="flex items-center flex-1 min-w-0" style={{ gap: 16 }}>
                 <div className="relative flex-shrink-0 overflow-hidden" style={{ width: 40, height: 40 }}>
@@ -338,7 +330,6 @@ function SquadDetailsEditSheet({
               </div>
             </div>
 
-            {/* Bottom: XP indicator + bar */}
             <div className="relative flex flex-col w-full flex-shrink-0" style={{ gap: 8 }}>
               <p className="leading-[0] text-[0px] font-silkscreen">
                 <span className="leading-none text-tertiary" style={{ fontSize: 'var(--text-mini)' }}>
@@ -365,7 +356,6 @@ function SquadDetailsEditSheet({
 
         {/* ── Upload buttons (side by side) ── */}
         <div className="flex flex-shrink-0 w-full" style={{ gap: 16 }}>
-          {/* Profile Photo */}
           <div className="flex flex-col flex-1 min-w-0" style={{ gap: 8 }}>
             <p className="font-body font-medium text-primary leading-none" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}>
               Profile Photo
@@ -384,7 +374,6 @@ function SquadDetailsEditSheet({
             </button>
           </div>
 
-          {/* Background Image */}
           <div className="flex flex-col flex-1 min-w-0" style={{ gap: 8 }}>
             <p className="font-body font-medium text-primary leading-none" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}>
               Background Image
@@ -455,16 +444,17 @@ export function SquadDetailsSheet({
   crewId, crewName, memberCount, crewImageUrl, crewBackgroundImageUrl, members, onlineUserIds,
   crewXP, crewLevel, xpProgress, totalMessages, inviteCode, creatorId,
   currentUserId, memberMsgCounts, loadingCounts,
-  onUploadPhoto, onUploadBackground, onNotifPress, onSave, onTapMember, onDMPress, onOpenGlossary, onRemoveMember, onClose,
+  onUploadPhoto, onUploadBackground, onNotifPress, onSave, onTapMember, onDMPress,
+  onOpenGlossary, onRemoveMember, onLeave, onClose,
 }: SquadDetailsSheetProps) {
-  const [copied,         setCopied]         = useState(false)
-  const [showSquadEdit,  setShowSquadEdit]  = useState(false)
-  const memberListRef  = useRef<HTMLDivElement>(null)
+  const [copied,        setCopied]        = useState(false)
+  const [showSquadEdit, setShowSquadEdit] = useState(false)
+  const scrollRef      = useRef<HTMLDivElement>(null)
   const pullToCloseRef = useRef({ startY: 0, atTop: false })
 
   // Pull-to-close: drag down from scroll-top dismisses the sheet
   useEffect(() => {
-    const el = memberListRef.current
+    const el = scrollRef.current
     if (!el) return
 
     function onTouchStart(e: TouchEvent) {
@@ -500,6 +490,13 @@ export function SquadDetailsSheet({
     if (info.offset.y > 60 || info.velocity.y > 300) onClose()
   }
 
+  const sortedMembers = [...members].sort((a, b) => {
+    const aOnline = onlineUserIds.has(a.id) ? 1 : 0
+    const bOnline = onlineUserIds.has(b.id) ? 1 : 0
+    if (bOnline !== aOnline) return bOnline - aOnline
+    return (memberMsgCounts.get(b.id) ?? 0) - (memberMsgCounts.get(a.id) ?? 0)
+  })
+
   return (
     <>
       {/* Backdrop */}
@@ -514,7 +511,7 @@ export function SquadDetailsSheet({
 
       {/* Sheet */}
       <motion.div
-        className="absolute bottom-0 left-0 right-0 z-[70] bg-[var(--background)] border-t border-border flex flex-col"
+        className="absolute bottom-0 left-0 right-0 z-[70] bg-[var(--color-surface-sheet)] rounded-tl-[16px] rounded-tr-[16px] flex flex-col"
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
@@ -522,138 +519,156 @@ export function SquadDetailsSheet({
         style={{ maxHeight: '85vh' }}
         onPanEnd={handlePanelPanEnd}
       >
-        {/* ── Fixed header ── */}
-        <div className="flex-shrink-0 flex flex-col gap-4 px-4 pt-6">
 
-          {/* group_header — 180px tall, title row at top, XP bar at bottom */}
-          <div className="relative flex flex-col justify-between overflow-hidden" style={{ height: 180, padding: 8, marginLeft: -16, marginRight: -16 }}>
+        {/* ── Group Header (180px, full-bleed) ── */}
+        <div
+          className="relative flex flex-col justify-between overflow-hidden flex-shrink-0 rounded-tl-[16px] rounded-tr-[16px]"
+          style={{ height: 180, padding: 16 }}
+        >
+          {/* Background */}
+          {crewBackgroundImageUrl ? (
+            <div className="absolute inset-0 pointer-events-none rounded-tl-[16px] rounded-tr-[16px]">
+              <Image
+                src={crewBackgroundImageUrl}
+                alt=""
+                fill
+                sizes="(max-width: 480px) 100vw, 480px"
+                className="object-cover rounded-tl-[16px] rounded-tr-[16px]"
+                loader={supabaseImageLoader}
+              />
+            </div>
+          ) : (
+            <div className="absolute inset-0 bg-[var(--color-surface)] rounded-tl-[16px] rounded-tr-[16px]" />
+          )}
+          {/* Gradient overlay */}
+          <div
+            className="absolute inset-0 pointer-events-none rounded-tl-[16px] rounded-tr-[16px]"
+            style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.604) 33%, rgba(0,0,0,0.6) 66%, rgba(0,0,0,0.8) 100%)' }}
+          />
 
-            {/* Background image */}
-            {crewBackgroundImageUrl ? (
-              <div className="absolute inset-0 pointer-events-none">
-                <Image
-                  src={crewBackgroundImageUrl}
-                  alt=""
-                  fill
-                  sizes="(max-width: 480px) 100vw, 480px"
-                  className="object-cover"
-                  loader={supabaseImageLoader}
-                />
-              </div>
-            ) : (
-              <div className="absolute inset-0 bg-[var(--color-surface)]" />
-            )}
-            {/* Gradient overlay */}
-            <div
-              className="absolute inset-0 pointer-events-none"
-              style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.5) 40%, rgba(0,0,0,0.5) 60%, rgba(0,0,0,0.85) 100%)' }}
-            />
-
-            {/* Title row: crew image + name/count | action buttons */}
-            <div className="relative flex items-start justify-between">
-              <div className="flex items-center gap-2 min-w-0 flex-1">
-                {/* 40×40 crew image */}
-                <div className="relative flex-shrink-0 overflow-hidden" style={{ width: 'var(--space-11)', height: 'var(--space-11)' }}>
-                  {crewImageUrl ? (
-                    <div className="relative w-full h-full">
-                      <Image src={crewImageUrl} alt={crewName} fill sizes="40px" className="object-cover" loader={supabaseImageLoader} />
-                    </div>
-                  ) : (
-                    <div className="w-full h-full bg-purple" />
-                  )}
-                </div>
-
-                {/* Name + member count */}
-                <div className="flex flex-col min-w-0" style={{ gap: 'var(--space-2)' }}>
-                  <p
-                    className="font-body font-black leading-none truncate uppercase"
-                    style={{ fontSize: 'var(--text-md)', color: 'var(--color-secondary)', fontVariationSettings: '"opsz" 14' }}
-                  >
-                    {crewName}
-                  </p>
-                  <p className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-xxs)', color: 'var(--color-secondary)' }}>
-                    {memberCount} {memberCount === 1 ? 'member' : 'members'}
-                  </p>
-                </div>
-              </div>
-
-              {/* Action buttons — Edit (creator) | Bell | Glossary | Collapse */}
-              <div className="flex items-center flex-shrink-0" style={{ gap: 'var(--space-5)' }}>
-                {currentUserId === creatorId && (
-                  <button
-                    onClick={() => setShowSquadEdit(true)}
-                    className="flex items-center justify-center"
-                    style={{ width: 24, height: 24 }}
-                    aria-label="Edit squad details"
-                  >
-                    <MagicEdit style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
-                  </button>
+          {/* Top row: image+name | action buttons */}
+          <div className="relative flex items-start justify-between">
+            <div className="flex items-center flex-1 min-w-0" style={{ gap: 16 }}>
+              {/* 40×40 crew image */}
+              <div className="relative flex-shrink-0 overflow-hidden" style={{ width: 40, height: 40 }}>
+                {crewImageUrl ? (
+                  <div className="relative w-full h-full">
+                    <Image src={crewImageUrl} alt={crewName} fill sizes="40px" className="object-cover" loader={supabaseImageLoader} />
+                  </div>
+                ) : (
+                  <div className="w-full h-full bg-purple" />
                 )}
-                <button
-                  onClick={onNotifPress}
-                  className="flex items-center justify-center"
-                  style={{ width: 24, height: 24 }}
-                  aria-label="Notification settings"
+              </div>
+              {/* Name + member count */}
+              <div className="flex flex-col min-w-0" style={{ gap: 4 }}>
+                <p
+                  className="font-body font-black leading-none truncate uppercase"
+                  style={{ fontSize: 'var(--text-md)', color: 'var(--color-secondary)', fontVariationSettings: '"opsz" 14' }}
                 >
-                  <Bell style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
-                </button>
-                <button
-                  onClick={onOpenGlossary}
-                  className="flex items-center justify-center"
-                  style={{ width: 24, height: 24 }}
-                  aria-label="Squad glossary"
-                >
-                  <Library style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
-                </button>
-                <button
-                  onClick={onClose}
-                  className="flex items-center justify-center"
-                  style={{ width: 24, height: 24 }}
-                  aria-label="Collapse"
-                >
-                  <ChevronRight
-                    style={{ width: 24, height: 24, color: 'var(--color-tertiary)', transform: 'rotate(90deg)' }}
-                    aria-hidden="true"
-                  />
-                </button>
+                  {crewName}
+                </p>
+                <p className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>
+                  {memberCount} {memberCount === 1 ? 'member' : 'members'}
+                </p>
               </div>
             </div>
 
-            {/* XP bar (pinned to bottom of 180px block) */}
-            <div className="relative flex flex-col w-full" style={{ gap: 'var(--space-3)' }}>
-              <p className="leading-[0] text-[0px] font-silkscreen w-full">
-                <span className="leading-none text-tertiary" style={{ fontSize: 'var(--text-mini)' }}>
-                  {`${getXPInCurrentLevel(crewXP)} / ${getXPForCurrentLevel(crewXP)}XP`}
-                </span>
-                {totalMessages > 0 && (
-                  <>
-                    <span className="leading-none text-tertiary" style={{ fontSize: 'var(--text-mini)' }}>{` · `}</span>
-                    <span className="leading-none text-secondary" style={{ fontSize: 'var(--text-mini)' }}>
-                      {totalMessages.toLocaleString()} total Squad msg.
-                    </span>
-                  </>
-                )}
-              </p>
-              <div className="bg-surface overflow-hidden w-full relative" style={{ height: 4 }}>
-                <motion.div
-                  className="absolute left-0 top-0 h-full bg-purple"
-                  animate={{ width: `${xpProgress}%` }}
-                  transition={{ type: 'spring', stiffness: 300, damping: 28 }}
+            {/* Action buttons */}
+            <div className="flex items-center flex-shrink-0" style={{ gap: 16 }}>
+              {currentUserId === creatorId && (
+                <button
+                  onClick={() => setShowSquadEdit(true)}
+                  className="flex items-center justify-center"
+                  style={{ width: 24, height: 24 }}
+                  aria-label="Edit squad details"
+                >
+                  <MagicEdit style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+                </button>
+              )}
+              <button
+                onClick={onNotifPress}
+                className="flex items-center justify-center"
+                style={{ width: 24, height: 24 }}
+                aria-label="Notification settings"
+              >
+                <Bell style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+              </button>
+              <button
+                onClick={onOpenGlossary}
+                className="flex items-center justify-center"
+                style={{ width: 24, height: 24 }}
+                aria-label="Squad glossary"
+              >
+                <Library style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+              </button>
+              <button
+                onClick={onClose}
+                className="flex items-center justify-center"
+                style={{ width: 24, height: 24 }}
+                aria-label="Collapse"
+              >
+                <ChevronRight
+                  style={{ width: 24, height: 24, color: 'var(--color-tertiary)', transform: 'rotate(90deg)' }}
+                  aria-hidden="true"
                 />
-              </div>
+              </button>
             </div>
           </div>
 
-          {/* Invite code block — group chats only */}
+          {/* XP bar */}
+          <div className="relative flex flex-col w-full" style={{ gap: 8 }}>
+            <p className="leading-[0] text-[0px] font-silkscreen w-full">
+              <span className="leading-none text-tertiary" style={{ fontSize: 'var(--text-mini)' }}>
+                {`${getXPInCurrentLevel(crewXP)} / ${getXPForCurrentLevel(crewXP)}XP`}
+              </span>
+              {totalMessages > 0 && (
+                <>
+                  <span className="leading-none text-tertiary" style={{ fontSize: 'var(--text-mini)' }}>{` · `}</span>
+                  <span className="leading-none text-secondary" style={{ fontSize: 'var(--text-mini)' }}>
+                    {totalMessages.toLocaleString()} total Squad msg.
+                  </span>
+                </>
+              )}
+            </p>
+            <div className="bg-[var(--color-surface)] overflow-hidden w-full" style={{ height: 4 }}>
+              <motion.div
+                className="h-full bg-purple"
+                animate={{ width: `${xpProgress}%` }}
+                transition={{ type: 'spring', stiffness: 300, damping: 28 }}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* ── Scrollable content ── */}
+        <div
+          ref={scrollRef}
+          className="flex-1 overflow-y-auto nexus-scroll flex flex-col min-h-0"
+          style={{
+            paddingTop:    16,
+            paddingLeft:   16,
+            paddingRight:  16,
+            paddingBottom: 'max(env(safe-area-inset-bottom), 28px)',
+            gap:           16,
+          }}
+        >
+          {/* Invite code card */}
           {inviteCode && (
-            <div className="flex items-center justify-between border border-purple overflow-hidden" style={{ padding: 'var(--space-4)' }}>
-              <div className="flex flex-col" style={{ gap: 'var(--space-2)' }}>
-                <p className="font-silkscreen leading-none tracking-[0.2px]" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>
-                  Invite your squad
+            <div
+              className="flex items-center justify-between bg-[var(--color-surface)] border border-[var(--color-border)] flex-shrink-0"
+              style={{ padding: 16 }}
+            >
+              <div className="flex flex-col" style={{ gap: 4 }}>
+                <p className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-primary)' }}>
+                  Invite new members
                 </p>
                 <p
-                  className="font-silkscreen leading-none tracking-[0.2px]"
-                  style={{ fontSize: 'var(--text-xxl)', color: 'var(--color-purple)', textShadow: '0px 0px 3px var(--color-purple)' }}
+                  className="font-silkscreen leading-none tracking-[0.2px] bg-clip-text text-transparent"
+                  style={{
+                    fontSize:        'var(--text-xl)',
+                    backgroundImage: 'linear-gradient(to right, #a855f7, #d946ef)',
+                    textShadow:      '0px 0px 3px #a855f7',
+                  }}
                 >
                   {inviteCode}
                 </p>
@@ -662,8 +677,8 @@ export function SquadDetailsSheet({
                 onClick={handleCopyCode}
                 className="flex items-center flex-shrink-0 transition-colors duration-150"
                 style={{
-                  gap: 'var(--space-3)',
-                  padding: 'var(--space-4) var(--space-5)',
+                  gap: 8,
+                  padding: '12px 16px',
                   ...(copied
                     ? { backgroundColor: 'var(--color-green)', boxShadow: '4px 4px 0px 0px rgba(34,197,94,0.5)' }
                     : { backgroundColor: 'var(--color-purple)', boxShadow: '4px 4px 0px 0px rgba(168,85,247,0.5)' }
@@ -684,17 +699,13 @@ export function SquadDetailsSheet({
               </button>
             </div>
           )}
-        </div>
 
-        {/* ── Scrollable member list ── */}
-        <div ref={memberListRef} className="flex-1 overflow-y-auto nexus-scroll px-4 min-h-0 mt-4" style={{ paddingBottom: 'max(env(safe-area-inset-bottom), var(--space-8))' }}>
-          <div className="flex flex-col gap-[var(--space-6)]">
-            {[...members].sort((a, b) => {
-              const aOnline = onlineUserIds.has(a.id) ? 1 : 0
-              const bOnline = onlineUserIds.has(b.id) ? 1 : 0
-              if (bOnline !== aOnline) return bOnline - aOnline
-              return (memberMsgCounts.get(b.id) ?? 0) - (memberMsgCounts.get(a.id) ?? 0)
-            }).map((m) => (
+          {/* Members section */}
+          <div className="flex flex-col flex-shrink-0" style={{ gap: 20 }}>
+            <p className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-primary)' }}>
+              Members
+            </p>
+            {sortedMembers.map((m) => (
               <MemberListRow
                 key={m.id}
                 profile={m}
@@ -703,11 +714,7 @@ export function SquadDetailsSheet({
                 isOnline={onlineUserIds.has(m.id)}
                 isCreator={m.id === creatorId}
                 onTap={() => onTapMember(m.id)}
-                onDM={
-                  onDMPress && m.id !== currentUserId
-                    ? () => onDMPress(m.id)
-                    : undefined
-                }
+                onDM={onDMPress && m.id !== currentUserId ? () => onDMPress(m.id) : undefined}
                 onRemove={
                   currentUserId === creatorId && m.id !== currentUserId && !!inviteCode && onRemoveMember
                     ? () => onRemoveMember(m)
@@ -716,11 +723,27 @@ export function SquadDetailsSheet({
               />
             ))}
           </div>
-        </div>
 
+          {/* Leave Squad button */}
+          {onLeave && (
+            <button
+              type="button"
+              onClick={onLeave}
+              className="w-full flex items-center justify-center flex-shrink-0 active:opacity-70 transition-opacity"
+              style={{ height: 48, border: '1px solid var(--color-red)', gap: 8 }}
+              aria-label="Leave squad"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/icons/leave-pixel.svg" alt="" width={16} height={16} aria-hidden="true" />
+              <span className="font-silkscreen leading-none pb-[2px]" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-red)' }}>
+                leave squad
+              </span>
+            </button>
+          )}
+        </div>
       </motion.div>
 
-      {/* ── Squad Details edit sheet — slides above the squad panel ── */}
+      {/* ── Squad Details edit sheet ── */}
       <AnimatePresence>
         {showSquadEdit && (
           <SquadDetailsEditSheet

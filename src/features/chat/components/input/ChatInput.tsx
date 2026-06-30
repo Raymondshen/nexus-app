@@ -26,6 +26,7 @@ import { Undo } from 'pixelarticons/react/Undo'
 import { Close } from 'pixelarticons/react/Close'
 import { GifIcon } from '@/shared/icons/GifIcon'
 import { kickMemberAction, renameCrewAction, birthdaysCommandAction, updateCrewBackgroundImageAction } from '@/app/(app)/chat/actions'
+import { leaveCrewAction } from '@/app/(app)/home/actions'
 import { resizeImageToBlob } from '@/shared/utils/imageCompress'
 import { EventCreationSheet } from '@/features/events/components/EventCreationSheet'
 import { CrewImageUploadModal } from '@/features/chat/components/sheets/CrewImageUploadModal'
@@ -1205,6 +1206,15 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     setRemoveTarget(null)
   }
 
+  async function handleLeaveSquad() {
+    const supabase = createClient()
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return
+    setIsExpanded(false)
+    await leaveCrewAction(crewId, session.access_token)
+    router.push('/home')
+  }
+
   // ─── @mention helpers ───────────────────────────────────────────────────────
 
   function getMentionQuery(val: string, cursorPos: number): string | null {
@@ -1844,6 +1854,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
               router.push(`/chat/${crewId}/definitions`)
             }}
             onRemoveMember={(member) => setRemoveTarget(member as MemberProfile)}
+            onLeave={handleLeaveSquad}
             onClose={() => setIsExpanded(false)}
           />
         )}
