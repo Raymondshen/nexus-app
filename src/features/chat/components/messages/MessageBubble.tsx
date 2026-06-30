@@ -405,7 +405,7 @@ export function MessageBubble({
       isDraggingXRef.current    = false
       swipeCommittedRef.current = false
       resetSwipeDOM()
-      if (wasCommitted) setReplyTo({ ...message })
+      if (wasCommitted) setReplyTo({ ...message }, groupId)
     }
   }
   function handleTouchCancel() {
@@ -415,7 +415,7 @@ export function MessageBubble({
       isDraggingXRef.current    = false
       swipeCommittedRef.current = false
       resetSwipeDOM()
-      if (wasCommitted) setReplyTo({ ...message })
+      if (wasCommitted) setReplyTo({ ...message }, groupId)
     }
   }
   function handleTouchMove(e: React.TouchEvent) {
@@ -429,6 +429,11 @@ export function MessageBubble({
         if (Math.abs(dx) < 5 && dy < 5) return
         if (dy > Math.abs(dx) || dx > 0) return   // vertical scroll or right swipe
         isDraggingXRef.current = true
+        // Clear a stale reply the instant a swipe starts on a different group
+        const s = useChatStore.getState()
+        if (s.replyTo && s.replyGroupId && groupId && s.replyGroupId !== groupId) {
+          setReplyTo(null)
+        }
       }
       // Rubber-band past threshold
       const clamped = Math.min(0, dx)
@@ -1067,7 +1072,7 @@ export function MessageBubble({
               reactions={reactions}
               currentUserId={currentUserId}
               onReact={(emoji) => void handleReaction(emoji)}
-              onReply={() => { setSheetOpen(false); setReplyTo({ ...message }) }}
+              onReply={() => { setSheetOpen(false); setReplyTo({ ...message }, groupId) }}
               onCopy={handleCopy}
               copied={copied}
               canPin={isCreator}
