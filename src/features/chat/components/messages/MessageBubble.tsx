@@ -280,14 +280,18 @@ function MessageBubbleImpl({
   replyProfile   = null,
   isCreator      = false,
 }: MessageBubbleProps) {
-  const [sheetOpen,        setSheetOpen]        = useState(false)
-  const [copied,           setCopied]           = useState(false)
-  const [healFloat,        setHealFloat]        = useState<{ id: number; amount: number } | null>(null)
-  const [mounted,          setMounted]          = useState(false)
-  const [activeDefinition, setActiveDefinition] = useState<SquadDefinitionWithCreator | null>(null)
-  const [suggestTarget,    setSuggestTarget]    = useState<SquadDefinitionWithCreator | null>(null)
-  const [previewOpen,      setPreviewOpen]      = useState(false)
-  const [pinSheetOpen,     setPinSheetOpen]     = useState(false)
+  const [sheetOpen,          setSheetOpen]          = useState(false)
+  const [copied,             setCopied]             = useState(false)
+  const [healFloat,          setHealFloat]          = useState<{ id: number; amount: number } | null>(null)
+  const [mounted,            setMounted]            = useState(false)
+  const [activeDefinition,   setActiveDefinition]   = useState<SquadDefinitionWithCreator | null>(null)
+  const [suggestTarget,      setSuggestTarget]      = useState<SquadDefinitionWithCreator | null>(null)
+  const [previewOpen,        setPreviewOpen]        = useState(false)
+  const [pinSheetOpen,       setPinSheetOpen]       = useState(false)
+  // Local optimistic reactions — overrides message.reactions prop while an API call is
+  // in-flight. This prevents Realtime UPDATEs (e.g. award-xp patching xp_awarded) from
+  // racing with the optimistic update and causing the reaction pill to flicker out.
+  const [optimisticReactions, setOptimisticReactions] = useState<Record<string, string[]> | null>(null)
 
   const longPressTimer       = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hasMoved             = useRef(false)
@@ -557,6 +561,11 @@ function MessageBubbleImpl({
     if (nextUsers.length === 0) delete next[emoji]
     else next[emoji] = nextUsers
 
+    // Local optimistic override — shields the pill from any Realtime UPDATEs that
+    // arrive while the request is in-flight (e.g. award-xp patching xp_awarded on
+    // the same message row, which triggers a Postgres Changes UPDATE with stale
+    // reactions before react-to-message has written the new value).
+    setOptimisticReactions(next)
     updateMessage(message.id, { reactions: next })
 
     // Use browser client so the user's live session JWT is sent — prevents 401s
@@ -573,7 +582,10 @@ function MessageBubbleImpl({
       // Only rollback on a confirmed HTTP rejection (4xx/5xx).
       // Network failures keep the optimistic state; Postgres Changes will sync.
       if (error.name === 'FunctionsHttpError') {
+        setOptimisticReactions(null)
         updateMessage(message.id, { reactions: prev })
+      } else {
+        setOptimisticReactions(null)
       }
       return
     }
@@ -582,10 +594,13 @@ function MessageBubbleImpl({
       // Guard: if we were ADDING but the server didn't include our emoji, the RPC
       // saw stale state and toggled us back off. Discard and let Postgres Changes sync.
       if (wasAdding && !(data.reactions[emoji] ?? []).includes(currentUserId)) {
+        setOptimisticReactions(null)
         return
       }
       updateMessage(message.id, { reactions: data.reactions })
     }
+    // Clear optimistic overlay — prop now has the server-reconciled value.
+    setOptimisticReactions(null)
     if (data?.hype_man_heal && data.heal_amount > 0) {
       setHealFloat({ id: Date.now(), amount: data.heal_amount })
     }
@@ -708,13 +723,11 @@ function MessageBubbleImpl({
   const avatarUrl = message.profile.avatar_url as string | null | undefined
   const timeStr   = format(new Date(message.created_at), 'h:mma').toLowerCase()
 
-  const reactions       = message.reactions ?? {}
-  // Memoize so the sort doesn't re-run on every parent render when reactions haven't changed.
-  // React.memo handles the outer guard; this prevents the sort inside re-renders triggered
-  // by Zustand subscriptions within this component (e.g., the isOnline boolean selector).
+  // Use local optimistic overlay while in-flight so Realtime UPDATEs can't wipe the pill.
+  const displayReactions = optimisticReactions ?? ((message.reactions ?? {}) as Record<string, string[]>)
   const sortedReactions = React.useMemo(
-    () => Object.entries(reactions).filter(([, users]) => users.length > 0).sort(([, a], [, b]) => b.length - a.length),
-    [reactions], // eslint-disable-line react-hooks/exhaustive-deps
+    () => Object.entries(displayReactions).filter(([, users]) => users.length > 0).sort(([, a], [, b]) => b.length - a.length),
+    [displayReactions], // eslint-disable-line react-hooks/exhaustive-deps
   )
 
   return (
@@ -1094,7 +1107,7 @@ function MessageBubbleImpl({
           {sheetOpen && (
             <ChatSheetReact
               onClose={() => setSheetOpen(false)}
-              reactions={reactions}
+              reactions={displayReactions}
               currentUserId={currentUserId}
               onReact={(emoji) => void handleReaction(emoji)}
               onReply={() => { setSheetOpen(false); setReplyTo({ ...message }, groupId) }}
