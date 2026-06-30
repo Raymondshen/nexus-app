@@ -298,6 +298,8 @@ Only fires on `!isOwn` messages. Swipe left past `SWIPE_THRESHOLD` (64px) to com
 
 **Reply state scoping** (`chatStore`): `replyTo` + `replyGroupId` are set atomically by `setReplyTo(msg, groupId?)`. When a drag is confirmed on a message from a different group (`replyGroupId !== groupId`), the existing reply is cleared immediately so the reply bar never shows stale state from an unrelated group. Both `touchend` and `touchcancel` fire `setReplyTo` on commit so iOS gesture interrupts never drop the reply.
 
+**Navigation cleanup**: `chatStore` is a module-level singleton — `replyTo` survives route changes unless explicitly cleared. `ChatInput` has an unmount-only `useEffect` (`[]` deps, cleanup only) that calls `setReplyTo(null)`, so the reply bar is always zeroed when leaving a chat. The reply bar cancel button is 32×32 touch target (icon remains 16×16) with `marginRight: -8` to stay visually flush.
+
 ### ChatInput
 - Props: `{ crewId, userId, userProfile, memberProfiles, crewName, inviteCode?, creatorId?, isDM?, crewImageUrl?, crewBackgroundImageUrl? }`
 - Send flow: `addMessage(optimisticMsg)` synchronously (with `tempId`) → `insert_message` RPC → reconcile: `updateMessage(tempId, { id: raw.id })` in place (never remove-and-reinsert) → broadcast → `award-xp` → `attack-boss`; on RPC error `removeMessage(tempId)` rollback
