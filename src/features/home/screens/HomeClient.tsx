@@ -1059,8 +1059,8 @@ function SquadCardPreview({ summary }: { summary: CrewSummary }) {
 
   return (
     <div className="w-full flex items-center gap-4 h-12">
-      {/* Group photo — white 48×48 box */}
-      <div className="flex-shrink-0 w-12 h-12 overflow-hidden bg-primary flex items-center justify-center font-pixel text-[10px] text-black">
+      {/* Group photo — 48×48 box */}
+      <div className="flex-shrink-0 w-12 h-12 overflow-hidden flex items-center justify-center">
         {imageUrl ? (
           <div className="relative w-full h-full">
             <Image
@@ -1073,7 +1073,7 @@ function SquadCardPreview({ summary }: { summary: CrewSummary }) {
             />
           </div>
         ) : (
-          crew.name[0]?.toUpperCase()
+          <img src="/icons/ghost-fallback.svg" alt="" className="w-full h-full" style={{ imageRendering: 'pixelated' }} />
         )}
       </div>
 
