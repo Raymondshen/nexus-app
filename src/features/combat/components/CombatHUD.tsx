@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useCombatStore } from '@/store/combatStore'
 import { CombatLog } from '@/features/combat/components/CombatLog'
@@ -16,8 +16,11 @@ interface CombatHUDProps {
   userCombatClass?: CombatClass
 }
 
+// Module-level constant — avoids allocating a new array on every RaidMarquee render.
+const MARQUEE_ITEMS = Array.from({ length: 8 })
+
 function RaidMarquee({ onClick }: { onClick: () => void }) {
-  const items = Array.from({ length: 8 })
+  const items = MARQUEE_ITEMS
   return (
     <button
       onClick={onClick}
@@ -62,9 +65,13 @@ function ReviveButton({ raidId, tokens }: { raidId: string; tokens: number }) {
   const patchMemberHP    = useCombatStore((s) => s.patchMemberHP)
   const setReviveTokens  = useCombatStore((s) => s.setReviveTokens)
 
-  const downedMembers = Object.values(memberStats).filter((m) => m.is_downed)
-  const hasTokens     = tokens > 0
-  const canRevive     = hasTokens && downedMembers.length > 0 && !firing
+  // Memoize so the `fire` useCallback dep is stable across renders where nothing downed changed.
+  const downedMembers = useMemo(
+    () => Object.values(memberStats).filter((m) => m.is_downed),
+    [memberStats],
+  )
+  const hasTokens = tokens > 0
+  const canRevive = hasTokens && downedMembers.length > 0 && !firing
 
   const fire = useCallback(async () => {
     if (!canRevive) return
@@ -187,23 +194,48 @@ export function CombatHUD({ currentUserId, crewId, memberProfiles, userCombatCla
 
   if (!combatEnabled || !hasJoinedRaid || !activeRaid) return null
 
-  // Boss name from spawn event
-  const spawnEvent = combatEvents.find((e) => e.kind === 'boss_spawn')
-  const bossName   = spawnEvent
-    ? spawnEvent.text.replace(/^⚔ /, '').replace(/ (appears|—).*$/, '').toLowerCase() + '...'
-    : 'the void...'
+  // Memoize: these O(n) scans run inside a component that re-renders every second (countdown
+  // timer), so doing them without memoization means O(combatEvents) work per tick.
+  const bossName = useMemo(() => {
+    const spawnEvent = combatEvents.find((e) => e.kind === 'boss_spawn')
+    return spawnEvent
+      ? spawnEvent.text.replace(/^⚔ /, '').replace(/ (appears|—).*$/, '').toLowerCase() + '...'
+      : 'the void...'
+  }, [combatEvents])
 
-  // Last boss attack damage
-  const lastBossHit = [...combatEvents].reverse().find((e) => e.kind === 'boss_attack')
-  const bossDmg     = lastBossHit?.value
+  const bossDmg = useMemo(
+    () => [...combatEvents].reverse().find((e) => e.kind === 'boss_attack')?.value,
+    [combatEvents],
+  )
 
-  // Expiry label
-  const msLeft     = Math.max(0, new Date(activeRaid.expires_at).getTime() - Date.now())
-  const daysLeft   = Math.floor(msLeft / 86_400_000)
-  const hoursLeft  = Math.floor((msLeft % 86_400_000) / 3_600_000)
-  const expiryText = daysLeft > 0
-    ? `ends in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}`
-    : hoursLeft > 0 ? `ends in ${hoursLeft}h` : 'ending soon'
+  // expires_at is fixed at raid start — only recompute when the raid changes.
+  const expiryText = useMemo(() => {
+    const msLeft    = Math.max(0, new Date(activeRaid.expires_at).getTime() - Date.now())
+    const daysLeft  = Math.floor(msLeft / 86_400_000)
+    const hoursLeft = Math.floor((msLeft % 86_400_000) / 3_600_000)
+    return daysLeft > 0
+      ? `ends in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}`
+      : hoursLeft > 0 ? `ends in ${hoursLeft}h` : 'ending soon'
+  }, [activeRaid.expires_at]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Memoize the sorted member key list — re-sorts only when HP/downed state changes,
+  // not every second when the countdown timer fires.
+  const sortedMemberIds = useMemo(
+    () => memberProfiles
+      ? Object.keys(memberProfiles).sort((a, b) => {
+          if (a === currentUserId) return -1
+          if (b === currentUserId) return 1
+          const ma = memberStats[a]
+          const mb = memberStats[b]
+          if (ma?.is_downed && !mb?.is_downed) return 1
+          if (!ma?.is_downed && mb?.is_downed) return -1
+          const pctA = ma ? (ma.current_hp / (ma.max_hp || 1)) : 1
+          const pctB = mb ? (mb.current_hp / (mb.max_hp || 1)) : 1
+          return pctB - pctA
+        })
+      : [],
+    [memberProfiles, memberStats, currentUserId],
+  )
 
   const username = memberProfiles?.[currentUserId]?.username ?? 'you'
 
@@ -252,24 +284,12 @@ export function CombatHUD({ currentUserId, crewId, memberProfiles, userCombatCla
               <CombatLog />
 
               {/* Member HP list — all crew members */}
-              {memberProfiles && Object.keys(memberProfiles).length > 0 && (
+              {memberProfiles && sortedMemberIds.length > 0 && (
                 <div style={{ paddingLeft: 16, paddingRight: 16, display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <span className="font-silkscreen leading-none" style={{ fontSize: 9, color: 'var(--color-tertiary)', marginBottom: 2 }}>
                     PARTY
                   </span>
-                  {Object.keys(memberProfiles)
-                    .sort((a, b) => {
-                      if (a === currentUserId) return -1
-                      if (b === currentUserId) return 1
-                      const ma = memberStats[a]
-                      const mb = memberStats[b]
-                      if (ma?.is_downed && !mb?.is_downed) return 1
-                      if (!ma?.is_downed && mb?.is_downed) return -1
-                      const pctA = ma ? (ma.current_hp / (ma.max_hp || 1)) : 1
-                      const pctB = mb ? (mb.current_hp / (mb.max_hp || 1)) : 1
-                      return pctB - pctA
-                    })
-                    .map((uid) => {
+                  {sortedMemberIds.map((uid) => {
                       const uname  = memberProfiles[uid]?.username ?? uid.slice(0, 8)
                       const member = memberStats[uid]
                       const isMe   = uid === currentUserId

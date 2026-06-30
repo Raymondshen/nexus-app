@@ -87,8 +87,31 @@ interface MessageBubbleProps {
   onAvatarTap?:     (userId: string) => void
   definitions?:     SquadDefinitionWithCreator[]
   memberUsernames?: Set<string>
-  memberProfiles?:  Record<string, Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url'>>
+  replyProfile?:    Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url'> | null
   isCreator?:       boolean
+}
+
+// Targeted field comparison — prevents re-renders from unrelated store updates
+// (online sweeps, XP ticks, etc.) without deep-equality overhead.
+function areEqual(prev: MessageBubbleProps, next: MessageBubbleProps): boolean {
+  if (prev.message.id               !== next.message.id)               return false
+  if (prev.isOwn                    !== next.isOwn)                    return false
+  if (prev.showHeader               !== next.showHeader)               return false
+  if (prev.groupId                  !== next.groupId)                  return false
+  if (prev.xpOverride               !== next.xpOverride)               return false
+  if (prev.coinOverride             !== next.coinOverride)             return false
+  if (prev.isCreator                !== next.isCreator)                return false
+  if (prev.message.reactions        !== next.message.reactions)        return false
+  if (prev.message.xp_awarded       !== next.message.xp_awarded)       return false
+  if (prev.message.element_type     !== next.message.element_type)     return false
+  if (prev.message.pinned           !== next.message.pinned)           return false
+  if (prev.message.pin_expires_at   !== next.message.pin_expires_at)   return false
+  if (prev.message.profile.avatar_url !== next.message.profile.avatar_url) return false
+  if (prev.message.profile.username   !== next.message.profile.username)   return false
+  if (prev.definitions     !== next.definitions)     return false
+  if (prev.memberUsernames !== next.memberUsernames) return false
+  if (prev.replyProfile    !== next.replyProfile)    return false
+  return true
 }
 
 // ─── Definition highlight renderer ──────────────────────────────────────────
@@ -238,7 +261,11 @@ function renderMessageContent(
   return result.length ? result : content
 }
 
-export function MessageBubble({
+// Stable fallback constants — avoids new array/Set allocations when caller omits optional props
+const EMPTY_DEFINITIONS: SquadDefinitionWithCreator[] = []
+const EMPTY_USERNAMES   = new Set<string>()
+
+function MessageBubbleImpl({
   message,
   isOwn,
   showHeader,
@@ -248,10 +275,10 @@ export function MessageBubble({
   xpOverride,
   coinOverride,
   onAvatarTap,
-  definitions = [] as SquadDefinitionWithCreator[],
-  memberUsernames = new Set<string>(),
-  memberProfiles,
-  isCreator = false,
+  definitions    = EMPTY_DEFINITIONS,
+  memberUsernames = EMPTY_USERNAMES,
+  replyProfile   = null,
+  isCreator      = false,
 }: MessageBubbleProps) {
   const [sheetOpen,        setSheetOpen]        = useState(false)
   const [copied,           setCopied]           = useState(false)
@@ -284,7 +311,9 @@ export function MessageBubble({
   // Cached per-gesture list of all slide wrappers in this message's group
   const groupElsRef        = useRef<HTMLElement[]>([])
 
-  const onlineUserIds = useChatStore((s) => s.onlineUserIds)
+  // Boolean selector — only re-renders this bubble when THIS user's status changes,
+  // not when any other user's online status changes or the sweep runs every 15s.
+  const isOnline      = useChatStore((s) => s.onlineUserIds.has(message.user_id))
   const updateMessage = useChatStore((s) => s.updateMessage)
   const setReplyTo    = useChatStore((s) => s.setReplyTo)
 
@@ -581,8 +610,7 @@ export function MessageBubble({
 
     const pollAvatarUrl = message.profile.avatar_url as string | null | undefined
     const pollInitial   = message.profile.username[0]?.toUpperCase() ?? '?'
-    const pollIsOnline  = onlineUserIds.has(message.user_id)
-    const pollTimeStr    = format(new Date(message.created_at), 'h:mma').toLowerCase()
+    const pollTimeStr   = format(new Date(message.created_at), 'h:mma').toLowerCase()
 
     return (
       <div className={`flex gap-[8px] items-start w-full ${showHeader ? 'pt-[var(--space-6)] pb-0' : 'pt-[var(--space-2)] pb-0'}`}>
@@ -599,7 +627,7 @@ export function MessageBubble({
                 <span className="absolute inset-0 flex items-center justify-center font-pixel text-[8px] text-purple">{pollInitial}</span>
               )}
             </div>
-            {pollIsOnline && (
+            {isOnline && (
               <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#66bb6a] border-[1.5px] border-black" />
             )}
           </div>
@@ -631,8 +659,7 @@ export function MessageBubble({
   if (message.message_type === 'event' && message.event_id) {
     const eventAvatarUrl = message.profile.avatar_url as string | null | undefined
     const eventInitial   = message.profile.username[0]?.toUpperCase() ?? '?'
-    const eventIsOnline  = onlineUserIds.has(message.user_id)
-    const eventTimeStr    = format(new Date(message.created_at), 'h:mma').toLowerCase()
+    const eventTimeStr   = format(new Date(message.created_at), 'h:mma').toLowerCase()
 
     return (
       <div className={`flex gap-[8px] items-start w-full ${showHeader ? 'pt-[var(--space-6)] pb-0' : 'pt-[var(--space-2)] pb-0'}`}>
@@ -649,7 +676,7 @@ export function MessageBubble({
                 <span className="absolute inset-0 flex items-center justify-center font-pixel text-[8px] text-purple">{eventInitial}</span>
               )}
             </div>
-            {eventIsOnline && (
+            {isOnline && (
               <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#66bb6a] border-[1.5px] border-black" />
             )}
           </div>
@@ -679,13 +706,16 @@ export function MessageBubble({
 
   const initial   = message.profile.username[0]?.toUpperCase() ?? '?'
   const avatarUrl = message.profile.avatar_url as string | null | undefined
-  const isOnline  = onlineUserIds.has(message.user_id)
-  const timeStr    = format(new Date(message.created_at), 'h:mma').toLowerCase()
+  const timeStr   = format(new Date(message.created_at), 'h:mma').toLowerCase()
 
   const reactions       = message.reactions ?? {}
-  const sortedReactions = Object.entries(reactions)
-    .filter(([, users]) => users.length > 0)
-    .sort(([, a], [, b]) => b.length - a.length)
+  // Memoize so the sort doesn't re-run on every parent render when reactions haven't changed.
+  // React.memo handles the outer guard; this prevents the sort inside re-renders triggered
+  // by Zustand subscriptions within this component (e.g., the isOnline boolean selector).
+  const sortedReactions = React.useMemo(
+    () => Object.entries(reactions).filter(([, users]) => users.length > 0).sort(([, a], [, b]) => b.length - a.length),
+    [reactions], // eslint-disable-line react-hooks/exhaustive-deps
+  )
 
   return (
     <>
@@ -773,11 +803,6 @@ export function MessageBubble({
 
           {/* Reply row — Figma: icon + avatar + @username + preview (single line) */}
           {message.reply_to_id && (message.reply_preview || message.reply_username) && (() => {
-            const replyProfile = message.reply_username
-              ? Object.values(memberProfiles ?? {}).find(
-                  (p) => p.username.toLowerCase() === message.reply_username!.toLowerCase()
-                )
-              : null
             const replyAvatarUrl = replyProfile?.avatar_url ?? null
             const replyInitial   = message.reply_username?.[0]?.toUpperCase() ?? '?'
             return (
@@ -1086,6 +1111,8 @@ export function MessageBubble({
   )
 }
 
+export const MessageBubble = React.memo(MessageBubbleImpl, areEqual)
+
 function BirthdayMessage({ content }: { content: string }) {
   const parts    = content.slice('BIRTHDAY:'.length).split(':')
   const username = parts[0] ?? ''
@@ -1161,9 +1188,10 @@ function BossSpawnMessage({ content }: { content: string }) {
   const bossName = parts[0] ?? 'THE VOID'
   const maxHpMsg = parts[1] ? Number(parts[1]) : 0
 
-  const raid        = useCombatStore((s) => s.activeRaid)
-  const liveHp      = raid?.current_hp ?? maxHpMsg
-  const maxHp       = raid?.max_hp ?? maxHpMsg
+  // Targeted selectors — only re-render when HP values change, not on every patchRaid call
+  // (which updates last_boss_attack_at, guard/volley timestamps, etc. every attack).
+  const liveHp = useCombatStore((s) => s.activeRaid?.current_hp ?? maxHpMsg)
+  const maxHp  = useCombatStore((s) => s.activeRaid?.max_hp     ?? maxHpMsg)
   const hpPct       = maxHp > 0 ? (liveHp / maxHp) * 100 : 100
   const bossColor   = '#9333ea'
 

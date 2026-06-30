@@ -175,7 +175,18 @@ export function MessageList({
     [crewId, router],
   )
 
-  const { messages, setMessages, prependMessages, addMessage, updateMessage, setCrewXP, receiveXP, pinnedScrollTargetId, setPinnedScrollTargetId } = useChatStore()
+  // Individual selectors — prevents MessageList from re-rendering when unrelated store slices
+  // change (userCoins, gemBalance, onlineUserIds, replyTo, etc.). Actions are stable
+  // references so their selectors always return the same value and never cause re-renders.
+  const messages               = useChatStore((s) => s.messages)
+  const pinnedScrollTargetId   = useChatStore((s) => s.pinnedScrollTargetId)
+  const setMessages            = useChatStore((s) => s.setMessages)
+  const prependMessages        = useChatStore((s) => s.prependMessages)
+  const addMessage             = useChatStore((s) => s.addMessage)
+  const updateMessage          = useChatStore((s) => s.updateMessage)
+  const setCrewXP              = useChatStore((s) => s.setCrewXP)
+  const receiveXP              = useChatStore((s) => s.receiveXP)
+  const setPinnedScrollTargetId = useChatStore((s) => s.setPinnedScrollTargetId)
   const [localProfiles, setLocalProfiles] = useState<Record<string, Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url'>>>(memberProfiles)
   const [devMode] = useState(() => {
     if (typeof window === 'undefined') return false
@@ -206,10 +217,24 @@ export function MessageList({
 
   const [definitions, setDefinitions] = useState<SquadDefinitionWithCreator[]>([])
 
-  const memberUsernames = useMemo(
-    () => new Set(Object.values(localProfiles).map((p) => p.username.toLowerCase())),
-    [localProfiles],
-  )
+  // Stable ref — only emits a new Set reference when the set of usernames actually changes.
+  // Avatar-only profile updates won't re-render MessageBubble via memberUsernames prop.
+  const memberUsernamesRef = useRef<Set<string>>(new Set())
+  const memberUsernames = useMemo(() => {
+    const next = Object.values(localProfiles).map((p) => p.username.toLowerCase())
+    const prev = memberUsernamesRef.current
+    if (next.length === prev.size && next.every((u) => prev.has(u))) return prev
+    const set = new Set(next)
+    memberUsernamesRef.current = set
+    return set
+  }, [localProfiles])
+
+  // O(1) username → profile lookup used in renderItem to pre-compute each bubble's replyProfile.
+  const usernameToProfile = useMemo(() => {
+    const map: Record<string, Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url'>> = {}
+    for (const p of Object.values(localProfiles)) map[p.username.toLowerCase()] = p
+    return map
+  }, [localProfiles])
 
   const scrollRef    = useRef<HTMLDivElement>(null)
   const profilesRef  = useRef(memberProfiles)
@@ -893,7 +918,12 @@ export function MessageList({
     }
 
     // item.kind === 'message'
-    const liveProfile = localProfiles[item.message.user_id] ?? item.message.profile
+    const liveProfile  = localProfiles[item.message.user_id] ?? item.message.profile
+    // Pre-compute reply author profile here (O(1) map lookup) instead of doing an O(n)
+    // Object.values(...).find() scan inside every MessageBubble render.
+    const replyProfile = item.message.reply_username
+      ? (usernameToProfile[item.message.reply_username.toLowerCase()] ?? null)
+      : null
     return (
       <div id={`msg-${item.message.id}`}>
         <MessageBubble
@@ -908,7 +938,7 @@ export function MessageList({
           onAvatarTap={onAvatarTap}
           definitions={definitions}
           memberUsernames={memberUsernames}
-          memberProfiles={localProfiles}
+          replyProfile={replyProfile}
           isCreator={creatorId != null && currentUserId === creatorId}
         />
       </div>
