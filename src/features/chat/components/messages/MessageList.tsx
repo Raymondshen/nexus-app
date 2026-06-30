@@ -76,7 +76,7 @@ type DisplayItem =
   | { kind: 'spacer';   key: string }
   | { kind: 'empty';    key: string }
   | { kind: 'divider';  label: string; key: string }
-  | { kind: 'message';  message: MessageWithProfile; isOwn: boolean; showHeader: boolean; xpOverride?: number; coinOverride?: number }
+  | { kind: 'message';  message: MessageWithProfile; isOwn: boolean; showHeader: boolean; groupId: string; xpOverride?: number; coinOverride?: number }
 
 function estimateItemSize(item: DisplayItem): number {
   switch (item.kind) {
@@ -433,9 +433,10 @@ export function MessageList({
       return list
     }
 
-    let lastDate:    Date | null   = null
-    let lastUserId:  string | null = null
-    let lastMsgTime: number        = 0
+    let lastDate:      Date | null   = null
+    let lastUserId:    string | null = null
+    let lastMsgTime:   number        = 0
+    let groupLeaderId: string | null = null
 
     for (const msg of messages) {
       if (!msg.id || typeof msg.content !== 'string') continue
@@ -451,25 +452,29 @@ export function MessageList({
 
       if (!lastDate || !isSameDay(lastDate, msgDate)) {
         list.push({ kind: 'divider', label: dayLabel(msgDate), key: `divider-${msg.id}` })
-        lastUserId  = null
-        lastMsgTime = 0
+        lastUserId    = null
+        lastMsgTime   = 0
+        groupLeaderId = null
       }
 
       if (msg.message_type === 'poll') {
-        list.push({ kind: 'message', message: msg as MessageWithProfile, isOwn: msg.user_id === currentUserId, showHeader: true })
-        lastUserId  = null
-        lastMsgTime = 0
+        list.push({ kind: 'message', message: msg as MessageWithProfile, isOwn: msg.user_id === currentUserId, showHeader: true, groupId: msg.id })
+        lastUserId    = null
+        lastMsgTime   = 0
+        groupLeaderId = null
       } else if (msg.message_type === 'system') {
-        list.push({ kind: 'message', message: msg as MessageWithProfile, isOwn: false, showHeader: false })
-        lastUserId  = null
-        lastMsgTime = 0
+        list.push({ kind: 'message', message: msg as MessageWithProfile, isOwn: false, showHeader: false, groupId: msg.id })
+        lastUserId    = null
+        lastMsgTime   = 0
+        groupLeaderId = null
       } else {
         const sameUser     = msg.user_id === lastUserId
         const withinMinute = sameUser && (msgTime - lastMsgTime) < 60_000
         const showHeader   = !withinMinute || !!msg.reply_to_id
+        if (showHeader) groupLeaderId = msg.id
         const xpOverride   = showHeader ? groupXPMap.get(msg.id)   : undefined
         const coinOverride = showHeader ? groupCoinMap.get(msg.id) : undefined
-        list.push({ kind: 'message', message: msg as MessageWithProfile, isOwn: msg.user_id === currentUserId, showHeader, xpOverride, coinOverride })
+        list.push({ kind: 'message', message: msg as MessageWithProfile, isOwn: msg.user_id === currentUserId, showHeader, groupId: groupLeaderId!, xpOverride, coinOverride })
         lastUserId  = msg.user_id
         lastMsgTime = msgTime
       }
@@ -892,6 +897,7 @@ export function MessageList({
           message={{ ...item.message, profile: liveProfile }}
           isOwn={item.isOwn}
           showHeader={item.showHeader}
+          groupId={item.groupId}
           currentUserId={currentUserId}
           crewId={crewId}
           xpOverride={item.xpOverride}

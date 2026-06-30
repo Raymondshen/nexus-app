@@ -79,6 +79,7 @@ interface MessageBubbleProps {
   message:          MessageWithProfile
   isOwn:            boolean
   showHeader:       boolean
+  groupId?:         string
   currentUserId:    string
   crewId?:          string
   xpOverride?:      number
@@ -241,6 +242,7 @@ export function MessageBubble({
   message,
   isOwn,
   showHeader,
+  groupId,
   currentUserId,
   crewId,
   xpOverride,
@@ -273,6 +275,8 @@ export function MessageBubble({
   const swipeCommittedRef  = useRef(false)
   const contentRef         = useRef<HTMLDivElement>(null)
   const replyIconRef       = useRef<HTMLDivElement>(null)
+  // Cached per-gesture list of all slide wrappers in this message's group
+  const groupElsRef        = useRef<HTMLElement[]>([])
 
   const onlineUserIds = useChatStore((s) => s.onlineUserIds)
   const updateMessage = useChatStore((s) => s.updateMessage)
@@ -343,13 +347,22 @@ export function MessageBubble({
   }
 
   // ─── Long-press + swipe-to-reply handlers ───────────────────────────────────
-  function resetSwipeDOM() {
-    if (contentRef.current) {
-      contentRef.current.style.transition = 'transform 0.28s cubic-bezier(0.25,0.46,0.45,0.94)'
-      contentRef.current.style.transform  = 'translateX(0)'
+
+  // Apply transform to every slide wrapper in this message's group.
+  function applyGroupTransform(x: number) {
+    const transition = x === 0
+      ? 'transform 0.28s cubic-bezier(0.25,0.46,0.45,0.94)'
+      : 'none'
+    for (const el of groupElsRef.current) {
+      el.style.transition = transition
+      el.style.transform  = x === 0 ? 'translateX(0)' : `translateX(${x}px)`
     }
+  }
+
+  function resetSwipeDOM() {
+    applyGroupTransform(0)
     if (replyIconRef.current) {
-      replyIconRef.current.style.transition = 'opacity 0.28s,transform 0.28s'
+      replyIconRef.current.style.transition = 'opacity 0.22s ease-out, transform 0.22s ease-out'
       replyIconRef.current.style.opacity    = '0'
       replyIconRef.current.style.transform  = 'translateY(-50%) scale(0.5)'
     }
@@ -361,12 +374,17 @@ export function MessageBubble({
       if (!hasMoved.current) setSheetOpen(true)
     }, 300)
     if (!isOwn) {
-      // Always snap back to zero before tracking a new gesture — prevents a
-      // stuck bubble (from a prior cancelled gesture) from corrupting the dx
-      // calculation on the next swipe.
-      if (contentRef.current) {
-        contentRef.current.style.transition = 'none'
-        contentRef.current.style.transform  = 'translateX(0)'
+      // Cache all slide wrappers for this group once per gesture — avoids
+      // repeated querySelector calls during high-frequency touchmove events.
+      groupElsRef.current = groupId
+        ? Array.from(document.querySelectorAll<HTMLElement>(`[data-group="${groupId}"]`))
+        : (contentRef.current ? [contentRef.current] : [])
+
+      // Snap all group elements back to origin before tracking the new gesture
+      // so a stuck bubble never corrupts the dx calculation.
+      for (const el of groupElsRef.current) {
+        el.style.transition = 'none'
+        el.style.transform  = 'translateX(0)'
       }
       if (replyIconRef.current) {
         replyIconRef.current.style.transition = 'none'
@@ -417,15 +435,16 @@ export function MessageBubble({
       const x = clamped > -SWIPE_THRESHOLD
         ? clamped
         : -SWIPE_THRESHOLD + (clamped + SWIPE_THRESHOLD) * 0.3
-      if (contentRef.current) {
-        contentRef.current.style.transition = 'none'
-        contentRef.current.style.transform  = `translateX(${x}px)`
-      }
+      applyGroupTransform(x)
+
+      // Smooth icon: invisible for first 30% of swipe, then ease-in quadratically
       const progress = Math.min(1, Math.abs(dx) / SWIPE_THRESHOLD)
+      const delayed  = Math.max(0, (progress - 0.3) / 0.7)
+      const eased    = delayed * delayed
       if (replyIconRef.current) {
-        replyIconRef.current.style.transition = 'none'
-        replyIconRef.current.style.opacity    = String(progress)
-        replyIconRef.current.style.transform  = `translateY(-50%) scale(${0.5 + progress * 0.5})`
+        replyIconRef.current.style.transition = 'opacity 0.1s ease-out, transform 0.1s ease-out'
+        replyIconRef.current.style.opacity    = String(eased)
+        replyIconRef.current.style.transform  = `translateY(-50%) scale(${0.5 + eased * 0.5})`
       }
       if (dx <= -SWIPE_THRESHOLD && !swipeCommittedRef.current) {
         swipeCommittedRef.current = true
@@ -684,7 +703,7 @@ export function MessageBubble({
         )}
 
         {/* Slide wrapper — avatar and content move together so content never overlaps avatar */}
-        <div ref={contentRef} className="flex flex-1 min-w-0 items-start gap-[8px]">
+        <div ref={contentRef} data-group={groupId} className="flex flex-1 min-w-0 items-start gap-[8px]">
 
         {/* Avatar — only rendered for the first message in a group */}
         {showHeader && (
