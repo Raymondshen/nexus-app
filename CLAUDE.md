@@ -287,6 +287,17 @@ Long-press sheet (500ms / right-click) → emoji quick-pick + Reply + Copy Text 
 
 OG previews: `extractFirstUrl` → `useOGPreview` hook → `<LinkPreviewCard>` below body; text-only messages without `image_url` only.
 
+### Swipe-to-reply
+Only fires on `!isOwn` messages. Swipe left past `SWIPE_THRESHOLD` (64px) to commit.
+
+**DOM structure**: outer `relative flex` container holds the reply icon (`position: absolute, right: 8`) and a **slide wrapper** (`ref={contentRef}, data-group={groupId}`) that contains both the avatar and message content. All transforms go on the slide wrapper so avatar and text always move together.
+
+**Group slide**: `MessageList` computes a `groupId` (the first message's ID in each consecutive same-user run within 60s) and passes it to each `MessageBubble`. On `touchstart`, all `[data-group="${groupId}"]` elements in the DOM are queried once into `groupElsRef` (cache per gesture). `applyGroupTransform(x)` iterates that list — every message in the group slides as a unit.
+
+**Reply icon animation**: hidden for the first 30% of the swipe. From 30–100% a quadratic ease (`delayed²`) drives opacity 0→1 and scale 0.5→1.0, combined with a 0.1s CSS ease-out transition to smooth micro-jitter. Snap-back on release uses 0.22s ease-out.
+
+**Reply state scoping** (`chatStore`): `replyTo` + `replyGroupId` are set atomically by `setReplyTo(msg, groupId?)`. When a drag is confirmed on a message from a different group (`replyGroupId !== groupId`), the existing reply is cleared immediately so the reply bar never shows stale state from an unrelated group. Both `touchend` and `touchcancel` fire `setReplyTo` on commit so iOS gesture interrupts never drop the reply.
+
 ### ChatInput
 - Props: `{ crewId, userId, userProfile, memberProfiles, crewName, inviteCode?, creatorId?, isDM?, crewImageUrl?, crewBackgroundImageUrl? }`
 - Send flow: `addMessage(optimisticMsg)` synchronously (with `tempId`) → `insert_message` RPC → reconcile: `updateMessage(tempId, { id: raw.id })` in place (never remove-and-reinsert) → broadcast → `award-xp` → `attack-boss`; on RPC error `removeMessage(tempId)` rollback
