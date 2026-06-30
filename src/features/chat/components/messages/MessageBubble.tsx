@@ -393,11 +393,9 @@ export function MessageBubble({
   function handleTouchCancel() {
     if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null }
     if (!isOwn && isDraggingXRef.current) {
-      const wasCommitted        = swipeCommittedRef.current
       isDraggingXRef.current    = false
       swipeCommittedRef.current = false
       resetSwipeDOM()
-      if (wasCommitted) setReplyTo({ ...message })
     }
   }
   function handleTouchMove(e: React.TouchEvent) {
@@ -665,7 +663,7 @@ export function MessageBubble({
   return (
     <>
       <div
-        className={`relative flex items-start w-full select-none ${showHeader ? 'pt-[var(--space-6)] pb-0' : 'pt-[var(--space-2)] pb-0'}`}
+        className={`relative flex gap-[8px] items-start w-full select-none ${showHeader ? 'pt-[var(--space-6)] pb-0' : 'pt-[var(--space-2)] pb-0'}`}
         onContextMenu={(e) => { e.preventDefault(); setSheetOpen(true) }}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
@@ -682,9 +680,6 @@ export function MessageBubble({
             <CornerUpLeft style={{ width: 20, height: 20, color: 'var(--color-purple)' }} />
           </div>
         )}
-
-        {/* Sliding row — avatar and content move together on swipe */}
-        <div ref={contentRef} className="flex-1 flex gap-[8px] items-start">
 
         {/* Avatar — only rendered for the first message in a group */}
         {showHeader && (
@@ -708,7 +703,7 @@ export function MessageBubble({
         )}
 
         {/* Message content — pl-10 aligns continuation text with grouped messages */}
-        <div className={`flex-1 min-w-0 flex flex-col gap-0 ${!showHeader ? 'pl-10' : ''}`}>
+        <div ref={contentRef} className={`flex-1 min-w-0 flex flex-col gap-0 ${!showHeader ? 'pl-10' : ''}`}>
 
           {/* Header row: username · class · xp · timestamp */}
           {showHeader && (
@@ -898,7 +893,6 @@ export function MessageBubble({
             )}
           </AnimatePresence>
         </div>
-        </div>{/* end sliding row */}
       </div>
 
       {/* ── Full-screen image preview ─────────────────────────────────────── */}
