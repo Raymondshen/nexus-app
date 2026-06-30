@@ -54,6 +54,15 @@ type SlashCommandName = typeof SLASH_COMMANDS[number]['name']
 
 type MemberProfile = Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url' | 'status'>
 
+interface PendingImage {
+  id:        string
+  localUrl:  string        // blob URL — shown immediately on selection
+  publicUrl: string | null // set after upload completes
+  lqip:      string | null // set after LQIP generation
+  uploading: boolean
+  error:     string | null
+}
+
 interface ChatInputProps {
   crewId:         string
   userId:         string
@@ -138,11 +147,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   const [showEventSheet,  setShowEventSheet]  = useState(false)
   const [isMultiline,     setIsMultiline]     = useState(false)
 
-  const [chatImageLocalUrl,  setChatImageLocalUrl]  = useState<string | null>(null)
-  const [chatImagePublicUrl, setChatImagePublicUrl] = useState<string | null>(null)
-  const [chatImageLqip,      setChatImageLqip]      = useState<string | null>(null)
-  const [chatImageUploading, setChatImageUploading] = useState(false)
-  const [chatImageError,     setChatImageError]     = useState<string | null>(null)
+  const [pendingImages,      setPendingImages]      = useState<PendingImage[]>([])
   const [friendshipToast,    setFriendshipToast]    = useState<{ totalXP: number; xpAwarded: number; partnerName: string; dailyCount: number } | null>(null)
 
   const textareaRef           = useRef<HTMLTextAreaElement>(null)
@@ -183,10 +188,12 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   textRef.current = text
   isMultilineRef.current = isMultiline
 
-  const profilesRef     = useRef(memberProfiles)
-  profilesRef.current   = memberProfiles
-  const userProfileRef  = useRef(userProfile)
-  userProfileRef.current = userProfile
+  const profilesRef       = useRef(memberProfiles)
+  profilesRef.current     = memberProfiles
+  const userProfileRef    = useRef(userProfile)
+  userProfileRef.current  = userProfile
+  const pendingImagesRef  = useRef<PendingImage[]>([])
+  pendingImagesRef.current = pendingImages
   const xpProgress  = getXPProgress(crewXP)
   const members     = Object.values(memberProfiles).filter(m => !kickedIds.has(m.id))
   const memberCount = members.length
@@ -608,29 +615,29 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     typingChannelRef.current?.track({ username: userProfileRef.current.username, typing: isTyping })
   }
 
-  // Revoke any existing blob URL and reset image upload state.
-  const clearChatImage = useCallback(() => {
-    setChatImageLocalUrl((prev) => {
-      if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev)
-      return null
+  const removePendingImage = useCallback((id: string) => {
+    setPendingImages((prev) => {
+      const img = prev.find((i) => i.id === id)
+      if (img?.localUrl.startsWith('blob:')) URL.revokeObjectURL(img.localUrl)
+      return prev.filter((i) => i.id !== id)
     })
-    setChatImagePublicUrl(null)
-    setChatImageLqip(null)
-    setChatImageUploading(false)
-    setChatImageError(null)
   }, [])
 
-  // Revoke blob URLs when they're replaced to avoid memory leaks.
-  useEffect(() => {
-    return () => {
-      if (chatImageLocalUrl?.startsWith('blob:')) URL.revokeObjectURL(chatImageLocalUrl)
-    }
-  }, [chatImageLocalUrl])
+  const clearPendingImages = useCallback(() => {
+    setPendingImages((prev) => {
+      prev.forEach((img) => { if (img.localUrl.startsWith('blob:')) URL.revokeObjectURL(img.localUrl) })
+      return []
+    })
+  }, [])
 
   useEffect(() => {
     return () => {
       if (friendshipToastTimerRef.current) clearTimeout(friendshipToastTimerRef.current)
       if (gemToastTimerRef.current) clearTimeout(gemToastTimerRef.current)
+      // Revoke any remaining blob URLs on unmount
+      pendingImagesRef.current.forEach((img) => {
+        if (img.localUrl.startsWith('blob:')) URL.revokeObjectURL(img.localUrl)
+      })
     }
   }, [])
 
@@ -640,146 +647,161 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     gemToastTimerRef.current = setTimeout(() => setGemToastVisible(false), 3000)
   }
 
-  async function handleChatImagePick(file: File) {
-    const validation = validateImageUpload(file)
-    if (!validation.ok) { setChatImageError(validation.error); return }
+  async function handleChatImagesPick(files: File[]) {
+    if (files.length === 0) return
 
-    const localUrl = URL.createObjectURL(file)
-    setChatImageLocalUrl(localUrl)
-    setChatImageUploading(true)
-    setChatImagePublicUrl(null)
-    setChatImageLqip(null)
-    setChatImageError(null)
+    const networkQuality = getNetworkQuality()
+    const qualityScale   = networkQuality === 'slow' ? 0.7 : networkQuality === 'medium' ? 0.85 : 1
+    const quality        = IMAGE_CONFIG.CHAT_IMAGE_QUALITY * qualityScale
+    const supabase       = createClient()
 
-    try {
-      const networkQuality = getNetworkQuality()
-      const qualityScale   = networkQuality === 'slow' ? 0.7 : networkQuality === 'medium' ? 0.85 : 1
-      const quality        = IMAGE_CONFIG.CHAT_IMAGE_QUALITY * qualityScale
+    // Create entries with blob URLs immediately — instant preview before upload
+    const entries: PendingImage[] = files.map((file, i) => ({
+      id:        `img_${Date.now()}_${i}`,
+      localUrl:  URL.createObjectURL(file),
+      publicUrl: null,
+      lqip:      null,
+      uploading: true,
+      error:     null,
+    }))
 
-      const [lqip, compressed] = await Promise.all([
-        generateLQIP(file),
-        compressImage(file, { maxWidthOrHeight: IMAGE_CONFIG.CHAT_IMAGE_MAX_WIDTH_PX, quality }),
-      ])
-      setChatImageLqip(lqip)
+    setPendingImages((prev) => [...prev, ...entries].slice(0, 4))
 
-      const supabase = createClient()
-      const ext      = file.type === 'image/gif' ? 'gif' : compressed.type.includes('jpeg') ? 'jpg' : 'webp'
-      const path     = `${crewId}/${userId}/${Date.now()}.${ext}`
-      const { error: uploadError } = await supabase.storage.from('chat-images').upload(path, compressed, {
-        contentType:  file.type === 'image/gif' ? 'image/gif' : compressed.type,
-        cacheControl: '31536000',
-      })
-      if (uploadError) throw uploadError
+    // Upload all in parallel
+    await Promise.all(entries.map(async (entry, i) => {
+      const file = files[i]
+      const patch = (p: Partial<PendingImage>) =>
+        setPendingImages((prev) => prev.map((img) => img.id === entry.id ? { ...img, ...p } : img))
 
-      const { data: { publicUrl } } = supabase.storage.from('chat-images').getPublicUrl(path)
-      setChatImagePublicUrl(publicUrl)
-    } catch (err) {
-      setChatImageError(err instanceof Error ? err.message : 'Upload failed. Try again.')
-    } finally {
-      setChatImageUploading(false)
-    }
+      try {
+        const validation = validateImageUpload(file)
+        if (!validation.ok) { patch({ uploading: false, error: validation.error }); return }
+
+        const [lqip, compressed] = await Promise.all([
+          generateLQIP(file),
+          compressImage(file, { maxWidthOrHeight: IMAGE_CONFIG.CHAT_IMAGE_MAX_WIDTH_PX, quality }),
+        ])
+        patch({ lqip })
+
+        const ext  = file.type === 'image/gif' ? 'gif' : compressed.type.includes('jpeg') ? 'jpg' : 'webp'
+        const path = `${crewId}/${userId}/${Date.now()}_${i}.${ext}`
+        const { error: uploadError } = await supabase.storage.from('chat-images').upload(path, compressed, {
+          contentType:  file.type === 'image/gif' ? 'image/gif' : compressed.type,
+          cacheControl: '31536000',
+        })
+        if (uploadError) throw uploadError
+
+        const { data: { publicUrl } } = supabase.storage.from('chat-images').getPublicUrl(path)
+        patch({ publicUrl, uploading: false })
+      } catch (err) {
+        patch({ uploading: false, error: err instanceof Error ? err.message : 'Upload failed.' })
+      }
+    }))
   }
 
-  const sendImage = useCallback(async () => {
-    if (!chatImagePublicUrl || chatImageUploading || sending) return
+  const sendImages = useCallback(async () => {
+    const readyImages = pendingImagesRef.current.filter((img) => !!img.publicUrl)
+    if (readyImages.length === 0 || sending) return
 
-    const publicUrlSnapshot = chatImagePublicUrl
-    const lqipSnapshot      = chatImageLqip
-    const tempId            = `opt_${Date.now()}`
+    // Snapshot before clearing — uploads are done, these URLs are stable
+    const snapshots = readyImages.map((img) => ({ publicUrl: img.publicUrl!, lqip: img.lqip }))
 
     setSending(true)
     setSendError(null)
-    clearChatImage()
+    clearPendingImages()
     haptic(10)
 
-    const optimisticMsg: MessageWithProfile = {
-      id:               tempId,
-      crew_id:          crewId,
-      user_id:          userId,
-      content:          publicUrlSnapshot,
-      message_type:     'image',
-      element_type:     null,
-      xp_awarded:       1,
-      reactions:        {},
-      created_at:       new Date().toISOString(),
-      image_url:        publicUrlSnapshot,
-      image_blur_hash:  lqipSnapshot ?? undefined,
-      profile:          userProfile,
-      tempId,
-    }
-    addMessage(optimisticMsg)
-    if (!isDM) bumpCrewXP()
+    const supabase = createClient()
+    let gemToastScheduled = false
 
-    try {
-      const supabase = createClient()
-      const { data: raw, error } = await supabase.rpc('insert_message', {
-        p_crew_id:         crewId,
-        p_content:         publicUrlSnapshot,
-        p_message_type:    'image',
-        p_image_url:       publicUrlSnapshot,
-        p_image_blur_hash: lqipSnapshot ?? null,
-      })
-      if (error) throw error
-      if (!raw) throw new Error('No message returned from server.')
+    for (const { publicUrl, lqip } of snapshots) {
+      const tempId = `opt_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
 
-      const alreadyAdded = useChatStore.getState().messages.some((m) => m.id === raw.id)
-      if (alreadyAdded) {
-        removeMessage(raw.id)
+      const optimisticMsg: MessageWithProfile = {
+        id:              tempId,
+        crew_id:         crewId,
+        user_id:         userId,
+        content:         publicUrl,
+        message_type:    'image',
+        element_type:    null,
+        xp_awarded:      1,
+        reactions:       {},
+        created_at:      new Date().toISOString(),
+        image_url:       publicUrl,
+        image_blur_hash: lqip ?? undefined,
+        profile:         userProfile,
+        tempId,
       }
-      updateMessage(tempId, {
-        id: raw.id, created_at: raw.created_at, element_type: raw.element_type,
-        image_url: publicUrlSnapshot, image_blur_hash: lqipSnapshot ?? undefined,
-      })
-      setHomeLastMessage(crewId, { content: raw.content, created_at: raw.created_at, sender: userProfile.username })
+      addMessage(optimisticMsg)
+      if (!isDM) bumpCrewXP()
 
-      if (channelReadyRef.current) msgChannelRef.current?.send({
-        type: 'broadcast', event: 'new_message',
-        payload: {
-          id: raw.id, crew_id: raw.crew_id, user_id: raw.user_id,
-          content: raw.content, message_type: raw.message_type,
-          element_type: raw.element_type, xp_awarded: raw.xp_awarded,
-          created_at: raw.created_at,
-          image_url: publicUrlSnapshot, image_blur_hash: lqipSnapshot,
-        },
-      })
-
-      tryClaimDailyGem(supabase, showGemToast)
-
-      const msgId = raw.id
-      fetch(`${SUPABASE_URL}/functions/v1/award-xp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
-        body: JSON.stringify({ message_id: msgId, crew_id: crewId, user_id: userId, username: userProfile.username, message_type: 'image', content: publicUrlSnapshot, mentioned_user_ids: [] }),
-      })
-        .then((r) => r.json())
-        .then((data: { xp_earned?: number; new_total_xp?: number; coins_earned?: number }) => {
-          if (typeof data.xp_earned === 'number') updateMessage(msgId, { xp_awarded: data.xp_earned })
-          if (typeof data.new_total_xp === 'number') {
-            setCrewXP(data.new_total_xp)
-            if (channelReadyRef.current) msgChannelRef.current?.send({
-              type: 'broadcast', event: 'xp_update',
-              payload: { xp_earned: data.xp_earned ?? 0, new_total_xp: data.new_total_xp, sender_id: userId },
-            })
-          }
-          if (typeof data.coins_earned === 'number' && data.coins_earned > 0) addUserCoins(data.coins_earned)
-          callAttackBoss('image', (data.xp_earned ?? 0) === 0 && (data.coins_earned ?? 0) === 0)
+      try {
+        const { data: raw, error } = await supabase.rpc('insert_message', {
+          p_crew_id:         crewId,
+          p_content:         publicUrl,
+          p_message_type:    'image',
+          p_image_url:       publicUrl,
+          p_image_blur_hash: lqip ?? null,
         })
-        .catch(() => {})
+        if (error) throw error
+        if (!raw) throw new Error('No message returned from server.')
 
-    } catch (err) {
-      console.error('[sendImage]', err)
-      removeMessage(tempId)
-      setChatImagePublicUrl(publicUrlSnapshot)
-      setChatImageLqip(lqipSnapshot)
-      const msg = err instanceof Error
-        ? err.message
-        : (err as { message?: string })?.message ?? 'Failed to send image.'
-      setSendError(msg)
-    } finally {
-      setSending(false)
-      focusField()
+        const alreadyAdded = useChatStore.getState().messages.some((m) => m.id === raw.id)
+        if (alreadyAdded) removeMessage(raw.id)
+        updateMessage(tempId, {
+          id: raw.id, created_at: raw.created_at, element_type: raw.element_type,
+          image_url: publicUrl, image_blur_hash: lqip ?? undefined,
+        })
+        setHomeLastMessage(crewId, { content: raw.content, created_at: raw.created_at, sender: userProfile.username })
+
+        if (channelReadyRef.current) msgChannelRef.current?.send({
+          type: 'broadcast', event: 'new_message',
+          payload: {
+            id: raw.id, crew_id: raw.crew_id, user_id: raw.user_id,
+            content: raw.content, message_type: raw.message_type,
+            element_type: raw.element_type, xp_awarded: raw.xp_awarded,
+            created_at: raw.created_at,
+            image_url: publicUrl, image_blur_hash: lqip,
+          },
+        })
+
+        // Only claim gem once across the batch
+        if (!gemToastScheduled) {
+          gemToastScheduled = true
+          tryClaimDailyGem(supabase, showGemToast)
+        }
+
+        const msgId = raw.id
+        fetch(`${SUPABASE_URL}/functions/v1/award-xp`, {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
+          body:    JSON.stringify({ message_id: msgId, crew_id: crewId, user_id: userId, username: userProfile.username, message_type: 'image', content: publicUrl, mentioned_user_ids: [] }),
+        })
+          .then((r) => r.json())
+          .then((data: { xp_earned?: number; new_total_xp?: number; coins_earned?: number }) => {
+            if (typeof data.xp_earned === 'number') updateMessage(msgId, { xp_awarded: data.xp_earned })
+            if (typeof data.new_total_xp === 'number') {
+              setCrewXP(data.new_total_xp)
+              if (channelReadyRef.current) msgChannelRef.current?.send({
+                type: 'broadcast', event: 'xp_update',
+                payload: { xp_earned: data.xp_earned ?? 0, new_total_xp: data.new_total_xp, sender_id: userId },
+              })
+            }
+            if (typeof data.coins_earned === 'number' && data.coins_earned > 0) addUserCoins(data.coins_earned)
+            callAttackBoss('image', (data.xp_earned ?? 0) === 0 && (data.coins_earned ?? 0) === 0)
+          })
+          .catch(() => {})
+
+      } catch (err) {
+        console.error('[sendImages]', err)
+        removeMessage(tempId)
+        setSendError(err instanceof Error ? err.message : 'Failed to send image.')
+      }
     }
-  }, [chatImagePublicUrl, chatImageLqip, chatImageUploading, sending, crewId, userId, userProfile, addMessage, removeMessage, updateMessage, addUserCoins, clearChatImage]) // eslint-disable-line react-hooks/exhaustive-deps
+
+    setSending(false)
+    focusField()
+  }, [sending, crewId, userId, userProfile, isDM, addMessage, removeMessage, updateMessage, addUserCoins, bumpCrewXP, clearPendingImages]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const sendGif = useCallback(async (gifUrl: string) => {
     if (sending) return
@@ -1401,7 +1423,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
         style={{ pointerEvents: isExpanded ? 'none' : 'auto' }}
       >
         {sendError && (
-          <button className="w-full font-pixel text-[7px] text-[#ff4444] mb-2 text-left" onClick={chatImagePublicUrl ? sendImage : send}>
+          <button className="w-full font-pixel text-[7px] text-[#ff4444] mb-2 text-left" onClick={send}>
             ↺ {sendError}
           </button>
         )}
@@ -1438,36 +1460,6 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
               aria-label="Cancel reply"
             >
               <Close style={{ width: 16, height: 16, color: 'var(--color-secondary)' }} aria-hidden="true" />
-            </button>
-          </div>
-        )}
-
-        {/* ── Image attachment preview ── */}
-        {chatImageLocalUrl && (
-          <div
-            className="flex items-center overflow-hidden"
-            style={{ border: '1px solid var(--color-border)', background: 'rgba(255,255,255,0.03)', padding: '8px 12px', gap: 'var(--space-3)', marginBottom: 'var(--space-2)' }}
-          >
-            <div className="relative flex-shrink-0 overflow-hidden" style={{ width: 40, height: 40 }}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={chatImageLocalUrl} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-              {chatImageUploading && (
-                <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                  <span className="font-pixel text-[6px] text-white leading-none">···</span>
-                </div>
-              )}
-            </div>
-            <div className="flex-1 min-w-0 flex flex-col" style={{ gap: 2 }}>
-              <span className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: chatImageError ? 'var(--color-danger)' : chatImageUploading ? 'var(--color-tertiary)' : 'var(--color-success)' }}>
-                {chatImageError ? chatImageError : chatImageUploading ? 'Uploading...' : 'Image ready'}
-              </span>
-            </div>
-            <button
-              onClick={clearChatImage}
-              className="flex-shrink-0 flex items-center justify-center w-6 h-6 text-tertiary active:text-primary"
-              aria-label="Remove image"
-            >
-              <span style={{ fontSize: 14, lineHeight: 1 }}>✕</span>
             </button>
           </div>
         )}
@@ -1572,7 +1564,8 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
               </button>
               <button
                 onClick={() => chatImageInputRef.current?.click()}
-                className="flex-shrink-0 flex items-center justify-center text-tertiary active:text-purple"
+                disabled={pendingImages.length >= 4}
+                className="flex-shrink-0 flex items-center justify-center text-tertiary active:text-purple disabled:opacity-30 disabled:cursor-not-allowed"
                 style={{ width: 24, height: 24 }}
                 aria-label="Upload photo"
               >
@@ -1590,88 +1583,150 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
               )}
             </motion.div>
 
-            {/* Input container — outline turns purple on focus */}
+            {/* Input container — flex-col when images are staged; outline turns purple on focus */}
             <div
-              className="flex-1 flex items-center transition-colors"
-              style={{ outline: '1px solid', outlineColor: isFocused ? 'var(--color-purple)' : 'var(--color-border)', outlineOffset: '-1px', paddingLeft: 16, paddingRight: 16, gap: 16, minHeight: 48 }}
+              className="flex-1 flex flex-col transition-colors"
+              style={{
+                outline:       '1px solid',
+                outlineColor:  isFocused ? 'var(--color-purple)' : 'var(--color-border)',
+                outlineOffset: '-1px',
+                paddingLeft:   16,
+                paddingRight:  16,
+                paddingTop:    pendingImages.length > 0 ? 16 : 0,
+                paddingBottom: pendingImages.length > 0 ? 16 : 0,
+                gap:           pendingImages.length > 0 ? 16 : 0,
+                minHeight:     48,
+              }}
             >
-              <div ref={innerContainerRef} className="relative flex-1 min-w-0 overflow-hidden">
-                {/* Hidden mirror span — measures text pixel width for overflow detection */}
-                <span
-                  ref={mirrorRef}
-                  aria-hidden="true"
-                  className="font-body"
-                  style={{
-                    position: 'fixed',
-                    top: -9999,
-                    left: -9999,
-                    visibility: 'hidden',
-                    pointerEvents: 'none',
-                    whiteSpace: 'pre',
-                    fontSize: 14,
-                    lineHeight: 'normal',
-                    fontVariationSettings: '"opsz" 14',
-                  }}
-                />
-                {/* Overlay renders @mention highlights behind the transparent input/textarea */}
-                <div
-                  ref={overlayRef}
-                  aria-hidden="true"
-                  className="pointer-events-none absolute inset-0 font-body text-[14px] leading-normal overflow-hidden"
-                  style={{ paddingTop: 12, paddingBottom: 12, fontVariationSettings: '"opsz" 14', whiteSpace: isMultiline ? 'pre-wrap' : 'nowrap', wordBreak: isMultiline ? 'break-word' : 'normal', color: 'var(--color-primary)' }}
-                >
-                  {renderHighlightedInput(text)}
-                </div>
-                {isMultiline ? (
-                  <textarea
-                    ref={textareaRef}
-                    value={text}
-                    onChange={(e) => handleInput(e)}
-                    onKeyDown={(e) => handleKeyDown(e)}
-                    onBlur={handleBlur}
-                    placeholder={isDM ? 'Send a message...' : 'Message the squad...'}
-                    rows={1}
-                    onFocus={() => setIsFocused(true)}
-                    className="relative w-full bg-transparent font-body text-[14px] placeholder:text-muted resize-none focus:outline-none leading-normal"
-                    style={{ paddingTop: 12, paddingBottom: 12, fontVariationSettings: '"opsz" 14', color: 'transparent', caretColor: 'var(--color-primary)', overflowY: 'auto', overflowX: 'hidden' }}
-                  />
-                ) : (
-                  <input
-                    ref={inputRef}
-                    type="text"
-                    value={text}
-                    onChange={(e) => handleInput(e)}
-                    onKeyDown={(e) => handleKeyDown(e)}
-                    onBlur={handleBlur}
-                    placeholder={isDM ? 'Send a message...' : 'Message the squad...'}
-                    onFocus={() => setIsFocused(true)}
-                    className="relative w-full bg-transparent font-body text-[14px] placeholder:text-muted focus:outline-none leading-normal"
-                    style={{ paddingTop: 12, paddingBottom: 12, fontVariationSettings: '"opsz" 14', color: 'transparent', caretColor: 'var(--color-primary)' }}
-                  />
+              {/* ── Image tray (inside border, animates in/out) ── */}
+              <AnimatePresence>
+                {pendingImages.length > 0 && (
+                  <motion.div
+                    key="image-tray"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.18, ease: 'easeOut' }}
+                    style={{ overflow: 'hidden' }}
+                  >
+                    {/* 60×60 image slots — gap 8px, matches Figma */}
+                    <div className="flex items-start" style={{ gap: 8 }}>
+                      {pendingImages.map((img) => (
+                        <div key={img.id} className="relative flex-shrink-0" style={{ width: 60, height: 60 }}>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={img.localUrl}
+                            alt=""
+                            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                          />
+                          {img.uploading && (
+                            <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                              <span className="font-pixel text-[6px] text-white leading-none">···</span>
+                            </div>
+                          )}
+                          {img.error && (
+                            <div className="absolute inset-0 bg-[#ef4444]/70 flex items-center justify-center">
+                              <span className="font-pixel text-[5px] text-white leading-none text-center px-1">ERR</span>
+                            </div>
+                          )}
+                          {/* Close button — top-right, 2px inset, matches Figma */}
+                          <button
+                            onClick={() => removePendingImage(img.id)}
+                            className="absolute flex items-center justify-center active:opacity-70"
+                            style={{ top: 2, right: 2, width: 16, height: 16, background: 'rgba(0,0,0,0.65)' }}
+                            aria-label="Remove image"
+                          >
+                            <Close style={{ width: 10, height: 10, color: 'var(--color-primary)' }} aria-hidden="true" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    {/* Divider between image tray and text row */}
+                    <div style={{ height: 1, background: 'var(--color-border)', marginTop: 16 }} />
+                  </motion.div>
                 )}
-              </div>
-              {(() => {
-                const isCmd    = text.startsWith('/') && !text.includes(' ')
-                const hasMatch = isCmd && SLASH_COMMANDS.some((c) => c.name.startsWith(text.slice(1).toLowerCase()))
-                const canSendImage = !!chatImagePublicUrl && !chatImageUploading
-                const canSendText  = !!text.trim() && !hasMatch
-                const canSend      = canSendImage || canSendText
-                return (
-                  <div className="flex items-center gap-3 flex-shrink-0">
-                    <button
-                      onClick={canSendImage ? sendImage : send}
-                      disabled={!canSend || sending || chatImageUploading}
-                      className={`flex items-center justify-center w-4 h-4 transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${canSend ? 'text-purple' : 'text-muted'}`}
-                      aria-label="Send message"
-                    >
-                      <Send style={{ width: 16, height: 16 }} aria-hidden="true" />
-                    </button>
+              </AnimatePresence>
+
+              {/* ── Text input + send button row ── */}
+              <div className="flex items-center" style={{ gap: 16, minHeight: pendingImages.length > 0 ? 18 : 48 }}>
+                <div ref={innerContainerRef} className="relative flex-1 min-w-0 overflow-hidden">
+                  {/* Hidden mirror span — measures text pixel width for overflow detection */}
+                  <span
+                    ref={mirrorRef}
+                    aria-hidden="true"
+                    className="font-body"
+                    style={{
+                      position: 'fixed',
+                      top: -9999,
+                      left: -9999,
+                      visibility: 'hidden',
+                      pointerEvents: 'none',
+                      whiteSpace: 'pre',
+                      fontSize: 14,
+                      lineHeight: 'normal',
+                      fontVariationSettings: '"opsz" 14',
+                    }}
+                  />
+                  {/* Overlay renders @mention highlights behind the transparent input/textarea */}
+                  <div
+                    ref={overlayRef}
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-0 font-body text-[14px] leading-normal overflow-hidden"
+                    style={{ paddingTop: 12, paddingBottom: 12, fontVariationSettings: '"opsz" 14', whiteSpace: isMultiline ? 'pre-wrap' : 'nowrap', wordBreak: isMultiline ? 'break-word' : 'normal', color: 'var(--color-primary)' }}
+                  >
+                    {renderHighlightedInput(text)}
                   </div>
-                )
-              })()}
-            </div>
-          </div>
-        </div>
+                  {isMultiline ? (
+                    <textarea
+                      ref={textareaRef}
+                      value={text}
+                      onChange={(e) => handleInput(e)}
+                      onKeyDown={(e) => handleKeyDown(e)}
+                      onBlur={handleBlur}
+                      placeholder={isDM ? 'Send a message...' : 'Message the squad...'}
+                      rows={1}
+                      onFocus={() => setIsFocused(true)}
+                      className="relative w-full bg-transparent font-body text-[14px] placeholder:text-muted resize-none focus:outline-none leading-normal"
+                      style={{ paddingTop: 12, paddingBottom: 12, fontVariationSettings: '"opsz" 14', color: 'transparent', caretColor: 'var(--color-primary)', overflowY: 'auto', overflowX: 'hidden' }}
+                    />
+                  ) : (
+                    <input
+                      ref={inputRef}
+                      type="text"
+                      value={text}
+                      onChange={(e) => handleInput(e)}
+                      onKeyDown={(e) => handleKeyDown(e)}
+                      onBlur={handleBlur}
+                      placeholder={isDM ? 'Send a message...' : 'Message the squad...'}
+                      onFocus={() => setIsFocused(true)}
+                      className="relative w-full bg-transparent font-body text-[14px] placeholder:text-muted focus:outline-none leading-normal"
+                      style={{ paddingTop: 12, paddingBottom: 12, fontVariationSettings: '"opsz" 14', color: 'transparent', caretColor: 'var(--color-primary)' }}
+                    />
+                  )}
+                </div>
+                {(() => {
+                  const isCmd       = text.startsWith('/') && !text.includes(' ')
+                  const hasMatch    = isCmd && SLASH_COMMANDS.some((c) => c.name.startsWith(text.slice(1).toLowerCase()))
+                  const canSendImgs = pendingImages.some((img) => !!img.publicUrl) && !pendingImages.some((img) => img.uploading)
+                  const canSendText = !!text.trim() && !hasMatch
+                  const canSend     = canSendImgs || canSendText
+                  return (
+                    <div className="flex items-center gap-3 flex-shrink-0">
+                      <button
+                        onClick={canSendImgs ? sendImages : send}
+                        disabled={!canSend || sending}
+                        className={`flex items-center justify-center w-4 h-4 transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${canSend ? 'text-purple' : 'text-muted'}`}
+                        aria-label="Send message"
+                      >
+                        <Send style={{ width: 16, height: 16 }} aria-hidden="true" />
+                      </button>
+                    </div>
+                  )
+                })()}
+              </div>{/* end text+send row */}
+            </div>{/* end input container */}
+          </div>{/* end icons+input row */}
+        </div>{/* end relative wrapper */}
       </motion.div>
 
       {/* ── Kick confirmation sheet ── */}
@@ -1849,11 +1904,13 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       <input
         ref={chatImageInputRef}
         type="file"
+        multiple
         accept="image/jpeg,image/jpg,image/png,image/webp,image/gif,image/heic,image/heif"
         style={{ position: 'fixed', top: -1, left: -1, width: 1, height: 1, opacity: 0, pointerEvents: 'none' }}
         onChange={(e) => {
-          const f = e.target.files?.[0]
-          if (f) void handleChatImagePick(f)
+          const files     = Array.from(e.target.files ?? [])
+          const remaining = 4 - pendingImagesRef.current.length
+          if (files.length > 0 && remaining > 0) void handleChatImagesPick(files.slice(0, remaining))
           e.target.value = ''
         }}
       />
