@@ -25,7 +25,9 @@ export function ChatSheetReact({
 }: ChatSheetReactProps) {
   return (
     <>
-      {/* Backdrop */}
+      {/* Backdrop — use onTouchStart (mobile) + onMouseDown (desktop) instead of
+          onClick so the synthetic click generated after a long-press touchend on the
+          underlying message doesn't immediately close the sheet. */}
       <motion.div
         key="react-backdrop"
         className="fixed inset-0 z-[80] bg-black/60"
@@ -34,7 +36,7 @@ export function ChatSheetReact({
         exit={{ opacity: 0 }}
         transition={{ duration: 0.18 }}
         onTouchStart={(e) => { e.stopPropagation(); onClose() }}
-        onClick={onClose}
+        onMouseDown={(e) => { e.stopPropagation(); onClose() }}
       />
 
       {/* Sheet */}

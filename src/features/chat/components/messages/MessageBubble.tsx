@@ -269,6 +269,9 @@ export function MessageBubble({
   // Prevents the double-fire (touchend + synthetic click) on iOS from calling
   // handleReaction twice — which would add then immediately remove the reaction.
   const reactionInFlightRef  = useRef(false)
+  // Always-current reactions value — avoids stale closure in handleReaction without
+  // needing message.reactions as a useCallback dep (which recreates it on every change).
+  const reactionsRef         = useRef(message.reactions)
 
   // Swipe-to-reply (other messages only)
   const SWIPE_THRESHOLD    = 64
@@ -284,6 +287,9 @@ export function MessageBubble({
   const onlineUserIds = useChatStore((s) => s.onlineUserIds)
   const updateMessage = useChatStore((s) => s.updateMessage)
   const setReplyTo    = useChatStore((s) => s.setReplyTo)
+
+  // Keep ref in sync with the latest prop value on every render.
+  reactionsRef.current = message.reactions
 
   useEffect(() => { setMounted(true) }, [])
 
@@ -375,7 +381,7 @@ export function MessageBubble({
     hasMoved.current = false
     longPressTimer.current = setTimeout(() => {
       if (!hasMoved.current) setSheetOpen(true)
-    }, 300)
+    }, 500)
     if (!isOwn) {
       // Cache all slide wrappers for this group once per gesture — avoids
       // repeated querySelector calls during high-frequency touchmove events.
@@ -470,7 +476,7 @@ export function MessageBubble({
     imgTouchStartTimeRef.current = Date.now()
     imgLongPressTimerRef.current = setTimeout(() => {
       if (!hasMoved.current) setSheetOpen(true)
-    }, 300)
+    }, 500)
   }
   function handleImageTouchEnd(e: React.TouchEvent) {
     if (imgLongPressTimerRef.current) { clearTimeout(imgLongPressTimerRef.current); imgLongPressTimerRef.current = null }
@@ -502,17 +508,16 @@ export function MessageBubble({
 
   // ─── Reaction toggle (optimistic + selective rollback) ───────────────────────
   const handleReaction = useCallback(async (emoji: string) => {
-    // Prevent the iOS double-fire (touchend → synthetic click) from calling this
-    // twice in the same tick — which would add then immediately remove the reaction.
+    // Prevent double-fire (iOS touchend → synthetic click) from toggling twice.
     if (reactionInFlightRef.current) return
     reactionInFlightRef.current = true
 
     setSheetOpen(false)
 
-    const prev     = message.reactions ?? {}
-    const users    = prev[emoji] ?? []
-    const isActive = users.includes(currentUserId)
-    // Capture intent before the async call so the closure value can't drift.
+    // Read current reactions via ref — always up-to-date without being a dep.
+    const prev      = reactionsRef.current ?? {}
+    const users     = prev[emoji] ?? []
+    const isActive  = users.includes(currentUserId)
     const wasAdding = !isActive
 
     const nextUsers = isActive
@@ -525,8 +530,8 @@ export function MessageBubble({
 
     updateMessage(message.id, { reactions: next })
 
-    // Use supabase client so the user's live session JWT is sent (not the static
-    // anon key), which prevents spurious 401 rejections when JWT verification is on.
+    // Use browser client so the user's live session JWT is sent — prevents 401s
+    // when the edge function has JWT verification enabled.
     const supabase = createClient()
     const { data, error } = await supabase.functions.invoke<ReactResponse>('react-to-message', {
       body: { message_id: message.id, emoji, user_id: currentUserId, crew_id: message.crew_id },
@@ -536,7 +541,7 @@ export function MessageBubble({
 
     if (error) {
       console.error('[react-to-message]', error)
-      // Only rollback on a confirmed HTTP rejection (4xx/5xx from the server).
+      // Only rollback on a confirmed HTTP rejection (4xx/5xx).
       // Network failures keep the optimistic state; Postgres Changes will sync.
       if (error.name === 'FunctionsHttpError') {
         updateMessage(message.id, { reactions: prev })
@@ -545,36 +550,17 @@ export function MessageBubble({
     }
 
     if (data?.reactions != null) {
-      // Guard: if we were ADDING the reaction but the response doesn't include our
-      // emoji, the edge function saw stale DB state and toggled us back off.
-      // Discard the response and let the Postgres Changes event deliver the real state.
+      // Guard: if we were ADDING but the server didn't include our emoji, the RPC
+      // saw stale state and toggled us back off. Discard and let Postgres Changes sync.
       if (wasAdding && !(data.reactions[emoji] ?? []).includes(currentUserId)) {
         return
       }
       updateMessage(message.id, { reactions: data.reactions })
-      // Persist reactions to cache so they survive navigation.
-      // Cache is stored as { messages: [...], savedAt: number } envelope.
-      try {
-        const cacheKey = `nexus-msgs-${message.crew_id}`
-        const raw = sessionStorage.getItem(cacheKey)
-        if (raw) {
-          const parsed = JSON.parse(raw)
-          const msgs = (Array.isArray(parsed) ? parsed : parsed?.messages) as { id: string; [k: string]: unknown }[] | undefined
-          if (Array.isArray(msgs)) {
-            const idx = msgs.findIndex((m) => m.id === message.id)
-            if (idx !== -1) {
-              msgs[idx] = { ...msgs[idx], reactions: data.reactions }
-              const updated = Array.isArray(parsed) ? msgs : { ...parsed, messages: msgs }
-              sessionStorage.setItem(cacheKey, JSON.stringify(updated))
-            }
-          }
-        }
-      } catch {}
     }
     if (data?.hype_man_heal && data.heal_amount > 0) {
       setHealFloat({ id: Date.now(), amount: data.heal_amount })
     }
-  }, [message.id, message.crew_id, message.reactions, currentUserId, updateMessage])
+  }, [message.id, message.crew_id, currentUserId, updateMessage])
 
 
   // ─── OG preview — must be called before early returns ───────────────────────

@@ -731,7 +731,10 @@ export function MessageList({
                   if (idx !== -1) {
                     msgs[idx] = { ...msgs[idx], reactions: patch.reactions }
                     const updated = Array.isArray(parsedCache) ? msgs : { ...parsedCache, messages: msgs }
-                    sessionStorage.setItem(cacheKey, JSON.stringify(updated))
+                    const str = JSON.stringify(updated)
+                    sessionStorage.setItem(cacheKey, str)
+                    // Mirror to IDB so reactions survive iOS PWA kill/relaunch.
+                    idbSet(cacheKey, JSON.parse(str)).catch(() => {})
                   }
                 }
               }
