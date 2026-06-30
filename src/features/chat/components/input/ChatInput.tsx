@@ -223,6 +223,11 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     if (replyTo) focusField()
   }, [replyTo]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Clear reply state when leaving this crew so it never bleeds into the next chat
+  useEffect(() => {
+    return () => setReplyTo(null)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Seed store with server-fetched values (previously handled by ChatHeader)
   useEffect(() => {
     if (initialXP !== undefined) setCrewXP(initialXP)
@@ -1429,7 +1434,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
             <button
               onClick={() => setReplyTo(null)}
               className="flex-shrink-0 flex items-center justify-center active:opacity-60"
-              style={{ width: 16, height: 16 }}
+              style={{ width: 32, height: 32, marginRight: -8 }}
               aria-label="Cancel reply"
             >
               <Close style={{ width: 16, height: 16, color: 'var(--color-secondary)' }} aria-hidden="true" />
