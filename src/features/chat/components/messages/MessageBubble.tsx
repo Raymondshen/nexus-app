@@ -266,6 +266,9 @@ export function MessageBubble({
   const hasMoved             = useRef(false)
   const imgTouchStartTimeRef = useRef(0)
   const imgLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Prevents the double-fire (touchend + synthetic click) on iOS from calling
+  // handleReaction twice — which would add then immediately remove the reaction.
+  const reactionInFlightRef  = useRef(false)
 
   // Swipe-to-reply (other messages only)
   const SWIPE_THRESHOLD    = 64
@@ -499,6 +502,11 @@ export function MessageBubble({
 
   // ─── Reaction toggle (optimistic + selective rollback) ───────────────────────
   const handleReaction = useCallback(async (emoji: string) => {
+    // Prevent the iOS double-fire (touchend → synthetic click) from calling this
+    // twice in the same tick — which would add then immediately remove the reaction.
+    if (reactionInFlightRef.current) return
+    reactionInFlightRef.current = true
+
     setSheetOpen(false)
 
     const prev     = message.reactions ?? {}
@@ -524,6 +532,8 @@ export function MessageBubble({
       body: { message_id: message.id, emoji, user_id: currentUserId, crew_id: message.crew_id },
     })
 
+    reactionInFlightRef.current = false
+
     if (error) {
       console.error('[react-to-message]', error)
       // Only rollback on a confirmed HTTP rejection (4xx/5xx from the server).
@@ -542,16 +552,21 @@ export function MessageBubble({
         return
       }
       updateMessage(message.id, { reactions: data.reactions })
-      // Persist reactions to cache so they survive navigation
+      // Persist reactions to cache so they survive navigation.
+      // Cache is stored as { messages: [...], savedAt: number } envelope.
       try {
         const cacheKey = `nexus-msgs-${message.crew_id}`
         const raw = sessionStorage.getItem(cacheKey)
         if (raw) {
-          const msgs = JSON.parse(raw) as { id: string; [k: string]: unknown }[]
-          const idx = msgs.findIndex((m) => m.id === message.id)
-          if (idx !== -1) {
-            msgs[idx] = { ...msgs[idx], reactions: data.reactions }
-            sessionStorage.setItem(cacheKey, JSON.stringify(msgs))
+          const parsed = JSON.parse(raw)
+          const msgs = (Array.isArray(parsed) ? parsed : parsed?.messages) as { id: string; [k: string]: unknown }[] | undefined
+          if (Array.isArray(msgs)) {
+            const idx = msgs.findIndex((m) => m.id === message.id)
+            if (idx !== -1) {
+              msgs[idx] = { ...msgs[idx], reactions: data.reactions }
+              const updated = Array.isArray(parsed) ? msgs : { ...parsed, messages: msgs }
+              sessionStorage.setItem(cacheKey, JSON.stringify(updated))
+            }
           }
         }
       } catch {}
@@ -891,9 +906,8 @@ export function MessageBubble({
                   return (
                     <button
                       key={emoji}
-                      onTouchStart={(e) => e.stopPropagation()}
-                      onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); void handleReaction(emoji) }}
-                      onClick={() => void handleReaction(emoji)}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onPointerUp={() => void handleReaction(emoji)}
                       className="flex items-center select-none active:opacity-70 transition-opacity"
                       style={{
                         gap: 6,
