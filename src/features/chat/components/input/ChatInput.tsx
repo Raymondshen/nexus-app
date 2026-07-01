@@ -114,6 +114,140 @@ async function tryClaimDailyGem(supabase: ReturnType<typeof createClient>, onCla
 }
 
 
+// ─── ChatSquadDetailBar ───────────────────────────────────────────────────────
+
+interface ChatSquadDetailBarProps {
+  crewImageUrl:     string | null | undefined
+  crewName:         string
+  crewLevel:        number
+  members:          MemberProfile[]
+  onlineUserIds:    Set<string>
+  combatEnabled:    boolean
+  hasJoinedRaid:    boolean
+  activeCombatRaid: ActiveRaid | null
+  crewXP:           number
+  xpProgress:       number
+  totalMessages:    number
+  onExpand:         () => void
+  onPanEnd:         (_: PointerEvent, info: PanInfo) => void
+}
+
+function ChatSquadDetailBar({
+  crewImageUrl, crewName, crewLevel, members, onlineUserIds,
+  combatEnabled, hasJoinedRaid, activeCombatRaid,
+  crewXP, xpProgress, totalMessages,
+  onExpand, onPanEnd,
+}: ChatSquadDetailBarProps) {
+  const sortedMembers = [...members]
+    .sort((a, b) => (onlineUserIds.has(b.id) ? 1 : 0) - (onlineUserIds.has(a.id) ? 1 : 0))
+    .slice(0, 5)
+
+  return (
+    <motion.div
+      className="flex flex-col relative cursor-pointer"
+      style={{ touchAction: 'pan-x', gap: 'var(--space-5)' }}
+      onPanEnd={onPanEnd}
+      onClick={onExpand}
+    >
+      {/* Crew image + name/level | dot | member avatars */}
+      <div className="flex items-center" style={{ gap: 'var(--space-5)' }}>
+        <div className="flex items-center flex-shrink-0" style={{ gap: 8 }}>
+          <div className="relative flex-shrink-0 overflow-hidden bg-surface" style={{ width: 24, height: 24 }}>
+            {crewImageUrl && (
+              <Image src={crewImageUrl} alt={crewName} fill sizes="24px" className="object-cover" loader={supabaseImageLoader} />
+            )}
+          </div>
+          <div className="flex flex-col" style={{ gap: 2 }}>
+            <p className="font-body font-black text-secondary leading-none" style={{ fontSize: 16, fontVariationSettings: '"opsz" 14' }}>
+              {crewName.toUpperCase()}
+            </p>
+            <p className="font-silkscreen text-tertiary leading-none" style={{ fontSize: 8 }}>
+              Squad Level {crewLevel}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex-shrink-0" style={{ width: 2, height: 2, background: 'var(--color-border)' }} />
+
+        <div className="flex items-center" style={{ gap: 8 }}>
+          {sortedMembers.map((m) => {
+            const url     = m.avatar_url as string | null | undefined
+            const initial = m.username[0]?.toUpperCase() ?? '?'
+            const online  = onlineUserIds.has(m.id)
+            return (
+              <div key={m.id} className="relative flex-shrink-0" title={m.username}>
+                <div className="rounded-full overflow-hidden bg-surface flex items-center justify-center" style={{ width: 24, height: 24 }}>
+                  {url ? (
+                    <div className="relative w-full h-full">
+                      <Image src={url} alt={m.username} fill sizes="24px" className="object-cover" loader={avatarImageLoader} />
+                    </div>
+                  ) : (
+                    <span className="font-pixel text-[length:var(--text-mini)] text-purple">{initial}</span>
+                  )}
+                </div>
+                {online && (
+                  <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#66bb6a] border-[1.5px] border-black" />
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Chevron — absolute top-right */}
+      <button
+        onClick={(e) => { e.stopPropagation(); onExpand() }}
+        className="absolute right-0 top-0 flex items-center justify-center flex-shrink-0"
+        style={{ width: 'var(--space-7)', height: 'var(--space-7)' }}
+        aria-label="Show members"
+      >
+        <ChevronRight
+          style={{ width: 'var(--space-7)', height: 'var(--space-7)', color: 'var(--color-tertiary)', transform: 'rotate(-90deg)' }}
+          aria-hidden="true"
+        />
+      </button>
+
+      {/* XP bar or Boss HP bar */}
+      {combatEnabled && hasJoinedRaid && activeCombatRaid ? (
+        <div className="flex flex-col w-full" style={{ gap: 'var(--space-3)' }}>
+          <p className="font-silkscreen leading-none w-full" style={{ fontSize: 8, color: 'var(--color-danger)' }}>
+            BOSS HP : {String(Math.round(activeCombatRaid.current_hp)).padStart(4, '0')}/{String(Math.round(activeCombatRaid.max_hp)).padStart(4, '0')}
+          </p>
+          <div className="bg-surface overflow-hidden w-full relative" style={{ height: 4 }}>
+            <div
+              className="absolute left-0 top-0 h-full"
+              style={{
+                width:      `${(activeCombatRaid.current_hp / activeCombatRaid.max_hp) * 100}%`,
+                background: 'var(--color-danger)',
+                transition: 'width 0.4s ease-out',
+              }}
+            />
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-col w-full" style={{ gap: 'var(--space-3)' }}>
+          <p className="font-silkscreen text-tertiary leading-[0] w-full" style={{ fontSize: 0 }}>
+            <span className="leading-none" style={{ fontSize: 8 }}>{getXPInCurrentLevel(crewXP)} / {getXPForCurrentLevel(crewXP)}XP</span>
+            {totalMessages > 0 && <>
+              <span className="leading-none" style={{ fontSize: 8 }}>{` · `}</span>
+              <span className="leading-none text-secondary" style={{ fontSize: 8 }}>{totalMessages.toLocaleString()} total Squad msg.</span>
+            </>}
+          </p>
+          <div className="bg-surface h-1 overflow-hidden w-full relative">
+            <motion.div
+              className="absolute left-0 top-0 h-full bg-purple"
+              animate={{ width: `${xpProgress}%` }}
+              transition={{ type: 'spring', stiffness: 300, damping: 28 }}
+            />
+          </div>
+        </div>
+      )}
+    </motion.div>
+  )
+}
+
+// ─── ChatInput ────────────────────────────────────────────────────────────────
+
 export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewName, inviteCode, creatorId, crewImageUrl: initialCrewImageUrl, crewBackgroundImageUrl: initialCrewBgUrl, initialXP, isDM, dmPartnerId, userCombatClass, initialRaid, initialMemberStats, initialReviveTokens }: ChatInputProps) {
   const router = useRouter()
   const [text,           setText]          = useState('')
@@ -1321,110 +1455,24 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
         </p>
       )}
 
-      {/* ── Group: mini header — tap or swipe up to expand ── */}
-      {!isDM && <motion.div
-        className="flex flex-col relative cursor-pointer"
-        style={{ touchAction: 'pan-x', gap: 'var(--space-5)' }}
-        onPanEnd={handleTopPanEnd}
-        onClick={() => setIsExpanded(true)}
-      >
-        {/* groupHeader row: crew image + name/level | dot | member avatars */}
-        <div className="flex items-center" style={{ gap: 'var(--space-5)' }}>
-          {/* Crew image + name + level */}
-          <div className="flex items-center flex-shrink-0" style={{ gap: 8 }}>
-            <div className="relative flex-shrink-0 overflow-hidden bg-surface" style={{ width: 24, height: 24 }}>
-              {crewImageUrl && (
-                <Image src={crewImageUrl} alt={liveCrewName} fill sizes="24px" className="object-cover" loader={supabaseImageLoader} />
-              )}
-            </div>
-            <div className="flex flex-col" style={{ gap: 2 }}>
-              <p className="font-body font-black text-secondary leading-none" style={{ fontSize: 16, fontVariationSettings: '"opsz" 14' }}>
-                {liveCrewName.toUpperCase()}
-              </p>
-              <p className="font-silkscreen text-tertiary leading-none" style={{ fontSize: 8 }}>
-                Squad Level {crewLevel}
-              </p>
-            </div>
-          </div>
-
-          {/* Dot separator */}
-          <div className="flex-shrink-0" style={{ width: 2, height: 2, background: 'var(--color-border)' }} />
-
-          {/* Stacked member avatars (circles, 8px gap) */}
-          <div className="flex items-center" style={{ gap: 8 }}>
-            {[...members].sort((a, b) => (onlineUserIds.has(b.id) ? 1 : 0) - (onlineUserIds.has(a.id) ? 1 : 0)).slice(0, 5).map((m) => {
-              const url     = m.avatar_url as string | null | undefined
-              const initial = m.username[0]?.toUpperCase() ?? '?'
-              const online  = onlineUserIds.has(m.id)
-              return (
-                <div key={m.id} className="relative flex-shrink-0" title={m.username}>
-                  <div className="rounded-full overflow-hidden bg-surface flex items-center justify-center" style={{ width: 24, height: 24 }}>
-                    {url ? (
-                      <div className="relative w-full h-full">
-                        <Image src={url} alt={m.username} fill sizes="24px" className="object-cover" loader={avatarImageLoader} />
-                      </div>
-                    ) : (
-                      <span className="font-pixel text-[length:var(--text-mini)] text-purple">{initial}</span>
-                    )}
-                  </div>
-                  {online && (
-                    <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#66bb6a] border-[1.5px] border-black" />
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* Chevron — absolute top-right */}
-        <button
-          onClick={(e) => { e.stopPropagation(); setIsExpanded(true) }}
-          className="absolute right-0 top-0 flex items-center justify-center flex-shrink-0"
-          style={{ width: 'var(--space-7)', height: 'var(--space-7)' }}
-          aria-label="Show members"
-        >
-          <ChevronRight
-            style={{ width: 'var(--space-7)', height: 'var(--space-7)', color: 'var(--color-tertiary)', transform: 'rotate(-90deg)' }}
-            aria-hidden="true"
-          />
-        </button>
-
-        {/* XP / Boss HP indicator */}
-        {!isDM && combatEnabled && hasJoinedRaid && activeCombatRaid ? (
-          <div className="flex flex-col w-full" style={{ gap: 'var(--space-3)' }}>
-            <p className="font-silkscreen leading-none w-full" style={{ fontSize: 8, color: 'var(--color-danger)' }}>
-              BOSS HP : {String(Math.round(activeCombatRaid.current_hp)).padStart(4, '0')}/{String(Math.round(activeCombatRaid.max_hp)).padStart(4, '0')}
-            </p>
-            <div className="bg-surface overflow-hidden w-full relative" style={{ height: 4 }}>
-              <div
-                className="absolute left-0 top-0 h-full"
-                style={{
-                  width:      `${(activeCombatRaid.current_hp / activeCombatRaid.max_hp) * 100}%`,
-                  background: 'var(--color-danger)',
-                  transition: 'width 0.4s ease-out',
-                }}
-              />
-            </div>
-          </div>
-        ) : (
-          <div className="flex flex-col w-full" style={{ gap: 'var(--space-3)' }}>
-            <p className="font-silkscreen text-tertiary leading-[0] w-full" style={{ fontSize: 0 }}>
-              <span className="leading-none" style={{ fontSize: 8 }}>{getXPInCurrentLevel(crewXP)} / {getXPForCurrentLevel(crewXP)}XP</span>
-              {totalMessages > 0 && <>
-                <span className="leading-none" style={{ fontSize: 8 }}>{` · `}</span>
-                <span className="leading-none text-secondary" style={{ fontSize: 8 }}>{totalMessages.toLocaleString()} total Squad msg.</span>
-              </>}
-            </p>
-            <div className="bg-surface h-1 overflow-hidden w-full relative">
-              <motion.div
-                className="absolute left-0 top-0 h-full bg-purple"
-                animate={{ width: `${xpProgress}%` }}
-                transition={{ type: 'spring', stiffness: 300, damping: 28 }}
-              />
-            </div>
-          </div>
-        )}
-      </motion.div>}
+      {/* ── ChatSquadDetailBar — tap or swipe up to expand ── */}
+      {!isDM && (
+        <ChatSquadDetailBar
+          crewImageUrl={crewImageUrl}
+          crewName={liveCrewName}
+          crewLevel={crewLevel}
+          members={members}
+          onlineUserIds={onlineUserIds}
+          combatEnabled={combatEnabled}
+          hasJoinedRaid={hasJoinedRaid}
+          activeCombatRaid={activeCombatRaid}
+          crewXP={crewXP}
+          xpProgress={xpProgress}
+          totalMessages={totalMessages}
+          onExpand={() => setIsExpanded(true)}
+          onPanEnd={handleTopPanEnd}
+        />
+      )}
 
       {/* ── Status indicators + input — fade out when expanded ── */}
       <motion.div
