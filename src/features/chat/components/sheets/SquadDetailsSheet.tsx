@@ -498,27 +498,15 @@ export function SquadDetailsSheet({
   })
 
   return (
-    <>
-      {/* Backdrop */}
-      <motion.div
-        className="fixed inset-0 z-[38] bg-black/60"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.2 }}
-        onClick={onClose}
-      />
-
-      {/* Sheet */}
-      <motion.div
-        className="absolute bottom-0 left-0 right-0 z-[70] bg-[var(--color-surface-sheet)] rounded-tl-[16px] rounded-tr-[16px] flex flex-col"
-        initial={{ y: '100%' }}
-        animate={{ y: 0 }}
-        exit={{ y: '100%' }}
-        transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-        style={{ maxHeight: '85vh' }}
-        onPanEnd={handlePanelPanEnd}
-      >
+    <motion.div
+      className="absolute bottom-0 left-0 right-0 z-[70] bg-[var(--color-surface-sheet)] rounded-tl-[16px] rounded-tr-[16px] flex flex-col"
+      initial={{ y: '100%' }}
+      animate={{ y: 0 }}
+      exit={{ y: '100%' }}
+      transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+      style={{ maxHeight: '85vh' }}
+      onPanEnd={handlePanelPanEnd}
+    >
 
         {/* ── Group Header (180px, full-bleed) ── */}
         <div
@@ -741,7 +729,6 @@ export function SquadDetailsSheet({
             </button>
           )}
         </div>
-      </motion.div>
 
       {/* ── Squad Details edit sheet ── */}
       <AnimatePresence>
@@ -762,6 +749,6 @@ export function SquadDetailsSheet({
           />
         )}
       </AnimatePresence>
-    </>
+    </motion.div>
   )
 }

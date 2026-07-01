@@ -128,6 +128,8 @@ interface ChatSquadDetailBarProps {
   crewXP:           number
   xpProgress:       number
   totalMessages:    number
+  isExpanded:       boolean
+  sheetChildren:    React.ReactNode
   onExpand:         () => void
   onPanEnd:         (_: PointerEvent, info: PanInfo) => void
 }
@@ -136,6 +138,7 @@ function ChatSquadDetailBar({
   crewImageUrl, crewName, crewLevel, members, onlineUserIds,
   combatEnabled, hasJoinedRaid, activeCombatRaid,
   crewXP, xpProgress, totalMessages,
+  isExpanded, sheetChildren,
   onExpand, onPanEnd,
 }: ChatSquadDetailBarProps) {
   const sortedMembers = [...members]
@@ -146,8 +149,8 @@ function ChatSquadDetailBar({
     <motion.div
       className="flex flex-col relative cursor-pointer"
       style={{ touchAction: 'pan-x', gap: 'var(--space-5)' }}
-      onPanEnd={onPanEnd}
-      onClick={onExpand}
+      onPanEnd={isExpanded ? undefined : onPanEnd}
+      onClick={isExpanded ? undefined : onExpand}
     >
       {/* Crew image + name/level | dot | member avatars */}
       <div className="flex items-center" style={{ gap: 'var(--space-5)' }}>
@@ -242,6 +245,11 @@ function ChatSquadDetailBar({
           </div>
         </div>
       )}
+
+      {/* Sheet — rendered inside the bar as its own viewport; slides up from below bar's bottom edge */}
+      <AnimatePresence>
+        {sheetChildren}
+      </AnimatePresence>
     </motion.div>
   )
 }
@@ -1455,7 +1463,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
         </p>
       )}
 
-      {/* ── ChatSquadDetailBar — tap or swipe up to expand ── */}
+      {/* ── ChatSquadDetailBar — tap or swipe up to expand; owns the sheet as a child ── */}
       {!isDM && (
         <ChatSquadDetailBar
           crewImageUrl={crewImageUrl}
@@ -1469,8 +1477,63 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
           crewXP={crewXP}
           xpProgress={xpProgress}
           totalMessages={totalMessages}
+          isExpanded={isExpanded}
           onExpand={() => setIsExpanded(true)}
           onPanEnd={handleTopPanEnd}
+          sheetChildren={isExpanded ? (
+            <SquadDetailsSheet
+              key="squad-details"
+              crewId={crewId}
+              crewName={liveCrewName}
+              memberCount={memberCount}
+              crewImageUrl={crewImageUrl}
+              members={members.map((m): MiniMember => ({
+                id:           m.id,
+                username:     m.username,
+                avatar_url:   m.avatar_url as string | null,
+                avatar_class: m.avatar_class,
+                status:       m.status,
+              }))}
+              onlineUserIds={onlineUserIds}
+              crewXP={crewXP}
+              crewLevel={crewLevel}
+              xpProgress={xpProgress}
+              totalMessages={totalMessages}
+              inviteCode={inviteCode}
+              creatorId={creatorId}
+              currentUserId={userId}
+              memberMsgCounts={memberMsgCounts}
+              loadingCounts={loadingCounts}
+              crewBackgroundImageUrl={crewBgUrl}
+              onUploadPhoto={() => crewImageInputRef.current?.click()}
+              onUploadBackground={() => crewBgInputRef.current?.click()}
+              onNotifPress={() => setShowNotif(true)}
+              onSave={async (newName) => {
+                const trimmed = newName.trim()
+                if (!trimmed || trimmed.length < 2) return
+                const prev = liveCrewName
+                setCrewName(trimmed)
+                const result = await renameCrewAction(crewId, trimmed)
+                if (result?.error) setCrewName(prev)
+              }}
+              onTapMember={(memberId) => {
+                setIsExpanded(false)
+                sessionStorage.setItem('nexus_chat_from', 'chat')
+                router.push(`/chat/${crewId}/member/${memberId}`)
+              }}
+              onDMPress={(memberId) => {
+                setIsExpanded(false)
+                router.push(`/dm/${memberId}`)
+              }}
+              onOpenGlossary={() => {
+                setIsExpanded(false)
+                router.push(`/chat/${crewId}/definitions`)
+              }}
+              onRemoveMember={(member) => setRemoveTarget(member as MemberProfile)}
+              onLeave={handleLeaveSquad}
+              onClose={() => setIsExpanded(false)}
+            />
+          ) : null}
         />
       )}
 
@@ -1851,62 +1914,6 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
         )}
       </AnimatePresence>
 
-      {/* ── Expanded member panel ── */}
-      <AnimatePresence>
-        {isExpanded && !isDM && (
-          <SquadDetailsSheet
-            crewId={crewId}
-            crewName={liveCrewName}
-            memberCount={memberCount}
-            crewImageUrl={crewImageUrl}
-            members={members.map((m): MiniMember => ({
-              id:           m.id,
-              username:     m.username,
-              avatar_url:   m.avatar_url as string | null,
-              avatar_class: m.avatar_class,
-              status:       m.status,
-            }))}
-            onlineUserIds={onlineUserIds}
-            crewXP={crewXP}
-            crewLevel={crewLevel}
-            xpProgress={xpProgress}
-            totalMessages={totalMessages}
-            inviteCode={inviteCode}
-            creatorId={creatorId}
-            currentUserId={userId}
-            memberMsgCounts={memberMsgCounts}
-            loadingCounts={loadingCounts}
-            crewBackgroundImageUrl={crewBgUrl}
-            onUploadPhoto={() => crewImageInputRef.current?.click()}
-            onUploadBackground={() => crewBgInputRef.current?.click()}
-            onNotifPress={() => setShowNotif(true)}
-            onSave={async (newName) => {
-              const trimmed = newName.trim()
-              if (!trimmed || trimmed.length < 2) return
-              const prev = liveCrewName
-              setCrewName(trimmed)
-              const result = await renameCrewAction(crewId, trimmed)
-              if (result?.error) setCrewName(prev)
-            }}
-            onTapMember={(memberId) => {
-              setIsExpanded(false)
-              sessionStorage.setItem('nexus_chat_from', 'chat')
-              router.push(`/chat/${crewId}/member/${memberId}`)
-            }}
-            onDMPress={(memberId) => {
-              setIsExpanded(false)
-              router.push(`/dm/${memberId}`)
-            }}
-            onOpenGlossary={() => {
-              setIsExpanded(false)
-              router.push(`/chat/${crewId}/definitions`)
-            }}
-            onRemoveMember={(member) => setRemoveTarget(member as MemberProfile)}
-            onLeave={handleLeaveSquad}
-            onClose={() => setIsExpanded(false)}
-          />
-        )}
-      </AnimatePresence>
 
       <AnimatePresence>
         {showNotif && (
