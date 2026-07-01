@@ -732,6 +732,7 @@ export function MessageList({
           const hasLocalReactions = Object.keys(localReactions).length > 0
 
           const patch: Partial<Message> = {
+            content:         raw.content,
             xp_awarded:      raw.xp_awarded,
             element_type:    raw.element_type,
             pinned:          raw.pinned,

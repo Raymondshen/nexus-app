@@ -13,6 +13,7 @@ interface ChatStore {
   crewName:            string
   replyTo:             MessageWithProfile | null
   replyGroupId:        string | null
+  editTo:              MessageWithProfile | null
   friendshipXPByPair:  Record<string, number>
 
   setMessages:         (messages: Message[]) => void
@@ -32,6 +33,7 @@ interface ChatStore {
   addGemBalance:       (amount: number) => void
   setCrewName:         (name: string) => void
   setReplyTo:              (msg: MessageWithProfile | null, groupId?: string) => void
+  setEditTo:               (msg: MessageWithProfile | null) => void
   setFriendshipXP:         (pairKey: string, totalXP: number) => void
   pinnedScrollTargetId:    string | null
   setPinnedScrollTargetId: (id: string | null) => void
@@ -51,6 +53,7 @@ export const useChatStore = create<ChatStore>((set) => ({
   crewName:           '',
   replyTo:                null,
   replyGroupId:           null,
+  editTo:                 null,
   friendshipXPByPair:     {},
   pinnedScrollTargetId:   null,
   squadDetailsOpen:       false,
@@ -119,6 +122,8 @@ export const useChatStore = create<ChatStore>((set) => ({
   setCrewName: (name) => set({ crewName: name }),
 
   setReplyTo: (msg, groupId) => set({ replyTo: msg, replyGroupId: msg ? (groupId ?? null) : null }),
+
+  setEditTo: (msg) => set({ editTo: msg }),
 
   setFriendshipXP: (pairKey, totalXP) =>
     set((s) => ({ friendshipXPByPair: { ...s.friendshipXPByPair, [pairKey]: totalXP } })),

@@ -104,6 +104,7 @@ function areEqual(prev: MessageBubbleProps, next: MessageBubbleProps): boolean {
   if (prev.message.reactions        !== next.message.reactions)        return false
   if (prev.message.xp_awarded       !== next.message.xp_awarded)       return false
   if (prev.message.element_type     !== next.message.element_type)     return false
+  if (prev.message.content          !== next.message.content)          return false
   if (prev.message.pinned           !== next.message.pinned)           return false
   if (prev.message.pin_expires_at   !== next.message.pin_expires_at)   return false
   if (prev.message.profile.avatar_url !== next.message.profile.avatar_url) return false
@@ -320,6 +321,7 @@ function MessageBubbleImpl({
   const isOnline      = useChatStore((s) => s.onlineUserIds.has(message.user_id))
   const updateMessage = useChatStore((s) => s.updateMessage)
   const setReplyTo    = useChatStore((s) => s.setReplyTo)
+  const setEditTo     = useChatStore((s) => s.setEditTo)
 
   // Keep ref in sync with the latest prop value on every render.
   reactionsRef.current = message.reactions
@@ -1111,6 +1113,8 @@ function MessageBubbleImpl({
               currentUserId={currentUserId}
               onReact={(emoji) => void handleReaction(emoji)}
               onReply={() => { setSheetOpen(false); setReplyTo({ ...message }, groupId) }}
+              isOwn={isOwn}
+              onEdit={isOwn && message.message_type === 'text' ? () => { setSheetOpen(false); setEditTo({ ...message }) } : undefined}
               onCopy={handleCopy}
               copied={copied}
               canPin={isCreator}

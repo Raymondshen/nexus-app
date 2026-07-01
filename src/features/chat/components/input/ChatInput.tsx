@@ -24,6 +24,7 @@ import { Chart } from 'pixelarticons/react/Chart'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
 import { Undo } from 'pixelarticons/react/Undo'
 import { Close } from 'pixelarticons/react/Close'
+import { MagicEdit } from 'pixelarticons/react/MagicEdit'
 import { GifIcon } from '@/shared/icons/GifIcon'
 import { kickMemberAction, renameCrewAction, birthdaysCommandAction, updateCrewBackgroundImageAction } from '@/app/(app)/chat/actions'
 import { leaveCrewAction } from '@/app/(app)/home/actions'
@@ -309,6 +310,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     onlineUserIds, setOnlineUserIds, setLastActive, sweepOnlineUserIds, addUserCoins,
     crewName: storeCrewName, setCrewName,
     replyTo, setReplyTo,
+    editTo, setEditTo,
     squadDetailsOpen, setSquadDetailsOpen,
   } = useChatStore()
 
@@ -365,9 +367,21 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     if (replyTo) focusField()
   }, [replyTo]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Clear reply state when leaving this crew so it never bleeds into the next chat
+  // Populate input when entering edit mode
   useEffect(() => {
-    return () => setReplyTo(null)
+    if (editTo) {
+      setText(editTo.content)
+      textRef.current = editTo.content
+      requestAnimationFrame(() => {
+        recheckOverflow(editTo.content)
+        focusField()
+      })
+    }
+  }, [editTo]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Clear reply/edit state when leaving this crew so it never bleeds into the next chat
+  useEffect(() => {
+    return () => { setReplyTo(null); setEditTo(null) }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Seed store with server-fetched values (previously handled by ChatHeader)
@@ -1211,6 +1225,41 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     }
   }, [text, sending, crewId, userId, userProfile, addMessage, removeMessage, updateMessage]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const handleEditSend = useCallback(async () => {
+    const currentEdit = useChatStore.getState().editTo
+    if (!currentEdit) return
+    const newContent = sanitizeMessage(text)
+
+    // Close edit mode immediately regardless of outcome
+    setEditTo(null)
+    setText('')
+    textRef.current = ''
+    const wasMultiline = isMultilineRef.current
+    setIsMultiline(false)
+    isMultilineRef.current = false
+    if (wasMultiline) pendingCaretPosRef.current = 0
+
+    if (!newContent || newContent === currentEdit.content) return
+
+    const prevContent = currentEdit.content
+    const msgId       = currentEdit.id
+
+    // Optimistic update
+    updateMessage(msgId, { content: newContent })
+
+    const supabase = createClient()
+    const { error } = await supabase
+      .from('messages')
+      .update({ content: newContent })
+      .eq('id', msgId)
+      .eq('user_id', userId)
+
+    if (error) {
+      updateMessage(msgId, { content: prevContent })
+      setSendError('Failed to edit message.')
+    }
+  }, [text, userId, updateMessage]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Fire-and-forget attack-boss after award-xp settles (joined members only)
   const callAttackBoss = useCallback((messageType: string, softBlocked: boolean) => {
     const { activeRaid, memberStats } = useCombatStore.getState()
@@ -1239,6 +1288,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
+      if (editTo) { void handleEditSend(); return }
       const isCmd = text.startsWith('/') && !text.includes(' ')
       if (isCmd) {
         const filter   = text.slice(1).toLowerCase()
@@ -1494,6 +1544,30 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
               ))}
             </span>
             <span className="font-pixel text-[7px] text-tertiary">{typingLabel}</span>
+          </div>
+        )}
+
+        {/* ── Edit mode bar ── */}
+        {editTo && (
+          <div
+            className="flex items-center w-full"
+            style={{ background: 'var(--color-surface)', padding: 16, gap: 8, marginBottom: 8 }}
+          >
+            <MagicEdit style={{ width: 16, height: 16, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
+            <p
+              className="flex-1 min-w-0 font-body font-medium leading-none tracking-[0.1px] whitespace-nowrap overflow-hidden text-ellipsis"
+              style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14', color: 'var(--color-primary)' }}
+            >
+              Editing message
+            </p>
+            <button
+              onClick={() => { setEditTo(null); setText(''); textRef.current = '' }}
+              className="flex-shrink-0 flex items-center justify-center active:opacity-60"
+              style={{ width: 32, height: 32, marginRight: -8 }}
+              aria-label="Cancel edit"
+            >
+              <Close style={{ width: 16, height: 16, color: 'var(--color-secondary)' }} aria-hidden="true" />
+            </button>
           </div>
         )}
 
@@ -1771,8 +1845,8 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                   return (
                     <div className="flex items-center gap-3 flex-shrink-0">
                       <button
-                        onClick={canSendImgs ? sendImages : send}
-                        disabled={!canSend || sending}
+                        onClick={editTo ? () => void handleEditSend() : canSendImgs ? sendImages : send}
+                        disabled={editTo ? !text.trim() : !canSend || sending}
                         className={`flex items-center justify-center w-4 h-4 transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${canSend ? 'text-purple' : 'text-muted'}`}
                         aria-label="Send message"
                       >

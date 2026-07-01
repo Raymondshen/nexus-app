@@ -4,6 +4,7 @@ import { motion } from 'framer-motion'
 import { CornerUpLeft } from 'pixelarticons/react/CornerUpLeft'
 import { Copy } from 'pixelarticons/react/Copy'
 import { Note } from 'pixelarticons/react/Note'
+import { MagicEdit } from 'pixelarticons/react/MagicEdit'
 
 export const QUICK_REACTIONS = ['🔥', '💧', '⚡', '🌿', '🌑', '🔮'] as const
 
@@ -13,6 +14,8 @@ interface ChatSheetReactProps {
   currentUserId: string
   onReact:       (emoji: string) => void
   onReply:       () => void
+  onEdit?:       () => void
+  isOwn?:        boolean
   onCopy:        () => void
   copied:        boolean
   canPin:        boolean
@@ -21,7 +24,7 @@ interface ChatSheetReactProps {
 
 export function ChatSheetReact({
   onClose, reactions, currentUserId,
-  onReact, onReply, onCopy, copied, canPin, onOpenPin,
+  onReact, onReply, onEdit, isOwn, onCopy, copied, canPin, onOpenPin,
 }: ChatSheetReactProps) {
   return (
     <>
@@ -84,6 +87,22 @@ export function ChatSheetReact({
 
           {/* Action buttons */}
           <div className="flex flex-col w-full" style={{ gap: 16 }}>
+
+            {isOwn && onEdit && (
+              <button
+                onClick={onEdit}
+                className="w-full flex items-center"
+                style={{ background: 'var(--color-surface)', borderRadius: 8, padding: 16, gap: 8 }}
+              >
+                <MagicEdit style={{ width: 24, height: 20, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
+                <span
+                  className="flex-1 font-body font-semibold text-secondary leading-normal text-left tracking-[0.2px]"
+                  style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
+                >
+                  Edit Message
+                </span>
+              </button>
+            )}
 
             <button
               onClick={onReply}
