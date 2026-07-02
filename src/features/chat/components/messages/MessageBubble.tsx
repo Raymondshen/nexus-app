@@ -52,19 +52,20 @@ function MultiImageCell({
   const isGif = /\.gif(\?|$)/i.test(src) || src.includes('static.klipy.com')
   const style: React.CSSProperties = fluid
     ? { position: 'relative', width: '100%', aspectRatio: '4/3', overflow: 'hidden', flexShrink: 0, cursor: 'pointer' }
-    : { position: 'relative', width: 80, height: 80, overflow: 'hidden', flexShrink: 0, cursor: 'pointer' }
+    : { position: 'relative', width: 80, height: 80, overflow: 'hidden', flexShrink: 0, cursor: 'pointer', background: 'var(--color-surface)' }
+  const fit = fluid ? 'object-cover' : 'object-contain'
   return (
     <div style={style} onClick={(e) => { e.stopPropagation(); onTap(src) }}>
       {isGif ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={src} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', maxWidth: 'none' }} />
+        <img src={src} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: fluid ? 'cover' : 'contain', maxWidth: 'none' }} />
       ) : (
         <Image
           src={src}
           alt="shared image"
           fill
           sizes={fluid ? '(max-width: 480px) 75vw, 300px' : '80px'}
-          className="object-cover"
+          className={fit}
           loader={supabaseImageLoader}
           placeholder={lqip ? 'blur' : 'empty'}
           blurDataURL={lqip ?? undefined}
