@@ -81,8 +81,9 @@ function MultiImageGrid({
   lqips: (string | null)[]
   onTap: (src: string) => void
 }) {
-  const src0   = urls[0]
-  const isSinglePhoto = urls.length === 1 && !(/\.gif(\?|$)/i.test(src0) || src0.includes('static.klipy.com'))
+  const src0          = urls[0]
+  const isSingleGif   = urls.length === 1 && (/\.gif(\?|$)/i.test(src0) || src0.includes('static.klipy.com'))
+  const isSinglePhoto = urls.length === 1 && !isSingleGif
 
   if (isSinglePhoto) {
     const lqip = lqips[0] ?? null
@@ -92,6 +93,18 @@ function MultiImageGrid({
         onClick={(e) => { e.stopPropagation(); onTap(src0) }}
       >
         <Image src={src0} alt="shared image" fill sizes="(max-width: 480px) 75vw, 300px" className="object-cover" loader={supabaseImageLoader} placeholder={lqip ? 'blur' : 'empty'} blurDataURL={lqip ?? undefined} />
+      </div>
+    )
+  }
+
+  if (isSingleGif) {
+    return (
+      <div
+        style={{ position: 'relative', width: 160, height: 160, overflow: 'hidden', flexShrink: 0, cursor: 'pointer' }}
+        onClick={(e) => { e.stopPropagation(); onTap(src0) }}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={src0} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', maxWidth: 'none' }} />
       </div>
     )
   }
