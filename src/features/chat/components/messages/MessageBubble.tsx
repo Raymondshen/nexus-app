@@ -69,6 +69,106 @@ function ImageBubble({
   )
 }
 
+// Parse a JSON-encoded array of image URLs stored in image_url / image_blur_hash.
+// Returns null for legacy single-image messages (plain URL string).
+function parseJsonArray(value: string | null | undefined): string[] | null {
+  if (!value) return null
+  try {
+    const parsed = JSON.parse(value)
+    if (Array.isArray(parsed)) return parsed as string[]
+  } catch {}
+  return null
+}
+
+function MultiImageCell({
+  src, lqip, width, height, onTap,
+}: {
+  src:    string
+  lqip:   string | null
+  width:  number
+  height: number
+  onTap:  (src: string) => void
+}) {
+  const isGif = /\.gif(\?|$)/i.test(src) || src.includes('static.klipy.com')
+  return (
+    <div
+      style={{ position: 'relative', width, height, overflow: 'hidden', flexShrink: 0, cursor: 'pointer' }}
+      onClick={(e) => { e.stopPropagation(); onTap(src) }}
+    >
+      {isGif ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={src} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', maxWidth: 'none' }} />
+      ) : (
+        <Image
+          src={src}
+          alt="shared image"
+          fill
+          sizes="220px"
+          className="object-cover"
+          loader={supabaseImageLoader}
+          placeholder={lqip ? 'blur' : 'empty'}
+          blurDataURL={lqip ?? undefined}
+        />
+      )}
+    </div>
+  )
+}
+
+function MultiImageGrid({
+  urls, lqips, onTap,
+}: {
+  urls:  string[]
+  lqips: (string | null)[]
+  onTap: (src: string) => void
+}) {
+  const count = Math.min(urls.length, 4)
+  const W = 220
+  const CELL = 109  // (220 - 2px gap) / 2
+  const GAP  = 2
+
+  if (count === 1) {
+    return (
+      <MultiImageCell src={urls[0]} lqip={lqips[0] ?? null} width={W} height={165} onTap={onTap} />
+    )
+  }
+  if (count === 2) {
+    return (
+      <div style={{ display: 'flex', gap: GAP, width: W, marginTop: 4 }}>
+        {urls.slice(0, 2).map((u, i) => (
+          <MultiImageCell key={i} src={u} lqip={lqips[i] ?? null} width={CELL} height={CELL} onTap={onTap} />
+        ))}
+      </div>
+    )
+  }
+  if (count === 3) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: GAP, width: W, marginTop: 4 }}>
+        <MultiImageCell src={urls[0]} lqip={lqips[0] ?? null} width={W} height={130} onTap={onTap} />
+        <div style={{ display: 'flex', gap: GAP }}>
+          {urls.slice(1, 3).map((u, i) => (
+            <MultiImageCell key={i + 1} src={u} lqip={lqips[i + 1] ?? null} width={CELL} height={CELL} onTap={onTap} />
+          ))}
+        </div>
+      </div>
+    )
+  }
+  // 4 images — 2×2 grid
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: GAP, width: W, marginTop: 4 }}>
+      <div style={{ display: 'flex', gap: GAP }}>
+        {urls.slice(0, 2).map((u, i) => (
+          <MultiImageCell key={i} src={u} lqip={lqips[i] ?? null} width={CELL} height={CELL} onTap={onTap} />
+        ))}
+      </div>
+      <div style={{ display: 'flex', gap: GAP }}>
+        {urls.slice(2, 4).map((u, i) => (
+          <MultiImageCell key={i + 2} src={u} lqip={lqips[i + 2] ?? null} width={CELL} height={CELL} onTap={onTap} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
 type ReactResponse = {
   reactions:     Record<string, string[]>
   hype_man_heal: boolean
@@ -406,6 +506,7 @@ function MessageBubbleImpl({
   const [activeDefinition,   setActiveDefinition]   = useState<SquadDefinitionWithCreator | null>(null)
   const [suggestTarget,      setSuggestTarget]      = useState<SquadDefinitionWithCreator | null>(null)
   const [previewOpen,        setPreviewOpen]        = useState(false)
+  const [previewSrc,         setPreviewSrc]         = useState<string | null>(null)
   const [pinSheetOpen,       setPinSheetOpen]       = useState(false)
   // Local optimistic reactions — overrides message.reactions prop while an API call is
   // in-flight. This prevents Realtime UPDATEs (e.g. award-xp patching xp_awarded) from
@@ -636,6 +737,7 @@ function MessageBubbleImpl({
     const elapsed = Date.now() - imgTouchStartTimeRef.current
     if (elapsed < 250 && !hasMoved.current) {
       e.stopPropagation()
+      setPreviewSrc((message.image_url as string | null | undefined) ?? message.content)
       setPreviewOpen(true)
     }
   }
@@ -645,6 +747,7 @@ function MessageBubbleImpl({
   }
   function handleImageClick(e: React.MouseEvent) {
     e.stopPropagation()
+    setPreviewSrc((message.image_url as string | null | undefined) ?? message.content)
     setPreviewOpen(true)
   }
 
@@ -999,16 +1102,45 @@ function MessageBubbleImpl({
             })()}
 
             {/* Message body */}
-            {message.message_type === 'image' ? (
-              <ImageBubble
-                src={(message.image_url as string | null | undefined) ?? message.content}
-                blurDataURL={(message.image_blur_hash as string | undefined) ?? undefined}
-                onTouchStart={handleImageTouchStart}
-                onTouchEnd={handleImageTouchEnd}
-                onTouchMove={handleImageTouchMove}
-                onClick={handleImageClick}
-              />
-            ) : (
+            {message.message_type === 'image' ? (() => {
+              const imageUrl  = message.image_url as string | null | undefined
+              const blurHash  = message.image_blur_hash as string | null | undefined
+              const multiUrls = parseJsonArray(imageUrl)
+              if (multiUrls) {
+                // Multi-image: grid above optional text caption
+                const multiLqips = parseJsonArray(blurHash) ?? multiUrls.map(() => null)
+                // Don't re-display the fallback URL as text — only show user-typed captions
+                const caption = message.content && !message.content.startsWith('http') ? message.content : null
+                return (
+                  <>
+                    <MultiImageGrid
+                      urls={multiUrls}
+                      lqips={multiLqips}
+                      onTap={(src) => { setPreviewSrc(src); setPreviewOpen(true) }}
+                    />
+                    {caption && (
+                      <p
+                        className="font-body font-normal text-[14px] text-secondary leading-[1.5] w-full select-none"
+                        style={{ fontVariationSettings: '"opsz" 14', WebkitUserSelect: 'none', overflowWrap: 'break-word', minWidth: 0 }}
+                      >
+                        {caption}
+                      </p>
+                    )}
+                  </>
+                )
+              }
+              // Legacy single-image
+              return (
+                <ImageBubble
+                  src={imageUrl ?? message.content}
+                  blurDataURL={blurHash ?? undefined}
+                  onTouchStart={handleImageTouchStart}
+                  onTouchEnd={handleImageTouchEnd}
+                  onTouchMove={handleImageTouchMove}
+                  onClick={handleImageClick}
+                />
+              )
+            })() : (
               <p
                 className="font-body font-normal text-[14px] text-secondary leading-[1.5] w-full select-none"
                 style={{ fontVariationSettings: '"opsz" 14', WebkitUserSelect: 'none', overflowWrap: 'break-word', minWidth: 0 }}
@@ -1101,10 +1233,10 @@ function MessageBubbleImpl({
       {/* ── Full-screen image preview ─────────────────────────────────────── */}
       {mounted && createPortal(
         <AnimatePresence>
-          {previewOpen && (
+          {previewOpen && previewSrc && (
             <ImagePreviewOverlay
-              src={(message.image_url as string | null | undefined) ?? message.content}
-              blurDataURL={(message.image_blur_hash as string | undefined) ?? undefined}
+              src={previewSrc}
+              blurDataURL={undefined}
               alt="Shared image"
               onClose={() => setPreviewOpen(false)}
             />

@@ -810,100 +810,114 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
     const readyImages = pendingImagesRef.current.filter((img) => !!img.publicUrl)
     if (readyImages.length === 0 || sending) return
 
-    // Snapshot before clearing — uploads are done, these URLs are stable
-    const snapshots = readyImages.map((img) => ({ publicUrl: img.publicUrl!, lqip: img.lqip }))
+    const snapshots   = readyImages.map((img) => ({ publicUrl: img.publicUrl!, lqip: img.lqip }))
+    const textContent = sanitizeMessage(textRef.current)
 
     setSending(true)
     setSendError(null)
     clearPendingImages()
+
+    // Clear text field when images and text are sent together
+    if (textContent) {
+      setText('')
+      textRef.current = ''
+      setReplyTo(null)
+      broadcastTyping(false)
+      if (typingTimerRef.current) clearTimeout(typingTimerRef.current)
+      const wasMultiline = isMultilineRef.current
+      setIsMultiline(false)
+      isMultilineRef.current = false
+      if (wasMultiline) pendingCaretPosRef.current = 0
+    }
+
     haptic(10)
 
     const supabase = createClient()
-    let gemToastScheduled = false
+    const urls     = snapshots.map((s) => s.publicUrl)
+    const lqips    = snapshots.map((s) => s.lqip ?? null)
+    // Pack all URLs + LQIPs as JSON so the server stores one message regardless of count.
+    // MessageBubble detects this by JSON.parse(image_url) → array.
+    const imageUrlJson  = JSON.stringify(urls)
+    const imageBlurJson = JSON.stringify(lqips)
+    // content = typed text (shown below images); fall back to first URL for home preview compat
+    const msgContent = textContent || urls[0]
 
-    for (const { publicUrl, lqip } of snapshots) {
-      const tempId = `opt_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
+    const tempId = `opt_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
+    const optimisticMsg: MessageWithProfile = {
+      id:              tempId,
+      crew_id:         crewId,
+      user_id:         userId,
+      content:         msgContent,
+      message_type:    'image',
+      element_type:    null,
+      xp_awarded:      1,
+      reactions:       {},
+      created_at:      new Date().toISOString(),
+      image_url:       imageUrlJson,
+      image_blur_hash: imageBlurJson,
+      profile:         userProfile,
+      tempId,
+    }
+    addMessage(optimisticMsg)
+    if (!isDM) bumpCrewXP()
 
-      const optimisticMsg: MessageWithProfile = {
-        id:              tempId,
-        crew_id:         crewId,
-        user_id:         userId,
-        content:         publicUrl,
-        message_type:    'image',
-        element_type:    null,
-        xp_awarded:      1,
-        reactions:       {},
-        created_at:      new Date().toISOString(),
-        image_url:       publicUrl,
-        image_blur_hash: lqip ?? undefined,
-        profile:         userProfile,
-        tempId,
-      }
-      addMessage(optimisticMsg)
-      if (!isDM) bumpCrewXP()
+    try {
+      const { data: raw, error } = await supabase.rpc('insert_message', {
+        p_crew_id:         crewId,
+        p_content:         msgContent,
+        p_message_type:    'image',
+        p_image_url:       imageUrlJson,
+        p_image_blur_hash: imageBlurJson,
+      })
+      if (error) throw error
+      if (!raw) throw new Error('No message returned from server.')
 
-      try {
-        const { data: raw, error } = await supabase.rpc('insert_message', {
-          p_crew_id:         crewId,
-          p_content:         publicUrl,
-          p_message_type:    'image',
-          p_image_url:       publicUrl,
-          p_image_blur_hash: lqip ?? null,
+      const alreadyAdded = useChatStore.getState().messages.some((m) => m.id === raw.id)
+      if (alreadyAdded) removeMessage(raw.id)
+      updateMessage(tempId, {
+        id: raw.id, created_at: raw.created_at, element_type: raw.element_type,
+        image_url: imageUrlJson, image_blur_hash: imageBlurJson,
+      })
+      setHomeLastMessage(crewId, { content: textContent || raw.content, created_at: raw.created_at, sender: userProfile.username })
+
+      if (channelReadyRef.current) msgChannelRef.current?.send({
+        type: 'broadcast', event: 'new_message',
+        payload: {
+          id: raw.id, crew_id: raw.crew_id, user_id: raw.user_id,
+          content: raw.content, message_type: raw.message_type,
+          element_type: raw.element_type, xp_awarded: raw.xp_awarded,
+          created_at: raw.created_at,
+          image_url: imageUrlJson, image_blur_hash: imageBlurJson,
+        },
+      })
+
+      tryClaimDailyGem(supabase, showGemToast)
+
+      const msgId = raw.id
+      fetch(`${SUPABASE_URL}/functions/v1/award-xp`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
+        body:    JSON.stringify({ message_id: msgId, crew_id: crewId, user_id: userId, username: userProfile.username, message_type: 'image', content: msgContent, mentioned_user_ids: [] }),
+      })
+        .then((r) => r.json())
+        .then((data: { xp_earned?: number; new_total_xp?: number; coins_earned?: number }) => {
+          if (typeof data.xp_earned === 'number') updateMessage(msgId, { xp_awarded: data.xp_earned })
+          if (typeof data.new_total_xp === 'number') {
+            setCrewXP(data.new_total_xp)
+            if (channelReadyRef.current) msgChannelRef.current?.send({
+              type: 'broadcast', event: 'xp_update',
+              payload: { xp_earned: data.xp_earned ?? 0, new_total_xp: data.new_total_xp, sender_id: userId },
+            })
+          }
+          if (typeof data.coins_earned === 'number' && data.coins_earned > 0) addUserCoins(data.coins_earned)
+          callAttackBoss('image', (data.xp_earned ?? 0) === 0 && (data.coins_earned ?? 0) === 0)
         })
-        if (error) throw error
-        if (!raw) throw new Error('No message returned from server.')
+        .catch(() => {})
 
-        const alreadyAdded = useChatStore.getState().messages.some((m) => m.id === raw.id)
-        if (alreadyAdded) removeMessage(raw.id)
-        updateMessage(tempId, {
-          id: raw.id, created_at: raw.created_at, element_type: raw.element_type,
-          image_url: publicUrl, image_blur_hash: lqip ?? undefined,
-        })
-        setHomeLastMessage(crewId, { content: raw.content, created_at: raw.created_at, sender: userProfile.username })
-
-        if (channelReadyRef.current) msgChannelRef.current?.send({
-          type: 'broadcast', event: 'new_message',
-          payload: {
-            id: raw.id, crew_id: raw.crew_id, user_id: raw.user_id,
-            content: raw.content, message_type: raw.message_type,
-            element_type: raw.element_type, xp_awarded: raw.xp_awarded,
-            created_at: raw.created_at,
-            image_url: publicUrl, image_blur_hash: lqip,
-          },
-        })
-
-        // Only claim gem once across the batch
-        if (!gemToastScheduled) {
-          gemToastScheduled = true
-          tryClaimDailyGem(supabase, showGemToast)
-        }
-
-        const msgId = raw.id
-        fetch(`${SUPABASE_URL}/functions/v1/award-xp`, {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
-          body:    JSON.stringify({ message_id: msgId, crew_id: crewId, user_id: userId, username: userProfile.username, message_type: 'image', content: publicUrl, mentioned_user_ids: [] }),
-        })
-          .then((r) => r.json())
-          .then((data: { xp_earned?: number; new_total_xp?: number; coins_earned?: number }) => {
-            if (typeof data.xp_earned === 'number') updateMessage(msgId, { xp_awarded: data.xp_earned })
-            if (typeof data.new_total_xp === 'number') {
-              setCrewXP(data.new_total_xp)
-              if (channelReadyRef.current) msgChannelRef.current?.send({
-                type: 'broadcast', event: 'xp_update',
-                payload: { xp_earned: data.xp_earned ?? 0, new_total_xp: data.new_total_xp, sender_id: userId },
-              })
-            }
-            if (typeof data.coins_earned === 'number' && data.coins_earned > 0) addUserCoins(data.coins_earned)
-            callAttackBoss('image', (data.xp_earned ?? 0) === 0 && (data.coins_earned ?? 0) === 0)
-          })
-          .catch(() => {})
-
-      } catch (err) {
-        console.error('[sendImages]', err)
-        removeMessage(tempId)
-        setSendError(err instanceof Error ? err.message : 'Failed to send image.')
-      }
+    } catch (err) {
+      console.error('[sendImages]', err)
+      removeMessage(tempId)
+      setSendError(err instanceof Error ? err.message : 'Failed to send image.')
     }
 
     setSending(false)
