@@ -1062,11 +1062,16 @@ function SquadCardPreview({ summary }: { summary: CrewSummary }) {
       {/* Group photo — 48×48 box */}
       <div className="flex-shrink-0 w-12 h-12 overflow-hidden flex items-center justify-center">
         {imageUrl ? (
-          <img
-            src={supabaseImageLoader({ src: imageUrl, width: 96, quality: 85 })}
-            alt={crew.name}
-            className="w-full h-full object-cover"
-          />
+          <div className="relative w-full h-full">
+            <Image
+              src={imageUrl}
+              alt={crew.name}
+              fill
+              sizes="48px"
+              className="object-cover"
+              loader={supabaseImageLoader}
+            />
+          </div>
         ) : (
           <img src="/icons/ghost-fallback.svg" alt="" className="w-full h-full" style={{ imageRendering: 'pixelated' }} />
         )}
