@@ -1785,7 +1785,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
         </div>{/* end relative wrapper */}
       </motion.div>
 
-      {/* ── Media picker sheet (Camera / GIF) ── */}
+      {/* ── Media picker sheet (Upload Photo / GIF) ── */}
       <AnimatePresence>
         {showMediaPicker && (
           <>
@@ -1804,27 +1804,63 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
               onDragEnd={(_, info) => { if (info.offset.y > 80 || info.velocity.y > 400) setShowMediaPicker(false) }}
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex flex-col" style={{ paddingTop: 24, paddingBottom: 'max(env(safe-area-inset-bottom), 28px)', gap: 0 }}>
-                <p className="font-silkscreen leading-none" style={{ fontSize: 8, color: 'var(--color-tertiary)', paddingLeft: 16, paddingRight: 16, paddingBottom: 16 }}>
-                  ADD MEDIA
-                </p>
-                <button
-                  onClick={() => { setShowMediaPicker(false); chatImageInputRef.current?.click() }}
-                  disabled={pendingImages.length >= 4}
-                  className="flex items-center w-full active:bg-surface disabled:opacity-30 disabled:cursor-not-allowed"
-                  style={{ gap: 12, paddingLeft: 16, paddingRight: 16, paddingTop: 14, paddingBottom: 14 }}
-                >
-                  <Camera style={{ width: 20, height: 20, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
-                  <span className="font-body font-medium text-[length:var(--text-sm)] text-primary" style={{ fontVariationSettings: '"opsz" 14' }}>Camera</span>
-                </button>
-                <button
-                  onClick={() => { setShowMediaPicker(false); setShowGifPicker(true) }}
-                  className="flex items-center w-full active:bg-surface"
-                  style={{ gap: 12, paddingLeft: 16, paddingRight: 16, paddingTop: 14, paddingBottom: 14 }}
-                >
-                  <GifIcon style={{ width: 20, height: 20, color: 'var(--color-secondary)' }} aria-hidden="true" />
-                  <span className="font-body font-medium text-[length:var(--text-sm)] text-primary" style={{ fontVariationSettings: '"opsz" 14' }}>GIF</span>
-                </button>
+              <div
+                className="flex flex-col"
+                style={{
+                  paddingTop: 'var(--x5, 16px)',
+                  paddingBottom: 'max(env(safe-area-inset-bottom), var(--x8, 28px))',
+                  paddingLeft: 'var(--md, 16px)',
+                  paddingRight: 'var(--md, 16px)',
+                  gap: 'var(--x5, 16px)',
+                }}
+              >
+                {/* Header */}
+                <div className="flex flex-col" style={{ gap: 'var(--x2, 4px)' }}>
+                  <p
+                    className="font-body font-bold text-primary leading-none w-full"
+                    style={{ fontSize: 'var(--md, 16px)', fontVariationSettings: '"opsz" 14' }}
+                  >
+                    Add Dope Sh*t
+                  </p>
+                  <p
+                    className="font-body font-light text-tertiary leading-none w-full"
+                    style={{ fontSize: 'var(--xs, 12px)', fontVariationSettings: '"opsz" 14' }}
+                  >
+                    Express yourself to the squad.
+                  </p>
+                </div>
+
+                {/* Options */}
+                <div className="flex flex-col" style={{ gap: 'var(--x5, 16px)' }}>
+                  <button
+                    onClick={() => { setShowMediaPicker(false); chatImageInputRef.current?.click() }}
+                    disabled={pendingImages.length >= 4}
+                    className="flex items-center w-full bg-black rounded-[8px] disabled:opacity-30 disabled:cursor-not-allowed active:opacity-70"
+                    style={{ gap: 8, padding: 'var(--x5, 16px)' }}
+                  >
+                    <Camera style={{ width: 20, height: 20, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
+                    <span
+                      className="font-body font-semibold text-secondary flex-1 text-left"
+                      style={{ fontSize: 'var(--sm, 14px)', fontVariationSettings: '"opsz" 14', letterSpacing: '0.2px' }}
+                    >
+                      Upload Photo
+                    </span>
+                  </button>
+
+                  <button
+                    onClick={() => { setShowMediaPicker(false); setShowGifPicker(true) }}
+                    className="flex items-center w-full bg-black rounded-[8px] active:opacity-70"
+                    style={{ gap: 8, padding: 'var(--x5, 16px)' }}
+                  >
+                    <GifIcon style={{ width: 20, height: 20, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
+                    <span
+                      className="font-body font-semibold text-secondary flex-1 text-left"
+                      style={{ fontSize: 'var(--sm, 14px)', fontVariationSettings: '"opsz" 14', letterSpacing: '0.2px' }}
+                    >
+                      GIF
+                    </span>
+                  </button>
+                </div>
               </div>
             </motion.div>
           </>
