@@ -904,12 +904,12 @@ function MessageBubbleImpl({
                   {message.profile.username}
                 </span>
 
-                {pinnedVinyl && (
-                  <VinylPill imageUrl={pinnedVinyl.imageUrl} title={pinnedVinyl.title} />
-                )}
-
                 {isCreator && (
                   <Crown style={{ width: 12, height: 12, color: 'var(--color-coins)', flexShrink: 0 }} />
+                )}
+
+                {pinnedVinyl && (
+                  <VinylPill imageUrl={pinnedVinyl.imageUrl} title={pinnedVinyl.title} />
                 )}
               </div>
 
