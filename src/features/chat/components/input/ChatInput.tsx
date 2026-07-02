@@ -1936,11 +1936,6 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
               sessionStorage.setItem('nexus_chat_from', 'chat')
               router.push(`/chat/${crewId}/member/${memberId}`)
             }}
-            onDMPress={(memberId) => {
-              setIsExpanded(false)
-              router.push(`/dm/${memberId}`)
-            }}
-            onRemoveMember={(member) => setRemoveTarget(member as MemberProfile)}
             onLeave={handleLeaveSquad}
             onClose={() => setIsExpanded(false)}
           />

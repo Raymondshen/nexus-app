@@ -12,8 +12,6 @@ import { ChevronRight } from 'pixelarticons/react/ChevronRight'
 import { Crown } from 'pixelarticons/react/Crown'
 import { Copy } from 'pixelarticons/react/Copy'
 import { Check } from 'pixelarticons/react/Check'
-import { UserX } from 'pixelarticons/react/UserX'
-import { MailRight } from 'pixelarticons/react/MailRight'
 import { Message } from 'pixelarticons/react/Message'
 import { Upload } from 'pixelarticons/react/Upload'
 
@@ -52,8 +50,6 @@ interface SquadDetailsSheetProps {
   onUploadBackground?:     () => void
   onSave:                  (newName: string) => Promise<void>
   onTapMember:             (memberId: string) => void
-  onDMPress?:              (memberId: string) => void
-  onRemoveMember?:         (member: MiniMember) => void
   onLeave?:                () => void
   onClose:                 () => void
 }
@@ -111,10 +107,10 @@ function StatusTicker({ status }: { status: string }) {
 }
 
 function MemberListRow({
-  profile, msgCount, loading, isOnline, isCreator, onTap, onDM, onRemove,
+  profile, msgCount, loading, isOnline, isCreator, onTap,
 }: {
   profile: MiniMember; msgCount: number; loading: boolean; isOnline: boolean
-  isCreator?: boolean; onTap?: () => void; onDM?: () => void; onRemove?: () => void
+  isCreator?: boolean; onTap?: () => void
 }) {
   const spriteInfo = spriteInfoFor(profile.avatar_class ?? null)
   const url        = profile.avatar_url
@@ -166,29 +162,6 @@ function MemberListRow({
           </p>
         </div>
 
-        {/* Action buttons: remove (creator only) + DM */}
-        <div className="flex items-center flex-shrink-0" style={{ gap: 16 }}>
-          {onRemove && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onRemove() }}
-              className="flex items-center justify-center active:opacity-70 transition-opacity"
-              style={{ width: 24, height: 24 }}
-              aria-label={`Remove ${profile.username}`}
-            >
-              <UserX style={{ width: 24, height: 24, color: 'var(--color-danger)' }} aria-hidden="true" />
-            </button>
-          )}
-          {onDM && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onDM() }}
-              className="flex items-center justify-center active:opacity-70 transition-opacity"
-              style={{ width: 24, height: 24 }}
-              aria-label={`Message ${profile.username}`}
-            >
-              <MailRight style={{ width: 24, height: 24, color: 'var(--color-secondary)' }} aria-hidden="true" />
-            </button>
-          )}
-        </div>
       </div>
 
       {/* Status ticker */}
@@ -440,8 +413,8 @@ export function SquadDetailsSheet({
   crewId, crewName, memberCount, crewImageUrl, crewBackgroundImageUrl, members, onlineUserIds,
   crewXP, crewLevel, xpProgress, totalMessages, inviteCode, creatorId,
   currentUserId, memberMsgCounts, loadingCounts,
-  onUploadPhoto, onUploadBackground, onSave, onTapMember, onDMPress,
-  onRemoveMember, onLeave, onClose,
+  onUploadPhoto, onUploadBackground, onSave, onTapMember,
+  onLeave, onClose,
 }: SquadDetailsSheetProps) {
   const [copied,        setCopied]        = useState(false)
   const [showSquadEdit, setShowSquadEdit] = useState(false)
@@ -507,7 +480,7 @@ export function SquadDetailsSheet({
 
       {/* Sheet */}
       <motion.div
-        className="absolute bottom-0 left-0 right-0 z-[70] bg-[var(--color-surface-sheet)] rounded-tl-[16px] rounded-tr-[16px] flex flex-col"
+        className="absolute bottom-0 left-0 right-0 z-[70] bg-[var(--color-surface-sheet)] rounded-tl-[16px] rounded-tr-[16px] flex flex-col overflow-hidden"
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
@@ -516,10 +489,10 @@ export function SquadDetailsSheet({
         onPanEnd={handlePanelPanEnd}
       >
 
-        {/* ── Group Header (180px, full-bleed) ── */}
+        {/* ── Group Header (240px, full-bleed) ── */}
         <div
           className="relative flex flex-col justify-between overflow-hidden flex-shrink-0 rounded-tl-[16px] rounded-tr-[16px]"
-          style={{ height: 180, padding: 16 }}
+          style={{ height: 240, padding: 16 }}
         >
           {/* Background */}
           {crewBackgroundImageUrl ? (
@@ -544,7 +517,7 @@ export function SquadDetailsSheet({
 
           {/* Top row: image+name | action buttons */}
           <div className="relative flex items-start justify-between">
-            <div className="flex items-center flex-1 min-w-0" style={{ gap: 16 }}>
+            <div className="flex items-center flex-1 min-w-0" style={{ gap: 8 }}>
               {/* 40×40 crew image */}
               <div className="relative flex-shrink-0 overflow-hidden" style={{ width: 40, height: 40 }}>
                 {crewImageUrl ? (
@@ -555,8 +528,8 @@ export function SquadDetailsSheet({
                   <div className="w-full h-full bg-purple" />
                 )}
               </div>
-              {/* Name + member count */}
-              <div className="flex flex-col min-w-0" style={{ gap: 4 }}>
+              {/* Name + level · member count */}
+              <div className="flex flex-col min-w-0" style={{ gap: 2 }}>
                 <p
                   className="font-body font-black leading-none truncate uppercase"
                   style={{ fontSize: 'var(--text-md)', color: 'var(--color-secondary)', fontVariationSettings: '"opsz" 14' }}
@@ -564,7 +537,7 @@ export function SquadDetailsSheet({
                   {crewName}
                 </p>
                 <p className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>
-                  {memberCount} {memberCount === 1 ? 'member' : 'members'}
+                  Lv.{crewLevel} · {memberCount} {memberCount === 1 ? 'member' : 'members'}
                 </p>
               </div>
             </div>
@@ -620,14 +593,36 @@ export function SquadDetailsSheet({
           </div>
         </div>
 
-        {/* ── Scrollable content ── */}
+        {/* ── Members section (flex-1, member rows scroll independently) ── */}
+        <div className="flex-1 min-h-0 flex flex-col" style={{ padding: 16, paddingBottom: 0, gap: 20 }}>
+          <p className="flex-shrink-0 font-silkscreen leading-none" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-primary)' }}>
+            Members
+          </p>
+          {/* Scrollable member list — max 5 rows (5×32px + 4×20px gap = 240px) */}
+          <div
+            ref={scrollRef}
+            className="overflow-y-auto nexus-scroll flex flex-col"
+            style={{ gap: 20, maxHeight: 240 }}
+          >
+            {sortedMembers.map((m) => (
+              <MemberListRow
+                key={m.id}
+                profile={m}
+                msgCount={memberMsgCounts.get(m.id) ?? 0}
+                loading={loadingCounts}
+                isOnline={onlineUserIds.has(m.id)}
+                isCreator={m.id === creatorId}
+                onTap={() => onTapMember(m.id)}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* ── Fixed bottom: invite code card + leave squad ── */}
         <div
-          ref={scrollRef}
-          className="flex-1 overflow-y-auto nexus-scroll flex flex-col min-h-0"
+          className="flex-shrink-0 flex flex-col"
           style={{
-            paddingTop:    16,
-            paddingLeft:   16,
-            paddingRight:  16,
+            padding:       16,
             paddingBottom: 'max(env(safe-area-inset-bottom), 28px)',
             gap:           16,
           }}
@@ -635,7 +630,7 @@ export function SquadDetailsSheet({
           {/* Invite code card */}
           {inviteCode && (
             <div
-              className="flex items-center justify-between bg-[var(--color-surface)] border border-[var(--color-border)] flex-shrink-0"
+              className="flex items-center justify-between bg-[var(--color-surface)] border border-[var(--color-border)]"
               style={{ padding: 16 }}
             >
               <div className="flex flex-col" style={{ gap: 4 }}>
@@ -680,36 +675,12 @@ export function SquadDetailsSheet({
             </div>
           )}
 
-          {/* Members section */}
-          <div className="flex flex-col flex-shrink-0" style={{ gap: 20 }}>
-            <p className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-primary)' }}>
-              Members
-            </p>
-            {sortedMembers.map((m) => (
-              <MemberListRow
-                key={m.id}
-                profile={m}
-                msgCount={memberMsgCounts.get(m.id) ?? 0}
-                loading={loadingCounts}
-                isOnline={onlineUserIds.has(m.id)}
-                isCreator={m.id === creatorId}
-                onTap={() => onTapMember(m.id)}
-                onDM={onDMPress && m.id !== currentUserId ? () => onDMPress(m.id) : undefined}
-                onRemove={
-                  currentUserId === creatorId && m.id !== currentUserId && !!inviteCode && onRemoveMember
-                    ? () => onRemoveMember(m)
-                    : undefined
-                }
-              />
-            ))}
-          </div>
-
           {/* Leave Squad button */}
           {onLeave && (
             <button
               type="button"
               onClick={onLeave}
-              className="w-full flex items-center justify-center flex-shrink-0 active:opacity-70 transition-opacity"
+              className="w-full flex items-center justify-center active:opacity-70 transition-opacity"
               style={{ height: 48, border: '1px solid var(--color-red)', gap: 8 }}
               aria-label="Leave squad"
             >
