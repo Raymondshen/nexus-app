@@ -113,7 +113,7 @@ function MultiImageCell({
   )
 }
 
-// Figma 384:3084 — horizontal row, gap 8px (var(--x3)), overflow hidden, full width
+// Figma 384:3084 — horizontal row, gap 8px (var(--x3)), scrollable when >3 images
 function MultiImageGrid({
   urls, lqips, onTap,
 }: {
@@ -121,9 +121,16 @@ function MultiImageGrid({
   lqips: (string | null)[]
   onTap: (src: string) => void
 }) {
+  const scrollable = urls.length > 3
   return (
-    <div style={{ display: 'flex', gap: 'var(--x3)', overflow: 'hidden', width: '100%', flexShrink: 0 }}>
-      {urls.slice(0, 4).map((url, i) => (
+    <div style={{
+      display: 'flex',
+      gap: 'var(--x3)',
+      overflow: scrollable ? 'auto' : 'hidden',
+      width: '100%',
+      flexShrink: 0,
+    }}>
+      {urls.map((url, i) => (
         <MultiImageCell key={i} src={url} lqip={lqips[i] ?? null} onTap={onTap} />
       ))}
     </div>
