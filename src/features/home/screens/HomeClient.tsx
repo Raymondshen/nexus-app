@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { motion, AnimatePresence, useMotionValue, animate } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
 import { Upload } from 'pixelarticons/react/Upload'
@@ -1167,47 +1167,25 @@ function DmNotificationPreviewCard({ dmUnread, onTap }: { dmUnread: number; onTa
 
 // ─── Swipeable crew card ──────────────────────────────────────────────────────
 
-const LEAVE_BTN_WIDTH = 40
-const LEAVE_GAP       = 16  // var(--x5) gap between card and button (Figma 189-2385)
-const LEAVE_REVEAL    = LEAVE_BTN_WIDTH + LEAVE_GAP
+const SWIPE_OPEN_THRESHOLD = 40
 
 function SwipeableCrewCard({
   summary,
   onTap,
-  onLeaveRequest,
-  openCardId,
-  onOpen,
   onLongPress,
 }: {
-  summary:        CrewSummary
-  onTap:          () => void
-  onLeaveRequest: () => void
-  openCardId:     string | null
-  onOpen:         (id: string) => void
-  onLongPress:    () => void
+  summary:     CrewSummary
+  onTap:       () => void
+  onLongPress: () => void
 }) {
   const router          = useRouter()
-  const x           = useMotionValue(0)
-  const [open, setOpen] = useState(false)
   const wasDragging    = useRef(false)
   const longPressRef   = useRef<ReturnType<typeof setTimeout> | null>(null)
   const longPressedRef = useRef(false)
   const pointerStartRef = useRef<{ x: number; y: number } | null>(null)
 
-  useEffect(() => {
-    if (openCardId !== summary.crew.id) {
-      animate(x, 0, { type: 'spring', stiffness: 300, damping: 28 })
-      setOpen(false)
-    }
-  }, [openCardId]) // eslint-disable-line react-hooks/exhaustive-deps
-
   // Clear any pending timer on unmount
   useEffect(() => () => { if (longPressRef.current) clearTimeout(longPressRef.current) }, [])
-
-  function snapTo(target: number, isOpen: boolean) {
-    animate(x, target, { type: 'spring', stiffness: 300, damping: 28 })
-    setOpen(isOpen)
-  }
 
   function handleDragEnd(_: unknown, info: PanInfo) {
     // Only mark as dragged when the finger actually moved — Framer Motion fires
@@ -1218,10 +1196,9 @@ function SwipeableCrewCard({
       wasDragging.current = true
       setTimeout(() => { wasDragging.current = false }, 50)
     }
-    if (info.offset.x < -(LEAVE_REVEAL / 2)) {
-      snapTo(-LEAVE_REVEAL, true)
-    } else {
-      snapTo(0, false)
+    // Swipe-left past threshold → open squad details sheet (same as long-press)
+    if (info.offset.x < -SWIPE_OPEN_THRESHOLD) {
+      onLongPress()
     }
   }
 
@@ -1231,11 +1208,7 @@ function SwipeableCrewCard({
       longPressedRef.current = false
       return
     }
-    if (open) {
-      snapTo(0, false)
-    } else {
-      onTap()
-    }
+    onTap()
   }
 
   function cancelLongPress() {
@@ -1266,45 +1239,22 @@ function SwipeableCrewCard({
   }
 
   return (
-    <div className="overflow-hidden">
-      <motion.div
-        className="flex items-center"
-        drag="x"
-        dragConstraints={{ left: -LEAVE_REVEAL, right: 0 }}
-        dragElastic={{ left: 0.05, right: 0.1 }}
-        style={{ x, width: `calc(100% + ${LEAVE_REVEAL}px)`, gap: LEAVE_GAP }}
-        onDragStart={() => { cancelLongPress(); onOpen(summary.crew.id) }}
-        onDragEnd={handleDragEnd}
-      >
-        <motion.div
-          className="flex-1 min-w-0 bg-black cursor-pointer"
-          onClick={handleClick}
-          whileTap={{ scale: open ? 1 : 0.98 }}
-          onPointerDown={handlePointerDown}
-          onPointerUp={cancelLongPress}
-          onPointerLeave={cancelLongPress}
-          onPointerMove={handlePointerMove}
-        >
-          <SquadCardPreview summary={summary} />
-        </motion.div>
-
-        <button
-          className="flex-shrink-0 flex items-center justify-center bg-[var(--red)] p-[12px] overflow-hidden rounded-[8px]"
-          style={{ width: LEAVE_BTN_WIDTH }}
-          onClick={(e) => { e.stopPropagation(); snapTo(0, false); onLeaveRequest() }}
-          tabIndex={open ? 0 : -1}
-          aria-label={`Leave ${summary.crew.name}`}
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/icons/leave-pixel.svg"
-            alt=""
-            aria-hidden="true"
-            style={{ width: 16, height: 16, imageRendering: 'pixelated', maxWidth: 'none' }}
-          />
-        </button>
-      </motion.div>
-    </div>
+    <motion.div
+      className="bg-black cursor-pointer"
+      drag="x"
+      dragConstraints={{ left: 0, right: 0 }}
+      dragElastic={{ left: 0.25, right: 0 }}
+      onDragStart={cancelLongPress}
+      onDragEnd={handleDragEnd}
+      onClick={handleClick}
+      whileTap={{ scale: 0.98 }}
+      onPointerDown={handlePointerDown}
+      onPointerUp={cancelLongPress}
+      onPointerLeave={cancelLongPress}
+      onPointerMove={handlePointerMove}
+    >
+      <SquadCardPreview summary={summary} />
+    </motion.div>
   )
 }
 
@@ -1753,7 +1703,6 @@ export function HomeClient({
     })
   )
   const [showCreate,        setShowCreate]        = useState(false)
-  const [openCardId,        setOpenCardId]        = useState<string | null>(null)
   const [detailsTarget,     setDetailsTarget]     = useState<CrewSummary | null>(null)
   const [leaveTarget,       setLeaveTarget]       = useState<CrewSummary | null>(null)
   const [leaving,           setLeaving]           = useState(false)
@@ -2084,10 +2033,7 @@ export function HomeClient({
                   <SwipeableCrewCard
                     summary={summary}
                     onTap={() => handleCrewTap(summary.crew.id)}
-                    onLeaveRequest={() => { setLeaveTarget(summary); setLeaveError(null) }}
                     onLongPress={() => setDetailsTarget(summary)}
-                    openCardId={openCardId}
-                    onOpen={setOpenCardId}
                   />
                 </motion.div>
               ))}
