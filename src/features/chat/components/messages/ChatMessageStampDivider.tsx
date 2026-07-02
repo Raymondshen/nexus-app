@@ -1,6 +1,6 @@
 export function ChatMessageStampDivider({ label }: { label: string }) {
   return (
-    <div className="relative w-full my-[var(--x2)]">
+    <div className="relative w-full mt-[var(--x6)]">
       {/* Full-width 1px line centered on the label */}
       <div className="absolute inset-x-0 top-1/2 border-t border-[var(--color-border)]" />
       {/* Label with background cutout over the line */}

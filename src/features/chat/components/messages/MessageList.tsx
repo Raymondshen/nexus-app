@@ -987,7 +987,7 @@ export function MessageList({
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="flex-1 min-h-0 h-full overflow-y-auto px-4 pb-4 nexus-scroll chat-no-select"
+        className="flex-1 min-h-0 h-full overflow-y-auto px-[var(--x5)] pb-[var(--x5)] nexus-scroll chat-no-select"
         style={{ contain: 'strict' }}
       >
         {/* Total scroll height governed by the virtualizer */}
