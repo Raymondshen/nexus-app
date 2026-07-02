@@ -49,7 +49,7 @@ function MultiImageCell({
   const isGif = /\.gif(\?|$)/i.test(src) || src.includes('static.klipy.com')
   return (
     <div
-      style={{ position: 'relative', width: 80, height: 80, overflow: 'hidden', flexShrink: 0, cursor: 'pointer' }}
+      style={{ position: 'relative', width: 160, height: 160, overflow: 'hidden', flexShrink: 0, cursor: 'pointer' }}
       onClick={(e) => { e.stopPropagation(); onTap(src) }}
     >
       {isGif ? (
@@ -60,7 +60,7 @@ function MultiImageCell({
           src={src}
           alt="shared image"
           fill
-          sizes="80px"
+          sizes="160px"
           className="object-cover"
           loader={supabaseImageLoader}
           placeholder={lqip ? 'blur' : 'empty'}
