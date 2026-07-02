@@ -58,7 +58,7 @@ export function ChatSheetReact({
         onClick={(e) => e.stopPropagation()}
         style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 28px)' }}
       >
-        <div className="flex flex-col" style={{ gap: 24, paddingTop: 24, paddingLeft: 16, paddingRight: 16 }}>
+        <div className="flex flex-col" style={{ gap: 16, paddingTop: 16, paddingLeft: 16, paddingRight: 16 }}>
 
           {/* Emoji quick-pick row — 6 circles, justify-between */}
           <div className="flex items-center justify-between w-full" style={{ paddingLeft: 1, paddingRight: 1 }}>
@@ -73,7 +73,7 @@ export function ChatSheetReact({
                     width:        40,
                     height:       40,
                     borderRadius: '50%',
-                    background:   active ? 'var(--color-purple)' : 'var(--color-surface)',
+                    background:   active ? 'var(--color-purple)' : 'var(--color-background)',
                     fontSize:     20,
                     lineHeight:   1,
                     transform:    active ? 'scale(1.1)' : undefined,
@@ -92,9 +92,9 @@ export function ChatSheetReact({
               <button
                 onClick={onEdit}
                 className="w-full flex items-center"
-                style={{ background: 'var(--color-surface)', borderRadius: 8, padding: 16, gap: 8 }}
+                style={{ background: 'var(--color-background)', borderRadius: 8, padding: 16, gap: 8 }}
               >
-                <MagicEdit style={{ width: 24, height: 20, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
+                <MagicEdit style={{ width: 20, height: 20, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
                 <span
                   className="flex-1 font-body font-semibold text-secondary leading-normal text-left tracking-[0.2px]"
                   style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
@@ -107,9 +107,9 @@ export function ChatSheetReact({
             <button
               onClick={onReply}
               className="w-full flex items-center"
-              style={{ background: 'var(--color-surface)', borderRadius: 8, padding: 16, gap: 8 }}
+              style={{ background: 'var(--color-background)', borderRadius: 8, padding: 16, gap: 8 }}
             >
-              <CornerUpLeft style={{ width: 24, height: 20, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
+              <CornerUpLeft style={{ width: 20, height: 20, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
               <span
                 className="flex-1 font-body font-semibold text-secondary leading-normal text-left tracking-[0.2px]"
                 style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
@@ -121,9 +121,9 @@ export function ChatSheetReact({
             <button
               onClick={onCopy}
               className="w-full flex items-center"
-              style={{ background: 'var(--color-surface)', borderRadius: 8, padding: 16, gap: 8 }}
+              style={{ background: 'var(--color-background)', borderRadius: 8, padding: 16, gap: 8 }}
             >
-              <Copy style={{ width: 24, height: 20, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
+              <Copy style={{ width: 20, height: 20, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
               <span
                 className="flex-1 font-body font-semibold text-secondary leading-normal text-left tracking-[0.2px]"
                 style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
@@ -136,9 +136,9 @@ export function ChatSheetReact({
               <button
                 onClick={onOpenPin}
                 className="w-full flex items-center"
-                style={{ background: 'var(--color-surface)', borderRadius: 8, padding: 16, gap: 8 }}
+                style={{ background: 'var(--color-background)', borderRadius: 8, padding: 16, gap: 8 }}
               >
-                <Note style={{ width: 24, height: 20, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
+                <Note style={{ width: 20, height: 20, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
                 <span
                   className="flex-1 font-body font-semibold text-secondary leading-normal text-left tracking-[0.2px]"
                   style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}

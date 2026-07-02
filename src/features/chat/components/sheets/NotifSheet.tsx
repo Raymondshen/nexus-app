@@ -78,7 +78,7 @@ export function NotifSheet({
         dragElastic={{ top: 0, bottom: 1 }}
         onDragEnd={(_, info) => { if (info.offset.y > 80 || info.velocity.y > 400) onClose() }}
         className="relative w-full max-w-[480px] bg-[var(--color-surface-sheet)] rounded-tl-[16px] rounded-tr-[16px] flex flex-col overflow-hidden"
-        style={{ gap: 24, paddingTop: 24, paddingLeft: 16, paddingRight: 16, paddingBottom: 'max(env(safe-area-inset-bottom), 28px)' }}
+        style={{ gap: 16, paddingTop: 16, paddingLeft: 16, paddingRight: 16, paddingBottom: 'max(env(safe-area-inset-bottom), 28px)' }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -90,7 +90,7 @@ export function NotifSheet({
             Notifications
           </h2>
           <p
-            className="font-body font-normal leading-normal"
+            className="font-body font-light leading-none"
             style={{ fontSize: 12, color: 'var(--color-tertiary)', fontVariationSettings: '"opsz" 14' }}
           >
             Control what pulls you back into the chat.
