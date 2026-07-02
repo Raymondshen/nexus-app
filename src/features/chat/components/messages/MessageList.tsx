@@ -14,6 +14,7 @@ import { createClient } from '@/shared/supabase/client'
 import { useChatStore } from '@/store/chatStore'
 import { useCombatStore } from '@/store/combatStore'
 import { MessageBubble } from './MessageBubble'
+import { ChatMessageStampDivider } from './ChatMessageStampDivider'
 import { ArrowBarDown } from 'pixelarticons/react/ArrowBarDown'
 import type { MessageWithProfile, Message, Profile, AvatarClass, SquadDefinition, SquadDefinitionWithCreator, CombatEvent, CombatEventKind } from '@/types'
 
@@ -903,13 +904,7 @@ export function MessageList({
     }
 
     if (item.kind === 'divider') {
-      return (
-        <div className="flex items-center gap-3 my-2">
-          <div className="flex-1 border-t border-[#1a1a2e]" />
-          <span className="font-pixel text-[7px] text-[#2a1545]">{item.label}</span>
-          <div className="flex-1 border-t border-[#1a1a2e]" />
-        </div>
-      )
+      return <ChatMessageStampDivider label={item.label} />
     }
 
     // item.kind === 'message'
