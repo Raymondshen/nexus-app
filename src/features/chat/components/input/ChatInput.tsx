@@ -23,7 +23,7 @@ import { Chart } from 'pixelarticons/react/Chart'
 import { Plus } from 'pixelarticons/react/Plus'
 import { Camera } from 'pixelarticons/react/Camera'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
-import { CornerDownRight } from 'pixelarticons/react/CornerDownRight'
+import { CornerUpLeft } from 'pixelarticons/react/CornerUpLeft'
 import { Close } from 'pixelarticons/react/Close'
 import { MagicEdit } from 'pixelarticons/react/MagicEdit'
 import { GifIcon } from '@/shared/icons/GifIcon'
@@ -1529,15 +1529,14 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
             className="flex items-center w-full"
             style={{ background: 'var(--color-surface)', padding: 16, gap: 8, marginBottom: 8 }}
           >
-            <CornerDownRight style={{ width: 16, height: 16, color: 'var(--color-tertiary)', flexShrink: 0 }} aria-hidden="true" />
+            <CornerUpLeft style={{ width: 16, height: 16, color: 'var(--color-tertiary)', flexShrink: 0 }} aria-hidden="true" />
 
-            {/* msg wrapper — flex-[1_0_0] with fixed 12px height clamp, matches Figma */}
-            <div style={{ flex: '1 0 0', minWidth: 1, height: 12, overflow: 'hidden', display: 'flex', alignItems: 'center' }}>
+            {/* msg wrapper — flex-[1_0_0], no height clamp so text is never clipped */}
+            <div style={{ flex: '1 0 0', minWidth: 1, display: 'flex', alignItems: 'center' }}>
               <p
                 className="font-body font-medium leading-[0] tracking-[0.1px] whitespace-nowrap overflow-hidden text-ellipsis w-full"
-                style={{ fontSize: 12, minWidth: 1, color: 'var(--color-primary)', fontVariationSettings: '"opsz" 14' }}
+                style={{ fontSize: 12, minWidth: 1, fontVariationSettings: '"opsz" 14' }}
               >
-                <span className="leading-none">Replying </span>
                 <span className="leading-none" style={{ color: 'var(--color-purple)' }}>@{replyTo.profile?.username ?? replyTo.reply_username ?? '???'} </span>
                 {(() => {
                   const preview = replyTo.content?.trim() || (replyTo.image_url ? '(photo)' : null)
@@ -1668,10 +1667,14 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                     transition={{ duration: 0.18, ease: 'easeOut' }}
                     style={{ overflow: 'hidden' }}
                   >
-                    {/* 60×60 image slots — gap 8px, matches Figma */}
-                    <div className="flex items-start" style={{ gap: 8 }}>
+                    {/* 80×80 image slots — gap 8px, overflow clips 4th at narrow widths */}
+                    <div className="flex items-start" style={{ gap: 8, overflow: 'hidden' }}>
                       {pendingImages.map((img) => (
-                        <div key={img.id} className="relative flex-shrink-0" style={{ width: 60, height: 60 }}>
+                        <div
+                          key={img.id}
+                          className="relative flex-shrink-0"
+                          style={{ width: 80, height: 80, background: 'var(--color-surface)' }}
+                        >
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
                             src={img.localUrl}
@@ -1688,20 +1691,18 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                               <span className="font-pixel text-[5px] text-white leading-none text-center px-1">ERR</span>
                             </div>
                           )}
-                          {/* Close button — top-right, 2px inset, matches Figma */}
+                          {/* Close button — 16×16 white circle, 4px inset from top-right */}
                           <button
                             onClick={() => removePendingImage(img.id)}
                             className="absolute flex items-center justify-center active:opacity-70"
-                            style={{ top: 2, right: 2, width: 16, height: 16, background: 'rgba(0,0,0,0.65)' }}
+                            style={{ top: 4, right: 4, width: 16, height: 16, background: 'var(--color-primary)', borderRadius: '50%' }}
                             aria-label="Remove image"
                           >
-                            <Close style={{ width: 10, height: 10, color: 'var(--color-primary)' }} aria-hidden="true" />
+                            <Close style={{ width: 10, height: 10, color: '#000' }} aria-hidden="true" />
                           </button>
                         </div>
                       ))}
                     </div>
-                    {/* Divider between image tray and text row */}
-                    <div style={{ height: 1, background: 'var(--color-border)', marginTop: 16 }} />
                   </motion.div>
                 )}
               </AnimatePresence>
