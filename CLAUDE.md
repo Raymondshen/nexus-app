@@ -273,7 +273,7 @@ src/
 - **Cursor pagination**: scroll-up within 120px → `fetchOlderMessages` — keyset `WHERE created_at < cursor ORDER BY created_at DESC LIMIT 50`; batches prepended via `chatStore.prependMessages`
 - **Scroll restoration after prepend**: capture `scrollTop` + `virtualizer.getTotalSize()` before prepend; in `useBrowserLayoutEffect` set `el.scrollTop = prevScrollTop + (newTotalSize - prevTotalSize)`
 - **Display items**: single merged `useMemo` pass returns both `groupXPMap` and `groupCoinMap`; builds typed `DisplayItem[]` — `spacer | empty | divider | boss | artifact | level_up | message`; group leader gets `xpOverride` / `coinOverride`. System messages starting with `COMBAT:` or `BOSS_SPAWN:` always skipped — shown in `CombatLog` inside HUD.
-- Postgres Changes UPDATE: skip `reactions:{}` when local has reactions (award-xp race); patch also picks up pin fields
+- Postgres Changes UPDATE: patches `content` (edit propagation), `xp_awarded`, `element_type`, pin fields; skips `reactions:{}` when local has reactions (award-xp race)
 - **Combat HP/phase source of truth**: system message INSERTs patch combatStore (`COMBAT:attack/volley/backstab/cast` → `patchRaid({ current_hp })`; `COMBAT:phase` → `patchRaid({ phase })`; `COMBAT:victory/escaped` → `setActiveRaid(null)`). More reliable than `active_raids` UPDATEs which arrive out of order.
 
 ### MessageBubble — text rendering
@@ -283,7 +283,7 @@ Avatar images (32px primary, 16px reply) use `avatarImageLoader` — forces 1:1 
 
 Reply row: `CornerDownRight` icon uses `var(--color-tertiary)` (muted). Reply avatar is 16×16 with `object-cover` + `avatarImageLoader`.
 
-Long-press sheet (500ms / right-click) → emoji quick-pick + Reply + Copy Text + Pin (admin only). `PinDurationSheet` portal opens when pin tapped.
+Long-press sheet (500ms / right-click) → emoji quick-pick + Edit Message (own `text`-type messages only) + Reply + Copy Text + Pin (admin only). `PinDurationSheet` portal opens when pin tapped.
 
 OG previews: `extractFirstUrl` → `useOGPreview` hook → `<LinkPreviewCard>` below body; text-only messages without `image_url` only.
 
@@ -303,6 +303,7 @@ Only fires on `!isOwn` messages. Swipe left past `SWIPE_THRESHOLD` (64px) to com
 ### ChatInput
 - Props: `{ crewId, userId, userProfile, memberProfiles, crewName, inviteCode?, creatorId?, isDM?, crewImageUrl?, crewBackgroundImageUrl? }`
 - Send flow: `addMessage(optimisticMsg)` synchronously (with `tempId`) → `insert_message` RPC → reconcile: `updateMessage(tempId, { id: raw.id })` in place (never remove-and-reinsert) → broadcast → `award-xp` → `attack-boss`; on RPC error `removeMessage(tempId)` rollback
+- **Edit mode**: `chatStore.editTo` holds the message being edited. Set by `MessageBubble` long-press → "Edit Message" in `ChatSheetReact`; cleared on send, cancel, or unmount. `handleEditSend`: optimistic `updateMessage(id, { content })` → `supabase.from('messages').update({ content }).eq('id').eq('user_id', userId)`; rollback to `prevContent` on error. No-op if content unchanged. Edit bar UI rendered above reply bar when `editTo` is set (`MagicEdit` 16×16 + "Editing message" label + `Close` dismiss button). Send button and Enter key both route to `handleEditSend` when in edit mode. Only `text`-type messages are editable — image/GIF messages are excluded.
 - Input row (inactive): `GifIcon` 24×24 + `Attachment` 24×24 outside border box, 16px gaps; border `#27272a`. Focused: icons slide out (`width→0`), border → `--color-purple`. When `nexus_poll_feature` is ON, a third `Chart` 24×24 icon appears (width→104, else 64).
 - Photo upload: `Attachment` icon always visible; tapping directly triggers `chatImageInputRef.current?.click()` — no dev gate. Preview bar shows whenever `chatImageLocalUrl` is set.
 - Poll feature: dev-gated (`nexus_poll_feature`). When enabled, `Chart` icon appears in left group; tapping opens `PollCreatorSheet`. Toggle in `/profile/developer` Features section.
@@ -394,7 +395,7 @@ Single variant only — no pinned or multi-item mode. Props: `text: string`, `ic
 - Group chat list section: label = "Group chat" (font-silkscreen text-xs primary); card gap = 20px; label-to-list gap = 20px
 
 ### HomeCrewDetailsSheet (`HomeClient`)
-Triggered by long-press (500ms) on a crew card. Standard bottom sheet pattern (z-[60]/z-[70], spring 320/32, drag-to-dismiss).
+Triggered by long-press (500ms) **or swipe-left** (past `SWIPE_OPEN_THRESHOLD = 40px`) on a crew card. Standard bottom sheet pattern (z-[60]/z-[70], spring 320/32, drag-to-dismiss). Swipe-left uses `dragConstraints={{ left: 0, right: 0 }}` + `dragElastic={{ left: 0.25 }}` for rubber-band feel; snaps back on release regardless of distance, opens sheet only when `offset.x < -40`. Leave squad is **only** accessible inside this sheet — there is no swipe-to-reveal leave button.
 
 Layout (flex col, `max-h: 85vh`, `overflow-hidden`):
 1. **Group header** (180px, `flex-shrink-0`) — background image + `linear-gradient(180deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.604) 33%, rgba(0,0,0,0.6) 66%, rgba(0,0,0,0.8) 100%)` overlay; top row: 40×40 crew image + crew name (DM Sans Black md secondary uppercase) + member count (Silkscreen mini secondary) | ChevronRight rotated 90° close; bottom: XP text (Silkscreen mini) + 4px progress bar (bg-purple)
@@ -681,4 +682,4 @@ ALTER TABLE crews ADD COLUMN IF NOT EXISTS background_image_url text;
 - `init_combat_members` only creates rows for `profiles.is_dev = true` AND `crew_members.class` is a combat class. A dev user with a chat class (e.g., `berserker`) gets no combat row — update `crew_members.class` to a combat class.
 - **`RETURNS TABLE` creates implicit output variables that shadow same-named columns.** `RETURNS TABLE(..., defeated_at timestamptz)` makes `WHERE defeated_at IS NULL` ambiguous (PostgreSQL `42702`). Always qualify: `active_raids.defeated_at`.
 - **iOS Safari clears sessionStorage when a PWA is killed and relaunched.** The message cache uses IDB as a persistent mirror (`idb-keyval`). Always write to both; read sessionStorage first (sync) then fall back to IDB (async, ~5ms). Never rely on sessionStorage alone for data that must survive app kill.
-- **`SwipeableCrewCard` (HomeClient)**: `wasDragging` flag is set in `onDragEnd` only when `|offset.x| > 5px`, not in `onDragStart`. Setting it in `onDragStart` caused the double-tap bug (Framer fires `onDragStart` for micro-movements, which blocked `onClick`).
+- **`SwipeableCrewCard` (HomeClient)**: `wasDragging` flag is set in `onDragEnd` only when `|offset.x| > 5px`, not in `onDragStart`. Setting it in `onDragStart` caused the double-tap bug (Framer fires `onDragStart` for micro-movements, which blocked `onClick`). The card uses `dragConstraints={{ left: 0, right: 0 }}` — no positional reveal; swipe-left only triggers `onLongPress()` (opens `HomeCrewDetailsSheet`) when past threshold. `onDragStart` calls `cancelLongPress()` so a slow swipe does not also fire the 500ms long-press timer.
