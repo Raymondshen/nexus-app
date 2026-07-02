@@ -205,8 +205,12 @@ export function MessageList({
   // Scroll-position restoration after prepend
   const prevScrollTopRef   = useRef(0)
   const prevTotalSizeRef   = useRef(0)
-  const anchorPendingRef   = useRef(false)
-  const skipAutoScrollRef  = useRef(false)
+  const anchorPendingRef        = useRef(false)
+  const skipAutoScrollRef       = useRef(false)
+  // When true, every getTotalSize() change re-pins scrollTop to the bottom.
+  // Set on initial load and on every own/near-bottom new message; cleared once
+  // we're actually ≤2px from the bottom, or the user manually scrolls up.
+  const needsBottomCorrection   = useRef(false)
 
   const [definitions, setDefinitions] = useState<SquadDefinitionWithCreator[]>([])
 
@@ -242,8 +246,9 @@ export function MessageList({
   useBrowserLayoutEffect(() => {
     setMessages([])
     setHasMore(true)
-    oldestCursorRef.current = null
-    hasInitialScrolled.current = false
+    oldestCursorRef.current       = null
+    hasInitialScrolled.current    = false
+    needsBottomCorrection.current = false
 
     const cacheKey = `nexus-msgs-${crewId}`
     try {
@@ -519,15 +524,35 @@ export function MessageList({
     overscan: 5,
   })
 
-  // ─── Initial scroll to bottom ─────────────────────────────────────────────────
+  // ─── Scroll-to-bottom helpers ─────────────────────────────────────────────────
+  //
+  // The virtualizer starts with estimated item sizes. As items render and
+  // measureElement fires, getTotalSize() grows — but scrollTop doesn't auto-adjust,
+  // leaving the user mid-list. needsBottomCorrection keeps pinToBottom active after
+  // every getTotalSize() change until we're actually ≤2px from the bottom.
 
-  useBrowserLayoutEffect(() => {
-    if (!historyLoaded || hasInitialScrolled.current || items.length === 0) return
+  const pinToBottom = useCallback(() => {
     const el = scrollRef.current
     if (!el) return
     el.scrollTop = el.scrollHeight
-    hasInitialScrolled.current = true
-  }, [historyLoaded, items.length]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 2) {
+      needsBottomCorrection.current = false
+    }
+  }, [])
+
+  // Initial scroll — arms correction pass
+  useBrowserLayoutEffect(() => {
+    if (!historyLoaded || hasInitialScrolled.current || items.length === 0) return
+    hasInitialScrolled.current    = true
+    needsBottomCorrection.current = true
+    pinToBottom()
+  }, [historyLoaded, items.length, pinToBottom]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Re-pin after every measurement batch that expands the virtual canvas
+  const totalVirtualSize = virtualizer.getTotalSize()
+  useBrowserLayoutEffect(() => {
+    if (needsBottomCorrection.current) pinToBottom()
+  }, [totalVirtualSize, pinToBottom]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Auto-scroll on new message (append) ─────────────────────────────────────
 
@@ -536,21 +561,18 @@ export function MessageList({
     // Skip when a prepend is in progress — anchor restoration handles scroll instead
     if (skipAutoScrollRef.current) { skipAutoScrollRef.current = false; return }
     const lastMsg = messages[messages.length - 1]
-    // Combat system messages are filtered from the chat display (shown in CombatLog inside
-    // the HUD instead). Auto-scrolling the chat for them would keep users pinned to the
-    // bottom and prevent them from reading history while a raid is active.
+    // Combat system messages are shown in CombatLog, not in the chat scroll.
     if (
       lastMsg?.message_type === 'system' &&
       typeof lastMsg.content === 'string' &&
       (lastMsg.content.startsWith('COMBAT:') || lastMsg.content.startsWith('BOSS_SPAWN:'))
-    ) {
-      return
-    }
+    ) return
     const ownSend = !!lastMsg && lastMsg.user_id === currentUserId
     if (ownSend || isNearBottomRef.current) {
-      virtualizer.scrollToIndex(items.length - 1, { align: 'end', behavior: 'smooth' })
+      needsBottomCorrection.current = true
+      pinToBottom()
     }
-  }, [messages.length]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [messages.length, pinToBottom]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Scroll restoration after prepend (fires before paint) ──────────────────
   // Delta strategy: new items are inserted above the viewport. Their combined
@@ -654,6 +676,8 @@ export function MessageList({
     const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
     isNearBottomRef.current = distFromBottom < 150
     setShowScrollToBottom(distFromBottom > 300)
+    // User scrolled up manually — stop the correction pass so we don't snap back
+    if (!isNearBottomRef.current) needsBottomCorrection.current = false
 
     if (el.scrollTop < 120 && hasMore && !isFetchingOlderRef.current && !anchorPendingRef.current && historyLoaded) {
       fetchOlderMessages()
