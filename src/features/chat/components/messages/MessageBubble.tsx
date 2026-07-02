@@ -38,20 +38,18 @@ function parseJsonArray(value: string | null | undefined): string[] | null {
   return null
 }
 
-// Single tappable image cell — next/image fill + object-cover; <img> for GIFs.
-// The parent div must have position:relative and explicit dimensions (px or aspect-ratio).
+// Figma 384:3068 — tappable 80×80 cell, object-cover, next/image for compression; <img> for GIFs
 function MultiImageCell({
-  src, lqip, onTap, sizes,
+  src, lqip, onTap,
 }: {
-  src:   string
-  lqip:  string | null
+  src:  string
+  lqip: string | null
   onTap: (src: string) => void
-  sizes: string
 }) {
   const isGif = /\.gif(\?|$)/i.test(src) || src.includes('static.klipy.com')
   return (
     <div
-      style={{ position: 'relative', width: '100%', height: '100%', cursor: 'pointer' }}
+      style={{ position: 'relative', width: 80, height: 80, overflow: 'hidden', flexShrink: 0, cursor: 'pointer' }}
       onClick={(e) => { e.stopPropagation(); onTap(src) }}
     >
       {isGif ? (
@@ -62,7 +60,7 @@ function MultiImageCell({
           src={src}
           alt="shared image"
           fill
-          sizes={sizes}
+          sizes="80px"
           className="object-cover"
           loader={supabaseImageLoader}
           placeholder={lqip ? 'blur' : 'empty'}
@@ -73,12 +71,7 @@ function MultiImageCell({
   )
 }
 
-// Image grid layout:
-//   1 image  — full width, 4:3
-//   2 images — side-by-side row, each 1:1
-//   3 images — three-column row, each 1:1
-//   4 images — 2×2 grid, each 1:1
-//   5+       — horizontally scrollable row of 80px squares
+// Figma 384:3068 — horizontal flex row, gap 8px, 80×80 cells; single image fills width at 4:3; scrollable beyond 3
 function MultiImageGrid({
   urls, lqips, onTap,
 }: {
@@ -86,47 +79,29 @@ function MultiImageGrid({
   lqips: (string | null)[]
   onTap: (src: string) => void
 }) {
-  const count = urls.length
-
-  if (count === 1) {
+  if (urls.length === 1) {
+    const src  = urls[0]
+    const lqip = lqips[0] ?? null
+    const isGif = /\.gif(\?|$)/i.test(src) || src.includes('static.klipy.com')
     return (
-      <div style={{ position: 'relative', width: '100%', aspectRatio: '4/3', overflow: 'hidden', flexShrink: 0 }}>
-        <MultiImageCell src={urls[0]} lqip={lqips[0] ?? null} onTap={onTap} sizes="(max-width: 480px) 75vw, 300px" />
+      <div
+        style={{ position: 'relative', width: '100%', aspectRatio: '4/3', overflow: 'hidden', flexShrink: 0, cursor: 'pointer' }}
+        onClick={(e) => { e.stopPropagation(); onTap(src) }}
+      >
+        {isGif ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={src} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', maxWidth: 'none' }} />
+        ) : (
+          <Image src={src} alt="shared image" fill sizes="(max-width: 480px) 75vw, 300px" className="object-cover" loader={supabaseImageLoader} placeholder={lqip ? 'blur' : 'empty'} blurDataURL={lqip ?? undefined} />
+        )}
       </div>
     )
   }
 
-  if (count <= 4) {
-    const cols = count === 4 ? 2 : count
-    const sizes = count === 2
-      ? '(max-width: 480px) 40vw, 160px'
-      : count === 3
-        ? '(max-width: 480px) 28vw, 110px'
-        : '(max-width: 480px) 40vw, 160px'
-    return (
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: `repeat(${cols}, 1fr)`,
-        gap: 4,
-        width: '100%',
-        flexShrink: 0,
-      }}>
-        {urls.map((url, i) => (
-          <div key={i} style={{ aspectRatio: '1/1', position: 'relative', overflow: 'hidden' }}>
-            <MultiImageCell src={url} lqip={lqips[i] ?? null} onTap={onTap} sizes={sizes} />
-          </div>
-        ))}
-      </div>
-    )
-  }
-
-  // 5+ — scrollable row of fixed 80px squares
   return (
-    <div style={{ display: 'flex', gap: 4, overflowX: 'auto', width: '100%', flexShrink: 0 }}>
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, overflowX: urls.length > 3 ? 'auto' : 'hidden', width: '100%', flexShrink: 0 }}>
       {urls.map((url, i) => (
-        <div key={i} style={{ position: 'relative', width: 80, height: 80, overflow: 'hidden', flexShrink: 0 }}>
-          <MultiImageCell src={url} lqip={lqips[i] ?? null} onTap={onTap} sizes="80px" />
-        </div>
+        <MultiImageCell key={i} src={url} lqip={lqips[i] ?? null} onTap={onTap} />
       ))}
     </div>
   )
