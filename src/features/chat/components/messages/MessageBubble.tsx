@@ -100,7 +100,7 @@ function MultiImageGrid({
   if (isSingleGif) {
     return (
       <div
-        style={{ position: 'relative', width: 240, height: 240, overflow: 'hidden', flexShrink: 0, cursor: 'pointer' }}
+        style={{ position: 'relative', width: 160, height: 160, overflow: 'hidden', flexShrink: 0, cursor: 'pointer' }}
         onClick={(e) => { e.stopPropagation(); onTap(src0) }}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
