@@ -80,19 +80,18 @@ function parseJsonArray(value: string | null | undefined): string[] | null {
   return null
 }
 
+// Figma 384:3084 — 80×80 square, object-cover, tappable for full-screen preview
 function MultiImageCell({
-  src, lqip, width, height, onTap,
+  src, lqip, onTap,
 }: {
-  src:    string
-  lqip:   string | null
-  width:  number
-  height: number
-  onTap:  (src: string) => void
+  src:   string
+  lqip:  string | null
+  onTap: (src: string) => void
 }) {
   const isGif = /\.gif(\?|$)/i.test(src) || src.includes('static.klipy.com')
   return (
     <div
-      style={{ position: 'relative', width, height, overflow: 'hidden', flexShrink: 0, cursor: 'pointer' }}
+      style={{ position: 'relative', width: 80, height: 80, overflow: 'hidden', flexShrink: 0, cursor: 'pointer' }}
       onClick={(e) => { e.stopPropagation(); onTap(src) }}
     >
       {isGif ? (
@@ -103,7 +102,7 @@ function MultiImageCell({
           src={src}
           alt="shared image"
           fill
-          sizes="220px"
+          sizes="80px"
           className="object-cover"
           loader={supabaseImageLoader}
           placeholder={lqip ? 'blur' : 'empty'}
@@ -114,6 +113,7 @@ function MultiImageCell({
   )
 }
 
+// Figma 384:3084 — horizontal row, gap 8px (var(--x3)), overflow hidden, full width
 function MultiImageGrid({
   urls, lqips, onTap,
 }: {
@@ -121,50 +121,11 @@ function MultiImageGrid({
   lqips: (string | null)[]
   onTap: (src: string) => void
 }) {
-  const count = Math.min(urls.length, 4)
-  const W = 220
-  const CELL = 109  // (220 - 2px gap) / 2
-  const GAP  = 2
-
-  if (count === 1) {
-    return (
-      <MultiImageCell src={urls[0]} lqip={lqips[0] ?? null} width={W} height={165} onTap={onTap} />
-    )
-  }
-  if (count === 2) {
-    return (
-      <div style={{ display: 'flex', gap: GAP, width: W, marginTop: 4 }}>
-        {urls.slice(0, 2).map((u, i) => (
-          <MultiImageCell key={i} src={u} lqip={lqips[i] ?? null} width={CELL} height={CELL} onTap={onTap} />
-        ))}
-      </div>
-    )
-  }
-  if (count === 3) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: GAP, width: W, marginTop: 4 }}>
-        <MultiImageCell src={urls[0]} lqip={lqips[0] ?? null} width={W} height={130} onTap={onTap} />
-        <div style={{ display: 'flex', gap: GAP }}>
-          {urls.slice(1, 3).map((u, i) => (
-            <MultiImageCell key={i + 1} src={u} lqip={lqips[i + 1] ?? null} width={CELL} height={CELL} onTap={onTap} />
-          ))}
-        </div>
-      </div>
-    )
-  }
-  // 4 images — 2×2 grid
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: GAP, width: W, marginTop: 4 }}>
-      <div style={{ display: 'flex', gap: GAP }}>
-        {urls.slice(0, 2).map((u, i) => (
-          <MultiImageCell key={i} src={u} lqip={lqips[i] ?? null} width={CELL} height={CELL} onTap={onTap} />
-        ))}
-      </div>
-      <div style={{ display: 'flex', gap: GAP }}>
-        {urls.slice(2, 4).map((u, i) => (
-          <MultiImageCell key={i + 2} src={u} lqip={lqips[i + 2] ?? null} width={CELL} height={CELL} onTap={onTap} />
-        ))}
-      </div>
+    <div style={{ display: 'flex', gap: 'var(--x3)', overflow: 'hidden', width: '100%', flexShrink: 0 }}>
+      {urls.slice(0, 4).map((url, i) => (
+        <MultiImageCell key={i} src={url} lqip={lqips[i] ?? null} onTap={onTap} />
+      ))}
     </div>
   )
 }
