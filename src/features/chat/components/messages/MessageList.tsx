@@ -28,9 +28,9 @@ interface MessageListProps {
 }
 
 function dayLabel(date: Date): string {
-  if (isToday(date))     return 'TODAY'
-  if (isYesterday(date)) return 'YESTERDAY'
-  return format(date, 'MMM d, yyyy').toUpperCase()
+  if (isToday(date))     return 'Today'
+  if (isYesterday(date)) return 'Yesterday'
+  return format(date, 'MMM d, yyyy')
 }
 
 // ─── Campfire pixel art for empty state ─────────────────────────────────────
