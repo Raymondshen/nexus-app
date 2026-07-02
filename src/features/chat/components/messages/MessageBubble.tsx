@@ -905,17 +905,11 @@ function MessageBubbleImpl({
                 </span>
 
                 {pinnedVinyl && (
-                  <>
-                    <div style={{ width: 2, height: 2, background: 'var(--color-border)', flexShrink: 0 }} />
-                    <VinylPill imageUrl={pinnedVinyl.imageUrl} title={pinnedVinyl.title} />
-                  </>
+                  <VinylPill imageUrl={pinnedVinyl.imageUrl} title={pinnedVinyl.title} />
                 )}
 
                 {isCreator && (
-                  <>
-                    <div style={{ width: 2, height: 2, background: 'var(--color-border)', flexShrink: 0 }} />
-                    <Crown style={{ width: 12, height: 12, color: 'var(--color-coins)', flexShrink: 0 }} />
-                  </>
+                  <Crown style={{ width: 12, height: 12, color: 'var(--color-coins)', flexShrink: 0 }} />
                 )}
               </div>
 
