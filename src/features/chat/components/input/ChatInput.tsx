@@ -8,7 +8,7 @@ import Image from 'next/image'
 import { supabaseImageLoader, avatarImageLoader } from '@/shared/supabase/imageLoader'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { createClient } from '@/shared/supabase/client'
-import { getXPProgress, getXPInCurrentLevel, getXPForCurrentLevel } from '@/shared/utils/xp'
+import { getXPProgress } from '@/shared/utils/xp'
 import { useChatStore } from '@/store/chatStore'
 import { FriendshipXPToast } from '@/shared/components/game/FriendshipXPToast'
 import { GemToast } from '@/shared/components/game/GemToast'
@@ -19,10 +19,11 @@ import { IMAGE_CONFIG } from '@/shared/constants/config'
 import { isGemGateOpen, recordGemClaim } from '@/shared/utils/gems'
 import type { GemClaimResult } from '@/types'
 import { Send } from 'pixelarticons/react/Send'
-import { Attachment } from 'pixelarticons/react/Attachment'
 import { Chart } from 'pixelarticons/react/Chart'
+import { Plus } from 'pixelarticons/react/Plus'
+import { Camera } from 'pixelarticons/react/Camera'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
-import { Undo } from 'pixelarticons/react/Undo'
+import { CornerDownRight } from 'pixelarticons/react/CornerDownRight'
 import { Close } from 'pixelarticons/react/Close'
 import { MagicEdit } from 'pixelarticons/react/MagicEdit'
 import { GifIcon } from '@/shared/icons/GifIcon'
@@ -118,25 +119,17 @@ async function tryClaimDailyGem(supabase: ReturnType<typeof createClient>, onCla
 // ─── ChatSquadDetailBar ───────────────────────────────────────────────────────
 
 interface ChatSquadDetailBarProps {
-  crewImageUrl:     string | null | undefined
-  crewName:         string
-  crewLevel:        number
-  members:          MemberProfile[]
-  onlineUserIds:    Set<string>
-  combatEnabled:    boolean
-  hasJoinedRaid:    boolean
-  activeCombatRaid: ActiveRaid | null
-  crewXP:           number
-  xpProgress:       number
-  totalMessages:    number
-  onExpand:         () => void
-  onPanEnd:         (_: PointerEvent, info: PanInfo) => void
+  crewImageUrl:  string | null | undefined
+  crewName:      string
+  crewLevel:     number
+  members:       MemberProfile[]
+  onlineUserIds: Set<string>
+  onExpand:      () => void
+  onPanEnd:      (_: PointerEvent, info: PanInfo) => void
 }
 
 function ChatSquadDetailBar({
   crewImageUrl, crewName, crewLevel, members, onlineUserIds,
-  combatEnabled, hasJoinedRaid, activeCombatRaid,
-  crewXP, xpProgress, totalMessages,
   onExpand, onPanEnd,
 }: ChatSquadDetailBarProps) {
   const sortedMembers = [...members]
@@ -145,60 +138,60 @@ function ChatSquadDetailBar({
 
   return (
     <motion.div
-      className="flex flex-col relative cursor-pointer"
+      className="flex relative cursor-pointer items-center"
       style={{ touchAction: 'pan-x', gap: 'var(--space-5)' }}
       onPanEnd={onPanEnd}
       onClick={onExpand}
     >
-      {/* Crew image + name/level | dot | member avatars */}
-      <div className="flex items-center" style={{ gap: 'var(--space-5)' }}>
-        <div className="flex items-center flex-shrink-0" style={{ gap: 8 }}>
-          <div className="relative flex-shrink-0 overflow-hidden bg-surface" style={{ width: 24, height: 24 }}>
-            {crewImageUrl && (
-              <Image src={crewImageUrl} alt={crewName} fill sizes="24px" className="object-cover" loader={supabaseImageLoader} />
-            )}
-          </div>
-          <div className="flex flex-col" style={{ gap: 2 }}>
-            <p className="font-body font-black text-secondary leading-none" style={{ fontSize: 16, fontVariationSettings: '"opsz" 14' }}>
-              {crewName.toUpperCase()}
-            </p>
-            <p className="font-silkscreen text-tertiary leading-none" style={{ fontSize: 8 }}>
-              Squad Level {crewLevel}
-            </p>
-          </div>
+      {/* Crew image + name/level */}
+      <div className="flex items-center flex-shrink-0" style={{ gap: 8 }}>
+        <div className="relative flex-shrink-0 overflow-hidden bg-surface" style={{ width: 24, height: 24 }}>
+          {crewImageUrl && (
+            <Image src={crewImageUrl} alt={crewName} fill sizes="24px" className="object-cover" loader={supabaseImageLoader} />
+          )}
         </div>
-
-        <div className="flex-shrink-0" style={{ width: 2, height: 2, background: 'var(--color-border)' }} />
-
-        <div className="flex items-center" style={{ gap: 8 }}>
-          {sortedMembers.map((m) => {
-            const url     = m.avatar_url as string | null | undefined
-            const initial = m.username[0]?.toUpperCase() ?? '?'
-            const online  = onlineUserIds.has(m.id)
-            return (
-              <div key={m.id} className="relative flex-shrink-0" title={m.username}>
-                <div className="rounded-full overflow-hidden bg-surface flex items-center justify-center" style={{ width: 24, height: 24 }}>
-                  {url ? (
-                    <div className="relative w-full h-full">
-                      <Image src={url} alt={m.username} fill sizes="24px" className="object-cover" loader={avatarImageLoader} />
-                    </div>
-                  ) : (
-                    <span className="font-pixel text-[length:var(--text-mini)] text-purple">{initial}</span>
-                  )}
-                </div>
-                {online && (
-                  <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#66bb6a] border-[1.5px] border-black" />
-                )}
-              </div>
-            )
-          })}
+        <div className="flex flex-col" style={{ gap: 2 }}>
+          <p className="font-body font-black text-secondary leading-none" style={{ fontSize: 16, fontVariationSettings: '"opsz" 14' }}>
+            {crewName.toUpperCase()}
+          </p>
+          <p className="font-silkscreen text-tertiary leading-none" style={{ fontSize: 8 }}>
+            Lv.{crewLevel} · {members.length} member
+          </p>
         </div>
       </div>
 
-      {/* Chevron — absolute top-right */}
+      {/* Dot separator */}
+      <div className="flex-shrink-0" style={{ width: 2, height: 2, background: 'var(--color-border)' }} />
+
+      {/* Member avatars */}
+      <div className="flex items-center" style={{ gap: 8 }}>
+        {sortedMembers.map((m) => {
+          const url     = m.avatar_url as string | null | undefined
+          const initial = m.username[0]?.toUpperCase() ?? '?'
+          const online  = onlineUserIds.has(m.id)
+          return (
+            <div key={m.id} className="relative flex-shrink-0" title={m.username}>
+              <div className="rounded-full overflow-hidden bg-surface flex items-center justify-center" style={{ width: 24, height: 24 }}>
+                {url ? (
+                  <div className="relative w-full h-full">
+                    <Image src={url} alt={m.username} fill sizes="24px" className="object-cover" loader={avatarImageLoader} />
+                  </div>
+                ) : (
+                  <span className="font-pixel text-[length:var(--text-mini)] text-purple">{initial}</span>
+                )}
+              </div>
+              {online && (
+                <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#66bb6a] border-[1.5px] border-black" />
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Chevron — absolute right */}
       <button
         onClick={(e) => { e.stopPropagation(); onExpand() }}
-        className="absolute right-0 top-0 flex items-center justify-center flex-shrink-0"
+        className="absolute right-0 flex items-center justify-center flex-shrink-0"
         style={{ width: 'var(--space-7)', height: 'var(--space-7)' }}
         aria-label="Show members"
       >
@@ -207,42 +200,6 @@ function ChatSquadDetailBar({
           aria-hidden="true"
         />
       </button>
-
-      {/* XP bar or Boss HP bar */}
-      {combatEnabled && hasJoinedRaid && activeCombatRaid ? (
-        <div className="flex flex-col w-full" style={{ gap: 'var(--space-3)' }}>
-          <p className="font-silkscreen leading-none w-full" style={{ fontSize: 8, color: 'var(--color-danger)' }}>
-            BOSS HP : {String(Math.round(activeCombatRaid.current_hp)).padStart(4, '0')}/{String(Math.round(activeCombatRaid.max_hp)).padStart(4, '0')}
-          </p>
-          <div className="bg-surface overflow-hidden w-full relative" style={{ height: 4 }}>
-            <div
-              className="absolute left-0 top-0 h-full"
-              style={{
-                width:      `${(activeCombatRaid.current_hp / activeCombatRaid.max_hp) * 100}%`,
-                background: 'var(--color-danger)',
-                transition: 'width 0.4s ease-out',
-              }}
-            />
-          </div>
-        </div>
-      ) : (
-        <div className="flex flex-col w-full" style={{ gap: 'var(--space-3)' }}>
-          <p className="font-silkscreen text-tertiary leading-[0] w-full" style={{ fontSize: 0 }}>
-            <span className="leading-none" style={{ fontSize: 8 }}>{getXPInCurrentLevel(crewXP)} / {getXPForCurrentLevel(crewXP)}XP</span>
-            {totalMessages > 0 && <>
-              <span className="leading-none" style={{ fontSize: 8 }}>{` · `}</span>
-              <span className="leading-none text-secondary" style={{ fontSize: 8 }}>{totalMessages.toLocaleString()} total Squad msg.</span>
-            </>}
-          </p>
-          <div className="bg-surface h-1 overflow-hidden w-full relative">
-            <motion.div
-              className="absolute left-0 top-0 h-full bg-purple"
-              animate={{ width: `${xpProgress}%` }}
-              transition={{ type: 'spring', stiffness: 300, damping: 28 }}
-            />
-          </div>
-        </div>
-      )}
     </motion.div>
   )
 }
@@ -275,8 +232,9 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   const [bgUploading,    setBgUploading]    = useState(false)
   const [showNotif,       setShowNotif]       = useState(false)
   const [notifPrefs,      setNotifPrefs]      = useState<NotifPrefs>({ messages: true, mentions: true })
-  const [showPollCreator, setShowPollCreator] = useState(false)
-  const [showGifPicker,   setShowGifPicker]   = useState(false)
+  const [showPollCreator,  setShowPollCreator]  = useState(false)
+  const [showGifPicker,    setShowGifPicker]    = useState(false)
+  const [showMediaPicker,  setShowMediaPicker]  = useState(false)
   const [mentionQuery,    setMentionQuery]    = useState<string | null>(null)
   const [mentionIndex,    setMentionIndex]    = useState(0)
   const [isFocused,       setIsFocused]       = useState(false)
@@ -1513,12 +1471,6 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
           crewLevel={crewLevel}
           members={members}
           onlineUserIds={onlineUserIds}
-          combatEnabled={combatEnabled}
-          hasJoinedRaid={hasJoinedRaid}
-          activeCombatRaid={activeCombatRaid}
-          crewXP={crewXP}
-          xpProgress={xpProgress}
-          totalMessages={totalMessages}
           onExpand={() => setIsExpanded(true)}
           onPanEnd={handleTopPanEnd}
         />
@@ -1577,21 +1529,32 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
             className="flex items-center w-full"
             style={{ background: 'var(--color-surface)', padding: 16, gap: 8, marginBottom: 8 }}
           >
-            <Undo style={{ width: 16, height: 16, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
-            <p
-              className="flex-1 min-w-0 font-body font-medium leading-none tracking-[0.1px] whitespace-nowrap overflow-hidden text-ellipsis"
-              style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}
-            >
-              <span style={{ color: 'var(--color-primary)' }}>Replying to </span>
-              <span style={{ color: 'var(--color-purple)' }}>@{replyTo.profile?.username ?? replyTo.reply_username ?? '???'}</span>
-            </p>
+            <CornerDownRight style={{ width: 16, height: 16, color: 'var(--color-tertiary)', flexShrink: 0 }} aria-hidden="true" />
+
+            {/* msg wrapper — flex-[1_0_0] with fixed 12px height clamp, matches Figma */}
+            <div style={{ flex: '1 0 0', minWidth: 1, height: 12, overflow: 'hidden', display: 'flex', alignItems: 'center' }}>
+              <p
+                className="font-body font-medium leading-[0] tracking-[0.1px] whitespace-nowrap overflow-hidden text-ellipsis w-full"
+                style={{ fontSize: 12, minWidth: 1, color: 'var(--color-primary)', fontVariationSettings: '"opsz" 14' }}
+              >
+                <span className="leading-none">Replying </span>
+                <span className="leading-none" style={{ color: 'var(--color-purple)' }}>@{replyTo.profile?.username ?? replyTo.reply_username ?? '???'} </span>
+                {(() => {
+                  const preview = replyTo.content?.trim() || (replyTo.image_url ? '(photo)' : null)
+                  return preview
+                    ? <span className="leading-none" style={{ color: 'var(--color-tertiary)' }}>{preview}</span>
+                    : null
+                })()}
+              </p>
+            </div>
+
             <button
               onClick={() => setReplyTo(null)}
               className="flex-shrink-0 flex items-center justify-center active:opacity-60"
               style={{ width: 32, height: 32, marginRight: -8 }}
               aria-label="Cancel reply"
             >
-              <Close style={{ width: 16, height: 16, color: 'var(--color-secondary)' }} aria-hidden="true" />
+              <Close style={{ width: 16, height: 16, color: 'var(--color-tertiary)' }} aria-hidden="true" />
             </button>
           </div>
         )}
@@ -1678,50 +1641,14 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
             )
           })()}
 
-          <div className="flex items-center" style={{ gap: 16 }}>
-            {/* GIF + Attachment icons — outside the input border, slide out on focus */}
-            <motion.div
-              className="flex-shrink-0 overflow-hidden flex items-center"
-              animate={{ width: isFocused ? 0 : (pollEnabled ? 104 : 64), opacity: isFocused ? 0 : 1, marginRight: isFocused ? -16 : 0 }}
-              transition={{ type: 'spring', stiffness: 320, damping: 28 }}
-              style={{ pointerEvents: isFocused ? 'none' : 'auto', gap: 16 }}
-            >
-              <button
-                onClick={() => setShowGifPicker(true)}
-                className="flex-shrink-0 flex items-center justify-center text-tertiary active:text-purple"
-                style={{ width: 24, height: 24 }}
-                aria-label="Send GIF"
-              >
-                <GifIcon style={{ width: 24, height: 24 }} aria-hidden="true" />
-              </button>
-              <button
-                onClick={() => chatImageInputRef.current?.click()}
-                disabled={pendingImages.length >= 4}
-                className="flex-shrink-0 flex items-center justify-center text-tertiary active:text-purple disabled:opacity-30 disabled:cursor-not-allowed"
-                style={{ width: 24, height: 24 }}
-                aria-label="Upload photo"
-              >
-                <Attachment style={{ width: 24, height: 24 }} aria-hidden="true" />
-              </button>
-              {pollEnabled && (
-                <button
-                  onClick={() => setShowPollCreator(true)}
-                  className="flex-shrink-0 flex items-center justify-center text-tertiary active:text-purple"
-                  style={{ width: 24, height: 24 }}
-                  aria-label="Create poll"
-                >
-                  <Chart style={{ width: 24, height: 24 }} aria-hidden="true" />
-                </button>
-              )}
-            </motion.div>
-
-            {/* Input container — flex-col when images are staged; outline turns purple on focus */}
-            <div
-              className="flex-1 flex flex-col transition-colors"
+          {/* Input container — flex-col when images are staged; outline brightens on focus */}
+          <div
+            className="w-full flex flex-col"
               style={{
                 outline:       '1px solid',
-                outlineColor:  isFocused ? 'var(--color-purple)' : 'var(--color-border)',
+                outlineColor:  isFocused ? 'var(--color-border-hover)' : 'var(--color-border)',
                 outlineOffset: '-1px',
+                transition:    'outline-color 0.15s ease',
                 paddingLeft:   16,
                 paddingRight:  16,
                 paddingTop:    pendingImages.length > 0 ? 16 : 0,
@@ -1781,6 +1708,27 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
 
               {/* ── Text input + send button row ── */}
               <div className="flex items-center" style={{ gap: 16, minHeight: pendingImages.length > 0 ? 18 : 48 }}>
+                {/* Plus button — slides left and fades out on focus */}
+                <motion.div
+                  className="flex-shrink-0 overflow-hidden flex items-center justify-center"
+                  animate={{
+                    width:       isFocused ? 0 : 16,
+                    opacity:     isFocused ? 0 : 1,
+                    marginRight: isFocused ? -16 : 0,
+                  }}
+                  transition={{ type: 'spring', stiffness: 320, damping: 28 }}
+                  style={{ pointerEvents: isFocused ? 'none' : 'auto' }}
+                >
+                  <button
+                    onClick={() => setShowMediaPicker(true)}
+                    disabled={pendingImages.length >= 4}
+                    className="flex-shrink-0 flex items-center justify-center text-muted active:text-purple disabled:opacity-30 disabled:cursor-not-allowed"
+                    style={{ width: 16, height: 16 }}
+                    aria-label="Add media"
+                  >
+                    <Plus style={{ width: 16, height: 16 }} aria-hidden="true" />
+                  </button>
+                </motion.div>
                 <div ref={innerContainerRef} className="relative flex-1 min-w-0 overflow-hidden">
                   {/* Hidden mirror span — measures text pixel width for overflow detection */}
                   <span
@@ -1856,10 +1804,55 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
                   )
                 })()}
               </div>{/* end text+send row */}
-            </div>{/* end input container */}
-          </div>{/* end icons+input row */}
+          </div>{/* end input container */}
         </div>{/* end relative wrapper */}
       </motion.div>
+
+      {/* ── Media picker sheet (Camera / GIF) ── */}
+      <AnimatePresence>
+        {showMediaPicker && (
+          <>
+            <motion.div
+              className="fixed inset-0 z-[60] bg-black/60"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setShowMediaPicker(false)}
+            />
+            <motion.div
+              className="fixed bottom-0 left-0 right-0 z-[70] bg-[var(--color-surface-sheet)] rounded-tl-[16px] rounded-tr-[16px]"
+              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+              transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+              drag="y"
+              dragConstraints={{ top: 0, bottom: 0 }}
+              dragElastic={{ top: 0, bottom: 1 }}
+              onDragEnd={(_, info) => { if (info.offset.y > 80 || info.velocity.y > 400) setShowMediaPicker(false) }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex flex-col" style={{ paddingTop: 24, paddingBottom: 'max(env(safe-area-inset-bottom), 28px)', gap: 0 }}>
+                <p className="font-silkscreen leading-none" style={{ fontSize: 8, color: 'var(--color-tertiary)', paddingLeft: 16, paddingRight: 16, paddingBottom: 16 }}>
+                  ADD MEDIA
+                </p>
+                <button
+                  onClick={() => { setShowMediaPicker(false); chatImageInputRef.current?.click() }}
+                  disabled={pendingImages.length >= 4}
+                  className="flex items-center w-full active:bg-surface disabled:opacity-30 disabled:cursor-not-allowed"
+                  style={{ gap: 12, paddingLeft: 16, paddingRight: 16, paddingTop: 14, paddingBottom: 14 }}
+                >
+                  <Camera style={{ width: 20, height: 20, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
+                  <span className="font-body font-medium text-[length:var(--text-sm)] text-primary" style={{ fontVariationSettings: '"opsz" 14' }}>Camera</span>
+                </button>
+                <button
+                  onClick={() => { setShowMediaPicker(false); setShowGifPicker(true) }}
+                  className="flex items-center w-full active:bg-surface"
+                  style={{ gap: 12, paddingLeft: 16, paddingRight: 16, paddingTop: 14, paddingBottom: 14 }}
+                >
+                  <GifIcon style={{ width: 20, height: 20, color: 'var(--color-secondary)' }} aria-hidden="true" />
+                  <span className="font-body font-medium text-[length:var(--text-sm)] text-primary" style={{ fontVariationSettings: '"opsz" 14' }}>GIF</span>
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       {/* ── Kick confirmation sheet ── */}
       <AnimatePresence>
