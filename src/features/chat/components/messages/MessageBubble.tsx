@@ -336,19 +336,8 @@ function VinylPill({ imageUrl, title }: { imageUrl: string | null; title: string
         </div>
       </div>
 
-      {/* Music note icon + scrolling title */}
+      {/* Scrolling title */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-        {/* 8×8 pixel-art play icon (▶) — matches Figma node 377:5120 */}
-        <svg width="8" height="8" viewBox="0 0 8 8" fill="none" aria-hidden style={{ flexShrink: 0 }}>
-          <rect x="0" y="0" width="1" height="1" fill="var(--color-muted)" />
-          <rect x="0" y="1" width="2" height="1" fill="var(--color-muted)" />
-          <rect x="0" y="2" width="3" height="1" fill="var(--color-muted)" />
-          <rect x="0" y="3" width="4" height="2" fill="var(--color-muted)" />
-          <rect x="0" y="5" width="3" height="1" fill="var(--color-muted)" />
-          <rect x="0" y="6" width="2" height="1" fill="var(--color-muted)" />
-          <rect x="0" y="7" width="1" height="1" fill="var(--color-muted)" />
-        </svg>
-
         {title && (
           <>
             {/* Off-viewport span used only for measuring rendered text width */}
