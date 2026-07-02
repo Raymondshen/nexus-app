@@ -9,6 +9,7 @@ import { getXPInCurrentLevel, getXPForCurrentLevel } from '@/shared/utils/xp'
 import { PixelSprite, spriteInfoFor } from '@/shared/components/game/PixelSprite'
 import { MagicEdit } from 'pixelarticons/react/MagicEdit'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
+import { DoorClosed } from 'pixelarticons/react/DoorClosed'
 import { Crown } from 'pixelarticons/react/Crown'
 import { Copy } from 'pixelarticons/react/Copy'
 import { Check } from 'pixelarticons/react/Check'
@@ -684,8 +685,7 @@ export function SquadDetailsSheet({
               style={{ height: 48, border: '1px solid var(--color-red)', gap: 8 }}
               aria-label="Leave squad"
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/icons/leave-pixel.svg" alt="" width={16} height={16} aria-hidden="true" />
+              <DoorClosed style={{ width: 16, height: 16, color: 'var(--color-red)' }} aria-hidden="true" />
               <span className="font-silkscreen leading-none pb-[2px]" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-red)' }}>
                 leave squad
               </span>
