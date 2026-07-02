@@ -194,17 +194,7 @@ export function MessageList({
     if (typeof window === 'undefined') return false
     return localStorage.getItem('nexus_dev_mode') === '1'
   })
-  const [historyLoaded, setHistoryLoaded] = useState(() => {
-    if (typeof window === 'undefined') return false
-    try {
-      const raw = sessionStorage.getItem(`nexus-msgs-${crewId}`)
-      if (!raw) return false
-      const parsed = JSON.parse(raw)
-      // Support old format (plain array) and new format ({ messages, savedAt })
-      const msgs = Array.isArray(parsed) ? parsed : parsed?.messages
-      return Array.isArray(msgs) && msgs.length > 0
-    } catch { return false }
-  })
+  const [historyLoaded, setHistoryLoaded] = useState(false)
 
   // Pagination state
   const [hasMore, setHasMore]     = useState(true)
@@ -267,6 +257,7 @@ export function MessageList({
           // even before the background DB fetch sets it. Without this, the
           // auto-fill effect fires but oldestCursorRef is null and bails.
           if (msgs.length > 0) oldestCursorRef.current = msgs[0].created_at
+          setHistoryLoaded(true)
           return
         }
       }

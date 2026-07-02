@@ -866,7 +866,7 @@ function MessageBubbleImpl({
             ref={replyIconRef}
             className="pointer-events-none absolute flex items-center justify-end"
             style={{
-              top:          showHeader ? 'var(--space-6)' : 'var(--space-2)',
+              top:          0,
               bottom:       0,
               left:         0,
               right:        0,
@@ -876,7 +876,7 @@ function MessageBubbleImpl({
               zIndex:       2,
             }}
           >
-            <CornerUpLeft style={{ width: 24, height: 24, color: 'var(--color-purple)' }} />
+            <CornerUpLeft style={{ width: 24, height: 24, color: 'var(--color-primary)' }} />
           </div>
         )}
 
