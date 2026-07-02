@@ -558,9 +558,8 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   }
 
   useEffect(() => {
-    // Seed self as online immediately; DB fetch + peer broadcasts will refine the set
-    setLastActive(userId, Date.now())
-    setOnlineUserIds(new Set([userId]))
+    // Clear stale crew data and mark self online instantly; DB fetch + peer broadcasts refine the set
+    useChatStore.getState().resetPresence(userId)
 
     const supabase = createClient()
     const ch = supabase.channel(`messages:${crewId}`, {
@@ -577,7 +576,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
       supabase.rpc('update_active').then(() => {}, () => {})
     }
 
-    // Seed initial online set from DB — covers users active in other crews
+    // Seed initial online set from DB — covers members active outside this tab
     const memberIds = Object.keys(profilesRef.current)
     if (memberIds.length > 0) {
       supabase
@@ -586,11 +585,23 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
         .in('id', memberIds)
         .then(({ data }) => {
           if (!data) return
-          const store = useChatStore.getState()
+          // Build peer entries — skip self to protect the fresh Date.now() from resetPresence
+          const peerEntries: Record<string, number> = {}
           data.forEach((p) => {
-            if (p.last_active_at) store.setLastActive(p.id, new Date(p.last_active_at).getTime())
+            if (p.id === userId || !p.last_active_at) return
+            peerEntries[p.id] = new Date(p.last_active_at).getTime()
           })
-          store.sweepOnlineUserIds(ONLINE_THRESHOLD_MS)
+          // Single atomic update: merge peers into map and recompute online set in one shot
+          useChatStore.setState((s) => {
+            const newMap = { ...s.lastActiveMap, ...peerEntries }
+            const now = Date.now()
+            const ids = new Set(
+              Object.entries(newMap)
+                .filter(([, ts]) => now - ts < ONLINE_THRESHOLD_MS)
+                .map(([id]) => id)
+            )
+            return { lastActiveMap: newMap, onlineUserIds: ids }
+          })
         })
     }
 

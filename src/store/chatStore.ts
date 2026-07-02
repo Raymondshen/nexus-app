@@ -27,6 +27,7 @@ interface ChatStore {
   setOnlineUserIds:    (ids: Set<string>) => void
   setLastActive:       (userId: string, ts: number) => void
   sweepOnlineUserIds:  (thresholdMs: number) => void
+  resetPresence:       (selfId: string) => void
   setUserCoins:        (coins: number) => void
   addUserCoins:        (amount: number) => void
   setGemBalance:       (gems: number) => void
@@ -108,6 +109,11 @@ export const useChatStore = create<ChatStore>((set) => ({
       )
       return { onlineUserIds: ids }
     }),
+
+  resetPresence: (selfId) => {
+    const now = Date.now()
+    set({ lastActiveMap: { [selfId]: now }, onlineUserIds: new Set([selfId]) })
+  },
 
   setUserCoins: (coins) => set({ userCoins: coins }),
 
