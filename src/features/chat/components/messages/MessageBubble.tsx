@@ -842,13 +842,13 @@ function MessageBubbleImpl({
         onTouchMove={handleTouchMove}
         onTouchCancel={handleTouchCancel}
       >
-        {/* Swipe-to-reply icon — anchored to content area (excludes top group-spacing padding) */}
+        {/* Swipe-to-reply icon — top offset matches wrapper padding so icon centers within content area only */}
         {!isOwn && (
           <div
             ref={replyIconRef}
             className="pointer-events-none absolute flex items-center justify-end"
             style={{
-              top:          0,
+              top:          showHeader ? 'var(--space-6)' : 'var(--space-2)',
               bottom:       0,
               left:         0,
               right:        0,
@@ -858,7 +858,7 @@ function MessageBubbleImpl({
               zIndex:       2,
             }}
           >
-            <CornerUpLeft style={{ width: 24, height: 24, color: 'var(--color-primary)' }} />
+            <CornerUpLeft style={{ width: 16, height: 16, color: 'var(--color-primary)' }} />
           </div>
         )}
 
