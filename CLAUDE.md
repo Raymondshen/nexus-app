@@ -182,7 +182,7 @@ src/
 ├── features/
 │   ├── chat/
 │   │   ├── components/
-│   │   │   ├── input/          ChatInput, InputActionsSheet, GifPickerSheet
+│   │   │   ├── input/          ChatInput (contains ChatSquadDetailBar), GifPickerSheet
 │   │   │   ├── messages/       MessageList, MessageBubble, LinkPreviewCard
 │   │   │   ├── sheets/         SquadDetailsSheet, PinDurationSheet, PinListSheet,
 │   │   │   │                   NotifSheet, CrewImageUploadModal, DefinitionCreateSheet,
@@ -300,12 +300,20 @@ Only fires on `!isOwn` messages. Swipe left past `SWIPE_THRESHOLD` (64px) to com
 
 **Navigation cleanup**: `chatStore` is a module-level singleton — `replyTo` survives route changes unless explicitly cleared. `ChatInput` has an unmount-only `useEffect` (`[]` deps, cleanup only) that calls `setReplyTo(null)`, so the reply bar is always zeroed when leaving a chat. The reply bar cancel button is 32×32 touch target (icon remains 16×16) with `marginRight: -8` to stay visually flush.
 
+### ChatSquadDetailBar (`ChatInput.tsx`)
+Named component rendered above the input row. Tap or swipe-up → `setIsExpanded(true)` → opens `SquadDetailsSheet`.
+- Props: `crewImageUrl`, `crewName`, `crewLevel`, `members`, `onlineUserIds`, `combatEnabled`, `hasJoinedRaid`, `activeCombatRaid`, `crewXP`, `xpProgress`, `totalMessages`, `onExpand`, `onPanEnd`
+- Layout: 24×24 crew image + crew name (DM Sans Black 16px uppercase) + "Squad Level N" (silkscreen 8px tertiary) | 2px dot | member avatars (24×24 rounded, up to 5, online-sorted) with green online dot (`#66bb6a`, 8×8, border-black 1.5px)
+- Chevron: `ChevronRight` rotated `-90°`, absolute top-right, `var(--space-7)` × `var(--space-7)`
+- **XP bar** (no active raid): silkscreen 8px XP text + total squad msg · Framer Motion `animate={{ width }}` spring 300/28 purple bar
+- **Boss HP bar** (when `combatEnabled && hasJoinedRaid && activeCombatRaid`): `BOSS HP : XXXX/XXXX` in `--color-danger` · red bar with `transition: width 0.4s ease-out` (CSS, not Framer Motion)
+
 ### ChatInput
-- Props: `{ crewId, userId, userProfile, memberProfiles, crewName, inviteCode?, creatorId?, isDM?, crewImageUrl?, crewBackgroundImageUrl? }`
+- Props: `{ crewId, userId, userProfile, memberProfiles, crewName, inviteCode?, creatorId?, isDM?, crewImageUrl?, crewBackgroundImageUrl?, initialXP?, dmPartnerId?, userCombatClass?, initialRaid?, initialMemberStats?, initialReviveTokens? }`
 - Send flow: `addMessage(optimisticMsg)` synchronously (with `tempId`) → `insert_message` RPC → reconcile: `updateMessage(tempId, { id: raw.id })` in place (never remove-and-reinsert) → broadcast → `award-xp` → `attack-boss`; on RPC error `removeMessage(tempId)` rollback
 - **Edit mode**: `chatStore.editTo` holds the message being edited. Set by `MessageBubble` long-press → "Edit Message" in `ChatSheetReact`; cleared on send, cancel, or unmount. `handleEditSend`: optimistic `updateMessage(id, { content })` → `supabase.from('messages').update({ content }).eq('id').eq('user_id', userId)`; rollback to `prevContent` on error. No-op if content unchanged. Edit bar UI rendered above reply bar when `editTo` is set (`MagicEdit` 16×16 + "Editing message" label + `Close` dismiss button). Send button and Enter key both route to `handleEditSend` when in edit mode. Only `text`-type messages are editable — image/GIF messages are excluded.
 - Input row (inactive): `GifIcon` 24×24 + `Attachment` 24×24 outside border box, 16px gaps; border `#27272a`. Focused: icons slide out (`width→0`), border → `--color-purple`. When `nexus_poll_feature` is ON, a third `Chart` 24×24 icon appears (width→104, else 64).
-- Photo upload: `Attachment` icon always visible; tapping directly triggers `chatImageInputRef.current?.click()` — no dev gate. Preview bar shows whenever `chatImageLocalUrl` is set.
+- **Multi-image upload**: `PendingImage[]` array (max 4). Each entry: `{ id, localUrl, publicUrl, lqip, uploading, error }`. `Attachment` icon always visible; tapping adds files (up to remaining slots). Image tray renders inside the input border (above the text row) via `AnimatePresence` — per-slot close buttons, divider above text row. Uploads run in parallel; messages sent sequentially (one per image) to preserve order. `clearPendingImages` revokes all blob URLs. Attachment button disabled when `pendingImages.length >= 4`.
 - Poll feature: dev-gated (`nexus_poll_feature`). When enabled, `Chart` icon appears in left group; tapping opens `PollCreatorSheet`. Toggle in `/profile/developer` Features section.
 - **Hybrid input/textarea**: renders `<input>` by default; swaps to `<textarea>` (3-line cap) when text width exceeds container. Detected via hidden `<span ref={mirrorRef}>` measured against `innerContainerRef`. `isMultiline` state + `isMultilineRef` kept in sync; `useLayoutEffect([isMultiline])` focuses new element and restores caret in same paint. `getActiveField()` / `focusField()` abstract over both refs.
 - @mention overlay: transparent field + `aria-hidden` div; purple `<mark>` for valid tokens; scroll synced on `isMultiline` change
@@ -359,9 +367,15 @@ Only fires on `!isOwn` messages. Swipe left past `SWIPE_THRESHOLD` (64px) to com
 - `DamageFloat` — `position: fixed` viewport overlay; spawned per attack event
 
 ### SquadDetailsSheet (`src/features/chat/components/sheets/SquadDetailsSheet.tsx`)
-Trigger: swipe-up · z-[70] · `maxHeight: 85vh`
-- Header icons: `MagicEdit` (rename, creator only) · `Bell` (notifs) · `Library` (→ definitions) · `ChevronRight` rotated 90° (close)
-- Member row: `User` 16×24 (profile) · `MailRight` 16×24 (DM, hidden own row) · `UserMinus` 24×24 red (remove, creator only)
+Trigger: swipe-up (via `ChatSquadDetailBar` `onPanEnd`) · Panel pattern · `maxHeight: 85vh` · `bg-[var(--color-surface-sheet)]` with `rounded-tl-[16px] rounded-tr-[16px]`
+
+Layout (flex col, single scrollable region):
+1. **Group header** (180px, full-bleed, p-16, `flex-shrink-0`) — background image + gradient overlay; top row: `MagicEdit` (creator) · `Bell` · `Library` · `ChevronRight` rotated 90° (close); bottom: member count
+2. **Scrollable content** (`flex-1 overflow-y-auto nexus-scroll`, flex col): invite card → members label → member rows → Leave Squad button at bottom
+- Invite card: `bg-surface border border-border` p-16; label "Invite new members" (silkscreen mini primary); code: silkscreen xl, gradient + textShadow; purple "Copy Code" button
+- Members label: silkscreen xs primary
+- Member row: `User` 16×24 (profile) · `MailRight` 16×24 (DM, hidden own row) · `UserX` 24×24 red (remove, creator only); per-member `StatusTicker` when status set
+- **Leave Squad** button: full-width h-48 red border, `/icons/leave-pixel.svg` 16×16 + "leave squad" silkscreen xs red; wired to `handleLeaveSquad` in `ChatInput` (calls `leaveCrewAction` → `router.push('/home')`)
 
 `SquadDetailsEditSheet` — triggered by `MagicEdit`, z-[80]/z-[81], `maxHeight: 90vh`
 - Header: eyebrow (silkscreen mini tertiary) + title (DM Sans Bold md) + subtitle (DM Sans Light xs tertiary)
@@ -473,7 +487,7 @@ Card: `bg-[#111] border border-border rounded-[8px] overflow-hidden pt-4 pb-0 ga
 
 ### SquadCardPreview (`HomeClient`)
 Container: `flex items-center gap-4 h-12 w-full`
-- **Group photo** (left): `bg-primary` white `48×48` non-interactive box — crew image or initial letter in black
+- **Group photo** (left): 48×48 box — crew image (via `supabaseImageLoader`) or `/icons/ghost-fallback.svg` (pixelated) as fallback
 - **Details column** (flex-1, 3 rows, gap-2):
   - Row 1: `lv. {crew.level}` · 2px dot · `Total MSG. {crew.total_xp}` [unread only: · dot · `+N unread msg` in `var(--green)` flex-1]
   - Row 2: crew name (DM Sans Bold md, primary, flex-1 truncate) + timestamp (DM Sans Light xs, muted, shrink-0) — timestamp only when `lastMessage` exists
@@ -571,7 +585,7 @@ Icons (`pixelarticons`):
 | SquadDetailsSheet — edit squad (creator) | `MagicEdit` | 24×24 |
 | SquadDetailsSheet — member profile | `User` | 16×24 |
 | SquadDetailsSheet — member DM | `MailRight` | 16×24 |
-| SquadDetailsSheet — member remove (creator only) | `UserMinus` | 24×24, `--color-danger` |
+| SquadDetailsSheet — member remove (creator only) | `UserX` | 24×24, `--color-danger` |
 | Friends — remove friend (swipe reveal) | `AvatarCircleMinus` | 16×16 |
 | Inbox — accept | `Check` | 16×16 |
 | Inbox — decline / cancel | `Close` | 16×16 |
