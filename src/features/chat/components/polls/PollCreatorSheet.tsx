@@ -18,7 +18,7 @@ type DurationValue = 30 | 360 | 1440
 
 interface PollCreatorSheetProps {
   crewId:      string
-  userProfile: Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url'>
+  userProfile: Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url' | 'status'>
   onClose:     () => void
   onCreated:   (message: MessageWithProfile) => void
 }
@@ -73,7 +73,7 @@ export function PollCreatorSheet({ crewId, userProfile, onClose, onCreated }: Po
       const messageWithProfile: MessageWithProfile = {
         ...msg,
         reactions: {},
-        profile: { id: userProfile.id, username: userProfile.username, avatar_class: userProfile.avatar_class, avatar_url: userProfile.avatar_url },
+        profile: { id: userProfile.id, username: userProfile.username, avatar_class: userProfile.avatar_class, avatar_url: userProfile.avatar_url, status: userProfile.status },
       }
       onCreated(messageWithProfile)
     } catch (err) {

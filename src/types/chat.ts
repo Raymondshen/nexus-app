@@ -56,7 +56,7 @@ export interface Message extends Record<string, unknown> {
 }
 
 export interface MessageWithProfile extends Message {
-  profile: Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url'>
+  profile: Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url' | 'status'>
 }
 
 export interface CrewXPLog extends Record<string, unknown> {

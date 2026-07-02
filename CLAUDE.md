@@ -285,7 +285,7 @@ Avatar images (32px primary, 16px reply) use `avatarImageLoader` — forces 1:1 
 
 Reply row: `CornerDownRight` icon uses `var(--color-tertiary)` (muted). Reply avatar is 16×16 with `object-cover` + `avatarImageLoader`.
 
-**Header row** (username · vinyl pill · timestamp): left flex container has `overflow-hidden`. Between username and timestamp: when `pinnedVinyl` is set, a 2×2 dot separator + `VinylPill` appears. The old `+N XP` badge has been removed from this row.
+**Header row** (username · vinyl · crown · timestamp — Figma 380:2227): left flex `gap-[4px]`, `overflow-hidden`. Username: DM Sans Medium 12px `--primary`. When `pinnedVinyl` set: 2×2 `--border` dot + `VinylPill`. When `isCreator`: 2×2 dot + `Crown` 12×12 `var(--color-coins)`. Timestamp: DM Sans Light 12px `--tertiary` `leading-none`. Vinyl data from `memberPinnedVinyls` — most-recent music note per user in this crew (notes filtered by MUSIC_DOMAINS, ordered DESC). The old `+N XP` badge has been removed.
 
 **`VinylPill`** (`pinnedVinyl?: { imageUrl, title } | null` prop): shows the sender's most-recently-added vibe (music note from Vibes tab). Layout: 12×12 `animate-vinyl` spinning disc (album art or surface fallback + 1×1 center hole) + 8×8 pixel-art play icon (inline SVG, `var(--color-tertiary)`) + 32px clip container for title. Title uses `useLayoutEffect` + off-screen hidden `<span ref={measureRef}>` to measure rendered width; if `textWidth > 32` a Framer Motion `animate={{ x: [0, -(textWidth+16)] }}` ticker loops; otherwise static with `text-overflow: ellipsis`. Pill background `var(--color-surface-sheet)`, `borderRadius: 56`, `padding: 4`.
 

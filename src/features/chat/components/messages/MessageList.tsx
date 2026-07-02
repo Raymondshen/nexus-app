@@ -21,7 +21,7 @@ interface MessageListProps {
   crewId:               string
   crewName:             string
   currentUserId:        string
-  memberProfiles:       Record<string, Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url'>>
+  memberProfiles:       Record<string, Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url' | 'status'>>
   creatorId?:           string | null
   memberPinnedVinyls?:  Record<string, { imageUrl: string | null; title: string | null }>
 }
@@ -189,7 +189,7 @@ export function MessageList({
   const setCrewXP              = useChatStore((s) => s.setCrewXP)
   const receiveXP              = useChatStore((s) => s.receiveXP)
   const setPinnedScrollTargetId = useChatStore((s) => s.setPinnedScrollTargetId)
-  const [localProfiles, setLocalProfiles] = useState<Record<string, Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url'>>>(memberProfiles)
+  const [localProfiles, setLocalProfiles] = useState<Record<string, Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url' | 'status'>>>(memberProfiles)
   const [devMode] = useState(() => {
     if (typeof window === 'undefined') return false
     return localStorage.getItem('nexus_dev_mode') === '1'
@@ -329,7 +329,7 @@ export function MessageList({
           .map((m) => ({
             ...m,
             profile: profilesRef.current[m.user_id] ?? {
-              id: m.user_id, username: '???', avatar_class: null, avatar_url: null,
+              id: m.user_id, username: '???', avatar_class: null, avatar_url: null, status: null,
             },
           }))
 
@@ -669,8 +669,8 @@ export function MessageList({
   }
 
   const resolveProfile = useCallback(
-    (userId: string): Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url'> =>
-      profilesRef.current[userId] ?? { id: userId, username: '???', avatar_class: null, avatar_url: null },
+    (userId: string): Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url' | 'status'> =>
+      profilesRef.current[userId] ?? { id: userId, username: '???', avatar_class: null, avatar_url: null, status: null },
     []
   )
 
@@ -774,13 +774,14 @@ export function MessageList({
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'profiles' },
         (payload) => {
-          const p = payload.new as { id: string; username: string; avatar_url: string | null; avatar_class: string | null }
+          const p = payload.new as { id: string; username: string; avatar_url: string | null; avatar_class: string | null; status: string | null }
           if (!profilesRef.current[p.id]) return
-          const updated: Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url'> = {
+          const updated: Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url' | 'status'> = {
             id: p.id,
             username: p.username,
             avatar_url: p.avatar_url,
             avatar_class: p.avatar_class as AvatarClass | null,
+            status: p.status,
           }
           profilesRef.current[p.id] = updated
           setLocalProfiles((prev) => ({ ...prev, [p.id]: updated }))

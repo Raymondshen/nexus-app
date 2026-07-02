@@ -9,14 +9,14 @@ var SUPABASE_IMAGES_RE = /\/storage\/v1\/object\/public\/(chat-images|background
 // importScripts call, so sw-push.js is the only registered SW. The workbox
 // runtimeCaching rules in next.config.ts never apply. We replicate the most
 // impactful ones here using the vanilla Cache API.
-var NEXUS_STATIC_CACHE = 'nexus-static-v1'
+var NEXUS_STATIC_CACHE = 'nexus-static-v2'
 
 // App-shell HTML — StaleWhileRevalidate
 // Bounded to authenticated app paths; /login and /auth are excluded so
 // unauthenticated users always get a fresh redirect from the server.
 // Bump the version string when a deploy would make old HTML incompatible
 // (the activate handler below purges previous versions automatically).
-var NEXUS_PAGES_CACHE = 'nexus-pages-v1'
+var NEXUS_PAGES_CACHE = 'nexus-pages-v2'
 var NEXUS_PAGE_PATHS  = ['/home', '/chat/', '/vault/', '/friends', '/profile', '/dm/']
 
 function isAppPage(pathname) {
@@ -60,10 +60,12 @@ self.addEventListener('fetch', function(event) {
   }
 
   // ── CacheFirst for Next.js static assets (JS/CSS/fonts) ─────────────────
-  // /_next/static/ URLs are content-addressed (build hash in path) so they
-  // are safe to serve from cache indefinitely — a new deploy always creates
-  // new URLs for changed files.
-  if (url.includes('/_next/static/')) {
+  // Only cache URLs that are provably content-addressed: their filename must
+  // contain an 8+ hex-char build hash (e.g. framework-1a2b3c4d.js, abc123.css).
+  // Production webpack builds always embed a hash; Turbopack dev chunks use
+  // human-readable paths (HomeClient.tsx.js) that change on every hot-reload
+  // and must never be served stale from cache.
+  if (url.includes('/_next/static/') && /\/[0-9a-f]{8,}[.\-]/i.test(url)) {
     event.respondWith(
       caches.open(NEXUS_STATIC_CACHE).then(function(cache) {
         return cache.match(request).then(function(cached) {
@@ -108,12 +110,13 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     Promise.all([
       self.clients.claim(),
-      // Purge page cache entries from previous SW versions. When NEXUS_PAGES_CACHE
-      // is bumped, old cached HTML (which may reference stale JS chunk URLs) is
-      // removed so the next navigation fetches a fresh page from the network.
+      // Purge stale page and static caches from previous SW versions.
+      // When either version string is bumped, old cached HTML and stale
+      // JS chunks are deleted so the next request fetches fresh assets.
       caches.keys().then(function(keys) {
         return Promise.all(keys.filter(function(k) {
-          return k.startsWith('nexus-pages-') && k !== NEXUS_PAGES_CACHE
+          return (k.startsWith('nexus-pages-')  && k !== NEXUS_PAGES_CACHE) ||
+                 (k.startsWith('nexus-static-') && k !== NEXUS_STATIC_CACHE)
         }).map(function(k) { return caches.delete(k) }))
       }),
     ])

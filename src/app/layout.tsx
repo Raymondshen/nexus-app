@@ -89,7 +89,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" className={`${pressStart2P.variable} ${dmSans.variable} ${silkscreen.variable}`}>
+    <html lang="en" className={`${pressStart2P.variable} ${dmSans.variable} ${silkscreen.variable}`} suppressHydrationWarning>
       <body className="min-h-screen bg-[#0a0612] text-white antialiased">
         <SWRegister />
         {children}

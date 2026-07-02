@@ -24,6 +24,7 @@ import { CornerDownRight } from 'pixelarticons/react/CornerDownRight'
 import { CornerUpLeft } from 'pixelarticons/react/CornerUpLeft'
 import { Cake } from 'pixelarticons/react/Cake'
 import { PartyPopper } from 'pixelarticons/react/PartyPopper'
+import { Crown } from 'pixelarticons/react/Crown'
 
 function ImageBubble({
   src, blurDataURL, onTouchStart, onTouchEnd, onTouchMove, onClick,
@@ -110,6 +111,7 @@ function areEqual(prev: MessageBubbleProps, next: MessageBubbleProps): boolean {
   if (prev.message.pin_expires_at   !== next.message.pin_expires_at)   return false
   if (prev.message.profile.avatar_url !== next.message.profile.avatar_url) return false
   if (prev.message.profile.username   !== next.message.profile.username)   return false
+  if (prev.message.profile.status     !== next.message.profile.status)     return false
   if (prev.definitions     !== next.definitions)     return false
   if (prev.memberUsernames !== next.memberUsernames) return false
   if (prev.replyProfile    !== next.replyProfile)    return false
@@ -743,7 +745,7 @@ function MessageBubbleImpl({
 
     const pollAvatarUrl = message.profile.avatar_url as string | null | undefined
     const pollInitial   = message.profile.username[0]?.toUpperCase() ?? '?'
-    const pollTimeStr   = format(new Date(message.created_at), 'h:mma').toLowerCase()
+    const pollTimeStr   = `${format(new Date(message.created_at), 'MMM d')} · ${format(new Date(message.created_at), 'h:mma').toLowerCase()}`
 
     return (
       <div className={`flex gap-[8px] items-start w-full ${showHeader ? 'pt-[var(--space-6)] pb-0' : 'pt-[var(--space-2)] pb-0'}`}>
@@ -777,7 +779,7 @@ function MessageBubbleImpl({
                   {message.profile.username}
                 </span>
               </div>
-              <span className="font-body font-normal text-[8px] tracking-[0.2px] shrink-0 leading-[normal] whitespace-nowrap ml-1" style={{ color: 'var(--color-tertiary)', fontVariationSettings: '"opsz" 14' }}>
+              <span className="font-body font-light text-[12px] shrink-0 leading-none whitespace-nowrap ml-1" style={{ color: 'var(--color-tertiary)', fontVariationSettings: '"opsz" 14' }}>
                 {pollTimeStr}
               </span>
             </div>
@@ -792,7 +794,7 @@ function MessageBubbleImpl({
   if (message.message_type === 'event' && message.event_id) {
     const eventAvatarUrl = message.profile.avatar_url as string | null | undefined
     const eventInitial   = message.profile.username[0]?.toUpperCase() ?? '?'
-    const eventTimeStr   = format(new Date(message.created_at), 'h:mma').toLowerCase()
+    const eventTimeStr   = `${format(new Date(message.created_at), 'MMM d')} · ${format(new Date(message.created_at), 'h:mma').toLowerCase()}`
 
     return (
       <div className={`flex gap-[8px] items-start w-full ${showHeader ? 'pt-[var(--space-6)] pb-0' : 'pt-[var(--space-2)] pb-0'}`}>
@@ -826,7 +828,7 @@ function MessageBubbleImpl({
                   {message.profile.username}
                 </span>
               </div>
-              <span className="font-body font-normal text-[8px] tracking-[0.2px] shrink-0 leading-[normal] whitespace-nowrap ml-1" style={{ color: 'var(--color-tertiary)', fontVariationSettings: '"opsz" 14' }}>
+              <span className="font-body font-light text-[12px] shrink-0 leading-none whitespace-nowrap ml-1" style={{ color: 'var(--color-tertiary)', fontVariationSettings: '"opsz" 14' }}>
                 {eventTimeStr}
               </span>
             </div>
@@ -839,7 +841,7 @@ function MessageBubbleImpl({
 
   const initial   = message.profile.username[0]?.toUpperCase() ?? '?'
   const avatarUrl = message.profile.avatar_url as string | null | undefined
-  const timeStr   = format(new Date(message.created_at), 'h:mma').toLowerCase()
+  const timeStr   = `${format(new Date(message.created_at), 'MMM d')} · ${format(new Date(message.created_at), 'h:mma').toLowerCase()}`
 
   // Use local optimistic overlay while in-flight so Realtime UPDATEs can't wipe the pill.
   const displayReactions = optimisticReactions ?? ((message.reactions ?? {}) as Record<string, string[]>)
@@ -894,9 +896,9 @@ function MessageBubbleImpl({
         )}
 
         {/* Message content — pl-10 aligns continuation text with grouped messages */}
-        <div className={`flex-1 min-w-0 flex flex-col gap-0 ${!showHeader ? 'pl-10' : ''}`}>
+        <div className={`flex-1 min-w-0 flex flex-col gap-[4px] ${!showHeader ? 'pl-10' : ''}`}>
 
-          {/* Header row: username · vinyl pill · timestamp */}
+          {/* Header row: username · vinyl · admin crown · timestamp */}
           {showHeader && (
             <div className="flex items-center justify-between w-full">
               <div className="flex items-center gap-[4px] flex-1 min-w-0 overflow-hidden">
@@ -917,10 +919,17 @@ function MessageBubbleImpl({
                     <VinylPill imageUrl={pinnedVinyl.imageUrl} title={pinnedVinyl.title} />
                   </>
                 )}
+
+                {isCreator && (
+                  <>
+                    <div style={{ width: 2, height: 2, background: 'var(--color-border)', flexShrink: 0 }} />
+                    <Crown style={{ width: 12, height: 12, color: 'var(--color-coins)', flexShrink: 0 }} />
+                  </>
+                )}
               </div>
 
               <span
-                className="font-body font-normal text-[8px] tracking-[0.2px] shrink-0 leading-[normal] whitespace-nowrap ml-1"
+                className="font-body font-light text-[12px] shrink-0 leading-none whitespace-nowrap ml-1"
                 style={{ color: 'var(--color-tertiary)', fontVariationSettings: '"opsz" 14' }}
               >
                 {timeStr}
@@ -928,83 +937,86 @@ function MessageBubbleImpl({
             </div>
           )}
 
-          {/* Reply row — Figma: icon + avatar + @username + preview (single line) */}
-          {message.reply_to_id && (message.reply_preview || message.reply_username) && (() => {
-            const replyAvatarUrl = replyProfile?.avatar_url ?? null
-            const replyInitial   = message.reply_username?.[0]?.toUpperCase() ?? '?'
-            return (
-              <button
-                className="flex items-center gap-[4px] w-full overflow-hidden"
-                style={{ background: 'none', border: 'none', paddingTop: 16, paddingBottom: 16, paddingLeft: 0, paddingRight: 0, textAlign: 'left', cursor: 'pointer' }}
-                onClick={(e) => { e.stopPropagation(); handleReplyTap() }}
-                onTouchStart={(e) => e.stopPropagation()}
-                onTouchEnd={(e) => e.stopPropagation()}
-              >
-                <CornerDownRight style={{ width: 16, height: 16, color: 'var(--color-tertiary)', flexShrink: 0 }} />
-                <div className="relative w-[16px] h-[16px] rounded-full bg-surface overflow-hidden flex-shrink-0">
-                  {replyAvatarUrl ? (
-                    <Image
-                      src={replyAvatarUrl}
-                      alt={message.reply_username ?? ''}
-                      fill
-                      sizes="16px"
-                      className="object-cover"
-                      loader={avatarImageLoader}
-                    />
-                  ) : (
-                    <span className="absolute inset-0 flex items-center justify-center font-pixel text-[4px] text-purple">
-                      {replyInitial}
+          {/* Body section: reply row + message content + OG preview — gap-[8px] matches Figma 377:5504 */}
+          <div className="flex flex-col gap-[8px] w-full shrink-0">
+
+            {/* Reply row — Figma: icon + avatar + @username + preview (single line) */}
+            {message.reply_to_id && (message.reply_preview || message.reply_username) && (() => {
+              const replyAvatarUrl = replyProfile?.avatar_url ?? null
+              const replyInitial   = message.reply_username?.[0]?.toUpperCase() ?? '?'
+              return (
+                <button
+                  className="flex items-center gap-[4px] h-[16px] w-full overflow-hidden"
+                  style={{ background: 'none', border: 'none', padding: 0, textAlign: 'left', cursor: 'pointer' }}
+                  onClick={(e) => { e.stopPropagation(); handleReplyTap() }}
+                  onTouchStart={(e) => e.stopPropagation()}
+                  onTouchEnd={(e) => e.stopPropagation()}
+                >
+                  <CornerDownRight style={{ width: 16, height: 16, color: 'var(--color-tertiary)', flexShrink: 0 }} />
+                  <div className="relative w-[16px] h-[16px] rounded-full bg-surface overflow-hidden flex-shrink-0">
+                    {replyAvatarUrl ? (
+                      <Image
+                        src={replyAvatarUrl}
+                        alt={message.reply_username ?? ''}
+                        fill
+                        sizes="16px"
+                        className="object-cover"
+                        loader={avatarImageLoader}
+                      />
+                    ) : (
+                      <span className="absolute inset-0 flex items-center justify-center font-pixel text-[4px] text-purple">
+                        {replyInitial}
+                      </span>
+                    )}
+                  </div>
+                  {message.reply_username && (
+                    <span
+                      className="font-body font-normal whitespace-nowrap shrink-0 leading-none"
+                      style={{ fontSize: 12, color: 'var(--color-purple)', fontVariationSettings: '"opsz" 14' }}
+                    >
+                      @{message.reply_username}
                     </span>
                   )}
-                </div>
-                {message.reply_username && (
-                  <span
-                    className="font-body font-normal whitespace-nowrap shrink-0 leading-none"
-                    style={{ fontSize: 12, color: 'var(--color-purple)', fontVariationSettings: '"opsz" 14' }}
-                  >
-                    @{message.reply_username}
-                  </span>
-                )}
-                {message.reply_preview && (
-                  <span
-                    className="font-body font-normal flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap leading-none"
-                    style={{ fontSize: 12, color: 'var(--color-tertiary)', fontVariationSettings: '"opsz" 14' }}
-                  >
-                    {message.reply_preview}
-                  </span>
-                )}
-              </button>
-            )
-          })()}
+                  {message.reply_preview && (
+                    <span
+                      className="font-body font-normal flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap leading-none"
+                      style={{ fontSize: 12, color: 'var(--color-tertiary)', fontVariationSettings: '"opsz" 14' }}
+                    >
+                      {message.reply_preview}
+                    </span>
+                  )}
+                </button>
+              )
+            })()}
 
-          {/* Message body */}
-          {message.message_type === 'image' ? (
-            <ImageBubble
-              src={(message.image_url as string | null | undefined) ?? message.content}
-              blurDataURL={(message.image_blur_hash as string | undefined) ?? undefined}
-              onTouchStart={handleImageTouchStart}
-              onTouchEnd={handleImageTouchEnd}
-              onTouchMove={handleImageTouchMove}
-              onClick={handleImageClick}
-            />
-          ) : (
-            <p
-              className="font-body font-normal text-[14px] text-secondary leading-[normal] w-full select-none"
-              style={{ fontVariationSettings: '"opsz" 14', WebkitUserSelect: 'none', overflowWrap: 'break-word', minWidth: 0 }}
-            >
-              {message.message_type === 'text' && (definitions.length || memberUsernames.size)
-                ? renderMessageContent(message.content, definitions, memberUsernames, setActiveDefinition)
-                : message.content
-              }
-            </p>
-          )}
+            {/* Message body */}
+            {message.message_type === 'image' ? (
+              <ImageBubble
+                src={(message.image_url as string | null | undefined) ?? message.content}
+                blurDataURL={(message.image_blur_hash as string | undefined) ?? undefined}
+                onTouchStart={handleImageTouchStart}
+                onTouchEnd={handleImageTouchEnd}
+                onTouchMove={handleImageTouchMove}
+                onClick={handleImageClick}
+              />
+            ) : (
+              <p
+                className="font-body font-normal text-[14px] text-secondary leading-[1.5] w-full select-none"
+                style={{ fontVariationSettings: '"opsz" 14', WebkitUserSelect: 'none', overflowWrap: 'break-word', minWidth: 0 }}
+              >
+                {message.message_type === 'text' && (definitions.length || memberUsernames.size)
+                  ? renderMessageContent(message.content, definitions, memberUsernames, setActiveDefinition)
+                  : message.content
+                }
+              </p>
+            )}
 
-          {/* ── OG link preview ──────────────────────────────────────────────── */}
-          {!ogLoading && ogPreview && (
-            <div style={{ marginTop: 6 }}>
+            {/* ── OG link preview ──────────────────────────────────────────────── */}
+            {!ogLoading && ogPreview && (
               <LinkPreviewCard preview={ogPreview} />
-            </div>
-          )}
+            )}
+
+          </div>
 
           {/* ── Reaction chips ────────────────────────────────────────────────── */}
           <AnimatePresence>
