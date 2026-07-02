@@ -1,15 +1,18 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { useSlideBack } from '@/app/layouts/SlidePage'
 import { AnimatePresence } from 'framer-motion'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
-import { Note } from 'pixelarticons/react/Note'
+import { Bell } from 'pixelarticons/react/Bell'
+import { BellOff } from 'pixelarticons/react/BellOff'
+import { Library } from 'pixelarticons/react/Library'
 import { Calendar2 } from 'pixelarticons/react/Calendar2'
-import { Campfire } from '@/shared/icons/Campfire'
-import { PinListSheet } from '@/features/chat/components/sheets/PinListSheet'
+import { NotifSheet, type NotifPrefs } from '@/features/chat/components/sheets/NotifSheet'
 import { EventSheetBottomPreview } from '@/features/events/components/EventSheetBottomPreview'
-import { useChatStore, selectActivePins } from '@/store/chatStore'
+import { useChatStore } from '@/store/chatStore'
+import { createClient } from '@/shared/supabase/client'
 
 interface FloatingBackButtonProps {
   crewId:             string
@@ -18,13 +21,13 @@ interface FloatingBackButtonProps {
   creatorId?:         string | null
 }
 
-export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, creatorId }: FloatingBackButtonProps) {
-  const goBack = useSlideBack()
+export function FloatingBackButton({ crewId, currentUserId, initialGemBalance }: FloatingBackButtonProps) {
+  const router  = useRouter()
+  const goBack  = useSlideBack()
   const setGemBalance       = useChatStore((s) => s.setGemBalance)
-  const setSquadDetailsOpen = useChatStore((s) => s.setSquadDetailsOpen)
-  const messages            = useChatStore((s) => s.messages)
 
-  const [showPinList,      setShowPinList]      = useState(false)
+  const [showNotif,        setShowNotif]        = useState(false)
+  const [notifPrefs,       setNotifPrefs]       = useState<NotifPrefs>({ messages: true, mentions: true })
   const [showEventPreview, setShowEventPreview] = useState(false)
   const [devMode,          setDevMode]          = useState(false)
   const [eventsEnabled,    setEventsEnabled]    = useState(false)
@@ -47,12 +50,55 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
     return () => window.removeEventListener('nexus-events-feature-change', onEventsChange)
   }, [])
 
-  // Seed store with server-fetched gem balance
   useEffect(() => {
     if (initialGemBalance !== undefined) setGemBalance(initialGemBalance)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const activePins = selectActivePins(messages)
+  // Load per-crew notification preferences
+  useEffect(() => {
+    let cancelled = false
+    createClient()
+      .from('crew_notification_preferences')
+      .select('notif_messages, notif_mentions')
+      .eq('user_id', currentUserId)
+      .eq('crew_id', crewId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled || !data) return
+        setNotifPrefs({
+          messages: data.notif_messages as boolean,
+          mentions: data.notif_mentions as boolean,
+        })
+      })
+    return () => { cancelled = true }
+  }, [currentUserId, crewId])
+
+  const handleToggleNotif = useCallback(async (type: keyof NotifPrefs) => {
+    const next = { ...notifPrefs, [type]: !notifPrefs[type] }
+    setNotifPrefs(next)
+    await createClient()
+      .from('crew_notification_preferences')
+      .upsert(
+        {
+          user_id:        currentUserId,
+          crew_id:        crewId,
+          notif_messages: next.messages,
+          notif_mentions: next.mentions,
+          updated_at:     new Date().toISOString(),
+        },
+        { onConflict: 'user_id,crew_id' },
+      )
+  }, [notifPrefs, currentUserId, crewId])
+
+  const allMuted = !notifPrefs.messages && !notifPrefs.mentions
+
+  const btnStyle = {
+    padding: 'var(--x3)',
+    background: 'rgba(0,0,0,0)',
+    backdropFilter: 'blur(7px)',
+    WebkitBackdropFilter: 'blur(7px)',
+    boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)',
+  } as const
 
   return (
     <>
@@ -74,83 +120,56 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance, c
             onClick={goBack}
             aria-label="Go back"
             className="pointer-events-auto flex items-center justify-center border border-border flex-shrink-0"
-            style={{
-              padding: 'var(--x3)',
-              background: 'rgba(0,0,0,0)',
-              backdropFilter: 'blur(7px)',
-              WebkitBackdropFilter: 'blur(7px)',
-              boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)',
-            }}
+            style={btnStyle}
           >
             <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
           </button>
 
           {/* Right actions */}
           <div className="flex items-center pointer-events-auto" style={{ gap: 'var(--x5)' }}>
-            {/* Pin icon */}
-            <button
-              onClick={() => setShowPinList(true)}
-              aria-label={activePins.length > 0 ? `${activePins.length} pinned message${activePins.length !== 1 ? 's' : ''}` : 'No pinned messages'}
-              className="relative flex items-center justify-center border border-border flex-shrink-0"
-              style={{
-                padding: 'var(--x3)',
-                background: 'rgba(0,0,0,0)',
-                backdropFilter: 'blur(7px)',
-                WebkitBackdropFilter: 'blur(7px)',
-                boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)',
-              }}
-            >
-              <Note
-                style={{
-                  width: 24, height: 24,
-                  color: activePins.length > 0 ? 'var(--color-primary)' : 'var(--color-tertiary)',
-                }}
-                aria-hidden="true"
-              />
-            </button>
-
             {devMode && eventsEnabled && (
               <button
                 onClick={() => setShowEventPreview(true)}
                 aria-label="Group events"
                 className="flex items-center justify-center border border-border flex-shrink-0"
-                style={{
-                  padding: 'var(--x3)',
-                  background: 'rgba(0,0,0,0)',
-                  backdropFilter: 'blur(7px)',
-                  WebkitBackdropFilter: 'blur(7px)',
-                  boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)',
-                }}
+                style={btnStyle}
               >
                 <Calendar2 style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
               </button>
             )}
 
+            {/* Bell — notification settings */}
             <button
-              onClick={() => setSquadDetailsOpen(true)}
-              aria-label="Squad details"
+              onClick={() => setShowNotif(true)}
+              aria-label={allMuted ? 'Notifications muted' : 'Notification settings'}
               className="flex items-center justify-center border border-border flex-shrink-0"
-              style={{
-                padding: 'var(--x3)',
-                background: 'rgba(0,0,0,0)',
-                backdropFilter: 'blur(7px)',
-                WebkitBackdropFilter: 'blur(7px)',
-                boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)',
-              }}
+              style={{ ...btnStyle, color: allMuted ? 'var(--color-muted)' : 'var(--color-primary)' }}
             >
-              <Campfire style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+              {allMuted
+                ? <BellOff style={{ width: 24, height: 24 }} aria-hidden="true" />
+                : <Bell style={{ width: 24, height: 24 }} aria-hidden="true" />
+              }
+            </button>
+
+            {/* Library — squad glossary */}
+            <button
+              onClick={() => router.push(`/chat/${crewId}/definitions`)}
+              aria-label="Squad glossary"
+              className="flex items-center justify-center border border-border flex-shrink-0"
+              style={btnStyle}
+            >
+              <Library style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
             </button>
           </div>
         </div>
       </div>
 
       <AnimatePresence>
-        {showPinList && (
-          <PinListSheet
-            activePins={activePins}
-            currentUserId={currentUserId}
-            creatorId={creatorId ?? null}
-            onClose={() => setShowPinList(false)}
+        {showNotif && (
+          <NotifSheet
+            prefs={notifPrefs}
+            onToggle={handleToggleNotif}
+            onClose={() => setShowNotif(false)}
           />
         )}
       </AnimatePresence>

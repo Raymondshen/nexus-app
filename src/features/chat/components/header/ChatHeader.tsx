@@ -252,8 +252,8 @@ export function ChatHeader({
             <button
               onClick={goBack}
               aria-label="Back"
-              className="flex-shrink-0 flex items-center justify-center"
-              style={{ width: 24, height: 40 }}
+              className="flex-shrink-0 flex items-center justify-center border border-border"
+              style={{ padding: 8, boxShadow: '0px 0px 20px 12px rgba(0,0,0,0.1)' }}
             >
               <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-purple)' }} aria-hidden="true" />
             </button>
@@ -268,8 +268,8 @@ export function ChatHeader({
               <button
                 onClick={() => router.push(`/chat/${crewId}/events`)}
                 aria-label="Group events"
-                className="flex items-center justify-center text-primary transition-colors"
-                style={{ width: 24, height: 40 }}
+                className="flex items-center justify-center border border-border text-primary transition-colors"
+                style={{ padding: 8, filter: 'drop-shadow(0px 0px 10px rgba(0,0,0,0.1))' }}
               >
                 <Calendar style={{ width: 24, height: 24 }} aria-hidden="true" />
               </button>
@@ -277,8 +277,8 @@ export function ChatHeader({
             <button
               onClick={() => setShowNotif(true)}
               aria-label={allMuted ? 'Notifications muted' : 'Notification settings'}
-              className="flex items-center justify-center transition-colors"
-              style={{ width: 24, height: 40, color: allMuted ? 'var(--color-muted)' : 'var(--color-primary)' }}
+              className="flex items-center justify-center border border-border transition-colors"
+              style={{ padding: 8, filter: 'drop-shadow(0px 0px 10px rgba(0,0,0,0.1))', color: allMuted ? 'var(--color-muted)' : 'var(--color-primary)' }}
             >
               {allMuted
                 ? <BellOff style={{ width: 24, height: 24 }} aria-hidden="true" />
@@ -288,8 +288,8 @@ export function ChatHeader({
             <button
               onClick={() => setShowShare(true)}
               aria-label="Invite members"
-              className="flex items-center justify-center text-primary hover:text-purple transition-colors"
-              style={{ width: 24, height: 40 }}
+              className="flex items-center justify-center border border-border text-primary transition-colors"
+              style={{ padding: 8, filter: 'drop-shadow(0px 0px 10px rgba(0,0,0,0.1))' }}
             >
               <UserPlus style={{ width: 24, height: 24 }} aria-hidden="true" />
             </button>

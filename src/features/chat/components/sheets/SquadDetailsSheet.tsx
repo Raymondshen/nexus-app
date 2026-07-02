@@ -8,9 +8,7 @@ import { supabaseImageLoader, avatarImageLoader } from '@/shared/supabase/imageL
 import { getXPInCurrentLevel, getXPForCurrentLevel } from '@/shared/utils/xp'
 import { PixelSprite, spriteInfoFor } from '@/shared/components/game/PixelSprite'
 import { MagicEdit } from 'pixelarticons/react/MagicEdit'
-import { Bell } from 'pixelarticons/react/Bell'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
-import { Library } from 'pixelarticons/react/Library'
 import { Crown } from 'pixelarticons/react/Crown'
 import { Copy } from 'pixelarticons/react/Copy'
 import { Check } from 'pixelarticons/react/Check'
@@ -52,11 +50,9 @@ interface SquadDetailsSheetProps {
   loadingCounts:           boolean
   onUploadPhoto:           () => void
   onUploadBackground?:     () => void
-  onNotifPress:            () => void
   onSave:                  (newName: string) => Promise<void>
   onTapMember:             (memberId: string) => void
   onDMPress?:              (memberId: string) => void
-  onOpenGlossary?:         () => void
   onRemoveMember?:         (member: MiniMember) => void
   onLeave?:                () => void
   onClose:                 () => void
@@ -444,8 +440,8 @@ export function SquadDetailsSheet({
   crewId, crewName, memberCount, crewImageUrl, crewBackgroundImageUrl, members, onlineUserIds,
   crewXP, crewLevel, xpProgress, totalMessages, inviteCode, creatorId,
   currentUserId, memberMsgCounts, loadingCounts,
-  onUploadPhoto, onUploadBackground, onNotifPress, onSave, onTapMember, onDMPress,
-  onOpenGlossary, onRemoveMember, onLeave, onClose,
+  onUploadPhoto, onUploadBackground, onSave, onTapMember, onDMPress,
+  onRemoveMember, onLeave, onClose,
 }: SquadDetailsSheetProps) {
   const [copied,        setCopied]        = useState(false)
   const [showSquadEdit, setShowSquadEdit] = useState(false)
@@ -585,22 +581,6 @@ export function SquadDetailsSheet({
                   <MagicEdit style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
                 </button>
               )}
-              <button
-                onClick={onNotifPress}
-                className="flex items-center justify-center"
-                style={{ width: 24, height: 24 }}
-                aria-label="Notification settings"
-              >
-                <Bell style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
-              </button>
-              <button
-                onClick={onOpenGlossary}
-                className="flex items-center justify-center"
-                style={{ width: 24, height: 24 }}
-                aria-label="Squad glossary"
-              >
-                <Library style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
-              </button>
               <button
                 onClick={onClose}
                 className="flex items-center justify-center"

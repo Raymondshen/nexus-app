@@ -32,7 +32,6 @@ import { leaveCrewAction } from '@/app/(app)/home/actions'
 import { resizeImageToBlob } from '@/shared/utils/imageCompress'
 import { EventCreationSheet } from '@/features/events/components/EventCreationSheet'
 import { CrewImageUploadModal } from '@/features/chat/components/sheets/CrewImageUploadModal'
-import { NotifSheet, type NotifPrefs } from '@/features/chat/components/sheets/NotifSheet'
 import { SquadDetailsSheet, type MiniMember } from '@/features/chat/components/sheets/SquadDetailsSheet'
 import { PollCreatorSheet } from '@/features/chat/components/polls/PollCreatorSheet'
 import { GifPickerSheet } from '@/features/chat/components/input/GifPickerSheet'
@@ -230,9 +229,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   const [crewImageFile,  setCrewImageFile]  = useState<File | null>(null)
   const [crewBgUrl,      setCrewBgUrl]      = useState<string | null>(initialCrewBgUrl ?? null)
   const [bgUploading,    setBgUploading]    = useState(false)
-  const [showNotif,       setShowNotif]       = useState(false)
-  const [notifPrefs,      setNotifPrefs]      = useState<NotifPrefs>({ messages: true, mentions: true })
-  const [showPollCreator,  setShowPollCreator]  = useState(false)
+const [showPollCreator,  setShowPollCreator]  = useState(false)
   const [showGifPicker,    setShowGifPicker]    = useState(false)
   const [showMediaPicker,  setShowMediaPicker]  = useState(false)
   const [mentionQuery,    setMentionQuery]    = useState<string | null>(null)
@@ -459,41 +456,6 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
       })
     return () => { cancelled = true }
   }, [crewId]) // eslint-disable-line
-
-  useEffect(() => {
-    let cancelled = false
-    createClient()
-      .from('crew_notification_preferences')
-      .select('notif_messages, notif_mentions')
-      .eq('user_id', userId)
-      .eq('crew_id', crewId)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (cancelled || !data) return
-        setNotifPrefs({
-          messages: data.notif_messages as boolean,
-          mentions: data.notif_mentions as boolean,
-        })
-      })
-    return () => { cancelled = true }
-  }, [userId, crewId]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const handleToggleNotif = useCallback(async (type: keyof NotifPrefs) => {
-    const next = { ...notifPrefs, [type]: !notifPrefs[type] }
-    setNotifPrefs(next)
-    await createClient()
-      .from('crew_notification_preferences')
-      .upsert(
-        {
-          user_id:        userId,
-          crew_id:        crewId,
-          notif_messages: next.messages,
-          notif_mentions: next.mentions,
-          updated_at:     new Date().toISOString(),
-        },
-        { onConflict: 'user_id,crew_id' },
-      )
-  }, [notifPrefs, userId, crewId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sync overlay scroll with the active field so highlighted text stays aligned.
   useEffect(() => {
@@ -1961,7 +1923,6 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
             crewBackgroundImageUrl={crewBgUrl}
             onUploadPhoto={() => crewImageInputRef.current?.click()}
             onUploadBackground={() => crewBgInputRef.current?.click()}
-            onNotifPress={() => setShowNotif(true)}
             onSave={async (newName) => {
               const trimmed = newName.trim()
               if (!trimmed || trimmed.length < 2) return
@@ -1979,23 +1940,9 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
               setIsExpanded(false)
               router.push(`/dm/${memberId}`)
             }}
-            onOpenGlossary={() => {
-              setIsExpanded(false)
-              router.push(`/chat/${crewId}/definitions`)
-            }}
             onRemoveMember={(member) => setRemoveTarget(member as MemberProfile)}
             onLeave={handleLeaveSquad}
             onClose={() => setIsExpanded(false)}
-          />
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {showNotif && (
-          <NotifSheet
-            prefs={notifPrefs}
-            onToggle={handleToggleNotif}
-            onClose={() => setShowNotif(false)}
           />
         )}
       </AnimatePresence>
