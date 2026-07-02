@@ -18,11 +18,12 @@ import { ArrowBarDown } from 'pixelarticons/react/ArrowBarDown'
 import type { MessageWithProfile, Message, Profile, AvatarClass, SquadDefinition, SquadDefinitionWithCreator, CombatEvent, CombatEventKind } from '@/types'
 
 interface MessageListProps {
-  crewId:         string
-  crewName:       string
-  currentUserId:  string
-  memberProfiles: Record<string, Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url'>>
-  creatorId?:     string | null
+  crewId:               string
+  crewName:             string
+  currentUserId:        string
+  memberProfiles:       Record<string, Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url'>>
+  creatorId?:           string | null
+  memberPinnedVinyls?:  Record<string, { imageUrl: string | null; title: string | null }>
 }
 
 function dayLabel(date: Date): string {
@@ -165,6 +166,7 @@ export function MessageList({
   currentUserId,
   memberProfiles,
   creatorId,
+  memberPinnedVinyls,
 }: MessageListProps) {
   const router = useRouter()
   const onAvatarTap = useMemo(
@@ -941,6 +943,7 @@ export function MessageList({
           memberUsernames={memberUsernames}
           replyProfile={replyProfile}
           isCreator={creatorId != null && currentUserId === creatorId}
+          pinnedVinyl={memberPinnedVinyls?.[item.message.user_id] ?? null}
         />
       </div>
     )

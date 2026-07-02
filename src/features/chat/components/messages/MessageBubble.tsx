@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useRef, useEffect, useCallback } from 'react'
+import React, { useState, useRef, useEffect, useCallback, useLayoutEffect } from 'react'
 import { createPortal } from 'react-dom'
 import Image from 'next/image'
 import { format } from 'date-fns'
@@ -89,6 +89,7 @@ interface MessageBubbleProps {
   memberUsernames?: Set<string>
   replyProfile?:    Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url'> | null
   isCreator?:       boolean
+  pinnedVinyl?:     { imageUrl: string | null; title: string | null } | null
 }
 
 // Targeted field comparison — prevents re-renders from unrelated store updates
@@ -112,6 +113,7 @@ function areEqual(prev: MessageBubbleProps, next: MessageBubbleProps): boolean {
   if (prev.definitions     !== next.definitions)     return false
   if (prev.memberUsernames !== next.memberUsernames) return false
   if (prev.replyProfile    !== next.replyProfile)    return false
+  if (prev.pinnedVinyl     !== next.pinnedVinyl)     return false
   return true
 }
 
@@ -262,6 +264,119 @@ function renderMessageContent(
   return result.length ? result : content
 }
 
+// ─── VinylPill — pinned vinyl displayed in the message header ────────────────
+
+function VinylPill({ imageUrl, title }: { imageUrl: string | null; title: string | null }) {
+  const measureRef = useRef<HTMLSpanElement>(null)
+  const [textWidth, setTextWidth] = useState(0)
+  const TITLE_W = 32
+
+  useLayoutEffect(() => {
+    if (!measureRef.current || !title) return
+    setTextWidth(measureRef.current.scrollWidth)
+  }, [title])
+
+  const needsTicker = textWidth > TITLE_W
+  const tickerDur   = Math.max(3, (textWidth / TITLE_W) * 2.5)
+
+  return (
+    <div
+      style={{
+        display:       'inline-flex',
+        alignItems:    'center',
+        gap:           4,
+        background:    'var(--color-surface-sheet)',
+        borderRadius:  56,
+        padding:       4,
+        flexShrink:    0,
+        position:      'relative',
+      }}
+    >
+      {/* 12×12 spinning vinyl disc */}
+      <div
+        className="animate-vinyl"
+        style={{ width: 12, height: 12, borderRadius: 8, overflow: 'hidden', position: 'relative', flexShrink: 0 }}
+      >
+        {imageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={imageUrl}
+            alt=""
+            aria-hidden
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', maxWidth: 'none' }}
+          />
+        ) : (
+          <div style={{ position: 'absolute', inset: 0, background: 'var(--color-surface)' }} />
+        )}
+        {/* Center hole */}
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ width: 1, height: 1, borderRadius: '50%', background: 'black', border: '0.5px solid var(--color-border)', flexShrink: 0 }} />
+        </div>
+      </div>
+
+      {/* Music note icon + scrolling title */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+        {/* 8×8 pixel-art play icon (▶) — matches Figma node 377:5120 */}
+        <svg width="8" height="8" viewBox="0 0 8 8" fill="none" aria-hidden style={{ flexShrink: 0 }}>
+          <rect x="0" y="0" width="1" height="1" fill="var(--color-tertiary)" />
+          <rect x="0" y="1" width="2" height="1" fill="var(--color-tertiary)" />
+          <rect x="0" y="2" width="3" height="1" fill="var(--color-tertiary)" />
+          <rect x="0" y="3" width="4" height="2" fill="var(--color-tertiary)" />
+          <rect x="0" y="5" width="3" height="1" fill="var(--color-tertiary)" />
+          <rect x="0" y="6" width="2" height="1" fill="var(--color-tertiary)" />
+          <rect x="0" y="7" width="1" height="1" fill="var(--color-tertiary)" />
+        </svg>
+
+        {title && (
+          <>
+            {/* Off-viewport span used only for measuring rendered text width */}
+            <span
+              ref={measureRef}
+              aria-hidden
+              className="font-silkscreen"
+              style={{
+                fontSize:      8,
+                whiteSpace:    'nowrap',
+                letterSpacing: '0.1px',
+                position:      'fixed',
+                left:          -9999,
+                top:           0,
+                visibility:    'hidden',
+                pointerEvents: 'none',
+                zIndex:        -1,
+              }}
+            >
+              {title}
+            </span>
+
+            {/* 32px wide clipping container */}
+            <div style={{ width: TITLE_W, overflow: 'hidden', flexShrink: 0 }}>
+              {needsTicker ? (
+                <motion.div
+                  className="flex"
+                  animate={{ x: [0, -(textWidth + 16)] }}
+                  transition={{ duration: tickerDur, repeat: Infinity, ease: 'linear', repeatType: 'loop' }}
+                >
+                  <span className="font-silkscreen leading-none" style={{ fontSize: 8, color: 'var(--color-tertiary)', whiteSpace: 'nowrap', letterSpacing: '0.1px', flexShrink: 0 }}>
+                    {title}
+                  </span>
+                  <span className="font-silkscreen leading-none" style={{ fontSize: 8, color: 'var(--color-tertiary)', whiteSpace: 'nowrap', letterSpacing: '0.1px', paddingLeft: 16, flexShrink: 0 }}>
+                    {title}
+                  </span>
+                </motion.div>
+              ) : (
+                <span className="font-silkscreen leading-none" style={{ fontSize: 8, color: 'var(--color-tertiary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block', letterSpacing: '0.1px' }}>
+                  {title}
+                </span>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // Stable fallback constants — avoids new array/Set allocations when caller omits optional props
 const EMPTY_DEFINITIONS: SquadDefinitionWithCreator[] = []
 const EMPTY_USERNAMES   = new Set<string>()
@@ -280,6 +395,7 @@ function MessageBubbleImpl({
   memberUsernames = EMPTY_USERNAMES,
   replyProfile   = null,
   isCreator      = false,
+  pinnedVinyl    = null,
 }: MessageBubbleProps) {
   const [sheetOpen,          setSheetOpen]          = useState(false)
   const [copied,             setCopied]             = useState(false)
@@ -780,10 +896,10 @@ function MessageBubbleImpl({
         {/* Message content — pl-10 aligns continuation text with grouped messages */}
         <div className={`flex-1 min-w-0 flex flex-col gap-0 ${!showHeader ? 'pl-10' : ''}`}>
 
-          {/* Header row: username · class · xp · timestamp */}
+          {/* Header row: username · vinyl pill · timestamp */}
           {showHeader && (
             <div className="flex items-center justify-between w-full">
-              <div className="flex items-center gap-[4px] flex-1 min-w-0">
+              <div className="flex items-center gap-[4px] flex-1 min-w-0 overflow-hidden">
                 <span
                   className={`font-body font-medium text-[12px] tracking-[0.1px] shrink-0 leading-[normal] whitespace-nowrap ${
                     isOwn ? 'text-purple' : 'text-primary'
@@ -795,14 +911,10 @@ function MessageBubbleImpl({
                   {message.profile.username}
                 </span>
 
-                {displayXP > 0 && (
+                {pinnedVinyl && (
                   <>
-                    <span className="w-[2px] h-[2px] bg-border shrink-0" />
-                    <p className="font-silkscreen tracking-[0.1px] whitespace-nowrap leading-[0] text-[0px] shrink-0">
-                      <span className="text-[8px] leading-[normal]" style={{ color: '#f59e0b' }}>
-                        +{displayXP} XP
-                      </span>
-                    </p>
+                    <div style={{ width: 2, height: 2, background: 'var(--color-border)', flexShrink: 0 }} />
+                    <VinylPill imageUrl={pinnedVinyl.imageUrl} title={pinnedVinyl.title} />
                   </>
                 )}
               </div>

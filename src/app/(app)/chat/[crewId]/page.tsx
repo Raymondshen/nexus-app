@@ -65,13 +65,16 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
   if (!session) redirect("/login");
   const user = session.user;
 
-  // Stage 2 — all 6 queries in parallel.
+  const MUSIC_DOMAINS = ['youtube.com', 'youtu.be', 'music.youtube.com', 'music.apple.com', 'open.spotify.com', 'spotify.com', 'soundcloud.com']
+
+  // Stage 2 — all 7 queries in parallel.
   // raid + token were previously a sequential Stage 3 (they only need crewId
   // from Stage 1, not any Stage 2 result), so we move them here to eliminate
   // one full server round-trip on every chat open.
   // crew (total_xp) stays uncached — it changes with every message.
   // crew_members fetched fresh for membership check (RLS returns empty for non-members).
-  const [cachedProfiles, crewResult, lastSeenResult, gemResult, raidRes, tokenRes] = await Promise.all([
+  // vibeNotesRes fetches most-recent music note per member for vinyl pills in message bubbles.
+  const [cachedProfiles, crewResult, lastSeenResult, gemResult, raidRes, tokenRes, vibeNotesRes] = await Promise.all([
     getCachedMemberProfiles(crewId),
     supabase.from("crews").select("id, name, invite_code, level, total_xp, image_url, background_image_url").eq("id", crewId).single(),
     supabase
@@ -91,6 +94,13 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
       .select('count')
       .eq('crew_id', crewId)
       .maybeSingle(),
+    supabase
+      .from('notes')
+      .select('created_by, og_title, og_image_url')
+      .eq('crew_id', crewId)
+      .in('source_domain', MUSIC_DOMAINS)
+      .order('created_at', { ascending: false })
+      .limit(100),
   ]);
 
   const crew       = crewResult.data as Crew | null;
@@ -140,6 +150,19 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
       }, lastSeenRows[0]).user_id
     : null
 
+  // Build most-recent-music-note map per user for vinyl pills in message bubbles.
+  // Notes are ordered by created_at DESC so the first match per user is their latest vibe.
+  const memberPinnedVinyls: Record<string, { imageUrl: string | null; title: string | null }> = {}
+  for (const n of (vibeNotesRes.data ?? [])) {
+    const note = n as { created_by: string; og_title: string | null; og_image_url: string | null }
+    if (!memberPinnedVinyls[note.created_by]) {
+      memberPinnedVinyls[note.created_by] = {
+        imageUrl: note.og_image_url,
+        title:    note.og_title,
+      }
+    }
+  }
+
   return (
     <SlidePage
       className="flex flex-col bg-black"
@@ -167,6 +190,7 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
           currentUserId={user.id}
           memberProfiles={memberProfiles}
           creatorId={creatorId}
+          memberPinnedVinyls={memberPinnedVinyls}
         />
       </ErrorBoundary>
 

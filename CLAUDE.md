@@ -264,6 +264,8 @@ src/
 
 ### MessageList
 - **Virtualization**: `useVirtualizer` (absolute-position, `measureElement`, `overscan: 5`). `getItemKey` uses `message.tempId ?? message.id` — `tempId` keeps the virtualizer key stable through optimistic→real reconciliation.
+Props: `crewId`, `crewName`, `currentUserId`, `memberProfiles`, `creatorId?`, `memberPinnedVinyls?: Record<string, { imageUrl: string | null; title: string | null }>`. The `memberPinnedVinyls` map is built server-side in `page.tsx` from the `notes` table filtered to music domains (most-recent note per user); it flows through `MessageList` → `MessageBubble` as the `pinnedVinyl` prop.
+
 - **Initial load** (three-tier cache):
   1. `useBrowserLayoutEffect` reads sessionStorage `nexus-msgs-{crewId}` synchronously → instant render if present (same-session navigation)
   2. `useEffect` checks cache envelope `savedAt`: if < 30s old → skip DB fetch entirely (Realtime delivers any delta); if sessionStorage is empty → reads IDB (survives iOS PWA kill, ~5ms async) → shows cached messages, then proceeds to DB fetch to merge
@@ -282,6 +284,10 @@ src/
 Avatar images (32px primary, 16px reply) use `avatarImageLoader` — forces 1:1 square crop for consistent circle fill across all user avatar types.
 
 Reply row: `CornerDownRight` icon uses `var(--color-tertiary)` (muted). Reply avatar is 16×16 with `object-cover` + `avatarImageLoader`.
+
+**Header row** (username · vinyl pill · timestamp): left flex container has `overflow-hidden`. Between username and timestamp: when `pinnedVinyl` is set, a 2×2 dot separator + `VinylPill` appears. The old `+N XP` badge has been removed from this row.
+
+**`VinylPill`** (`pinnedVinyl?: { imageUrl, title } | null` prop): shows the sender's most-recently-added vibe (music note from Vibes tab). Layout: 12×12 `animate-vinyl` spinning disc (album art or surface fallback + 1×1 center hole) + 8×8 pixel-art play icon (inline SVG, `var(--color-tertiary)`) + 32px clip container for title. Title uses `useLayoutEffect` + off-screen hidden `<span ref={measureRef}>` to measure rendered width; if `textWidth > 32` a Framer Motion `animate={{ x: [0, -(textWidth+16)] }}` ticker loops; otherwise static with `text-overflow: ellipsis`. Pill background `var(--color-surface-sheet)`, `borderRadius: 56`, `padding: 4`.
 
 Long-press sheet (500ms / right-click) → emoji quick-pick + Edit Message (own `text`-type messages only) + Reply + Copy Text + Pin (admin only). `PinDurationSheet` portal opens when pin tapped.
 
