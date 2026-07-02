@@ -74,7 +74,7 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
   // crew (total_xp) stays uncached — it changes with every message.
   // crew_members fetched fresh for membership check (RLS returns empty for non-members).
   // vibeNotesRes fetches most-recent music note per member for vinyl pills in message bubbles.
-  const [cachedProfiles, crewResult, lastSeenResult, gemResult, raidRes, tokenRes, vibeNotesRes] = await Promise.all([
+  const [cachedProfiles, crewResult, lastSeenResult, gemResult, raidRes, tokenRes, vibeNotesRes, memberPinRes] = await Promise.all([
     getCachedMemberProfiles(crewId),
     supabase.from("crews").select("id, name, invite_code, level, total_xp, image_url, background_image_url").eq("id", crewId).single(),
     supabase
@@ -94,13 +94,19 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
       .select('count')
       .eq('crew_id', crewId)
       .maybeSingle(),
+    // Most-recent music notes per member within this crew (fallback source)
     supabase
       .from('notes')
-      .select('created_by, og_title, og_image_url')
+      .select('id, created_by, og_title, og_image_url')
       .eq('crew_id', crewId)
       .in('source_domain', MUSIC_DOMAINS)
       .order('created_at', { ascending: false })
       .limit(100),
+    // Each member's pinned_vinyl_id from their profile
+    supabase
+      .from('crew_members')
+      .select('user_id, profile:profiles(pinned_vinyl_id)')
+      .eq('crew_id', crewId),
   ]);
 
   const crew       = crewResult.data as Crew | null;
@@ -150,16 +156,55 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
       }, lastSeenRows[0]).user_id
     : null
 
-  // Build most-recent-music-note map per user for vinyl pills in message bubbles.
-  // Notes are ordered by created_at DESC so the first match per user is their latest vibe.
+  // Build vinyl pill map for message bubbles.
+  // Priority: user's pinned vibe → most-recent music note in this crew.
+  type NoteRow = { id: string; created_by: string; og_title: string | null; og_image_url: string | null }
+  type PinRow  = { user_id: string; profile: { pinned_vinyl_id: string | null } | null }
+
+  // Index crew notes: by id (for pinned lookup) and by user (most-recent first for fallback)
+  const noteById:    Record<string, NoteRow>   = {}
+  const notesByUser: Record<string, NoteRow[]> = {}
+  for (const n of (vibeNotesRes.data ?? []) as unknown as NoteRow[]) {
+    noteById[n.id] = n
+    if (!notesByUser[n.created_by]) notesByUser[n.created_by] = []
+    notesByUser[n.created_by].push(n)
+  }
+
+  // Extract each member's pinned_vinyl_id
+  const pinnedMap: Record<string, string | null> = {}
+  for (const r of (memberPinRes.data ?? []) as unknown as PinRow[]) {
+    pinnedMap[r.user_id] = r.profile?.pinned_vinyl_id ?? null
+  }
+
+  // Pinned notes that aren't in the crew board need a global lookup
+  const missingIds = Object.values(pinnedMap).filter((id): id is string => !!id && !noteById[id])
+  let extraById: Record<string, NoteRow> = {}
+  if (missingIds.length > 0) {
+    const { data: extra } = await supabase
+      .from('notes')
+      .select('id, created_by, og_title, og_image_url')
+      .in('id', missingIds)
+    for (const n of (extra ?? []) as unknown as NoteRow[]) extraById[n.id] = n
+  }
+
   const memberPinnedVinyls: Record<string, { imageUrl: string | null; title: string | null }> = {}
-  for (const n of (vibeNotesRes.data ?? [])) {
-    const note = n as { created_by: string; og_title: string | null; og_image_url: string | null }
-    if (!memberPinnedVinyls[note.created_by]) {
-      memberPinnedVinyls[note.created_by] = {
-        imageUrl: note.og_image_url,
-        title:    note.og_title,
+  // Users with an explicit pin
+  for (const [userId, pinnedId] of Object.entries(pinnedMap)) {
+    if (pinnedId) {
+      const note = noteById[pinnedId] ?? extraById[pinnedId]
+      if (note) {
+        memberPinnedVinyls[userId] = { imageUrl: note.og_image_url, title: note.og_title }
+        continue
       }
+    }
+    // Fallback: most-recent note in this crew
+    const fallback = notesByUser[userId]?.[0]
+    if (fallback) memberPinnedVinyls[userId] = { imageUrl: fallback.og_image_url, title: fallback.og_title }
+  }
+  // Users with crew notes but no pinned_vinyl_id entry
+  for (const [userId, notes] of Object.entries(notesByUser)) {
+    if (!memberPinnedVinyls[userId] && notes.length > 0) {
+      memberPinnedVinyls[userId] = { imageUrl: notes[0].og_image_url, title: notes[0].og_title }
     }
   }
 

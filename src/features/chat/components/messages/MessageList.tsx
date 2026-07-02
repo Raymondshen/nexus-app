@@ -943,7 +943,7 @@ export function MessageList({
           definitions={definitions}
           memberUsernames={memberUsernames}
           replyProfile={replyProfile}
-          isCreator={creatorId != null && currentUserId === creatorId}
+          isCreator={creatorId != null && item.message.user_id === creatorId}
           pinnedVinyl={memberPinnedVinyls?.[item.message.user_id] ?? null}
         />
       </div>

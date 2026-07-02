@@ -4,6 +4,7 @@ import { useState, useTransition, useEffect, useRef, useMemo, useCallback } from
 import { AnimatePresence, motion } from 'framer-motion'
 import { Close } from 'pixelarticons/react/Close'
 import { addNoteAction, deleteNoteAction } from '@/app/(app)/profile/notes/actions'
+import { updatePinnedVinylAction } from '@/app/(app)/profile/actions'
 import type { PublicNote } from '@/types'
 
 // ─── Music platform validation ────────────────────────────────────────────────
@@ -380,17 +381,15 @@ function AddVibeSheet({
   onAdd:   (note: PublicNote) => void
   crews:   Array<{ id: string; name: string }>
 }) {
-  const [url,    setUrl]    = useState('')
-  const [crewId, setCrewId] = useState(crews[0]?.id ?? '')
-  const [error,  setError]  = useState<string | null>(null)
-  const [adding, startAdd]  = useTransition()
+  const [url,   setUrl]   = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [adding, startAdd] = useTransition()
 
   useEffect(() => {
     if (!isOpen) return
     setUrl('')
     setError(null)
-    if (crews.length > 0) setCrewId(crews[0].id)
-  }, [isOpen]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isOpen])
 
   function handleAdd() {
     const trimmed = url.trim()
@@ -399,6 +398,7 @@ function AddVibeSheet({
       setError('Only YouTube, Spotify, Apple Music, or SoundCloud')
       return
     }
+    const crewId = crews[0]?.id
     if (!crewId) { setError('Join a squad first to save vibes'); return }
 
     startAdd(async () => {
@@ -473,35 +473,6 @@ function AddVibeSheet({
                 />
               </div>
 
-              {/* Crew selector — only shown when user is in multiple squads */}
-              {crews.length > 1 && (
-                <div className="flex flex-col" style={{ gap: 8 }}>
-                  <p
-                    className="font-body font-medium text-primary tracking-[0.2px] leading-normal"
-                    style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
-                  >
-                    Save to Squad
-                  </p>
-                  <div
-                    className="bg-black border flex items-center overflow-hidden"
-                    style={{ borderColor: 'var(--color-border-hover)', height: 48, paddingLeft: 12, paddingRight: 12 }}
-                  >
-                    <select
-                      value={crewId}
-                      onChange={(e) => setCrewId(e.target.value)}
-                      className="flex-1 bg-transparent font-body font-normal text-primary focus:outline-none appearance-none cursor-pointer"
-                      style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
-                    >
-                      {crews.map(c => (
-                        <option key={c.id} value={c.id} style={{ background: '#111' }}>
-                          {c.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              )}
-
               {/* Error */}
               {error && (
                 <p className="font-pixel" style={{ fontSize: 8, color: '#ef4444' }}>{error}</p>
@@ -537,17 +508,19 @@ function AddVibeSheet({
 // ─── VibesGrid (main export) ──────────────────────────────────────────────────
 
 export interface VibesGridProps {
-  initialVinyls: PublicNote[]
-  crews:         Array<{ id: string; name: string }>
-  isOwner:       boolean
+  initialVinyls:   PublicNote[]
+  crews:           Array<{ id: string; name: string }>
+  isOwner:         boolean
+  initialPinnedId?: string | null
 }
 
-export function VibesGrid({ initialVinyls, crews, isOwner }: VibesGridProps) {
+export function VibesGrid({ initialVinyls, crews, isOwner, initialPinnedId = null }: VibesGridProps) {
   const [vinyls,  setVinyls]  = useState<PublicNote[]>(() => initialVinyls.filter(isMusicNote))
   const [showAdd, setShowAdd] = useState(false)
   const [pinnedId, setPinnedId] = useState<string | null>(() => {
-    if (typeof window === 'undefined') return null
-    return localStorage.getItem(VIBES_PINNED_KEY)
+    if (typeof window === 'undefined') return initialPinnedId
+    // localStorage takes precedence for same-session changes; fall back to DB value
+    return localStorage.getItem(VIBES_PINNED_KEY) ?? initialPinnedId
   })
 
   function handleAdd(vinyl: PublicNote) {
@@ -559,6 +532,7 @@ export function VibesGrid({ initialVinyls, crews, isOwner }: VibesGridProps) {
       const next = prev === vinylId ? null : vinylId
       if (next) localStorage.setItem(VIBES_PINNED_KEY, next)
       else localStorage.removeItem(VIBES_PINNED_KEY)
+      updatePinnedVinylAction(next)
       return next
     })
   }
@@ -568,6 +542,7 @@ export function VibesGrid({ initialVinyls, crews, isOwner }: VibesGridProps) {
     if (pinnedId === vinylId) {
       setPinnedId(null)
       localStorage.removeItem(VIBES_PINNED_KEY)
+      updatePinnedVinylAction(null)
     }
     deleteNoteAction(vinylId)
   }

@@ -29,6 +29,7 @@ interface ProfileClientProps {
   initialNotes:      PublicNote[]
   notesCrews:        Array<{ id: string; name: string }>
   initialPhotos:     ProfilePhoto[]
+  initialPinnedId?:  string | null
 }
 
 // ─── Profile status ticker ────────────────────────────────────────────────────
@@ -82,6 +83,7 @@ export function ProfileClient({
   initialNotes,
   notesCrews,
   initialPhotos,
+  initialPinnedId = null,
 }: ProfileClientProps) {
   const router = useRouter()
 
@@ -298,6 +300,7 @@ export function ProfileClient({
               initialVinyls={initialNotes}
               crews={notesCrews}
               isOwner={true}
+              initialPinnedId={initialPinnedId}
             />
           </motion.div>
         )}

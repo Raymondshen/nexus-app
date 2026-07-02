@@ -73,6 +73,18 @@ async function revalidateUserCaches(userId: string, crewIds: string[]) {
 
 // ── Actions ────────────────────────────────────────────────────────────────────
 
+export async function updatePinnedVinylAction(noteId: string | null): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) return { error: 'Unauthorized' }
+  const { error } = await supabase
+    .from('profiles')
+    .update({ pinned_vinyl_id: noteId } as Record<string, unknown>)
+    .eq('id', session.user.id)
+  if (error) return { error: 'Failed to update pin' }
+  return {}
+}
+
 export async function updateAvatarAction(newAvatarUrl: string): Promise<{ error: string | null }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()

@@ -11,7 +11,7 @@ Build: `next build --webpack` (Turbopack breaks next-pwa + proxy.ts)
 
 ## Database Tables
 ```
-profiles            id, username (unique case-insensitive), first_name, last_name, avatar_class, avatar_url, avatar_storage_key, custom_avatar (bool default false), birthday, is_dev, coins (int default 0), gem_balance (int default 0), last_gem_claim (timestamptz nullable), status (text nullable ≤100 chars), last_active_at (timestamptz nullable), created_at
+profiles            id, username (unique case-insensitive), first_name, last_name, avatar_class, avatar_url, avatar_storage_key, custom_avatar (bool default false), birthday, is_dev, coins (int default 0), gem_balance (int default 0), last_gem_claim (timestamptz nullable), status (text nullable ≤100 chars), last_active_at (timestamptz nullable), pinned_vinyl_id (text nullable — note ID of user's pinned vibe; updated by updatePinnedVinylAction), created_at
 crews               id, name, invite_code (6 chars unique), level, total_xp, created_at, is_dm (bool default false), dm_partner_1 (uuid nullable), dm_partner_2 (uuid nullable), image_url, image_storage_key, background_image_url (text nullable), last_message_preview (text nullable), last_message_at (timestamptz nullable), last_message_sender_id (uuid nullable)
 crew_members        id, crew_id, user_id, class, joined_at, last_seen, ability_bank (int default 0), stat_boosts (jsonb default '{}')
 messages            id, crew_id, user_id, content, message_type, element_type, xp_awarded, reactions (jsonb default '{}'), reply_to_id, reply_preview, reply_username, image_url, image_blur_hash, pinned (bool default false), pinned_by (uuid nullable), pinned_at (timestamptz nullable), pin_expires_at (timestamptz nullable), created_at
@@ -264,7 +264,7 @@ src/
 
 ### MessageList
 - **Virtualization**: `useVirtualizer` (absolute-position, `measureElement`, `overscan: 5`). `getItemKey` uses `message.tempId ?? message.id` — `tempId` keeps the virtualizer key stable through optimistic→real reconciliation.
-Props: `crewId`, `crewName`, `currentUserId`, `memberProfiles`, `creatorId?`, `memberPinnedVinyls?: Record<string, { imageUrl: string | null; title: string | null }>`. The `memberPinnedVinyls` map is built server-side in `page.tsx` from the `notes` table filtered to music domains (most-recent note per user); it flows through `MessageList` → `MessageBubble` as the `pinnedVinyl` prop.
+Props: `crewId`, `crewName`, `currentUserId`, `memberProfiles`, `creatorId?`, `memberPinnedVinyls?: Record<string, { imageUrl: string | null; title: string | null }>`. The `memberPinnedVinyls` map is built server-side in `page.tsx` using two parallel Stage 2 queries: (1) crew-scoped music notes (fallback, most-recent first), (2) `crew_members → profiles(pinned_vinyl_id)` to get each member's explicit pin. Priority: pinned note → most-recent crew note. If the pinned note ID is from another crew (not in the crew notes), a targeted global lookup runs to fetch it. Map flows through `MessageList` → `MessageBubble` as the `pinnedVinyl` prop.
 
 - **Initial load** (three-tier cache):
   1. `useBrowserLayoutEffect` reads sessionStorage `nexus-msgs-{crewId}` synchronously → instant render if present (same-session navigation)
@@ -285,7 +285,7 @@ Avatar images (32px primary, 16px reply) use `avatarImageLoader` — forces 1:1 
 
 Reply row: `CornerDownRight` icon uses `var(--color-tertiary)` (muted). Reply avatar is 16×16 with `object-cover` + `avatarImageLoader`.
 
-**Header row** (username · vinyl · crown · timestamp — Figma 380:2227): left flex `gap-[4px]`, `overflow-hidden`. Username: DM Sans Medium 12px `--primary`. When `pinnedVinyl` set: 2×2 `--border` dot + `VinylPill`. When `isCreator`: 2×2 dot + `Crown` 12×12 `var(--color-coins)`. Timestamp: DM Sans Light 12px `--tertiary` `leading-none`. Vinyl data from `memberPinnedVinyls` — most-recent music note per user in this crew (notes filtered by MUSIC_DOMAINS, ordered DESC). The old `+N XP` badge has been removed.
+**Header row** (username · vinyl · crown · timestamp — Figma 380:2227): left flex `gap-[4px]`, `overflow-hidden`. Username: DM Sans Medium 12px `--primary`. When `pinnedVinyl` set: 2×2 `--border` dot + `VinylPill`. When `isCreator`: 2×2 dot + `Crown` 12×12 `var(--color-coins)`. Timestamp: DM Sans Light 12px `--tertiary` `leading-none`. Vinyl data from `memberPinnedVinyls` — most-recent music note per user in this crew (notes filtered by MUSIC_DOMAINS, ordered DESC). The old `+N XP` badge has been removed. `isCreator` is set in `MessageList` by comparing `item.message.user_id === creatorId` (the message sender is the squad creator) — NOT the viewer's ID; crown only appears on bubbles from the creator.
 
 **`VinylPill`** (`pinnedVinyl?: { imageUrl, title } | null` prop): shows the sender's most-recently-added vibe (music note from Vibes tab). Layout: 12×12 `animate-vinyl` spinning disc (album art or surface fallback + 1×1 center hole) + 8×8 pixel-art play icon (inline SVG, `var(--color-tertiary)`) + 32px clip container for title. Title uses `useLayoutEffect` + off-screen hidden `<span ref={measureRef}>` to measure rendered width; if `textWidth > 32` a Framer Motion `animate={{ x: [0, -(textWidth+16)] }}` ticker loops; otherwise static with `text-overflow: ellipsis`. Pill background `var(--color-surface-sheet)`, `borderRadius: 56`, `padding: 4`.
 
@@ -469,10 +469,10 @@ Music link cards shown as spinning vinyl discs. `VibesGrid` (`src/features/profi
 - `VinylTrack`: outer container `flex-1 min-w-0 overflow-hidden` with explicit `height: 105` so all vinyl containers match regardless of pin state. Inner 105×105 disc (`borderRadius: 56`) with album art + 8×8 center hole (`bg-background, border-border`) + glass label (`absolute bottom-0 left-0 w-full p-8`) with silkscreen 8px title truncated.
 - **Ambient glow**: pinned vinyl only — `absolute inset: -13px` blurred art behind the disc; clipped at outer container bounds (`overflow: hidden`).
 - **Long-press** (500ms, owner only) → `VinylActionSheet` — "Open Link" · "Pin as Favorite" / "Unpin" · "Remove Vibe" (red, owner only). Remove calls `deleteNoteAction` optimistically; clears pin if removed vinyl was pinned.
-- **Pin**: pinned ID stored in `localStorage` (`nexus_vibes_pinned`). Pinned vinyl always sorted to index 0 via `orderedVinyls` (`useMemo`). Only pinned disc gets `animate-vinyl`. Toggling via `handleTogglePin` in `VibesGrid`.
-- Props: `VibesGridProps { initialVinyls: PublicNote[], crews, isOwner }` — callers pass their `initialNotes` data as `initialVinyls`.
+- **Pin**: pinned ID mirrored in both `localStorage` (`nexus_vibes_pinned`) and `profiles.pinned_vinyl_id` (DB). `handleTogglePin` updates both synchronously (localStorage) + fire-and-forget `updatePinnedVinylAction`. `handleRemove` also clears the pin in both stores if the removed vibe was pinned. Pinned vinyl always sorted to index 0 via `orderedVinyls` (`useMemo`). Only pinned disc gets `animate-vinyl`.
+- Props: `VibesGridProps { initialVinyls: PublicNote[], crews, isOwner, initialPinnedId?: string | null }` — `initialPinnedId` comes from `profiles.pinned_vinyl_id` server-side; localStorage overrides it for same-session changes.
 - `AddSlot`: same circle dimensions, dashed border, pixel + icon centered
-- `AddVibeSheet`: standard bottom sheet; validates URL → `addNoteAction` → prepends to grid
+- `AddVibeSheet`: standard bottom sheet; validates URL → `addNoteAction` → prepends to grid. No "Save to Squad" selector — always auto-saves to `crews[0]` internally. Vibes are fetched globally (no crew filter on member profile page query), so they appear on all member profile views regardless of which crew they were saved to.
 - Rows of 3 (`flex gap-8`); incomplete rows padded with `flex-1` spacers
 
 ### Squad Glossary (`/chat/[crewId]/definitions`)

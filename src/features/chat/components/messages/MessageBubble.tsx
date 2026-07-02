@@ -860,14 +860,23 @@ function MessageBubbleImpl({
         onTouchMove={handleTouchMove}
         onTouchCancel={handleTouchCancel}
       >
-        {/* Swipe-to-reply icon — stays anchored to outer container as slide wrapper moves left */}
+        {/* Swipe-to-reply icon — anchored to content area (excludes top group-spacing padding) */}
         {!isOwn && (
           <div
             ref={replyIconRef}
-            className="pointer-events-none absolute inset-0 flex items-center justify-end"
-            style={{ paddingRight: 8, transform: 'scale(0.5)', opacity: 0, zIndex: 2 }}
+            className="pointer-events-none absolute flex items-center justify-end"
+            style={{
+              top:          showHeader ? 'var(--space-6)' : 'var(--space-2)',
+              bottom:       0,
+              left:         0,
+              right:        0,
+              paddingRight: 8,
+              transform:    'scale(0.5)',
+              opacity:      0,
+              zIndex:       2,
+            }}
           >
-            <CornerUpLeft style={{ width: 20, height: 20, color: 'var(--color-purple)' }} />
+            <CornerUpLeft style={{ width: 24, height: 24, color: 'var(--color-purple)' }} />
           </div>
         )}
 
