@@ -26,48 +26,6 @@ import { Cake } from 'pixelarticons/react/Cake'
 import { PartyPopper } from 'pixelarticons/react/PartyPopper'
 import { Crown } from 'pixelarticons/react/Crown'
 
-function ImageBubble({
-  src, blurDataURL, onTouchStart, onTouchEnd, onTouchMove, onClick,
-}: {
-  src:          string
-  blurDataURL?: string
-  onTouchStart: (e: React.TouchEvent) => void
-  onTouchEnd:   (e: React.TouchEvent) => void
-  onTouchMove:  () => void
-  onClick:      (e: React.MouseEvent) => void
-}) {
-  const isGif = /\.gif(\?|$)/i.test(src) || src.includes('static.klipy.com')
-  return (
-    <div
-      className="relative w-[220px] h-[165px] mt-1 overflow-hidden"
-      style={{ cursor: 'pointer' }}
-      onTouchStart={onTouchStart}
-      onTouchEnd={onTouchEnd}
-      onTouchMove={onTouchMove}
-      onClick={onClick}
-    >
-      {isGif ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={src}
-          alt="shared GIF"
-          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-        />
-      ) : (
-        <Image
-          src={src}
-          alt="shared image"
-          fill
-          sizes="220px"
-          className="object-cover"
-          loader={supabaseImageLoader}
-          placeholder={blurDataURL ? 'blur' : 'empty'}
-          blurDataURL={blurDataURL}
-        />
-      )}
-    </div>
-  )
-}
 
 // Parse a JSON-encoded array of image URLs stored in image_url / image_blur_hash.
 // Returns null for legacy single-image messages (plain URL string).
@@ -80,18 +38,20 @@ function parseJsonArray(value: string | null | undefined): string[] | null {
   return null
 }
 
-// Figma 384:3084 — 80×80 square, object-cover, tappable for full-screen preview
+// Tappable image cell — uses next/image fill for compression; <img> for GIFs (next/image can't optimize them)
 function MultiImageCell({
-  src, lqip, onTap,
+  src, lqip, onTap, width = 80, height = 80,
 }: {
-  src:   string
-  lqip:  string | null
-  onTap: (src: string) => void
+  src:     string
+  lqip:    string | null
+  onTap:   (src: string) => void
+  width?:  number
+  height?: number
 }) {
   const isGif = /\.gif(\?|$)/i.test(src) || src.includes('static.klipy.com')
   return (
     <div
-      style={{ position: 'relative', width: 80, height: 80, overflow: 'hidden', flexShrink: 0, cursor: 'pointer' }}
+      style={{ position: 'relative', width, height, overflow: 'hidden', flexShrink: 0, cursor: 'pointer' }}
       onClick={(e) => { e.stopPropagation(); onTap(src) }}
     >
       {isGif ? (
@@ -102,7 +62,7 @@ function MultiImageCell({
           src={src}
           alt="shared image"
           fill
-          sizes="80px"
+          sizes={`${width}px`}
           className="object-cover"
           loader={supabaseImageLoader}
           placeholder={lqip ? 'blur' : 'empty'}
@@ -113,7 +73,7 @@ function MultiImageCell({
   )
 }
 
-// Figma 384:3084 — horizontal row, gap 8px (var(--x3)), scrollable when >3 images
+// Figma 384:3084 — horizontal row; single image at 220×165, grid cells at 80×80; scrollable beyond 3
 function MultiImageGrid({
   urls, lqips, onTap,
 }: {
@@ -121,17 +81,20 @@ function MultiImageGrid({
   lqips: (string | null)[]
   onTap: (src: string) => void
 }) {
+  const isSingle = urls.length === 1
+  const cellW = isSingle ? 220 : 80
+  const cellH = isSingle ? 165 : 80
   const scrollable = urls.length > 3
   return (
     <div style={{
       display: 'flex',
-      gap: 'var(--x3)',
+      gap: isSingle ? 0 : 'var(--x3)',
       overflow: scrollable ? 'auto' : 'hidden',
       width: '100%',
       flexShrink: 0,
     }}>
       {urls.map((url, i) => (
-        <MultiImageCell key={i} src={url} lqip={lqips[i] ?? null} onTap={onTap} />
+        <MultiImageCell key={i} src={url} lqip={lqips[i] ?? null} onTap={onTap} width={cellW} height={cellH} />
       ))}
     </div>
   )
@@ -481,10 +444,8 @@ function MessageBubbleImpl({
   // racing with the optimistic update and causing the reaction pill to flicker out.
   const [optimisticReactions, setOptimisticReactions] = useState<Record<string, string[]> | null>(null)
 
-  const longPressTimer       = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const hasMoved             = useRef(false)
-  const imgTouchStartTimeRef = useRef(0)
-  const imgLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const hasMoved       = useRef(false)
   // Prevents the double-fire (touchend + synthetic click) on iOS from calling
   // handleReaction twice — which would add then immediately remove the reaction.
   const reactionInFlightRef  = useRef(false)
@@ -689,34 +650,6 @@ function MessageBubbleImpl({
         swipeCommittedRef.current = false
       }
     }
-  }
-
-  // ─── Image tap / long-press handlers ────────────────────────────────────────
-  function handleImageTouchStart(e: React.TouchEvent) {
-    e.stopPropagation()
-    hasMoved.current = false
-    imgTouchStartTimeRef.current = Date.now()
-    imgLongPressTimerRef.current = setTimeout(() => {
-      if (!hasMoved.current) setSheetOpen(true)
-    }, 500)
-  }
-  function handleImageTouchEnd(e: React.TouchEvent) {
-    if (imgLongPressTimerRef.current) { clearTimeout(imgLongPressTimerRef.current); imgLongPressTimerRef.current = null }
-    const elapsed = Date.now() - imgTouchStartTimeRef.current
-    if (elapsed < 250 && !hasMoved.current) {
-      e.stopPropagation()
-      setPreviewSrc((message.image_url as string | null | undefined) ?? message.content)
-      setPreviewOpen(true)
-    }
-  }
-  function handleImageTouchMove() {
-    hasMoved.current = true
-    if (imgLongPressTimerRef.current) { clearTimeout(imgLongPressTimerRef.current); imgLongPressTimerRef.current = null }
-  }
-  function handleImageClick(e: React.MouseEvent) {
-    e.stopPropagation()
-    setPreviewSrc((message.image_url as string | null | undefined) ?? message.content)
-    setPreviewOpen(true)
   }
 
   // ─── Copy ───────────────────────────────────────────────────────────────────
@@ -1071,42 +1004,30 @@ function MessageBubbleImpl({
 
             {/* Message body */}
             {message.message_type === 'image' ? (() => {
-              const imageUrl  = message.image_url as string | null | undefined
-              const blurHash  = message.image_blur_hash as string | null | undefined
-              const multiUrls = parseJsonArray(imageUrl)
-              if (multiUrls) {
-                // Multi-image: grid above optional text caption
-                const multiLqips = parseJsonArray(blurHash) ?? multiUrls.map(() => null)
-                // Don't re-display the fallback URL as text — only show user-typed captions
-                const caption = message.content && !message.content.startsWith('http') ? message.content : null
-                return (
-                  <>
-                    <MultiImageGrid
-                      urls={multiUrls}
-                      lqips={multiLqips}
-                      onTap={(src) => { setPreviewSrc(src); setPreviewOpen(true) }}
-                    />
-                    {caption && (
-                      <p
-                        className="font-body font-normal text-[14px] text-secondary leading-[1.5] w-full select-none"
-                        style={{ fontVariationSettings: '"opsz" 14', WebkitUserSelect: 'none', overflowWrap: 'break-word', minWidth: 0 }}
-                      >
-                        {caption}
-                      </p>
-                    )}
-                  </>
-                )
-              }
-              // Legacy single-image
+              const imageUrl = message.image_url as string | null | undefined
+              const blurHash = message.image_blur_hash as string | null | undefined
+              // Normalise both legacy (plain URL) and new (JSON array) formats into arrays
+              const urls  = parseJsonArray(imageUrl) ?? (imageUrl ? [imageUrl] : [message.content])
+              // For legacy single-image messages the blur hash is a plain string, not a JSON array
+              const lqips = parseJsonArray(blurHash) ?? urls.map((_, i) => i === 0 ? (blurHash ?? null) : null)
+              // Don't re-display a bare image URL as a caption — only show user-typed text
+              const caption = message.content && !message.content.startsWith('http') ? message.content : null
               return (
-                <ImageBubble
-                  src={imageUrl ?? message.content}
-                  blurDataURL={blurHash ?? undefined}
-                  onTouchStart={handleImageTouchStart}
-                  onTouchEnd={handleImageTouchEnd}
-                  onTouchMove={handleImageTouchMove}
-                  onClick={handleImageClick}
-                />
+                <>
+                  <MultiImageGrid
+                    urls={urls}
+                    lqips={lqips}
+                    onTap={(src) => { setPreviewSrc(src); setPreviewOpen(true) }}
+                  />
+                  {caption && (
+                    <p
+                      className="font-body font-normal text-[14px] text-secondary leading-[1.5] w-full select-none"
+                      style={{ fontVariationSettings: '"opsz" 14', WebkitUserSelect: 'none', overflowWrap: 'break-word', minWidth: 0 }}
+                    >
+                      {caption}
+                    </p>
+                  )}
+                </>
               )
             })() : (
               <p
