@@ -408,7 +408,7 @@ function MessageBubbleImpl({
     if (replyIconRef.current) {
       replyIconRef.current.style.transition = 'opacity 0.22s ease-out, transform 0.22s ease-out'
       replyIconRef.current.style.opacity    = '0'
-      replyIconRef.current.style.transform  = 'translateY(-50%) scale(0.5)'
+      replyIconRef.current.style.transform  = 'scale(0.5)'
     }
   }
 
@@ -433,7 +433,7 @@ function MessageBubbleImpl({
       if (replyIconRef.current) {
         replyIconRef.current.style.transition = 'none'
         replyIconRef.current.style.opacity    = '0'
-        replyIconRef.current.style.transform  = 'translateY(-50%) scale(0.5)'
+        replyIconRef.current.style.transform  = 'scale(0.5)'
       }
       const t = e.touches[0]
       touchStartXRef.current    = t.clientX
@@ -493,7 +493,7 @@ function MessageBubbleImpl({
       if (replyIconRef.current) {
         replyIconRef.current.style.transition = 'opacity 0.1s ease-out, transform 0.1s ease-out'
         replyIconRef.current.style.opacity    = String(eased)
-        replyIconRef.current.style.transform  = `translateY(-50%) scale(${0.5 + eased * 0.5})`
+        replyIconRef.current.style.transform  = `scale(${0.5 + eased * 0.5})`
       }
       if (dx <= -SWIPE_THRESHOLD && !swipeCommittedRef.current) {
         swipeCommittedRef.current = true
@@ -746,8 +746,8 @@ function MessageBubbleImpl({
         {!isOwn && (
           <div
             ref={replyIconRef}
-            className="pointer-events-none"
-            style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%) scale(0.5)', opacity: 0, zIndex: 2 }}
+            className="pointer-events-none absolute inset-0 flex items-center justify-end"
+            style={{ paddingRight: 8, transform: 'scale(0.5)', opacity: 0, zIndex: 2 }}
           >
             <CornerUpLeft style={{ width: 20, height: 20, color: 'var(--color-purple)' }} />
           </div>
@@ -822,8 +822,8 @@ function MessageBubbleImpl({
             const replyInitial   = message.reply_username?.[0]?.toUpperCase() ?? '?'
             return (
               <button
-                className="flex items-center gap-[4px] w-full mt-[2px] mb-[2px] overflow-hidden"
-                style={{ height: 16, background: 'none', border: 'none', padding: 0, textAlign: 'left', cursor: 'pointer' }}
+                className="flex items-center gap-[4px] w-full overflow-hidden"
+                style={{ background: 'none', border: 'none', paddingTop: 16, paddingBottom: 16, paddingLeft: 0, paddingRight: 0, textAlign: 'left', cursor: 'pointer' }}
                 onClick={(e) => { e.stopPropagation(); handleReplyTap() }}
                 onTouchStart={(e) => e.stopPropagation()}
                 onTouchEnd={(e) => e.stopPropagation()}
