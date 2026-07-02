@@ -71,7 +71,9 @@ function MultiImageCell({
   )
 }
 
-// Figma 384:3068 — horizontal flex row, gap 8px, 80×80 cells; single image fills width at 4:3; scrollable beyond 3
+// Figma 384:3084 — horizontal flex row, gap 8px, overflow clip.
+// Single photo: full-width 4:3 (fills container). Single GIF + multi: 80×80 row (Figma 384:3068).
+// Row scrolls horizontally only when >3 items.
 function MultiImageGrid({
   urls, lqips, onTap,
 }: {
@@ -79,27 +81,23 @@ function MultiImageGrid({
   lqips: (string | null)[]
   onTap: (src: string) => void
 }) {
-  if (urls.length === 1) {
-    const src  = urls[0]
+  const src0   = urls[0]
+  const isSinglePhoto = urls.length === 1 && !(/\.gif(\?|$)/i.test(src0) || src0.includes('static.klipy.com'))
+
+  if (isSinglePhoto) {
     const lqip = lqips[0] ?? null
-    const isGif = /\.gif(\?|$)/i.test(src) || src.includes('static.klipy.com')
     return (
       <div
         style={{ position: 'relative', width: '100%', aspectRatio: '4/3', overflow: 'hidden', flexShrink: 0, cursor: 'pointer' }}
-        onClick={(e) => { e.stopPropagation(); onTap(src) }}
+        onClick={(e) => { e.stopPropagation(); onTap(src0) }}
       >
-        {isGif ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={src} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', maxWidth: 'none' }} />
-        ) : (
-          <Image src={src} alt="shared image" fill sizes="(max-width: 480px) 75vw, 300px" className="object-cover" loader={supabaseImageLoader} placeholder={lqip ? 'blur' : 'empty'} blurDataURL={lqip ?? undefined} />
-        )}
+        <Image src={src0} alt="shared image" fill sizes="(max-width: 480px) 75vw, 300px" className="object-cover" loader={supabaseImageLoader} placeholder={lqip ? 'blur' : 'empty'} blurDataURL={lqip ?? undefined} />
       </div>
     )
   }
 
   return (
-    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, overflowX: urls.length > 3 ? 'auto' : 'hidden', width: '100%', flexShrink: 0 }}>
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, overflow: urls.length > 3 ? 'auto' : 'clip', width: '100%', flexShrink: 0 }}>
       {urls.map((url, i) => (
         <MultiImageCell key={i} src={url} lqip={lqips[i] ?? null} onTap={onTap} />
       ))}
