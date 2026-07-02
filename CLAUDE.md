@@ -281,6 +281,13 @@ Props: `crewId`, `crewName`, `currentUserId`, `memberProfiles`, `creatorId?`, `m
 ### MessageBubble — text rendering
 `renderMessageContent` — splits on `@username` tokens, then `renderWithLinks` + `renderWithDefinitions` on each segment. Early returns for `message_type === 'system'` and `'poll'`.
 
+**Image rendering** (`message_type === 'image'`): all images go through `MultiImageGrid` → `MultiImageCell` — no special single-image path.
+- `message.image_url`: plain URL string (legacy single-image) or JSON-encoded `string[]` (multi-image). `parseJsonArray()` normalises both; a plain URL is wrapped into a 1-element array.
+- `message.image_blur_hash`: mirrors same format — plain LQIP or JSON `string[]`.
+- `MultiImageCell` — 160×160, `object-cover`, `flexShrink: 0`. GIFs (`.gif` ext or `static.klipy.com` host) use `<img>`; photos use `next/image fill` + `supabaseImageLoader` (`sizes="160px"`).
+- `MultiImageGrid` — `display: flex`, `gap: 8`, `overflow: clip` (scrollable `auto` when >3 items). Tapping any cell sets `previewSrc`/`previewOpen` → `ImagePreviewOverlay` portal.
+- `ImageBubble` and its dedicated touch refs (`imgTouchStartTimeRef`, `imgLongPressTimerRef`) and handlers have been removed — long-press bubbles up to the message bubble's own context-sheet handler.
+
 Avatar images (32px primary, 16px reply) use `avatarImageLoader` — forces 1:1 square crop for consistent circle fill across all user avatar types.
 
 Reply row: `CornerDownRight` icon uses `var(--color-tertiary)` (muted). Reply avatar is 16×16 with `object-cover` + `avatarImageLoader`.
