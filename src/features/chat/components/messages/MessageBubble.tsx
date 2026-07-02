@@ -320,13 +320,13 @@ function VinylPill({ imageUrl, title }: { imageUrl: string | null; title: string
       <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
         {/* 8×8 pixel-art play icon (▶) — matches Figma node 377:5120 */}
         <svg width="8" height="8" viewBox="0 0 8 8" fill="none" aria-hidden style={{ flexShrink: 0 }}>
-          <rect x="0" y="0" width="1" height="1" fill="var(--color-tertiary)" />
-          <rect x="0" y="1" width="2" height="1" fill="var(--color-tertiary)" />
-          <rect x="0" y="2" width="3" height="1" fill="var(--color-tertiary)" />
-          <rect x="0" y="3" width="4" height="2" fill="var(--color-tertiary)" />
-          <rect x="0" y="5" width="3" height="1" fill="var(--color-tertiary)" />
-          <rect x="0" y="6" width="2" height="1" fill="var(--color-tertiary)" />
-          <rect x="0" y="7" width="1" height="1" fill="var(--color-tertiary)" />
+          <rect x="0" y="0" width="1" height="1" fill="var(--color-muted)" />
+          <rect x="0" y="1" width="2" height="1" fill="var(--color-muted)" />
+          <rect x="0" y="2" width="3" height="1" fill="var(--color-muted)" />
+          <rect x="0" y="3" width="4" height="2" fill="var(--color-muted)" />
+          <rect x="0" y="5" width="3" height="1" fill="var(--color-muted)" />
+          <rect x="0" y="6" width="2" height="1" fill="var(--color-muted)" />
+          <rect x="0" y="7" width="1" height="1" fill="var(--color-muted)" />
         </svg>
 
         {title && (
@@ -359,7 +359,7 @@ function VinylPill({ imageUrl, title }: { imageUrl: string | null; title: string
                   animate={{ x: [0, -(textWidth + 16)] }}
                   transition={{ duration: tickerDur, repeat: Infinity, ease: 'linear', repeatType: 'loop' }}
                 >
-                  <span className="font-silkscreen leading-none" style={{ fontSize: 8, color: 'var(--color-tertiary)', whiteSpace: 'nowrap', letterSpacing: '0.1px', flexShrink: 0 }}>
+                  <span className="font-silkscreen leading-none" style={{ fontSize: 8, color: 'var(--color-muted)', whiteSpace: 'nowrap', letterSpacing: '0.1px', flexShrink: 0 }}>
                     {title}
                   </span>
                   <span className="font-silkscreen leading-none" style={{ fontSize: 8, color: 'var(--color-tertiary)', whiteSpace: 'nowrap', letterSpacing: '0.1px', paddingLeft: 16, flexShrink: 0 }}>
@@ -367,7 +367,7 @@ function VinylPill({ imageUrl, title }: { imageUrl: string | null; title: string
                   </span>
                 </motion.div>
               ) : (
-                <span className="font-silkscreen leading-none" style={{ fontSize: 8, color: 'var(--color-tertiary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block', letterSpacing: '0.1px' }}>
+                <span className="font-silkscreen leading-none" style={{ fontSize: 8, color: 'var(--color-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block', letterSpacing: '0.1px' }}>
                   {title}
                 </span>
               )}
