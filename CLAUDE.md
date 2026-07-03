@@ -414,6 +414,29 @@ Pass icon without a `color` style — it inherits `currentColor` from the button
 ### Panel (SquadDetailsSheet only)
 Full-height swipe-up with `onPanEnd` pull-to-close (offset > 60 or vel > 300). Do not replicate.
 
+## Definition Buttons (`src/shared/components/ui/DefinitionButton.tsx`)
+
+Figma 402:9772 — two variants used in the Definitions flow. DM Sans SemiBold sm, `p-x5` padding, `rounded-x3`, full-width.
+
+```tsx
+// Fill — purple background, primary text (Save Definition)
+<DefinitionButton variant="fill" onClick={handleSave} loading={saving}>
+  Save definition
+</DefinitionButton>
+
+// Stroke purple — purple border + text, optional icon (Edit Definition)
+<DefinitionButton variant="stroke" color="purple" icon={<MagicEdit style={{ width: 20, height: 20 }} />} onClick={onEdit}>
+  Edit Definition
+</DefinitionButton>
+
+// Stroke tertiary — tertiary border + text, optional icon (Cancel)
+<DefinitionButton variant="stroke" color="tertiary" icon={<Close style={{ width: 20, height: 20 }} />} onClick={onClose}>
+  Cancel
+</DefinitionButton>
+```
+
+Icon inherits `currentColor` from the button wrapper — do not pass `color` on the icon style.
+
 ## Form Components (`src/shared/components/ui/InputField.tsx`)
 
 Two reusable components matching Figma 402:9678. Use these for all in-app forms (not auth/onboarding, which uses the older `Input.tsx`).

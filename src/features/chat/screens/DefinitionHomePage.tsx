@@ -1,21 +1,30 @@
-'use client'
+"use client";
 
-import { useState, useEffect, useCallback } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { SlidePage, useSlideBack } from '@/app/layouts/SlidePage'
-import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
-import { Plus } from 'pixelarticons/react/Plus'
-import { createClient } from '@/shared/supabase/client'
-import { createDefinitionAction, updateDefinitionAction } from '@/app/(app)/chat/[crewId]/definitions/actions'
-import { BottomSheet } from '@/shared/components/ui/BottomSheet'
-import { Button } from '@/shared/components/ui/Button'
-import { InputField, TextareaField } from '@/shared/components/ui/InputField'
-import { MagicEdit } from 'pixelarticons/react/MagicEdit'
-import { Close } from 'pixelarticons/react/Close'
-import type { SquadDefinition, SquadDefinitionWithCreator, DefinitionSuggestion } from '@/types'
+import { useState, useEffect, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { SlidePage, useSlideBack } from "@/app/layouts/SlidePage";
+import { ChevronLeft } from "pixelarticons/react/ChevronLeft";
+import { Plus } from "pixelarticons/react/Plus";
+import { createClient } from "@/shared/supabase/client";
+import {
+  createDefinitionAction,
+  updateDefinitionAction,
+  deleteDefinitionAction,
+} from "@/app/(app)/chat/[crewId]/definitions/actions";
+import { BottomSheet } from "@/shared/components/ui/BottomSheet";
+import { DefinitionButton } from "@/shared/components/ui/DefinitionButton";
+import { InputField, TextareaField } from "@/shared/components/ui/InputField";
+import { MagicEdit } from "pixelarticons/react/MagicEdit";
+import { Close } from "pixelarticons/react/Close";
+import { Trash } from "pixelarticons/react/Trash";
+import type {
+  SquadDefinition,
+  SquadDefinitionWithCreator,
+  DefinitionSuggestion,
+} from "@/types";
 
 function BackButton() {
-  const goBack = useSlideBack()
+  const goBack = useSlideBack();
   return (
     <button
       onClick={goBack}
@@ -23,9 +32,12 @@ function BackButton() {
       className="flex-shrink-0 flex items-center justify-center"
       style={{ width: 24, height: 40 }}
     >
-      <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+      <ChevronLeft
+        style={{ width: 24, height: 24, color: "var(--color-primary)" }}
+        aria-hidden="true"
+      />
     </button>
-  )
+  );
 }
 
 // ─── CreateDefinitionPage ─────────────────────────────────────────────────────
@@ -33,81 +45,99 @@ function BackButton() {
 // Slides in from the right using the same spring as SlidePage (380/36).
 
 interface CreateDefinitionPageProps {
-  crewId:              string
-  mode:                'create' | 'edit'
-  initialWord?:        string
-  initialActualWord?:  string
-  initialDefinition?:  string
-  definitionId?:       string
-  onClose:             () => void
-  onSaved:             (def: SquadDefinition) => void
+  crewId: string;
+  mode: "create" | "edit";
+  initialWord?: string;
+  initialActualWord?: string;
+  initialDefinition?: string;
+  definitionId?: string;
+  onClose: () => void;
+  onSaved: (def: SquadDefinition) => void;
 }
 
 function CreateDefinitionPage({
   crewId,
   mode,
-  initialWord       = '',
-  initialActualWord = '',
-  initialDefinition = '',
+  initialWord = "",
+  initialActualWord = "",
+  initialDefinition = "",
   definitionId,
   onClose,
   onSaved,
 }: CreateDefinitionPageProps) {
-  const [word,       setWord]       = useState(initialWord)
-  const [actualWord, setActualWord] = useState(initialActualWord)
-  const [definition, setDefinition] = useState(initialDefinition)
-  const [error,      setError]      = useState('')
-  const [saving,     setSaving]     = useState(false)
+  const [word, setWord] = useState(initialWord);
+  const [actualWord, setActualWord] = useState(initialActualWord);
+  const [definition, setDefinition] = useState(initialDefinition);
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
 
   async function handleSave() {
-    if (!word.trim())       { setError('Word is required.'); return }
-    if (!definition.trim()) { setError('Definition is required.'); return }
-    setSaving(true)
-    setError('')
+    if (!word.trim()) {
+      setError("Word is required.");
+      return;
+    }
+    if (!definition.trim()) {
+      setError("Definition is required.");
+      return;
+    }
+    setSaving(true);
+    setError("");
 
-    const result = mode === 'edit' && definitionId
-      ? await updateDefinitionAction(definitionId, word, definition, actualWord)
-      : await createDefinitionAction(crewId, word, definition, actualWord)
+    const result =
+      mode === "edit" && definitionId
+        ? await updateDefinitionAction(
+            definitionId,
+            word,
+            definition,
+            actualWord,
+          )
+        : await createDefinitionAction(crewId, word, definition, actualWord);
 
-    setSaving(false)
-    if (result.error) { setError(result.error); return }
-    if (result.data) onSaved(result.data)
-    onClose()
+    setSaving(false);
+    if (result.error) {
+      setError(result.error);
+      return;
+    }
+    if (result.data) onSaved(result.data);
+    onClose();
   }
 
   return (
     <motion.div
       className="fixed inset-0 z-[80] bg-black flex flex-col"
-      style={{ maxWidth: 480, marginLeft: 'auto', marginRight: 'auto' }}
-      initial={{ x: '100%' }}
+      style={{ maxWidth: 480, marginLeft: "auto", marginRight: "auto" }}
+      initial={{ x: "100%" }}
       animate={{ x: 0 }}
-      exit={{ x: '100%' }}
-      transition={{ type: 'spring', stiffness: 380, damping: 36 }}
+      exit={{ x: "100%" }}
+      transition={{ type: "spring", stiffness: 380, damping: 36 }}
     >
       {/* Header — matches DefinitionHomePage header spec */}
       <div
         className="flex-shrink-0 flex flex-col"
         style={{
-          paddingLeft: 'var(--md)',
-          paddingRight: 'var(--md)',
-          paddingTop: 'max(env(safe-area-inset-top), var(--x3))',
-          paddingBottom: 'var(--x3)',
+          paddingLeft: "var(--md)",
+          paddingRight: "var(--md)",
+          paddingTop: "max(env(safe-area-inset-top), var(--x3))",
+          paddingBottom: "var(--x3)",
         }}
       >
-        <div className="flex items-center h-10" style={{ gap: 'var(--x3)' }}>
+        <div className="flex items-center h-10" style={{ gap: "var(--x3)" }}>
           <button
             onClick={onClose}
             aria-label="Back"
             className="flex-shrink-0 flex items-center justify-center"
             style={{ width: 24, height: 40 }}
           >
-            <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+            <ChevronLeft
+              style={{ width: 24, height: 24, color: "var(--color-primary)" }}
+              aria-hidden="true"
+            />
           </button>
           <h1
             className="font-silkscreen uppercase leading-none text-primary"
-            style={{ fontSize: 'var(--xl)' }}
+            style={{ fontSize: "var(--xl)" }}
           >
-            {mode === 'edit' ? 'Edit Definition' : 'New Definition'}
+            {mode === "edit" ? "Edit Definition" : "Add Definition"}
           </h1>
         </div>
       </div>
@@ -116,11 +146,11 @@ function CreateDefinitionPage({
       <div
         className="flex-1 min-h-0 overflow-y-auto nexus-scroll flex flex-col"
         style={{
-          gap: 'var(--x6)',
-          paddingLeft: 'var(--md)',
-          paddingRight: 'var(--md)',
-          paddingTop: 'var(--x5)',
-          paddingBottom: 'var(--x5)',
+          gap: "var(--x6)",
+          paddingLeft: "var(--md)",
+          paddingRight: "var(--md)",
+          paddingTop: "var(--x5)",
+          paddingBottom: "var(--x5)",
         }}
       >
         <InputField
@@ -139,7 +169,9 @@ function CreateDefinitionPage({
           onChange={setActualWord}
           maxLength={100}
           placeholder="e.g. Good Game"
-          helperText={'What the actual full word mean. (e.g. GG is "Good Game")'}
+          helperText={
+            'What the actual full word mean. (e.g. GG is "Good Game")'
+          }
           autoComplete="off"
         />
         <TextareaField
@@ -151,7 +183,9 @@ function CreateDefinitionPage({
           rows={5}
         />
         {error && (
-          <p className="font-silkscreen text-[8px] text-[#ef4444] leading-relaxed">{error}</p>
+          <p className="font-silkscreen text-[8px] text-[#ef4444] leading-relaxed">
+            {error}
+          </p>
         )}
       </div>
 
@@ -159,58 +193,97 @@ function CreateDefinitionPage({
       <div
         className="flex-shrink-0"
         style={{
-          paddingLeft: 'var(--md)',
-          paddingRight: 'var(--md)',
-          paddingTop: 'var(--x5)',
-          paddingBottom: 'max(env(safe-area-inset-bottom), var(--x5))',
+          paddingLeft: "var(--md)",
+          paddingRight: "var(--md)",
+          paddingTop: "var(--x5)",
+          paddingBottom: "max(env(safe-area-inset-bottom), var(--x5))",
         }}
       >
-        <Button onClick={handleSave} disabled={saving} loading={saving} className="w-full">
+        <DefinitionButton
+          variant="fill"
+          onClick={handleSave}
+          disabled={saving}
+          loading={saving}
+        >
           Save definition
-        </Button>
+        </DefinitionButton>
       </div>
     </motion.div>
-  )
+  );
 }
 
 // ─── DefinitionPreviewSheet ───────────────────────────────────────────────────
 
 interface DefinitionPreviewSheetProps {
-  definition: SquadDefinitionWithCreator
-  isCreator:  boolean
-  onClose:    () => void
-  onEdit:     () => void
+  definition: SquadDefinitionWithCreator;
+  isCreator: boolean;
+  onClose: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
 }
 
-function DefinitionPreviewSheet({ definition, isCreator, onClose, onEdit }: DefinitionPreviewSheetProps) {
-  const aliases = definition.word.split(',').map((w) => w.trim()).filter(Boolean).join(', ')
+function DefinitionPreviewSheet({
+  definition,
+  isCreator,
+  onClose,
+  onEdit,
+  onDelete,
+}: DefinitionPreviewSheetProps) {
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+
+  async function handleDelete() {
+    setDeleting(true);
+    setDeleteError("");
+    const result = await deleteDefinitionAction(definition.id);
+    setDeleting(false);
+    if (result.error) {
+      setDeleteError(result.error);
+      return;
+    }
+    onDelete();
+  }
+  const aliases = definition.word
+    .split(",")
+    .map((w) => w.trim())
+    .filter(Boolean)
+    .join(", ");
 
   return (
     <BottomSheet onClose={onClose} zIndex={70}>
       <div
         className="flex flex-col w-full"
         style={{
-          gap: 'var(--x5)',
-          paddingLeft: 'var(--md)',
-          paddingRight: 'var(--md)',
-          paddingBottom: 'max(env(safe-area-inset-bottom), 28px)',
+          gap: "var(--x5)",
+          paddingLeft: "var(--md)",
+          paddingRight: "var(--md)",
+          paddingBottom: "max(env(safe-area-inset-bottom), 28px)",
         }}
       >
         {/* Definition details — Figma 402:9535 */}
-        <div className="flex flex-col items-start justify-center w-full" style={{ gap: 'var(--x3)' }}>
-          <p className="font-silkscreen text-tertiary leading-none w-full" style={{ fontSize: 'var(--mini)' }}>
+        <div
+          className="flex flex-col items-start justify-center w-full"
+          style={{ gap: "var(--x3)" }}
+        >
+          <p
+            className="font-silkscreen text-tertiary leading-none w-full"
+            style={{ fontSize: "var(--mini)" }}
+          >
             {aliases}
           </p>
-          <div className="flex flex-col w-full" style={{ gap: 'var(--x2)' }}>
+          <div className="flex flex-col w-full" style={{ gap: "var(--x2)" }}>
             <p
               className="font-body font-bold text-primary leading-none w-full"
-              style={{ fontSize: 'var(--md)', fontVariationSettings: '"opsz" 14' }}
+              style={{
+                fontSize: "var(--md)",
+                fontVariationSettings: '"opsz" 14',
+              }}
             >
-              {definition.actual_word || definition.word.split(',')[0].trim()}
+              {definition.actual_word || definition.word.split(",")[0].trim()}
             </p>
             <p
               className="font-body text-secondary leading-[1.5] overflow-hidden text-ellipsis w-full"
-              style={{ fontSize: '14px', fontVariationSettings: '"opsz" 14' }}
+              style={{ fontSize: "14px", fontVariationSettings: '"opsz" 14' }}
             >
               {definition.definition}
             </p>
@@ -218,56 +291,72 @@ function DefinitionPreviewSheet({ definition, isCreator, onClose, onEdit }: Defi
           {definition.creator_username && (
             <p
               className="font-body font-light text-tertiary leading-none overflow-hidden text-ellipsis w-full"
-              style={{ fontSize: '12px', fontVariationSettings: '"opsz" 14' }}
+              style={{ fontSize: "12px", fontVariationSettings: '"opsz" 14' }}
             >
               Author : {definition.creator_username}
             </p>
           )}
         </div>
 
-        {/* Action buttons — Figma 402:9509 */}
-        <div className="flex flex-col w-full" style={{ gap: 'var(--x5)' }}>
+        {/* Action buttons — Figma 402:9509 / 402:9507 */}
+        <div className="flex flex-col w-full" style={{ gap: "var(--x5)" }}>
           {isCreator && (
-            <button
+            <DefinitionButton
+              variant="stroke"
+              color="purple"
+              icon={
+                <MagicEdit
+                  style={{ width: 20, height: 20 }}
+                  aria-hidden="true"
+                />
+              }
               onClick={onEdit}
-              className="w-full flex items-center justify-center appearance-none rounded-[var(--x3)]"
-              style={{ gap: 'var(--x3)', border: '1px solid var(--color-purple)', padding: 'var(--x5)' }}
             >
-              <MagicEdit style={{ width: 20, height: 20, color: 'var(--color-purple)' }} aria-hidden="true" />
-              <span
-                className="font-body font-semibold tracking-[0.2px]"
-                style={{ fontSize: 'var(--sm)', color: 'var(--color-purple)', fontVariationSettings: '"opsz" 14' }}
-              >
-                Edit Definition
-              </span>
-            </button>
+              Edit Definition
+            </DefinitionButton>
           )}
-          <button
-            onClick={onClose}
-            className="w-full flex items-center justify-center appearance-none rounded-[var(--x3)]"
-            style={{ gap: 'var(--x3)', border: '1px solid var(--color-tertiary)', padding: 'var(--x5)' }}
-          >
-            <Close style={{ width: 20, height: 20, color: 'var(--color-tertiary)' }} aria-hidden="true" />
-            <span
-              className="font-body font-semibold tracking-[0.2px]"
-              style={{ fontSize: 'var(--sm)', color: 'var(--color-tertiary)', fontVariationSettings: '"opsz" 14' }}
+          {isCreator && (
+            <DefinitionButton
+              variant="stroke"
+              color="red"
+              icon={
+                <Trash style={{ width: 20, height: 20 }} aria-hidden="true" />
+              }
+              onClick={handleDelete}
+              disabled={deleting}
+              loading={deleting}
             >
-              Cancel
-            </span>
-          </button>
+              Delete Definition
+            </DefinitionButton>
+          )}
+          {deleteError && (
+            <p className="font-silkscreen text-[8px] text-[#ef4444] leading-relaxed">
+              {deleteError}
+            </p>
+          )}
+          <DefinitionButton
+            variant="stroke"
+            color="tertiary"
+            icon={
+              <Close style={{ width: 20, height: 20 }} aria-hidden="true" />
+            }
+            onClick={onClose}
+          >
+            Cancel
+          </DefinitionButton>
         </div>
       </div>
     </BottomSheet>
-  )
+  );
 }
 
 // ─── DefinitionHomePage ───────────────────────────────────────────────────────
 
 interface DefinitionHomePageProps {
-  crewId:             string
-  currentUserId:      string
-  currentUsername:    string
-  initialDefinitions: SquadDefinitionWithCreator[]
+  crewId: string;
+  currentUserId: string;
+  currentUsername: string;
+  initialDefinitions: SquadDefinitionWithCreator[];
 }
 
 export function DefinitionHomePage({
@@ -276,122 +365,188 @@ export function DefinitionHomePage({
   currentUsername,
   initialDefinitions,
 }: DefinitionHomePageProps) {
-  const [definitions,    setDefinitions]    = useState<SquadDefinitionWithCreator[]>(initialDefinitions)
-  const [showCreate,     setShowCreate]     = useState(false)
-  const [previewTarget,  setPreviewTarget]  = useState<SquadDefinitionWithCreator | null>(null)
-  const [editTarget,     setEditTarget]     = useState<SquadDefinitionWithCreator | null>(null)
+  const [definitions, setDefinitions] =
+    useState<SquadDefinitionWithCreator[]>(initialDefinitions);
+  const [showCreate, setShowCreate] = useState(false);
+  const [previewTarget, setPreviewTarget] =
+    useState<SquadDefinitionWithCreator | null>(null);
+  const [editTarget, setEditTarget] =
+    useState<SquadDefinitionWithCreator | null>(null);
 
   useEffect(() => {
-    const supabase = createClient()
+    const supabase = createClient();
 
     const defsChannel = supabase
       .channel(`squad-defs:${crewId}`)
       .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'squad_definitions', filter: `crew_id=eq.${crewId}` },
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "squad_definitions",
+          filter: `crew_id=eq.${crewId}`,
+        },
         async (payload) => {
-          if (payload.eventType === 'INSERT') {
-            const incoming = payload.new as SquadDefinition
+          if (payload.eventType === "INSERT") {
+            const incoming = payload.new as SquadDefinition;
             const { data: profile } = await supabase
-              .from('profiles')
-              .select('username')
-              .eq('id', incoming.creator_id)
-              .single()
+              .from("profiles")
+              .select("username")
+              .eq("id", incoming.creator_id)
+              .single();
             setDefinitions((prev) => {
-              if (prev.some((d) => d.id === incoming.id)) return prev
-              return [{ ...incoming, creator_username: profile?.username as string | undefined }, ...prev]
-            })
-          } else if (payload.eventType === 'DELETE') {
-            const gone = payload.old as { id: string }
-            setDefinitions((prev) => prev.filter((d) => d.id !== gone.id))
-          } else if (payload.eventType === 'UPDATE') {
-            const updated = payload.new as SquadDefinition
+              if (prev.some((d) => d.id === incoming.id)) return prev;
+              return [
+                {
+                  ...incoming,
+                  creator_username: profile?.username as string | undefined,
+                },
+                ...prev,
+              ];
+            });
+          } else if (payload.eventType === "DELETE") {
+            const gone = payload.old as { id: string };
+            setDefinitions((prev) => prev.filter((d) => d.id !== gone.id));
+          } else if (payload.eventType === "UPDATE") {
+            const updated = payload.new as SquadDefinition;
             setDefinitions((prev) =>
-              prev.map((d) => d.id === updated.id ? { ...d, word: updated.word, actual_word: updated.actual_word, definition: updated.definition } : d)
-            )
+              prev.map((d) =>
+                d.id === updated.id
+                  ? {
+                      ...d,
+                      word: updated.word,
+                      actual_word: updated.actual_word,
+                      definition: updated.definition,
+                    }
+                  : d,
+              ),
+            );
           }
-        }
+        },
       )
-      .subscribe()
+      .subscribe();
 
     const sugChannel = supabase
       .channel(`def-suggestions:${crewId}`)
       .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'definition_suggestions', filter: `crew_id=eq.${crewId}` },
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "definition_suggestions",
+          filter: `crew_id=eq.${crewId}`,
+        },
         (payload) => {
-          if (payload.eventType === 'INSERT') {
-            const row = payload.new as DefinitionSuggestion
+          if (payload.eventType === "INSERT") {
+            const row = payload.new as DefinitionSuggestion;
             setDefinitions((prev) =>
-              prev.map((d) => d.id === row.definition_id
-                ? { ...d, suggestion_count: (d.suggestion_count ?? 0) + 1 }
-                : d
-              )
-            )
-          } else if (payload.eventType === 'DELETE') {
-            const row = payload.old as DefinitionSuggestion
+              prev.map((d) =>
+                d.id === row.definition_id
+                  ? { ...d, suggestion_count: (d.suggestion_count ?? 0) + 1 }
+                  : d,
+              ),
+            );
+          } else if (payload.eventType === "DELETE") {
+            const row = payload.old as DefinitionSuggestion;
             setDefinitions((prev) =>
-              prev.map((d) => d.id === row.definition_id
-                ? { ...d, suggestion_count: Math.max(0, (d.suggestion_count ?? 0) - 1) }
-                : d
-              )
-            )
+              prev.map((d) =>
+                d.id === row.definition_id
+                  ? {
+                      ...d,
+                      suggestion_count: Math.max(
+                        0,
+                        (d.suggestion_count ?? 0) - 1,
+                      ),
+                    }
+                  : d,
+              ),
+            );
           }
-        }
+        },
       )
-      .subscribe()
+      .subscribe();
 
     return () => {
-      supabase.removeChannel(defsChannel)
-      supabase.removeChannel(sugChannel)
-    }
-  }, [crewId])
+      supabase.removeChannel(defsChannel);
+      supabase.removeChannel(sugChannel);
+    };
+  }, [crewId]);
 
-  const handleCreated = useCallback((def: SquadDefinition) => {
-    setDefinitions((prev) => {
-      if (prev.some((d) => d.id === def.id)) return prev
-      return [{ ...def, creator_username: currentUsername }, ...prev]
-    })
-  }, [currentUsername])
+  const handleCreated = useCallback(
+    (def: SquadDefinition) => {
+      setDefinitions((prev) => {
+        if (prev.some((d) => d.id === def.id)) return prev;
+        return [{ ...def, creator_username: currentUsername }, ...prev];
+      });
+    },
+    [currentUsername],
+  );
 
   const handleUpdated = useCallback((def: SquadDefinition) => {
     setDefinitions((prev) =>
-      prev.map((d) => d.id === def.id ? { ...d, word: def.word, actual_word: def.actual_word, definition: def.definition } : d)
-    )
-  }, [])
+      prev.map((d) =>
+        d.id === def.id
+          ? {
+              ...d,
+              word: def.word,
+              actual_word: def.actual_word,
+              definition: def.definition,
+            }
+          : d,
+      ),
+    );
+  }, []);
+
+  const handleDeleted = useCallback((defId: string) => {
+    setDefinitions((prev) => prev.filter((d) => d.id !== defId));
+    setPreviewTarget(null);
+  }, []);
 
   function handleCardTap(def: SquadDefinitionWithCreator) {
-    setPreviewTarget(def)
+    setPreviewTarget(def);
   }
 
   function handlePreviewEdit() {
-    if (!previewTarget) return
-    setEditTarget(previewTarget)
-    setPreviewTarget(null)
+    if (!previewTarget) return;
+    setEditTarget(previewTarget);
+    setPreviewTarget(null);
   }
 
   return (
     <SlidePage
       className="min-h-screen bg-black flex flex-col"
-      style={{ position: 'fixed', top: 0, bottom: 0, left: 0, right: 0, maxWidth: 480, marginLeft: 'auto', marginRight: 'auto', overflow: 'hidden' }}
+      style={{
+        position: "fixed",
+        top: 0,
+        bottom: 0,
+        left: 0,
+        right: 0,
+        maxWidth: 480,
+        marginLeft: "auto",
+        marginRight: "auto",
+        overflow: "hidden",
+      }}
     >
       {/* Header — Figma 402:9394: px-md py-x3, heading h-40px justify-between */}
       <div
         className="flex-shrink-0 flex flex-col"
         style={{
-          paddingLeft: 'var(--md)',
-          paddingRight: 'var(--md)',
-          paddingTop: 'max(env(safe-area-inset-top), var(--x3))',
-          paddingBottom: 'var(--x3)',
+          paddingLeft: "var(--md)",
+          paddingRight: "var(--md)",
+          paddingTop: "max(env(safe-area-inset-top), var(--x3))",
+          paddingBottom: "var(--x3)",
         }}
       >
         <div className="flex items-center justify-between h-10">
           {/* Left container — icon+title gap-x3 (Figma I402:9394;189:2437) */}
-          <div className="flex items-center h-full" style={{ gap: 'var(--x3)' }}>
+          <div
+            className="flex items-center h-full"
+            style={{ gap: "var(--x3)" }}
+          >
             <BackButton />
             <h1
               className="font-silkscreen uppercase leading-none text-primary"
-              style={{ fontSize: 'var(--xl)' }}
+              style={{ fontSize: "var(--xl)" }}
             >
               Definitions
             </h1>
@@ -403,7 +558,10 @@ export function DefinitionHomePage({
             className="flex-shrink-0 flex items-center justify-center"
             style={{ width: 24, height: 40 }}
           >
-            <Plus style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+            <Plus
+              style={{ width: 24, height: 24, color: "var(--color-primary)" }}
+              aria-hidden="true"
+            />
           </button>
         </div>
       </div>
@@ -412,11 +570,11 @@ export function DefinitionHomePage({
       <div
         className="flex-1 min-h-0 overflow-y-auto nexus-scroll flex flex-col"
         style={{
-          gap: 'var(--x6)',
-          paddingLeft: 'var(--md)',
-          paddingRight: 'var(--md)',
-          paddingTop: 'var(--x5)',
-          paddingBottom: 'max(env(safe-area-inset-bottom), var(--x5))',
+          gap: "var(--x6)",
+          paddingLeft: "var(--md)",
+          paddingRight: "var(--md)",
+          paddingTop: "var(--x5)",
+          paddingBottom: "max(env(safe-area-inset-bottom), var(--x5))",
         }}
       >
         {definitions.length === 0 ? (
@@ -433,8 +591,12 @@ export function DefinitionHomePage({
           </div>
         ) : (
           definitions.map((def) => {
-            const aliases   = def.word.split(',').map((w) => w.trim()).filter(Boolean).join(', ')
-            const isCreator = def.creator_id === currentUserId
+            const aliases = def.word
+              .split(",")
+              .map((w) => w.trim())
+              .filter(Boolean)
+              .join(", ");
+            const isCreator = def.creator_id === currentUserId;
             return (
               <button
                 key={def.id}
@@ -444,30 +606,43 @@ export function DefinitionHomePage({
                 {/* Card — Figma 402:9403 */}
                 <div
                   className="flex flex-col items-start w-full rounded-[var(--x3)] bg-[var(--color-surface-sheet)]"
-                  style={{ padding: 'var(--x5)', gap: 'var(--x5)' }}
+                  style={{ padding: "var(--x5)", gap: "var(--x5)" }}
                 >
                   {/* Details — Figma 402:9404: flex-col gap-x3 items-start justify-center */}
-                  <div className="flex flex-col items-start justify-center w-full" style={{ gap: 'var(--x3)' }}>
+                  <div
+                    className="flex flex-col items-start justify-center w-full"
+                    style={{ gap: "var(--x3)" }}
+                  >
                     {/* Aliases — Figma 402:9405: Silkscreen mini tertiary leading-none */}
                     <p
                       className="font-silkscreen text-tertiary leading-none w-full"
-                      style={{ fontSize: 'var(--mini)' }}
+                      style={{ fontSize: "var(--mini)" }}
                     >
                       {aliases}
                     </p>
                     {/* Word + definition — Figma 402:9406: flex-col gap-x2 items-center justify-center */}
-                    <div className="flex flex-col items-center justify-center w-full" style={{ gap: 'var(--x2)' }}>
+                    <div
+                      className="flex flex-col items-center justify-center w-full"
+                      style={{ gap: "var(--x2)" }}
+                    >
                       {/* Word — Figma 402:9407: DM Sans Bold md primary leading-none */}
                       <p
                         className="font-body font-bold text-primary leading-none w-full"
-                        style={{ fontSize: 'var(--md)', fontVariationSettings: '"opsz" 14' }}
+                        style={{
+                          fontSize: "var(--md)",
+                          fontVariationSettings: '"opsz" 14',
+                        }}
                       >
-                        {def.actual_word || def.word.split(',')[0].trim()}
+                        {def.actual_word || def.word.split(",")[0].trim()}
                       </p>
                       {/* Definition — Figma 402:9408: DM Sans Regular 14px secondary leading-[1.5] overflow-hidden text-ellipsis */}
                       <p
                         className="font-body text-secondary overflow-hidden text-ellipsis w-full"
-                        style={{ fontSize: '14px', lineHeight: '1.5', fontVariationSettings: '"opsz" 14' }}
+                        style={{
+                          fontSize: "14px",
+                          lineHeight: "1.5",
+                          fontVariationSettings: '"opsz" 14',
+                        }}
                       >
                         {def.definition}
                       </p>
@@ -479,25 +654,34 @@ export function DefinitionHomePage({
                     <p
                       className="font-body font-light leading-none"
                       style={{
-                        fontSize: 'var(--xs)',
-                        color: isCreator ? 'var(--color-primary)' : 'var(--color-tertiary)',
+                        fontSize: "var(--xs)",
+                        color: isCreator
+                          ? "var(--color-primary)"
+                          : "var(--color-tertiary)",
                         fontVariationSettings: '"opsz" 14',
                       }}
                     >
-                      {def.creator_username ? `Created by : ${def.creator_username}` : ''}
+                      {def.creator_username
+                        ? `Created by : ${def.creator_username}`
+                        : ""}
                     </p>
                     {(def.suggestion_count ?? 0) > 0 && (
                       <p
                         className="font-body font-light leading-none"
-                        style={{ fontSize: 'var(--xs)', color: '#f59e0b', fontVariationSettings: '"opsz" 14' }}
+                        style={{
+                          fontSize: "var(--xs)",
+                          color: "#f59e0b",
+                          fontVariationSettings: '"opsz" 14',
+                        }}
                       >
-                        {def.suggestion_count} New Suggestion{(def.suggestion_count ?? 0) > 1 ? 's' : ''}
+                        {def.suggestion_count} New Suggestion
+                        {(def.suggestion_count ?? 0) > 1 ? "s" : ""}
                       </p>
                     )}
                   </div>
                 </div>
               </button>
-            )
+            );
           })
         )}
       </div>
@@ -518,11 +702,14 @@ export function DefinitionHomePage({
             crewId={crewId}
             mode="edit"
             initialWord={editTarget.word}
-            initialActualWord={editTarget.actual_word ?? ''}
+            initialActualWord={editTarget.actual_word ?? ""}
             initialDefinition={editTarget.definition}
             definitionId={editTarget.id}
             onClose={() => setEditTarget(null)}
-            onSaved={(def) => { handleUpdated(def); setEditTarget(null) }}
+            onSaved={(def) => {
+              handleUpdated(def);
+              setEditTarget(null);
+            }}
           />
         )}
         {previewTarget && (
@@ -532,9 +719,10 @@ export function DefinitionHomePage({
             isCreator={previewTarget.creator_id === currentUserId}
             onClose={() => setPreviewTarget(null)}
             onEdit={handlePreviewEdit}
+            onDelete={() => handleDeleted(previewTarget.id)}
           />
         )}
       </AnimatePresence>
     </SlidePage>
-  )
+  );
 }
