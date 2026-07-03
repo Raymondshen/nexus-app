@@ -3,6 +3,7 @@
 import type { TextEffect } from '@/types'
 import { BouncyText } from './BouncyText'
 import { ShowUpText } from './ShowUpText'
+import { ParticlesText } from './ParticlesText'
 
 // Renders `text` with the given effect applied — used both for a squad
 // definition's keyword wherever it's highlighted inline in chat
@@ -12,5 +13,6 @@ import { ShowUpText } from './ShowUpText'
 export function TextEffectText({ text, effect }: { text: string; effect: TextEffect | null }) {
   if (effect === 'bouncy_text') return <BouncyText text={text} />
   if (effect === 'show_up') return <ShowUpText text={text} />
+  if (effect === 'particles') return <ParticlesText text={text} />
   return <>{text}</>
 }

@@ -186,7 +186,7 @@ function renderWithDefinitions(
       parts.push(
         <span
           key={`${pair.def.id}-${match.index}`}
-          style={{ color: 'var(--color-primary)', fontWeight: 500 }}
+          style={{ color: 'var(--color-purple)', fontWeight: 500 }}
           onClick={(e) => { e.stopPropagation(); onTap(pair.def) }}
         >
           <TextEffectText text={hit} effect={pair.def.text_effect} />
@@ -750,7 +750,7 @@ function MessageBubbleImpl({
             <div className="flex items-center justify-between w-full">
               <div className="flex items-center gap-[4px] flex-1 min-w-0">
                 <span
-                  className={`font-body font-medium text-[12px] tracking-[0.1px] shrink-0 leading-[normal] whitespace-nowrap ${isOwn ? 'text-purple' : 'text-primary'}`}
+                  className={`font-body font-medium text-[12px] tracking-[0.1px] shrink-0 leading-[normal] whitespace-nowrap ${isOwn ? 'text-primary' : 'text-secondary'}`}
                   style={{ fontVariationSettings: '"opsz" 14', cursor: onAvatarTap ? 'pointer' : undefined }}
                   onClick={onAvatarTap ? () => onAvatarTap(message.user_id) : undefined}
                 >
@@ -792,7 +792,7 @@ function MessageBubbleImpl({
             <div className="flex items-center justify-between w-full">
               <div className="flex items-center gap-[4px] flex-1 min-w-0">
                 <span
-                  className={`font-body font-medium text-[12px] tracking-[0.1px] shrink-0 leading-[normal] whitespace-nowrap ${isOwn ? 'text-purple' : 'text-primary'}`}
+                  className={`font-body font-medium text-[12px] tracking-[0.1px] shrink-0 leading-[normal] whitespace-nowrap ${isOwn ? 'text-primary' : 'text-secondary'}`}
                   style={{ fontVariationSettings: '"opsz" 14', cursor: onAvatarTap ? 'pointer' : undefined }}
                   onClick={onAvatarTap ? () => onAvatarTap(message.user_id) : undefined}
                 >
@@ -877,7 +877,7 @@ function MessageBubbleImpl({
               <div className="flex items-center gap-[4px] flex-1 min-w-0 overflow-hidden">
                 <span
                   className={`font-body font-medium text-[12px] tracking-[0.1px] shrink-0 leading-[normal] whitespace-nowrap ${
-                    isOwn ? 'text-purple' : 'text-primary'
+                    isOwn ? 'text-primary' : 'text-secondary'
                   }`}
                   style={{ fontVariationSettings: '"opsz" 14', cursor: onAvatarTap ? 'pointer' : undefined }}
                   onClick={onAvatarTap ? () => onAvatarTap(message.user_id) : undefined}
