@@ -21,7 +21,7 @@ function BackButton() {
       className="flex-shrink-0 flex items-center justify-center"
       style={{ width: 24, height: 40 }}
     >
-      <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-purple)' }} aria-hidden="true" />
+      <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
     </button>
   )
 }
@@ -548,32 +548,32 @@ export function DefinitionHomePage({
                 onClick={() => handleCardTap(def)}
                 className="w-full text-left active:opacity-80 transition-opacity flex-shrink-0"
               >
-                {/* Card — Figma 402:9403: bg-surface-sheet rounded-x3 p-x5 gap-x5 */}
+                {/* Card — Figma 402:9403 */}
                 <div
-                  className="flex flex-col w-full rounded-[var(--x3)] bg-[var(--color-surface-sheet)]"
+                  className="flex flex-col items-start w-full rounded-[var(--x3)] bg-[var(--color-surface-sheet)]"
                   style={{ padding: 'var(--x5)', gap: 'var(--x5)' }}
                 >
-                  {/* Details — Figma 402:9404: gap-x3 */}
-                  <div className="flex flex-col items-start w-full" style={{ gap: 'var(--x3)' }}>
-                    {/* Aliases — Silkscreen mini tertiary */}
+                  {/* Details — Figma 402:9404: flex-col gap-x3 items-start justify-center */}
+                  <div className="flex flex-col items-start justify-center w-full" style={{ gap: 'var(--x3)' }}>
+                    {/* Aliases — Figma 402:9405: Silkscreen mini tertiary leading-none */}
                     <p
                       className="font-silkscreen text-tertiary leading-none w-full"
                       style={{ fontSize: 'var(--mini)' }}
                     >
                       {aliases}
                     </p>
-                    {/* Word + definition — Figma 402:9406: gap-x2 */}
-                    <div className="flex flex-col w-full" style={{ gap: 'var(--x2)' }}>
-                      {/* Word — DM Sans Bold md primary leading-none */}
+                    {/* Word + definition — Figma 402:9406: flex-col gap-x2 items-center justify-center */}
+                    <div className="flex flex-col items-center justify-center w-full" style={{ gap: 'var(--x2)' }}>
+                      {/* Word — Figma 402:9407: DM Sans Bold md primary leading-none */}
                       <p
                         className="font-body font-bold text-primary leading-none w-full"
                         style={{ fontSize: 'var(--md)', fontVariationSettings: '"opsz" 14' }}
                       >
                         {def.actual_word || def.word.split(',')[0].trim()}
                       </p>
-                      {/* Definition — DM Sans Regular 14px secondary leading-[1.5] */}
+                      {/* Definition — Figma 402:9408: DM Sans Regular 14px secondary leading-[1.5] overflow-hidden text-ellipsis */}
                       <p
-                        className="font-body text-secondary w-full"
+                        className="font-body text-secondary overflow-hidden text-ellipsis w-full"
                         style={{ fontSize: '14px', lineHeight: '1.5', fontVariationSettings: '"opsz" 14' }}
                       >
                         {def.definition}
@@ -581,7 +581,7 @@ export function DefinitionHomePage({
                     </div>
                   </div>
 
-                  {/* Footer — creator + suggestion badge */}
+                  {/* Creator + suggestion badge — Figma 402:9409: DM Sans Light xs tertiary leading-none */}
                   <div className="flex items-center justify-between w-full">
                     <p
                       className="font-body font-light leading-none"
