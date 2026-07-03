@@ -153,7 +153,10 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance }:
 
             {/* Library — squad glossary */}
             <button
-              onClick={() => router.push(`/chat/${crewId}/definitions`)}
+              onClick={() => {
+                sessionStorage.setItem('nexus_chat_from', 'chat')
+                router.push(`/chat/${crewId}/definitions`)
+              }}
               aria-label="Squad glossary"
               className="flex items-center justify-center border border-border flex-shrink-0"
               style={btnStyle}

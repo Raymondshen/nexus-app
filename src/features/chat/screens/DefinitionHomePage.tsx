@@ -512,6 +512,8 @@ export function DefinitionHomePage({
     setPreviewTarget(null);
   }
 
+  const overlayOpen = showCreate || editTarget !== null || previewTarget !== null;
+
   return (
     <SlidePage
       className="min-h-screen bg-black flex flex-col"
@@ -526,6 +528,7 @@ export function DefinitionHomePage({
         marginRight: "auto",
         overflow: "hidden",
       }}
+      nativeSwipe={overlayOpen}
     >
       {/* Header — Figma 402:9394: px-md py-x3, heading h-40px justify-between */}
       <div
