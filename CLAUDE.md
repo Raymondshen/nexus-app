@@ -359,25 +359,29 @@ Icons (`pixelarticons`) — key usages:
 Two named patterns — every new sheet must use one; no custom dismiss logic.
 
 ### Sheet (standard)
-Backdrop tap + drag-to-dismiss. Spring `stiffness 320, damping 32`.
+Backdrop tap + drag-to-dismiss. Spring `stiffness 320, damping 32`. Use `<BottomSheet>` (`src/shared/components/ui/BottomSheet.tsx`) — do not inline the motion markup.
 
 ```tsx
-<motion.div className="fixed inset-0 z-[60] bg-black/60"
-  initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-  onClick={onClose} />
-<motion.div
-  className="fixed bottom-0 left-0 right-0 z-[70] bg-[var(--color-surface-sheet)] rounded-tl-[16px] rounded-tr-[16px]"
-  initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
-  transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-  drag="y" dragConstraints={{ top: 0, bottom: 0 }} dragElastic={{ top: 0, bottom: 1 }}
-  onDragEnd={(_, info) => { if (info.offset.y > 80 || info.velocity.y > 400) onClose() }}
-  onClick={(e) => e.stopPropagation()}
->
+<BottomSheet onClose={onClose} zIndex={70}>
   {/* content */}
-</motion.div>
+</BottomSheet>
 ```
 
-Upload modals: `drag={saving ? false : 'y'}`. Sheets with inputs: blur on mount to suppress keyboard.
+Upload modals: pass `disableDrag={saving}`. Sheets with inputs: blur on mount to suppress keyboard.
+
+### SheetActionButton
+Action rows inside sheets use `<SheetActionButton>` (`src/shared/components/ui/SheetActionButton.tsx`). Renders `bg-surface-elevated` buttons with correct typography and `appearance-none` to prevent iOS Safari's `-webkit-appearance` from overriding the background.
+
+```tsx
+<SheetActionButton
+  icon={<SomeIcon style={{ width: 20, height: 20 }} />}
+  label="Action Label"
+  onClick={handleAction}
+  disabled={optionalBool}
+/>
+```
+
+Pass icon without a `color` style — it inherits `currentColor` from the button.
 
 ### Panel (SquadDetailsSheet only)
 Full-height swipe-up with `onPanEnd` pull-to-close (offset > 60 or vel > 300). Do not replicate.
@@ -414,3 +418,4 @@ Full-height swipe-up with `onPanEnd` pull-to-close (offset > 60 or vel > 300). D
 - **`RETURNS TABLE` creates implicit output variables that shadow columns.** Always qualify table-prefixed column names in PL/pgSQL to avoid `42702` ambiguity.
 - **iOS Safari clears sessionStorage on PWA kill/relaunch.** Always write to both sessionStorage and IDB; read sessionStorage first (sync), fall back to IDB (async ~5ms).
 - **`SwipeableCrewCard`**: `wasDragging` set in `onDragEnd` only (not `onDragStart`) — setting it in `onDragStart` blocks `onClick` for micro-movements. `onDragStart` calls `cancelLongPress()` to prevent 500ms timer firing on slow swipes.
+- **iOS Safari `<button>` background**: `-webkit-appearance: button` overrides custom `background` values. Always include `appearance-none` (Tailwind) on styled `<button>` elements — `SheetActionButton` already does this.
