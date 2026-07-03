@@ -14,7 +14,9 @@ export default async function DefinitionsPage({ params }: DefinitionsPageProps) 
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) redirect('/login')
 
-  const [memberResult, defsResult] = await Promise.all([
+  // Round 1: member guard + definitions + current user profile run in parallel.
+  // Fetching currentProfile here avoids including it in the creator batch below.
+  const [memberResult, defsResult, currentProfileResult] = await Promise.all([
     supabase
       .from('crew_members')
       .select('user_id')
@@ -26,25 +28,36 @@ export default async function DefinitionsPage({ params }: DefinitionsPageProps) 
       .select('*')
       .eq('crew_id', crewId)
       .order('created_at', { ascending: false }),
+    supabase
+      .from('profiles')
+      .select('id, username')
+      .eq('id', session.user.id)
+      .single(),
   ])
 
   if (!memberResult.data) redirect('/home')
 
   const defs = (defsResult.data ?? []) as SquadDefinition[]
+  const currentUsername = (currentProfileResult.data as { id: string; username: string } | null)?.username ?? ''
 
-  // Batch: creator usernames + suggestion counts
-  const defIds    = defs.map((d) => d.id)
-  const creatorIds = [...new Set([session.user.id, ...defs.map((d) => d.creator_id)])]
+  const defIds     = defs.map((d) => d.id)
+  // Exclude current user — already fetched above.
+  const otherCreatorIds = [...new Set(defs.map((d) => d.creator_id).filter((id) => id !== session.user.id))]
 
-  const [profilesResult, suggestionsResult] = await Promise.all([
-    supabase.from('profiles').select('id, username').in('id', creatorIds),
+  // Round 2: creator usernames (other users) + suggestion counts in parallel.
+  const [otherProfilesResult, suggestionsResult] = await Promise.all([
+    otherCreatorIds.length > 0
+      ? supabase.from('profiles').select('id, username').in('id', otherCreatorIds)
+      : Promise.resolve({ data: [] as { id: string; username: string }[] }),
     defIds.length > 0
       ? supabase.from('definition_suggestions').select('definition_id').in('definition_id', defIds)
-      : Promise.resolve({ data: [] }),
+      : Promise.resolve({ data: [] as { definition_id: string }[] }),
   ])
 
-  const usernameMap = Object.fromEntries((profilesResult.data ?? []).map((p) => [p.id as string, p.username as string]))
-  const currentUsername = usernameMap[session.user.id] ?? ''
+  const usernameMap: Record<string, string> = { [session.user.id]: currentUsername }
+  for (const p of (otherProfilesResult.data ?? [])) {
+    usernameMap[p.id as string] = p.username as string
+  }
 
   const countMap: Record<string, number> = {}
   for (const row of (suggestionsResult.data ?? [])) {

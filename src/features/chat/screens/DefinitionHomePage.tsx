@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useAnimation } from "framer-motion";
 import { SlidePage, useSlideBack } from "@/app/layouts/SlidePage";
 import { ChevronLeft } from "pixelarticons/react/ChevronLeft";
 import { Plus } from "pixelarticons/react/Plus";
@@ -41,8 +41,8 @@ function BackButton() {
 }
 
 // ─── CreateDefinitionPage ─────────────────────────────────────────────────────
-// Full-screen slide-in page (replaces the old bottom sheet).
-// Slides in from the right using the same spring as SlidePage (380/36).
+// Full-screen slide-in overlay. Back button and left-edge swipe close the
+// overlay (calls onClose) rather than navigating router history.
 
 interface CreateDefinitionPageProps {
   crewId: string;
@@ -71,20 +71,98 @@ function CreateDefinitionPage({
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const exitingRef = useRef(false);
+  const controls = useAnimation();
 
-  // Prevent SlidePage's left-edge swipe handler (and iOS native back gesture)
-  // from firing through this fixed overlay. Touch events would otherwise bubble
-  // up to the SlidePage container since fixed children still propagate natively.
+  // Slide in on mount
+  useEffect(() => {
+    controls.start({
+      x: 0,
+      transition: { type: "spring", stiffness: 380, damping: 36 },
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Animate off-screen then unmount — used by both the back button and swipe gesture.
+  // This keeps navigation inside the overlay and never calls router.back().
+  const handleBack = useCallback(() => {
+    if (exitingRef.current) return;
+    exitingRef.current = true;
+    controls
+      .start({
+        x: "100%",
+        transition: { type: "tween", ease: [0.32, 0, 0.67, 0], duration: 0.15 },
+      })
+      .then(() => onClose());
+  }, [controls, onClose]);
+
+  // Left-edge swipe-to-close: mirrors SlidePage's gesture but resolves to onClose.
+  // Also calls e.preventDefault() on left-edge touchstart to block iOS native back gesture.
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    const block = (e: TouchEvent) => {
-      e.stopPropagation();
-      if (e.touches[0]?.clientX < 40) e.preventDefault();
+    let startX = 0,
+      startY = 0,
+      lastX = 0,
+      lastT = 0,
+      active = false;
+
+    function onTouchStart(e: TouchEvent) {
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      lastX = startX;
+      lastT = Date.now();
+      if (startX < 40) {
+        active = true;
+        e.preventDefault();
+        controls.stop();
+      }
+    }
+    function onTouchMove(e: TouchEvent) {
+      if (!active) return;
+      const dx = e.touches[0].clientX - startX;
+      const dy = Math.abs(e.touches[0].clientY - startY);
+      if (dy > dx || dx < 0) {
+        active = false;
+        controls.start({
+          x: 0,
+          transition: { type: "spring", stiffness: 500, damping: 40 },
+        });
+        return;
+      }
+      e.preventDefault();
+      lastX = e.touches[0].clientX;
+      lastT = Date.now();
+      controls.set({ x: dx });
+    }
+    function onTouchEnd(e: TouchEvent) {
+      if (!active || exitingRef.current) {
+        active = false;
+        return;
+      }
+      active = false;
+      const endX = e.changedTouches[0].clientX;
+      const dx = endX - startX;
+      const dt = Date.now() - lastT;
+      const vel = dt > 0 ? ((endX - lastX) / dt) * 1000 : 0;
+      if (dx > 80 || vel > 400) {
+        handleBack();
+      } else {
+        controls.start({
+          x: 0,
+          transition: { type: "spring", stiffness: 500, damping: 40 },
+        });
+      }
+    }
+
+    el.addEventListener("touchstart", onTouchStart, { passive: false });
+    el.addEventListener("touchmove", onTouchMove, { passive: false });
+    el.addEventListener("touchend", onTouchEnd);
+    return () => {
+      el.removeEventListener("touchstart", onTouchStart);
+      el.removeEventListener("touchmove", onTouchMove);
+      el.removeEventListener("touchend", onTouchEnd);
     };
-    el.addEventListener("touchstart", block, { passive: false });
-    return () => el.removeEventListener("touchstart", block);
-  }, []);
+  }, [controls, handleBack]);
 
   async function handleSave() {
     if (!word.trim()) {
@@ -114,18 +192,18 @@ function CreateDefinitionPage({
       return;
     }
     if (result.data) onSaved(result.data);
-    onClose();
+    handleBack();
   }
 
   return (
+    // No exit prop — handleBack animates off-screen before calling onClose,
+    // so AnimatePresence sees an already-invisible element and unmounts immediately.
     <motion.div
       ref={containerRef}
       className="fixed inset-0 z-[80] bg-black flex flex-col"
       style={{ maxWidth: 480, marginLeft: "auto", marginRight: "auto" }}
       initial={{ x: "100%" }}
-      animate={{ x: 0 }}
-      exit={{ x: "100%" }}
-      transition={{ type: "spring", stiffness: 380, damping: 36 }}
+      animate={controls}
     >
       {/* Header — matches DefinitionHomePage header spec */}
       <div
@@ -139,7 +217,7 @@ function CreateDefinitionPage({
       >
         <div className="flex items-center h-10" style={{ gap: "var(--x3)" }}>
           <button
-            onClick={onClose}
+            onClick={handleBack}
             aria-label="Back"
             className="flex-shrink-0 flex items-center justify-center"
             style={{ width: 24, height: 40 }}
@@ -389,6 +467,18 @@ export function DefinitionHomePage({
   const [editTarget, setEditTarget] =
     useState<SquadDefinitionWithCreator | null>(null);
 
+  // Cache of creator_id → username to avoid redundant profile fetches in Realtime.
+  // Seeded from initial definitions so most INSERTs won't need a network round-trip.
+  const profileCacheRef = useRef<Record<string, string>>({});
+  useEffect(() => {
+    profileCacheRef.current[currentUserId] = currentUsername;
+    for (const def of initialDefinitions) {
+      if (def.creator_id && def.creator_username) {
+        profileCacheRef.current[def.creator_id] = def.creator_username;
+      }
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     const supabase = createClient();
 
@@ -405,18 +495,22 @@ export function DefinitionHomePage({
         async (payload) => {
           if (payload.eventType === "INSERT") {
             const incoming = payload.new as SquadDefinition;
-            const { data: profile } = await supabase
-              .from("profiles")
-              .select("username")
-              .eq("id", incoming.creator_id)
-              .single();
+            const cached = profileCacheRef.current[incoming.creator_id];
+            let creatorUsername: string | undefined = cached;
+            if (!cached) {
+              const { data: profile } = await supabase
+                .from("profiles")
+                .select("username")
+                .eq("id", incoming.creator_id)
+                .single();
+              creatorUsername = profile?.username as string | undefined;
+              if (creatorUsername)
+                profileCacheRef.current[incoming.creator_id] = creatorUsername;
+            }
             setDefinitions((prev) => {
               if (prev.some((d) => d.id === incoming.id)) return prev;
               return [
-                {
-                  ...incoming,
-                  creator_username: profile?.username as string | undefined,
-                },
+                { ...incoming, creator_username: creatorUsername },
                 ...prev,
               ];
             });
@@ -528,8 +622,13 @@ export function DefinitionHomePage({
     setPreviewTarget(null);
   }
 
+  // Disable SlidePage's custom swipe handler while CreateDefinitionPage overlay is
+  // open — prevents it from intercepting left-edge swipes and calling router.back().
+  const overlayOpen = showCreate || !!editTarget;
+
   return (
     <SlidePage
+      nativeSwipe={overlayOpen}
       className="min-h-screen bg-black flex flex-col"
       style={{
         position: "fixed",
