@@ -157,6 +157,7 @@ src/
 │   │   ├── polls/              PollCard, PollCreatorSheet
 │   │   ├── header/             ChatHeader, DMHeader
 │   │   └── navigation/         FloatingBackButton, DMOverlayBack, ShareModal
+│   ├── chat/screens/           DefinitionHomePage (definitions list page; stub re-export DefinitionsClient.tsx)
 │   ├── combat/                 CombatHUD, CombatLog, AbilityButton, DamageFloat, VaultClient
 │   ├── home/                   HomeClient, InviteArsenal, homePreviewCache.ts
 │   ├── friends/                FriendsClient, InboxClient
@@ -221,6 +222,21 @@ Absolute-positioned gradient overlay (`linear-gradient black → transparent`). 
 - **Bell** (`Bell`/`BellOff`) — loads per-crew notif prefs, opens `NotifSheet`; shows `BellOff` when all muted
 - **Library** — navigates to `/chat/${crewId}/definitions` (squad glossary)
 All buttons: `border border-border p-2 backdrop-blur(7px)`.
+
+### Definitions Page (`src/features/chat/screens/DefinitionHomePage.tsx`)
+Route: `/chat/[crewId]/definitions` · Export: `DefinitionHomePage`
+
+Header (Figma 402:9394): `px-md py-x3` · `h-40px justify-between` · left = `[ChevronLeft primary] [DEFINITIONS silkscreen xl]` gap-x3 · right = `Plus primary` opens create sheet
+
+Cards (Figma 402:9403): `bg-surface-sheet rounded-x3 p-x5 gap-x5 items-start`
+- Details (402:9404): `flex-col gap-x3 items-start justify-center`
+  - Aliases: Silkscreen mini tertiary leading-none
+  - Word (402:9407): DM Sans Bold md `--primary` leading-none
+  - Definition (402:9408): DM Sans Regular 14px `--secondary` leading-[1.5] overflow-hidden text-ellipsis
+- Creator (402:9409): DM Sans Light xs · `--primary` if own definition · `--tertiary` otherwise
+- Suggestion badge: amber `#f59e0b` DM Sans Light xs (right-aligned, shown when `suggestion_count > 0`)
+
+Tapping a card → creator sees action sheet (edit/delete) or review sheet (if suggestions pending) · others see view sheet (suggest new definition)
 
 ### SquadDetailsSheet (`src/features/chat/components/sheets/SquadDetailsSheet.tsx`)
 Panel pattern · `maxHeight: 85vh` · `overflow-hidden`
@@ -340,7 +356,7 @@ Fonts: `font-pixel` = Press Start 2P · `font-body` = DM Sans · `font-silkscree
 Icons (`pixelarticons`) — key usages:
 | Location | Component | Size |
 |---|---|---|
-| Back buttons | `ChevronLeft` | 24×24 |
+| Back buttons | `ChevronLeft` | 24×24, `--color-purple` (except Definitions page: `--color-primary`) |
 | Expand/collapse | `ChevronRight` (rotated) | 24×24 |
 | Floating nav — notifs | `Bell` / `BellOff` | 24×24 |
 | Floating nav — glossary | `Library` | 24×24 |
