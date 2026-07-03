@@ -170,12 +170,7 @@ function CreateDefinitionPage({
   const exitingRef = useRef(false);
   const controls = useAnimation();
 
-  // Dev-only text effect controls — Figma 405:2634. Read once on mount; this
-  // overlay remounts each time it's opened so no live-update listener is needed.
-  const [textEffectFeature] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return localStorage.getItem("nexus_text_effect_feature") === "1";
-  });
+  // Text effect controls — Figma 405:2634.
   const [textEffectEnabled, setTextEffectEnabled] = useState(
     initialTextEffect != null,
   );
@@ -285,7 +280,7 @@ function CreateDefinitionPage({
     setSaving(true);
     setError("");
 
-    const effectToSave = textEffectFeature && textEffectEnabled ? textEffect : null;
+    const effectToSave = textEffectEnabled ? textEffect : null;
 
     const result =
       mode === "edit" && definitionId
@@ -394,27 +389,25 @@ function CreateDefinitionPage({
           placeholder="What does it mean in your squad?"
           rows={5}
         />
-        {textEffectFeature && (
-          <div className="flex flex-col w-full" style={{ gap: "var(--x3)" }}>
-            <TextEffectToggleRow
-              enabled={textEffectEnabled}
-              onToggle={() => setTextEffectEnabled((v) => !v)}
-            />
-            {textEffectEnabled && (
-              <div className="flex flex-col w-full" style={{ gap: "var(--x5)" }}>
-                {TEXT_EFFECTS.map((opt) => (
-                  <TextEffectOptionCard
-                    key={opt.id}
-                    effect={opt.id}
-                    label={opt.label}
-                    selected={textEffect === opt.id}
-                    onSelect={() => setTextEffect(opt.id)}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+        <div className="flex flex-col w-full" style={{ gap: "var(--x3)" }}>
+          <TextEffectToggleRow
+            enabled={textEffectEnabled}
+            onToggle={() => setTextEffectEnabled((v) => !v)}
+          />
+          {textEffectEnabled && (
+            <div className="flex flex-col w-full" style={{ gap: "var(--x5)" }}>
+              {TEXT_EFFECTS.map((opt) => (
+                <TextEffectOptionCard
+                  key={opt.id}
+                  effect={opt.id}
+                  label={opt.label}
+                  selected={textEffect === opt.id}
+                  onSelect={() => setTextEffect(opt.id)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
         {error && (
           <p className="font-silkscreen text-[8px] text-[#ef4444] leading-relaxed">
             {error}
