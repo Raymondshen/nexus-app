@@ -349,7 +349,7 @@ New notification type checklist:
 
 ## Images
 - `next/image` + `supabaseImageLoader` for all Supabase storage images (crew, backgrounds, photos, OG)
-- **Avatars must use `avatarImageLoader`** — forces square 1:1 crop; Google URLs get `-c` suffix. Never use `supabaseImageLoader` for person avatars.
+- **All person avatars must use `<UserAvatar>`** (`src/shared/components/ui/UserAvatar.tsx`) — never inline `avatarImageLoader` + `next/image` directly for avatar display
 - Plain `<img>`: pixel sprites · crop target · hero backgrounds · Vibes OG thumbnails (external URLs)
 - Avatar upload: `AvatarUploadModal` → canvas → WebP → `avatars` bucket; `process-avatar` edge fn → AVIF; `custom_avatar = true` blocks Google photo overwrite
 - `resizeImageToBlob(file, w, h)` in `src/shared/utils/imageCompress.ts`: center-crop → WebP 0.85
@@ -436,6 +436,44 @@ Figma 402:9772 — two variants used in the Definitions flow. DM Sans SemiBold s
 ```
 
 Icon inherits `currentColor` from the button wrapper — do not pass `color` on the icon style.
+
+## UserAvatar (`src/shared/components/ui/UserAvatar.tsx`)
+
+Single component for all user profile photo rendering. Uses `avatarImageLoader` internally — Supabase storage URLs are resized + quality-compressed via the render API; Google OAuth URLs are resized via Google's CDN. Never render avatar images inline.
+
+```tsx
+// Standard message / member list avatar (circle, bg-surface, 32px default)
+<UserAvatar avatarUrl={profile.avatar_url} username={profile.username} size={32} />
+
+// Friend / home account preview (circle, bg-primary, black initial for contrast)
+<UserAvatar avatarUrl={avatarUrl} username={username} size={48} bg="primary" initialColor="black" priority />
+
+// Own profile hero (circle, bg-primary, 56px)
+<UserAvatar avatarUrl={localAvatarUrl} username={localUsername} size={56} bg="primary" priority />
+
+// Member / settings profile hero (square, bg-border, 56px)
+<UserAvatar avatarUrl={avatarUrl} username={username} size={56} shape="square" bg="border" />
+
+// DM header / overlay back (square, bg-border, white initial)
+<UserAvatar avatarUrl={friendAvatarUrl} username={friendUsername} size={32} shape="square" bg="border" initialColor="primary" priority />
+
+// Event "going" avatar stack (circle, purple fallback background)
+<UserAvatar avatarUrl={profile.avatar_url} username={profile.username} size={24} bg="border" fallbackBg="var(--color-purple)" initialColor="white" />
+```
+
+Props:
+| Prop | Type | Default | Notes |
+|---|---|---|---|
+| `avatarUrl` | `string \| null` | — | Supabase storage or Google URL |
+| `username` | `string \| null` | — | Used for `alt` text and initial fallback |
+| `size` | `number` | `32` | px; pick from `imageSizes` (24, 32, 48, 56) for best cache hits |
+| `shape` | `'circle' \| 'square'` | `'circle'` | Square for DM headers and profile heroes |
+| `bg` | `'surface' \| 'border' \| 'primary'` | `'surface'` | Container background (visible during load + fallback) |
+| `fallbackBg` | `string` | — | CSS color for the no-avatar state only (overrides `bg` on the inner div) |
+| `initialColor` | `'purple' \| 'primary' \| 'black' \| 'white'` | `'purple'` | Pixel-font initial letter color |
+| `priority` | `boolean` | `false` | Pass `true` for above-fold avatars |
+
+Online dot: render outside `<UserAvatar>` in a `div.relative` wrapper — the component does not include presence indicators.
 
 ## Form Components (`src/shared/components/ui/InputField.tsx`)
 
