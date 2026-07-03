@@ -186,7 +186,7 @@ function renderWithDefinitions(
       parts.push(
         <span
           key={`${pair.def.id}-${match.index}`}
-          style={{ color: 'var(--color-blue)' }}
+          style={{ color: 'var(--color-primary)', fontWeight: 500 }}
           onClick={(e) => { e.stopPropagation(); onTap(pair.def) }}
         >
           <TextEffectText text={hit} effect={pair.def.text_effect} />

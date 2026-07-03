@@ -88,7 +88,7 @@ export interface Poll extends Record<string, unknown> {
   created_at: string
 }
 
-export type TextEffect = 'letters_pull_up' | 'blur_in' | 'bouncy_text'
+export type TextEffect = 'bouncy_text' | 'show_up'
 
 export interface SquadDefinition extends Record<string, unknown> {
   id:          string

@@ -103,7 +103,7 @@ function TextEffectOptionCard({
         className="font-body font-medium text-white leading-none"
         style={{ fontSize: "var(--sm)", fontVariationSettings: '"opsz" 14' }}
       >
-        <TextEffectText text={label} effect={effect} />
+        <TextEffectText text={label} effect={selected ? effect : null} />
       </span>
       {selected ? (
         <Check style={{ width: 24, height: 24, color: "var(--color-purple)" }} aria-hidden="true" />
@@ -180,7 +180,7 @@ function CreateDefinitionPage({
     initialTextEffect != null,
   );
   const [textEffect, setTextEffect] = useState<TextEffect>(
-    initialTextEffect ?? "letters_pull_up",
+    initialTextEffect ?? "bouncy_text",
   );
 
   // Slide in on mount
