@@ -126,66 +126,76 @@ export function GifPickerSheet({ onSelect, onClose }: GifPickerSheetProps) {
   }, [hasNext, page, query, fetchGifs])
 
   return (
-    <BottomSheet onClose={onClose} zIndex={70} maxHeight="92vh" className="overflow-hidden">
-      {/* Search input + attribution */}
+    <BottomSheet onClose={onClose} zIndex={70} maxHeight="92vh" className="gap-4 overflow-hidden">
+      {/* Header */}
       <div className="flex-shrink-0 flex flex-col px-4" style={{ gap: 4 }}>
-          <div className="flex items-center border border-border h-12 px-4" style={{ gap: 8 }}>
-            <Search style={{ width: 16, height: 16, color: 'var(--color-muted)', flexShrink: 0 }} />
-            <input
-              ref={searchInputRef}
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search GIFs..."
-              className="flex-1 bg-transparent font-body text-[14px] text-primary placeholder:text-muted focus:outline-none leading-normal min-w-0"
-              style={{ fontVariationSettings: '"opsz" 14' }}
-            />
-          </div>
-          <span
-            className="font-silkscreen text-tertiary leading-none"
-            style={{ fontSize: 8, letterSpacing: '0.2px' }}
-          >
-            Powered by Klipy
-          </span>
-        </div>
+        <p
+          className="font-body font-bold text-primary leading-none"
+          style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}
+        >
+          Search GIFs
+        </p>
+        <p
+          className="font-body font-light text-tertiary leading-none"
+          style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}
+        >
+          Powered by KLIPY
+        </p>
+      </div>
 
-        {/* GIF grid */}
-        <div className="flex-1 overflow-y-auto nexus-scroll px-4" style={{ minHeight: 0, paddingTop: 'var(--space-7)', paddingBottom: 28 }}>
-          {error ? (
-            <div className="flex flex-col items-center justify-center py-12 gap-4">
-              <p className="font-silkscreen text-[8px] text-tertiary leading-relaxed text-center">{error}</p>
-              <button
-                onClick={() => fetchGifs(query, 1, false)}
-                className="font-silkscreen text-[8px] text-purple active:opacity-70"
-              >
-                RETRY
-              </button>
-            </div>
-          ) : gifs.length === 0 && !loading ? (
-            <div className="flex items-center justify-center py-12">
-              <p className="font-silkscreen text-[8px] text-tertiary">No GIFs found</p>
-            </div>
-          ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 4, paddingBottom: 4 }}>
-              {gifs.map((gif) => (
-                <GifThumbnail
-                  key={gif.id}
-                  gif={gif}
-                  onSelect={() => { onSelect(gif.gifUrl); onClose() }}
-                />
-              ))}
-              {loading && gifs.length === 0 && Array.from({ length: KLIPY_PAGE_SIZE }).map((_, i) => (
-                <div key={`sk-${i}`} className="bg-border animate-pulse" style={{ aspectRatio: '4/3' }} />
-              ))}
-              {loading && gifs.length > 0 && (
-                <div className="col-span-2 flex items-center justify-center py-4">
-                  <span className="font-silkscreen text-[8px] text-tertiary">···</span>
-                </div>
-              )}
-              <div ref={sentinelRef} className="col-span-2 h-1" />
-            </div>
-          )}
+      {/* Search input */}
+      <div className="flex-shrink-0 px-4">
+        <div className="flex items-center border border-border px-4 py-4" style={{ gap: 16 }}>
+          <Search style={{ width: 16, height: 16, color: 'var(--color-muted)', flexShrink: 0 }} />
+          <input
+            ref={searchInputRef}
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search GIFs..."
+            className="flex-1 bg-transparent font-body text-[14px] text-primary placeholder:text-muted focus:outline-none leading-normal min-w-0"
+            style={{ fontVariationSettings: '"opsz" 14' }}
+          />
         </div>
+      </div>
+
+      {/* GIF grid */}
+      <div className="flex-1 overflow-y-auto nexus-scroll px-4" style={{ minHeight: 0, paddingBottom: 28 }}>
+        {error ? (
+          <div className="flex flex-col items-center justify-center py-12 gap-4">
+            <p className="font-silkscreen text-[8px] text-tertiary leading-relaxed text-center">{error}</p>
+            <button
+              onClick={() => fetchGifs(query, 1, false)}
+              className="font-silkscreen text-[8px] text-purple active:opacity-70"
+            >
+              RETRY
+            </button>
+          </div>
+        ) : gifs.length === 0 && !loading ? (
+          <div className="flex items-center justify-center py-12">
+            <p className="font-silkscreen text-[8px] text-tertiary">No GIFs found</p>
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 4, paddingBottom: 4 }}>
+            {gifs.map((gif) => (
+              <GifThumbnail
+                key={gif.id}
+                gif={gif}
+                onSelect={() => { onSelect(gif.gifUrl); onClose() }}
+              />
+            ))}
+            {loading && gifs.length === 0 && Array.from({ length: KLIPY_PAGE_SIZE }).map((_, i) => (
+              <div key={`sk-${i}`} className="bg-border animate-pulse" style={{ aspectRatio: '4/3' }} />
+            ))}
+            {loading && gifs.length > 0 && (
+              <div className="col-span-2 flex items-center justify-center py-4">
+                <span className="font-silkscreen text-[8px] text-tertiary">···</span>
+              </div>
+            )}
+            <div ref={sentinelRef} className="col-span-2 h-1" />
+          </div>
+        )}
+      </div>
     </BottomSheet>
   )
 }
