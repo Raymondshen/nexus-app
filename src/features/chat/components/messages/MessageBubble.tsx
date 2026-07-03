@@ -16,12 +16,10 @@ import { useOGPreview } from '@/shared/hooks/useOGPreview'
 import { LinkPreviewCard } from '@/features/chat/components/messages/LinkPreviewCard'
 import { PollCard } from '@/features/chat/components/polls/PollCard'
 import { EventCardMessage } from '@/features/events/components/EventCardMessage'
-import { SuggestDefinitionSheet } from '@/features/chat/components/sheets/SuggestDefinitionSheet'
 import { PinDurationSheet } from '@/features/chat/components/sheets/PinDurationSheet'
 import { ChatSheetReact } from '@/features/chat/components/sheets/ChatSheetReact'
 import { TextEffectText } from '@/features/chat/components/text-effects/TextEffectText'
 import { ImagePreviewOverlay } from '@/shared/components/overlays/ImagePreviewOverlay'
-import { Button } from '@/shared/components/ui/Button'
 import { BottomSheet } from '@/shared/components/ui/BottomSheet'
 import { CornerDownRight } from 'pixelarticons/react/CornerDownRight'
 import { CornerUpLeft } from 'pixelarticons/react/CornerUpLeft'
@@ -416,7 +414,6 @@ function MessageBubbleImpl({
   const [healFloat,          setHealFloat]          = useState<{ id: number; amount: number } | null>(null)
   const [mounted,            setMounted]            = useState(false)
   const [activeDefinition,   setActiveDefinition]   = useState<SquadDefinitionWithCreator | null>(null)
-  const [suggestTarget,      setSuggestTarget]      = useState<SquadDefinitionWithCreator | null>(null)
   const [previewOpen,        setPreviewOpen]        = useState(false)
   const [previewSrc,         setPreviewSrc]         = useState<string | null>(null)
   const [pinSheetOpen,       setPinSheetOpen]       = useState(false)
@@ -1072,92 +1069,58 @@ function MessageBubbleImpl({
         document.body
       )}
 
-      {/* ── Definition view sheet ─────────────────────────────────────────── */}
+      {/* ── Definition view sheet — Figma 402:9855 ──────────────────────────── */}
       {mounted && createPortal(
         <AnimatePresence>
           {activeDefinition && (
             <BottomSheet onClose={() => setActiveDefinition(null)} zIndex={80}>
-              <div className="flex flex-col px-4" style={{ gap: 'var(--space-7)', paddingBottom: 'max(env(safe-area-inset-bottom), 28px)' }}>
-                {/* Content — flex-col gap-[--space-5] items-start */}
-                <div className="flex flex-col items-start w-full" style={{ gap: 'var(--space-5)' }}>
-                  {/* Details — flex-col gap-[--space-3] items-start justify-center */}
-                  <div className="flex flex-col items-start justify-center w-full" style={{ gap: 'var(--space-3)' }}>
-                    {/* Aliases — Silkscreen --mini tertiary */}
+              <div
+                className="flex flex-col items-center w-full"
+                style={{
+                  gap: 'var(--x5)',
+                  paddingLeft: 'var(--md)',
+                  paddingRight: 'var(--md)',
+                  paddingBottom: 'max(env(safe-area-inset-bottom), var(--x8))',
+                }}
+              >
+                {/* Details — Figma 402:9856: flex-col gap-x3 items-start justify-center */}
+                <div className="flex flex-col items-start justify-center w-full" style={{ gap: 'var(--x3)' }}>
+                  {/* Aliases — Silkscreen mini tertiary leading-none */}
+                  <p
+                    className="font-silkscreen text-tertiary leading-none w-full"
+                    style={{ fontSize: 'var(--mini)' }}
+                  >
+                    {parseAliases(activeDefinition.word).join(', ')}
+                  </p>
+                  {/* Word + definition — Figma 402:9858: flex-col gap-x2 items-center justify-center */}
+                  <div className="flex flex-col items-center justify-center w-full" style={{ gap: 'var(--x2)' }}>
+                    {/* Word — DM Sans Bold md primary leading-none */}
                     <p
-                      className="font-silkscreen text-tertiary leading-none w-full"
-                      style={{ fontSize: 'var(--text-mini)' }}
+                      className="font-body font-bold text-primary leading-none w-full"
+                      style={{ fontSize: 'var(--md)', fontVariationSettings: '"opsz" 14' }}
                     >
-                      {parseAliases(activeDefinition.word).join(', ')}
+                      {(activeDefinition.actual_word as string | null) || parseAliases(activeDefinition.word)[0]}
                     </p>
-                    {/* Inner — flex-col gap-[--space-2] */}
-                    <div className="flex flex-col w-full" style={{ gap: 'var(--space-2)' }}>
-                      {/* Word — DM Sans Bold --md blue */}
-                      <p
-                        className="font-body font-bold leading-none w-full"
-                        style={{ fontSize: 'var(--text-md)', color: 'var(--color-blue)', fontVariationSettings: '"opsz" 14' }}
-                      >
-                        {(activeDefinition.actual_word as string | null) || parseAliases(activeDefinition.word)[0]}
-                      </p>
-                      {/* Definition body — DM Sans Regular 14px secondary */}
-                      <p
-                        className="font-body text-secondary leading-normal overflow-hidden w-full"
-                        style={{ fontSize: '14px', fontVariationSettings: '"opsz" 14' }}
-                      >
-                        {activeDefinition.definition}
-                      </p>
-                    </div>
+                    {/* Definition — DM Sans Regular 14px secondary leading-[1.5] overflow-hidden text-ellipsis */}
+                    <p
+                      className="font-body font-normal text-secondary leading-[1.5] overflow-hidden text-ellipsis w-full"
+                      style={{ fontSize: '14px', fontVariationSettings: '"opsz" 14' }}
+                    >
+                      {activeDefinition.definition}
+                    </p>
                   </div>
-                  {/* Creator — DM Sans Regular --xxs; purple when own, tertiary otherwise */}
+                  {/* Author — DM Sans Light 12px tertiary leading-none overflow-hidden text-ellipsis */}
                   {activeDefinition.creator_username && (
                     <p
-                      className="font-body leading-none"
-                      style={{
-                        fontSize: 'var(--text-xxs)',
-                        color: activeDefinition.creator_id === currentUserId ? 'var(--color-purple)' : 'var(--color-tertiary)',
-                        fontVariationSettings: '"opsz" 14',
-                      }}
+                      className="font-body font-light text-tertiary leading-none overflow-hidden text-ellipsis w-full"
+                      style={{ fontSize: '12px', fontVariationSettings: '"opsz" 14' }}
                     >
-                      Created by : {activeDefinition.creator_username}
+                      Author : {activeDefinition.creator_username}
                     </p>
                   )}
                 </div>
-
-                {/* Bottom action */}
-                {activeDefinition.creator_id !== currentUserId && crewId ? (
-                  <Button
-                    onClick={() => {
-                      setSuggestTarget(activeDefinition)
-                      setActiveDefinition(null)
-                    }}
-                    className="w-full"
-                  >
-                    Suggest new definition
-                  </Button>
-                ) : (
-                  <button
-                    onClick={() => setActiveDefinition(null)}
-                    className="h-12 w-full font-pixel text-[8px] text-tertiary flex items-center justify-center transition-colors active:text-primary"
-                  >
-                    CLOSE
-                  </button>
-                )}
               </div>
             </BottomSheet>
-          )}
-        </AnimatePresence>,
-        document.body
-      )}
-
-      {/* ── Suggest new definition sheet ────────────────────────────────────── */}
-      {mounted && crewId && createPortal(
-        <AnimatePresence>
-          {suggestTarget && (
-            <SuggestDefinitionSheet
-              crewId={crewId}
-              definition={suggestTarget}
-              onClose={() => setSuggestTarget(null)}
-              zBase={90}
-            />
           )}
         </AnimatePresence>,
         document.body
