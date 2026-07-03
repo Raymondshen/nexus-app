@@ -15,7 +15,7 @@ export function SheetActionButton({ icon, label, onClick, disabled = false }: Sh
     <button
       onClick={onClick}
       disabled={disabled}
-      className="w-full flex items-center active:opacity-70 disabled:opacity-30 disabled:cursor-not-allowed"
+      className="w-full flex items-center appearance-none active:opacity-70 disabled:opacity-30 disabled:cursor-not-allowed"
       style={{
         background:   'var(--color-surface-elevated)',
         borderRadius: 8,

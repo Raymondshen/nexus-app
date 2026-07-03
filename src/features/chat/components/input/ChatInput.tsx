@@ -21,12 +21,10 @@ import type { GemClaimResult } from '@/types'
 import { Send } from 'pixelarticons/react/Send'
 import { Chart } from 'pixelarticons/react/Chart'
 import { Plus } from 'pixelarticons/react/Plus'
-import { Camera } from 'pixelarticons/react/Camera'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
 import { CornerUpLeft } from 'pixelarticons/react/CornerUpLeft'
 import { Close } from 'pixelarticons/react/Close'
 import { MagicEdit } from 'pixelarticons/react/MagicEdit'
-import { GifIcon } from '@/shared/icons/GifIcon'
 import { kickMemberAction, renameCrewAction, birthdaysCommandAction, updateCrewBackgroundImageAction } from '@/app/(app)/chat/actions'
 import { leaveCrewAction } from '@/app/(app)/home/actions'
 import { resizeImageToBlob } from '@/shared/utils/imageCompress'
@@ -35,6 +33,7 @@ import { CrewImageUploadModal } from '@/features/chat/components/sheets/CrewImag
 import { SquadDetailsSheet, type MiniMember } from '@/features/chat/components/sheets/SquadDetailsSheet'
 import { PollCreatorSheet } from '@/features/chat/components/polls/PollCreatorSheet'
 import { GifPickerSheet } from '@/features/chat/components/input/GifPickerSheet'
+import { AddMediaSheet } from '@/features/chat/components/input/AddMediaSheet'
 import { setHomeLastMessage } from '@/features/home/utils/homePreviewCache'
 import { useCombatStore } from '@/store/combatStore'
 import { DamageFloatLayer } from '@/features/combat/components/DamageFloat'
@@ -1799,82 +1798,12 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
       {/* ── Media picker sheet (Upload Photo / GIF) ── */}
       <AnimatePresence>
         {showMediaPicker && (
-          <>
-            <motion.div
-              className="fixed inset-0 z-[60] bg-black/60"
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              onClick={() => setShowMediaPicker(false)}
-            />
-            <motion.div
-              className="fixed bottom-0 left-0 right-0 z-[70] bg-[var(--color-surface-sheet)] rounded-tl-[16px] rounded-tr-[16px]"
-              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
-              transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-              drag="y"
-              dragConstraints={{ top: 0, bottom: 0 }}
-              dragElastic={{ top: 0, bottom: 1 }}
-              onDragEnd={(_, info) => { if (info.offset.y > 80 || info.velocity.y > 400) setShowMediaPicker(false) }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div
-                className="flex flex-col"
-                style={{
-                  paddingTop: 'var(--x5, 16px)',
-                  paddingBottom: 'max(env(safe-area-inset-bottom), var(--x8, 28px))',
-                  paddingLeft: 'var(--md, 16px)',
-                  paddingRight: 'var(--md, 16px)',
-                  gap: 'var(--x5, 16px)',
-                }}
-              >
-                {/* Header */}
-                <div className="flex flex-col" style={{ gap: 'var(--x2, 4px)' }}>
-                  <p
-                    className="font-body font-bold text-primary leading-none w-full"
-                    style={{ fontSize: 'var(--md, 16px)', fontVariationSettings: '"opsz" 14' }}
-                  >
-                    Add Dope Sh*t
-                  </p>
-                  <p
-                    className="font-body font-light text-tertiary leading-none w-full"
-                    style={{ fontSize: 'var(--xs, 12px)', fontVariationSettings: '"opsz" 14' }}
-                  >
-                    Express yourself to the squad.
-                  </p>
-                </div>
-
-                {/* Options */}
-                <div className="flex flex-col" style={{ gap: 'var(--x5, 16px)' }}>
-                  <button
-                    onClick={() => { setShowMediaPicker(false); chatImageInputRef.current?.click() }}
-                    disabled={pendingImages.length >= 4}
-                    className="flex items-center w-full bg-black rounded-[8px] disabled:opacity-30 disabled:cursor-not-allowed active:opacity-70"
-                    style={{ gap: 8, padding: 'var(--x5, 16px)' }}
-                  >
-                    <Camera style={{ width: 20, height: 20, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
-                    <span
-                      className="font-body font-semibold text-secondary flex-1 text-left"
-                      style={{ fontSize: 'var(--sm, 14px)', fontVariationSettings: '"opsz" 14', letterSpacing: '0.2px' }}
-                    >
-                      Upload Photo
-                    </span>
-                  </button>
-
-                  <button
-                    onClick={() => { setShowMediaPicker(false); setShowGifPicker(true) }}
-                    className="flex items-center w-full bg-black rounded-[8px] active:opacity-70"
-                    style={{ gap: 8, padding: 'var(--x5, 16px)' }}
-                  >
-                    <GifIcon style={{ width: 20, height: 20, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
-                    <span
-                      className="font-body font-semibold text-secondary flex-1 text-left"
-                      style={{ fontSize: 'var(--sm, 14px)', fontVariationSettings: '"opsz" 14', letterSpacing: '0.2px' }}
-                    >
-                      GIF
-                    </span>
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </>
+          <AddMediaSheet
+            onClose={() => setShowMediaPicker(false)}
+            onUploadPhoto={() => chatImageInputRef.current?.click()}
+            onPickGif={() => setShowGifPicker(true)}
+            photoDisabled={pendingImages.length >= 4}
+          />
         )}
       </AnimatePresence>
 
