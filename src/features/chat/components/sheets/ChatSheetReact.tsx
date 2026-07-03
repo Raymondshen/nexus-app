@@ -43,7 +43,7 @@ export function ChatSheetReact({
                   width:        40,
                   height:       40,
                   borderRadius: '50%',
-                  background:   active ? 'var(--color-purple)' : 'var(--color-background)',
+                  background:   active ? 'var(--color-purple)' : 'var(--color-surface-elevated)',
                   fontSize:     20,
                   lineHeight:   1,
                   transform:    active ? 'scale(1.1)' : undefined,
@@ -62,11 +62,11 @@ export function ChatSheetReact({
             <button
               onClick={onEdit}
               className="w-full flex items-center"
-              style={{ background: 'var(--color-background)', borderRadius: 8, padding: 16, gap: 8 }}
+              style={{ background: 'var(--color-surface-elevated)', borderRadius: 8, padding: 16, gap: 8 }}
             >
-              <MagicEdit style={{ width: 20, height: 20, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
+              <MagicEdit style={{ width: 20, height: 20, color: 'var(--color-primary)', flexShrink: 0 }} aria-hidden="true" />
               <span
-                className="flex-1 font-body font-semibold text-secondary leading-normal text-left tracking-[0.2px]"
+                className="flex-1 font-body font-semibold text-primary leading-normal text-left tracking-[0.2px]"
                 style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
               >
                 Edit Message
@@ -79,9 +79,9 @@ export function ChatSheetReact({
             className="w-full flex items-center"
             style={{ background: 'var(--color-background)', borderRadius: 8, padding: 16, gap: 8 }}
           >
-            <CornerUpLeft style={{ width: 20, height: 20, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
+            <CornerUpLeft style={{ width: 20, height: 20, color: 'var(--color-primary)', flexShrink: 0 }} aria-hidden="true" />
             <span
-              className="flex-1 font-body font-semibold text-secondary leading-normal text-left tracking-[0.2px]"
+              className="flex-1 font-body font-semibold text-primary leading-normal text-left tracking-[0.2px]"
               style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
             >
               Reply
@@ -93,9 +93,9 @@ export function ChatSheetReact({
             className="w-full flex items-center"
             style={{ background: 'var(--color-background)', borderRadius: 8, padding: 16, gap: 8 }}
           >
-            <Copy style={{ width: 20, height: 20, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
+            <Copy style={{ width: 20, height: 20, color: 'var(--color-primary)', flexShrink: 0 }} aria-hidden="true" />
             <span
-              className="flex-1 font-body font-semibold text-secondary leading-normal text-left tracking-[0.2px]"
+              className="flex-1 font-body font-semibold text-primary leading-normal text-left tracking-[0.2px]"
               style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
             >
               {copied ? 'Copied!' : 'Copy Text'}
@@ -106,11 +106,11 @@ export function ChatSheetReact({
             <button
               onClick={onOpenPin}
               className="w-full flex items-center"
-              style={{ background: 'var(--color-background)', borderRadius: 8, padding: 16, gap: 8 }}
+              style={{ background: 'var(--color-surface-elevated)', borderRadius: 8, padding: 16, gap: 8 }}
             >
-              <Note style={{ width: 20, height: 20, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
+              <Note style={{ width: 20, height: 20, color: 'var(--color-primary)', flexShrink: 0 }} aria-hidden="true" />
               <span
-                className="flex-1 font-body font-semibold text-secondary leading-normal text-left tracking-[0.2px]"
+                className="flex-1 font-body font-semibold text-primary leading-normal text-left tracking-[0.2px]"
                 style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
               >
                 Pin Message
