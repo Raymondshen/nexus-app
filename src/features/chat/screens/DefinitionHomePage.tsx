@@ -6,10 +6,12 @@ import { SlidePage, useSlideBack } from '@/app/layouts/SlidePage'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { Plus } from 'pixelarticons/react/Plus'
 import { createClient } from '@/shared/supabase/client'
-import { createDefinitionAction, updateDefinitionAction, deleteDefinitionAction } from '@/app/(app)/chat/[crewId]/definitions/actions'
-import { SuggestDefinitionSheet } from '@/features/chat/components/sheets/SuggestDefinitionSheet'
-import { ReviewSuggestionSheet } from '@/features/chat/components/sheets/ReviewSuggestionSheet'
+import { createDefinitionAction, updateDefinitionAction } from '@/app/(app)/chat/[crewId]/definitions/actions'
+import { BottomSheet } from '@/shared/components/ui/BottomSheet'
 import { Button } from '@/shared/components/ui/Button'
+import { InputField, TextareaField } from '@/shared/components/ui/InputField'
+import { MagicEdit } from 'pixelarticons/react/MagicEdit'
+import { Close } from 'pixelarticons/react/Close'
 import type { SquadDefinition, SquadDefinitionWithCreator, DefinitionSuggestion } from '@/types'
 
 function BackButton() {
@@ -26,9 +28,11 @@ function BackButton() {
   )
 }
 
-// ─── CreateDefinitionSheet ────────────────────────────────────────────────────
+// ─── CreateDefinitionPage ─────────────────────────────────────────────────────
+// Full-screen slide-in page (replaces the old bottom sheet).
+// Slides in from the right using the same spring as SlidePage (380/36).
 
-interface CreateDefinitionSheetProps {
+interface CreateDefinitionPageProps {
   crewId:              string
   mode:                'create' | 'edit'
   initialWord?:        string
@@ -39,7 +43,7 @@ interface CreateDefinitionSheetProps {
   onSaved:             (def: SquadDefinition) => void
 }
 
-function CreateDefinitionSheet({
+function CreateDefinitionPage({
   crewId,
   mode,
   initialWord       = '',
@@ -48,7 +52,7 @@ function CreateDefinitionSheet({
   definitionId,
   onClose,
   onSaved,
-}: CreateDefinitionSheetProps) {
+}: CreateDefinitionPageProps) {
   const [word,       setWord]       = useState(initialWord)
   const [actualWord, setActualWord] = useState(initialActualWord)
   const [definition, setDefinition] = useState(initialDefinition)
@@ -72,263 +76,188 @@ function CreateDefinitionSheet({
   }
 
   return (
-    <>
-      <motion.div
-        className="fixed inset-0 z-[60] bg-black/60"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={onClose}
-      />
-      <motion.div
-        className="fixed bottom-0 left-0 right-0 z-[70] bg-[var(--color-surface-sheet)] rounded-tl-[16px] rounded-tr-[16px] flex flex-col gap-6 px-4 overflow-y-auto"
-        initial={{ y: '100%' }}
-        animate={{ y: 0 }}
-        exit={{ y: '100%' }}
-        transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-        drag="y"
-        dragConstraints={{ top: 0, bottom: 0 }}
-        dragElastic={{ top: 0, bottom: 1 }}
-        onDragEnd={(_, info) => { if (info.offset.y > 80 || info.velocity.y > 400) onClose() }}
-        style={{ maxHeight: '90vh', paddingTop: 12, paddingBottom: 'max(env(safe-area-inset-bottom), 16px)' }}
-        onClick={(e) => e.stopPropagation()}
+    <motion.div
+      className="fixed inset-0 z-[80] bg-black flex flex-col"
+      style={{ maxWidth: 480, marginLeft: 'auto', marginRight: 'auto' }}
+      initial={{ x: '100%' }}
+      animate={{ x: 0 }}
+      exit={{ x: '100%' }}
+      transition={{ type: 'spring', stiffness: 380, damping: 36 }}
+    >
+      {/* Header — matches DefinitionHomePage header spec */}
+      <div
+        className="flex-shrink-0 flex flex-col"
+        style={{
+          paddingLeft: 'var(--md)',
+          paddingRight: 'var(--md)',
+          paddingTop: 'max(env(safe-area-inset-top), var(--x3))',
+          paddingBottom: 'var(--x3)',
+        }}
       >
-        <h2
-          className="font-body font-bold text-[18px] text-primary leading-none"
-          style={{ fontVariationSettings: '"opsz" 14' }}
-        >
-          Squad Definition
-        </h2>
-
-        <div className="flex flex-col gap-2 items-start w-full">
-          <p
-            className="font-body font-medium text-[14px] text-primary tracking-[0.2px] leading-normal"
-            style={{ fontVariationSettings: '"opsz" 14' }}
+        <div className="flex items-center h-10" style={{ gap: 'var(--x3)' }}>
+          <button
+            onClick={onClose}
+            aria-label="Back"
+            className="flex-shrink-0 flex items-center justify-center"
+            style={{ width: 24, height: 40 }}
           >
-            Words attached to definition
-          </p>
-          <input
-            value={word}
-            onChange={(e) => setWord(e.target.value)}
-            maxLength={100}
-            placeholder="e.g. GG, gg, good game"
-            className="w-full bg-black border border-border-hover px-3 py-3 font-body text-[14px] text-primary placeholder:text-muted focus:outline-none focus:border-purple transition-colors overflow-hidden"
-            style={{ fontVariationSettings: '"opsz" 14' }}
-            autoComplete="off"
-            autoCapitalize="off"
-          />
-          <p
-            className="font-body text-[11px] text-tertiary tracking-[0.2px] leading-normal w-full"
-            style={{ fontVariationSettings: '"opsz" 14' }}
+            <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+          </button>
+          <h1
+            className="font-silkscreen uppercase leading-none text-primary"
+            style={{ fontSize: 'var(--xl)' }}
           >
-            Putting commas separates the word but will tie back to this definition when used. (e.g. GG, gg, good game will be the same definition.)
-          </p>
+            {mode === 'edit' ? 'Edit Definition' : 'New Definition'}
+          </h1>
         </div>
+      </div>
 
-        <div className="flex flex-col gap-2 items-start w-full">
-          <p
-            className="font-body font-medium text-[14px] text-primary tracking-[0.2px] leading-normal"
-            style={{ fontVariationSettings: '"opsz" 14' }}
-          >
-            Actual Word
-          </p>
-          <input
-            value={actualWord}
-            onChange={(e) => setActualWord(e.target.value)}
-            maxLength={100}
-            placeholder="e.g. Good Game"
-            className="w-full bg-black border border-border-hover px-3 py-3 font-body text-[14px] text-primary placeholder:text-muted focus:outline-none focus:border-purple transition-colors overflow-hidden"
-            style={{ fontVariationSettings: '"opsz" 14' }}
-            autoComplete="off"
-          />
-          <p
-            className="font-body text-[11px] text-tertiary tracking-[0.2px] leading-normal w-full"
-            style={{ fontVariationSettings: '"opsz" 14' }}
-          >
-            What the actual full word mean. (e.g. GG is &quot;Good Game&quot;)
-          </p>
-        </div>
-
-        <div className="flex flex-col gap-2 items-start w-full">
-          <p
-            className="font-body font-medium text-[14px] text-primary tracking-[0.2px] leading-normal"
-            style={{ fontVariationSettings: '"opsz" 14' }}
-          >
-            Definition
-          </p>
-          <textarea
-            value={definition}
-            onChange={(e) => setDefinition(e.target.value)}
-            maxLength={500}
-            placeholder="What does it mean in your squad?"
-            className="w-full h-[78px] bg-black border border-border-hover px-3 py-3 font-body text-[14px] text-primary placeholder:text-muted focus:outline-none focus:border-purple transition-colors resize-none overflow-hidden"
-            style={{ fontVariationSettings: '"opsz" 14' }}
-          />
-        </div>
-
+      {/* Scrollable form body */}
+      <div
+        className="flex-1 min-h-0 overflow-y-auto nexus-scroll flex flex-col"
+        style={{
+          gap: 'var(--x6)',
+          paddingLeft: 'var(--md)',
+          paddingRight: 'var(--md)',
+          paddingTop: 'var(--x5)',
+          paddingBottom: 'var(--x5)',
+        }}
+      >
+        <InputField
+          label="Words attached to definition"
+          value={word}
+          onChange={setWord}
+          maxLength={100}
+          placeholder="e.g. GG, gg, good game"
+          helperText="Putting commas separates the word but will tie back to this definition when used. (e.g. GG, gg, good game will be the same definition.)"
+          autoComplete="off"
+          autoCapitalize="off"
+        />
+        <InputField
+          label="Actual Word"
+          value={actualWord}
+          onChange={setActualWord}
+          maxLength={100}
+          placeholder="e.g. Good Game"
+          helperText={'What the actual full word mean. (e.g. GG is "Good Game")'}
+          autoComplete="off"
+        />
+        <TextareaField
+          label="Definition"
+          value={definition}
+          onChange={setDefinition}
+          maxLength={500}
+          placeholder="What does it mean in your squad?"
+          rows={5}
+        />
         {error && (
           <p className="font-silkscreen text-[8px] text-[#ef4444] leading-relaxed">{error}</p>
         )}
+      </div>
 
-        <div className="flex flex-col gap-4 w-full">
-          <Button onClick={handleSave} disabled={saving} loading={saving} className="w-full">
-            Save definition
-          </Button>
-          <Button variant="outlined" color="red" onClick={onClose} disabled={saving} className="w-full">
-            Cancel
-          </Button>
-        </div>
-      </motion.div>
-    </>
+      {/* Sticky save button */}
+      <div
+        className="flex-shrink-0"
+        style={{
+          paddingLeft: 'var(--md)',
+          paddingRight: 'var(--md)',
+          paddingTop: 'var(--x5)',
+          paddingBottom: 'max(env(safe-area-inset-bottom), var(--x5))',
+        }}
+      >
+        <Button onClick={handleSave} disabled={saving} loading={saving} className="w-full">
+          Save definition
+        </Button>
+      </div>
+    </motion.div>
   )
 }
 
-// ─── DefinitionActionSheet ────────────────────────────────────────────────────
+// ─── DefinitionPreviewSheet ───────────────────────────────────────────────────
 
-interface DefinitionActionSheetProps {
+interface DefinitionPreviewSheetProps {
   definition: SquadDefinitionWithCreator
+  isCreator:  boolean
   onClose:    () => void
   onEdit:     () => void
-  onDelete:   () => void
-  deleting:   boolean
 }
 
-function DefinitionActionSheet({ definition, onClose, onEdit, onDelete, deleting }: DefinitionActionSheetProps) {
+function DefinitionPreviewSheet({ definition, isCreator, onClose, onEdit }: DefinitionPreviewSheetProps) {
   const aliases = definition.word.split(',').map((w) => w.trim()).filter(Boolean).join(', ')
 
   return (
-    <>
-      <motion.div
-        className="fixed inset-0 z-[60] bg-black/60"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={onClose}
-      />
-      <motion.div
-        className="fixed bottom-0 left-0 right-0 z-[70] bg-[var(--color-surface-sheet)] rounded-tl-[16px] rounded-tr-[16px] flex flex-col gap-6 px-4"
-        initial={{ y: '100%' }}
-        animate={{ y: 0 }}
-        exit={{ y: '100%' }}
-        transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-        drag="y"
-        dragConstraints={{ top: 0, bottom: 0 }}
-        dragElastic={{ top: 0, bottom: 1 }}
-        onDragEnd={(_, info) => { if (info.offset.y > 80 || info.velocity.y > 400) onClose() }}
-        style={{ paddingTop: 12, paddingBottom: 'max(env(safe-area-inset-bottom), 16px)' }}
-        onClick={(e) => e.stopPropagation()}
+    <BottomSheet onClose={onClose} zIndex={70}>
+      <div
+        className="flex flex-col w-full"
+        style={{
+          gap: 'var(--x5)',
+          paddingLeft: 'var(--md)',
+          paddingRight: 'var(--md)',
+          paddingBottom: 'max(env(safe-area-inset-bottom), 28px)',
+        }}
       >
-        <div className="flex flex-col items-start w-full" style={{ gap: 'var(--x5)' }}>
-          <div className="flex flex-col items-start justify-center w-full" style={{ gap: 'var(--x3)' }}>
-            <p className="font-silkscreen text-tertiary leading-none w-full" style={{ fontSize: 'var(--mini)' }}>
-              {aliases}
+        {/* Definition details — Figma 402:9535 */}
+        <div className="flex flex-col items-start justify-center w-full" style={{ gap: 'var(--x3)' }}>
+          <p className="font-silkscreen text-tertiary leading-none w-full" style={{ fontSize: 'var(--mini)' }}>
+            {aliases}
+          </p>
+          <div className="flex flex-col w-full" style={{ gap: 'var(--x2)' }}>
+            <p
+              className="font-body font-bold text-primary leading-none w-full"
+              style={{ fontSize: 'var(--md)', fontVariationSettings: '"opsz" 14' }}
+            >
+              {definition.actual_word || definition.word.split(',')[0].trim()}
             </p>
-            <div className="flex flex-col w-full" style={{ gap: 'var(--x2)' }}>
-              <p
-                className="font-body font-bold text-primary leading-none w-full"
-                style={{ fontSize: 'var(--md)', fontVariationSettings: '"opsz" 14' }}
-              >
-                {definition.actual_word || definition.word.split(',')[0].trim()}
-              </p>
-              <p
-                className="font-body text-secondary leading-normal overflow-hidden line-clamp-4 w-full"
-                style={{ fontSize: '14px', fontVariationSettings: '"opsz" 14' }}
-              >
-                {definition.definition}
-              </p>
-            </div>
+            <p
+              className="font-body text-secondary leading-[1.5] overflow-hidden text-ellipsis w-full"
+              style={{ fontSize: '14px', fontVariationSettings: '"opsz" 14' }}
+            >
+              {definition.definition}
+            </p>
           </div>
           {definition.creator_username && (
             <p
-              className="font-body font-light text-tertiary leading-none"
-              style={{ fontSize: 'var(--xs)', fontVariationSettings: '"opsz" 14' }}
+              className="font-body font-light text-tertiary leading-none overflow-hidden text-ellipsis w-full"
+              style={{ fontSize: '12px', fontVariationSettings: '"opsz" 14' }}
             >
-              Created by : {definition.creator_username}
+              Author : {definition.creator_username}
             </p>
           )}
         </div>
 
-        <div className="flex flex-col gap-4 w-full">
-          <Button variant="outlined" onClick={onEdit} className="w-full">
-            Edit definition
-          </Button>
-          <Button variant="outlined" color="red" onClick={onDelete} disabled={!!deleting} loading={!!deleting} className="w-full">
-            Delete definition
-          </Button>
-        </div>
-      </motion.div>
-    </>
-  )
-}
-
-// ─── DefinitionViewSheet ─────────────────────────────────────────────────────
-
-interface DefinitionViewSheetProps {
-  definition: SquadDefinitionWithCreator
-  onClose:    () => void
-  onSuggest:  () => void
-}
-
-function DefinitionViewSheet({ definition, onClose, onSuggest }: DefinitionViewSheetProps) {
-  const aliases = definition.word.split(',').map((w) => w.trim()).filter(Boolean).join(', ')
-
-  return (
-    <>
-      <motion.div
-        className="fixed inset-0 z-[60] bg-black/60"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={onClose}
-      />
-      <motion.div
-        className="fixed bottom-0 left-0 right-0 z-[70] bg-[var(--color-surface-sheet)] rounded-tl-[16px] rounded-tr-[16px] flex flex-col px-4"
-        initial={{ y: '100%' }}
-        animate={{ y: 0 }}
-        exit={{ y: '100%' }}
-        transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-        drag="y"
-        dragConstraints={{ top: 0, bottom: 0 }}
-        dragElastic={{ top: 0, bottom: 1 }}
-        onDragEnd={(_, info) => { if (info.offset.y > 80 || info.velocity.y > 400) onClose() }}
-        style={{ gap: 'var(--x7)', paddingTop: 12, paddingBottom: 'max(env(safe-area-inset-bottom), 28px)' }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex flex-col items-start w-full" style={{ gap: 'var(--x5)' }}>
-          <div className="flex flex-col items-start justify-center w-full" style={{ gap: 'var(--x3)' }}>
-            <p className="font-silkscreen text-tertiary leading-none w-full" style={{ fontSize: 'var(--mini)' }}>
-              {aliases}
-            </p>
-            <div className="flex flex-col w-full" style={{ gap: 'var(--x2)' }}>
-              <p
-                className="font-body font-bold text-primary leading-none w-full"
-                style={{ fontSize: 'var(--md)', fontVariationSettings: '"opsz" 14' }}
-              >
-                {definition.actual_word || definition.word.split(',')[0].trim()}
-              </p>
-              <p
-                className="font-body text-secondary leading-normal overflow-hidden w-full"
-                style={{ fontSize: '14px', fontVariationSettings: '"opsz" 14' }}
-              >
-                {definition.definition}
-              </p>
-            </div>
-          </div>
-          {definition.creator_username && (
-            <p
-              className="font-body font-light text-tertiary leading-none"
-              style={{ fontSize: 'var(--xs)', fontVariationSettings: '"opsz" 14' }}
+        {/* Action buttons — Figma 402:9509 */}
+        <div className="flex flex-col w-full" style={{ gap: 'var(--x5)' }}>
+          {isCreator && (
+            <button
+              onClick={onEdit}
+              className="w-full flex items-center justify-center appearance-none rounded-[var(--x3)]"
+              style={{ gap: 'var(--x3)', border: '1px solid var(--color-purple)', padding: 'var(--x5)' }}
             >
-              Created by : {definition.creator_username}
-            </p>
+              <MagicEdit style={{ width: 20, height: 20, color: 'var(--color-purple)' }} aria-hidden="true" />
+              <span
+                className="font-body font-semibold tracking-[0.2px]"
+                style={{ fontSize: 'var(--sm)', color: 'var(--color-purple)', fontVariationSettings: '"opsz" 14' }}
+              >
+                Edit Definition
+              </span>
+            </button>
           )}
+          <button
+            onClick={onClose}
+            className="w-full flex items-center justify-center appearance-none rounded-[var(--x3)]"
+            style={{ gap: 'var(--x3)', border: '1px solid var(--color-tertiary)', padding: 'var(--x5)' }}
+          >
+            <Close style={{ width: 20, height: 20, color: 'var(--color-tertiary)' }} aria-hidden="true" />
+            <span
+              className="font-body font-semibold tracking-[0.2px]"
+              style={{ fontSize: 'var(--sm)', color: 'var(--color-tertiary)', fontVariationSettings: '"opsz" 14' }}
+            >
+              Cancel
+            </span>
+          </button>
         </div>
-
-        <Button onClick={onSuggest} className="w-full">
-          Suggest new definition
-        </Button>
-      </motion.div>
-    </>
+      </div>
+    </BottomSheet>
   )
 }
 
@@ -347,14 +276,10 @@ export function DefinitionHomePage({
   currentUsername,
   initialDefinitions,
 }: DefinitionHomePageProps) {
-  const [definitions,   setDefinitions]   = useState<SquadDefinitionWithCreator[]>(initialDefinitions)
-  const [showCreate,    setShowCreate]    = useState(false)
-  const [actionTarget,  setActionTarget]  = useState<SquadDefinitionWithCreator | null>(null)
-  const [viewTarget,    setViewTarget]    = useState<SquadDefinitionWithCreator | null>(null)
-  const [editTarget,    setEditTarget]    = useState<SquadDefinitionWithCreator | null>(null)
-  const [deleting,      setDeleting]      = useState<string | null>(null)
-  const [suggestTarget, setSuggestTarget] = useState<SquadDefinitionWithCreator | null>(null)
-  const [reviewTarget,  setReviewTarget]  = useState<SquadDefinitionWithCreator | null>(null)
+  const [definitions,    setDefinitions]    = useState<SquadDefinitionWithCreator[]>(initialDefinitions)
+  const [showCreate,     setShowCreate]     = useState(false)
+  const [previewTarget,  setPreviewTarget]  = useState<SquadDefinitionWithCreator | null>(null)
+  const [editTarget,     setEditTarget]     = useState<SquadDefinitionWithCreator | null>(null)
 
   useEffect(() => {
     const supabase = createClient()
@@ -435,47 +360,15 @@ export function DefinitionHomePage({
     )
   }, [])
 
-  const handleDelete = useCallback(async (id: string) => {
-    setDeleting(id)
-    await deleteDefinitionAction(id)
-    setDefinitions((prev) => prev.filter((d) => d.id !== id))
-    setActionTarget(null)
-    setDeleting(null)
-  }, [])
-
   function handleCardTap(def: SquadDefinitionWithCreator) {
-    if (def.creator_id === currentUserId) {
-      if ((def.suggestion_count ?? 0) > 0) setReviewTarget(def)
-      else setActionTarget(def)
-    } else {
-      setViewTarget(def)
-    }
+    setPreviewTarget(def)
   }
 
-  function handleEditPress() {
-    if (!actionTarget) return
-    setEditTarget(actionTarget)
-    setActionTarget(null)
+  function handlePreviewEdit() {
+    if (!previewTarget) return
+    setEditTarget(previewTarget)
+    setPreviewTarget(null)
   }
-
-  const handleSuggestionApproved = useCallback((definitionId: string, newDefinition: string) => {
-    setDefinitions((prev) =>
-      prev.map((d) => d.id === definitionId
-        ? { ...d, definition: newDefinition, suggestion_count: Math.max(0, (d.suggestion_count ?? 0) - 1) }
-        : d
-      )
-    )
-  }, [])
-
-  const handleSuggestionDenied = useCallback(() => {
-    if (!reviewTarget) return
-    setDefinitions((prev) =>
-      prev.map((d) => d.id === reviewTarget.id
-        ? { ...d, suggestion_count: Math.max(0, (d.suggestion_count ?? 0) - 1) }
-        : d
-      )
-    )
-  }, [reviewTarget])
 
   return (
     <SlidePage
@@ -611,7 +504,7 @@ export function DefinitionHomePage({
 
       <AnimatePresence>
         {showCreate && (
-          <CreateDefinitionSheet
+          <CreateDefinitionPage
             key="create"
             crewId={crewId}
             mode="create"
@@ -620,7 +513,7 @@ export function DefinitionHomePage({
           />
         )}
         {editTarget && (
-          <CreateDefinitionSheet
+          <CreateDefinitionPage
             key="edit"
             crewId={crewId}
             mode="edit"
@@ -632,51 +525,13 @@ export function DefinitionHomePage({
             onSaved={(def) => { handleUpdated(def); setEditTarget(null) }}
           />
         )}
-        {actionTarget && (
-          <DefinitionActionSheet
-            key="action"
-            definition={actionTarget}
-            onClose={() => setActionTarget(null)}
-            onEdit={handleEditPress}
-            onDelete={() => handleDelete(actionTarget.id)}
-            deleting={deleting === actionTarget.id}
-          />
-        )}
-        {viewTarget && (
-          <DefinitionViewSheet
-            key="view"
-            definition={viewTarget}
-            onClose={() => setViewTarget(null)}
-            onSuggest={() => {
-              setSuggestTarget(viewTarget)
-              setViewTarget(null)
-            }}
-          />
-        )}
-        {suggestTarget && (
-          <SuggestDefinitionSheet
-            key="suggest"
-            crewId={crewId}
-            definition={suggestTarget}
-            onClose={() => setSuggestTarget(null)}
-            onSaved={() => {
-              setDefinitions((prev) =>
-                prev.map((d) => d.id === suggestTarget.id
-                  ? { ...d, suggestion_count: (d.suggestion_count ?? 0) + 1 }
-                  : d
-                )
-              )
-              setSuggestTarget(null)
-            }}
-          />
-        )}
-        {reviewTarget && (
-          <ReviewSuggestionSheet
-            key="review"
-            definition={reviewTarget}
-            onClose={() => setReviewTarget(null)}
-            onApproved={handleSuggestionApproved}
-            onDenied={handleSuggestionDenied}
+        {previewTarget && (
+          <DefinitionPreviewSheet
+            key="preview"
+            definition={previewTarget}
+            isCreator={previewTarget.creator_id === currentUserId}
+            onClose={() => setPreviewTarget(null)}
+            onEdit={handlePreviewEdit}
           />
         )}
       </AnimatePresence>

@@ -152,7 +152,7 @@ src/
 │   │   ├── input/              ChatInput, GifPickerSheet
 │   │   ├── messages/           MessageList, MessageBubble, LinkPreviewCard
 │   │   ├── sheets/             SquadDetailsSheet, PinDurationSheet, PinListSheet,
-│   │   │                       NotifSheet, CrewImageUploadModal, DefinitionCreateSheet,
+│   │   │                       NotifSheet, CrewImageUploadModal,
 │   │   │                       SuggestDefinitionSheet, ReviewSuggestionSheet, ChatSheetReact
 │   │   ├── polls/              PollCard, PollCreatorSheet
 │   │   ├── header/             ChatHeader, DMHeader
@@ -226,7 +226,7 @@ All buttons: `border border-border p-2 backdrop-blur(7px)`.
 ### Definitions Page (`src/features/chat/screens/DefinitionHomePage.tsx`)
 Route: `/chat/[crewId]/definitions` · Export: `DefinitionHomePage`
 
-Header (Figma 402:9394): `px-md py-x3` · `h-40px justify-between` · left = `[ChevronLeft primary] [DEFINITIONS silkscreen xl]` gap-x3 · right = `Plus primary` opens create sheet
+Header (Figma 402:9394): `px-md py-x3` · `h-40px justify-between` · left = `[ChevronLeft primary] [DEFINITIONS silkscreen xl]` gap-x3 · right = `Plus primary` opens `CreateDefinitionPage`
 
 Cards (Figma 402:9403): `bg-surface-sheet rounded-x3 p-x5 gap-x5 items-start`
 - Details (402:9404): `flex-col gap-x3 items-start justify-center`
@@ -236,7 +236,17 @@ Cards (Figma 402:9403): `bg-surface-sheet rounded-x3 p-x5 gap-x5 items-start`
 - Creator (402:9409): DM Sans Light xs · `--primary` if own definition · `--tertiary` otherwise
 - Suggestion badge: amber `#f59e0b` DM Sans Light xs (right-aligned, shown when `suggestion_count > 0`)
 
-Tapping a card → creator sees action sheet (edit/delete) or review sheet (if suggestions pending) · others see view sheet (suggest new definition)
+**Card tap flow** — all taps (creator or not) open `DefinitionPreviewSheet` (Figma 402:9507, `<BottomSheet>` z-70):
+- Content: aliases (Silkscreen mini tertiary) · word (DM Sans Bold md primary) · definition (DM Sans Regular 14px secondary leading-1.5) · "Author : {username}" (DM Sans Light 12px tertiary)
+- `Edit Definition` button: purple border + `MagicEdit` 20×20 + DM Sans SemiBold sm purple — **creator only**
+- `Cancel` button: tertiary border + `Close` 20×20 + DM Sans SemiBold sm tertiary — always shown
+- Tapping Edit closes the preview sheet and opens `CreateDefinitionPage` in edit mode
+
+**`CreateDefinitionPage`** — full-screen slide-in overlay (`motion.div`, spring 380/36, `z-[80]`, `bg-black`):
+- Header: `ChevronLeft primary` 24×24 back + Silkscreen xl uppercase title ("NEW DEFINITION" / "EDIT DEFINITION")
+- Body: scrollable, `gap-x6` — `InputField` (words/aliases) + `InputField` (actual word) + `TextareaField` (definition, rows=5)
+- Footer: sticky `Button` "Save definition" with safe-area padding
+- Back button dismisses without saving; no separate Cancel button
 
 ### SquadDetailsSheet (`src/features/chat/components/sheets/SquadDetailsSheet.tsx`)
 Panel pattern · `maxHeight: 85vh` · `overflow-hidden`
@@ -349,7 +359,7 @@ Colors: `--color-primary` · `--color-secondary` · `--color-tertiary` · `--col
 
 Game: `--color-bg-chat` (#0a0612) · `--color-xp` (#ffd700) · `--color-coins` (#f59e0b) · `--color-danger` (#ff4444) · `--color-success` (#66bb6a)
 
-Figma aliases: `--red` (#ef4444) · `--green` (#22c55e) · `--purple` · `--blue` · `--xN` spacing (x1=2px … x7=24px)
+Figma aliases: `--red` (#ef4444) · `--green` (#22c55e) · `--purple` · `--blue` · `--xN` spacing (x1=0px, x2=4px, x3=8px, x4=12px, x5=16px, x6=20px, x7=24px, x8=28px … x15=56px)
 
 Fonts: `font-pixel` = Press Start 2P · `font-body` = DM Sans · `font-silkscreen` = Silkscreen
 
@@ -361,6 +371,8 @@ Icons (`pixelarticons`) — key usages:
 | Floating nav — notifs | `Bell` / `BellOff` | 24×24 |
 | Floating nav — glossary | `Library` | 24×24 |
 | SquadDetailsSheet — edit | `MagicEdit` | 24×24 |
+| DefinitionPreviewSheet — edit | `MagicEdit` | 20×20, `--color-purple` |
+| DefinitionPreviewSheet — cancel | `Close` | 20×20, `--color-tertiary` |
 | SquadDetailsSheet — leave | `DoorClosed` | 16×16 |
 | Message bubble — creator | `Crown` | 12×12, `--color-coins` |
 | Friends — remove | `AvatarCircleMinus` | 16×16 |
@@ -401,6 +413,39 @@ Pass icon without a `color` style — it inherits `currentColor` from the button
 
 ### Panel (SquadDetailsSheet only)
 Full-height swipe-up with `onPanEnd` pull-to-close (offset > 60 or vel > 300). Do not replicate.
+
+## Form Components (`src/shared/components/ui/InputField.tsx`)
+
+Two reusable components matching Figma 402:9678. Use these for all in-app forms (not auth/onboarding, which uses the older `Input.tsx`).
+
+### `InputField`
+Single-line labelled input. Fixed `h-[50px]`, `border-border` idle → `border-border-hover` on `focus-within`. Label: DM Sans Medium sm primary. Input text: DM Sans Regular sm primary, muted placeholder. Optional helper text: DM Sans Regular xxs tertiary tracking-[0.2px].
+
+```tsx
+<InputField
+  label="Words attached to definition"
+  value={word}
+  onChange={setWord}
+  placeholder="e.g. GG, gg, good game"
+  helperText="Comma-separated aliases map to the same definition."
+  maxLength={100}
+  autoComplete="off"
+/>
+```
+
+### `TextareaField`
+Same label/helper/border design as `InputField` but renders a `<textarea>`. Height set via `rows` prop (default 5). Padding `p-x5` wraps the textarea.
+
+```tsx
+<TextareaField
+  label="Definition"
+  value={definition}
+  onChange={setDefinition}
+  placeholder="What does it mean in your squad?"
+  maxLength={500}
+  rows={5}
+/>
+```
 
 ## Development Rules
 - TypeScript strict · server components default · `'use client'` for interactivity only
