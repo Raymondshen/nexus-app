@@ -3,9 +3,8 @@
 import { useEffect } from 'react'
 import { useSlideBack } from '@/app/layouts/SlidePage'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
-import Image from 'next/image'
-import { avatarImageLoader } from '@/shared/supabase/imageLoader'
 import { useChatStore } from '@/store/chatStore'
+import { UserAvatar } from '@/shared/components/ui/UserAvatar'
 import { createClient } from '@/shared/supabase/client'
 
 interface DMOverlayBackProps {
@@ -72,23 +71,7 @@ export function DMOverlayBack({
         >
           <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-purple)' }} aria-hidden="true" />
         </button>
-        <div className="flex-shrink-0 w-6 h-6 overflow-hidden relative bg-border">
-          {friendAvatarUrl ? (
-            <Image
-              src={friendAvatarUrl}
-              alt={friendUsername}
-              fill
-              sizes="24px"
-              className="object-cover"
-              priority
-              loader={avatarImageLoader}
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center font-pixel text-[8px] text-primary">
-              {friendUsername[0]?.toUpperCase() ?? '?'}
-            </div>
-          )}
-        </div>
+        <UserAvatar avatarUrl={friendAvatarUrl} username={friendUsername} size={24} shape="square" bg="border" initialColor="primary" priority />
       </div>
     </div>
   )

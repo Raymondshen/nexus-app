@@ -4,7 +4,8 @@ import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
 import Image from 'next/image'
-import { supabaseImageLoader, avatarImageLoader } from '@/shared/supabase/imageLoader'
+import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
+import { UserAvatar } from '@/shared/components/ui/UserAvatar'
 import { getXPInCurrentLevel, getXPForCurrentLevel } from '@/shared/utils/xp'
 import { PixelSprite, spriteInfoFor } from '@/shared/components/game/PixelSprite'
 import { MagicEdit } from 'pixelarticons/react/MagicEdit'
@@ -129,15 +130,7 @@ function MemberListRow({
       >
         {/* Profile photo + online dot */}
         <div className="relative flex-shrink-0">
-          <div className="w-8 h-8 overflow-hidden rounded-full bg-surface flex items-center justify-center">
-            {url ? (
-              <div className="relative w-full h-full">
-                <Image src={url} alt={profile.username} fill sizes="32px" className="object-cover" loader={avatarImageLoader} />
-              </div>
-            ) : (
-              <span className="font-pixel text-[8px] text-purple">{initial}</span>
-            )}
-          </div>
+          <UserAvatar avatarUrl={url} username={profile.username} size={32} />
           {isOnline && (
             <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#66bb6a] border-[1.5px] border-black" />
           )}

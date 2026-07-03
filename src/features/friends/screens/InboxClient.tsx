@@ -1,9 +1,8 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import Image from 'next/image'
-import { avatarImageLoader } from '@/shared/supabase/imageLoader'
 import { SlidePage, useSlideBack } from '@/app/layouts/SlidePage'
+import { UserAvatar } from '@/shared/components/ui/UserAvatar'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { Check } from 'pixelarticons/react/Check'
 import { Close } from 'pixelarticons/react/Close'
@@ -25,27 +24,9 @@ function BackButton() {
   )
 }
 
-function UserAvatar({ profile, size = 48 }: { profile: FriendProfile | null; size?: number }) {
+function UserAvatarFromProfile({ profile, size = 48 }: { profile: FriendProfile | null; size?: number }) {
   return (
-    <div
-      className="flex-shrink-0 relative overflow-hidden rounded-full bg-[var(--color-primary)]"
-      style={{ width: size, height: size }}
-    >
-      {profile?.avatar_url ? (
-        <Image
-          src={profile.avatar_url}
-          alt={profile.username}
-          fill
-          sizes={`${size}px`}
-          className="object-cover"
-          loader={avatarImageLoader}
-        />
-      ) : (
-        <div className="w-full h-full flex items-center justify-center font-pixel text-[10px] text-black">
-          {profile?.username[0]?.toUpperCase() ?? '?'}
-        </div>
-      )}
-    </div>
+    <UserAvatar avatarUrl={profile?.avatar_url} username={profile?.username} size={size} bg="primary" initialColor="black" />
   )
 }
 
@@ -61,7 +42,7 @@ interface InboxCardPreviewProps {
 function InboxCardPreview({ entry, variant, loading, onAccept, onDecline, onCancel }: InboxCardPreviewProps) {
   return (
     <div className="flex items-center overflow-hidden" style={{ gap: 'var(--space-5)' }}>
-      <UserAvatar profile={entry.profile} size={48} />
+      <UserAvatarFromProfile profile={entry.profile} size={48} />
 
       <div className="flex-1 min-w-0 flex flex-col" style={{ gap: 'var(--space-2)', letterSpacing: '0.2px' }}>
         <span

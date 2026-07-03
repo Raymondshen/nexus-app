@@ -9,7 +9,8 @@ import { useChatStore } from '@/store/chatStore'
 import { useCombatStore } from '@/store/combatStore'
 import { createClient } from '@/shared/supabase/client'
 import type { MessageWithProfile, Profile, SquadDefinitionWithCreator } from '@/types'
-import { supabaseImageLoader, avatarImageLoader } from '@/shared/supabase/imageLoader'
+import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
+import { UserAvatar } from '@/shared/components/ui/UserAvatar'
 import { extractFirstUrl } from '@/shared/utils'
 import { useOGPreview } from '@/shared/hooks/useOGPreview'
 import { LinkPreviewCard } from '@/features/chat/components/messages/LinkPreviewCard'
@@ -727,7 +728,6 @@ function MessageBubbleImpl({
     if (!pollId) return null
 
     const pollAvatarUrl = message.profile.avatar_url as string | null | undefined
-    const pollInitial   = message.profile.username[0]?.toUpperCase() ?? '?'
     const pollTimeStr   = `${format(new Date(message.created_at), 'MMM d')} · ${format(new Date(message.created_at), 'h:mma').toLowerCase()}`
 
     return (
@@ -738,13 +738,7 @@ function MessageBubbleImpl({
             onClick={onAvatarTap ? () => onAvatarTap(message.user_id) : undefined}
             style={onAvatarTap ? { cursor: 'pointer' } : undefined}
           >
-            <div className="relative w-8 h-8 rounded-full bg-surface overflow-hidden">
-              {pollAvatarUrl ? (
-                <Image src={pollAvatarUrl} alt={message.profile.username} fill sizes="32px" className="object-cover" loader={avatarImageLoader} />
-              ) : (
-                <span className="absolute inset-0 flex items-center justify-center font-pixel text-[8px] text-purple">{pollInitial}</span>
-              )}
-            </div>
+            <UserAvatar avatarUrl={pollAvatarUrl} username={message.profile.username} size={32} />
             {isOnline && (
               <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#66bb6a] border-[1.5px] border-black" />
             )}
@@ -776,7 +770,6 @@ function MessageBubbleImpl({
   // ─── Event messages ──────────────────────────────────────────────────────────
   if (message.message_type === 'event' && message.event_id) {
     const eventAvatarUrl = message.profile.avatar_url as string | null | undefined
-    const eventInitial   = message.profile.username[0]?.toUpperCase() ?? '?'
     const eventTimeStr   = `${format(new Date(message.created_at), 'MMM d')} · ${format(new Date(message.created_at), 'h:mma').toLowerCase()}`
 
     return (
@@ -787,13 +780,7 @@ function MessageBubbleImpl({
             onClick={onAvatarTap ? () => onAvatarTap(message.user_id) : undefined}
             style={onAvatarTap ? { cursor: 'pointer' } : undefined}
           >
-            <div className="relative w-8 h-8 rounded-full bg-surface overflow-hidden">
-              {eventAvatarUrl ? (
-                <Image src={eventAvatarUrl} alt={message.profile.username} fill sizes="32px" className="object-cover" loader={avatarImageLoader} />
-              ) : (
-                <span className="absolute inset-0 flex items-center justify-center font-pixel text-[8px] text-purple">{eventInitial}</span>
-              )}
-            </div>
+            <UserAvatar avatarUrl={eventAvatarUrl} username={message.profile.username} size={32} />
             {isOnline && (
               <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#66bb6a] border-[1.5px] border-black" />
             )}
@@ -822,7 +809,6 @@ function MessageBubbleImpl({
     )
   }
 
-  const initial   = message.profile.username[0]?.toUpperCase() ?? '?'
   const avatarUrl = message.profile.avatar_url as string | null | undefined
   const timeStr   = `${format(new Date(message.created_at), 'MMM d')} · ${format(new Date(message.created_at), 'h:mma').toLowerCase()}`
 
@@ -874,13 +860,7 @@ function MessageBubbleImpl({
             onTouchStart={onAvatarTap ? (e) => e.stopPropagation() : undefined}
             style={onAvatarTap ? { cursor: 'pointer' } : undefined}
           >
-            <div className="relative w-8 h-8 rounded-full bg-surface overflow-hidden">
-              {avatarUrl ? (
-                <Image src={avatarUrl} alt={message.profile.username} fill sizes="32px" className="object-cover" loader={avatarImageLoader} />
-              ) : (
-                <span className="absolute inset-0 flex items-center justify-center font-pixel text-[8px] text-purple">{initial}</span>
-              )}
-            </div>
+            <UserAvatar avatarUrl={avatarUrl} username={message.profile.username} size={32} />
             {isOnline && (
               <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#66bb6a] border-[1.5px] border-black" />
             )}
@@ -929,7 +909,6 @@ function MessageBubbleImpl({
             {/* Reply row — Figma: icon + avatar + @username + preview (single line) */}
             {message.reply_to_id && (message.reply_preview || message.reply_username) && (() => {
               const replyAvatarUrl = replyProfile?.avatar_url ?? null
-              const replyInitial   = message.reply_username?.[0]?.toUpperCase() ?? '?'
               return (
                 <button
                   className="flex items-center gap-[4px] h-[16px] w-full overflow-hidden"
@@ -939,22 +918,7 @@ function MessageBubbleImpl({
                   onTouchEnd={(e) => e.stopPropagation()}
                 >
                   <CornerDownRight style={{ width: 16, height: 16, color: 'var(--color-tertiary)', flexShrink: 0 }} />
-                  <div className="relative w-[16px] h-[16px] rounded-full bg-surface overflow-hidden flex-shrink-0">
-                    {replyAvatarUrl ? (
-                      <Image
-                        src={replyAvatarUrl}
-                        alt={message.reply_username ?? ''}
-                        fill
-                        sizes="16px"
-                        className="object-cover"
-                        loader={avatarImageLoader}
-                      />
-                    ) : (
-                      <span className="absolute inset-0 flex items-center justify-center font-pixel text-[4px] text-purple">
-                        {replyInitial}
-                      </span>
-                    )}
-                  </div>
+                  <UserAvatar avatarUrl={replyAvatarUrl} username={message.reply_username ?? ''} size={16} />
                   {message.reply_username && (
                     <span
                       className="font-body font-normal whitespace-nowrap shrink-0 leading-none"

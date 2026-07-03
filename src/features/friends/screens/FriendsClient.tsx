@@ -2,9 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import Image from 'next/image'
-import { avatarImageLoader } from '@/shared/supabase/imageLoader'
 import { motion, useMotionValue, animate } from 'framer-motion'
+import { UserAvatar } from '@/shared/components/ui/UserAvatar'
 import type { PanInfo } from 'framer-motion'
 import { SlidePage, useSlideBack } from '@/app/layouts/SlidePage'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
@@ -107,29 +106,6 @@ function StatusTicker({ status }: { status: string }) {
 
 // ─── Avatar ───────────────────────────────────────────────────────────────────
 
-function UserAvatar({ profile, size = 40 }: { profile: FriendProfile | null; size?: number }) {
-  return (
-    <div
-      className="flex-shrink-0 relative overflow-hidden rounded-full bg-[var(--color-primary)]"
-      style={{ width: size, height: size }}
-    >
-      {profile?.avatar_url ? (
-        <Image
-          src={profile.avatar_url}
-          alt={profile.username}
-          fill
-          sizes={`${size}px`}
-          className="object-cover"
-          loader={avatarImageLoader}
-        />
-      ) : (
-        <div className="w-full h-full flex items-center justify-center font-pixel text-[10px] text-black">
-          {profile?.username[0]?.toUpperCase() ?? '?'}
-        </div>
-      )}
-    </div>
-  )
-}
 
 // ─── Friend card (presentational) ────────────────────────────────────────────
 
@@ -140,7 +116,7 @@ function FriendCardPreview({ entry }: { entry: FriendEntry }) {
     <div className="flex items-center overflow-hidden" style={{ gap: 'var(--space-5)' }}>
       {/* Avatar + unread dot */}
       <div className="flex-shrink-0 relative">
-        <UserAvatar profile={entry.profile} size={48} />
+        <UserAvatar avatarUrl={entry.profile?.avatar_url} username={entry.profile?.username} size={48} bg="primary" initialColor="black" />
         {hasUnread && (
           <span
             className="absolute -top-1 -right-1 rounded-full"
@@ -437,7 +413,7 @@ export function FriendsClient({
                     style={{ gap: 'var(--space-3)' }}
                   >
                     <div className="flex items-center overflow-hidden" style={{ gap: 'var(--space-5)' }}>
-                      <UserAvatar profile={profile} size={48} />
+                      <UserAvatar avatarUrl={profile?.avatar_url} username={profile?.username} size={48} bg="primary" initialColor="black" />
                       <div className="flex-1 min-w-0 flex flex-col" style={{ gap: 'var(--space-2)', letterSpacing: '0.2px' }}>
                         <span
                           className="font-body font-bold text-[length:var(--text-md)] text-primary leading-normal truncate"

@@ -1,9 +1,8 @@
 'use client'
 
 import { useState, useLayoutEffect, useRef } from 'react'
-import Image from 'next/image'
 import { motion } from 'framer-motion'
-import { avatarImageLoader } from '@/shared/supabase/imageLoader'
+import { UserAvatar } from '@/shared/components/ui/UserAvatar'
 import { useSlideBack } from '@/app/layouts/SlidePage'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { UserPlus } from 'pixelarticons/react/UserPlus'
@@ -126,7 +125,6 @@ export function MemberProfileClient({
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState<string | null>(null)
 
-  const initial    = username[0]?.toUpperCase() ?? '?'
   const joinedYear = joinedAt ? new Date(joinedAt).getFullYear() : null
 
   const BOND_XP_PER_LEVEL = 100
@@ -181,22 +179,7 @@ export function MemberProfileClient({
           {/* Details row — Figma I105:628;105:535 */}
           <div className="flex items-center gap-[var(--space-5)] w-full">
             {/* Avatar 56×56 — Figma: plain square, no rounding */}
-            <div className="flex-shrink-0 bg-border overflow-hidden relative" style={{ width: 56, height: 56 }}>
-              {avatarUrl ? (
-                <Image
-                  src={avatarUrl}
-                  alt={username}
-                  fill
-                  sizes="56px"
-                  className="object-cover"
-                  loader={avatarImageLoader}
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <span className="font-pixel text-[12px] text-purple">{initial}</span>
-                </div>
-              )}
-            </div>
+            <UserAvatar avatarUrl={avatarUrl} username={username} size={56} shape="square" bg="border" />
 
             {/* Name + stats — Figma I105:628;105:537: flex-col gap-4px */}
             <div className="flex-1 min-w-0 flex flex-col justify-center leading-none" style={{ gap: 'var(--space-2)' }}>

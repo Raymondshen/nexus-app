@@ -2,9 +2,8 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import Image from 'next/image'
 import { AnimatePresence, motion } from 'framer-motion'
-import { avatarImageLoader } from '@/shared/supabase/imageLoader'
+import { UserAvatar } from '@/shared/components/ui/UserAvatar'
 import { useSlideBack } from '@/app/layouts/SlidePage'
 import { TickerBanner } from '@/shared/components/banners/TickerBanner'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
@@ -71,7 +70,6 @@ export function AccountPageMember({
     return () => window.removeEventListener('nexus-friendship-xp-change', handler)
   }, [])
 
-  const initial    = username[0]?.toUpperCase() ?? '?'
   const bondTotal  = friendshipXP ?? 0
   const bondLevel  = Math.floor(bondTotal / BOND_XP_PER_LEVEL) + 1
   const bondXPInLvl = bondTotal % BOND_XP_PER_LEVEL
@@ -104,22 +102,7 @@ export function AccountPageMember({
 
           {/* Avatar + name row */}
           <div className="flex items-center gap-[var(--space-5)] w-full">
-            <div className="flex-shrink-0 bg-border overflow-hidden relative" style={{ width: 56, height: 56 }}>
-              {avatarUrl ? (
-                <Image
-                  src={avatarUrl}
-                  alt={username}
-                  fill
-                  sizes="56px"
-                  className="object-cover"
-                  loader={avatarImageLoader}
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <span className="font-pixel text-[12px] text-purple">{initial}</span>
-                </div>
-              )}
-            </div>
+            <UserAvatar avatarUrl={avatarUrl} username={username} size={56} shape="square" bg="border" />
 
             <div className="flex-1 min-w-0 flex flex-col justify-center leading-none" style={{ gap: 'var(--space-2)' }}>
               {joinedYear && (

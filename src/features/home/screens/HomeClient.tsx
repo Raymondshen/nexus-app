@@ -15,7 +15,8 @@ import { Message as MessageIcon } from 'pixelarticons/react/Message'
 import { TickerBanner } from '@/shared/components/banners/TickerBanner'
 import { MailRight } from 'pixelarticons/react/MailRight'
 import Image from 'next/image'
-import { supabaseImageLoader, avatarImageLoader } from '@/shared/supabase/imageLoader'
+import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
+import { UserAvatar } from '@/shared/components/ui/UserAvatar'
 import { createClient } from '@/shared/supabase/client'
 import { leaveCrewAction, createCrewFromHomeAction, joinCrewFromHomeAction, joinSelectClassAction } from '@/app/(app)/home/actions'
 import { PixelSprite, spriteIdFor, spriteInfoFor } from '@/shared/components/game/PixelSprite'
@@ -137,15 +138,7 @@ function AccountPreview({
       {/* Details row */}
       <div className="flex items-center gap-4 px-4">
         {/* Avatar 48×48 */}
-        <div className="w-12 h-12 flex-shrink-0 overflow-hidden relative bg-primary rounded-full">
-          {avatarUrl ? (
-            <Image src={avatarUrl} alt={username} fill sizes="48px" className="object-cover" priority loader={avatarImageLoader} />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center font-pixel text-[10px] text-black">
-              {username[0]?.toUpperCase() ?? '?'}
-            </div>
-          )}
-        </div>
+        <UserAvatar avatarUrl={avatarUrl} username={username} size={48} bg="primary" initialColor="black" priority />
 
         {/* Name + stats + currency */}
         <div className="flex-1 min-w-0 flex flex-col gap-[var(--space-2)] justify-center">
@@ -1312,22 +1305,7 @@ function HomeSquadMemberRow({ member }: { member: SheetMember }) {
   return (
     <div className="flex items-center gap-3">
       {/* 32px avatar */}
-      <div className="relative flex-shrink-0 w-8 h-8 rounded-full overflow-hidden bg-surface flex items-center justify-center">
-        {url ? (
-          <div className="relative w-full h-full">
-            <Image
-              src={url}
-              alt={member.username}
-              fill
-              sizes="32px"
-              className="object-cover"
-              loader={avatarImageLoader}
-            />
-          </div>
-        ) : (
-          <span className="font-pixel text-[8px] text-purple">{initial}</span>
-        )}
-      </div>
+      <UserAvatar avatarUrl={url} username={member.username} size={32} />
 
       {/* 32px pixel sprite — animated walk cycle */}
       <div className="w-8 h-8 flex-shrink-0 flex items-center justify-center overflow-hidden">

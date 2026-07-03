@@ -7,9 +7,8 @@ import { SlidePage, useSlideBack } from '@/app/layouts/SlidePage'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { Message } from 'pixelarticons/react/Message'
 import { SettingsCogIcon } from '@/shared/icons/SettingsCogIcon'
-import Image from 'next/image'
-import { avatarImageLoader } from '@/shared/supabase/imageLoader'
 import { TickerBanner } from '@/shared/components/banners/TickerBanner'
+import { UserAvatar } from '@/shared/components/ui/UserAvatar'
 import { VibesGrid } from '@/features/profile/components/VibesGrid'
 import { PhotosGrid } from '@/features/profile/components/PhotosGrid'
 import type { PublicNote, ProfilePhoto } from '@/types'
@@ -122,7 +121,6 @@ export function ProfileClient({
     return () => window.removeEventListener('nexus-friendship-xp-change', handler)
   }, [])
 
-  const initial      = localUsername[0]?.toUpperCase() ?? '?'
   const msgFormatted = totalMessages.toLocaleString()
 
   const fxpPerLevel = 100
@@ -156,15 +154,7 @@ export function ProfileClient({
 
           {/* Details row */}
           <div className="flex items-center gap-[var(--space-5)] w-full">
-            <div className="flex-shrink-0 relative overflow-hidden bg-primary rounded-full" style={{ width: 56, height: 56 }}>
-              {localAvatarUrl ? (
-                <Image src={localAvatarUrl} alt={localUsername} fill sizes="56px" className="object-cover" priority loader={avatarImageLoader} />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <span className="font-pixel text-[12px] text-purple">{initial}</span>
-                </div>
-              )}
-            </div>
+            <UserAvatar avatarUrl={localAvatarUrl} username={localUsername} size={56} bg="primary" priority />
 
             <div className="flex-1 min-w-0 flex flex-col gap-[var(--space-2)] justify-center leading-none">
               <p className="font-silkscreen" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>

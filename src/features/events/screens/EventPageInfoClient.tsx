@@ -9,7 +9,8 @@ import { Calendar } from 'pixelarticons/react/Calendar'
 import { Check } from 'pixelarticons/react/Check'
 import { Close } from 'pixelarticons/react/Close'
 import { MagicEdit } from 'pixelarticons/react/MagicEdit'
-import { supabaseImageLoader, avatarImageLoader } from '@/shared/supabase/imageLoader'
+import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
+import { UserAvatar } from '@/shared/components/ui/UserAvatar'
 import { upsertEventRsvpAction } from '@/app/(app)/chat/actions'
 import { EventCreationSheet } from '@/features/events/components/EventCreationSheet'
 import { EventRegistrationSheet } from '@/features/events/components/EventRegistrationSheet'
@@ -340,31 +341,15 @@ export function EventPageInfoClient({
               </p>
             ) : (
               displayGoingProfiles.map((profile) => (
-                <div
+                <UserAvatar
                   key={profile.id}
-                  className="relative flex-shrink-0 rounded-full overflow-hidden"
-                  style={{ width: 32, height: 32, background: 'var(--color-primary)' }}
-                >
-                  {profile.avatar_url ? (
-                    <Image
-                      src={profile.avatar_url}
-                      alt={profile.username}
-                      fill
-                      sizes="32px"
-                      className="object-cover"
-                      loader={avatarImageLoader}
-                    />
-                  ) : (
-                    <div
-                      className="w-full h-full flex items-center justify-center"
-                      style={{ background: 'var(--color-purple)' }}
-                    >
-                      <span className="font-pixel text-white" style={{ fontSize: 6 }}>
-                        {profile.username[0]?.toUpperCase() ?? '?'}
-                      </span>
-                    </div>
-                  )}
-                </div>
+                  avatarUrl={profile.avatar_url}
+                  username={profile.username}
+                  size={32}
+                  bg="primary"
+                  fallbackBg="var(--color-purple)"
+                  initialColor="white"
+                />
               ))
             )}
           </div>

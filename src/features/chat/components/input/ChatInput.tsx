@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
 import Image from 'next/image'
-import { supabaseImageLoader, avatarImageLoader } from '@/shared/supabase/imageLoader'
+import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
+import { UserAvatar } from '@/shared/components/ui/UserAvatar'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { createClient } from '@/shared/supabase/client'
 import { getXPProgress } from '@/shared/utils/xp'
@@ -165,19 +166,10 @@ function ChatSquadDetailBar({
       <div className="flex items-center" style={{ gap: 8 }}>
         {sortedMembers.map((m) => {
           const url     = m.avatar_url as string | null | undefined
-          const initial = m.username[0]?.toUpperCase() ?? '?'
           const online  = onlineUserIds.has(m.id)
           return (
             <div key={m.id} className="relative flex-shrink-0" title={m.username}>
-              <div className="rounded-full overflow-hidden bg-surface flex items-center justify-center" style={{ width: 24, height: 24 }}>
-                {url ? (
-                  <div className="relative w-full h-full">
-                    <Image src={url} alt={m.username} fill sizes="24px" className="object-cover" loader={avatarImageLoader} />
-                  </div>
-                ) : (
-                  <span className="font-pixel text-[length:var(--text-mini)] text-purple">{initial}</span>
-                )}
-              </div>
+              <UserAvatar avatarUrl={url} username={m.username} size={24} />
               {online && (
                 <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#66bb6a] border-[1.5px] border-black" />
               )}
@@ -1560,7 +1552,6 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
                 <div className="nexus-scroll" style={{ maxHeight: 220, overflowY: 'scroll' }}>
                 {mentionMatches.map((m, i) => {
                   const url     = m.avatar_url as string | null | undefined
-                  const initial = m.username[0]?.toUpperCase() ?? '?'
                   const isLast  = i === mentionMatches.length - 1
                   return (
                     <button
@@ -1569,15 +1560,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
                       className={`w-full flex items-center overflow-hidden p-2 text-left ${!isLast ? 'border-b border-border' : ''} ${i === mentionIndex ? 'bg-surface' : 'active:bg-surface'}`}
                       style={{ gap: 'var(--space-3)' }}
                     >
-                      <div className="w-6 h-6 flex-shrink-0 overflow-hidden bg-surface flex items-center justify-center">
-                        {url ? (
-                          <div className="relative w-full h-full">
-                            <Image src={url} alt={m.username} fill sizes="24px" className="object-cover" loader={avatarImageLoader} />
-                          </div>
-                        ) : (
-                          <span className="font-pixel text-[length:var(--text-mini)] text-purple">{initial}</span>
-                        )}
-                      </div>
+                      <UserAvatar avatarUrl={url} username={m.username} size={24} shape="square" />
                       <div className="flex flex-col flex-1 min-w-0 items-start">
                         <span className="font-silkscreen text-[length:var(--text-mini)] text-purple leading-normal w-full">@mention</span>
                         <span className="font-body font-normal text-[length:var(--text-xs)] text-primary leading-normal w-full" style={{ fontVariationSettings: '"opsz" 14' }}>{m.username}</span>

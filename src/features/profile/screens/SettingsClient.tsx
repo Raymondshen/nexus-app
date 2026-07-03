@@ -10,9 +10,8 @@ import { MagicEdit } from 'pixelarticons/react/MagicEdit'
 import { Bell } from 'pixelarticons/react/Bell'
 import { User } from 'pixelarticons/react/User'
 import { Terminal } from 'pixelarticons/react/Terminal'
-import Image from 'next/image'
-import { avatarImageLoader } from '@/shared/supabase/imageLoader'
 import { createClient } from '@/shared/supabase/client'
+import { UserAvatar } from '@/shared/components/ui/UserAvatar'
 import { signOut } from '@/shared/supabase/auth'
 import {
   revalidateProfileAction,
@@ -125,7 +124,6 @@ function EditProfileSheet({
   }
 
   const msgFormatted = totalMessages.toLocaleString()
-  const initial      = initialDisplayName[0]?.toUpperCase() ?? '?'
   const previewName  = displayName.trim() || initialDisplayName
 
   return (
@@ -189,13 +187,7 @@ function EditProfileSheet({
                       style={{ background: 'var(--color-primary)' }}
                       aria-label="Change photo"
                     >
-                      {avatarUrl ? (
-                        <Image src={avatarUrl} alt={previewName} fill sizes="56px" className="object-cover" loader={avatarImageLoader} />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <span className="font-pixel text-[12px] text-purple">{initial}</span>
-                        </div>
-                      )}
+                      <UserAvatar avatarUrl={avatarUrl} username={previewName} size={56} bg="primary" />
                     </button>
                     <div
                       className="absolute bg-surface border border-primary flex items-center overflow-hidden p-2 pointer-events-none"
