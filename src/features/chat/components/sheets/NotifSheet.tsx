@@ -1,6 +1,7 @@
 'use client'
 
 import { motion } from 'framer-motion'
+import { BottomSheet } from '@/shared/components/ui/BottomSheet'
 
 export type NotifPrefs = { messages: boolean; mentions: boolean }
 
@@ -60,27 +61,8 @@ export function NotifSheet({
   onClose:  () => void
 }) {
   return (
-    <motion.div
-      className="fixed inset-0 z-[80] flex items-end justify-center"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      onClick={onClose}
-    >
-      <div className="absolute inset-0 bg-black/60" />
-      <motion.div
-        initial={{ y: '100%' }}
-        animate={{ y: 0 }}
-        exit={{ y: '100%' }}
-        transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-        drag="y"
-        dragConstraints={{ top: 0, bottom: 0 }}
-        dragElastic={{ top: 0, bottom: 1 }}
-        onDragEnd={(_, info) => { if (info.offset.y > 80 || info.velocity.y > 400) onClose() }}
-        className="relative w-full max-w-[480px] bg-[var(--color-surface-sheet)] rounded-tl-[16px] rounded-tr-[16px] flex flex-col overflow-hidden"
-        style={{ gap: 16, paddingTop: 16, paddingLeft: 16, paddingRight: 16, paddingBottom: 'max(env(safe-area-inset-bottom), 28px)' }}
-        onClick={(e) => e.stopPropagation()}
-      >
+    <BottomSheet onClose={onClose} zIndex={80}>
+      <div className="flex flex-col" style={{ gap: 16, paddingLeft: 16, paddingRight: 16, paddingBottom: 'max(env(safe-area-inset-bottom), 28px)' }}>
         {/* Header */}
         <div className="flex flex-col flex-shrink-0" style={{ gap: 4 }}>
           <h2
@@ -113,7 +95,7 @@ export function NotifSheet({
             onToggle={() => onToggle('mentions')}
           />
         </div>
-      </motion.div>
-    </motion.div>
+      </div>
+    </BottomSheet>
   )
 }

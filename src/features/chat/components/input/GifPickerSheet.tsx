@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { motion } from 'framer-motion'
+import { BottomSheet } from '@/shared/components/ui/BottomSheet'
 import { Search } from 'pixelarticons/react/Search'
 import { KLIPY_SEARCH_DEBOUNCE_MS, KLIPY_PAGE_SIZE } from '@/shared/constants/config'
 
@@ -126,33 +126,9 @@ export function GifPickerSheet({ onSelect, onClose }: GifPickerSheetProps) {
   }, [hasNext, page, query, fetchGifs])
 
   return (
-    <>
-      {/* Backdrop */}
-      <motion.div
-        className="fixed inset-0 z-[60] bg-black/60"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.18 }}
-        onClick={onClose}
-      />
-
-      {/* Sheet */}
-      <motion.div
-        className="fixed bottom-0 left-0 right-0 z-[70] bg-[var(--color-surface-sheet)] rounded-tl-[16px] rounded-tr-[16px] flex flex-col"
-        initial={{ y: '100%' }}
-        animate={{ y: 0 }}
-        exit={{ y: '100%' }}
-        transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-        drag="y"
-        dragConstraints={{ top: 0, bottom: 0 }}
-        dragElastic={{ top: 0, bottom: 1 }}
-        onDragEnd={(_, info) => { if (info.offset.y > 80 || info.velocity.y > 400) onClose() }}
-        style={{ maxHeight: '92vh' }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Search input + attribution */}
-        <div className="flex-shrink-0 flex flex-col px-4 pt-6" style={{ gap: 4 }}>
+    <BottomSheet onClose={onClose} zIndex={70} maxHeight="92vh" className="overflow-hidden">
+      {/* Search input + attribution */}
+      <div className="flex-shrink-0 flex flex-col px-4" style={{ gap: 4 }}>
           <div className="flex items-center border border-border h-12 px-4" style={{ gap: 8 }}>
             <Search style={{ width: 16, height: 16, color: 'var(--color-muted)', flexShrink: 0 }} />
             <input
@@ -174,7 +150,7 @@ export function GifPickerSheet({ onSelect, onClose }: GifPickerSheetProps) {
         </div>
 
         {/* GIF grid */}
-        <div className="flex-1 overflow-y-auto nexus-scroll px-4" style={{ minHeight: 0, paddingTop: 24, paddingBottom: 28 }}>
+        <div className="flex-1 overflow-y-auto nexus-scroll px-4" style={{ minHeight: 0, paddingTop: 'var(--space-7)', paddingBottom: 28 }}>
           {error ? (
             <div className="flex flex-col items-center justify-center py-12 gap-4">
               <p className="font-silkscreen text-[8px] text-tertiary leading-relaxed text-center">{error}</p>
@@ -210,7 +186,6 @@ export function GifPickerSheet({ onSelect, onClose }: GifPickerSheetProps) {
             </div>
           )}
         </div>
-      </motion.div>
-    </>
+    </BottomSheet>
   )
 }

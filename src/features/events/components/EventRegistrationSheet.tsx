@@ -36,7 +36,7 @@ export function EventRegistrationSheet({ onStayGoing, onNotGoing, onClose }: Eve
           className="flex flex-col items-center"
           style={{
             gap:           24,
-            paddingTop:    24,
+            paddingTop:    'var(--space-7)',
             paddingLeft:   16,
             paddingRight:  16,
             paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 28px)',

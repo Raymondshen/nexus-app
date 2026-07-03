@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
 import { createClient } from '@/shared/supabase/client'
+import { BottomSheet } from '@/shared/components/ui/BottomSheet'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
 import type { Message, MessageWithProfile } from '@/types'
 
@@ -83,36 +83,8 @@ export function PinDurationSheet({ message, onClose, onPinned }: PinDurationShee
   }
 
   return (
-    <AnimatePresence>
-      <motion.div
-        key="pin-backdrop"
-        className="fixed inset-0 z-[85] bg-black/60"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.18 }}
-        onClick={onClose}
-      />
-      <motion.div
-        key="pin-sheet"
-        className="fixed bottom-0 left-0 right-0 z-[90] bg-[var(--color-surface-sheet)] rounded-tl-[16px] rounded-tr-[16px] flex flex-col"
-        style={{
-          paddingTop: 24,
-          paddingLeft: 16,
-          paddingRight: 16,
-          paddingBottom: 'max(env(safe-area-inset-bottom), 28px)',
-          gap: 24,
-        }}
-        initial={{ y: '100%' }}
-        animate={{ y: 0 }}
-        exit={{ y: '100%' }}
-        transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-        drag="y"
-        dragConstraints={{ top: 0, bottom: 0 }}
-        dragElastic={{ top: 0, bottom: 1 }}
-        onDragEnd={(_, info) => { if (info.offset.y > 80 || info.velocity.y > 400) onClose() }}
-        onClick={(e) => e.stopPropagation()}
-      >
+    <BottomSheet onClose={onClose} zIndex={90}>
+      <div className="flex flex-col" style={{ gap: 24, paddingLeft: 16, paddingRight: 16, paddingBottom: 'max(env(safe-area-inset-bottom), 28px)' }}>
         {/* Header */}
         <p
           className="font-body font-bold leading-none flex-shrink-0"
@@ -204,7 +176,7 @@ export function PinDurationSheet({ message, onClose, onPinned }: PinDurationShee
             {pinning ? '...' : 'PIN IT'}
           </span>
         </button>
-      </motion.div>
-    </AnimatePresence>
+      </div>
+    </BottomSheet>
   )
 }

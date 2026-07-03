@@ -91,7 +91,7 @@ export function PinListSheet({ activePins, currentUserId, creatorId, onClose }: 
       >
         <div
           className="flex-1 overflow-y-auto nexus-scroll flex flex-col"
-          style={{ gap: 24, paddingTop: 24, paddingLeft: 16, paddingRight: 16, paddingBottom: 'max(env(safe-area-inset-bottom), 28px)' }}
+          style={{ gap: 24, paddingTop: 'var(--space-7)', paddingLeft: 16, paddingRight: 16, paddingBottom: 'max(env(safe-area-inset-bottom), 28px)' }}
         >
           {/* Header */}
           <p

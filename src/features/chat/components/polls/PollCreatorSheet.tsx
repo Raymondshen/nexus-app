@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { motion } from 'framer-motion'
+import { BottomSheet } from '@/shared/components/ui/BottomSheet'
 import { Close } from 'pixelarticons/react/Close'
 import { PlusBox } from 'pixelarticons/react/PlusBox'
 import { createClient } from '@/shared/supabase/client'
@@ -88,32 +88,9 @@ export function PollCreatorSheet({ crewId, userProfile, onClose, onCreated }: Po
   const activeHint = DURATION_OPTIONS.find((d) => d.value === duration)?.hint ?? ''
 
   return (
-    <>
-      {/* Backdrop */}
-      <motion.div
-        className="fixed inset-0 z-[60] bg-black/60"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={onClose}
-      />
-
-      {/* Sheet */}
-      <motion.div
-        className="fixed bottom-0 left-0 right-0 z-[70] bg-[var(--color-surface-sheet)] rounded-tl-[16px] rounded-tr-[16px] flex flex-col"
-        initial={{ y: '100%' }}
-        animate={{ y: 0 }}
-        exit={{ y: '100%' }}
-        transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-        drag="y"
-        dragConstraints={{ top: 0, bottom: 0 }}
-        dragElastic={{ top: 0, bottom: 1 }}
-        onDragEnd={(_, info) => { if (info.offset.y > 80 || info.velocity.y > 400) onClose() }}
-        style={{ maxHeight: '92vh', paddingBottom: 'max(env(safe-area-inset-bottom), 16px)' }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Scrollable content */}
-        <div className="flex-1 overflow-y-auto nexus-scroll px-4 pt-6 flex flex-col gap-[var(--space-7)] min-h-0">
+    <BottomSheet onClose={onClose} zIndex={70} maxHeight="92vh">
+      {/* Scrollable content */}
+      <div className="flex-1 overflow-y-auto nexus-scroll px-4 flex flex-col gap-[var(--space-7)] min-h-0">
 
           {/* Title */}
           <h2
@@ -226,7 +203,7 @@ export function PollCreatorSheet({ crewId, userProfile, onClose, onCreated }: Po
         </div>
 
         {/* Footer buttons */}
-        <div className="flex-shrink-0 px-4 pt-6 flex flex-col gap-4">
+        <div className="flex-shrink-0 px-4 pt-6 flex flex-col gap-4" style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 16px)' }}>
           <Button
             onClick={handleSubmit}
             disabled={!canSubmit}
@@ -239,7 +216,6 @@ export function PollCreatorSheet({ crewId, userProfile, onClose, onCreated }: Po
             Cancel
           </Button>
         </div>
-      </motion.div>
-    </>
+    </BottomSheet>
   )
 }

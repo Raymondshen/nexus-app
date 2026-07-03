@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { motion } from 'framer-motion'
 import { suggestDefinitionAction } from '@/app/(app)/chat/[crewId]/definitions/actions'
+import { BottomSheet } from '@/shared/components/ui/BottomSheet'
 import { Button } from '@/shared/components/ui/Button'
 import type { SquadDefinitionWithCreator } from '@/types'
 
@@ -44,31 +44,8 @@ export function SuggestDefinitionSheet({
   }
 
   return (
-    <>
-      {/* Backdrop */}
-      <motion.div
-        className="fixed inset-0 bg-black/60"
-        style={{ zIndex: zBase }}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={onClose}
-      />
-
-      {/* Sheet — Figma 143:660 */}
-      <motion.div
-        className="fixed bottom-0 left-0 right-0 bg-[var(--color-surface-sheet)] rounded-tl-[16px] rounded-tr-[16px] flex flex-col px-4 overflow-y-auto"
-        style={{ zIndex: zBase + 10, gap: 'var(--space-7)', maxHeight: '90vh', paddingTop: 12, paddingBottom: 'max(env(safe-area-inset-bottom), 28px)' }}
-        initial={{ y: '100%' }}
-        animate={{ y: 0 }}
-        exit={{ y: '100%' }}
-        transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-        drag="y"
-        dragConstraints={{ top: 0, bottom: 0 }}
-        dragElastic={{ top: 0, bottom: 1 }}
-        onDragEnd={(_, info) => { if (info.offset.y > 80 || info.velocity.y > 400) onClose() }}
-        onClick={(e) => e.stopPropagation()}
-      >
+    <BottomSheet onClose={onClose} zIndex={zBase + 10} maxHeight="90vh" className="overflow-y-auto px-4">
+      <div className="flex flex-col" style={{ gap: 'var(--space-7)', paddingBottom: 'max(env(safe-area-inset-bottom), 28px)' }}>
         {/* Title — DM Sans Bold 18px text-primary */}
         <h2
           className="font-body font-bold text-[18px] text-primary leading-none flex-shrink-0"
@@ -144,7 +121,7 @@ export function SuggestDefinitionSheet({
             Cancel suggestion
           </Button>
         </div>
-      </motion.div>
-    </>
+      </div>
+    </BottomSheet>
   )
 }

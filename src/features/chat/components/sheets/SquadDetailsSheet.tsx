@@ -151,7 +151,7 @@ function MemberListRow({
         </div>
 
         {/* Name + class · msg count */}
-        <div className="flex flex-col gap-1 justify-center min-w-0 flex-1 h-full">
+        <div className="flex flex-col gap-1 justify-center min-w-0 flex-1 h-full overflow-hidden">
           <div className="flex items-center" style={{ gap: 4 }}>
             <p className="font-body font-bold text-white truncate leading-none" style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}>{profile.username}</p>
             {isCreator && (
@@ -530,7 +530,7 @@ export function SquadDetailsSheet({
                 )}
               </div>
               {/* Name + level · member count */}
-              <div className="flex flex-col min-w-0" style={{ gap: 2 }}>
+              <div className="flex flex-col min-w-0" style={{ gap: 4 }}>
                 <p
                   className="font-body font-black leading-none truncate uppercase"
                   style={{ fontSize: 'var(--text-md)', color: 'var(--color-secondary)', fontVariationSettings: '"opsz" 14' }}
@@ -595,7 +595,7 @@ export function SquadDetailsSheet({
         </div>
 
         {/* ── Members section (flex-1, member rows scroll independently) ── */}
-        <div className="flex-1 min-h-0 flex flex-col" style={{ padding: 16, paddingBottom: 0, gap: 20 }}>
+        <div className="flex-1 min-h-0 flex flex-col overflow-hidden" style={{ padding: 16, gap: 20 }}>
           <p className="flex-shrink-0 font-silkscreen leading-none" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-primary)' }}>
             Members
           </p>
@@ -681,7 +681,7 @@ export function SquadDetailsSheet({
             <button
               type="button"
               onClick={onLeave}
-              className="w-full flex items-center justify-center active:opacity-70 transition-opacity"
+              className="w-full flex items-center justify-center overflow-hidden active:opacity-70 transition-opacity"
               style={{ height: 48, border: '1px solid var(--color-red)', gap: 8 }}
               aria-label="Leave squad"
             >

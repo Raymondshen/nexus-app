@@ -20,6 +20,7 @@ import { PinDurationSheet } from '@/features/chat/components/sheets/PinDurationS
 import { ChatSheetReact } from '@/features/chat/components/sheets/ChatSheetReact'
 import { ImagePreviewOverlay } from '@/shared/components/overlays/ImagePreviewOverlay'
 import { Button } from '@/shared/components/ui/Button'
+import { BottomSheet } from '@/shared/components/ui/BottomSheet'
 import { CornerDownRight } from 'pixelarticons/react/CornerDownRight'
 import { CornerUpLeft } from 'pixelarticons/react/CornerUpLeft'
 import { Cake } from 'pixelarticons/react/Cake'
@@ -1110,30 +1111,8 @@ function MessageBubbleImpl({
       {mounted && createPortal(
         <AnimatePresence>
           {activeDefinition && (
-            <>
-              <motion.div
-                key="def-backdrop"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.18 }}
-                className="fixed inset-0 z-[70] bg-black/60"
-                onClick={() => setActiveDefinition(null)}
-              />
-              <motion.div
-                key="def-sheet"
-                initial={{ y: '100%' }}
-                animate={{ y: 0 }}
-                exit={{ y: '100%' }}
-                transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-                drag="y"
-                dragConstraints={{ top: 0, bottom: 0 }}
-                dragElastic={{ top: 0, bottom: 1 }}
-                onDragEnd={(_, info) => { if (info.offset.y > 80 || info.velocity.y > 400) setActiveDefinition(null) }}
-                className="fixed bottom-0 left-0 right-0 z-[80] bg-[var(--color-surface-sheet)] rounded-tl-[16px] rounded-tr-[16px] flex flex-col px-4"
-                style={{ gap: 'var(--space-7)', paddingTop: 12, paddingBottom: 'max(env(safe-area-inset-bottom), 28px)' }}
-                onClick={(e) => e.stopPropagation()}
-              >
+            <BottomSheet onClose={() => setActiveDefinition(null)} zIndex={80}>
+              <div className="flex flex-col px-4" style={{ gap: 'var(--space-7)', paddingBottom: 'max(env(safe-area-inset-bottom), 28px)' }}>
                 {/* Content — flex-col gap-[--space-5] items-start */}
                 <div className="flex flex-col items-start w-full" style={{ gap: 'var(--space-5)' }}>
                   {/* Details — flex-col gap-[--space-3] items-start justify-center */}
@@ -1197,8 +1176,8 @@ function MessageBubbleImpl({
                     CLOSE
                   </button>
                 )}
-              </motion.div>
-            </>
+              </div>
+            </BottomSheet>
           )}
         </AnimatePresence>,
         document.body
@@ -1220,12 +1199,16 @@ function MessageBubbleImpl({
       )}
 
       {/* ── Pin duration sheet ──────────────────────────────────────────────── */}
-      {mounted && pinSheetOpen && createPortal(
-        <PinDurationSheet
-          message={message}
-          onClose={() => setPinSheetOpen(false)}
-          onPinned={(patch) => updateMessage(message.id, patch)}
-        />,
+      {mounted && createPortal(
+        <AnimatePresence>
+          {pinSheetOpen && (
+            <PinDurationSheet
+              message={message}
+              onClose={() => setPinSheetOpen(false)}
+              onPinned={(patch) => updateMessage(message.id, patch)}
+            />
+          )}
+        </AnimatePresence>,
         document.body
       )}
 
