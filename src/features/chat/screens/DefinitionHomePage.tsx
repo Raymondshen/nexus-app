@@ -17,11 +17,105 @@ import { InputField, TextareaField } from "@/shared/components/ui/InputField";
 import { MagicEdit } from "pixelarticons/react/MagicEdit";
 import { Close } from "pixelarticons/react/Close";
 import { Trash } from "pixelarticons/react/Trash";
+import { Check } from "pixelarticons/react/Check";
+import { TEXT_EFFECTS } from "@/features/chat/components/text-effects/registry";
+import { TextEffectText } from "@/features/chat/components/text-effects/TextEffectText";
 import type {
   SquadDefinition,
   SquadDefinitionWithCreator,
   DefinitionSuggestion,
+  TextEffect,
 } from "@/types";
+
+function TextEffectToggleRow({
+  enabled,
+  onToggle,
+}: {
+  enabled:  boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <div className="flex items-center w-full" style={{ gap: 8, height: 34 }}>
+      <div className="flex flex-1 min-w-0 flex-col justify-center" style={{ gap: 8 }}>
+        <p
+          className="font-body font-medium leading-none"
+          style={{ fontSize: "var(--sm)", color: "var(--color-secondary)", fontVariationSettings: '"opsz" 14' }}
+        >
+          Text Effect
+        </p>
+        <p
+          className="font-body font-light leading-none"
+          style={{ fontSize: "var(--xs)", color: "var(--color-tertiary)", fontVariationSettings: '"opsz" 14' }}
+        >
+          Apply text animation for this keyword.
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={onToggle}
+        role="switch"
+        aria-checked={enabled}
+        aria-label={`${enabled ? "Disable" : "Enable"} text effect`}
+        className="relative flex-shrink-0 appearance-none"
+        style={{
+          width: 48,
+          height: 28,
+          borderRadius: 40,
+          background: enabled ? "var(--color-purple)" : "var(--color-muted)",
+          transition: "background 0.2s",
+        }}
+      >
+        <motion.span
+          className="absolute rounded-full bg-white pointer-events-none"
+          style={{ top: 4, width: 20, height: 20 }}
+          animate={{ left: enabled ? 24 : 4 }}
+          transition={{ type: "spring", stiffness: 400, damping: 30 }}
+        />
+      </button>
+    </div>
+  );
+}
+
+function TextEffectOptionCard({
+  effect,
+  label,
+  selected,
+  onSelect,
+}: {
+  effect:   TextEffect;
+  label:    string;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={selected}
+      className="flex items-center justify-between w-full rounded-[var(--x3)] appearance-none"
+      style={{
+        padding: "var(--x5)",
+        background: selected ? "var(--color-surface-elevated)" : "var(--color-surface-sheet)",
+        border: `1px solid ${selected ? "var(--color-purple)" : "var(--color-border)"}`,
+      }}
+    >
+      <span
+        className="font-body font-medium text-white leading-none"
+        style={{ fontSize: "var(--sm)", fontVariationSettings: '"opsz" 14' }}
+      >
+        <TextEffectText text={label} effect={effect} />
+      </span>
+      {selected ? (
+        <Check style={{ width: 24, height: 24, color: "var(--color-purple)" }} aria-hidden="true" />
+      ) : (
+        <span
+          style={{ width: 24, height: 24, borderRadius: 9999, border: "1px solid var(--color-border)" }}
+          aria-hidden="true"
+        />
+      )}
+    </button>
+  );
+}
 
 function BackButton() {
   const goBack = useSlideBack();
@@ -50,6 +144,7 @@ interface CreateDefinitionPageProps {
   initialWord?: string;
   initialActualWord?: string;
   initialDefinition?: string;
+  initialTextEffect?: TextEffect | null;
   definitionId?: string;
   onClose: () => void;
   onSaved: (def: SquadDefinition) => void;
@@ -61,6 +156,7 @@ function CreateDefinitionPage({
   initialWord = "",
   initialActualWord = "",
   initialDefinition = "",
+  initialTextEffect = null,
   definitionId,
   onClose,
   onSaved,
@@ -73,6 +169,19 @@ function CreateDefinitionPage({
   const containerRef = useRef<HTMLDivElement>(null);
   const exitingRef = useRef(false);
   const controls = useAnimation();
+
+  // Dev-only text effect controls — Figma 405:2634. Read once on mount; this
+  // overlay remounts each time it's opened so no live-update listener is needed.
+  const [textEffectFeature] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("nexus_text_effect_feature") === "1";
+  });
+  const [textEffectEnabled, setTextEffectEnabled] = useState(
+    initialTextEffect != null,
+  );
+  const [textEffect, setTextEffect] = useState<TextEffect>(
+    initialTextEffect ?? "letters_pull_up",
+  );
 
   // Slide in on mount
   useEffect(() => {
@@ -176,6 +285,8 @@ function CreateDefinitionPage({
     setSaving(true);
     setError("");
 
+    const effectToSave = textEffectFeature && textEffectEnabled ? textEffect : null;
+
     const result =
       mode === "edit" && definitionId
         ? await updateDefinitionAction(
@@ -183,8 +294,15 @@ function CreateDefinitionPage({
             word,
             definition,
             actualWord,
+            effectToSave,
           )
-        : await createDefinitionAction(crewId, word, definition, actualWord);
+        : await createDefinitionAction(
+            crewId,
+            word,
+            definition,
+            actualWord,
+            effectToSave,
+          );
 
     setSaving(false);
     if (result.error) {
@@ -276,6 +394,27 @@ function CreateDefinitionPage({
           placeholder="What does it mean in your squad?"
           rows={5}
         />
+        {textEffectFeature && (
+          <div className="flex flex-col w-full" style={{ gap: "var(--x3)" }}>
+            <TextEffectToggleRow
+              enabled={textEffectEnabled}
+              onToggle={() => setTextEffectEnabled((v) => !v)}
+            />
+            {textEffectEnabled && (
+              <div className="flex flex-col w-full" style={{ gap: "var(--x5)" }}>
+                {TEXT_EFFECTS.map((opt) => (
+                  <TextEffectOptionCard
+                    key={opt.id}
+                    effect={opt.id}
+                    label={opt.label}
+                    selected={textEffect === opt.id}
+                    onSelect={() => setTextEffect(opt.id)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         {error && (
           <p className="font-silkscreen text-[8px] text-[#ef4444] leading-relaxed">
             {error}
@@ -527,6 +666,7 @@ export function DefinitionHomePage({
                       word: updated.word,
                       actual_word: updated.actual_word,
                       definition: updated.definition,
+                      text_effect: updated.text_effect,
                     }
                   : d,
               ),
@@ -601,6 +741,7 @@ export function DefinitionHomePage({
               word: def.word,
               actual_word: def.actual_word,
               definition: def.definition,
+              text_effect: def.text_effect,
             }
           : d,
       ),
@@ -819,6 +960,7 @@ export function DefinitionHomePage({
             initialWord={editTarget.word}
             initialActualWord={editTarget.actual_word ?? ""}
             initialDefinition={editTarget.definition}
+            initialTextEffect={editTarget.text_effect}
             definitionId={editTarget.id}
             onClose={() => setEditTarget(null)}
             onSaved={(def) => {

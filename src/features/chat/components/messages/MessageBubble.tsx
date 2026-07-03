@@ -19,6 +19,7 @@ import { EventCardMessage } from '@/features/events/components/EventCardMessage'
 import { SuggestDefinitionSheet } from '@/features/chat/components/sheets/SuggestDefinitionSheet'
 import { PinDurationSheet } from '@/features/chat/components/sheets/PinDurationSheet'
 import { ChatSheetReact } from '@/features/chat/components/sheets/ChatSheetReact'
+import { TextEffectText } from '@/features/chat/components/text-effects/TextEffectText'
 import { ImagePreviewOverlay } from '@/shared/components/overlays/ImagePreviewOverlay'
 import { Button } from '@/shared/components/ui/Button'
 import { BottomSheet } from '@/shared/components/ui/BottomSheet'
@@ -188,7 +189,7 @@ function renderWithDefinitions(
           style={{ color: 'var(--color-blue)' }}
           onClick={(e) => { e.stopPropagation(); onTap(pair.def) }}
         >
-          {hit}
+          <TextEffectText text={hit} effect={pair.def.text_effect} />
         </span>
       )
     } else {

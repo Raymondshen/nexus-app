@@ -1,13 +1,14 @@
 'use server'
 
 import { createClient } from '@/shared/supabase/server'
-import type { SquadDefinition, DefinitionSuggestion } from '@/types'
+import type { SquadDefinition, DefinitionSuggestion, TextEffect } from '@/types'
 
 export async function createDefinitionAction(
   crewId: string,
   word: string,
   definition: string,
   actualWord?: string,
+  textEffect?: TextEffect | null,
 ): Promise<{ data?: SquadDefinition; error?: string }> {
   const supabase = await createClient()
   const { data: { session } } = await supabase.auth.getSession()
@@ -21,7 +22,7 @@ export async function createDefinitionAction(
 
   const { data, error } = await supabase
     .from('squad_definitions')
-    .insert({ crew_id: crewId, creator_id: session.user.id, word: trimWord, actual_word: trimActualWord, definition: trimDef })
+    .insert({ crew_id: crewId, creator_id: session.user.id, word: trimWord, actual_word: trimActualWord, definition: trimDef, text_effect: textEffect ?? null })
     .select()
     .single()
 
@@ -38,6 +39,7 @@ export async function updateDefinitionAction(
   word: string,
   definition: string,
   actualWord?: string,
+  textEffect?: TextEffect | null,
 ): Promise<{ data?: SquadDefinition; error?: string }> {
   const supabase = await createClient()
   const { data: { session } } = await supabase.auth.getSession()
@@ -51,7 +53,7 @@ export async function updateDefinitionAction(
 
   const { data, error } = await supabase
     .from('squad_definitions')
-    .update({ word: trimWord, actual_word: trimActualWord, definition: trimDef })
+    .update({ word: trimWord, actual_word: trimActualWord, definition: trimDef, text_effect: textEffect ?? null })
     .eq('id', definitionId)
     .eq('creator_id', session.user.id)
     .select()

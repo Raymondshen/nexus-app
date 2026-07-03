@@ -127,7 +127,7 @@ Invite code path: `landing → invite-code → invite-oauth → invite-profile`
 ## Dev Mode
 `profiles.is_dev = true` — grant: `UPDATE profiles SET is_dev = true WHERE id IN (SELECT id FROM auth.users WHERE email = '...')`
 
-Dev flags (`localStorage`): `nexus_dev_mode` · `nexus_push_diag` · `nexus_infinite_coins` · `nexus_afk_exp` · `nexus_chat_camera` · `nexus_friendship_xp` · `nexus_poll_feature` · `nexus_pin_feature`
+Dev flags (`localStorage`): `nexus_dev_mode` · `nexus_push_diag` · `nexus_infinite_coins` · `nexus_afk_exp` · `nexus_chat_camera` · `nexus_friendship_xp` · `nexus_poll_feature` · `nexus_pin_feature` · `nexus_events_enabled` · `nexus_combat_system` · `nexus_text_effect_feature`
 
 Server-side (`award-xp`): boss spawn + `LEVEL_UP:` only when `isDevUser = true`
 Client-side (`nexus_dev_mode`): `MessageList` hides boss/artifact/level-up system msgs + cards; `ChatInput` hides DamageFloat + RAID ACTIVE indicator
@@ -244,7 +244,8 @@ Cards (Figma 402:9403): `bg-surface-sheet rounded-x3 p-x5 gap-x5 items-start`
 
 **`CreateDefinitionPage`** — full-screen slide-in overlay (`motion.div` controlled via `useAnimation()`, spring 380/36, `z-[80]`, `bg-black`):
 - Header: `ChevronLeft primary` 24×24 back + Silkscreen xl uppercase title ("ADD DEFINITION" / "EDIT DEFINITION")
-- Body: scrollable, `gap-x6` — `InputField` (words/aliases) + `InputField` (actual word) + `TextareaField` (definition, rows=5)
+- Body: scrollable, `gap-x6` — `InputField` (words/aliases) + `InputField` (actual word) + `TextareaField` (definition, rows=5) + dev-gated Text Effect section (Figma 405:2634)
+- Text Effect section — dev-gated: `nexus_text_effect_feature` (toggled from Developer Settings → Features, not `nexus_dev_mode`). Toggle row + effect option list (`letters_pull_up` "Letters Pull Up", `blur_in` "Blur in", `bouncy_text` "Bouncy Text"); selected card gets purple border + `surface-elevated` bg + `Check` icon, unselected gets `border` + `surface-sheet` + empty circle; each option's own label previews its effect live. Persists to `squad_definitions.text_effect`. Effect components live in `src/features/chat/components/text-effects/` (`registry.ts` = id/label list, `TextEffectText.tsx` = effect switcher, one file per effect). Applied via `TextEffectText` in `MessageBubble`'s `renderWithDefinitions` wherever the keyword is highlighted inline in chat, and in the picker itself for preview.
 - Footer: sticky `DefinitionButton variant="fill"` "Save definition" with safe-area padding
 - Back button and left-edge swipe both call `handleBack()`: animates to x:100% (ease-in 150ms), then calls `onClose()`. Never calls `router.back()` — navigation stays on the definitions list. No `exit` prop; AnimatePresence sees the component already off-screen when it unmounts.
 - After a successful save, `handleBack()` is also called (slide-out animation plays before `onSaved` + `onClose()`).

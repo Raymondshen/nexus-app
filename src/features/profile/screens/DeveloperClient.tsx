@@ -109,6 +109,7 @@ export function DeveloperClient({ userId: _userId, initialCoins, userCrews }: De
   const [eventsFeature,       setEventsFeature]       = useState(false)
   const [friendshipXP,        setFriendshipXP]        = useState(false)
   const [combatSystem,        setCombatSystem]        = useState(false)
+  const [textEffectFeature,   setTextEffectFeature]   = useState(false)
   const [fxpResetConfirm,     setFxpResetConfirm]     = useState(false)
   const [resettingFXP,        setResettingFXP]        = useState(false)
   const [fxpResetDone,        setFxpResetDone]        = useState(false)
@@ -139,6 +140,7 @@ export function DeveloperClient({ userId: _userId, initialCoins, userCrews }: De
     setEventsFeature(localStorage.getItem('nexus_events_enabled') === '1')
     setFriendshipXP(localStorage.getItem('nexus_friendship_xp') === '1')
     setCombatSystem(localStorage.getItem('nexus_combat_system') === '1')
+    setTextEffectFeature(localStorage.getItem('nexus_text_effect_feature') === '1')
   }, [])
 
   function toggleDevMode() {
@@ -201,6 +203,14 @@ export function DeveloperClient({ userId: _userId, initialCoins, userCrews }: De
     if (next) localStorage.setItem('nexus_combat_system', '1')
     else localStorage.removeItem('nexus_combat_system')
     window.dispatchEvent(new CustomEvent('nexus-combat-system-change', { detail: { on: next } }))
+  }
+
+  function toggleTextEffectFeature() {
+    const next = !textEffectFeature
+    setTextEffectFeature(next)
+    if (next) localStorage.setItem('nexus_text_effect_feature', '1')
+    else localStorage.removeItem('nexus_text_effect_feature')
+    window.dispatchEvent(new CustomEvent('nexus-text-effect-feature-change', { detail: { on: next } }))
   }
 
   async function handleResetFriendshipXP() {
@@ -412,6 +422,13 @@ export function DeveloperClient({ userId: _userId, initialCoins, userCrews }: De
             Debug
           </p>
 
+          <ToggleRow
+            title="Dev Mode"
+            description="Reveal dev-only tools and testing controls across the app"
+            enabled={devMode}
+            onChange={toggleDevMode}
+          />
+
           <NavRow
             title="Error Logs"
             description="View client errors from all Google users"
@@ -472,6 +489,13 @@ export function DeveloperClient({ userId: _userId, initialCoins, userCrews }: De
             description="Show raid HUD, boss damage floats, and ability controls"
             enabled={combatSystem}
             onChange={toggleCombatSystem}
+          />
+
+          <ToggleRow
+            title="Text Effect"
+            description="Show text animation options when creating a squad definition"
+            enabled={textEffectFeature}
+            onChange={toggleTextEffectFeature}
           />
 
           {/* Reset gem cooldown */}
