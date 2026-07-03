@@ -151,7 +151,7 @@ src/
 │   ├── chat/components/
 │   │   ├── input/              ChatInput, GifPickerSheet
 │   │   ├── messages/           MessageList, MessageBubble, LinkPreviewCard
-│   │   ├── sheets/             SquadDetailsSheet, PinDurationSheet, PinListSheet,
+│   │   ├── sheets/             SquadDetailsSheet, InviteFriendsSheet, PinDurationSheet, PinListSheet,
 │   │   │                       NotifSheet, CrewImageUploadModal,
 │   │   │                       SuggestDefinitionSheet, ReviewSuggestionSheet, ChatSheetReact
 │   │   ├── polls/              PollCard, PollCreatorSheet
@@ -254,9 +254,16 @@ Cards (Figma 402:9403): `bg-surface-sheet rounded-x3 p-x5 gap-x5 items-start`
 Panel pattern · `maxHeight: 85vh` · `overflow-hidden`
 
 Layout (flex col):
-1. **Header** (240px) — background + gradient overlay; top: crew image + name + `Lv.{n} · {count} members` | `MagicEdit` (creator) + `ChevronRight` (close); bottom: XP bar
+1. **Header** (240px) — background + gradient overlay; top: crew image + name + `Lv.{n} · {count} members` | `MagicEdit` (creator) + `UserPlus` (opens `InviteFriendsSheet`) + `ChevronRight` (close); bottom: XP bar
 2. **Members** (`flex-1 min-h-0`) — "Members" label + scrollable member list (`maxHeight: 240px` = 5 rows); member rows: avatar + sprite + name/class·msg
-3. **Fixed bottom** (`flex-shrink-0`) — invite code card + `DoorClosed` leave squad button
+3. **Fixed bottom** (`flex-shrink-0`) — `DoorClosed` leave squad button
+
+### InviteFriendsSheet (`src/features/chat/components/sheets/InviteFriendsSheet.tsx`)
+Figma 394:9180 · Standard `<BottomSheet>` (`zIndex={80}`), opened from `SquadDetailsSheet`'s header `UserPlus` button
+
+- Header: "Invite Friends" (DM Sans Bold `--md` primary) + "Use this code to invite friends to your squad." (DM Sans Light `--xs` tertiary)
+- Code card: `--color-surface` bg + `border-border`, `h-[68px]` — left: "Invite new members" (Silkscreen mini primary) above the code itself (Silkscreen `--xl`, purple→fuchsia gradient `bg-clip-text` + `text-shadow: 0 0 3px #a855f7`, tracking 0.2px); right: "Copy Code" button
+- Copy button: `--color-purple` fill, `box-shadow: 4px 4px 0 rgba(168,85,247,0.5)`, `Copy` 12×12 icon + Silkscreen `--xxs` label; swaps to `Check` icon + "Copied!" for 1s on tap (writes `Come join my squad on Nexus app {code}` to clipboard)
 
 ### Pin Feature (dev-gated: `nexus_pin_feature`)
 - Admin = member with earliest `joined_at`; cap = 5 active pins (`PIN_MAX_PER_CREW`)
@@ -373,9 +380,11 @@ Icons (`pixelarticons`) — key usages:
 | Floating nav — notifs | `Bell` / `BellOff` | 24×24 |
 | Floating nav — glossary | `Library` | 24×24 |
 | SquadDetailsSheet — edit | `MagicEdit` | 24×24 |
+| SquadDetailsSheet — invite | `UserPlus` | 24×24 |
 | DefinitionPreviewSheet — edit | `MagicEdit` | 20×20, `--color-purple` |
 | DefinitionPreviewSheet — cancel | `Close` | 20×20, `--color-tertiary` |
 | SquadDetailsSheet — leave | `DoorClosed` | 16×16 |
+| InviteFriendsSheet — copy | `Copy` / `Check` | 12×12, `--color-primary` |
 | Message bubble — creator | `Crown` | 12×12, `--color-coins` |
 | Friends — remove | `AvatarCircleMinus` | 16×16 |
 | Inbox — accept / decline | `Check` / `Close` | 16×16 |
