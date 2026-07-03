@@ -357,8 +357,9 @@ New notification type checklist:
 - Debugging: 401 = deployed without `--no-verify-jwt`; `expired_deleted` = APNs 410'd → FORCE RESUB
 
 ## Images
-- `next/image` + `supabaseImageLoader` for all Supabase storage images (crew, backgrounds, photos, OG)
+- `next/image` + `supabaseImageLoader` for all Supabase storage images (backgrounds, photos, OG)
 - **All person avatars must use `<UserAvatar>`** (`src/shared/components/ui/UserAvatar.tsx`) — never inline `avatarImageLoader` + `next/image` directly for avatar display
+- **All crew/squad images must use `<GroupAvatar>`** (`src/shared/components/ui/GroupAvatar.tsx`) — never inline `avatarImageLoader` + `next/image` directly for a crew's `image_url`
 - Plain `<img>`: pixel sprites · crop target · hero backgrounds · Vibes OG thumbnails (external URLs)
 - Avatar upload: `AvatarUploadModal` → canvas → WebP → `avatars` bucket; `process-avatar` edge fn → AVIF; `custom_avatar = true` blocks Google photo overwrite
 - `resizeImageToBlob(file, w, h)` in `src/shared/utils/imageCompress.ts`: center-crop → WebP 0.85
@@ -485,6 +486,20 @@ Props:
 | `priority` | `boolean` | `false` | Pass `true` for above-fold avatars |
 
 Online dot: render outside `<UserAvatar>` in a `div.relative` wrapper — the component does not include presence indicators.
+
+## GroupAvatar (`src/shared/components/ui/GroupAvatar.tsx`)
+
+Single component for all crew/squad profile-image rendering (`crews.image_url`). Uses `avatarImageLoader` internally, same as `UserAvatar` — resized + quality-compressed via the Supabase render API. Falls back to the pixel ghost icon (`/icons/ghost-fallback.svg`), not an initial letter. Never render crew images inline with `next/image` + `supabaseImageLoader`.
+
+```tsx
+// Home squad-row preview (48px)
+<GroupAvatar imageUrl={crew.image_url} name={crew.name} size={48} />
+
+// Chat squad-detail bar / squad-details sheet header (24–40px)
+<GroupAvatar imageUrl={crewImageUrl} name={crewName} size={40} />
+```
+
+Props: `imageUrl`, `name` (alt text only, no initial fallback), `size` (default `48`), `priority`, `className`, `style`. Always square — no `shape` prop.
 
 ## Form Components (`src/shared/components/ui/InputField.tsx`)
 

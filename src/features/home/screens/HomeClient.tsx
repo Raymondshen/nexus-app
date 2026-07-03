@@ -17,6 +17,7 @@ import { MailRight } from 'pixelarticons/react/MailRight'
 import Image from 'next/image'
 import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
 import { UserAvatar } from '@/shared/components/ui/UserAvatar'
+import { GroupAvatar } from '@/shared/components/ui/GroupAvatar'
 import { createClient } from '@/shared/supabase/client'
 import { leaveCrewAction, createCrewFromHomeAction, joinCrewFromHomeAction, joinSelectClassAction } from '@/app/(app)/home/actions'
 import { PixelSprite, spriteIdFor, spriteInfoFor } from '@/shared/components/game/PixelSprite'
@@ -1053,22 +1054,7 @@ function SquadCardPreview({ summary }: { summary: CrewSummary }) {
   return (
     <div className="w-full flex items-center gap-4 h-12">
       {/* Group photo — 48×48 box */}
-      <div className="flex-shrink-0 w-12 h-12 overflow-hidden flex items-center justify-center">
-        {imageUrl ? (
-          <div className="relative w-full h-full">
-            <Image
-              src={imageUrl}
-              alt={crew.name}
-              fill
-              sizes="48px"
-              className="object-cover"
-              loader={supabaseImageLoader}
-            />
-          </div>
-        ) : (
-          <img src="/icons/ghost-fallback.svg" alt="" className="w-full h-full" style={{ imageRendering: 'pixelated' }} />
-        )}
-      </div>
+      <GroupAvatar imageUrl={imageUrl} name={crew.name} size={48} />
 
       {/* Group details — 3-row column */}
       <div className="flex-1 min-w-0 flex flex-col gap-[var(--space-2)] h-full justify-center">
@@ -1479,29 +1465,7 @@ function HomeCrewDetailsSheet({
           {/* Top row: crew image + name/count | close */}
           <div className="relative flex items-start justify-between">
             <div className="flex items-center min-w-0 flex-1" style={{ gap: 16 }}>
-              <div className="relative flex-shrink-0 overflow-hidden" style={{ width: 40, height: 40 }}>
-                {imageUrl ? (
-                  <div className="relative w-full h-full">
-                    <Image
-                      src={imageUrl}
-                      alt={crew.name}
-                      fill
-                      sizes="40px"
-                      className="object-cover"
-                      loader={supabaseImageLoader}
-                    />
-                  </div>
-                ) : (
-                  <div className="w-full h-full bg-[var(--color-primary)] flex items-center justify-center">
-                    <span
-                      className="font-body font-black text-black leading-none"
-                      style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}
-                    >
-                      {crew.name.charAt(0).toUpperCase()}
-                    </span>
-                  </div>
-                )}
-              </div>
+              <GroupAvatar imageUrl={imageUrl} name={crew.name} size={40} />
               <div className="flex flex-col min-w-0" style={{ gap: 4 }}>
                 <p
                   className="font-body font-black leading-none truncate uppercase"

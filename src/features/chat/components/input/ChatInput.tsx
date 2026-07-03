@@ -4,9 +4,8 @@ import React, { useState, useRef, useCallback, useEffect, useLayoutEffect } from
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
-import Image from 'next/image'
-import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
 import { UserAvatar } from '@/shared/components/ui/UserAvatar'
+import { GroupAvatar } from '@/shared/components/ui/GroupAvatar'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { createClient } from '@/shared/supabase/client'
 import { getXPProgress } from '@/shared/utils/xp'
@@ -144,11 +143,7 @@ function ChatSquadDetailBar({
     >
       {/* Crew image + name/level */}
       <div className="flex items-center flex-shrink-0" style={{ gap: 8 }}>
-        <div className="relative flex-shrink-0 overflow-hidden bg-surface" style={{ width: 24, height: 24 }}>
-          {crewImageUrl && (
-            <Image src={crewImageUrl} alt={crewName} fill sizes="24px" className="object-cover" loader={supabaseImageLoader} />
-          )}
-        </div>
+        <GroupAvatar imageUrl={crewImageUrl} name={crewName} size={24} />
         <div className="flex flex-col" style={{ gap: 2 }}>
           <p className="font-body font-black text-secondary leading-none" style={{ fontSize: 16, fontVariationSettings: '"opsz" 14' }}>
             {crewName.toUpperCase()}

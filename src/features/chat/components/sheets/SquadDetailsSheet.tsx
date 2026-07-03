@@ -6,6 +6,7 @@ import type { PanInfo } from 'framer-motion'
 import Image from 'next/image'
 import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
 import { UserAvatar } from '@/shared/components/ui/UserAvatar'
+import { GroupAvatar } from '@/shared/components/ui/GroupAvatar'
 import { getXPInCurrentLevel, getXPForCurrentLevel } from '@/shared/utils/xp'
 import { PixelSprite, spriteInfoFor } from '@/shared/components/game/PixelSprite'
 import { MagicEdit } from 'pixelarticons/react/MagicEdit'
@@ -272,17 +273,7 @@ function SquadDetailsEditSheet({
 
             <div className="relative flex items-center justify-between w-full flex-shrink-0">
               <div className="flex items-center flex-1 min-w-0" style={{ gap: 16 }}>
-                <div className="relative flex-shrink-0 overflow-hidden" style={{ width: 40, height: 40 }}>
-                  {crewImageUrl ? (
-                    <Image src={crewImageUrl} alt={nameValue || crewName} fill sizes="40px" className="object-cover" loader={supabaseImageLoader} />
-                  ) : (
-                    <div className="w-full h-full bg-[var(--color-primary)] flex items-center justify-center">
-                      <span className="font-body font-black text-black leading-none" style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}>
-                        {(nameValue || crewName).charAt(0).toUpperCase()}
-                      </span>
-                    </div>
-                  )}
-                </div>
+                <GroupAvatar imageUrl={crewImageUrl} name={nameValue || crewName} size={40} />
                 <div className="flex flex-col" style={{ gap: 4 }}>
                   <p className="font-body font-black leading-none" style={{ fontSize: 'var(--text-md)', color: 'var(--color-secondary)', fontVariationSettings: '"opsz" 14' }}>
                     {(nameValue || crewName).toUpperCase()}
@@ -507,15 +498,7 @@ export function SquadDetailsSheet({
           <div className="relative flex items-start justify-between">
             <div className="flex items-center flex-1 min-w-0" style={{ gap: 8 }}>
               {/* 40×40 crew image */}
-              <div className="relative flex-shrink-0 overflow-hidden" style={{ width: 40, height: 40 }}>
-                {crewImageUrl ? (
-                  <div className="relative w-full h-full">
-                    <Image src={crewImageUrl} alt={crewName} fill sizes="40px" className="object-cover" loader={supabaseImageLoader} />
-                  </div>
-                ) : (
-                  <div className="w-full h-full bg-purple" />
-                )}
-              </div>
+              <GroupAvatar imageUrl={crewImageUrl} name={crewName} size={40} />
               {/* Name + level · member count */}
               <div className="flex flex-col min-w-0" style={{ gap: 4 }}>
                 <p
