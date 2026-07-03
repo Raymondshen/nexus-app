@@ -12,12 +12,11 @@ import { MagicEdit } from 'pixelarticons/react/MagicEdit'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
 import { DoorClosed } from 'pixelarticons/react/DoorClosed'
 import { Crown } from 'pixelarticons/react/Crown'
-import { Copy } from 'pixelarticons/react/Copy'
-import { Check } from 'pixelarticons/react/Check'
 import { Message } from 'pixelarticons/react/Message'
 import { Upload } from 'pixelarticons/react/Upload'
 import { UserPlus } from 'pixelarticons/react/UserPlus'
 import { DefinitionButton } from '@/shared/components/ui/DefinitionButton'
+import { InviteFriendsSheet } from './InviteFriendsSheet'
 
 const CLASS_LABELS: Record<string, string> = {
   berserker: 'Berserker', sage: 'Sage', ghost: 'Ghost', hype_man: 'Hype Man',
@@ -412,7 +411,7 @@ export function SquadDetailsSheet({
   onUploadPhoto, onUploadBackground, onSave, onTapMember,
   onLeave, onClose,
 }: SquadDetailsSheetProps) {
-  const [copied,        setCopied]        = useState(false)
+  const [showInvite,    setShowInvite]    = useState(false)
   const [showSquadEdit, setShowSquadEdit] = useState(false)
   const scrollRef      = useRef<HTMLDivElement>(null)
   const pullToCloseRef = useRef({ startY: 0, atTop: false })
@@ -443,13 +442,6 @@ export function SquadDetailsSheet({
       el.removeEventListener('touchend',   onTouchEnd)
     }
   }, [onClose])
-
-  function handleCopyCode() {
-    if (!inviteCode || copied) return
-    navigator.clipboard.writeText(`Come join my squad on Nexus app ${inviteCode}`).catch(() => {})
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1000)
-  }
 
   function handlePanelPanEnd(_: PointerEvent, info: PanInfo) {
     if (info.offset.y > 60 || info.velocity.y > 300) onClose()
@@ -552,16 +544,12 @@ export function SquadDetailsSheet({
               )}
               {inviteCode && (
                 <button
-                  onClick={handleCopyCode}
+                  onClick={() => setShowInvite(true)}
                   className="flex items-center justify-center"
                   style={{ width: 24, height: 24 }}
-                  aria-label={copied ? 'Copied!' : 'Copy invite link'}
+                  aria-label="Invite friends"
                 >
-                  {copied ? (
-                    <Check style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
-                  ) : (
-                    <UserPlus style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
-                  )}
+                  <UserPlus style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
                 </button>
               )}
               <button
@@ -650,6 +638,17 @@ export function SquadDetailsSheet({
           </div>
         )}
       </motion.div>
+
+      {/* ── Invite friends sheet ── */}
+      <AnimatePresence>
+        {showInvite && inviteCode && (
+          <InviteFriendsSheet
+            key="invite-friends"
+            inviteCode={inviteCode}
+            onClose={() => setShowInvite(false)}
+          />
+        )}
+      </AnimatePresence>
 
       {/* ── Squad Details edit sheet ── */}
       <AnimatePresence>
