@@ -242,11 +242,13 @@ Cards (Figma 402:9403): `bg-surface-sheet rounded-x3 p-x5 gap-x5 items-start`
 - `Cancel` button: tertiary border + `Close` 20×20 + DM Sans SemiBold sm tertiary — always shown
 - Tapping Edit closes the preview sheet and opens `CreateDefinitionPage` in edit mode
 
-**`CreateDefinitionPage`** — full-screen slide-in overlay (`motion.div`, spring 380/36, `z-[80]`, `bg-black`):
-- Header: `ChevronLeft primary` 24×24 back + Silkscreen xl uppercase title ("NEW DEFINITION" / "EDIT DEFINITION")
+**`CreateDefinitionPage`** — full-screen slide-in overlay (`motion.div` controlled via `useAnimation()`, spring 380/36, `z-[80]`, `bg-black`):
+- Header: `ChevronLeft primary` 24×24 back + Silkscreen xl uppercase title ("ADD DEFINITION" / "EDIT DEFINITION")
 - Body: scrollable, `gap-x6` — `InputField` (words/aliases) + `InputField` (actual word) + `TextareaField` (definition, rows=5)
-- Footer: sticky `Button` "Save definition" with safe-area padding
-- Back button dismisses without saving; no separate Cancel button
+- Footer: sticky `DefinitionButton variant="fill"` "Save definition" with safe-area padding
+- Back button and left-edge swipe both call `handleBack()`: animates to x:100% (ease-in 150ms), then calls `onClose()`. Never calls `router.back()` — navigation stays on the definitions list. No `exit` prop; AnimatePresence sees the component already off-screen when it unmounts.
+- After a successful save, `handleBack()` is also called (slide-out animation plays before `onSaved` + `onClose()`).
+- `DefinitionHomePage` passes `nativeSwipe={showCreate || !!editTarget}` to `SlidePage` while the overlay is open, disabling SlidePage's custom swipe handler so it cannot race with the overlay's own gesture.
 
 ### SquadDetailsSheet (`src/features/chat/components/sheets/SquadDetailsSheet.tsx`)
 Panel pattern · `maxHeight: 85vh` · `overflow-hidden`
@@ -543,3 +545,5 @@ Same label/helper/border design as `InputField` but renders a `<textarea>`. Heig
 - **iOS Safari `<button>` background**: `-webkit-appearance: button` overrides custom `background` values. Always include `appearance-none` (Tailwind) on styled `<button>` elements — `SheetActionButton` already does this.
 - **`FloatingBackButton` history manipulation runs on every mount.** The `useEffect` that does `replaceState(/home) + pushState(/chat)` fires each time the chat page remounts — including when the user navigates back from a sub-page (definitions, etc.). Any `router.push()` away from the chat page must first call `sessionStorage.setItem('nexus_chat_from', 'chat')` so the effect skips re-manipulation on return. Omitting this stacks an extra `/home` entry per round trip.
 - **`SlidePage` swipe handler fires through fixed overlays.** Fixed-position overlays rendered inside a `SlidePage` are still children in the DOM tree, so touch events bubble up to `SlidePage`'s native `addEventListener`. Pass `nativeSwipe={overlayOpen}` to `SlidePage` whenever any overlay is active — this disables the custom left-edge swipe handler so it cannot call `router.back()` while an overlay is showing.
+- **`squad_definitions.creator_id` FK points to `auth.users`, not `public.profiles`.** Supabase embedded selects (`profiles!creator_id(username)`) will fail — the FK hint resolves to `auth.users` which is a different schema. Fetch creator usernames via a separate `profiles` query keyed on the collected `creator_id` values.
+- **Realtime INSERT handlers that need profile data should cache known usernames in a `useRef`.** Seed the cache from `initialDefinitions` (or equivalent server-fetched data) on mount, then only hit Supabase for unseen `creator_id` values. This avoids a DB round-trip for every INSERT from a known user. See `profileCacheRef` in `DefinitionHomePage`.
