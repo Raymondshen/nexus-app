@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { SlidePage, useSlideBack } from '@/app/layouts/SlidePage'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
-import { PlusBox } from 'pixelarticons/react/PlusBox'
+import { Plus } from 'pixelarticons/react/Plus'
+import { Library } from 'pixelarticons/react/Library'
 import { createClient } from '@/shared/supabase/client'
 import { createDefinitionAction, updateDefinitionAction, deleteDefinitionAction } from '@/app/(app)/chat/[crewId]/definitions/actions'
 import { SuggestDefinitionSheet } from '@/features/chat/components/sheets/SuggestDefinitionSheet'
@@ -27,7 +28,6 @@ function BackButton() {
 }
 
 // ─── CreateDefinitionSheet ────────────────────────────────────────────────────
-// Handles both create and edit modes (Figma 130:1239)
 
 interface CreateDefinitionSheetProps {
   crewId:              string
@@ -74,7 +74,6 @@ function CreateDefinitionSheet({
 
   return (
     <>
-      {/* Backdrop */}
       <motion.div
         className="fixed inset-0 z-[60] bg-black/60"
         initial={{ opacity: 0 }}
@@ -82,8 +81,6 @@ function CreateDefinitionSheet({
         exit={{ opacity: 0 }}
         onClick={onClose}
       />
-
-      {/* Sheet — Figma 130:1239 */}
       <motion.div
         className="fixed bottom-0 left-0 right-0 z-[70] bg-[var(--color-surface-sheet)] rounded-tl-[16px] rounded-tr-[16px] flex flex-col gap-6 px-4 overflow-y-auto"
         initial={{ y: '100%' }}
@@ -97,7 +94,6 @@ function CreateDefinitionSheet({
         style={{ maxHeight: '90vh', paddingTop: 12, paddingBottom: 'max(env(safe-area-inset-bottom), 16px)' }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Title — DM Sans Bold 18px text-primary */}
         <h2
           className="font-body font-bold text-[18px] text-primary leading-none"
           style={{ fontVariationSettings: '"opsz" 14' }}
@@ -105,7 +101,6 @@ function CreateDefinitionSheet({
           Squad Definition
         </h2>
 
-        {/* Words attached to definition — Figma: flex-col gap-[8px] */}
         <div className="flex flex-col gap-2 items-start w-full">
           <p
             className="font-body font-medium text-[14px] text-primary tracking-[0.2px] leading-normal"
@@ -131,7 +126,6 @@ function CreateDefinitionSheet({
           </p>
         </div>
 
-        {/* Actual Word — Figma 130:1307 */}
         <div className="flex flex-col gap-2 items-start w-full">
           <p
             className="font-body font-medium text-[14px] text-primary tracking-[0.2px] leading-normal"
@@ -156,7 +150,6 @@ function CreateDefinitionSheet({
           </p>
         </div>
 
-        {/* Definition field */}
         <div className="flex flex-col gap-2 items-start w-full">
           <p
             className="font-body font-medium text-[14px] text-primary tracking-[0.2px] leading-normal"
@@ -174,12 +167,10 @@ function CreateDefinitionSheet({
           />
         </div>
 
-        {/* Error */}
         {error && (
           <p className="font-silkscreen text-[8px] text-[#ef4444] leading-relaxed">{error}</p>
         )}
 
-        {/* Buttons */}
         <div className="flex flex-col gap-4 w-full">
           <Button onClick={handleSave} disabled={saving} loading={saving} className="w-full">
             Save definition
@@ -194,7 +185,6 @@ function CreateDefinitionSheet({
 }
 
 // ─── DefinitionActionSheet ────────────────────────────────────────────────────
-// Creator-only tap sheet (Figma 130:902)
 
 interface DefinitionActionSheetProps {
   definition: SquadDefinitionWithCreator
@@ -229,27 +219,18 @@ function DefinitionActionSheet({ definition, onClose, onEdit, onDelete, deleting
         style={{ paddingTop: 12, paddingBottom: 'max(env(safe-area-inset-bottom), 16px)' }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Content preview — Figma 130:1289: flex-col gap-[--space-5] items-start */}
-        <div className="flex flex-col items-start w-full" style={{ gap: 'var(--space-5)' }}>
-          {/* Details — Figma 130:1290: flex-col gap-[--space-3] items-start justify-center */}
-          <div className="flex flex-col items-start justify-center w-full" style={{ gap: 'var(--space-3)' }}>
-            {/* Aliases — Figma 130:1291: Silkscreen --mini tertiary leading-none */}
-            <p
-              className="font-silkscreen text-tertiary leading-none w-full"
-              style={{ fontSize: 'var(--text-mini)' }}
-            >
+        <div className="flex flex-col items-start w-full" style={{ gap: 'var(--x5)' }}>
+          <div className="flex flex-col items-start justify-center w-full" style={{ gap: 'var(--x3)' }}>
+            <p className="font-silkscreen text-tertiary leading-none w-full" style={{ fontSize: 'var(--mini)' }}>
               {aliases}
             </p>
-            {/* Inner — Figma 130:1315: flex-col gap-[--space-2] */}
-            <div className="flex flex-col w-full" style={{ gap: 'var(--space-2)' }}>
-              {/* Actual word — Figma 130:1316: DM Sans Bold --md blue leading-none */}
+            <div className="flex flex-col w-full" style={{ gap: 'var(--x2)' }}>
               <p
-                className="font-body font-bold leading-none w-full"
-                style={{ fontSize: 'var(--text-md)', color: 'var(--color-blue)', fontVariationSettings: '"opsz" 14' }}
+                className="font-body font-bold text-primary leading-none w-full"
+                style={{ fontSize: 'var(--md)', fontVariationSettings: '"opsz" 14' }}
               >
                 {definition.actual_word || definition.word.split(',')[0].trim()}
               </p>
-              {/* Definition — Figma 130:1292: DM Sans Regular 14px secondary leading-normal overflow-hidden */}
               <p
                 className="font-body text-secondary leading-normal overflow-hidden line-clamp-4 w-full"
                 style={{ fontSize: '14px', fontVariationSettings: '"opsz" 14' }}
@@ -258,18 +239,16 @@ function DefinitionActionSheet({ definition, onClose, onEdit, onDelete, deleting
               </p>
             </div>
           </div>
-          {/* Created by — Figma 130:1293: DM Sans Regular --xxs tertiary leading-none */}
           {definition.creator_username && (
             <p
-              className="font-body text-tertiary leading-none"
-              style={{ fontSize: 'var(--text-xxs)', fontVariationSettings: '"opsz" 14' }}
+              className="font-body font-light text-tertiary leading-none"
+              style={{ fontSize: 'var(--xs)', fontVariationSettings: '"opsz" 14' }}
             >
               Created by : {definition.creator_username}
             </p>
           )}
         </div>
 
-        {/* Action buttons — flex-col gap-[16px] */}
         <div className="flex flex-col gap-4 w-full">
           <Button variant="outlined" onClick={onEdit} className="w-full">
             Edit definition
@@ -284,7 +263,6 @@ function DefinitionActionSheet({ definition, onClose, onEdit, onDelete, deleting
 }
 
 // ─── DefinitionViewSheet ─────────────────────────────────────────────────────
-// Shown when a non-creator taps a glossary card (Figma 130:1213)
 
 interface DefinitionViewSheetProps {
   definition: SquadDefinitionWithCreator
@@ -314,30 +292,21 @@ function DefinitionViewSheet({ definition, onClose, onSuggest }: DefinitionViewS
         dragConstraints={{ top: 0, bottom: 0 }}
         dragElastic={{ top: 0, bottom: 1 }}
         onDragEnd={(_, info) => { if (info.offset.y > 80 || info.velocity.y > 400) onClose() }}
-        style={{ gap: 'var(--space-7)', paddingTop: 12, paddingBottom: 'max(env(safe-area-inset-bottom), 28px)' }}
+        style={{ gap: 'var(--x7)', paddingTop: 12, paddingBottom: 'max(env(safe-area-inset-bottom), 28px)' }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Content — flex-col gap-[--space-5] items-start */}
-        <div className="flex flex-col items-start w-full" style={{ gap: 'var(--space-5)' }}>
-          {/* Details — flex-col gap-[--space-3] */}
-          <div className="flex flex-col items-start justify-center w-full" style={{ gap: 'var(--space-3)' }}>
-            {/* Aliases — Silkscreen --mini tertiary */}
-            <p
-              className="font-silkscreen text-tertiary leading-none w-full"
-              style={{ fontSize: 'var(--text-mini)' }}
-            >
+        <div className="flex flex-col items-start w-full" style={{ gap: 'var(--x5)' }}>
+          <div className="flex flex-col items-start justify-center w-full" style={{ gap: 'var(--x3)' }}>
+            <p className="font-silkscreen text-tertiary leading-none w-full" style={{ fontSize: 'var(--mini)' }}>
               {aliases}
             </p>
-            {/* Inner — flex-col gap-[--space-2] */}
-            <div className="flex flex-col w-full" style={{ gap: 'var(--space-2)' }}>
-              {/* Word — DM Sans Bold --md blue */}
+            <div className="flex flex-col w-full" style={{ gap: 'var(--x2)' }}>
               <p
-                className="font-body font-bold leading-none w-full"
-                style={{ fontSize: 'var(--text-md)', color: 'var(--color-blue)', fontVariationSettings: '"opsz" 14' }}
+                className="font-body font-bold text-primary leading-none w-full"
+                style={{ fontSize: 'var(--md)', fontVariationSettings: '"opsz" 14' }}
               >
                 {definition.actual_word || definition.word.split(',')[0].trim()}
               </p>
-              {/* Definition body — DM Sans Regular 14px secondary */}
               <p
                 className="font-body text-secondary leading-normal overflow-hidden w-full"
                 style={{ fontSize: '14px', fontVariationSettings: '"opsz" 14' }}
@@ -346,18 +315,16 @@ function DefinitionViewSheet({ definition, onClose, onSuggest }: DefinitionViewS
               </p>
             </div>
           </div>
-          {/* Creator — DM Sans Regular --xxs tertiary */}
           {definition.creator_username && (
             <p
-              className="font-body text-tertiary leading-none"
-              style={{ fontSize: 'var(--text-xxs)', fontVariationSettings: '"opsz" 14' }}
+              className="font-body font-light text-tertiary leading-none"
+              style={{ fontSize: 'var(--xs)', fontVariationSettings: '"opsz" 14' }}
             >
               Created by : {definition.creator_username}
             </p>
           )}
         </div>
 
-        {/* Suggest button */}
         <Button onClick={onSuggest} className="w-full">
           Suggest new definition
         </Button>
@@ -390,7 +357,6 @@ export function DefinitionsClient({
   const [suggestTarget, setSuggestTarget] = useState<SquadDefinitionWithCreator | null>(null)
   const [reviewTarget,  setReviewTarget]  = useState<SquadDefinitionWithCreator | null>(null)
 
-  // Realtime subscriptions — definitions + suggestion counts
   useEffect(() => {
     const supabase = createClient()
 
@@ -424,7 +390,6 @@ export function DefinitionsClient({
       )
       .subscribe()
 
-    // Track suggestion count changes live (REPLICA IDENTITY FULL on the table gives us definition_id on DELETE)
     const sugChannel = supabase
       .channel(`def-suggestions:${crewId}`)
       .on(
@@ -518,110 +483,129 @@ export function DefinitionsClient({
       className="min-h-screen bg-black flex flex-col"
       style={{ position: 'fixed', top: 0, bottom: 0, left: 0, right: 0, maxWidth: 480, marginLeft: 'auto', marginRight: 'auto', overflow: 'hidden' }}
     >
-      {/* Header — Figma 130:1115/1116 */}
+      {/* Header — Figma 402:9394 */}
       <div
-        className="px-4 py-2 flex-shrink-0"
-        style={{ paddingTop: 'max(env(safe-area-inset-top), 8px)' }}
+        className="flex-shrink-0 px-[var(--md)] flex flex-col"
+        style={{ paddingTop: 'max(env(safe-area-inset-top), var(--x3))', paddingBottom: 'var(--x3)' }}
       >
-        <div className="flex items-center h-10 gap-2">
-          <BackButton />
-          <h1 className="font-silkscreen text-[24px] text-primary leading-none uppercase whitespace-nowrap">
-            Glossary
-          </h1>
+        <div className="flex items-center justify-between h-10">
+          {/* Left: back + icon + title */}
+          <div className="flex items-center" style={{ gap: 'var(--x5)' }}>
+            <BackButton />
+            <div className="flex items-center" style={{ gap: 'var(--x3)' }}>
+              <Library style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+              <h1
+                className="font-silkscreen uppercase leading-none text-primary"
+                style={{ fontSize: 'var(--xl)' }}
+              >
+                Definitions
+              </h1>
+            </div>
+          </div>
+          {/* Right: add button */}
+          <button
+            onClick={() => setShowCreate(true)}
+            aria-label="Add definition"
+            className="flex-shrink-0 flex items-center justify-center"
+            style={{ width: 24, height: 40 }}
+          >
+            <Plus style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+          </button>
         </div>
       </div>
 
-      {/* Body — Figma 130:1121: flex-col gap-24px pt-16px pb-28px px-16px */}
+      {/* Body — Figma 402:9281 */}
       <div
-        className="flex-1 flex flex-col gap-6 px-4 pt-4 min-h-0 overflow-hidden"
-        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 28px)' }}
+        className="flex-1 min-h-0 overflow-y-auto nexus-scroll flex flex-col"
+        style={{
+          gap: 'var(--x6)',
+          paddingLeft: 'var(--md)',
+          paddingRight: 'var(--md)',
+          paddingTop: 'var(--x5)',
+          paddingBottom: 'max(env(safe-area-inset-bottom), var(--x5))',
+        }}
       >
-        {/* Scrollable list — Figma 130:1123: flex-col flex-1 gap-16px */}
-        <div className="flex-1 overflow-y-auto nexus-scroll min-h-0 flex flex-col gap-4">
-          {definitions.length === 0 ? (
-            <div className="flex flex-col items-center justify-center flex-1 gap-3">
-              <p className="font-silkscreen text-[8px] text-tertiary text-center leading-relaxed">
-                NO DEFINITIONS YET
-              </p>
-              <p
-                className="font-body text-[14px] text-muted text-center"
-                style={{ fontVariationSettings: '"opsz" 14' }}
+        {definitions.length === 0 ? (
+          <div className="flex flex-col items-center justify-center flex-1 gap-3">
+            <p className="font-silkscreen text-[8px] text-tertiary text-center leading-relaxed">
+              NO DEFINITIONS YET
+            </p>
+            <p
+              className="font-body text-[14px] text-muted text-center"
+              style={{ fontVariationSettings: '"opsz" 14' }}
+            >
+              Tap + to create the first squad definition.
+            </p>
+          </div>
+        ) : (
+          definitions.map((def) => {
+            const aliases   = def.word.split(',').map((w) => w.trim()).filter(Boolean).join(', ')
+            const isCreator = def.creator_id === currentUserId
+            return (
+              <button
+                key={def.id}
+                onClick={() => handleCardTap(def)}
+                className="w-full text-left active:opacity-80 transition-opacity flex-shrink-0"
               >
-                Create the first squad definition.
-              </p>
-            </div>
-          ) : (
-            definitions.map((def) => {
-              const aliases   = def.word.split(',').map((w) => w.trim()).filter(Boolean).join(', ')
-              const isCreator = def.creator_id === currentUserId
-              return (
-                <div key={def.id} className="flex flex-col gap-4">
-                  <button
-                    onClick={() => handleCardTap(def)}
-                    className="w-full text-left flex flex-col active:opacity-80 transition-opacity"
-                    style={{ gap: 'var(--space-5)' }}
-                  >
-                    {/* Details — Figma 130:1340: flex-col gap-[--space-3] items-start justify-center */}
-                    <div className="flex flex-col items-start justify-center w-full" style={{ gap: 'var(--space-3)' }}>
-                      {/* Aliases — Silkscreen --mini tertiary leading-none */}
-                      <p
-                        className="font-silkscreen text-tertiary leading-none w-full"
-                        style={{ fontSize: 'var(--text-mini)' }}
-                      >
-                        {aliases}
-                      </p>
-                      {/* Word + definition — flex-col gap-[--space-2] */}
-                      <div className="flex flex-col w-full" style={{ gap: 'var(--space-2)' }}>
-                        {/* Actual word — DM Sans Bold --md blue leading-none */}
-                        <p
-                          className="font-body font-bold leading-none w-full"
-                          style={{ fontSize: 'var(--text-md)', color: 'var(--color-blue)', fontVariationSettings: '"opsz" 14' }}
-                        >
-                          {def.actual_word || def.word.split(',')[0].trim()}
-                        </p>
-                        {/* Definition — DM Sans Regular 14px secondary leading-normal */}
-                        <p
-                          className="font-body text-secondary leading-normal overflow-hidden line-clamp-3 w-full"
-                          style={{ fontSize: '14px', fontVariationSettings: '"opsz" 14' }}
-                        >
-                          {def.definition}
-                        </p>
-                      </div>
-                    </div>
-                    {/* Footer row — Figma 143:710: flex row gap-8px items-center */}
-                    <div
-                      className="flex items-center justify-center w-full font-body font-normal leading-none"
-                      style={{ gap: 8, fontSize: 'var(--text-xxs)', fontVariationSettings: '"opsz" 14' }}
+                {/* Card — Figma 402:9403 */}
+                <div
+                  className="flex flex-col w-full rounded-[var(--x3)] bg-[var(--color-surface-sheet)]"
+                  style={{ padding: 'var(--x5)', gap: 'var(--x5)' }}
+                >
+                  {/* Details — Figma 402:9404 */}
+                  <div className="flex flex-col items-start w-full" style={{ gap: 'var(--x3)' }}>
+                    {/* Aliases — Silkscreen mini tertiary */}
+                    <p
+                      className="font-silkscreen text-tertiary leading-none w-full"
+                      style={{ fontSize: 'var(--mini)' }}
                     >
+                      {aliases}
+                    </p>
+                    {/* Word + definition — Figma 402:9406 */}
+                    <div className="flex flex-col w-full" style={{ gap: 'var(--x2)' }}>
+                      {/* Word — DM Sans Bold md primary */}
                       <p
-                        className="flex-1 min-w-0"
-                        style={{ color: isCreator ? 'var(--color-purple)' : 'var(--color-tertiary)' }}
+                        className="font-body font-bold text-primary leading-none w-full"
+                        style={{ fontSize: 'var(--md)', fontVariationSettings: '"opsz" 14' }}
                       >
-                        {def.creator_username ? `Created by : ${def.creator_username}` : ''}
+                        {def.actual_word || def.word.split(',')[0].trim()}
                       </p>
-                      {(def.suggestion_count ?? 0) > 0 && (
-                        <p className="flex-1 min-w-0 text-right" style={{ color: '#f59e0b' }}>
-                          {def.suggestion_count} New Suggestion{(def.suggestion_count ?? 0) > 1 ? 's' : ''}
-                        </p>
-                      )}
+                      {/* Definition — DM Sans Regular 14px secondary 1.5 line-height */}
+                      <p
+                        className="font-body text-secondary w-full"
+                        style={{ fontSize: '14px', lineHeight: '1.5', fontVariationSettings: '"opsz" 14' }}
+                      >
+                        {def.definition}
+                      </p>
                     </div>
-                  </button>
-                  {/* Divider — Figma 177:952 */}
-                  <div className="w-full h-px bg-border" />
-                </div>
-              )
-            })
-          )}
-        </div>
+                  </div>
 
-        {/* Add definition button — Figma 130:1150: bg-purple h-48px gap-4px */}
-        <Button
-          onClick={() => setShowCreate(true)}
-          icon={<PlusBox style={{ width: 16, height: 16, color: 'var(--color-primary)' }} aria-hidden="true" />}
-          className="w-full flex-shrink-0"
-        >
-          Add a squad definition
-        </Button>
+                  {/* Footer row — creator + suggestion badge */}
+                  <div className="flex items-center justify-between w-full">
+                    <p
+                      className="font-body font-light leading-none"
+                      style={{
+                        fontSize: 'var(--xs)',
+                        color: isCreator ? 'var(--color-purple)' : 'var(--color-tertiary)',
+                        fontVariationSettings: '"opsz" 14',
+                      }}
+                    >
+                      {def.creator_username ? `Created by : ${def.creator_username}` : ''}
+                    </p>
+                    {(def.suggestion_count ?? 0) > 0 && (
+                      <p
+                        className="font-body font-light leading-none"
+                        style={{ fontSize: 'var(--xs)', color: '#f59e0b', fontVariationSettings: '"opsz" 14' }}
+                      >
+                        {def.suggestion_count} New Suggestion{(def.suggestion_count ?? 0) > 1 ? 's' : ''}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </button>
+            )
+          })
+        )}
       </div>
 
       <AnimatePresence>
