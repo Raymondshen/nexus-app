@@ -15,6 +15,8 @@ import { Copy } from 'pixelarticons/react/Copy'
 import { Check } from 'pixelarticons/react/Check'
 import { Message } from 'pixelarticons/react/Message'
 import { Upload } from 'pixelarticons/react/Upload'
+import { UserPlus } from 'pixelarticons/react/UserPlus'
+import { DefinitionButton } from '@/shared/components/ui/DefinitionButton'
 
 const CLASS_LABELS: Record<string, string> = {
   berserker: 'Berserker', sage: 'Sage', ghost: 'Ghost', hype_man: 'Hype Man',
@@ -555,6 +557,20 @@ export function SquadDetailsSheet({
                   <MagicEdit style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
                 </button>
               )}
+              {inviteCode && (
+                <button
+                  onClick={handleCopyCode}
+                  className="flex items-center justify-center"
+                  style={{ width: 24, height: 24 }}
+                  aria-label={copied ? 'Copied!' : 'Copy invite link'}
+                >
+                  {copied ? (
+                    <Check style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+                  ) : (
+                    <UserPlus style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+                  )}
+                </button>
+              )}
               <button
                 onClick={onClose}
                 className="flex items-center justify-center"
@@ -619,79 +635,27 @@ export function SquadDetailsSheet({
           </div>
         </div>
 
-        {/* ── Fixed bottom: invite code card + leave squad ── */}
-        <div
-          className="flex-shrink-0 flex flex-col"
-          style={{
-            padding:       16,
-            paddingBottom: 'max(env(safe-area-inset-bottom), 28px)',
-            gap:           16,
-          }}
-        >
-          {/* Invite code card */}
-          {inviteCode && (
-            <div
-              className="flex items-center justify-between bg-[var(--color-surface)] border border-[var(--color-border)]"
-              style={{ padding: 16 }}
-            >
-              <div className="flex flex-col" style={{ gap: 4 }}>
-                <p className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-primary)' }}>
-                  Invite new members
-                </p>
-                <p
-                  className="font-silkscreen leading-none tracking-[0.2px] bg-clip-text text-transparent"
-                  style={{
-                    fontSize:        'var(--text-xl)',
-                    backgroundImage: 'linear-gradient(to right, #a855f7, #d946ef)',
-                    textShadow:      '0px 0px 3px #a855f7',
-                  }}
-                >
-                  {inviteCode}
-                </p>
-              </div>
-              <button
-                onClick={handleCopyCode}
-                className="flex items-center flex-shrink-0 transition-colors duration-150"
-                style={{
-                  gap: 8,
-                  padding: '12px 16px',
-                  ...(copied
-                    ? { backgroundColor: 'var(--color-green)', boxShadow: '4px 4px 0px 0px rgba(34,197,94,0.5)' }
-                    : { backgroundColor: 'var(--color-purple)', boxShadow: '4px 4px 0px 0px rgba(168,85,247,0.5)' }
-                  ),
-                }}
-              >
-                {copied ? (
-                  <>
-                    <Check style={{ width: 12, height: 12, color: 'var(--color-primary)' }} aria-hidden="true" />
-                    <p className="font-silkscreen leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-xxs)', color: 'var(--color-primary)' }}>copied</p>
-                  </>
-                ) : (
-                  <>
-                    <Copy style={{ width: 12, height: 12, color: 'var(--color-primary)' }} aria-hidden="true" />
-                    <p className="font-silkscreen leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-xxs)', color: 'var(--color-primary)' }}>Copy Code</p>
-                  </>
-                )}
-              </button>
-            </div>
-          )}
-
-          {/* Leave Squad button */}
-          {onLeave && (
-            <button
-              type="button"
+        {/* ── Fixed bottom: leave squad ── */}
+        {onLeave && (
+          <div
+            className="flex-shrink-0"
+            style={{
+              paddingLeft:   16,
+              paddingRight:  16,
+              paddingTop:    16,
+              paddingBottom: 'max(env(safe-area-inset-bottom), 28px)',
+            }}
+          >
+            <DefinitionButton
+              variant="stroke"
+              color="red"
+              icon={<DoorClosed style={{ width: 20, height: 20 }} aria-hidden="true" />}
               onClick={onLeave}
-              className="w-full flex items-center justify-center overflow-hidden active:opacity-70 transition-opacity"
-              style={{ height: 48, border: '1px solid var(--color-red)', gap: 8 }}
-              aria-label="Leave squad"
             >
-              <DoorClosed style={{ width: 16, height: 16, color: 'var(--color-red)' }} aria-hidden="true" />
-              <span className="font-silkscreen leading-none pb-[2px]" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-red)' }}>
-                leave squad
-              </span>
-            </button>
-          )}
-        </div>
+              Leave Squad
+            </DefinitionButton>
+          </div>
+        )}
       </motion.div>
 
       {/* ── Squad Details edit sheet ── */}
