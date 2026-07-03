@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { SlidePage, useSlideBack } from "@/app/layouts/SlidePage";
 import { ChevronLeft } from "pixelarticons/react/ChevronLeft";
@@ -70,6 +70,21 @@ function CreateDefinitionPage({
   const [definition, setDefinition] = useState(initialDefinition);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Prevent SlidePage's left-edge swipe handler (and iOS native back gesture)
+  // from firing through this fixed overlay. Touch events would otherwise bubble
+  // up to the SlidePage container since fixed children still propagate natively.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const block = (e: TouchEvent) => {
+      e.stopPropagation();
+      if (e.touches[0]?.clientX < 40) e.preventDefault();
+    };
+    el.addEventListener("touchstart", block, { passive: false });
+    return () => el.removeEventListener("touchstart", block);
+  }, []);
 
   async function handleSave() {
     if (!word.trim()) {
@@ -104,6 +119,7 @@ function CreateDefinitionPage({
 
   return (
     <motion.div
+      ref={containerRef}
       className="fixed inset-0 z-[80] bg-black flex flex-col"
       style={{ maxWidth: 480, marginLeft: "auto", marginRight: "auto" }}
       initial={{ x: "100%" }}
@@ -512,8 +528,6 @@ export function DefinitionHomePage({
     setPreviewTarget(null);
   }
 
-  const overlayOpen = showCreate || editTarget !== null || previewTarget !== null;
-
   return (
     <SlidePage
       className="min-h-screen bg-black flex flex-col"
@@ -528,7 +542,6 @@ export function DefinitionHomePage({
         marginRight: "auto",
         overflow: "hidden",
       }}
-      nativeSwipe={overlayOpen}
     >
       {/* Header — Figma 402:9394: px-md py-x3, heading h-40px justify-between */}
       <div
