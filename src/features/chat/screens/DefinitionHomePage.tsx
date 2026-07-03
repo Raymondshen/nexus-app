@@ -587,7 +587,7 @@ export function DefinitionHomePage({
                       className="font-body font-light leading-none"
                       style={{
                         fontSize: 'var(--xs)',
-                        color: isCreator ? 'var(--color-purple)' : 'var(--color-tertiary)',
+                        color: isCreator ? 'var(--color-primary)' : 'var(--color-tertiary)',
                         fontVariationSettings: '"opsz" 14',
                       }}
                     >
