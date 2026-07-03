@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/shared/supabase/server'
-import { DefinitionsClient } from '@/features/chat/screens/DefinitionsClient'
+import { DefinitionHomePage } from '@/features/chat/screens/DefinitionHomePage'
 import type { SquadDefinition, SquadDefinitionWithCreator } from '@/types'
 
 interface DefinitionsPageProps {
@@ -59,7 +59,7 @@ export default async function DefinitionsPage({ params }: DefinitionsPageProps) 
   }))
 
   return (
-    <DefinitionsClient
+    <DefinitionHomePage
       crewId={crewId}
       currentUserId={session.user.id}
       currentUsername={currentUsername}
