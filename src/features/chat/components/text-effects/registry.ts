@@ -8,4 +8,5 @@ export const TEXT_EFFECTS: { id: TextEffect; label: string }[] = [
   { id: 'show_up',     label: 'Show Up' },
   { id: 'particles',   label: 'Particles' },
   { id: 'blur_in',     label: 'Blur In' },
+  { id: 'explode',     label: 'Explode' },
 ]
