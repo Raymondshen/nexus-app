@@ -7,6 +7,7 @@ import { addPhotoAction, deletePhotoAction } from '@/app/(app)/profile/actions'
 import { resizeImageToBlob } from '@/shared/utils/imageCompress'
 import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
 import { createClient } from '@/shared/supabase/client'
+import { BottomSheet } from '@/shared/components/ui/BottomSheet'
 import type { ProfilePhoto } from '@/types'
 
 const ACCEPTED_TYPES = new Set([
@@ -195,9 +196,10 @@ export interface PhotosGridProps {
 }
 
 export function PhotosGrid({ initialPhotos, userId, isOwner }: PhotosGridProps) {
-  const [photos,      setPhotos]      = useState<ProfilePhoto[]>(initialPhotos)
-  const [uploading,   setUploading]   = useState(false)
-  const [uploadError, setUploadError] = useState<string | null>(null)
+  const [photos,       setPhotos]       = useState<ProfilePhoto[]>(initialPhotos)
+  const [uploading,    setUploading]    = useState(false)
+  const [uploadError,  setUploadError]  = useState<string | null>(null)
+  const [confirmPhoto, setConfirmPhoto] = useState<ProfilePhoto | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleRemove = useCallback((photoId: string) => {
@@ -312,7 +314,7 @@ export function PhotosGrid({ initialPhotos, userId, isOwner }: PhotosGridProps) 
                     key={item.id}
                     photo={item}
                     isOwner={isOwner}
-                    onRemove={() => handleRemove(item.id)}
+                    onRemove={() => setConfirmPhoto(item)}
                   />
                 )
               )}
@@ -332,6 +334,56 @@ export function PhotosGrid({ initialPhotos, userId, isOwner }: PhotosGridProps) 
         style={{ position: 'fixed', top: -1, left: -1, width: 1, height: 1, opacity: 0, pointerEvents: 'none' }}
         onChange={handleFileChange}
       />
+
+      <AnimatePresence>
+        {confirmPhoto && (
+          <BottomSheet onClose={() => setConfirmPhoto(null)} zIndex={80}>
+            <div
+              className="flex flex-col"
+              style={{ padding: 24, paddingTop: 0, gap: 24, paddingBottom: 'max(28px, env(safe-area-inset-bottom))' }}
+            >
+              <div className="flex flex-col" style={{ gap: 4 }}>
+                <h2
+                  className="font-body font-bold text-primary leading-none"
+                  style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}
+                >
+                  Remove Photo?
+                </h2>
+                <p className="font-body text-secondary" style={{ fontSize: 'var(--text-xs)' }}>
+                  This can&apos;t be undone.
+                </p>
+              </div>
+
+              <div className="flex flex-col" style={{ gap: 8 }}>
+                <button
+                  onClick={() => { handleRemove(confirmPhoto.id); setConfirmPhoto(null) }}
+                  className="w-full flex items-center justify-center appearance-none transition-opacity active:opacity-70"
+                  style={{ height: 48, background: 'var(--color-danger)' }}
+                >
+                  <span
+                    className="font-body font-semibold text-primary"
+                    style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
+                  >
+                    Remove Photo
+                  </span>
+                </button>
+                <button
+                  onClick={() => setConfirmPhoto(null)}
+                  className="w-full flex items-center justify-center appearance-none transition-opacity active:opacity-70"
+                  style={{ height: 48 }}
+                >
+                  <span
+                    className="font-body font-medium text-tertiary"
+                    style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
+                  >
+                    Cancel
+                  </span>
+                </button>
+              </div>
+            </div>
+          </BottomSheet>
+        )}
+      </AnimatePresence>
     </>
   )
 }

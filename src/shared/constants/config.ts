@@ -70,6 +70,22 @@ export const LEVEL_XP_BASE        = 120
 export const LEVEL_XP_GROWTH_RATE = 1.0435
 export const LEVEL_CAP            = 100
 
+// ─── Vibes (music note) domain allowlist ─────────────────────────────────────
+// `m.youtube.com` is included explicitly because it's an exact-match list used
+// in a Postgres `.in()` filter (server) as well as a Set lookup normalized via
+// `normHost()` (client) — the mobile hostname needs to be listed here so both
+// paths recognize it, not just the client's stripped-prefix normalization.
+export const MUSIC_DOMAINS = [
+  'youtube.com',
+  'm.youtube.com',
+  'youtu.be',
+  'music.youtube.com',
+  'music.apple.com',
+  'open.spotify.com',
+  'spotify.com',
+  'soundcloud.com',
+]
+
 export const KLIPY_API_BASE_URL                = 'https://api.klipy.com/api/v1'
 export const KLIPY_RATING                      = 'g'
 export const KLIPY_SEARCH_DEBOUNCE_MS          = 400

@@ -5,22 +5,15 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { Close } from 'pixelarticons/react/Close'
 import { addNoteAction, deleteNoteAction } from '@/app/(app)/profile/notes/actions'
 import { updatePinnedVinylAction } from '@/app/(app)/profile/actions'
+import { MUSIC_DOMAINS as MUSIC_DOMAINS_LIST } from '@/shared/constants/config'
 import type { PublicNote } from '@/types'
 
 // ─── Music platform validation ────────────────────────────────────────────────
 
-const MUSIC_DOMAINS = new Set([
-  'youtube.com',
-  'youtu.be',
-  'music.youtube.com',
-  'music.apple.com',
-  'open.spotify.com',
-  'spotify.com',
-  'soundcloud.com',
-])
+const MUSIC_DOMAINS = new Set(MUSIC_DOMAINS_LIST)
 
 function normHost(h: string) {
-  return h.replace(/^www\./, '')
+  return h.replace(/^(www|m)\./, '')
 }
 
 function isMusicUrl(url: string): boolean {

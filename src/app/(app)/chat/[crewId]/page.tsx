@@ -8,6 +8,7 @@ import { CombatHUD } from "@/features/combat/components/CombatHUD";
 import { WelcomeDetector } from "@/shared/components/pwa/WelcomeDetector";
 import { ErrorBoundary } from "@/shared/components/ui/ErrorBoundary";
 import { SlidePage } from "@/app/layouts/SlidePage";
+import { MUSIC_DOMAINS } from "@/shared/constants/config";
 import type { Profile, Crew, AvatarClass, ActiveRaid, CombatMember, CombatClass } from "@/types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -64,8 +65,6 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
   ]);
   if (!session) redirect("/login");
   const user = session.user;
-
-  const MUSIC_DOMAINS = ['youtube.com', 'youtu.be', 'music.youtube.com', 'music.apple.com', 'open.spotify.com', 'spotify.com', 'soundcloud.com']
 
   // Stage 2 — all 7 queries in parallel.
   // raid + token were previously a sequential Stage 3 (they only need crewId
