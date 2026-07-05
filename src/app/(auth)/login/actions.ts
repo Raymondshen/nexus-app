@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient, createServiceClient } from '@/shared/supabase/server'
+import { validateUsernameFormat } from '@/shared/utils/username'
 import type { AvatarClass } from '@/types'
 
 export interface ReservedUserData {
@@ -69,8 +70,9 @@ export async function reservePlaceAction(
   const firstNameClean = firstName.trim().replace(/<[^>]*>/g, '').slice(0, 50)
   const lastNameClean  = lastName.trim().replace(/<[^>]*>/g, '').slice(0, 50)
 
-  if (usernameClean.length < 3) {
-    return { success: false, error: 'Warrior name must be at least 3 characters.' }
+  const usernameError = validateUsernameFormat(usernameClean)
+  if (usernameError) {
+    return { success: false, error: usernameError }
   }
   if (!firstNameClean) {
     return { success: false, error: 'First name is required.' }
@@ -121,8 +123,9 @@ export async function completeInviteFlowAction(
   const firstNameClean = firstName.trim().replace(/<[^>]*>/g, '').slice(0, 50)
   const lastNameClean  = lastName.trim().replace(/<[^>]*>/g, '').slice(0, 50)
 
-  if (usernameClean.length < 3) {
-    return { success: false, error: 'Warrior name must be at least 3 characters.' }
+  const usernameError = validateUsernameFormat(usernameClean)
+  if (usernameError) {
+    return { success: false, error: usernameError }
   }
 
   if (!cls) {

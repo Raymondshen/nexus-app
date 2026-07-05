@@ -2,6 +2,7 @@
 
 import { revalidateTag } from 'next/cache'
 import { createClient, createServiceClient } from '@/shared/supabase/server'
+import { validateUsernameFormat } from '@/shared/utils/username'
 import type { ProfilePhoto } from '@/types'
 
 export async function revalidateProfileAction() {
@@ -69,6 +70,38 @@ async function revalidateUserCaches(userId: string, crewIds: string[]) {
   for (const crewId of crewIds) {
     revalidateTag(`crew-members:${crewId}`, 'max')
   }
+}
+
+/**
+ * Validates format + case-insensitive uniqueness, then writes `username` (plus any
+ * extra columns) for `userId`. Shared by the profile-edit sheet and the one-time
+ * legacy-username reset gate so both stay in sync on validation/uniqueness rules.
+ */
+async function updateUsername(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  newUsername: string,
+  extra?: Record<string, unknown>,
+): Promise<{ error: string | null }> {
+  const trimmed = newUsername.trim()
+  const formatError = validateUsernameFormat(trimmed)
+  if (formatError) return { error: formatError }
+
+  const { data: existing } = await supabase
+    .from('profiles').select('id').ilike('username', trimmed).neq('id', userId).maybeSingle()
+  if (existing) return { error: 'taken' }
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({ username: trimmed, ...extra })
+    .eq('id', userId)
+  if (error) {
+    if (error.code === '23505') return { error: 'taken' }
+    return { error: 'Failed to save. Try again.' }
+  }
+
+  revalidateTag(`profile:${userId}`, 'max')
+  return { error: null }
 }
 
 // ── Actions ────────────────────────────────────────────────────────────────────
@@ -144,25 +177,23 @@ export async function updateProfileDetailsAction(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Not authenticated' }
 
-  const trimmedName   = displayName.trim()
   const trimmedStatus = status.trim().slice(0, 100)
-  if (!trimmedName || trimmedName.length < 3) return { error: 'Name too short' }
+  return updateUsername(supabase, user.id, displayName, { status: trimmedStatus || null })
+}
 
-  const { data: existing } = await supabase
-    .from('profiles').select('id').ilike('username', trimmedName).neq('id', user.id).maybeSingle()
-  if (existing) return { error: 'taken' }
+/**
+ * One-time completion of the legacy-username reset gate — same validation/uniqueness
+ * rules as updateProfileDetailsAction, plus clears needs_username_reset so the gate
+ * never shows again for this user.
+ */
+export async function setUsernameAfterResetAction(
+  newUsername: string,
+): Promise<{ error: string | null }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated' }
 
-  const { error } = await supabase
-    .from('profiles')
-    .update({ username: trimmedName, status: trimmedStatus || null })
-    .eq('id', user.id)
-  if (error) {
-    if (error.code === '23505') return { error: 'taken' }
-    return { error: error.message }
-  }
-
-  revalidateTag(`profile:${user.id}`, 'max')
-  return { error: null }
+  return updateUsername(supabase, user.id, newUsername, { needs_username_reset: false })
 }
 
 export async function resetAvatarAction(): Promise<{ error: string | null; avatarUrl?: string | null }> {

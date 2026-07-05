@@ -7,6 +7,7 @@ import { SessionRefresher } from '@/shared/components/ui/SessionRefresher'
 import { BadgeClear } from '@/shared/components/pwa/BadgeClear'
 import { ErrorLogger } from '@/shared/utils/ErrorLogger'
 import { LazyPushDebugFAB } from '@/shared/components/pwa/LazyPushDebugFAB'
+import { UsernameResetSheet } from '@/shared/components/overlays/UsernameResetSheet'
 
 // Auth protection is handled by middleware — no getUser() call needed here.
 export default function AppLayout({ children }: { children: ReactNode }) {
@@ -21,6 +22,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       <BadgeClear />
       <LazyPushDebugFAB />
       <ErrorLogger />
+      <UsernameResetSheet />
     </div>
   )
 }

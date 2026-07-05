@@ -26,7 +26,7 @@ export type Database = {
     Tables: {
       profiles: {
         Row: Profile
-        Insert: Omit<Profile, 'created_at' | 'avatar_url' | 'coins' | 'custom_avatar' | 'gem_balance' | 'last_gem_claim' | 'is_dev'> & { created_at?: string; avatar_url?: string | null; coins?: number; custom_avatar?: boolean; gem_balance?: number; last_gem_claim?: string | null; is_dev?: boolean }
+        Insert: Omit<Profile, 'created_at' | 'avatar_url' | 'coins' | 'custom_avatar' | 'gem_balance' | 'last_gem_claim' | 'is_dev' | 'needs_username_reset'> & { created_at?: string; avatar_url?: string | null; coins?: number; custom_avatar?: boolean; gem_balance?: number; last_gem_claim?: string | null; is_dev?: boolean; needs_username_reset?: boolean }
         Update: Partial<Omit<Profile, 'id'>>
         Relationships: []
       }

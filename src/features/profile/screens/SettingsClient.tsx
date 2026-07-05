@@ -11,6 +11,7 @@ import { Bell } from 'pixelarticons/react/Bell'
 import { User } from 'pixelarticons/react/User'
 import { Terminal } from 'pixelarticons/react/Terminal'
 import { createClient } from '@/shared/supabase/client'
+import { validateUsernameFormat } from '@/shared/utils/username'
 import { UserAvatar } from '@/shared/components/ui/UserAvatar'
 import { signOut } from '@/shared/supabase/auth'
 import {
@@ -106,14 +107,15 @@ function EditProfileSheet({
 
   async function handleSave() {
     const trimmed = displayName.trim()
-    if (!trimmed || trimmed.length < 3) { setSaveError('Name must be at least 3 characters'); return }
+    const formatError = validateUsernameFormat(trimmed)
+    if (formatError) { setSaveError(formatError); return }
     if (saving) return
     setSaving(true)
     setSaveError(null)
     try {
       const result = await updateProfileDetailsAction(trimmed, status.trim())
       if (result.error === 'taken') { setSaveError('Name already taken'); return }
-      if (result.error) { setSaveError('Failed to save — try again'); return }
+      if (result.error) { setSaveError(result.error); return }
       onSave(trimmed, status.trim())
       onClose()
     } catch {

@@ -19,6 +19,7 @@ export interface Profile extends Record<string, unknown> {
   gem_balance: number
   last_gem_claim: string | null
   last_active_at: string | null
+  needs_username_reset: boolean
   created_at: string
 }
 
