@@ -85,20 +85,17 @@ export default async function ProfilePage() {
     }))
   }
 
-  // Batch 2 — notes from all crews (global vibes view, no sections)
-  let initialNotes: PublicNote[] = []
-  const notesCrewIds = notesCrews.map(c => c.id)
-
-  if (notesCrewIds.length) {
-    const notesResult = await supabase
-      .from('notes')
-      .select('id, crew_id, created_by, url, og_title, og_image_url, source_domain, section_id, created_at')
-      .in('crew_id', notesCrewIds)
-      .eq('created_by', user.id)
-      .order('created_at', { ascending: false })
-      .limit(30)
-    initialNotes = (notesResult.data ?? []) as unknown as PublicNote[]
-  }
+  // Batch 2 — all of this user's own vibes, regardless of whether they're still
+  // in the crew they were posted to (RLS grants creators standing read access to
+  // their own notes; scoping this query to currently-joined crews would silently
+  // hide vibes the moment someone leaves or is kicked from that squad).
+  const notesResult = await supabase
+    .from('notes')
+    .select('id, crew_id, created_by, url, og_title, og_image_url, source_domain, section_id, created_at')
+    .eq('created_by', user.id)
+    .order('created_at', { ascending: false })
+    .limit(30)
+  const initialNotes = (notesResult.data ?? []) as unknown as PublicNote[]
 
   const memberSinceYear   = profile?.created_at ? new Date(profile.created_at).getFullYear().toString() : ''
   const totalMessages     = messagesResult.count ?? 0

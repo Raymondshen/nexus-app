@@ -191,10 +191,6 @@ export function MessageList({
   const receiveXP              = useChatStore((s) => s.receiveXP)
   const setPinnedScrollTargetId = useChatStore((s) => s.setPinnedScrollTargetId)
   const [localProfiles, setLocalProfiles] = useState<Record<string, Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url' | 'status'>>>(memberProfiles)
-  const [devMode] = useState(() => {
-    if (typeof window === 'undefined') return false
-    return localStorage.getItem('nexus_dev_mode') === '1'
-  })
   const [historyLoaded, setHistoryLoaded] = useState(false)
 
   // Pagination state
@@ -694,6 +690,13 @@ export function MessageList({
 
   useEffect(() => {
     const supabase = createClient()
+    // Scope the profiles listener to this crew's members — without a filter, every
+    // profile UPDATE in the entire database is pushed down this channel and discarded
+    // client-side on every open chat screen.
+    const memberIds = Object.keys(profilesRef.current)
+    const profileFilter = memberIds.length > 0
+      ? `id=in.(${memberIds.join(',')})`
+      : 'id=eq.00000000-0000-0000-0000-000000000000'
     const channel  = supabase
       .channel(`db:messages:${crewId}`)
       .on(
@@ -788,7 +791,7 @@ export function MessageList({
       )
       .on(
         'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'profiles' },
+        { event: 'UPDATE', schema: 'public', table: 'profiles', filter: profileFilter },
         (payload) => {
           const p = payload.new as { id: string; username: string; avatar_url: string | null; avatar_class: string | null; status: string | null }
           if (!profilesRef.current[p.id]) return

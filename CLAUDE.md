@@ -33,7 +33,7 @@ squad_definitions   id, crew_id, creator_id, word (1–100 chars, comma-separate
 definition_suggestions  id, definition_id (→ squad_definitions CASCADE), crew_id, suggester_id, suggested_definition (1–500 chars), created_at — UNIQUE(definition_id, suggester_id); REPLICA IDENTITY FULL
 friendship_xp       user_a (uuid), user_b (uuid), total_xp (int) — canonical order: user_a < user_b (UUID); UNIQUE(user_a, user_b)
 friendship_xp_log   id, user_a, user_b, sender_id, xp_awarded (int), source (dm|mention), awarded_at
-notes               id, crew_id, created_by, url, og_title, og_image_url, source_domain, section_id (uuid → board_sections nullable, ON DELETE SET NULL), created_at
+notes               id, crew_id, created_by, url, og_title, og_image_url, source_domain, section_id (uuid → board_sections nullable, ON DELETE SET NULL), created_at — crew_id CASCADEs on crew delete; SELECT RLS: crew members OR `created_by = auth.uid()` (Vibes always visible to their creator, even after leaving the crew)
 board_sections      id, crew_id, created_by, name (1–100 chars), position (int), created_at — INDEX (crew_id, position, created_at)
 profile_photos      id, user_id, url, storage_key, created_at — max 30 per user; stored in `profile-photos` bucket
 ```
@@ -45,7 +45,7 @@ All `SECURITY DEFINER`. Declared in `Database.Functions` in `src/types/index.ts`
 
 - `create_crew(p_name, p_invite_code)` → uuid
 - `join_crew(p_invite_code)` → uuid
-- `leave_crew(p_crew_id)` → jsonb `{ok|deleted}`
+- `leave_crew(p_crew_id)` → jsonb `{ok|deleted}` — last member leaving hard-deletes the crew (CASCADE wipes messages/artifacts/notes); client shows a confirmation sheet in this case (`ChatInput.handleLeaveSquadTapped`) before calling it
 - `insert_message(p_crew_id, p_content, p_message_type, p_reply_to_id?, p_reply_preview?, p_reply_username?, p_image_url?, p_image_blur_hash?)` → messages row
 - `damage_raid(p_raid_id, p_damage, p_user_id)` → `(current_hp, phase, defeated_at)`
 - `increment_crew_xp(p_crew_id, p_xp_delta)` → `(new_total_xp, new_level)`
@@ -574,3 +574,7 @@ Same label/helper/border design as `InputField` but renders a `<textarea>`. Heig
 - **`SlidePage` swipe handler fires through fixed overlays.** Fixed-position overlays rendered inside a `SlidePage` are still children in the DOM tree, so touch events bubble up to `SlidePage`'s native `addEventListener`. Pass `nativeSwipe={overlayOpen}` to `SlidePage` whenever any overlay is active — this disables the custom left-edge swipe handler so it cannot call `router.back()` while an overlay is showing.
 - **`squad_definitions.creator_id` FK points to `auth.users`, not `public.profiles`.** Supabase embedded selects (`profiles!creator_id(username)`) will fail — the FK hint resolves to `auth.users` which is a different schema. Fetch creator usernames via a separate `profiles` query keyed on the collected `creator_id` values.
 - **Realtime INSERT handlers that need profile data should cache known usernames in a `useRef`.** Seed the cache from `initialDefinitions` (or equivalent server-fetched data) on mount, then only hit Supabase for unseen `creator_id` values. This avoids a DB round-trip for every INSERT from a known user. See `profileCacheRef` in `DefinitionHomePage`.
+- **`insert_message`'s `RETURNING *` already contains every column** (reply/image fields included) — `ChatInput`'s send/sendImages/sendGif broadcast and patch the store directly from that returned row (`broadcastNewMessage(raw)` / `updateMessage(tempId, raw)`) instead of hand-picking fields. Don't reintroduce manually-constructed payload objects; they drift from what was actually written.
+- **Postgres Changes `filter` on `profiles` UPDATE must be scoped to known member IDs** (`id=in.(...)`) — an unfiltered listener receives every profile update in the entire database and discards irrelevant ones client-side. Same principle applies to any new `postgres_changes` subscription: always filter server-side, never rely on client-side discarding.
+- **`broadcastTyping` gates on `isTypingRef` before calling `.track()`.** `handleInput` calls it on every keystroke; without the transition guard it would re-send presence on every character instead of only on the not-typing↔typing edge.
+- **Vibes (`notes`) disappearing after a member leaves a crew is two separate bugs, both fixed:** (1) the `notes` SELECT RLS used to require *current* crew membership, hiding a creator's own notes the moment they left — fixed by also allowing `created_by = auth.uid()` (migration `20240103000053`). (2) `profile/page.tsx`'s Vibes query used to additionally filter `crew_id IN (currently-joined crews)`, which re-imposed the same restriction client-side even after the RLS fix — removed; the query is now just `created_by = user.id` and RLS handles visibility. `profile_photos` is unaffected by crew membership (no `crew_id` column, public-read RLS).

@@ -43,6 +43,8 @@ const MAX_MESSAGE_LENGTH   = 2000
 const RATE_LIMIT_MAX       = 30
 const RATE_LIMIT_WINDOW    = 60_000
 const ONLINE_THRESHOLD_MS  = 45_000
+// Minimum gap between update_active DB writes triggered outside the 30s heartbeat interval
+const ACTIVE_WRITE_THROTTLE_MS = 10_000
 
 const CREW_AVATAR_COLORS = ['#bf5fff', '#00e5ff', '#ffd700', '#ff4444', '#66bb6a', '#ff9800']
 
@@ -210,6 +212,8 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   const [removeTarget,   setRemoveTarget]   = useState<MemberProfile | null>(null)
   const [removing,       setRemoving]       = useState(false)
   const [removeError,    setRemoveError]    = useState<string | null>(null)
+  const [showLastMemberWarning, setShowLastMemberWarning] = useState(false)
+  const [leavingSquad,   setLeavingSquad]   = useState(false)
   const [kickedIds,      setKickedIds]      = useState<Set<string>>(new Set())
   const [crewImageUrl,   setCrewImageUrl]   = useState<string | null>(initialCrewImageUrl ?? null)
   const [crewImageFile,  setCrewImageFile]  = useState<File | null>(null)
@@ -242,9 +246,11 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   const typingTimerRef        = useRef<ReturnType<typeof setTimeout> | null>(null)
   const friendshipToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const gemToastTimerRef      = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const typingChannelRef      = useRef<RealtimeChannel | null>(null)
   const msgChannelRef         = useRef<RealtimeChannel | null>(null)
   const channelReadyRef       = useRef(false)
+  const lastActiveWriteRef    = useRef(0)
+  const isTypingRef           = useRef(false)
+  const countsFetchedForCrewRef = useRef<string | null>(null)
   const {
     addMessage, removeMessage, updateMessage, setCrewXP, receiveXP, bumpCrewXP,
     crewXP, crewLevel,
@@ -430,7 +436,12 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     setSquadDetailsOpen(false)
   }, [squadDetailsOpen]) // eslint-disable-line
 
+  // Member message counts are only ever displayed inside SquadDetailsSheet, so defer
+  // the RPC until the sheet is actually opened rather than fetching on every chat
+  // mount. Cached per crew — reopening the sheet for the same crew won't refetch.
   useEffect(() => {
+    if (!isExpanded || countsFetchedForCrewRef.current === crewId) return
+    countsFetchedForCrewRef.current = crewId
     let cancelled = false
     setLoadingCounts(true)
     createClient()
@@ -441,7 +452,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
         setLoadingCounts(false)
       })
     return () => { cancelled = true }
-  }, [crewId]) // eslint-disable-line
+  }, [isExpanded, crewId]) // eslint-disable-line
 
   // Sync overlay scroll with the active field so highlighted text stays aligned.
   useEffect(() => {
@@ -559,6 +570,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
       const ts = Date.now()
       setLastActive(userId, ts)
       ch.send({ type: 'broadcast', event: 'active', payload: { user_id: userId, ts } })
+      lastActiveWriteRef.current = ts
       supabase.rpc('update_active').then(() => {}, () => {})
     }
 
@@ -664,7 +676,6 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     document.addEventListener('visibilitychange', handleVisibilityChange)
 
     msgChannelRef.current     = ch
-    typingChannelRef.current  = ch
     channelReadyRef.current   = false
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
@@ -672,13 +683,17 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
       clearInterval(sweepTimer)
       supabase.removeChannel(ch)
       msgChannelRef.current     = null
-      typingChannelRef.current  = null
       channelReadyRef.current   = false
+      isTypingRef.current       = false
     }
   }, [crewId, userId]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Presence .track() is a network round-trip — only send it on an actual state
+  // transition instead of on every keystroke (handleInput calls this on every change).
   function broadcastTyping(isTyping: boolean) {
-    typingChannelRef.current?.track({ username: userProfileRef.current.username, typing: isTyping })
+    if (isTypingRef.current === isTyping) return
+    isTypingRef.current = isTyping
+    msgChannelRef.current?.track({ username: userProfileRef.current.username, typing: isTyping })
   }
 
   const removePendingImage = useCallback((id: string) => {
@@ -712,6 +727,51 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     setGemToastVisible(true)
     gemToastTimerRef.current = setTimeout(() => setGemToastVisible(false), 3000)
   }
+
+  // Broadcasts the authoritative server row (already contains every column via the
+  // insert_message RPC's RETURNING *) — avoids hand-picking fields that can drift
+  // from what was actually written.
+  const broadcastNewMessage = useCallback((message: Message) => {
+    if (!channelReadyRef.current) return
+    msgChannelRef.current?.send({ type: 'broadcast', event: 'new_message', payload: message })
+  }, [])
+
+  // Fire-and-forget attack-boss after award-xp settles (joined members only)
+  const callAttackBoss = useCallback((messageType: string, softBlocked: boolean) => {
+    const { activeRaid, memberStats } = useCombatStore.getState()
+    if (!combatEnabledRef.current || !activeRaid || !memberStats[userId]) return
+    fetch(`${SUPABASE_URL}/functions/v1/attack-boss`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
+      body:    JSON.stringify({ crew_id: crewId, user_id: userId, username: userProfile.username, message_type: messageType, soft_blocked: softBlocked }),
+    }).catch(() => {})
+  }, [crewId, userId, userProfile]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Shared award-xp settlement used by every send path (text/image/gif): applies the
+  // XP/coin response, broadcasts xp_update to peers, and kicks off attack-boss.
+  const settleXp = useCallback((msgId: string, messageType: string, content: string, mentionedUserIds: string[]) => {
+    fetch(`${SUPABASE_URL}/functions/v1/award-xp`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
+      body:    JSON.stringify({ message_id: msgId, crew_id: crewId, user_id: userId, username: userProfile.username, message_type: messageType, content, mentioned_user_ids: mentionedUserIds }),
+    })
+      .then((r) => r.json())
+      .then((data: { xp_earned?: number; new_total_xp?: number; coins_earned?: number }) => {
+        if (typeof data.xp_earned === 'number') updateMessage(msgId, { xp_awarded: data.xp_earned })
+        if (typeof data.new_total_xp === 'number') {
+          setCrewXP(data.new_total_xp)
+          if (channelReadyRef.current) msgChannelRef.current?.send({
+            type: 'broadcast', event: 'xp_update',
+            payload: { xp_earned: data.xp_earned ?? 0, new_total_xp: data.new_total_xp, sender_id: userId },
+          })
+        }
+        if (typeof data.coins_earned === 'number' && data.coins_earned > 0) addUserCoins(data.coins_earned)
+        // soft_blocked = no XP and no coins awarded (5s gap check fired)
+        const softBlocked = (data.xp_earned ?? 0) === 0 && (data.coins_earned ?? 0) === 0
+        callAttackBoss(messageType, softBlocked)
+      })
+      .catch(() => {})
+  }, [crewId, userId, userProfile, updateMessage, setCrewXP, addUserCoins, callAttackBoss]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleChatImagesPick(files: File[]) {
     if (files.length === 0) return
@@ -833,45 +893,12 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
 
       const alreadyAdded = useChatStore.getState().messages.some((m) => m.id === raw.id)
       if (alreadyAdded) removeMessage(raw.id)
-      updateMessage(tempId, {
-        id: raw.id, created_at: raw.created_at, element_type: raw.element_type,
-        image_url: imageUrlJson, image_blur_hash: imageBlurJson,
-      })
+      updateMessage(tempId, raw)
       setHomeLastMessage(crewId, { content: textContent || raw.content, created_at: raw.created_at, sender: userProfile.username })
 
-      if (channelReadyRef.current) msgChannelRef.current?.send({
-        type: 'broadcast', event: 'new_message',
-        payload: {
-          id: raw.id, crew_id: raw.crew_id, user_id: raw.user_id,
-          content: raw.content, message_type: raw.message_type,
-          element_type: raw.element_type, xp_awarded: raw.xp_awarded,
-          created_at: raw.created_at,
-          image_url: imageUrlJson, image_blur_hash: imageBlurJson,
-        },
-      })
-
+      broadcastNewMessage(raw)
       tryClaimDailyGem(supabase, showGemToast)
-
-      const msgId = raw.id
-      fetch(`${SUPABASE_URL}/functions/v1/award-xp`, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
-        body:    JSON.stringify({ message_id: msgId, crew_id: crewId, user_id: userId, username: userProfile.username, message_type: 'image', content: msgContent, mentioned_user_ids: [] }),
-      })
-        .then((r) => r.json())
-        .then((data: { xp_earned?: number; new_total_xp?: number; coins_earned?: number }) => {
-          if (typeof data.xp_earned === 'number') updateMessage(msgId, { xp_awarded: data.xp_earned })
-          if (typeof data.new_total_xp === 'number') {
-            setCrewXP(data.new_total_xp)
-            if (channelReadyRef.current) msgChannelRef.current?.send({
-              type: 'broadcast', event: 'xp_update',
-              payload: { xp_earned: data.xp_earned ?? 0, new_total_xp: data.new_total_xp, sender_id: userId },
-            })
-          }
-          if (typeof data.coins_earned === 'number' && data.coins_earned > 0) addUserCoins(data.coins_earned)
-          callAttackBoss('image', (data.xp_earned ?? 0) === 0 && (data.coins_earned ?? 0) === 0)
-        })
-        .catch(() => {})
+      settleXp(raw.id, 'image', msgContent, [])
 
     } catch (err) {
       console.error('[sendImages]', err)
@@ -925,42 +952,12 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
       if (alreadyAdded) {
         removeMessage(raw.id)
       }
-      updateMessage(tempId, { id: raw.id, created_at: raw.created_at, element_type: raw.element_type, image_url: gifUrl })
+      updateMessage(tempId, raw)
       setHomeLastMessage(crewId, { content: raw.content, created_at: raw.created_at, sender: userProfile.username })
 
-      if (channelReadyRef.current) msgChannelRef.current?.send({
-        type: 'broadcast', event: 'new_message',
-        payload: {
-          id: raw.id, crew_id: raw.crew_id, user_id: raw.user_id,
-          content: raw.content, message_type: raw.message_type,
-          element_type: raw.element_type, xp_awarded: raw.xp_awarded,
-          created_at: raw.created_at,
-          image_url: gifUrl, image_blur_hash: null,
-        },
-      })
-
+      broadcastNewMessage(raw)
       tryClaimDailyGem(supabase, showGemToast)
-
-      const msgId = raw.id
-      fetch(`${SUPABASE_URL}/functions/v1/award-xp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
-        body: JSON.stringify({ message_id: msgId, crew_id: crewId, user_id: userId, username: userProfile.username, message_type: 'image', content: gifUrl, mentioned_user_ids: [] }),
-      })
-        .then((r) => r.json())
-        .then((data: { xp_earned?: number; new_total_xp?: number; coins_earned?: number }) => {
-          if (typeof data.xp_earned === 'number') updateMessage(msgId, { xp_awarded: data.xp_earned })
-          if (typeof data.new_total_xp === 'number') {
-            setCrewXP(data.new_total_xp)
-            if (channelReadyRef.current) msgChannelRef.current?.send({
-              type: 'broadcast', event: 'xp_update',
-              payload: { xp_earned: data.xp_earned ?? 0, new_total_xp: data.new_total_xp, sender_id: userId },
-            })
-          }
-          if (typeof data.coins_earned === 'number' && data.coins_earned > 0) addUserCoins(data.coins_earned)
-          callAttackBoss('image', (data.xp_earned ?? 0) === 0 && (data.coins_earned ?? 0) === 0)
-        })
-        .catch(() => {})
+      settleXp(raw.id, 'image', gifUrl, [])
 
     } catch (err) {
       console.error('[sendGif]', err)
@@ -1044,53 +1041,25 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
       if (alreadyAdded) {
         removeMessage(raw.id)
       }
-      updateMessage(tempId, { id: raw.id, created_at: raw.created_at, element_type: raw.element_type })
+      updateMessage(tempId, raw)
       setHomeLastMessage(crewId, { content: raw.content, created_at: raw.created_at, sender: userProfile.username })
 
       if (channelReadyRef.current) {
-        msgChannelRef.current?.send({
-          type: 'broadcast', event: 'new_message',
-          payload: {
-            id: raw.id, crew_id: raw.crew_id, user_id: raw.user_id,
-            content: raw.content, message_type: raw.message_type,
-            element_type: raw.element_type, xp_awarded: raw.xp_awarded,
-            created_at: raw.created_at,
-            reply_to_id: raw.reply_to_id, reply_preview: raw.reply_preview, reply_username: raw.reply_username,
-          },
-        })
-        // Piggyback heartbeat on send — proves liveness, keeps DB timestamp fresh between intervals
+        broadcastNewMessage(raw)
+        // Piggyback heartbeat on send — proves liveness, keeps DB timestamp fresh between intervals.
+        // The broadcast is cheap and always fires; the DB write is throttled since the 30s
+        // heartbeat interval already keeps last_active_at fresh enough for presence purposes.
         const ts = Date.now()
         setLastActive(userId, ts)
         msgChannelRef.current?.send({ type: 'broadcast', event: 'active', payload: { user_id: userId, ts } })
-        supabase.rpc('update_active').then(() => {}, () => {})
+        if (ts - lastActiveWriteRef.current > ACTIVE_WRITE_THROTTLE_MS) {
+          lastActiveWriteRef.current = ts
+          supabase.rpc('update_active').then(() => {}, () => {})
+        }
       }
 
       tryClaimDailyGem(supabase, showGemToast)
-
-      const msgId = raw.id
-      fetch(`${SUPABASE_URL}/functions/v1/award-xp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
-        body: JSON.stringify({ message_id: msgId, crew_id: crewId, user_id: userId, username: userProfile.username, message_type: 'text', content, mentioned_user_ids: mentionedUserIds }),
-      })
-        .then((r) => r.json())
-        .then((data: { xp_earned?: number; new_total_xp?: number; coins_earned?: number }) => {
-          if (typeof data.xp_earned === 'number') updateMessage(msgId, { xp_awarded: data.xp_earned })
-          if (typeof data.new_total_xp === 'number') {
-            setCrewXP(data.new_total_xp)
-            if (channelReadyRef.current) msgChannelRef.current?.send({
-              type: 'broadcast', event: 'xp_update',
-              payload: { xp_earned: data.xp_earned ?? 0, new_total_xp: data.new_total_xp, sender_id: userId },
-            })
-          }
-          if (typeof data.coins_earned === 'number' && data.coins_earned > 0) {
-            addUserCoins(data.coins_earned)
-          }
-          // soft_blocked = no XP and no coins awarded (5s gap check fired)
-          const softBlocked = (data.xp_earned ?? 0) === 0 && (data.coins_earned ?? 0) === 0
-          callAttackBoss('text', softBlocked)
-        })
-        .catch(() => {})
+      settleXp(raw.id, 'text', content, mentionedUserIds)
 
       if (fxpEnabled) {
         // Friendship XP — shared helper: fade-in 200ms, hold 2000ms, then exit animation (400ms) runs
@@ -1191,18 +1160,6 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     }
   }, [text, userId, updateMessage]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Fire-and-forget attack-boss after award-xp settles (joined members only)
-  const callAttackBoss = useCallback((messageType: string, softBlocked: boolean) => {
-    const { activeRaid, memberStats } = useCombatStore.getState()
-    if (!combatEnabledRef.current || !activeRaid || !memberStats[userId]) return
-    fetch(`${SUPABASE_URL}/functions/v1/attack-boss`, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
-      body:    JSON.stringify({ crew_id: crewId, user_id: userId, username: userProfile.username, message_type: messageType, soft_blocked: softBlocked }),
-    }).catch(() => {})
-  }, [crewId, userId, userProfile]) // eslint-disable-line react-hooks/exhaustive-deps
-
-
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) {
     // @mention picker navigation
     if (mentionQuery !== null && mentionMatches.length > 0) {
@@ -1280,15 +1237,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
         } else if (result.message) {
           const msgWithProfile = { ...result.message, profile: userProfile }
           addMessage(msgWithProfile)
-          if (channelReadyRef.current) msgChannelRef.current?.send({
-            type: 'broadcast', event: 'new_message',
-            payload: {
-              id: msgWithProfile.id, crew_id: msgWithProfile.crew_id, user_id: msgWithProfile.user_id,
-              content: msgWithProfile.content, message_type: msgWithProfile.message_type,
-              element_type: msgWithProfile.element_type, xp_awarded: msgWithProfile.xp_awarded,
-              created_at: msgWithProfile.created_at,
-            },
-          })
+          broadcastNewMessage(result.message)
         }
       } finally {
         setSending(false)
@@ -1299,15 +1248,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   function handlePollCreated(message: MessageWithProfile) {
     setShowPollCreator(false)
     addMessage(message)
-    if (channelReadyRef.current) msgChannelRef.current?.send({
-      type: 'broadcast', event: 'new_message',
-      payload: {
-        id: message.id, crew_id: message.crew_id, user_id: message.user_id,
-        content: message.content, message_type: message.message_type,
-        element_type: message.element_type, xp_awarded: message.xp_awarded,
-        created_at: message.created_at,
-      },
-    })
+    broadcastNewMessage(message)
   }
 
   async function handleKick() {
@@ -1321,11 +1262,21 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     setRemoveTarget(null)
   }
 
+  // Leaving as the last member permanently deletes the crew (CASCADE wipes its
+  // messages, artifacts, and vibes) — gate that path behind an explicit warning
+  // instead of letting it fire silently from a single tap.
+  function handleLeaveSquadTapped() {
+    if (memberCount <= 1) { setShowLastMemberWarning(true); return }
+    void handleLeaveSquad()
+  }
+
   async function handleLeaveSquad() {
+    setLeavingSquad(true)
     const supabase = createClient()
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session) return
+    if (!session) { setLeavingSquad(false); return }
     setIsExpanded(false)
+    setShowLastMemberWarning(false)
     await leaveCrewAction(crewId, session.access_token)
     router.push('/home')
   }
@@ -1890,9 +1841,69 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
               sessionStorage.setItem('nexus_chat_from', 'chat')
               router.push(`/chat/${crewId}/member/${memberId}`)
             }}
-            onLeave={handleLeaveSquad}
+            onLeave={handleLeaveSquadTapped}
             onClose={() => setIsExpanded(false)}
           />
+        )}
+      </AnimatePresence>
+
+      {/* ── Last-member leave warning — leaving now would delete the whole squad ── */}
+      <AnimatePresence>
+        {showLastMemberWarning && (
+          <motion.div
+            className="fixed inset-0 z-[80] flex items-end justify-center"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => { if (!leavingSquad) setShowLastMemberWarning(false) }}
+          >
+            <div className="absolute inset-0 bg-black/60" />
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+              className="relative w-full max-w-[480px] bg-surface border-t border-border-hover flex flex-col gap-6 p-4"
+              style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 24px)' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex flex-col gap-2">
+                <p className="font-pixel text-[8px] text-[#ef4444] leading-none">YOU&apos;RE THE LAST MEMBER</p>
+                <div className="flex flex-col gap-1">
+                  <h2
+                    className="font-body font-bold text-[18px] text-primary leading-none"
+                    style={{ fontVariationSettings: '"opsz" 14' }}
+                  >
+                    {liveCrewName}
+                  </h2>
+                  <p className="font-body text-[12px] text-secondary leading-normal">
+                    Leaving will permanently delete this squad — its messages, artifacts, and vibes cannot be recovered.
+                  </p>
+                </div>
+              </div>
+
+              {/* Buttons */}
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={() => void handleLeaveSquad()}
+                  disabled={leavingSquad}
+                  className="w-full h-12 flex items-center justify-center bg-[#ef4444] disabled:opacity-50 transition-opacity active:opacity-70"
+                >
+                  <span className="font-pixel text-[8px] text-primary leading-none">
+                    {leavingSquad ? '...' : 'DELETE & LEAVE'}
+                  </span>
+                </button>
+                <button
+                  onClick={() => setShowLastMemberWarning(false)}
+                  disabled={leavingSquad}
+                  className="w-full h-12 flex items-center justify-center transition-opacity active:opacity-70"
+                >
+                  <span className="font-pixel text-[8px] text-tertiary leading-none">CANCEL</span>
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
 
