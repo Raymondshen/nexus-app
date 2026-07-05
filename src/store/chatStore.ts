@@ -21,6 +21,12 @@ interface ChatStore {
   addMessage:          (message: Message) => void
   removeMessage:       (id: string) => void
   updateMessage:       (id: string, patch: Partial<Message>) => void
+  // Message ids with a reaction toggle currently in flight. Consulted by MessageList's
+  // realtime + background-fetch merges so a slower-arriving snapshot never clobbers a
+  // fresher optimistic reaction update — replaces guessing staleness from emptiness.
+  pendingReactionIds:  Set<string>
+  markReactionPending:  (id: string) => void
+  clearReactionPending: (id: string) => void
   setCrewXP:           (xp: number) => void
   bumpCrewXP:          () => void
   receiveXP:           (earned: number, newTotal: number) => void
@@ -82,6 +88,24 @@ export const useChatStore = create<ChatStore>((set) => ({
     set((s) => ({
       messages: s.messages.map((m) => (m.id === id ? { ...m, ...patch } : m)),
     })),
+
+  pendingReactionIds: new Set<string>(),
+
+  markReactionPending: (id) =>
+    set((s) => {
+      if (s.pendingReactionIds.has(id)) return {}
+      const next = new Set(s.pendingReactionIds)
+      next.add(id)
+      return { pendingReactionIds: next }
+    }),
+
+  clearReactionPending: (id) =>
+    set((s) => {
+      if (!s.pendingReactionIds.has(id)) return {}
+      const next = new Set(s.pendingReactionIds)
+      next.delete(id)
+      return { pendingReactionIds: next }
+    }),
 
   setCrewXP: (xp) =>
     set({ crewXP: xp, crewLevel: getLevelFromXP(xp) }),

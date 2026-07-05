@@ -7,7 +7,6 @@ import { format } from 'date-fns'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useChatStore } from '@/store/chatStore'
 import { useCombatStore } from '@/store/combatStore'
-import { createClient } from '@/shared/supabase/client'
 import type { MessageWithProfile, Profile, SquadDefinitionWithCreator } from '@/types'
 import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
 import { UserAvatar } from '@/shared/components/ui/UserAvatar'
@@ -18,6 +17,7 @@ import { PollCard } from '@/features/chat/components/polls/PollCard'
 import { EventCardMessage } from '@/features/events/components/EventCardMessage'
 import { PinDurationSheet } from '@/features/chat/components/sheets/PinDurationSheet'
 import { ChatSheetReact } from '@/features/chat/components/sheets/ChatSheetReact'
+import { useMessageReactions } from '@/features/chat/components/messages/useMessageReactions'
 import { TextEffectText } from '@/features/chat/components/text-effects/TextEffectText'
 import { ImagePreviewOverlay } from '@/shared/components/overlays/ImagePreviewOverlay'
 import { BottomSheet } from '@/shared/components/ui/BottomSheet'
@@ -88,13 +88,6 @@ function MultiImageGrid({
       ))}
     </div>
   )
-}
-
-type ReactResponse = {
-  reactions:     Record<string, string[]>
-  hype_man_heal: boolean
-  heal_amount:   number
-  error?:        string
 }
 
 interface MessageBubbleProps {
@@ -417,19 +410,9 @@ function MessageBubbleImpl({
   const [previewOpen,        setPreviewOpen]        = useState(false)
   const [previewSrc,         setPreviewSrc]         = useState<string | null>(null)
   const [pinSheetOpen,       setPinSheetOpen]       = useState(false)
-  // Local optimistic reactions — overrides message.reactions prop while an API call is
-  // in-flight. This prevents Realtime UPDATEs (e.g. award-xp patching xp_awarded) from
-  // racing with the optimistic update and causing the reaction pill to flicker out.
-  const [optimisticReactions, setOptimisticReactions] = useState<Record<string, string[]> | null>(null)
 
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hasMoved       = useRef(false)
-  // Prevents the double-fire (touchend + synthetic click) on iOS from calling
-  // handleReaction twice — which would add then immediately remove the reaction.
-  const reactionInFlightRef  = useRef(false)
-  // Always-current reactions value — avoids stale closure in handleReaction without
-  // needing message.reactions as a useCallback dep (which recreates it on every change).
-  const reactionsRef         = useRef(message.reactions)
 
   // Swipe-to-reply (other messages only)
   const SWIPE_THRESHOLD    = 64
@@ -449,8 +432,13 @@ function MessageBubbleImpl({
   const setReplyTo    = useChatStore((s) => s.setReplyTo)
   const setEditTo     = useChatStore((s) => s.setEditTo)
 
-  // Keep ref in sync with the latest prop value on every render.
-  reactionsRef.current = message.reactions
+  const { displayReactions, handleReaction } = useMessageReactions({
+    messageId:     message.id,
+    crewId:        message.crew_id,
+    currentUserId,
+    reactions:     message.reactions,
+    onHypeManHeal: (amount) => setHealFloat({ id: Date.now(), amount }),
+  })
 
   useEffect(() => { setMounted(true) }, [])
 
@@ -641,73 +629,11 @@ function MessageBubbleImpl({
     }
   }
 
-  // ─── Reaction toggle (optimistic + selective rollback) ───────────────────────
-  const handleReaction = useCallback(async (emoji: string) => {
-    // Prevent double-fire (iOS touchend → synthetic click) from toggling twice.
-    if (reactionInFlightRef.current) return
-    reactionInFlightRef.current = true
-
+  // ─── Reaction toggle — closes any open action sheet, then delegates to the hook ──
+  const handleReactionTap = useCallback((emoji: string) => {
     setSheetOpen(false)
-
-    // Read current reactions via ref — always up-to-date without being a dep.
-    const prev      = reactionsRef.current ?? {}
-    const users     = prev[emoji] ?? []
-    const isActive  = users.includes(currentUserId)
-    const wasAdding = !isActive
-
-    const nextUsers = isActive
-      ? users.filter((id) => id !== currentUserId)
-      : [...users, currentUserId]
-
-    const next = { ...prev }
-    if (nextUsers.length === 0) delete next[emoji]
-    else next[emoji] = nextUsers
-
-    // Local optimistic override — shields the pill from any Realtime UPDATEs that
-    // arrive while the request is in-flight (e.g. award-xp patching xp_awarded on
-    // the same message row, which triggers a Postgres Changes UPDATE with stale
-    // reactions before react-to-message has written the new value).
-    setOptimisticReactions(next)
-    updateMessage(message.id, { reactions: next })
-
-    // Use browser client so the user's live session JWT is sent — prevents 401s
-    // when the edge function has JWT verification enabled.
-    const supabase = createClient()
-    const { data, error } = await supabase.functions.invoke<ReactResponse>('react-to-message', {
-      body: { message_id: message.id, emoji, user_id: currentUserId, crew_id: message.crew_id },
-    })
-
-    reactionInFlightRef.current = false
-
-    if (error) {
-      console.error('[react-to-message]', error)
-      // Only rollback on a confirmed HTTP rejection (4xx/5xx).
-      // Network failures keep the optimistic state; Postgres Changes will sync.
-      if (error.name === 'FunctionsHttpError') {
-        setOptimisticReactions(null)
-        updateMessage(message.id, { reactions: prev })
-      } else {
-        setOptimisticReactions(null)
-      }
-      return
-    }
-
-    if (data?.reactions != null) {
-      // Guard: if we were ADDING but the server didn't include our emoji, the RPC
-      // saw stale state and toggled us back off. Discard and let Postgres Changes sync.
-      if (wasAdding && !(data.reactions[emoji] ?? []).includes(currentUserId)) {
-        setOptimisticReactions(null)
-        return
-      }
-      updateMessage(message.id, { reactions: data.reactions })
-    }
-    // Clear optimistic overlay — prop now has the server-reconciled value.
-    setOptimisticReactions(null)
-    if (data?.hype_man_heal && data.heal_amount > 0) {
-      setHealFloat({ id: Date.now(), amount: data.heal_amount })
-    }
-  }, [message.id, message.crew_id, currentUserId, updateMessage])
-
+    void handleReaction(emoji)
+  }, [handleReaction])
 
   // ─── OG preview — must be called before early returns ───────────────────────
   const ogUrl = message.message_type === 'text' && !message.image_url
@@ -810,8 +736,6 @@ function MessageBubbleImpl({
   const avatarUrl = message.profile.avatar_url as string | null | undefined
   const timeStr   = `${format(new Date(message.created_at), 'MMM d')} · ${format(new Date(message.created_at), 'h:mma').toLowerCase()}`
 
-  // Use local optimistic overlay while in-flight so Realtime UPDATEs can't wipe the pill.
-  const displayReactions = optimisticReactions ?? ((message.reactions ?? {}) as Record<string, string[]>)
   const sortedReactions = React.useMemo(
     () => Object.entries(displayReactions).filter(([, users]) => users.length > 0).sort(([, a], [, b]) => b.length - a.length),
     [displayReactions], // eslint-disable-line react-hooks/exhaustive-deps
@@ -1022,7 +946,7 @@ function MessageBubbleImpl({
                     <button
                       key={emoji}
                       onPointerDown={(e) => e.stopPropagation()}
-                      onPointerUp={() => void handleReaction(emoji)}
+                      onPointerUp={() => handleReactionTap(emoji)}
                       className="flex items-center select-none active:opacity-70 transition-opacity"
                       style={{
                         gap: 6,
@@ -1148,7 +1072,7 @@ function MessageBubbleImpl({
               onClose={() => setSheetOpen(false)}
               reactions={displayReactions}
               currentUserId={currentUserId}
-              onReact={(emoji) => void handleReaction(emoji)}
+              onReact={(emoji) => handleReactionTap(emoji)}
               onReply={() => { setSheetOpen(false); setReplyTo({ ...message }, groupId) }}
               isOwn={isOwn}
               onEdit={isOwn && message.message_type === 'text' ? () => { setSheetOpen(false); setEditTo({ ...message }) } : undefined}

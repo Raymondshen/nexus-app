@@ -29,7 +29,7 @@ app_invites         id, code (text unique), inviter_id (uuid → profiles), used
 reserved_users      id, email (text unique), username, class, first_name, last_name, created_at, converted (bool default false)
 announcements       id, text (1–500 chars), active (bool default true), created_at
 polls               id, message_id (uuid → messages nullable), crew_id, creator_id, question (1–200 chars), options (jsonb string[]), votes (jsonb default '{}' — `{"0":["userId",...]}`), expires_at, closed_at, created_at
-squad_definitions   id, crew_id, creator_id, word (1–100 chars, comma-separated aliases), definition (1–500 chars), created_at — UNIQUE INDEX (crew_id, lower(word))
+squad_definitions   id, crew_id, creator_id, word (1–100 chars, comma-separated aliases), definition (1–500 chars), text_effect (text nullable), created_at — UNIQUE INDEX (crew_id, lower(word))
 definition_suggestions  id, definition_id (→ squad_definitions CASCADE), crew_id, suggester_id, suggested_definition (1–500 chars), created_at — UNIQUE(definition_id, suggester_id); REPLICA IDENTITY FULL
 friendship_xp       user_a (uuid), user_b (uuid), total_xp (int) — canonical order: user_a < user_b (UUID); UNIQUE(user_a, user_b)
 friendship_xp_log   id, user_a, user_b, sender_id, xp_awarded (int), source (dm|mention), awarded_at
@@ -55,6 +55,7 @@ All `SECURITY DEFINER`. Declared in `Database.Functions` in `src/types/index.ts`
 - `get_crew_member_msg_counts(p_crew_id)` → `TABLE(user_id, msg_count)`
 - `get_member_crew_stats(p_crew_id, p_user_id)` → `TABLE(msg_count, total_xp)`
 - `increment_user_coins(p_user_id, p_amount)` → void
+- `increment_friendship_xp(p_user_a, p_user_b, p_amount)` → void
 - `toggle_reaction(p_message_id, p_emoji, p_user_id)` → jsonb
 - `create_poll(p_crew_id, p_question, p_options, p_expires_at)` → messages row
 - `vote_on_poll(p_poll_id, p_option_index)` → jsonb
@@ -84,7 +85,7 @@ Boss: every 500 XP (`BOSS_XP_THRESHOLD`) · 48h window · 3 phases · defeat →
 - Phase dmg multipliers: 1→1.0×, 2→1.3×, 3→1.6× · Boss attacks: phase 1/2 = every 2h, phase 3 = every 1h (trigger via dev panel)
 - Downed members auto-regen after 8h
 
-Combat classes (always-on):
+Combat classes (dev-gated: `nexus_combat_system`):
 | Class | HP | Ability | Cost | Effect |
 |---|---|---|---|---|
 | warrior | 42 | GUARD | 2 | Taunt + DEF+40% 60s |
@@ -107,16 +108,14 @@ Quick-pick emojis: `['🔥','💧','⚡','🌿','🌑','🔮']`
 - Google OAuth: `signInWithOAuth` → `/auth/callback` → `/home`
 - Anonymous: `signInAnonymously`; guest badge + Save Progress in header
 - `src/proxy.ts` only — DO NOT add `src/middleware.ts` (Next.js 16 errors if both exist)
-- Protected routes: `/home` `/chat` `/vault` `/party` `/profile` `/onboarding` `/friends` `/dm`
+- Protected routes: `/home` `/chat` `/vault` `/profile` `/onboarding` `/friends` `/dm`
 - Auth check: `getSession()` (cookie-only), NOT `getUser()` (100–300ms overhead)
 
 ### Login — `/login`
 Invite code path: `landing → invite-code → invite-oauth → invite-profile`
-1. `validateInviteCodeAction` — checks `app_invites`, does not consume
-2. Sets cookies `nexus_invite_code` + `nexus_auth_intent=invite` (SameSite=Lax, 5min) → Google OAuth
-3. Callback reads cookies → `invite-profile` step `?code=XXX`, clears cookies
-4. `checkReservedUserAction()` — auto-completes if fully reserved
-5. `completeInviteFlowAction` — re-validates, upserts profile, marks invite used
+1. `validateInviteCodeAction` checks `app_invites` (no consume) → sets cookies `nexus_invite_code` + `nexus_auth_intent=invite` (SameSite=Lax, 5min) → Google OAuth
+2. Callback reads cookies → `invite-profile` step `?code=XXX`, clears cookies → `checkReservedUserAction()` auto-completes if fully reserved
+3. `completeInviteFlowAction` — re-validates, upserts profile, marks invite used
 
 ### Onboarding
 `name → /onboarding/birthday → /onboarding/class → /onboarding/welcome → chat/crew`
@@ -127,7 +126,7 @@ Invite code path: `landing → invite-code → invite-oauth → invite-profile`
 ## Dev Mode
 `profiles.is_dev = true` — grant: `UPDATE profiles SET is_dev = true WHERE id IN (SELECT id FROM auth.users WHERE email = '...')`
 
-Dev flags (`localStorage`): `nexus_dev_mode` · `nexus_push_diag` · `nexus_infinite_coins` · `nexus_afk_exp` · `nexus_chat_camera` · `nexus_friendship_xp` · `nexus_poll_feature` · `nexus_pin_feature` · `nexus_events_enabled` · `nexus_combat_system`
+Dev flags (`localStorage`): `nexus_dev_mode` · `nexus_push_diag` · `nexus_infinite_coins` · `nexus_afk_exp` · `nexus_chat_camera` · `nexus_friendship_xp` · `nexus_poll_feature` · `nexus_events_enabled` · `nexus_combat_system`
 
 Server-side (`award-xp`): boss spawn + `LEVEL_UP:` only when `isDevUser = true`
 Client-side (`nexus_dev_mode`): `MessageList` hides boss/artifact/level-up system msgs + cards; `ChatInput` hides DamageFloat + RAID ACTIVE indicator
@@ -161,9 +160,10 @@ src/
 │   ├── combat/                 CombatHUD, CombatLog, AbilityButton, DamageFloat, VaultClient
 │   ├── home/                   HomeClient, InviteArsenal, homePreviewCache.ts
 │   ├── friends/                FriendsClient, InboxClient
+│   ├── events/                 EventCreationSheet, EventCard, GroupEventsClient (dev-gated: `nexus_events_enabled`)
 │   ├── auth/                   LoginForm
 │   ├── onboarding/             BirthdayClient, ClassSelectClient, WelcomeClient
-│   └── profile/                ProfileClient, DeveloperClient, NotesGrid, VibesGrid, PhotosGrid
+│   └── profile/                ProfileClient, DeveloperClient, VibesGrid, PhotosGrid
 ├── shared/
 │   ├── supabase/               client.ts, server.ts, auth.ts, imageLoader.ts
 │   ├── constants/config.ts     BOSS_XP_THRESHOLD, LEVEL_XP_BASE, etc.
@@ -226,32 +226,15 @@ Absolute-positioned gradient overlay (`linear-gradient black → transparent`). 
 All buttons: `border border-border p-2 backdrop-blur(7px)`.
 
 ### Definitions Page (`src/features/chat/screens/DefinitionHomePage.tsx`)
-Route: `/chat/[crewId]/definitions` · Export: `DefinitionHomePage`
+Route: `/chat/[crewId]/definitions`. Header: back chevron + "DEFINITIONS" title + `Plus` opens `CreateDefinitionPage`. Cards (Figma 402:9403): aliases/word/definition + creator byline (highlighted if own) + amber suggestion-count badge when `suggestion_count > 0`.
 
-Header (Figma 402:9394): `px-md py-x3` · `h-40px justify-between` · left = `[ChevronLeft primary] [DEFINITIONS silkscreen xl]` gap-x3 · right = `Plus primary` opens `CreateDefinitionPage`
+Any card tap opens `DefinitionPreviewSheet` (Figma 402:9507, `<BottomSheet>` z-70): full aliases/word/definition + "Author : {username}" + `Edit Definition` (purple, creator-only) + `Cancel`. Edit closes the preview and opens `CreateDefinitionPage` in edit mode.
 
-Cards (Figma 402:9403): `bg-surface-sheet rounded-x3 p-x5 gap-x5 items-start`
-- Details (402:9404): `flex-col gap-x3 items-start justify-center`
-  - Aliases: Silkscreen mini tertiary leading-none
-  - Word (402:9407): DM Sans Bold md `--primary` leading-none
-  - Definition (402:9408): DM Sans Regular 14px `--secondary` leading-[1.5] overflow-hidden text-ellipsis
-- Creator (402:9409): DM Sans Light xs · `--primary` if own definition · `--tertiary` otherwise
-- Suggestion badge: amber `#f59e0b` DM Sans Light xs (right-aligned, shown when `suggestion_count > 0`)
-
-**Card tap flow** — all taps (creator or not) open `DefinitionPreviewSheet` (Figma 402:9507, `<BottomSheet>` z-70):
-- Content: aliases (Silkscreen mini tertiary) · word (DM Sans Bold md primary) · definition (DM Sans Regular 14px secondary leading-1.5) · "Author : {username}" (DM Sans Light 12px tertiary)
-- `Edit Definition` button: purple border + `MagicEdit` 20×20 + DM Sans SemiBold sm purple — **creator only**
-- `Cancel` button: tertiary border + `Close` 20×20 + DM Sans SemiBold sm tertiary — always shown
-- Tapping Edit closes the preview sheet and opens `CreateDefinitionPage` in edit mode
-
-**`CreateDefinitionPage`** — full-screen slide-in overlay (`motion.div` controlled via `useAnimation()`, spring 380/36, `z-[80]`, `bg-black`):
-- Header: `ChevronLeft primary` 24×24 back + Silkscreen xl uppercase title ("ADD DEFINITION" / "EDIT DEFINITION")
-- Body: scrollable, `gap-x6` — `InputField` (words/aliases) + `InputField` (actual word) + `TextareaField` (definition, rows=5) + Text Effect section (Figma 405:2634)
-- Text Effect section — released to all users (formerly dev-gated behind `nexus_text_effect_feature`). Toggle row + effect option list (`bouncy_text` "Bouncy Text", `show_up` "Show Up", `particles` "Particles", `blur_in` "Blur In", `explode` "Explode"); selected card gets purple border + `surface-elevated` bg + `Check` icon, unselected gets `border` + `surface-sheet` + empty circle; each option's own label previews its (looping) effect live only while selected — unselected labels render as plain static text (`TextEffectText` gets `effect={selected ? effect : null}`). Persists to `squad_definitions.text_effect`. Effect components live in `src/features/chat/components/text-effects/` (`registry.ts` = id/label list, `TextEffectText.tsx` = effect switcher, one file per effect). Applied via `TextEffectText` in `MessageBubble`'s `renderWithDefinitions` wherever the keyword is highlighted inline in chat, and in the picker itself for preview.
-- Footer: sticky `DefinitionButton variant="fill"` "Save definition" with safe-area padding
-- Back button and left-edge swipe both call `handleBack()`: animates to x:100% (ease-in 150ms), then calls `onClose()`. Never calls `router.back()` — navigation stays on the definitions list. No `exit` prop; AnimatePresence sees the component already off-screen when it unmounts.
-- After a successful save, `handleBack()` is also called (slide-out animation plays before `onSaved` + `onClose()`).
-- `DefinitionHomePage` passes `nativeSwipe={showCreate || !!editTarget}` to `SlidePage` while the overlay is open, disabling SlidePage's custom swipe handler so it cannot race with the overlay's own gesture.
+**`CreateDefinitionPage`** — full-screen slide-in overlay (spring 380/36, `z-[80]`):
+- Fields: aliases `InputField`, word `InputField`, definition `TextareaField` (rows=5), Text Effect picker (Figma 405:2634, released to all users) — options `bouncy_text` / `show_up` / `particles` / `blur_in` / `explode`; only the selected option's own label previews live (others stay static). Persists to `squad_definitions.text_effect`; effect components live in `src/features/chat/components/text-effects/` (`registry.ts` + `TextEffectText.tsx`), applied both in the picker and inline via `MessageBubble`'s `renderWithDefinitions`.
+- Footer: sticky `DefinitionButton variant="fill"` "Save definition".
+- Back button, left-edge swipe, and successful save all route through `handleBack()` (slide-out animation → `onClose()`) — never `router.back()`, so nav always stays on the definitions list.
+- `DefinitionHomePage` passes `nativeSwipe={showCreate || !!editTarget}` to `SlidePage` while the overlay is open so its own gesture can't race with `SlidePage`'s swipe handler.
 
 ### SquadDetailsSheet (`src/features/chat/components/sheets/SquadDetailsSheet.tsx`)
 Panel pattern · `maxHeight: 85vh` · `overflow-hidden`
@@ -268,7 +251,7 @@ Figma 394:9180 · Standard `<BottomSheet>` (`zIndex={80}`), opened from `SquadDe
 - Code card: `--color-surface` bg + `border-border`, `h-[68px]` — left: "Invite new members" (Silkscreen mini primary) above the code itself (Silkscreen `--xl`, purple→fuchsia gradient `bg-clip-text` + `text-shadow: 0 0 3px #a855f7`, tracking 0.2px); right: "Copy Code" button
 - Copy button: `--color-purple` fill, `box-shadow: 4px 4px 0 rgba(168,85,247,0.5)`, `Copy` 12×12 icon + Silkscreen `--xxs` label; swaps to `Check` icon + "Copied!" for 1s on tap (writes `Come join my squad on Nexus app {code}` to clipboard)
 
-### Pin Feature (dev-gated: `nexus_pin_feature`)
+### Pin Feature (released to all users)
 - Admin = member with earliest `joined_at`; cap = 5 active pins (`PIN_MAX_PER_CREW`)
 - `pin_message` / `unpin_message` RPCs only — trigger blocks direct client writes
 - `PinListSheet`: lists pins; admin: unpin + display toggle
@@ -339,9 +322,13 @@ supabase functions deploy process-avatar --project-ref tlveyeisjbythssmocth --no
 supabase functions deploy award-gem --project-ref tlveyeisjbythssmocth
 supabase functions deploy attack-boss --project-ref tlveyeisjbythssmocth
 supabase functions deploy boss-attack --project-ref tlveyeisjbythssmocth
+supabase functions deploy process-deletions --project-ref tlveyeisjbythssmocth
+supabase functions deploy weekly-boss --project-ref tlveyeisjbythssmocth
 ```
 
 `git push` does NOT deploy edge functions. Inter-function calls use raw `fetch()` — never `supabase.functions.invoke()`. `send-notification` accepts `user_id: string` or `user_ids: string[]`.
+
+Live Vercel crons (`vercel.json`) call these over HTTP: `/api/cron/process-deletions` (daily 03:00 UTC — hard-deletes accounts past their 7-day `pending_deletions.delete_at` grace period) and `/api/cron/weekly-boss` (Sundays 00:00 UTC — soft-fails expired raids, then spawns a new raid for every qualifying non-DM crew with a combat-class member). `/api/cron/boss-attack` route exists but is **not** registered in `vercel.json` — dead code, see Gotchas.
 
 New notification type checklist:
 1. Add to `NotificationType` union in `send-notification/index.ts`
@@ -395,7 +382,6 @@ Icons (`pixelarticons`) — key usages:
 | ChatInput — send | `Send` | 16×16 |
 | ChatInput — poll | `Chart` | 16×16 |
 | Upload buttons | `Upload` | 16×16, `--color-purple` |
-| Copy / confirm | `Copy` / `Check` | 12×12 |
 
 ## Bottom Sheet Patterns
 
@@ -460,19 +446,13 @@ Single component for all user profile photo rendering. Uses `avatarImageLoader` 
 // Standard message / member list avatar (circle, bg-surface, 32px default)
 <UserAvatar avatarUrl={profile.avatar_url} username={profile.username} size={32} />
 
-// Friend / home account preview (circle, bg-primary, black initial for contrast)
-<UserAvatar avatarUrl={avatarUrl} username={username} size={48} bg="primary" initialColor="black" priority />
+// Above-fold hero (circle, bg-primary, black initial for contrast, priority)
+<UserAvatar avatarUrl={avatarUrl} username={username} size={56} bg="primary" initialColor="black" priority />
 
-// Own profile hero (circle, bg-primary, 56px)
-<UserAvatar avatarUrl={localAvatarUrl} username={localUsername} size={56} bg="primary" priority />
+// Square variant — DM headers / settings heroes (square, bg-border)
+<UserAvatar avatarUrl={avatarUrl} username={username} size={32} shape="square" bg="border" initialColor="primary" />
 
-// Member / settings profile hero (square, bg-border, 56px)
-<UserAvatar avatarUrl={avatarUrl} username={username} size={56} shape="square" bg="border" />
-
-// DM header / overlay back (square, bg-border, white initial)
-<UserAvatar avatarUrl={friendAvatarUrl} username={friendUsername} size={32} shape="square" bg="border" initialColor="primary" priority />
-
-// Event "going" avatar stack (circle, purple fallback background)
+// Custom fallback color — event "going" avatar stack (purple fallback, white initial)
 <UserAvatar avatarUrl={profile.avatar_url} username={profile.username} size={24} bg="border" fallbackBg="var(--color-purple)" initialColor="white" />
 ```
 
@@ -554,15 +534,17 @@ Same label/helper/border design as `InputField` but renders a `<textarea>`. Heig
 - `supabase/` excluded from `tsconfig.json` (Deno imports incompatible)
 - Query builder returns `PromiseLike` — async/await + try/catch only; no `.catch()` chaining
 
-## Disabled Features
+## Disabled / Dev-Gated Features
 - Voice notes: UI removed; `XP_VALUES['voice']` + element `lightning` still defined server-side
 - Poll creation: dev-gated via `nexus_poll_feature`; dispatches `nexus-poll-feature-change` event
+- Events (`message_type: 'event'`, `features/events/`): dev-gated via `nexus_events_enabled`
+- Combat system: dev-gated via `nexus_combat_system` (see Game Values combat table)
 
 ## Gotchas
 - `CREATE OR REPLACE FUNCTION` only replaces if signature matches exactly. Adding/removing params creates a new overload → ambiguous RPC errors. Always `DROP FUNCTION` old signatures first.
 - Optimistic messages carry `tempId`. Reconciliation **must** call `updateMessage(tempId, { id })` in place — never `removeMessage(tempId)` on success. Only remove on RPC error.
 - `insert_message` RPC uses `auth.uid()` internally — returns `null` from service role. For server-side inserts use `service.from('messages').insert(...)` directly.
-- Vercel Hobby: daily crons only (`0 0 * * *`). Sub-daily fails every deploy. `boss-attack` cron removed — trigger from dev panel.
+- Vercel Hobby: daily/weekly crons only. `boss-attack` (phase-attack ticks) has no cron — trigger from dev panel only; the route file is orphaned (not in `vercel.json`). Weekly raid spawn/expiry runs automatically via the `weekly-boss` cron instead.
 - **Combat HP/phase must come from system message INSERTs, not `active_raids` realtime UPDATEs.** UPDATEs arrive out of order. `active_raids` UPDATE handler: guard/volley/timer fields only.
 - **Don't use Framer Motion `animate={{ width }}` inside a TanStack virtualizer.** Use CSS `transition: width 0.5s ease-out` instead.
 - `init_combat_members` only creates rows for `is_dev = true` AND a combat class. Dev user with `berserker` class gets no combat row.
@@ -570,11 +552,12 @@ Same label/helper/border design as `InputField` but renders a `<textarea>`. Heig
 - **iOS Safari clears sessionStorage on PWA kill/relaunch.** Always write to both sessionStorage and IDB; read sessionStorage first (sync), fall back to IDB (async ~5ms).
 - **`SwipeableCrewCard`**: `wasDragging` set in `onDragEnd` only (not `onDragStart`) — setting it in `onDragStart` blocks `onClick` for micro-movements. `onDragStart` calls `cancelLongPress()` to prevent 500ms timer firing on slow swipes.
 - **iOS Safari `<button>` background**: `-webkit-appearance: button` overrides custom `background` values. Always include `appearance-none` (Tailwind) on styled `<button>` elements — `SheetActionButton` already does this.
-- **`FloatingBackButton` history manipulation runs on every mount.** The `useEffect` that does `replaceState(/home) + pushState(/chat)` fires each time the chat page remounts — including when the user navigates back from a sub-page (definitions, etc.). Any `router.push()` away from the chat page must first call `sessionStorage.setItem('nexus_chat_from', 'chat')` so the effect skips re-manipulation on return. Omitting this stacks an extra `/home` entry per round trip.
-- **`SlidePage` swipe handler fires through fixed overlays.** Fixed-position overlays rendered inside a `SlidePage` are still children in the DOM tree, so touch events bubble up to `SlidePage`'s native `addEventListener`. Pass `nativeSwipe={overlayOpen}` to `SlidePage` whenever any overlay is active — this disables the custom left-edge swipe handler so it cannot call `router.back()` while an overlay is showing.
+- **`FloatingBackButton`'s `replaceState(/home) + pushState(/chat)` effect runs on every mount** — including returning from a sub-page. Before any `router.push()` away from chat, call `sessionStorage.setItem('nexus_chat_from', 'chat')` so the effect skips re-manipulation on return; otherwise it stacks an extra `/home` history entry per round trip.
+- **`SlidePage`'s left-edge swipe listener fires through fixed overlays** — they're still DOM children, so touch events bubble up. Pass `nativeSwipe={overlayOpen}` whenever any overlay is active, or the swipe handler can call `router.back()` while the overlay is showing.
 - **`squad_definitions.creator_id` FK points to `auth.users`, not `public.profiles`.** Supabase embedded selects (`profiles!creator_id(username)`) will fail — the FK hint resolves to `auth.users` which is a different schema. Fetch creator usernames via a separate `profiles` query keyed on the collected `creator_id` values.
 - **Realtime INSERT handlers that need profile data should cache known usernames in a `useRef`.** Seed the cache from `initialDefinitions` (or equivalent server-fetched data) on mount, then only hit Supabase for unseen `creator_id` values. This avoids a DB round-trip for every INSERT from a known user. See `profileCacheRef` in `DefinitionHomePage`.
 - **`insert_message`'s `RETURNING *` already contains every column** (reply/image fields included) — `ChatInput`'s send/sendImages/sendGif broadcast and patch the store directly from that returned row (`broadcastNewMessage(raw)` / `updateMessage(tempId, raw)`) instead of hand-picking fields. Don't reintroduce manually-constructed payload objects; they drift from what was actually written.
 - **Postgres Changes `filter` on `profiles` UPDATE must be scoped to known member IDs** (`id=in.(...)`) — an unfiltered listener receives every profile update in the entire database and discards irrelevant ones client-side. Same principle applies to any new `postgres_changes` subscription: always filter server-side, never rely on client-side discarding.
 - **`broadcastTyping` gates on `isTypingRef` before calling `.track()`.** `handleInput` calls it on every keystroke; without the transition guard it would re-send presence on every character instead of only on the not-typing↔typing edge.
-- **Vibes (`notes`) disappearing after a member leaves a crew is two separate bugs, both fixed:** (1) the `notes` SELECT RLS used to require *current* crew membership, hiding a creator's own notes the moment they left — fixed by also allowing `created_by = auth.uid()` (migration `20240103000053`). (2) `profile/page.tsx`'s Vibes query used to additionally filter `crew_id IN (currently-joined crews)`, which re-imposed the same restriction client-side even after the RLS fix — removed; the query is now just `created_by = user.id` and RLS handles visibility. `profile_photos` is unaffected by crew membership (no `crew_id` column, public-read RLS).
+- **Client-side filters can silently re-hide rows that already passed RLS — check the DB before assuming data was deleted.** Two real cases so far: (1) Vibes vanishing after leaving a crew — `notes` SELECT RLS required *current* crew membership (fixed: also allow `created_by = auth.uid()`), and `profile/page.tsx` separately re-filtered by joined-crew ids client-side (fixed: query is now just `created_by = user.id`). (2) `VibesGrid`'s `MUSIC_DOMAINS` allowlist didn't recognize `m.youtube.com`, so valid saved notes were filtered out of the display array; `normHost()` now strips `m.` as well as `www.`, and the allowlist is a single shared `MUSIC_DOMAINS` constant in `config.ts` (was previously duplicated and had drifted between `VibesGrid` and `chat/[crewId]/page.tsx`).
+- **`profile_photos` / `notes` deletes are hard deletes with no versioning** — `deletePhotoAction`/`deleteNoteAction` remove the DB row and storage object together, permanently, with no recovery path. `PhotosGrid`'s Remove Photo requires a confirm-sheet tap before calling it; don't remove that guard or add a similarly instant destructive action elsewhere.

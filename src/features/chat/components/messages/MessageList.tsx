@@ -336,14 +336,17 @@ export function MessageList({
         }
 
         const existing = useChatStore.getState().messages
+        const pendingReactionIds = useChatStore.getState().pendingReactionIds
         const existingMap = new Map(existing.map((m) => [m.id, m]))
         const fetchedIds = new Set(fetched.map((m) => m.id))
+        // This background fetch can straddle a reaction toggle — its snapshot may predate
+        // (or land mid-way through) an in-flight local mutation. Guessing staleness from
+        // "fetched reactions happen to be empty" only protects an add, never a remove, so
+        // trust the pending-set signal from the actual toggle instead of the row's shape.
         const fetchedWithLocalReactions = fetched.map((fetchedMsg) => {
           const existingMsg = existingMap.get(fetchedMsg.id)
           if (!existingMsg) return fetchedMsg
-          const fetchedReactions = (fetchedMsg.reactions ?? {}) as Record<string, string[]>
-          const localReactions   = (existingMsg.reactions  ?? {}) as Record<string, string[]>
-          if (Object.keys(fetchedReactions).length === 0 && Object.keys(localReactions).length > 0) {
+          if (pendingReactionIds.has(fetchedMsg.id)) {
             return { ...fetchedMsg, reactions: existingMsg.reactions }
           }
           return fetchedMsg
@@ -746,11 +749,12 @@ export function MessageList({
           const raw = payload.new as Message
           if (!raw?.id) return
 
-          const dbReactions    = (raw.reactions  ?? {}) as Record<string, string[]>
-          const localMsg       = useChatStore.getState().messages.find((m) => m.id === raw.id)
-          const localReactions = (localMsg?.reactions  ?? {}) as Record<string, string[]>
-          const hasDbReactions    = Object.keys(dbReactions).length > 0
-          const hasLocalReactions = Object.keys(localReactions).length > 0
+          // A reaction toggle for this message is currently in flight on this client —
+          // its own round trip (useMessageReactions) owns reconciling `reactions` once
+          // the edge function responds. Applying this event's snapshot here as well
+          // risks clobbering a fresher local add/remove with an older DB read.
+          const reactionPending = useChatStore.getState().pendingReactionIds.has(raw.id)
+          const dbReactions     = (raw.reactions ?? {}) as Record<string, string[]>
 
           const patch: Partial<Message> = {
             content:         raw.content,
@@ -761,11 +765,11 @@ export function MessageList({
             pinned_at:       raw.pinned_at,
             pin_expires_at:  raw.pin_expires_at,
           }
-          if (hasDbReactions || !hasLocalReactions) patch.reactions = dbReactions
+          if (!reactionPending) patch.reactions = dbReactions
 
           updateMessage(raw.id, patch)
 
-          if (patch.reactions !== undefined) {
+          if (patch.reactions !== undefined || reactionPending) {
             try {
               const cacheKey = `nexus-msgs-${crewId}`
               const cached = sessionStorage.getItem(cacheKey)
@@ -775,8 +779,11 @@ export function MessageList({
                 const msgs = (Array.isArray(parsedCache) ? parsedCache : parsedCache?.messages) as { id: string; [k: string]: unknown }[] | undefined
                 if (Array.isArray(msgs)) {
                   const idx = msgs.findIndex((m) => m.id === raw.id)
-                  if (idx !== -1) {
-                    msgs[idx] = { ...msgs[idx], reactions: patch.reactions }
+                  // Mirror whatever the store currently considers authoritative for this
+                  // message's reactions — the optimistic value while pending, else dbReactions.
+                  const currentReactions = useChatStore.getState().messages.find((m) => m.id === raw.id)?.reactions
+                  if (idx !== -1 && currentReactions !== undefined) {
+                    msgs[idx] = { ...msgs[idx], reactions: currentReactions }
                     const updated = Array.isArray(parsedCache) ? msgs : { ...parsedCache, messages: msgs }
                     const str = JSON.stringify(updated)
                     sessionStorage.setItem(cacheKey, str)
