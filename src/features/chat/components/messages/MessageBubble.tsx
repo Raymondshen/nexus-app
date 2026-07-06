@@ -488,9 +488,6 @@ function MessageBubbleImpl({
   // Cached per-gesture list of all slide wrappers in this message's group
   const groupElsRef        = useRef<HTMLElement[]>([])
 
-  // Boolean selector — only re-renders this bubble when THIS user's status changes,
-  // not when any other user's online status changes or the sweep runs every 15s.
-  const isOnline      = useChatStore((s) => s.onlineUserIds.has(message.user_id))
   const updateMessage = useChatStore((s) => s.updateMessage)
   const setReplyTo    = useChatStore((s) => s.setReplyTo)
   const setEditTo     = useChatStore((s) => s.setEditTo)
@@ -726,9 +723,6 @@ function MessageBubbleImpl({
             style={onAvatarTap ? { cursor: 'pointer' } : undefined}
           >
             <UserAvatar avatarUrl={pollAvatarUrl} username={message.profile.username} size={32} />
-            {isOnline && (
-              <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#66bb6a] border-[1.5px] border-black" />
-            )}
           </div>
         )}
         <div className={`flex-1 min-w-0 flex flex-col gap-0 ${!showHeader ? 'pl-10' : ''}`}>
@@ -768,9 +762,6 @@ function MessageBubbleImpl({
             style={onAvatarTap ? { cursor: 'pointer' } : undefined}
           >
             <UserAvatar avatarUrl={eventAvatarUrl} username={message.profile.username} size={32} />
-            {isOnline && (
-              <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#66bb6a] border-[1.5px] border-black" />
-            )}
           </div>
         )}
         <div className={`flex-1 min-w-0 flex flex-col gap-[4px] ${!showHeader ? 'pl-10' : ''}`}>
@@ -846,9 +837,6 @@ function MessageBubbleImpl({
             style={onAvatarTap ? { cursor: 'pointer' } : undefined}
           >
             <UserAvatar avatarUrl={avatarUrl} username={message.profile.username} size={32} />
-            {isOnline && (
-              <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#66bb6a] border-[1.5px] border-black" />
-            )}
           </div>
         )}
 
