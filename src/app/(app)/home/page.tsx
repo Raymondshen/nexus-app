@@ -4,7 +4,7 @@ import { createClient, createServiceClient } from '@/shared/supabase/server'
 import { HomeClient } from '@/features/home/screens/HomeClient'
 import type { FriendSummary } from '@/features/home/screens/HomeClient'
 import type { Crew } from '@/types'
-import type { AnnouncementItem } from '@/shared/components/banners/AnnouncementsSheet'
+import { getActiveAnnouncementsAction } from './actions'
 
 function buildFriends(
   friendshipRows: Array<{ id: string; requester_id: string; addressee_id: string }>,
@@ -120,23 +120,6 @@ function getCachedHomeMembers(crewIds: string[]) {
   )()
 }
 
-// Cached: active announcements (60s TTL, invalidated by revalidateTag('announcements'))
-function getCachedAnnouncements() {
-  return unstable_cache(
-    async () => {
-      const supabase = createServiceClient()
-      const { data } = await supabase
-        .from('announcements')
-        .select('id, title, text, image_url, created_at')
-        .eq('active', true)
-        .order('created_at', { ascending: false })
-      return (data ?? []) as AnnouncementItem[]
-    },
-    ['announcements'],
-    { tags: ['announcements'], revalidate: 300 }
-  )()
-}
-
 // Crew membership row with embedded crew data (single joined query replaces two separate queries)
 type MembershipWithCrew = {
   crew_id:   string
@@ -158,7 +141,7 @@ export default async function HomePage() {
     profile,
     { data: membershipRows, error: memberError },
     friendshipRows,
-    announcements,
+    { data: announcements },
   ] = await Promise.all([
     getCachedHomeProfile(user.id),
     supabase
@@ -167,7 +150,7 @@ export default async function HomePage() {
       .eq('user_id', user.id)
       .order('joined_at', { ascending: false }),
     getCachedFriendships(user.id),
-    getCachedAnnouncements(),
+    getActiveAnnouncementsAction(),
   ])
 
   if (memberError) console.error('[home] crew_members query error:', memberError)

@@ -27,7 +27,7 @@ friendships         id, requester_id, addressee_id, status (pending|accepted), c
 coin_log            id, user_id, crew_id (nullable), coins, source, created_at
 app_invites         id, code (text unique), inviter_id (uuid → profiles), used (bool), used_by (uuid → profiles), used_at (timestamptz), created_at
 reserved_users      id, email (text unique), username, class, first_name, last_name, created_at, converted (bool default false)
-announcements       id, text (1–500 chars), active (bool default true), created_at
+announcements       id, title (1–200 chars), text (1–500 chars), image_url (1–300 chars), active (bool default true), created_at
 polls               id, message_id (uuid → messages nullable), crew_id, creator_id, question (1–200 chars), options (jsonb string[]), votes (jsonb default '{}' — `{"0":["userId",...]}`), expires_at, closed_at, created_at
 squad_definitions   id, crew_id, creator_id, word (1–100 chars, comma-separated aliases), definition (1–500 chars), text_effect (text nullable), created_at — UNIQUE INDEX (crew_id, lower(word))
 definition_suggestions  id, definition_id (→ squad_definitions CASCADE), crew_id, suggester_id, suggested_definition (1–500 chars), created_at — UNIQUE(definition_id, suggester_id); REPLICA IDENTITY FULL

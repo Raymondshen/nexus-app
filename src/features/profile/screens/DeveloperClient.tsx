@@ -7,7 +7,9 @@ import { SlidePage, useSlideBack } from '@/app/layouts/SlidePage'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
 import { Plus } from 'pixelarticons/react/Plus'
-import { createAnnouncementAction } from '@/app/(app)/home/actions'
+import { createAnnouncementAction, getActiveAnnouncementsAction } from '@/app/(app)/home/actions'
+import { AnnouncementsSheetView } from '@/shared/components/banners/AnnouncementsSheet'
+import type { AnnouncementItem } from '@/shared/components/banners/AnnouncementsSheet'
 import {
   resetFriendshipXPAction,
   resetGemCooldownAction,
@@ -121,6 +123,10 @@ export function DeveloperClient({ userId: _userId, initialCoins, userCrews }: De
   const [addingBanner,        setAddingBanner]        = useState(false)
   const [bannerError,         setBannerError]         = useState<string | null>(null)
   const [addedSuccess,        setAddedSuccess]        = useState(false)
+  const [previewAnnouncements, setPreviewAnnouncements] = useState<AnnouncementItem[]>([])
+  const [previewOpen,          setPreviewOpen]          = useState(false)
+  const [previewLoading,       setPreviewLoading]       = useState(false)
+  const [previewError,         setPreviewError]         = useState<string | null>(null)
 
   // combat testing
   const [selectedCrewId,   setSelectedCrewId]   = useState<string>(userCrews[0]?.id ?? '')
@@ -246,6 +252,17 @@ export function DeveloperClient({ userId: _userId, initialCoins, userCrews }: De
     setTimeout(() => setAddedSuccess(false), 2000)
   }
 
+  async function handlePreviewAnnouncements() {
+    if (previewLoading) return
+    setPreviewLoading(true)
+    setPreviewError(null)
+    const { data } = await getActiveAnnouncementsAction()
+    setPreviewLoading(false)
+    if (data.length === 0) { setPreviewError('No active announcements'); return }
+    setPreviewAnnouncements(data)
+    setPreviewOpen(true)
+  }
+
   // ── Combat action helpers ──────────────────────────────────────────────────
 
   async function runCombatAction(
@@ -267,6 +284,47 @@ export function DeveloperClient({ userId: _userId, initialCoins, userCrews }: De
       setTimeout(() => setState('idle'), 2000)
     }
   }
+
+  const settingsRows: {
+    key:         string
+    title:       string
+    description: string
+    label:       string
+    background:  string
+    disabled:    boolean
+    onClick:     () => void
+    onBlur?:     () => void
+  }[] = [
+    {
+      key:         'preview-announcements',
+      title:       'Preview Announcements Sheet',
+      description: previewError ?? 'Force-show the announcements bottom sheet with all active announcements',
+      label:       previewLoading ? '...' : 'Preview',
+      background:  previewError ? 'var(--color-danger)' : 'var(--color-border)',
+      disabled:    previewLoading,
+      onClick:     handlePreviewAnnouncements,
+    },
+    {
+      key:         'reset-gem-cooldown',
+      title:       'Reset Gem Cooldown',
+      description: "Allow claiming today's daily gem again, for your account only",
+      label:       resettingGem ? '...' : gemResetDone ? 'Done!' : gemResetConfirm ? 'Confirm?' : 'Reset',
+      background:  gemResetDone ? 'var(--color-success)' : gemResetConfirm ? 'var(--color-danger)' : 'var(--color-border)',
+      disabled:    resettingGem,
+      onClick:     handleResetGemCooldown,
+      onBlur:      () => setGemResetConfirm(false),
+    },
+    {
+      key:         'reset-friendship-xp',
+      title:       'Reset Friendship XP',
+      description: 'Wipe all friendship XP pairs for your account',
+      label:       resettingFXP ? '...' : fxpResetDone ? 'Done!' : fxpResetConfirm ? 'Confirm?' : 'Reset',
+      background:  fxpResetDone ? 'var(--color-success)' : fxpResetConfirm ? 'var(--color-danger)' : 'var(--color-border)',
+      disabled:    resettingFXP,
+      onClick:     handleResetFriendshipXP,
+      onBlur:      () => setFxpResetConfirm(false),
+    },
+  ]
 
   const combatRows: {
     title:          string
@@ -513,61 +571,34 @@ export function DeveloperClient({ userId: _userId, initialCoins, userCrews }: De
             onChange={toggleCombatSystem}
           />
 
-          {/* Reset gem cooldown */}
-          <div className="flex items-center w-full" style={{ gap: 'var(--space-3)' }}>
-            <div className="flex-1 min-w-0 flex flex-col gap-0 leading-[0] tracking-[0.2px]">
-              <p className="font-body font-semibold text-secondary leading-normal" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}>
-                Reset Gem Cooldown
-              </p>
-              <p className="font-body font-normal text-tertiary leading-normal" style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}>
-                Allow claiming today&apos;s daily gem again, for your account only
-              </p>
+          {settingsRows.map(({ key, title, description, label, background, disabled, onClick, onBlur }) => (
+            <div key={key} className="flex items-center w-full" style={{ gap: 'var(--space-3)' }}>
+              <div className="flex-1 min-w-0 flex flex-col gap-0 leading-[0] tracking-[0.2px]">
+                <p className="font-body font-semibold text-secondary leading-normal" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}>
+                  {title}
+                </p>
+                <p className="font-body font-normal text-tertiary leading-normal" style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}>
+                  {description}
+                </p>
+              </div>
+              <button
+                onClick={onClick}
+                disabled={disabled}
+                onBlur={onBlur}
+                className="flex-shrink-0 flex items-center justify-center overflow-hidden disabled:opacity-40"
+                style={{
+                  background,
+                  padding:    '4px 10px',
+                  minWidth:   64,
+                  transition: 'background 0.15s',
+                }}
+              >
+                <span className="font-silkscreen leading-none whitespace-nowrap text-primary" style={{ fontSize: 'var(--text-mini)' }}>
+                  {label}
+                </span>
+              </button>
             </div>
-            <button
-              onClick={handleResetGemCooldown}
-              disabled={resettingGem}
-              onBlur={() => setGemResetConfirm(false)}
-              className="flex-shrink-0 flex items-center justify-center overflow-hidden disabled:opacity-40"
-              style={{
-                background: gemResetDone ? 'var(--color-success)' : gemResetConfirm ? 'var(--color-danger)' : 'var(--color-border)',
-                padding:    '4px 10px',
-                minWidth:   64,
-                transition: 'background 0.15s',
-              }}
-            >
-              <span className="font-silkscreen leading-none whitespace-nowrap text-primary" style={{ fontSize: 'var(--text-mini)' }}>
-                {resettingGem ? '...' : gemResetDone ? 'Done!' : gemResetConfirm ? 'Confirm?' : 'Reset'}
-              </span>
-            </button>
-          </div>
-
-          {/* Reset friendship XP */}
-          <div className="flex items-center w-full" style={{ gap: 'var(--space-3)' }}>
-            <div className="flex-1 min-w-0 flex flex-col gap-0 leading-[0] tracking-[0.2px]">
-              <p className="font-body font-semibold text-secondary leading-normal" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}>
-                Reset Friendship XP
-              </p>
-              <p className="font-body font-normal text-tertiary leading-normal" style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}>
-                Wipe all friendship XP pairs for your account
-              </p>
-            </div>
-            <button
-              onClick={handleResetFriendshipXP}
-              disabled={resettingFXP}
-              onBlur={() => setFxpResetConfirm(false)}
-              className="flex-shrink-0 flex items-center justify-center overflow-hidden disabled:opacity-40"
-              style={{
-                background: fxpResetDone ? 'var(--color-success)' : fxpResetConfirm ? 'var(--color-danger)' : 'var(--color-border)',
-                padding:    '4px 10px',
-                minWidth:   64,
-                transition: 'background 0.15s',
-              }}
-            >
-              <span className="font-silkscreen leading-none whitespace-nowrap text-primary" style={{ fontSize: 'var(--text-mini)' }}>
-                {resettingFXP ? '...' : fxpResetDone ? 'Done!' : fxpResetConfirm ? 'Confirm?' : 'Reset'}
-              </span>
-            </button>
-          </div>
+          ))}
         </div>
 
         {/* Combat Testing */}
@@ -651,6 +682,11 @@ export function DeveloperClient({ userId: _userId, initialCoins, userCrews }: De
         </div>
 
       </div>
+
+      <AnnouncementsSheetView
+        announcements={previewOpen ? previewAnnouncements : []}
+        onClose={() => setPreviewOpen(false)}
+      />
     </SlidePage>
   )
 }

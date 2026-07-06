@@ -1,10 +1,4 @@
-function formatAnnouncementDate(iso: string): string {
-  try {
-    return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-  } catch {
-    return ''
-  }
-}
+import { formatShortDate } from '@/shared/utils/date'
 
 export interface AnnouncementCardProps {
   title:     string
@@ -41,7 +35,7 @@ export function AnnouncementCard({ title, text, imageUrl, createdAt }: Announcem
             className="flex-1 min-w-0 font-body font-light text-tertiary text-right whitespace-nowrap"
             style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}
           >
-            {formatAnnouncementDate(createdAt)}
+            {formatShortDate(createdAt)}
           </p>
         </div>
         <p

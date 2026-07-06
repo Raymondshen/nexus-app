@@ -1,9 +1,10 @@
 'use server'
 
-import { revalidatePath, revalidateTag } from 'next/cache'
+import { revalidatePath, revalidateTag, unstable_cache } from 'next/cache'
 import { createClient } from '@supabase/supabase-js'
 import { createClient as createSupabaseClient, createServiceClient } from '@/shared/supabase/server'
 import type { Database, AppInvite, Announcement } from '@/types'
+import type { AnnouncementItem } from '@/shared/components/banners/AnnouncementsSheet'
 
 export interface InviteCodeData {
   id:                  string
@@ -141,6 +142,28 @@ async function requireDev(): Promise<{ userId: string } | { error: string }> {
   const { data } = await service.from('profiles').select('is_dev').eq('id', user.id).single()
   if (!(data as { is_dev?: boolean })?.is_dev) return { error: 'Not authorized' }
   return { userId: user.id }
+}
+
+// Cached: active announcements (invalidated by revalidateTag('announcements')).
+// Sole place that encodes "what's currently live" — reused by the home page
+// and DeveloperClient's preview button so both stay on the same rule.
+function getCachedActiveAnnouncements() {
+  return unstable_cache(
+    async () => {
+      const { data } = await createServiceClient()
+        .from('announcements')
+        .select('id, title, text, image_url, created_at')
+        .eq('active', true)
+        .order('created_at', { ascending: false })
+      return (data ?? []) as AnnouncementItem[]
+    },
+    ['announcements'],
+    { tags: ['announcements'], revalidate: 300 }
+  )()
+}
+
+export async function getActiveAnnouncementsAction(): Promise<{ data: AnnouncementItem[] }> {
+  return { data: await getCachedActiveAnnouncements() }
 }
 
 export async function getAllAnnouncementsAction(): Promise<{ data?: Announcement[]; error?: string }> {

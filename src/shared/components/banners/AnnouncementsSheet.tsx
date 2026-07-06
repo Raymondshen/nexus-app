@@ -20,31 +20,20 @@ function getDismissed(): Set<string> {
   catch { return new Set() }
 }
 
-// Figma 419:1930 — "what's new" sheet, nexus-gradient background (an explicit
-// exception to BottomSheet's default solid --color-surface-sheet).
-export function AnnouncementsSheet({ announcements }: { announcements: AnnouncementItem[] }) {
-  const [visible, setVisible] = useState<AnnouncementItem[] | null>(null) // null = dismissed-state not checked yet
+export interface AnnouncementsSheetViewProps {
+  announcements: AnnouncementItem[]
+  onClose:       () => void
+}
 
-  useEffect(() => {
-    const dismissed = getDismissed()
-    setVisible(announcements.filter(a => !dismissed.has(a.id)))
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  function dismissAll() {
-    if (!visible || visible.length === 0) return
-    const dismissed = getDismissed()
-    for (const a of visible) dismissed.add(a.id)
-    localStorage.setItem(STORAGE_KEY, JSON.stringify([...dismissed]))
-    setVisible([])
-  }
-
-  const showSheet = !!visible && visible.length > 0
-
+// Presentational body shared by the production sheet (dismissed-state driven)
+// and the dev-only preview (`DeveloperClient`'s AnnouncementsSheetView usage) —
+// keep this the sole place that lays out the sheet chrome + card list.
+export function AnnouncementsSheetView({ announcements, onClose }: AnnouncementsSheetViewProps) {
   return (
     <AnimatePresence>
-      {showSheet && (
+      {announcements.length > 0 && (
         <BottomSheet
-          onClose={dismissAll}
+          onClose={onClose}
           zIndex={80}
           maxHeight="85vh"
           background="var(--gradient-nexus)"
@@ -66,12 +55,12 @@ export function AnnouncementsSheet({ announcements }: { announcements: Announcem
               </p>
             </div>
 
-            {visible!.map((a) => (
+            {announcements.map((a) => (
               <AnnouncementCard key={a.id} title={a.title} text={a.text} imageUrl={a.image_url} createdAt={a.created_at} />
             ))}
 
             <button
-              onClick={dismissAll}
+              onClick={onClose}
               className="w-full flex items-center justify-center bg-purple rounded-[8px]"
               style={{ padding: 'var(--space-5)' }}
             >
@@ -87,4 +76,25 @@ export function AnnouncementsSheet({ announcements }: { announcements: Announcem
       )}
     </AnimatePresence>
   )
+}
+
+// Figma 419:1930 — "what's new" sheet, nexus-gradient background (an explicit
+// exception to BottomSheet's default solid --color-surface-sheet).
+export function AnnouncementsSheet({ announcements }: { announcements: AnnouncementItem[] }) {
+  const [visible, setVisible] = useState<AnnouncementItem[] | null>(null) // null = dismissed-state not checked yet
+
+  useEffect(() => {
+    const dismissed = getDismissed()
+    setVisible(announcements.filter(a => !dismissed.has(a.id)))
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function dismissAll() {
+    if (!visible || visible.length === 0) return
+    const dismissed = getDismissed()
+    for (const a of visible) dismissed.add(a.id)
+    localStorage.setItem(STORAGE_KEY, JSON.stringify([...dismissed]))
+    setVisible([])
+  }
+
+  return <AnnouncementsSheetView announcements={visible ?? []} onClose={dismissAll} />
 }

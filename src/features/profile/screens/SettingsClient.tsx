@@ -12,6 +12,7 @@ import { User } from 'pixelarticons/react/User'
 import { Terminal } from 'pixelarticons/react/Terminal'
 import { createClient } from '@/shared/supabase/client'
 import { validateUsernameFormat } from '@/shared/utils/username'
+import { formatShortDate } from '@/shared/utils/date'
 import { UserAvatar } from '@/shared/components/ui/UserAvatar'
 import { signOut } from '@/shared/supabase/auth'
 import {
@@ -453,7 +454,7 @@ function AccountDetailsSheet({
                   <p className="font-body font-normal leading-normal tracking-[0.2px]" style={{ fontSize: 'var(--text-xxs)', color: 'var(--color-secondary)', fontVariationSettings: '"opsz" 14' }}>
                     Permanent deletion on{' '}
                     <span style={{ color: 'var(--color-primary)' }}>
-                      {new Date(localDeleteAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      {formatShortDate(localDeleteAt)}
                     </span>
                     . All data will be erased.
                   </p>
