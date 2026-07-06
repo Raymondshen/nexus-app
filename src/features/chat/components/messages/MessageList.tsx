@@ -1040,10 +1040,11 @@ export function MessageList({
         style={{ contain: 'strict' }}
       >
         {messages.length === 0 ? (
-          // No virtualizer math for the empty state — a plain centered box fills the
-          // actual scroll viewport, so the ghost/text/invite-card sit dead-center
-          // regardless of viewport height (unlike sizing a virtual row to a fixed estimate).
-          <div className="flex flex-col items-center justify-center w-full h-full">
+          // No virtualizer math for the empty state — a plain bottom-aligned box fills
+          // the actual scroll viewport, so the ghost/text/invite-card sit flush with
+          // the composer regardless of viewport height (unlike sizing a virtual row to
+          // a fixed estimate).
+          <div className="flex flex-col items-center justify-end w-full h-full">
             <EmptyState inviteCode={inviteCode} justCreated={Object.keys(memberProfiles).length <= 1} />
           </div>
         ) : (
