@@ -128,6 +128,17 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
     redirect(`/onboarding/class?crew=${crewId}`)
   }
 
+  // Past usernames of current members — lets @mentions in old messages resolve to
+  // whatever the member's username is now. Small/rare table; no FK path from
+  // crew_members to username_history for an embedded select, so fetched separately.
+  const { data: historyRows } = await supabase
+    .from('username_history')
+    .select('user_id, old_username')
+    .in('user_id', lastSeenRows.map((r) => r.user_id))
+  const initialMentionAliases: [string, string][] = (
+    (historyRows ?? []) as { user_id: string; old_username: string }[]
+  ).map((h) => [h.old_username.toLowerCase(), h.user_id])
+
   // Combat data — results from the parallel Stage 2 queries above
   let initialRaid:         ActiveRaid | null              = null
   let initialMemberStats:  Record<string, CombatMember>  = {}
@@ -235,6 +246,7 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
           memberProfiles={memberProfiles}
           creatorId={creatorId}
           memberPinnedVinyls={memberPinnedVinyls}
+          initialMentionAliases={initialMentionAliases}
         />
       </ErrorBoundary>
 

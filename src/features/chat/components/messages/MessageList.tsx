@@ -25,6 +25,9 @@ interface MessageListProps {
   memberProfiles:       Record<string, Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url' | 'status'>>
   creatorId?:           string | null
   memberPinnedVinyls?:  Record<string, { imageUrl: string | null; title: string | null }>
+  /** [oldUsername.toLowerCase(), userId][] — past usernames of current members, so
+   *  @mentions of a member's old name resolve to their current one. See username_history. */
+  initialMentionAliases?: [string, string][]
 }
 
 function dayLabel(date: Date): string {
@@ -91,6 +94,7 @@ function estimateItemSize(item: DisplayItem): number {
 }
 
 const LOAD_OLDER_BATCH = 50
+const EMPTY_ALIAS_ENTRIES: [string, string][] = []
 
 // Envelope stored in both sessionStorage (sync, fast) and IDB (persistent across iOS PWA kills)
 type MsgCache = { messages: MessageWithProfile[]; savedAt: number }
@@ -168,6 +172,7 @@ export function MessageList({
   memberProfiles,
   creatorId,
   memberPinnedVinyls,
+  initialMentionAliases = EMPTY_ALIAS_ENTRIES,
 }: MessageListProps) {
   const router = useRouter()
   const onAvatarTap = useMemo(
@@ -228,6 +233,24 @@ export function MessageList({
     for (const p of Object.values(localProfiles)) map[p.username.toLowerCase()] = p
     return map
   }, [localProfiles])
+
+  // Every past username (lowercased) any current member has ever had, mapped to their user id.
+  // Seeded from username_history at load; the profiles-UPDATE realtime handler below adds an
+  // entry the instant a member renames while this chat is open. Values never go stale even
+  // through multiple renames — resolution always re-reads the CURRENT username out of
+  // localProfiles at render time (see mentionAliases below), never out of this map itself.
+  const [oldUsernameToUserId, setOldUsernameToUserId] = useState<Map<string, string>>(
+    () => new Map(initialMentionAliases)
+  )
+  // @mention resolution map passed to MessageBubble: old username (lowercased) → CURRENT username.
+  const mentionAliases = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const [oldUsername, userId] of oldUsernameToUserId) {
+      const current = localProfiles[userId]?.username
+      if (current) map.set(oldUsername, current)
+    }
+    return map
+  }, [oldUsernameToUserId, localProfiles])
 
   const scrollRef    = useRef<HTMLDivElement>(null)
   const profilesRef  = useRef(memberProfiles)
@@ -801,7 +824,8 @@ export function MessageList({
         { event: 'UPDATE', schema: 'public', table: 'profiles', filter: profileFilter },
         (payload) => {
           const p = payload.new as { id: string; username: string; avatar_url: string | null; avatar_class: string | null; status: string | null }
-          if (!profilesRef.current[p.id]) return
+          const previous = profilesRef.current[p.id]
+          if (!previous) return
           const updated: Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url' | 'status'> = {
             id: p.id,
             username: p.username,
@@ -811,6 +835,15 @@ export function MessageList({
           }
           profilesRef.current[p.id] = updated
           setLocalProfiles((prev) => ({ ...prev, [p.id]: updated }))
+          // Renamed while this chat is open — let @mentions of the old name resolve
+          // immediately, without waiting for a reload to re-fetch username_history.
+          if (previous.username.toLowerCase() !== p.username.toLowerCase()) {
+            setOldUsernameToUserId((prev) => {
+              const next = new Map(prev)
+              next.set(previous.username.toLowerCase(), p.id)
+              return next
+            })
+          }
         }
       )
       .subscribe()
@@ -962,6 +995,7 @@ export function MessageList({
           onAvatarTap={onAvatarTap}
           definitions={definitions}
           memberUsernames={memberUsernames}
+          mentionAliases={mentionAliases}
           replyProfile={replyProfile}
           isCreator={creatorId != null && item.message.user_id === creatorId}
           pinnedVinyl={memberPinnedVinyls?.[item.message.user_id] ?? null}

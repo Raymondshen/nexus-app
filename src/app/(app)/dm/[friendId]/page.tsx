@@ -87,6 +87,16 @@ export default async function DMPage({ params }: DMPageProps) {
     cachedProfiles.filter((r) => r.profile).map((r) => [r.user_id, r.profile!])
   )
 
+  // Past usernames of the two DM participants — see chat/[crewId]/page.tsx for why
+  // this is a separate query rather than an embedded select.
+  const { data: historyRows } = await supabase
+    .from('username_history')
+    .select('user_id, old_username')
+    .in('user_id', Object.keys(memberProfiles))
+  const initialMentionAliases: [string, string][] = (
+    (historyRows ?? []) as { user_id: string; old_username: string }[]
+  ).map((h) => [h.old_username.toLowerCase(), h.user_id])
+
   return (
     <SlidePage
       className="flex flex-col bg-black"
@@ -110,6 +120,7 @@ export default async function DMPage({ params }: DMPageProps) {
             crewName={friendUsername}
             currentUserId={user.id}
             memberProfiles={memberProfiles}
+            initialMentionAliases={initialMentionAliases}
           />
         </ErrorBoundary>
         <DMOverlayBack

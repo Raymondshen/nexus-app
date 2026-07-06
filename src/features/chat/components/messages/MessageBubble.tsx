@@ -102,6 +102,8 @@ interface MessageBubbleProps {
   onAvatarTap?:     (userId: string) => void
   definitions?:     SquadDefinitionWithCreator[]
   memberUsernames?: Set<string>
+  /** Old username (lowercased) → current username, for crew members who've renamed. */
+  mentionAliases?:  Map<string, string>
   replyProfile?:    Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url'> | null
   isCreator?:       boolean
   pinnedVinyl?:     { imageUrl: string | null; title: string | null } | null
@@ -128,6 +130,7 @@ function areEqual(prev: MessageBubbleProps, next: MessageBubbleProps): boolean {
   if (prev.message.profile.status     !== next.message.profile.status)     return false
   if (prev.definitions     !== next.definitions)     return false
   if (prev.memberUsernames !== next.memberUsernames) return false
+  if (prev.mentionAliases  !== next.mentionAliases)  return false
   if (prev.replyProfile    !== next.replyProfile)    return false
   if (prev.pinnedVinyl     !== next.pinnedVinyl)     return false
   return true
@@ -245,17 +248,23 @@ function renderMessageContent(
   content: string,
   definitions: SquadDefinitionWithCreator[],
   memberUsernames: Set<string>,
+  mentionAliases: Map<string, string>,
   onTapDef: (def: SquadDefinitionWithCreator) => void,
 ): React.ReactNode {
-  // Pass 1: split on @mention tokens, preserving non-mention text as strings
+  // Pass 1: split on @mention tokens, preserving non-mention text as strings.
+  // A token matching a current member's username displays as typed; a token matching
+  // a member's OLD username (see username_history) displays as their CURRENT one —
+  // this is what makes a rename retroactively "fix" mentions in old messages.
   const mentionRx = /@(\w+)/g
   const pass1: Array<{ kind: 'text'; value: string } | { kind: 'mention'; value: string }> = []
   let lastIdx = 0
   let mx: RegExpExecArray | null
   while ((mx = mentionRx.exec(content)) !== null) {
-    if (memberUsernames.has(mx[1].toLowerCase())) {
+    const lower = mx[1].toLowerCase()
+    const display = memberUsernames.has(lower) ? mx[1] : mentionAliases.get(lower)
+    if (display) {
       if (mx.index > lastIdx) pass1.push({ kind: 'text', value: content.slice(lastIdx, mx.index) })
-      pass1.push({ kind: 'mention', value: mx[1] })
+      pass1.push({ kind: 'mention', value: display })
       lastIdx = mx.index + mx[0].length
     }
   }
@@ -385,6 +394,7 @@ function VinylPill({ imageUrl, title }: { imageUrl: string | null; title: string
 // Stable fallback constants — avoids new array/Set allocations when caller omits optional props
 const EMPTY_DEFINITIONS: SquadDefinitionWithCreator[] = []
 const EMPTY_USERNAMES   = new Set<string>()
+const EMPTY_ALIASES     = new Map<string, string>()
 
 function MessageBubbleImpl({
   message,
@@ -398,6 +408,7 @@ function MessageBubbleImpl({
   onAvatarTap,
   definitions    = EMPTY_DEFINITIONS,
   memberUsernames = EMPTY_USERNAMES,
+  mentionAliases  = EMPTY_ALIASES,
   replyProfile   = null,
   isCreator      = false,
   pinnedVinyl    = null,
@@ -894,7 +905,7 @@ function MessageBubbleImpl({
                 style={{ fontVariationSettings: '"opsz" 14', WebkitUserSelect: 'none', overflowWrap: 'break-word', minWidth: 0 }}
               >
                 {message.message_type === 'text' && (definitions.length || memberUsernames.size)
-                  ? renderMessageContent(message.content, definitions, memberUsernames, setActiveDefinition)
+                  ? renderMessageContent(message.content, definitions, memberUsernames, mentionAliases, setActiveDefinition)
                   : message.content
                 }
               </p>

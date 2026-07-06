@@ -62,3 +62,10 @@ export interface ProfilePhoto extends Record<string, unknown> {
   storage_key: string
   created_at:  string
 }
+
+export interface UsernameHistory extends Record<string, unknown> {
+  id:           string
+  user_id:      string
+  old_username: string
+  changed_at:   string
+}

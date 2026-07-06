@@ -87,9 +87,16 @@ async function updateUsername(
   const formatError = validateUsernameFormat(trimmed)
   if (formatError) return { error: formatError }
 
-  const { data: existing } = await supabase
-    .from('profiles').select('id').ilike('username', trimmed).neq('id', userId).maybeSingle()
-  if (existing) return { error: 'taken' }
+  const { data: current } = await supabase
+    .from('profiles').select('username').eq('id', userId).single()
+  const previousUsername = (current as { username?: string } | null)?.username ?? null
+  const usernameChanged  = previousUsername !== null && previousUsername.toLowerCase() !== trimmed.toLowerCase()
+
+  if (usernameChanged) {
+    const { data: existing } = await supabase
+      .from('profiles').select('id').ilike('username', trimmed).neq('id', userId).maybeSingle()
+    if (existing) return { error: 'taken' }
+  }
 
   const { error } = await supabase
     .from('profiles')
@@ -100,7 +107,18 @@ async function updateUsername(
     return { error: 'Failed to save. Try again.' }
   }
 
-  revalidateTag(`profile:${userId}`, 'max')
+  if (!usernameChanged) {
+    revalidateTag(`profile:${userId}`, 'max')
+    return { error: null }
+  }
+
+  // Record the old name so @mentions of it in existing messages can resolve to
+  // the new one — see username_history / the Username Format section in CLAUDE.md.
+  await supabase.from('username_history').insert({ user_id: userId, old_username: previousUsername! })
+
+  const { data: memberships } = await supabase.from('crew_members').select('crew_id').eq('user_id', userId)
+  const crewIds = ((memberships ?? []) as { crew_id: string }[]).map((r) => r.crew_id)
+  await revalidateUserCaches(userId, crewIds)
   return { error: null }
 }
 
