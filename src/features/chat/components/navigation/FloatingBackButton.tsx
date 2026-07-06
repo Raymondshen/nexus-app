@@ -1,18 +1,12 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import { useSlideBack } from '@/app/layouts/SlidePage'
 import { AnimatePresence } from 'framer-motion'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
-import { Bell } from 'pixelarticons/react/Bell'
-import { BellOff } from 'pixelarticons/react/BellOff'
-import { Library } from 'pixelarticons/react/Library'
 import { Calendar2 } from 'pixelarticons/react/Calendar2'
-import { NotifSheet, type NotifPrefs } from '@/features/chat/components/sheets/NotifSheet'
 import { EventSheetBottomPreview } from '@/features/events/components/EventSheetBottomPreview'
 import { useChatStore } from '@/store/chatStore'
-import { createClient } from '@/shared/supabase/client'
 
 interface FloatingBackButtonProps {
   crewId:             string
@@ -22,12 +16,9 @@ interface FloatingBackButtonProps {
 }
 
 export function FloatingBackButton({ crewId, currentUserId, initialGemBalance }: FloatingBackButtonProps) {
-  const router  = useRouter()
   const goBack  = useSlideBack()
   const setGemBalance       = useChatStore((s) => s.setGemBalance)
 
-  const [showNotif,        setShowNotif]        = useState(false)
-  const [notifPrefs,       setNotifPrefs]       = useState<NotifPrefs>({ messages: true, mentions: true })
   const [showEventPreview, setShowEventPreview] = useState(false)
   const [devMode,          setDevMode]          = useState(false)
   const [eventsEnabled,    setEventsEnabled]    = useState(false)
@@ -53,44 +44,6 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance }:
   useEffect(() => {
     if (initialGemBalance !== undefined) setGemBalance(initialGemBalance)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Load per-crew notification preferences
-  useEffect(() => {
-    let cancelled = false
-    createClient()
-      .from('crew_notification_preferences')
-      .select('notif_messages, notif_mentions')
-      .eq('user_id', currentUserId)
-      .eq('crew_id', crewId)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (cancelled || !data) return
-        setNotifPrefs({
-          messages: data.notif_messages as boolean,
-          mentions: data.notif_mentions as boolean,
-        })
-      })
-    return () => { cancelled = true }
-  }, [currentUserId, crewId])
-
-  const handleToggleNotif = useCallback(async (type: keyof NotifPrefs) => {
-    const next = { ...notifPrefs, [type]: !notifPrefs[type] }
-    setNotifPrefs(next)
-    await createClient()
-      .from('crew_notification_preferences')
-      .upsert(
-        {
-          user_id:        currentUserId,
-          crew_id:        crewId,
-          notif_messages: next.messages,
-          notif_mentions: next.mentions,
-          updated_at:     new Date().toISOString(),
-        },
-        { onConflict: 'user_id,crew_id' },
-      )
-  }, [notifPrefs, currentUserId, crewId])
-
-  const allMuted = !notifPrefs.messages && !notifPrefs.mentions
 
   const btnStyle = {
     padding: 'var(--x3)',
@@ -137,45 +90,9 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance }:
                 <Calendar2 style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
               </button>
             )}
-
-            {/* Bell — notification settings */}
-            <button
-              onClick={() => setShowNotif(true)}
-              aria-label={allMuted ? 'Notifications muted' : 'Notification settings'}
-              className="flex items-center justify-center border border-border flex-shrink-0"
-              style={{ ...btnStyle, color: allMuted ? 'var(--color-muted)' : 'var(--color-primary)' }}
-            >
-              {allMuted
-                ? <BellOff style={{ width: 24, height: 24 }} aria-hidden="true" />
-                : <Bell style={{ width: 24, height: 24 }} aria-hidden="true" />
-              }
-            </button>
-
-            {/* Library — squad glossary */}
-            <button
-              onClick={() => {
-                sessionStorage.setItem('nexus_chat_from', 'chat')
-                router.push(`/chat/${crewId}/definitions`)
-              }}
-              aria-label="Squad glossary"
-              className="flex items-center justify-center border border-border flex-shrink-0"
-              style={btnStyle}
-            >
-              <Library style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
-            </button>
           </div>
         </div>
       </div>
-
-      <AnimatePresence>
-        {showNotif && (
-          <NotifSheet
-            prefs={notifPrefs}
-            onToggle={handleToggleNotif}
-            onClose={() => setShowNotif(false)}
-          />
-        )}
-      </AnimatePresence>
 
       <AnimatePresence>
         {showEventPreview && devMode && eventsEnabled && (
