@@ -21,16 +21,22 @@ import type { GemClaimResult } from '@/types'
 import { Send } from 'pixelarticons/react/Send'
 import { Chart } from 'pixelarticons/react/Chart'
 import { Plus } from 'pixelarticons/react/Plus'
-import { ChevronRight } from 'pixelarticons/react/ChevronRight'
+import { ChevronUp } from 'pixelarticons/react/ChevronUp'
 import { CornerUpLeft } from 'pixelarticons/react/CornerUpLeft'
 import { Close } from 'pixelarticons/react/Close'
 import { MagicEdit } from 'pixelarticons/react/MagicEdit'
+import { UserPlus } from 'pixelarticons/react/UserPlus'
+import { Bell } from 'pixelarticons/react/Bell'
+import { BellOff } from 'pixelarticons/react/BellOff'
+import { Library } from 'pixelarticons/react/Library'
 import { kickMemberAction, renameCrewAction, birthdaysCommandAction, updateCrewBackgroundImageAction } from '@/app/(app)/chat/actions'
 import { leaveCrewAction } from '@/app/(app)/home/actions'
 import { resizeImageToBlob } from '@/shared/utils/imageCompress'
 import { EventCreationSheet } from '@/features/events/components/EventCreationSheet'
 import { CrewImageUploadModal } from '@/features/chat/components/sheets/CrewImageUploadModal'
 import { SquadDetailsSheet, type MiniMember } from '@/features/chat/components/sheets/SquadDetailsSheet'
+import { InviteFriendsSheet } from '@/features/chat/components/sheets/InviteFriendsSheet'
+import { NotifSheet, type NotifPrefs } from '@/features/chat/components/sheets/NotifSheet'
 import { PollCreatorSheet } from '@/features/chat/components/polls/PollCreatorSheet'
 import { GifPickerSheet } from '@/features/chat/components/input/GifPickerSheet'
 import { AddMediaSheet } from '@/features/chat/components/input/AddMediaSheet'
@@ -119,74 +125,82 @@ async function tryClaimDailyGem(supabase: ReturnType<typeof createClient>, onCla
 // ─── ChatSquadDetailBar ───────────────────────────────────────────────────────
 
 interface ChatSquadDetailBarProps {
-  crewImageUrl:  string | null | undefined
-  crewName:      string
-  crewLevel:     number
-  members:       MemberProfile[]
-  onlineUserIds: Set<string>
-  onExpand:      () => void
-  onPanEnd:      (_: PointerEvent, info: PanInfo) => void
+  crewImageUrl: string | null | undefined
+  crewName:     string
+  crewLevel:    number
+  memberCount:  number
+  inviteCode?:  string
+  allMuted:     boolean
+  onExpand:     () => void
+  onPanEnd:     (_: PointerEvent, info: PanInfo) => void
+  onInvite:     () => void
+  onNotif:      () => void
+  onLibrary:    () => void
 }
 
 function ChatSquadDetailBar({
-  crewImageUrl, crewName, crewLevel, members, onlineUserIds,
-  onExpand, onPanEnd,
+  crewImageUrl, crewName, crewLevel, memberCount, inviteCode, allMuted,
+  onExpand, onPanEnd, onInvite, onNotif, onLibrary,
 }: ChatSquadDetailBarProps) {
-  const sortedMembers = [...members]
-    .sort((a, b) => (onlineUserIds.has(b.id) ? 1 : 0) - (onlineUserIds.has(a.id) ? 1 : 0))
-    .slice(0, 5)
-
   return (
     <motion.div
-      className="flex relative cursor-pointer items-center"
-      style={{ touchAction: 'pan-x', gap: 'var(--space-5)' }}
+      className="flex relative cursor-pointer items-center justify-between w-full"
+      style={{ touchAction: 'pan-x' }}
       onPanEnd={onPanEnd}
       onClick={onExpand}
     >
       {/* Crew image + name/level */}
-      <div className="flex items-center flex-shrink-0" style={{ gap: 8 }}>
+      <div className="flex items-center flex-shrink-0 min-w-0" style={{ gap: 8 }}>
         <GroupAvatar imageUrl={crewImageUrl} name={crewName} size={24} />
-        <div className="flex flex-col" style={{ gap: 2 }}>
-          <p className="font-body font-black text-secondary leading-none" style={{ fontSize: 16, fontVariationSettings: '"opsz" 14' }}>
+        <div className="flex flex-col min-w-0" style={{ gap: 2 }}>
+          <p className="font-body font-black text-secondary leading-none truncate" style={{ fontSize: 16, fontVariationSettings: '"opsz" 14' }}>
             {crewName.toUpperCase()}
           </p>
           <p className="font-silkscreen text-tertiary leading-none" style={{ fontSize: 8 }}>
-            Lv.{crewLevel} · {members.length} member
+            Lv.{crewLevel} · {memberCount} member
           </p>
         </div>
       </div>
 
-      {/* Dot separator */}
-      <div className="flex-shrink-0" style={{ width: 2, height: 2, background: 'var(--color-border)' }} />
-
-      {/* Member avatars */}
-      <div className="flex items-center" style={{ gap: 8 }}>
-        {sortedMembers.map((m) => {
-          const url     = m.avatar_url as string | null | undefined
-          const online  = onlineUserIds.has(m.id)
-          return (
-            <div key={m.id} className="relative flex-shrink-0" title={m.username}>
-              <UserAvatar avatarUrl={url} username={m.username} size={24} />
-              {online && (
-                <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#66bb6a] border-[1.5px] border-black" />
-              )}
-            </div>
-          )
-        })}
+      {/* Action buttons — invite, notifications, glossary, expand */}
+      <div className="flex items-center flex-shrink-0" style={{ gap: 'var(--space-5)' }}>
+        {inviteCode && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onInvite() }}
+            className="flex items-center justify-center flex-shrink-0"
+            style={{ width: 24, height: 24 }}
+            aria-label="Invite friends"
+          >
+            <UserPlus style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+          </button>
+        )}
+        <button
+          onClick={(e) => { e.stopPropagation(); onNotif() }}
+          className="flex items-center justify-center flex-shrink-0"
+          style={{ width: 24, height: 24, color: allMuted ? 'var(--color-muted)' : 'var(--color-primary)' }}
+          aria-label={allMuted ? 'Notifications muted' : 'Notification settings'}
+        >
+          {allMuted
+            ? <BellOff style={{ width: 24, height: 24 }} aria-hidden="true" />
+            : <Bell style={{ width: 24, height: 24 }} aria-hidden="true" />}
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); onLibrary() }}
+          className="flex items-center justify-center flex-shrink-0"
+          style={{ width: 24, height: 24 }}
+          aria-label="Squad glossary"
+        >
+          <Library style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); onExpand() }}
+          className="flex items-center justify-center flex-shrink-0"
+          style={{ width: 24, height: 24 }}
+          aria-label="Show squad details"
+        >
+          <ChevronUp style={{ width: 24, height: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
+        </button>
       </div>
-
-      {/* Chevron — absolute right */}
-      <button
-        onClick={(e) => { e.stopPropagation(); onExpand() }}
-        className="absolute right-0 flex items-center justify-center flex-shrink-0"
-        style={{ width: 'var(--space-7)', height: 'var(--space-7)' }}
-        aria-label="Show members"
-      >
-        <ChevronRight
-          style={{ width: 'var(--space-7)', height: 'var(--space-7)', color: 'var(--color-tertiary)', transform: 'rotate(-90deg)' }}
-          aria-hidden="true"
-        />
-      </button>
     </motion.div>
   )
 }
@@ -207,6 +221,9 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   const combatEnabledRef                         = useRef(false)
   const [gemToastVisible,   setGemToastVisible]   = useState(false)
   const [isExpanded,     setIsExpanded]     = useState(false)
+  const [showInviteSheet, setShowInviteSheet] = useState(false)
+  const [showNotifSheet,  setShowNotifSheet]  = useState(false)
+  const [notifPrefs,      setNotifPrefs]      = useState<NotifPrefs>({ messages: true, mentions: true })
   const [memberMsgCounts, setMemberMsgCounts] = useState<Map<string, number>>(new Map())
   const [loadingCounts,  setLoadingCounts]  = useState(false)
   const [removeTarget,   setRemoveTarget]   = useState<MemberProfile | null>(null)
@@ -453,6 +470,45 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
       })
     return () => { cancelled = true }
   }, [isExpanded, crewId]) // eslint-disable-line
+
+  // Per-crew notification preferences — powers the Bell/BellOff icon in ChatSquadDetailBar
+  useEffect(() => {
+    if (isDM) return
+    let cancelled = false
+    createClient()
+      .from('crew_notification_preferences')
+      .select('notif_messages, notif_mentions')
+      .eq('user_id', userId)
+      .eq('crew_id', crewId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled || !data) return
+        setNotifPrefs({
+          messages: data.notif_messages as boolean,
+          mentions: data.notif_mentions as boolean,
+        })
+      })
+    return () => { cancelled = true }
+  }, [isDM, userId, crewId])
+
+  const handleToggleNotif = useCallback(async (type: keyof NotifPrefs) => {
+    const next = { ...notifPrefs, [type]: !notifPrefs[type] }
+    setNotifPrefs(next)
+    await createClient()
+      .from('crew_notification_preferences')
+      .upsert(
+        {
+          user_id:        userId,
+          crew_id:        crewId,
+          notif_messages: next.messages,
+          notif_mentions: next.mentions,
+          updated_at:     new Date().toISOString(),
+        },
+        { onConflict: 'user_id,crew_id' },
+      )
+  }, [notifPrefs, userId, crewId])
+
+  const allMuted = !notifPrefs.messages && !notifPrefs.mentions
 
   // Sync overlay scroll with the active field so highlighted text stays aligned.
   useEffect(() => {
@@ -1393,10 +1449,17 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
           crewImageUrl={crewImageUrl}
           crewName={liveCrewName}
           crewLevel={crewLevel}
-          members={members}
-          onlineUserIds={onlineUserIds}
+          memberCount={memberCount}
+          inviteCode={inviteCode}
+          allMuted={allMuted}
           onExpand={() => setIsExpanded(true)}
           onPanEnd={handleTopPanEnd}
+          onInvite={() => setShowInviteSheet(true)}
+          onNotif={() => setShowNotifSheet(true)}
+          onLibrary={() => {
+            sessionStorage.setItem('nexus_chat_from', 'chat')
+            router.push(`/chat/${crewId}/definitions`)
+          }}
         />
       )}
 
@@ -1997,6 +2060,25 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
             currentUserId={userId}
             onClose={() => setShowEventSheet(false)}
             createMessage
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showInviteSheet && inviteCode && (
+          <InviteFriendsSheet
+            inviteCode={inviteCode}
+            onClose={() => setShowInviteSheet(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showNotifSheet && (
+          <NotifSheet
+            prefs={notifPrefs}
+            onToggle={handleToggleNotif}
+            onClose={() => setShowNotifSheet(false)}
           />
         )}
       </AnimatePresence>
