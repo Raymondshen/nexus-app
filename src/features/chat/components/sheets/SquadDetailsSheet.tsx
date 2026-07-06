@@ -15,12 +15,12 @@ import { DoorClosed } from 'pixelarticons/react/DoorClosed'
 import { Crown } from 'pixelarticons/react/Crown'
 import { Message } from 'pixelarticons/react/Message'
 import { Upload } from 'pixelarticons/react/Upload'
-import { UserPlus } from 'pixelarticons/react/UserPlus'
 import { Bell } from 'pixelarticons/react/Bell'
 import { BellOff } from 'pixelarticons/react/BellOff'
 import { Library } from 'pixelarticons/react/Library'
 import { DefinitionButton } from '@/shared/components/ui/DefinitionButton'
-import { InviteFriendsSheet } from './InviteFriendsSheet'
+import { InviteCodeCard } from '@/shared/components/ui/InviteCodeCard'
+import { VinylPill } from '@/shared/components/ui/VinylPill'
 
 const CLASS_LABELS: Record<string, string> = {
   berserker: 'Berserker', sage: 'Sage', ghost: 'Ghost', hype_man: 'Hype Man',
@@ -54,6 +54,7 @@ interface SquadDetailsSheetProps {
   memberMsgCounts:         Map<string, number>
   loadingCounts:           boolean
   allMuted:                boolean
+  memberPinnedVinyls?:     Record<string, { imageUrl: string | null; title: string | null }>
   onUploadPhoto:           () => void
   onUploadBackground?:     () => void
   onSave:                  (newName: string) => Promise<void>
@@ -116,57 +117,88 @@ function StatusTicker({ status }: { status: string }) {
   )
 }
 
-function MemberListRow({
-  profile, msgCount, loading, isOnline, isCreator, onTap,
+function UserCard({
+  profile, msgCount, loading, isOnline, isCreator, vinyl, crewBackgroundImageUrl, onTap,
 }: {
   profile: MiniMember; msgCount: number; loading: boolean; isOnline: boolean
-  isCreator?: boolean; onTap?: () => void
+  isCreator?: boolean
+  vinyl?: { imageUrl: string | null; title: string | null } | null
+  crewBackgroundImageUrl?: string | null
+  onTap?: () => void
 }) {
   const spriteInfo = spriteInfoFor(profile.avatar_class ?? null)
-  const url        = profile.avatar_url
   const initial    = profile.username[0]?.toUpperCase() ?? '?'
   const classLabel = profile.avatar_class ? (CLASS_LABELS[profile.avatar_class] ?? profile.avatar_class) : 'Unknown'
 
   return (
-    <div className="flex flex-col gap-[var(--space-3)]">
+    <div
+      className="flex flex-col flex-shrink-0 bg-black border border-[var(--color-border-hover)] rounded-[var(--x3,8px)] overflow-hidden active:opacity-70 transition-opacity"
+      style={{ width: 180, gap: 12, paddingBottom: profile.status ? 0 : 16, cursor: onTap ? 'pointer' : undefined }}
+      onClick={onTap}
+    >
+      {/* Background header + avatar */}
       <div
-        className="flex items-center active:opacity-70 transition-opacity h-8"
-        style={onTap ? { gap: 12, cursor: 'pointer' } : { gap: 12 }}
-        onClick={onTap}
+        className="relative flex flex-col items-start justify-end flex-shrink-0 w-full overflow-hidden rounded-tl-[7px] rounded-tr-[7px]"
+        style={{ height: 108, padding: 12 }}
       >
-        {/* Profile photo + online dot */}
+        {crewBackgroundImageUrl ? (
+          <div className="absolute inset-0 pointer-events-none rounded-tl-[7px] rounded-tr-[7px]">
+            <Image
+              src={crewBackgroundImageUrl}
+              alt=""
+              fill
+              sizes="180px"
+              className="object-cover rounded-tl-[7px] rounded-tr-[7px]"
+              loader={supabaseImageLoader}
+            />
+          </div>
+        ) : (
+          <div className="absolute inset-0 bg-[var(--color-surface)] rounded-tl-[7px] rounded-tr-[7px]" />
+        )}
+        <div
+          className="absolute inset-0 pointer-events-none rounded-tl-[7px] rounded-tr-[7px]"
+          style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.604) 33%, rgba(0,0,0,0.6) 66%, rgba(0,0,0,0.8) 100%)' }}
+        />
         <div className="relative flex-shrink-0">
-          <UserAvatar avatarUrl={url} username={profile.username} size={32} />
+          <UserAvatar avatarUrl={profile.avatar_url} username={profile.username} size={32} />
           {isOnline && (
             <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#66bb6a] border-[1.5px] border-black" />
           )}
         </div>
+      </div>
 
-        {/* Pixel sprite */}
-        <div className="w-8 h-8 flex-shrink-0 flex items-center justify-center overflow-hidden">
-          {spriteInfo ? (
-            <PixelSprite spriteId={spriteInfo.id} nativePx={spriteInfo.nativePx} scale={1.5} animate />
-          ) : (
-            <span className="font-pixel text-[8px] text-purple">{initial}</span>
+      {/* Name + class/admin/sprite row + vinyl pill */}
+      <div className="flex flex-col w-full flex-shrink-0" style={{ paddingLeft: 12, paddingRight: 12, gap: 8 }}>
+        <p
+          className="font-body font-bold text-primary truncate leading-none w-full"
+          style={{ fontSize: 16, fontVariationSettings: '"opsz" 14' }}
+        >
+          {profile.username}
+        </p>
+
+        <div className="flex items-center flex-shrink-0" style={{ gap: 8 }}>
+          {isCreator && (
+            <Crown style={{ width: 12, height: 12, color: 'var(--color-coins)', flexShrink: 0 }} aria-hidden="true" />
           )}
-        </div>
-
-        {/* Name + class · msg count */}
-        <div className="flex flex-col gap-1 justify-center min-w-0 flex-1 h-full overflow-hidden">
-          <div className="flex items-center" style={{ gap: 4 }}>
-            <p className="font-body font-bold text-white truncate leading-none" style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}>{profile.username}</p>
-            {isCreator && (
-              <Crown style={{ width: 12, height: 12, color: '#f59e0b', flexShrink: 0 }} aria-hidden="true" />
+          <div className="flex items-center justify-center overflow-hidden flex-shrink-0" style={{ width: 12, height: 12 }}>
+            {spriteInfo ? (
+              <PixelSprite spriteId={spriteInfo.id} nativePx={spriteInfo.nativePx} scale={0.5625} animate />
+            ) : (
+              <span className="font-pixel text-[6px] text-purple">{initial}</span>
             )}
           </div>
-          <p className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>
+          <p className="font-silkscreen leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>
             {loading ? '...' : `${classLabel} · ${msgCount.toLocaleString()} msg.`}
           </p>
         </div>
 
+        {vinyl && (vinyl.imageUrl || vinyl.title) && (
+          <VinylPill imageUrl={vinyl.imageUrl} title={vinyl.title} />
+        )}
       </div>
 
-      {/* Status ticker */}
+      {/* Status ticker — pinned to the bottom edge when present, else the card just
+          ends with the 12px section gap (matches Figma's shorter no-status cards) */}
       {profile.status && <StatusTicker status={profile.status} />}
     </div>
   )
@@ -404,11 +436,10 @@ function SquadDetailsEditSheet({
 export function SquadDetailsSheet({
   crewId, crewName, memberCount, crewImageUrl, crewBackgroundImageUrl, members, onlineUserIds,
   crewXP, crewLevel, xpProgress, totalMessages, inviteCode, creatorId,
-  currentUserId, memberMsgCounts, loadingCounts, allMuted,
+  currentUserId, memberMsgCounts, loadingCounts, allMuted, memberPinnedVinyls,
   onUploadPhoto, onUploadBackground, onSave, onTapMember, onNotif, onLibrary,
   onLeave, onClose,
 }: SquadDetailsSheetProps) {
-  const [showInvite,    setShowInvite]    = useState(false)
   const [showSquadEdit, setShowSquadEdit] = useState(false)
   const scrollRef      = useRef<HTMLDivElement>(null)
   const pullToCloseRef = useRef({ startY: 0, atTop: false })
@@ -531,16 +562,6 @@ export function SquadDetailsSheet({
                   <MagicEdit style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
                 </button>
               )}
-              {inviteCode && (
-                <button
-                  onClick={() => setShowInvite(true)}
-                  className="flex items-center justify-center"
-                  style={{ width: 24, height: 24 }}
-                  aria-label="Invite friends"
-                >
-                  <UserPlus style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
-                </button>
-              )}
               <button
                 onClick={onNotif}
                 className="flex items-center justify-center"
@@ -598,25 +619,30 @@ export function SquadDetailsSheet({
           </div>
         </div>
 
-        {/* ── Members section (flex-1, member rows scroll independently) ── */}
-        <div className="flex-1 min-h-0 flex flex-col overflow-hidden" style={{ padding: 16, gap: 20 }}>
+        {/* ── Members section (flex-1, vertical overflow only on short viewports) ── */}
+        <div
+          ref={scrollRef}
+          className="flex-1 min-h-0 flex flex-col overflow-y-auto nexus-scroll"
+          style={{ padding: 16, gap: 16 }}
+        >
           <p className="flex-shrink-0 font-silkscreen leading-none" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-primary)' }}>
             Members
           </p>
-          {/* Scrollable member list — max 5 rows (5×32px + 4×20px gap = 240px) */}
-          <div
-            ref={scrollRef}
-            className="overflow-y-auto nexus-scroll flex flex-col"
-            style={{ gap: 20, maxHeight: 240 }}
-          >
+
+          {inviteCode && <InviteCodeCard inviteCode={inviteCode} style={{ flexShrink: 0 }} />}
+
+          {/* Horizontally-scrollable member card row */}
+          <div className="flex overflow-x-auto no-scrollbar flex-shrink-0" style={{ gap: 8 }}>
             {sortedMembers.map((m) => (
-              <MemberListRow
+              <UserCard
                 key={m.id}
                 profile={m}
                 msgCount={memberMsgCounts.get(m.id) ?? 0}
                 loading={loadingCounts}
                 isOnline={onlineUserIds.has(m.id)}
                 isCreator={m.id === creatorId}
+                vinyl={memberPinnedVinyls?.[m.id] ?? null}
+                crewBackgroundImageUrl={crewBackgroundImageUrl}
                 onTap={() => onTapMember(m.id)}
               />
             ))}
@@ -645,17 +671,6 @@ export function SquadDetailsSheet({
           </div>
         )}
       </motion.div>
-
-      {/* ── Invite friends sheet ── */}
-      <AnimatePresence>
-        {showInvite && inviteCode && (
-          <InviteFriendsSheet
-            key="invite-friends"
-            inviteCode={inviteCode}
-            onClose={() => setShowInvite(false)}
-          />
-        )}
-      </AnimatePresence>
 
       {/* ── Squad Details edit sheet ── */}
       <AnimatePresence>

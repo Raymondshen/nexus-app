@@ -9,8 +9,9 @@ interface InviteCodeCardProps {
   style?: React.CSSProperties
 }
 
-// Shared by InviteFriendsSheet and MessageList's empty state (Figma 394:9180 / 426:1996) —
-// same card exactly, just different max-width constraints from each call site.
+// Shared by SquadDetailsSheet's Members section and MessageList's empty state
+// (Figma 438:8098 / 426:1996) — same card exactly, just different max-width
+// constraints from each call site.
 export function InviteCodeCard({ inviteCode, style }: InviteCodeCardProps) {
   const [copied, setCopied] = useState(false)
 

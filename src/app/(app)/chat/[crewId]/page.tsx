@@ -268,6 +268,7 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
             }
           }
           memberProfiles={memberProfiles}
+          memberPinnedVinyls={memberPinnedVinyls}
           crewName={crew.name}
           inviteCode={crew.invite_code}
           creatorId={creatorId ?? undefined}

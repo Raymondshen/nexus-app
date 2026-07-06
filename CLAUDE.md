@@ -158,7 +158,7 @@ src/
 │   ├── chat/components/
 │   │   ├── input/              ChatInput, GifPickerSheet
 │   │   ├── messages/           MessageList, MessageBubble, LinkPreviewCard
-│   │   ├── sheets/             SquadDetailsSheet, InviteFriendsSheet, PinDurationSheet, PinListSheet,
+│   │   ├── sheets/             SquadDetailsSheet, PinDurationSheet, PinListSheet,
 │   │   │                       NotifSheet, CrewImageUploadModal,
 │   │   │                       SuggestDefinitionSheet, ReviewSuggestionSheet, ChatSheetReact
 │   │   ├── polls/              PollCard, PollCreatorSheet
@@ -212,7 +212,7 @@ src/
 - Username in header row: `--color-primary` on own bubbles, `--color-secondary` on others'.
 - **Images** (`message_type === 'image'`): all through `MultiImageGrid` → `MultiImageCell` (160×160, object-cover). GIFs use `<img>`; photos use `next/image fill` + `supabaseImageLoader`. `parseJsonArray()` normalises plain URL or JSON `string[]`.
 - **Header row** (username · vinyl · crown · timestamp): no dot separators. `VinylPill` shows spinning 12×12 disc + scrolling title (no play icon). `Crown` 12×12 shown only on creator's own bubbles.
-- **`VinylPill`**: `pinnedVinyl?: { imageUrl, title }`. Measures title width via off-screen span; scrolls with Framer Motion ticker if `textWidth > 32`, else static ellipsis.
+- **`VinylPill`** (`src/shared/components/ui/VinylPill.tsx`, shared with `SquadDetailsSheet`'s member `UserCard`s): `{ imageUrl, title }`. Measures title width via off-screen span; scrolls with Framer Motion ticker if `textWidth > 32`, else static ellipsis.
 - Long-press (500ms) → `ChatSheetReact`: emoji quick-pick · Edit (own text messages) · Reply · Copy · Pin (admin).
 - OG previews: `extractFirstUrl` → `useOGPreview` → `<LinkPreviewCard>` below body; text-only messages only.
 - **`MsgReactionPills`** (Figma 424:4732 "reaction-pill") — one pill per reacted emoji, `bg-surface-elevated`, `rounded-x2`, `p-x2`, `gap-x2`. Active (current user included): `--color-purple` border + purple `xs` SemiBold count. Inactive (others only): `--color-border-hover` border + `--color-tertiary` count. Icon is `LottieReactionIcon` (16×16) for any emoji in `REACTION_LOTTIE_MAP`, else the plain glyph (legacy `🔥💧⚡🌿🌑🔮` reactions).
@@ -257,17 +257,13 @@ Any card tap opens `DefinitionPreviewSheet` (Figma 402:9507, `<BottomSheet>` z-7
 Panel pattern · `maxHeight: 85vh` · `overflow-hidden`
 
 Layout (flex col):
-1. **Header** (240px) — background + gradient overlay; top: crew image + name + `Lv.{n} · {count} members` | `MagicEdit` (creator) + `UserPlus` (opens `InviteFriendsSheet`) + `Bell`/`BellOff` (opens `NotifSheet`, owned by `ChatInput`) + `Library` (navigates to `/chat/${crewId}/definitions`) + `ChevronRight` (close); bottom: XP bar
-2. **Members** (`flex-1 min-h-0`) — "Members" label + scrollable member list (`maxHeight: 240px` = 5 rows); member rows: avatar + sprite + name/class·msg
+1. **Header** (240px) — background + gradient overlay; top: crew image + name + `Lv.{n} · {count} members` | `MagicEdit` (creator) + `Bell`/`BellOff` (opens `NotifSheet`, owned by `ChatInput`) + `Library` (navigates to `/chat/${crewId}/definitions`) + `ChevronRight` (close); bottom: XP bar
+2. **Members** (`flex-1 min-h-0`, `overflow-y-auto` — vertical scroll is a short-viewport fallback only, content normally fits) — "Members" label + `<InviteCodeCard>` (Figma 438:8098; same shared component as `MessageList`'s empty state — don't re-inline this markup a third time) + a horizontally-scrollable row (`overflow-x-auto no-scrollbar`) of member `UserCard`s (Figma 356:3503, 180px wide, fixed-height row via flex default `align-items: stretch` so every card matches the tallest sibling). Each card: crew-background header image + 32px `UserAvatar` (online dot if online) → username → class row (`Crown` 12×12 amber if creator + 12×12 `PixelSprite` (scale `0.5625`) + `{class} · {msgCount} msg.`) → `<VinylPill>` (`src/shared/components/ui/VinylPill.tsx`, shared with `MessageBubble`'s header row) if the member has one → `StatusTicker` pinned to the card's bottom edge if the member has a `status` set. Tapping a card calls `onTapMember` → `/chat/${crewId}/member/${memberId}`.
 3. **Fixed bottom** (`flex-shrink-0`) — `DoorClosed` leave squad button
 
 Notif/library actions were moved here from `ChatSquadDetailBar` (Figma 432:7033) — the collapsed bar above the input now shows only the crew image/name/level, a horizontally-scrollable row of **online-only** member avatars (offline members are omitted entirely, not just deprioritized; online dot `#66bb6a` always shown) capped to ~6 visible at once via `maxWidth: 164` + `overflow-x-auto no-scrollbar`, and the `ChevronUp` expand button.
 
-### InviteFriendsSheet (`src/features/chat/components/sheets/InviteFriendsSheet.tsx`)
-Figma 394:9180 · Standard `<BottomSheet>` (`zIndex={80}`), opened from `SquadDetailsSheet`'s header `UserPlus` button
-
-- Header: "Invite Friends" (DM Sans Bold `--md` primary) + "Use this code to invite friends to your squad." (DM Sans Light `--xs` tertiary)
-- Code card: `<InviteCodeCard>` (`src/shared/components/ui/InviteCodeCard.tsx`) — gradient code + Copy/Check button, writes `Come join my squad on Nexus app {code}` to clipboard. Also used by `MessageList`'s empty state — don't re-inline this markup a third time.
+Invite is surfaced only via the inline `<InviteCodeCard>` in the Members section (Figma removed the header's `UserPlus` icon in favor of this — don't re-add a separate invite sheet/icon).
 
 ### Pin Feature (released to all users)
 - Admin = member with earliest `joined_at`; cap = 5 active pins (`PIN_MAX_PER_CREW`)
@@ -392,12 +388,11 @@ Icons (`pixelarticons`) — key usages:
 | Floating nav — notifs | `Bell` / `BellOff` | 24×24 |
 | Floating nav — glossary | `Library` | 24×24 |
 | SquadDetailsSheet — edit | `MagicEdit` | 24×24 |
-| SquadDetailsSheet — invite | `UserPlus` | 24×24 |
 | DefinitionPreviewSheet — edit | `MagicEdit` | 20×20, `--color-purple` |
 | DefinitionPreviewSheet — cancel | `Close` | 20×20, `--color-tertiary` |
 | SquadDetailsSheet — leave | `DoorClosed` | 16×16 |
-| InviteFriendsSheet — copy | `Copy` / `Check` | 12×12, `--color-primary` |
-| Message bubble — creator | `Crown` | 12×12, `--color-coins` |
+| SquadDetailsSheet — invite code copy | `Copy` / `Check` | 12×12, `--color-primary` |
+| Message bubble / UserCard — creator | `Crown` | 12×12, `--color-coins` |
 | Friends — remove | `AvatarCircleMinus` | 16×16 |
 | Inbox — accept / decline | `Check` / `Close` | 16×16 |
 | ChatInput — send | `Send` | 16×16 |

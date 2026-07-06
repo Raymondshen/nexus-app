@@ -72,6 +72,7 @@ interface ChatInputProps {
   userId:         string
   userProfile:    MemberProfile
   memberProfiles: Record<string, MemberProfile>
+  memberPinnedVinyls?: Record<string, { imageUrl: string | null; title: string | null }>
   crewName:       string
   inviteCode?:    string
   creatorId?:     string
@@ -187,7 +188,7 @@ function ChatSquadDetailBar({
 
 // ─── ChatInput ────────────────────────────────────────────────────────────────
 
-export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewName, inviteCode, creatorId, crewImageUrl: initialCrewImageUrl, crewBackgroundImageUrl: initialCrewBgUrl, initialXP, isDM, dmPartnerId, userCombatClass, initialRaid, initialMemberStats, initialReviveTokens }: ChatInputProps) {
+export function ChatInput({ crewId, userId, userProfile, memberProfiles, memberPinnedVinyls, crewName, inviteCode, creatorId, crewImageUrl: initialCrewImageUrl, crewBackgroundImageUrl: initialCrewBgUrl, initialXP, isDM, dmPartnerId, userCombatClass, initialRaid, initialMemberStats, initialReviveTokens }: ChatInputProps) {
   const router = useRouter()
   const [text,           setText]          = useState('')
   const [sending,        setSending]        = useState(false)
@@ -1862,6 +1863,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
             memberMsgCounts={memberMsgCounts}
             loadingCounts={loadingCounts}
             allMuted={allMuted}
+            memberPinnedVinyls={memberPinnedVinyls}
             crewBackgroundImageUrl={crewBgUrl}
             onUploadPhoto={() => crewImageInputRef.current?.click()}
             onUploadBackground={() => crewBgInputRef.current?.click()}
