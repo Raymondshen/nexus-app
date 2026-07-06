@@ -476,7 +476,6 @@ function HomeActionSheet({
         } catch { /* non-fatal */ }
       }
 
-      sessionStorage.setItem('nexus_chat_from', '/home')
       router.push(`/onboarding/class?crew=${crewId}`)
       onClose()
     } catch (err) {
@@ -612,7 +611,6 @@ function HomeActionSheet({
               value={squadName}
               onChange={(e) => setSquadName(e.target.value.slice(0, 30))}
               placeholder="BFF Hangout, Family, etc..."
-              autoFocus
               className="w-full bg-black text-primary placeholder:text-muted font-body font-normal focus:outline-none focus:border-[var(--color-purple)] transition-colors"
               style={{ border: '1px solid var(--color-border-hover)', padding: 12, fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
             />
