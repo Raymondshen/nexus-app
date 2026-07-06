@@ -42,7 +42,12 @@ function getCachedMemberProfiles(crewId: string) {
         }
       }) as { user_id: string; profile: (MemberProfile & { birthday: string | null }) | null }[]
     },
-    [`chat-member-profiles:${crewId}`],
+    // v2: cache key bumped when background_url was added to the select — old
+    // cached entries under the v1 key predate that column and would otherwise
+    // keep serving stale profiles missing it until their 300s TTL happened to
+    // lapse, making the squad-card background look like it "worked for some
+    // members but not others" depending on each crew's cache freshness.
+    [`chat-member-profiles-v2:${crewId}`],
     { tags: [`crew-members:${crewId}`], revalidate: 300 }
   )()
 }

@@ -30,7 +30,9 @@ function getCachedDMMemberProfiles(crewId: string) {
         }
       }) as { user_id: string; profile: MemberProfile | null }[]
     },
-    [`chat-member-profiles:${crewId}`],
+    // v2: cache key bumped when background_url was added to the select — see
+    // chat/[crewId]/page.tsx's getCachedMemberProfiles for why.
+    [`dm-member-profiles-v2:${crewId}`],
     { tags: [`crew-members:${crewId}`], revalidate: 60 }
   )()
 }
