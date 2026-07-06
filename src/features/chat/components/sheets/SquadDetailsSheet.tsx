@@ -29,11 +29,12 @@ const CLASS_LABELS: Record<string, string> = {
 }
 
 export type MiniMember = {
-  id:           string
-  username:     string
-  avatar_url:   string | null
-  avatar_class: string | null | undefined
-  status?:      string | null
+  id:             string
+  username:       string
+  avatar_url:     string | null
+  avatar_class:   string | null | undefined
+  background_url: string | null
+  status?:        string | null
 }
 
 interface SquadDetailsSheetProps {
@@ -118,12 +119,11 @@ function StatusTicker({ status }: { status: string }) {
 }
 
 function UserCard({
-  profile, msgCount, loading, isOnline, isCreator, vinyl, crewBackgroundImageUrl, onTap,
+  profile, msgCount, loading, isOnline, isCreator, vinyl, onTap,
 }: {
   profile: MiniMember; msgCount: number; loading: boolean; isOnline: boolean
   isCreator?: boolean
   vinyl?: { imageUrl: string | null; title: string | null } | null
-  crewBackgroundImageUrl?: string | null
   onTap?: () => void
 }) {
   const spriteInfo = spriteInfoFor(profile.avatar_class ?? null)
@@ -141,20 +141,22 @@ function UserCard({
         className="relative flex flex-col items-start justify-end flex-shrink-0 w-full overflow-hidden rounded-tl-[7px] rounded-tr-[7px]"
         style={{ height: 108, padding: 12 }}
       >
-        {crewBackgroundImageUrl ? (
-          <div className="absolute inset-0 pointer-events-none rounded-tl-[7px] rounded-tr-[7px]">
-            <Image
-              src={crewBackgroundImageUrl}
-              alt=""
-              fill
-              sizes="180px"
-              className="object-cover rounded-tl-[7px] rounded-tr-[7px]"
-              loader={supabaseImageLoader}
-            />
-          </div>
-        ) : (
-          <div className="absolute inset-0 bg-[var(--color-surface)] rounded-tl-[7px] rounded-tr-[7px]" />
-        )}
+        {/* eslint-disable-next-line @next/next/no-img-element -- height-anchored crop (see CLAUDE.md Images: "Plain <img>: ... hero backgrounds") needs manual sizing next/image's fill mode can't express */}
+        <img
+          src={profile.background_url ?? '/img/default_image.png'}
+          alt=""
+          aria-hidden
+          style={{
+            position:      'absolute',
+            top:           0,
+            left:          '50%',
+            height:        '100%',
+            width:         'auto',
+            maxWidth:      'none',
+            transform:     'translateX(-50%)',
+            pointerEvents: 'none',
+          }}
+        />
         <div
           className="absolute inset-0 pointer-events-none rounded-tl-[7px] rounded-tr-[7px]"
           style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.604) 33%, rgba(0,0,0,0.6) 66%, rgba(0,0,0,0.8) 100%)' }}
@@ -197,9 +199,16 @@ function UserCard({
         )}
       </div>
 
-      {/* Status ticker — pinned to the bottom edge when present, else the card just
-          ends with the 12px section gap (matches Figma's shorter no-status cards) */}
-      {profile.status && <StatusTicker status={profile.status} />}
+      {/* Status ticker — marginTop: auto docks it to the card's true bottom edge even when
+          this card is stretched taller to match a taller sibling in the row (e.g. one with
+          a vinyl pill); without it the ticker would sit right after the content block and
+          leave the stretched slack below itself instead of above. No status → no ticker at
+          all, matching Figma's shorter no-status cards (e.g. 432:8008). */}
+      {profile.status && (
+        <div style={{ marginTop: 'auto' }}>
+          <StatusTicker status={profile.status} />
+        </div>
+      )}
     </div>
   )
 }
@@ -642,7 +651,6 @@ export function SquadDetailsSheet({
                 isOnline={onlineUserIds.has(m.id)}
                 isCreator={m.id === creatorId}
                 vinyl={memberPinnedVinyls?.[m.id] ?? null}
-                crewBackgroundImageUrl={crewBackgroundImageUrl}
                 onTap={() => onTapMember(m.id)}
               />
             ))}

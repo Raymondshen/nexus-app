@@ -56,7 +56,7 @@ const SLASH_COMMANDS = [
 type SlashCommandName = typeof SLASH_COMMANDS[number]['name']
 
 
-type MemberProfile = Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url' | 'status'>
+type MemberProfile = Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url' | 'background_url' | 'status'>
 
 interface PendingImage {
   id:        string
@@ -1846,11 +1846,12 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
             memberCount={memberCount}
             crewImageUrl={crewImageUrl}
             members={members.map((m): MiniMember => ({
-              id:           m.id,
-              username:     m.username,
-              avatar_url:   m.avatar_url as string | null,
-              avatar_class: m.avatar_class,
-              status:       m.status,
+              id:             m.id,
+              username:       m.username,
+              avatar_url:     m.avatar_url as string | null,
+              avatar_class:   m.avatar_class,
+              background_url: m.background_url,
+              status:         m.status,
             }))}
             onlineUserIds={onlineUserIds}
             crewXP={crewXP}

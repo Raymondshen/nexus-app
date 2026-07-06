@@ -8,7 +8,7 @@ import { ErrorBoundary } from '@/shared/components/ui/ErrorBoundary'
 import { SlidePage } from '@/app/layouts/SlidePage'
 import type { Profile, AvatarClass } from '@/types'
 
-type MemberProfile = Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url' | 'status'>
+type MemberProfile = Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url' | 'background_url' | 'status'>
 type MemberProfileMap = Record<string, MemberProfile>
 
 function getCachedDMMemberProfiles(crewId: string) {
@@ -17,7 +17,7 @@ function getCachedDMMemberProfiles(crewId: string) {
       const supabase = createServiceClient()
       const { data } = await supabase
         .from('crew_members')
-        .select('user_id, class, profile:profiles(id, username, avatar_url, status)')
+        .select('user_id, class, profile:profiles(id, username, avatar_url, background_url, status)')
         .eq('crew_id', crewId)
       type RawRow = { user_id: string; class: string | null; profile: Omit<MemberProfile, 'avatar_class'> | null }
       return (data ?? []).map((r) => {
@@ -139,7 +139,7 @@ export default async function DMPage({ params }: DMPageProps) {
           userId={user.id}
           userProfile={
             memberProfiles[user.id] ?? {
-              id: user.id, username: '???', avatar_class: null, avatar_url: null, status: null,
+              id: user.id, username: '???', avatar_class: null, avatar_url: null, background_url: null, status: null,
             }
           }
           memberProfiles={memberProfiles}
