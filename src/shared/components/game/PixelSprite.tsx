@@ -14,16 +14,16 @@ const WALK_CYCLE: SpriteDirection[] = [
 
 // Add an entry here as sprite folders are dropped into public/sprites/{key}/
 // nativePx = the sprite sheet's actual pixel dimensions (determines integer scale)
-const CLASS_TO_SPRITE: Partial<Record<AvatarClass | 'necromancer', { folder: string; nativePx: number }>> = {
+const CLASS_TO_SPRITE: Partial<Record<AvatarClass | 'necromancer' | 'ghost', { folder: string; nativePx: number }>> = {
   necromancer: { folder: 'necromancer', nativePx: 24 },
   mage:        { folder: 'mage',        nativePx: 28 },
   warrior:     { folder: 'warrior',     nativePx: 28 },
   rogue:       { folder: 'rogue',       nativePx: 28 },
   healer:      { folder: 'healer',      nativePx: 28 },
   archer:      { folder: 'archer',      nativePx: 32 },
+  ghost:       { folder: 'ghost',       nativePx: 48 },
   // berserker:   { folder: 'berserker', nativePx: 24 },
   // sage:        { folder: 'sage',      nativePx: 24 },
-  // ghost:       { folder: 'ghost',     nativePx: 24 },
   // hype_man:    { folder: 'hype_man',  nativePx: 24 },
   // the_voice:   { folder: 'the_voice', nativePx: 24 },
   // meme_lord:   { folder: 'meme_lord', nativePx: 24 },

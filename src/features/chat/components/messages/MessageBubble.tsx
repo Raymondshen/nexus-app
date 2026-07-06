@@ -797,7 +797,7 @@ function MessageBubbleImpl({
   }
 
   const avatarUrl = message.profile.avatar_url as string | null | undefined
-  const timeStr   = `${format(new Date(message.created_at), 'MMM d')} · ${format(new Date(message.created_at), 'h:mma').toLowerCase()}`
+  const timeStr   = format(new Date(message.created_at), 'h:mma').toLowerCase()
 
   const sortedReactions = React.useMemo(
     () => Object.entries(displayReactions).filter(([, users]) => users.length > 0).sort(([, a], [, b]) => b.length - a.length),

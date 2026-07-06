@@ -202,7 +202,8 @@ src/
 - **Mention aliases**: `initialMentionAliases` prop (`[oldUsernameLower, userId][]`, fetched server-side from `username_history` in `chat/[crewId]/page.tsx` / `dm/[friendId]/page.tsx`) seeds `oldUsernameToUserId`. The `profiles` UPDATE realtime handler adds an entry the instant a member renames while the chat is open (no reload needed). `mentionAliases` (passed to `MessageBubble`) is derived by re-resolving each entry's userId against the **current** `localProfiles` on every render — so it's always correct through multiple renames, never stale, without needing to update old map entries in place.
 - **Three-tier cache**: (1) sessionStorage sync on mount → instant render; (2) IDB fallback if sessionStorage empty (iOS PWA kill resilience); (3) DB fetch newest 50, merged with in-flight Realtime. `setMessages([])` before load prevents crew bleed.
 - **Cursor pagination**: scroll-up within 120px → keyset fetch `WHERE created_at < cursor LIMIT 50`; scroll position restored after prepend.
-- **DisplayItems**: `spacer | empty | divider | boss | artifact | level_up | message`. `COMBAT:` and `BOSS_SPAWN:` system messages always skipped (shown in CombatLog).
+- **DisplayItems**: `spacer | divider | boss | artifact | level_up | message`. `COMBAT:` and `BOSS_SPAWN:` system messages always skipped (shown in CombatLog).
+- **Empty state** (Figma 426:1996, `EmptyState` in `MessageList.tsx`): rendered outside the virtualizer entirely (`messages.length === 0` short-circuits to a plain `h-full` flex-centered div in place of the virtual-item loop) so the ghost/text/invite-card sit dead-center in the actual scroll viewport regardless of its height — sizing it as a virtual row to a fixed estimate would anchor it near the top instead. Ghost gif at `/sprites/ghost/south-flip.gif` + copy, two conditions keyed off `Object.keys(memberProfiles).length <= 1` (crew just created, nobody else has joined) vs. everyone already joined but nobody's sent a message yet. `justCreated` shows the shared `<InviteCodeCard>` (same component `InviteFriendsSheet` uses — see below); the other condition shows plain "no messages yet" text. `inviteCode` prop is optional and omitted for DMs (member count is always 2, so DMs always render the plain variant).
 - **Combat wiring**: system message INSERTs patch combatStore. `active_raids` UPDATE handler patches only `guard_user_id`, `guard_expires_at`, `volley_expires_at`, `last_boss_attack_at` — never `current_hp` or `phase`.
 
 ### MessageBubble
@@ -267,8 +268,7 @@ Layout (flex col):
 Figma 394:9180 · Standard `<BottomSheet>` (`zIndex={80}`), opened from `SquadDetailsSheet`'s header `UserPlus` button
 
 - Header: "Invite Friends" (DM Sans Bold `--md` primary) + "Use this code to invite friends to your squad." (DM Sans Light `--xs` tertiary)
-- Code card: `--color-surface` bg + `border-border`, `h-[68px]` — left: "Invite new members" (Silkscreen mini primary) above the code itself (Silkscreen `--xl`, purple→fuchsia gradient `bg-clip-text` + `text-shadow: 0 0 3px #a855f7`, tracking 0.2px); right: "Copy Code" button
-- Copy button: `--color-purple` fill, `box-shadow: 4px 4px 0 rgba(168,85,247,0.5)`, `Copy` 12×12 icon + Silkscreen `--xxs` label; swaps to `Check` icon + "Copied!" for 1s on tap (writes `Come join my squad on Nexus app {code}` to clipboard)
+- Code card: `<InviteCodeCard>` (`src/shared/components/ui/InviteCodeCard.tsx`) — `--color-surface` bg + `border-border`, `h-[68px]` — left: "Invite new members" (Silkscreen mini primary) above the code itself (Silkscreen `--xl`, purple→fuchsia gradient `bg-clip-text` + `text-shadow: 0 0 3px #a855f7`, tracking 0.2px); right: "Copy Code" button. `--color-purple` fill, `box-shadow: 4px 4px 0 rgba(168,85,247,0.5)`, `Copy` 12×12 icon + Silkscreen `--xxs` label; swaps to `Check` icon + "Copied!" for 1s on tap (writes `Come join my squad on Nexus app {code}` to clipboard). Shared with `MessageList`'s empty state (see below) — don't re-inline this markup a third time; extend the shared component instead.
 
 ### Pin Feature (released to all users)
 - Admin = member with earliest `joined_at`; cap = 5 active pins (`PIN_MAX_PER_CREW`)
@@ -361,7 +361,7 @@ New notification type checklist:
 ## PWA / Push
 - SW: `public/sw-push.js` — handwritten, no workbox; no multi-arg `importScripts()` (kills iOS Safari)
 - `manifest.json` `start_url: "/home"` — avoids 2-hop redirect on icon launch
-- `sw-push.js` caching: `nexus-pages-v1` (StaleWhileRevalidate for app nav) · `nexus-static-v1` (CacheFirst `/_next/static/`) · `nexus-images-v1` (CacheFirst Supabase storage)
+- `sw-push.js` caching: `nexus-pages-v2` (StaleWhileRevalidate for app nav) · `nexus-static-v2` (CacheFirst `/_next/static/`) · `nexus-assets-v1` (CacheFirst `/sprites/`, `/icons/`, `/lottie/`, `/img/` — not content-hashed but effectively immutable; bump the version suffix if a file under these paths is ever replaced in place) · `nexus-images-v1` (CacheFirst Supabase storage)
 - `sw.js` (workbox) is **never registered** — `SWRegister` only registers `sw-push.js`
 - Strip `badge` from `showNotification` (iOS rejects); notification `tag` must be unique (`-{timestamp}`)
 - Subscribe: INSERT only, no delete-first; `23505` = success

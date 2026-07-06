@@ -11,6 +11,14 @@ var SUPABASE_IMAGES_RE = /\/storage\/v1\/object\/public\/(chat-images|background
 // impactful ones here using the vanilla Cache API.
 var NEXUS_STATIC_CACHE = 'nexus-static-v2'
 
+// Local static assets — character sprites, app icons, reaction Lottie JSON.
+// Not content-hashed like /_next/static/, but effectively immutable in practice
+// (a file is added once and rarely edited in place) — CacheFirst avoids
+// re-fetching the same small files on every cold PWA launch. Bump the version
+// suffix if a file under these paths is ever replaced in place.
+var NEXUS_ASSETS_CACHE = 'nexus-assets-v1'
+var LOCAL_ASSETS_RE    = /\/(sprites|icons|lottie|img)\//
+
 // App-shell HTML — StaleWhileRevalidate
 // Bounded to authenticated app paths; /login and /auth are excluded so
 // unauthenticated users always get a fresh redirect from the server.
@@ -80,6 +88,22 @@ self.addEventListener('fetch', function(event) {
     return
   }
 
+  // ── CacheFirst for local static assets (sprites/icons/lottie/img) ────────
+  if (LOCAL_ASSETS_RE.test(new URL(url).pathname)) {
+    event.respondWith(
+      caches.open(NEXUS_ASSETS_CACHE).then(function(cache) {
+        return cache.match(request).then(function(cached) {
+          if (cached) return cached
+          return fetch(request).then(function(response) {
+            if (response.ok) cache.put(request, response.clone())
+            return response
+          })
+        })
+      })
+    )
+    return
+  }
+
   // ── CacheFirst for Supabase Storage chat images ──────────────────────────
   if (!SUPABASE_IMAGES_RE.test(url)) return
   event.respondWith(
@@ -111,12 +135,13 @@ self.addEventListener('activate', (event) => {
     Promise.all([
       self.clients.claim(),
       // Purge stale page and static caches from previous SW versions.
-      // When either version string is bumped, old cached HTML and stale
+      // When any version string is bumped, old cached HTML and stale
       // JS chunks are deleted so the next request fetches fresh assets.
       caches.keys().then(function(keys) {
         return Promise.all(keys.filter(function(k) {
           return (k.startsWith('nexus-pages-')  && k !== NEXUS_PAGES_CACHE) ||
-                 (k.startsWith('nexus-static-') && k !== NEXUS_STATIC_CACHE)
+                 (k.startsWith('nexus-static-') && k !== NEXUS_STATIC_CACHE) ||
+                 (k.startsWith('nexus-assets-') && k !== NEXUS_ASSETS_CACHE)
         }).map(function(k) { return caches.delete(k) }))
       }),
     ])

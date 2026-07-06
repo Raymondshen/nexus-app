@@ -16,6 +16,7 @@ import { useCombatStore } from '@/store/combatStore'
 import { MessageBubble } from './MessageBubble'
 import { ChatMessageStampDivider } from './ChatMessageStampDivider'
 import { ArrowBarDown } from 'pixelarticons/react/ArrowBarDown'
+import { InviteCodeCard } from '@/shared/components/ui/InviteCodeCard'
 import type { MessageWithProfile, Message, Profile, AvatarClass, SquadDefinition, SquadDefinitionWithCreator, CombatEvent, CombatEventKind } from '@/types'
 
 interface MessageListProps {
@@ -25,6 +26,8 @@ interface MessageListProps {
   memberProfiles:       Record<string, Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url' | 'status'>>
   creatorId?:           string | null
   memberPinnedVinyls?:  Record<string, { imageUrl: string | null; title: string | null }>
+  /** Squad invite code — shown on the empty state's invite-code card while nobody else has joined yet. Undefined for DMs. */
+  inviteCode?:          string
   /** [oldUsername.toLowerCase(), userId][] — past usernames of current members, so
    *  @mentions of a member's old name resolve to their current one. See username_history. */
   initialMentionAliases?: [string, string][]
@@ -36,42 +39,35 @@ function dayLabel(date: Date): string {
   return format(date, 'MMM d, yyyy')
 }
 
-// ─── Campfire pixel art for empty state ─────────────────────────────────────
-const CAMPFIRE_GRID = [
-  '0000000000000000',
-  '0000000400000000',
-  '0000003440000000',
-  '0000034344000000',
-  '0000344443000000',
-  '0003444444300000',
-  '0033444443330000',
-  '0001122211000000',
-  '0011222211100000',
-  '0111222221110000',
-  '0001122221100000',
-  '0000011100000000',
-  '0000000000000000',
-  '0000000000000000',
-  '0000000000000000',
-  '0000000000000000',
-]
-const CAMPFIRE_COLORS: Record<string, string> = {
-  '0': 'transparent',
-  '1': '#4a3520',
-  '2': '#6b4e2e',
-  '3': '#ff4400',
-  '4': '#ffaa00',
-  '5': '#ff6600',
-}
+// ─── Empty state — Figma 426:1996 ────────────────────────────────────────────
+// Two conditions:
+//  - justCreated (crew has no other members yet): ghost + "share the invite code" copy + invite-code card
+//  - otherwise (members present, nobody has sent a message yet): ghost + "send the first message" copy
+function EmptyState({ inviteCode, justCreated }: { inviteCode?: string; justCreated: boolean }) {
+  const showInvite = justCreated && !!inviteCode
 
-function CampfireSprite() {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(16, 4px)', width: 64, height: 64, imageRendering: 'pixelated', opacity: 0.5 }}>
-      {CAMPFIRE_GRID.flatMap((row, r) =>
-        row.split('').map((ch, c) => (
-          <div key={`${r}-${c}`} style={{ backgroundColor: CAMPFIRE_COLORS[ch] ?? 'transparent' }} />
-        ))
-      )}
+    <div className="flex flex-col items-center w-full" style={{ gap: 'var(--x5)', paddingLeft: 'var(--md)', paddingRight: 'var(--md)' }}>
+      <div className="flex flex-col items-center w-full" style={{ gap: 'var(--x2)' }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/sprites/ghost/south-flip.gif"
+          alt=""
+          width={56}
+          height={56}
+          style={{ imageRendering: 'pixelated', width: 56, height: 56, flexShrink: 0 }}
+        />
+        <p
+          className="font-body font-normal leading-[1.5] text-center text-muted"
+          style={{ fontSize: 'var(--sm)', fontVariationSettings: '"opsz" 14' }}
+        >
+          {showInvite
+            ? "Seems like nobody's in here yet. Share the code with your buddies to start the group chat!"
+            : 'No messages yet. Send the first message to start the adventure!'}
+        </p>
+      </div>
+
+      {showInvite && inviteCode && <InviteCodeCard inviteCode={inviteCode} style={{ maxWidth: 361 }} />}
     </div>
   )
 }
@@ -79,14 +75,12 @@ function CampfireSprite() {
 // ─── Display item types ───────────────────────────────────────────────────────
 type DisplayItem =
   | { kind: 'spacer';   key: string }
-  | { kind: 'empty';    key: string }
   | { kind: 'divider';  label: string; key: string }
   | { kind: 'message';  message: MessageWithProfile; isOwn: boolean; showHeader: boolean; groupId: string; xpOverride?: number; coinOverride?: number }
 
 function estimateItemSize(item: DisplayItem): number {
   switch (item.kind) {
     case 'spacer':  return 134
-    case 'empty':   return 200
     case 'divider': return 36
     case 'message': return 72
     default:        return 72
@@ -172,6 +166,7 @@ export function MessageList({
   memberProfiles,
   creatorId,
   memberPinnedVinyls,
+  inviteCode,
   initialMentionAliases = EMPTY_ALIAS_ENTRIES,
 }: MessageListProps) {
   const router = useRouter()
@@ -471,13 +466,10 @@ export function MessageList({
   const items: DisplayItem[] = useMemo(() => {
     const list: DisplayItem[] = []
 
+    if (messages.length === 0) return list
+
     // Top spacer so messages start below the floating navbar
     list.push({ kind: 'spacer', key: 'top-spacer' })
-
-    if (messages.length === 0) {
-      list.push({ kind: 'empty', key: 'empty-state' })
-      return list
-    }
 
     let lastDate:      Date | null   = null
     let lastUserId:    string | null = null
@@ -959,17 +951,6 @@ export function MessageList({
       return <div style={{ height: 134 }} aria-hidden="true" />
     }
 
-    if (item.kind === 'empty') {
-      return (
-        <div className="flex flex-col items-center justify-center gap-4 opacity-60" style={{ minHeight: 200 }}>
-          <CampfireSprite />
-          <p className="font-pixel text-[9px] text-[#6b4f8f] text-center leading-loose">
-            Send the first message.<br />The adventure begins.
-          </p>
-        </div>
-      )
-    }
-
     if (item.kind === 'divider') {
       return <ChatMessageStampDivider label={item.label} />
     }
@@ -1058,29 +1039,38 @@ export function MessageList({
         className="flex-1 min-h-0 h-full overflow-y-auto px-[var(--x5)] pb-[var(--x5)] nexus-scroll chat-no-select"
         style={{ contain: 'strict' }}
       >
-        {/* Total scroll height governed by the virtualizer */}
-        <div style={{ height: virtualizer.getTotalSize(), position: 'relative', width: '100%' }}>
-          {virtualItems.map((virtualItem) => {
-            const item = items[virtualItem.index]
-            if (!item) return null
-            return (
-              <div
-                key={virtualItem.key}
-                data-index={virtualItem.index}
-                ref={virtualizer.measureElement}
-                style={{
-                  position:  'absolute',
-                  top:       0,
-                  left:      0,
-                  width:     '100%',
-                  transform: `translateY(${virtualItem.start}px)`,
-                }}
-              >
-                {renderItem(item)}
-              </div>
-            )
-          })}
-        </div>
+        {messages.length === 0 ? (
+          // No virtualizer math for the empty state — a plain centered box fills the
+          // actual scroll viewport, so the ghost/text/invite-card sit dead-center
+          // regardless of viewport height (unlike sizing a virtual row to a fixed estimate).
+          <div className="flex flex-col items-center justify-center w-full h-full">
+            <EmptyState inviteCode={inviteCode} justCreated={Object.keys(memberProfiles).length <= 1} />
+          </div>
+        ) : (
+          /* Total scroll height governed by the virtualizer */
+          <div style={{ height: virtualizer.getTotalSize(), position: 'relative', width: '100%' }}>
+            {virtualItems.map((virtualItem) => {
+              const item = items[virtualItem.index]
+              if (!item) return null
+              return (
+                <div
+                  key={virtualItem.key}
+                  data-index={virtualItem.index}
+                  ref={virtualizer.measureElement}
+                  style={{
+                    position:  'absolute',
+                    top:       0,
+                    left:      0,
+                    width:     '100%',
+                    transform: `translateY(${virtualItem.start}px)`,
+                  }}
+                >
+                  {renderItem(item)}
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
     </div>
   )
