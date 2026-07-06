@@ -16,6 +16,9 @@ import { Crown } from 'pixelarticons/react/Crown'
 import { Message } from 'pixelarticons/react/Message'
 import { Upload } from 'pixelarticons/react/Upload'
 import { UserPlus } from 'pixelarticons/react/UserPlus'
+import { Bell } from 'pixelarticons/react/Bell'
+import { BellOff } from 'pixelarticons/react/BellOff'
+import { Library } from 'pixelarticons/react/Library'
 import { DefinitionButton } from '@/shared/components/ui/DefinitionButton'
 import { InviteFriendsSheet } from './InviteFriendsSheet'
 
@@ -50,10 +53,13 @@ interface SquadDetailsSheetProps {
   currentUserId:           string
   memberMsgCounts:         Map<string, number>
   loadingCounts:           boolean
+  allMuted:                boolean
   onUploadPhoto:           () => void
   onUploadBackground?:     () => void
   onSave:                  (newName: string) => Promise<void>
   onTapMember:             (memberId: string) => void
+  onNotif:                 () => void
+  onLibrary:               () => void
   onLeave?:                () => void
   onClose:                 () => void
 }
@@ -398,8 +404,8 @@ function SquadDetailsEditSheet({
 export function SquadDetailsSheet({
   crewId, crewName, memberCount, crewImageUrl, crewBackgroundImageUrl, members, onlineUserIds,
   crewXP, crewLevel, xpProgress, totalMessages, inviteCode, creatorId,
-  currentUserId, memberMsgCounts, loadingCounts,
-  onUploadPhoto, onUploadBackground, onSave, onTapMember,
+  currentUserId, memberMsgCounts, loadingCounts, allMuted,
+  onUploadPhoto, onUploadBackground, onSave, onTapMember, onNotif, onLibrary,
   onLeave, onClose,
 }: SquadDetailsSheetProps) {
   const [showInvite,    setShowInvite]    = useState(false)
@@ -535,6 +541,24 @@ export function SquadDetailsSheet({
                   <UserPlus style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
                 </button>
               )}
+              <button
+                onClick={onNotif}
+                className="flex items-center justify-center"
+                style={{ width: 24, height: 24, color: allMuted ? 'var(--color-muted)' : 'var(--color-primary)' }}
+                aria-label={allMuted ? 'Notifications muted' : 'Notification settings'}
+              >
+                {allMuted
+                  ? <BellOff style={{ width: 24, height: 24 }} aria-hidden="true" />
+                  : <Bell style={{ width: 24, height: 24 }} aria-hidden="true" />}
+              </button>
+              <button
+                onClick={onLibrary}
+                className="flex items-center justify-center"
+                style={{ width: 24, height: 24 }}
+                aria-label="Squad glossary"
+              >
+                <Library style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+              </button>
               <button
                 onClick={onClose}
                 className="flex items-center justify-center"

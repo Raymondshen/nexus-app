@@ -25,17 +25,12 @@ import { ChevronUp } from 'pixelarticons/react/ChevronUp'
 import { CornerUpLeft } from 'pixelarticons/react/CornerUpLeft'
 import { Close } from 'pixelarticons/react/Close'
 import { MagicEdit } from 'pixelarticons/react/MagicEdit'
-import { UserPlus } from 'pixelarticons/react/UserPlus'
-import { Bell } from 'pixelarticons/react/Bell'
-import { BellOff } from 'pixelarticons/react/BellOff'
-import { Library } from 'pixelarticons/react/Library'
 import { kickMemberAction, renameCrewAction, birthdaysCommandAction, updateCrewBackgroundImageAction } from '@/app/(app)/chat/actions'
 import { leaveCrewAction } from '@/app/(app)/home/actions'
 import { resizeImageToBlob } from '@/shared/utils/imageCompress'
 import { EventCreationSheet } from '@/features/events/components/EventCreationSheet'
 import { CrewImageUploadModal } from '@/features/chat/components/sheets/CrewImageUploadModal'
 import { SquadDetailsSheet, type MiniMember } from '@/features/chat/components/sheets/SquadDetailsSheet'
-import { InviteFriendsSheet } from '@/features/chat/components/sheets/InviteFriendsSheet'
 import { NotifSheet, type NotifPrefs } from '@/features/chat/components/sheets/NotifSheet'
 import { PollCreatorSheet } from '@/features/chat/components/polls/PollCreatorSheet'
 import { GifPickerSheet } from '@/features/chat/components/input/GifPickerSheet'
@@ -125,23 +120,22 @@ async function tryClaimDailyGem(supabase: ReturnType<typeof createClient>, onCla
 // ─── ChatSquadDetailBar ───────────────────────────────────────────────────────
 
 interface ChatSquadDetailBarProps {
-  crewImageUrl: string | null | undefined
-  crewName:     string
-  crewLevel:    number
-  memberCount:  number
-  inviteCode?:  string
-  allMuted:     boolean
-  onExpand:     () => void
-  onPanEnd:     (_: PointerEvent, info: PanInfo) => void
-  onInvite:     () => void
-  onNotif:      () => void
-  onLibrary:    () => void
+  crewImageUrl:  string | null | undefined
+  crewName:      string
+  crewLevel:     number
+  memberCount:   number
+  members:       MemberProfile[]
+  onlineUserIds: Set<string>
+  onExpand:      () => void
+  onPanEnd:      (_: PointerEvent, info: PanInfo) => void
 }
 
 function ChatSquadDetailBar({
-  crewImageUrl, crewName, crewLevel, memberCount, inviteCode, allMuted,
-  onExpand, onPanEnd, onInvite, onNotif, onLibrary,
+  crewImageUrl, crewName, crewLevel, memberCount, members, onlineUserIds,
+  onExpand, onPanEnd,
 }: ChatSquadDetailBarProps) {
+  const onlineMembers = members.filter((m) => onlineUserIds.has(m.id))
+
   return (
     <motion.div
       className="flex relative cursor-pointer items-center justify-between w-full"
@@ -162,45 +156,31 @@ function ChatSquadDetailBar({
         </div>
       </div>
 
-      {/* Action buttons — invite, notifications, glossary, expand */}
-      <div className="flex items-center flex-shrink-0" style={{ gap: 'var(--space-5)' }}>
-        {inviteCode && (
-          <button
-            onClick={(e) => { e.stopPropagation(); onInvite() }}
-            className="flex items-center justify-center flex-shrink-0"
-            style={{ width: 24, height: 24 }}
-            aria-label="Invite friends"
-          >
-            <UserPlus style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
-          </button>
-        )}
-        <button
-          onClick={(e) => { e.stopPropagation(); onNotif() }}
-          className="flex items-center justify-center flex-shrink-0"
-          style={{ width: 24, height: 24, color: allMuted ? 'var(--color-muted)' : 'var(--color-primary)' }}
-          aria-label={allMuted ? 'Notifications muted' : 'Notification settings'}
+      {/* Online member avatars only — up to 6 visible at once, scroll horizontally for more */}
+      {onlineMembers.length > 0 && (
+        <div
+          className="flex flex-1 min-w-0 items-center overflow-x-auto nexus-scroll no-scrollbar"
+          style={{ gap: 4, marginLeft: 16, marginRight: 16, maxWidth: 164 }}
+          onClick={(e) => e.stopPropagation()}
         >
-          {allMuted
-            ? <BellOff style={{ width: 24, height: 24 }} aria-hidden="true" />
-            : <Bell style={{ width: 24, height: 24 }} aria-hidden="true" />}
-        </button>
-        <button
-          onClick={(e) => { e.stopPropagation(); onLibrary() }}
-          className="flex items-center justify-center flex-shrink-0"
-          style={{ width: 24, height: 24 }}
-          aria-label="Squad glossary"
-        >
-          <Library style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
-        </button>
-        <button
-          onClick={(e) => { e.stopPropagation(); onExpand() }}
-          className="flex items-center justify-center flex-shrink-0"
-          style={{ width: 24, height: 24 }}
-          aria-label="Show squad details"
-        >
-          <ChevronUp style={{ width: 24, height: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
-        </button>
-      </div>
+          {onlineMembers.map((m) => (
+            <div key={m.id} className="relative flex-shrink-0">
+              <UserAvatar avatarUrl={m.avatar_url as string | null} username={m.username} size={24} />
+              <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#66bb6a] border-[1.5px] border-black" />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Expand chevron */}
+      <button
+        onClick={(e) => { e.stopPropagation(); onExpand() }}
+        className="flex items-center justify-center flex-shrink-0"
+        style={{ width: 24, height: 24 }}
+        aria-label="Show squad details"
+      >
+        <ChevronUp style={{ width: 24, height: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
+      </button>
     </motion.div>
   )
 }
@@ -221,7 +201,6 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, crewNam
   const combatEnabledRef                         = useRef(false)
   const [gemToastVisible,   setGemToastVisible]   = useState(false)
   const [isExpanded,     setIsExpanded]     = useState(false)
-  const [showInviteSheet, setShowInviteSheet] = useState(false)
   const [showNotifSheet,  setShowNotifSheet]  = useState(false)
   const [notifPrefs,      setNotifPrefs]      = useState<NotifPrefs>({ messages: true, mentions: true })
   const [memberMsgCounts, setMemberMsgCounts] = useState<Map<string, number>>(new Map())
@@ -471,7 +450,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     return () => { cancelled = true }
   }, [isExpanded, crewId]) // eslint-disable-line
 
-  // Per-crew notification preferences — powers the Bell/BellOff icon in ChatSquadDetailBar
+  // Per-crew notification preferences — powers the Bell/BellOff icon in SquadDetailsSheet
   useEffect(() => {
     if (isDM) return
     let cancelled = false
@@ -1450,16 +1429,10 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
           crewName={liveCrewName}
           crewLevel={crewLevel}
           memberCount={memberCount}
-          inviteCode={inviteCode}
-          allMuted={allMuted}
+          members={members}
+          onlineUserIds={onlineUserIds}
           onExpand={() => setIsExpanded(true)}
           onPanEnd={handleTopPanEnd}
-          onInvite={() => setShowInviteSheet(true)}
-          onNotif={() => setShowNotifSheet(true)}
-          onLibrary={() => {
-            sessionStorage.setItem('nexus_chat_from', 'chat')
-            router.push(`/chat/${crewId}/definitions`)
-          }}
         />
       )}
 
@@ -1888,6 +1861,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
             currentUserId={userId}
             memberMsgCounts={memberMsgCounts}
             loadingCounts={loadingCounts}
+            allMuted={allMuted}
             crewBackgroundImageUrl={crewBgUrl}
             onUploadPhoto={() => crewImageInputRef.current?.click()}
             onUploadBackground={() => crewBgInputRef.current?.click()}
@@ -1903,6 +1877,11 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
               setIsExpanded(false)
               sessionStorage.setItem('nexus_chat_from', 'chat')
               router.push(`/chat/${crewId}/member/${memberId}`)
+            }}
+            onNotif={() => setShowNotifSheet(true)}
+            onLibrary={() => {
+              sessionStorage.setItem('nexus_chat_from', 'chat')
+              router.push(`/chat/${crewId}/definitions`)
             }}
             onLeave={handleLeaveSquadTapped}
             onClose={() => setIsExpanded(false)}
@@ -2060,15 +2039,6 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
             currentUserId={userId}
             onClose={() => setShowEventSheet(false)}
             createMessage
-          />
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {showInviteSheet && inviteCode && (
-          <InviteFriendsSheet
-            inviteCode={inviteCode}
-            onClose={() => setShowInviteSheet(false)}
           />
         )}
       </AnimatePresence>

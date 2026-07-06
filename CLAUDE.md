@@ -240,10 +240,7 @@ Reply icon (`CornerUpLeft` 16×16): absolutely positioned, `top` = `var(--space-
 - `callAttackBoss` fires after every send. Poll feature dev-gated (`nexus_poll_feature`).
 
 ### FloatingBackButton (`src/features/chat/components/navigation/FloatingBackButton.tsx`)
-Absolute-positioned gradient overlay (`linear-gradient black → transparent`). Right-side buttons:
-- **Bell** (`Bell`/`BellOff`) — loads per-crew notif prefs, opens `NotifSheet`; shows `BellOff` when all muted
-- **Library** — navigates to `/chat/${crewId}/definitions` (squad glossary)
-All buttons: `border border-border p-2 backdrop-blur(7px)`.
+Absolute-positioned gradient overlay (`linear-gradient black → transparent`). Left: `ChevronLeft` back button. Right: `Calendar2` group-events button, dev-gated (`nexus_dev_mode` + `nexus_events_enabled`) — no other buttons live here; Bell/Library live in `SquadDetailsSheet` (see below). All buttons: `border border-border p-2 backdrop-blur(7px)`.
 
 ### Definitions Page (`src/features/chat/screens/DefinitionHomePage.tsx`)
 Route: `/chat/[crewId]/definitions`. Header: back chevron + "DEFINITIONS" title + `Plus` opens `CreateDefinitionPage`. Cards (Figma 402:9403): aliases/word/definition + creator byline (highlighted if own) + amber suggestion-count badge when `suggestion_count > 0`.
@@ -260,9 +257,11 @@ Any card tap opens `DefinitionPreviewSheet` (Figma 402:9507, `<BottomSheet>` z-7
 Panel pattern · `maxHeight: 85vh` · `overflow-hidden`
 
 Layout (flex col):
-1. **Header** (240px) — background + gradient overlay; top: crew image + name + `Lv.{n} · {count} members` | `MagicEdit` (creator) + `UserPlus` (opens `InviteFriendsSheet`) + `ChevronRight` (close); bottom: XP bar
+1. **Header** (240px) — background + gradient overlay; top: crew image + name + `Lv.{n} · {count} members` | `MagicEdit` (creator) + `UserPlus` (opens `InviteFriendsSheet`) + `Bell`/`BellOff` (opens `NotifSheet`, owned by `ChatInput`) + `Library` (navigates to `/chat/${crewId}/definitions`) + `ChevronRight` (close); bottom: XP bar
 2. **Members** (`flex-1 min-h-0`) — "Members" label + scrollable member list (`maxHeight: 240px` = 5 rows); member rows: avatar + sprite + name/class·msg
 3. **Fixed bottom** (`flex-shrink-0`) — `DoorClosed` leave squad button
+
+Notif/library actions were moved here from `ChatSquadDetailBar` (Figma 432:7033) — the collapsed bar above the input now shows only the crew image/name/level, a horizontally-scrollable row of **online-only** member avatars (offline members are omitted entirely, not just deprioritized; online dot `#66bb6a` always shown) capped to ~6 visible at once via `maxWidth: 164` + `overflow-x-auto no-scrollbar`, and the `ChevronUp` expand button.
 
 ### InviteFriendsSheet (`src/features/chat/components/sheets/InviteFriendsSheet.tsx`)
 Figma 394:9180 · Standard `<BottomSheet>` (`zIndex={80}`), opened from `SquadDetailsSheet`'s header `UserPlus` button

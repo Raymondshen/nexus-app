@@ -195,6 +195,15 @@ body {
   overscroll-behavior-y: contain;
 }
 
+/* Hides the scrollbar on horizontally-scrollable rows (e.g. squad detail bar avatars) */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 /* Kept for compatibility — now covered by the global * rule above */
 .chat-no-select {
   -webkit-user-select: none;
