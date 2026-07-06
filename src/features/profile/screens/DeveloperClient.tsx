@@ -115,7 +115,9 @@ export function DeveloperClient({ userId: _userId, initialCoins, userCrews }: De
   const [gemResetConfirm,     setGemResetConfirm]     = useState(false)
   const [resettingGem,        setResettingGem]        = useState(false)
   const [gemResetDone,        setGemResetDone]        = useState(false)
+  const [newTitle,            setNewTitle]            = useState('')
   const [newText,             setNewText]             = useState('')
+  const [newImageUrl,         setNewImageUrl]         = useState('')
   const [addingBanner,        setAddingBanner]        = useState(false)
   const [bannerError,         setBannerError]         = useState<string | null>(null)
   const [addedSuccess,        setAddedSuccess]        = useState(false)
@@ -231,13 +233,15 @@ export function DeveloperClient({ userId: _userId, initialCoins, userCrews }: De
   }
 
   async function handleCreateBanner() {
-    if (!newText.trim() || addingBanner) return
+    if (!newTitle.trim() || !newText.trim() || !newImageUrl.trim() || addingBanner) return
     setAddingBanner(true)
     setBannerError(null)
-    const result = await createAnnouncementAction(newText.trim())
+    const result = await createAnnouncementAction(newTitle.trim(), newText.trim(), newImageUrl.trim())
     setAddingBanner(false)
     if (result.error) { setBannerError(result.error); return }
+    setNewTitle('')
     setNewText('')
+    setNewImageUrl('')
     setAddedSuccess(true)
     setTimeout(() => setAddedSuccess(false), 2000)
   }
@@ -359,10 +363,38 @@ export function DeveloperClient({ userId: _userId, initialCoins, userCrews }: De
               style={{ borderColor: 'var(--color-border)', paddingLeft: 'var(--space-5)', paddingRight: 'var(--space-5)' }}
             >
               <input
+                value={newTitle}
+                onChange={(e) => { setNewTitle(e.target.value.slice(0, 200)); setBannerError(null) }}
+                placeholder="Title, e.g. Text Effects"
+                maxLength={200}
+                className="flex-1 bg-transparent font-body font-normal text-primary placeholder:text-muted focus:outline-none leading-normal"
+                style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
+              />
+            </div>
+
+            <div
+              className="border flex h-[48px] items-center overflow-hidden w-full"
+              style={{ borderColor: 'var(--color-border)', paddingLeft: 'var(--space-5)', paddingRight: 'var(--space-5)' }}
+            >
+              <input
+                value={newImageUrl}
+                onChange={(e) => { setNewImageUrl(e.target.value.slice(0, 300)); setBannerError(null) }}
+                placeholder="Image path, e.g. /img/announcements/foo.svg"
+                maxLength={300}
+                className="flex-1 bg-transparent font-body font-normal text-primary placeholder:text-muted focus:outline-none leading-normal"
+                style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
+              />
+            </div>
+
+            <div
+              className="border flex h-[48px] items-center overflow-hidden w-full"
+              style={{ borderColor: 'var(--color-border)', paddingLeft: 'var(--space-5)', paddingRight: 'var(--space-5)' }}
+            >
+              <input
                 value={newText}
                 onChange={(e) => { setNewText(e.target.value.slice(0, 500)); setBannerError(null) }}
                 onKeyDown={(e) => { if (e.key === 'Enter') handleCreateBanner() }}
-                placeholder="New announcement text..."
+                placeholder="Body text..."
                 maxLength={500}
                 className="flex-1 bg-transparent font-body font-normal text-primary placeholder:text-muted focus:outline-none leading-normal"
                 style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
@@ -377,7 +409,7 @@ export function DeveloperClient({ userId: _userId, initialCoins, userCrews }: De
 
             <button
               onClick={handleCreateBanner}
-              disabled={!newText.trim() || addingBanner}
+              disabled={!newTitle.trim() || !newText.trim() || !newImageUrl.trim() || addingBanner}
               className="flex items-center justify-center overflow-hidden w-full disabled:opacity-40"
               style={{
                 background: addedSuccess ? '#22c55e' : 'var(--color-purple)',

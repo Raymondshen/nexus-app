@@ -4,7 +4,7 @@ import { createClient, createServiceClient } from '@/shared/supabase/server'
 import { HomeClient } from '@/features/home/screens/HomeClient'
 import type { FriendSummary } from '@/features/home/screens/HomeClient'
 import type { Crew } from '@/types'
-import type { AnnouncementItem } from '@/shared/components/banners/AnnouncementBanner'
+import type { AnnouncementItem } from '@/shared/components/banners/AnnouncementsSheet'
 
 function buildFriends(
   friendshipRows: Array<{ id: string; requester_id: string; addressee_id: string }>,
@@ -127,7 +127,7 @@ function getCachedAnnouncements() {
       const supabase = createServiceClient()
       const { data } = await supabase
         .from('announcements')
-        .select('id, text')
+        .select('id, title, text, image_url, created_at')
         .eq('active', true)
         .order('created_at', { ascending: false })
       return (data ?? []) as AnnouncementItem[]

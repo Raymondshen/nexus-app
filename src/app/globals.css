@@ -21,6 +21,7 @@
   --color-green:        #22c55e;    /* green        #22C55E */
   --color-yellow:       #f59e0b;    /* yellow       #F59E0B */
   --color-red:          #ef4444;    /* red          #EF4444 */
+  --gradient-nexus:     linear-gradient(to right, #a855f7, #d946ef); /* nexus gradient — purple to pink */
   /* Game / chat accent colors (not in Figma — kept for game logic) */
   --color-paper-150:   #b3b3b3;
   --color-paper-200:   #9a9a9a;

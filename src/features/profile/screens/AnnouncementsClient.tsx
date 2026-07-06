@@ -30,11 +30,13 @@ interface AnnouncementsClientProps {
 }
 
 export function AnnouncementsClient({ initialAnnouncements }: AnnouncementsClientProps) {
-  const [banners,     setBanners]     = useState<Announcement[]>(initialAnnouncements)
-  const [editingId,   setEditingId]   = useState<string | null>(null)
-  const [editingText, setEditingText] = useState('')
-  const [error,       setError]       = useState<string | null>(null)
-  const [loading,     setLoading]     = useState(false)
+  const [banners,      setBanners]      = useState<Announcement[]>(initialAnnouncements)
+  const [editingId,    setEditingId]    = useState<string | null>(null)
+  const [editingTitle, setEditingTitle] = useState('')
+  const [editingText,  setEditingText]  = useState('')
+  const [editingImage, setEditingImage] = useState('')
+  const [error,        setError]        = useState<string | null>(null)
+  const [loading,      setLoading]      = useState(false)
 
   const reload = useCallback(async () => {
     setLoading(true)
@@ -44,8 +46,8 @@ export function AnnouncementsClient({ initialAnnouncements }: AnnouncementsClien
   }, [])
 
   async function handleUpdate(id: string) {
-    if (!editingText.trim()) return
-    const result = await updateAnnouncementAction(id, editingText.trim())
+    if (!editingTitle.trim() || !editingText.trim() || !editingImage.trim()) return
+    const result = await updateAnnouncementAction(id, editingTitle.trim(), editingText.trim(), editingImage.trim())
     if (result.error) { setError(result.error); return }
     setEditingId(null)
     reload()
@@ -127,6 +129,23 @@ export function AnnouncementsClient({ initialAnnouncements }: AnnouncementsClien
               >
                 {editingId === b.id ? (
                   <>
+                    <input
+                      value={editingTitle}
+                      onChange={(e) => setEditingTitle(e.target.value.slice(0, 200))}
+                      placeholder="Title"
+                      className="w-full bg-black border px-3 py-2 font-body text-primary focus:outline-none focus:border-purple"
+                      style={{ borderColor: 'var(--color-border)', fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
+                      maxLength={200}
+                      autoFocus
+                    />
+                    <input
+                      value={editingImage}
+                      onChange={(e) => setEditingImage(e.target.value.slice(0, 300))}
+                      placeholder="Image path, e.g. /img/announcements/foo.svg"
+                      className="w-full bg-black border px-3 py-2 font-body text-primary focus:outline-none focus:border-purple"
+                      style={{ borderColor: 'var(--color-border)', fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
+                      maxLength={300}
+                    />
                     <textarea
                       value={editingText}
                       onChange={(e) => setEditingText(e.target.value.slice(0, 500))}
@@ -134,7 +153,6 @@ export function AnnouncementsClient({ initialAnnouncements }: AnnouncementsClien
                       style={{ borderColor: 'var(--color-border)', fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
                       rows={3}
                       maxLength={500}
-                      autoFocus
                     />
                     <div className="flex" style={{ gap: 'var(--space-3)' }}>
                       <button
@@ -156,10 +174,22 @@ export function AnnouncementsClient({ initialAnnouncements }: AnnouncementsClien
                 ) : (
                   <>
                     <p
-                      className="font-body leading-snug"
+                      className="font-body font-bold leading-snug"
                       style={{ fontSize: 'var(--text-sm)', color: b.active ? 'var(--color-primary)' : 'var(--color-muted)', fontVariationSettings: '"opsz" 14' }}
                     >
+                      {b.title}
+                    </p>
+                    <p
+                      className="font-body leading-snug"
+                      style={{ fontSize: 'var(--text-sm)', color: b.active ? 'var(--color-secondary)' : 'var(--color-muted)', fontVariationSettings: '"opsz" 14' }}
+                    >
                       {b.text}
+                    </p>
+                    <p
+                      className="font-pixel leading-snug truncate"
+                      style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}
+                    >
+                      {b.image_url}
                     </p>
                     <div className="flex items-center" style={{ gap: 'var(--space-3)' }}>
                       <button
@@ -175,7 +205,7 @@ export function AnnouncementsClient({ initialAnnouncements }: AnnouncementsClien
                         {b.active ? 'ACTIVE' : 'INACTIVE'}
                       </button>
                       <button
-                        onClick={() => { setEditingId(b.id); setEditingText(b.text); setError(null) }}
+                        onClick={() => { setEditingId(b.id); setEditingTitle(b.title); setEditingText(b.text); setEditingImage(b.image_url); setError(null) }}
                         className="font-pixel px-2 py-1 border"
                         style={{ fontSize: 'var(--text-mini)', color: 'var(--color-coins)', borderColor: 'rgba(255,215,0,0.3)', background: 'rgba(255,215,0,0.06)' }}
                       >

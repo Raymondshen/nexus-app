@@ -29,8 +29,8 @@ import type { CrewSummary } from '@/app/(app)/home/page'
 import type { Message, MessageWithProfile } from '@/types'
 import { useChatStore } from '@/store/chatStore'
 import { clearSkipNextSlideEnter } from '@/app/layouts/SlidePage'
-import { AnnouncementBanner } from '@/shared/components/banners/AnnouncementBanner'
-import type { AnnouncementItem } from '@/shared/components/banners/AnnouncementBanner'
+import { AnnouncementsSheet } from '@/shared/components/banners/AnnouncementsSheet'
+import type { AnnouncementItem } from '@/shared/components/banners/AnnouncementsSheet'
 import { DiamondGem } from 'pixelarticons/react/DiamondGem'
 import { isGemGateOpen } from '@/shared/utils/gems'
 import { GEM_DAILY_LIMIT } from '@/shared/constants/config'
@@ -1903,7 +1903,7 @@ export function HomeClient({
   return (
     <div className="h-screen bg-black flex flex-col overflow-hidden">
 
-      {/* ── Static header: account card + announcements ── */}
+      {/* ── Static header: account card ── */}
       <div
         className="flex-shrink-0 px-4 flex flex-col gap-6"
         style={{ paddingTop: 'max(env(safe-area-inset-top), 16px)', marginTop: 'var(--space-5)' }}
@@ -1940,7 +1940,6 @@ export function HomeClient({
             setTimeout(() => setShowGemTip(false), 2000)
           }}
         />
-        <AnnouncementBanner announcements={announcements} />
       </div>
 
       {/* ── Scrollable list: DM banner + squads ── */}
@@ -1983,6 +1982,7 @@ export function HomeClient({
       </div>
 
       {/* ── Modals ── */}
+      <AnnouncementsSheet announcements={announcements} />
       <AnimatePresence>
         {showCreate && (
           <HomeActionSheet

@@ -70,7 +70,9 @@ export interface CrewXPLog extends Record<string, unknown> {
 
 export interface Announcement extends Record<string, unknown> {
   id:         string
+  title:      string
   text:       string
+  image_url:  string
   active:     boolean
   created_at: string
 }

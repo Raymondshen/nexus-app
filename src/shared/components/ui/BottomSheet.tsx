@@ -14,6 +14,8 @@ interface BottomSheetProps {
   disableDrag?:         boolean
   /** Additional Tailwind classes on the sheet container. */
   className?:           string
+  /** CSS background override (e.g. the nexus gradient). Defaults to --color-surface-sheet. */
+  background?:          string
   /**
    * Use pointer-down events (onTouchStart + onMouseDown) on the backdrop instead
    * of onClick. Required when the sheet opens via long-press so the synthetic
@@ -29,6 +31,7 @@ export function BottomSheet({
   maxHeight,
   disableDrag = false,
   className,
+  background = 'var(--color-surface-sheet)',
   dismissOnPointerDown = false,
 }: BottomSheetProps) {
   const backdropProps = dismissOnPointerDown
@@ -50,8 +53,8 @@ export function BottomSheet({
         {...backdropProps}
       />
       <motion.div
-        className={`fixed bottom-0 left-0 right-0 bg-[var(--color-surface-sheet)] rounded-tl-[16px] rounded-tr-[16px] flex flex-col${className ? ` ${className}` : ''}`}
-        style={{ zIndex, maxHeight, paddingTop: 'var(--space-7)' }}
+        className={`fixed bottom-0 left-0 right-0 rounded-tl-[16px] rounded-tr-[16px] flex flex-col${className ? ` ${className}` : ''}`}
+        style={{ zIndex, maxHeight, paddingTop: 'var(--space-7)', background }}
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
