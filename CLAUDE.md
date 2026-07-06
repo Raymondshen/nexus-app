@@ -3,7 +3,7 @@
 Group chat RPG: messages → XP → boss fights → artifacts. Pixel art (RotMG style).
 
 ## Stack
-Next.js 16 App Router · TypeScript · Tailwind · Framer Motion · Zustand · Supabase (Auth, Postgres, Realtime, Storage, Edge Functions) · next-pwa v5 · Vercel · @tanstack/react-virtual v3
+Next.js 16 App Router · TypeScript · Tailwind · Framer Motion · Zustand · Supabase (Auth, Postgres, Realtime, Storage, Edge Functions) · next-pwa v5 · Vercel · @tanstack/react-virtual v3 · lottie-react (reaction icons)
 
 Icons: `pixelarticons` — `import { X } from 'pixelarticons/react/X'` · `<X style={{ width, height, color }} />` · named exports only · never lucide-react in chat/home UI
 
@@ -103,7 +103,7 @@ Leveling: `xpForLevel(n) = round(120 × 1.0435^(n-1))` · `LEVEL_CAP = 100` · c
 
 Elements: fire=<20 chars · water=>150 chars · lightning=voice · nature=images · shadow=reactions · arcane=daily/system
 
-Quick-pick emojis: `['🔥','💧','⚡','🌿','🌑','🔮']`
+Quick-pick emojis: `['🤯','😤','😘','😂','🤬','🤗']` (`QUICK_REACTIONS` in `ChatSheetReact.tsx`) — animated via `REACTION_LOTTIE_MAP` (JoyPixels Lottie JSON, `public/lottie/reactions/`), see MsgReactionPills below. Reactions are still keyed by these Unicode characters in `messages.reactions`, so any older reaction data (previously `🔥💧⚡🌿🌑🔮`) stays valid — it just renders as a plain glyph since it has no Lottie mapping.
 
 ## Auth
 - Google OAuth: `signInWithOAuth` → `/auth/callback` → `/home`
@@ -214,6 +214,16 @@ src/
 - **`VinylPill`**: `pinnedVinyl?: { imageUrl, title }`. Measures title width via off-screen span; scrolls with Framer Motion ticker if `textWidth > 32`, else static ellipsis.
 - Long-press (500ms) → `ChatSheetReact`: emoji quick-pick · Edit (own text messages) · Reply · Copy · Pin (admin).
 - OG previews: `extractFirstUrl` → `useOGPreview` → `<LinkPreviewCard>` below body; text-only messages only.
+- **`MsgReactionPills`** (Figma 424:4732 "reaction-pill") — one pill per reacted emoji, `bg-surface-elevated`, `rounded-x2`, `p-x2`, `gap-x2`. Active (current user included): `--color-purple` border + purple `xs` SemiBold count. Inactive (others only): `--color-border-hover` border + `--color-tertiary` count. Icon is `LottieReactionIcon` (16×16) for any emoji in `REACTION_LOTTIE_MAP`, else the plain glyph (legacy `🔥💧⚡🌿🌑🔮` reactions).
+
+### LottieReactionIcon (`src/shared/components/ui/LottieReactionIcon.tsx`)
+Renders one JoyPixels Lottie animation (SVG renderer — most cross-platform-compatible on iOS PWA/Android). Used in both `ChatSheetReact`'s quick-pick (24×24) and `MsgReactionPills` (16×16). Battery/perf-conscious by design, since a chat can have many reacted messages on screen at once:
+- **Shared fetch+parse cache** (module-level `Map<url, Promise>`) — every instance of the same icon (e.g. several messages all reacted with 🤗) reuses one fetch and one parsed object instead of refetching/reparsing the 20–70KB JSON per instance.
+- **Paced "pulse" loop, not continuous looping** — plays once (`loop={false}`), then waits `LOOP_REST_MS` (1.5s) before replaying via `onComplete` + `goToAndPlay(0, true)`. A tight continuous loop never stops ticking `requestAnimationFrame`; resting between plays costs a fraction of the CPU with multiple instances visible.
+- **`IntersectionObserver`-gated** — only plays while actually scrolled into view (virtualization overscan keeps some off-screen bubbles mounted, which would otherwise animate unseen).
+- **Paused on `visibilitychange`** — stops when the PWA is backgrounded/screen locked.
+- **`prefers-reduced-motion`** via `useSyncExternalStore` on `matchMedia` — renders a static first frame, never plays.
+- `REACTION_LOTTIE_MAP` (`src/shared/constants/config.ts`) keys each animation by the Unicode emoji it represents — reactions stay keyed/stored by that emoji character (not a custom id), so this is purely a rendering swap; the data model (`toggle_reaction`, `messages.reactions`) is unaffected.
 
 ### Swipe-to-reply
 Only on `!isOwn` messages. Swipe left past 64px to commit. Slide wrapper (`data-group={groupId}`) covers avatar + content so they move together. Group slide: all `[data-group="${groupId}"]` elements transform as a unit. Reply icon fades in from 30–100% of swipe. `chatStore.replyTo` + `replyGroupId` set atomically; cleared on `ChatInput` unmount.

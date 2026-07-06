@@ -86,6 +86,20 @@ export const MUSIC_DOMAINS = [
   'soundcloud.com',
 ]
 
+// ─── Reaction quick-pick icons (JoyPixels Lottie animations) ────────────────
+// Keyed by the standard Unicode emoji each animation represents — reactions are
+// still stored/toggled by that emoji character in messages.reactions, so old
+// reactions (🔥💧⚡🌿🌑🔮) and any future quick-pick set stay data-compatible.
+// See LottieReactionIcon (src/shared/components/ui/LottieReactionIcon.tsx).
+export const REACTION_LOTTIE_MAP: Record<string, string> = {
+  '🤯': '/lottie/reactions/exploding_head.json',
+  '😤': '/lottie/reactions/face_with_steam_from_nose.json',
+  '😘': '/lottie/reactions/face_blowing_a_kiss.json',
+  '😂': '/lottie/reactions/face_with_tears_of_joy.json',
+  '🤬': '/lottie/reactions/face_with_symbols_on_mouth.json',
+  '🤗': '/lottie/reactions/hugging_face.json',
+}
+
 export const KLIPY_API_BASE_URL                = 'https://api.klipy.com/api/v1'
 export const KLIPY_RATING                      = 'g'
 export const KLIPY_SEARCH_DEBOUNCE_MS          = 400

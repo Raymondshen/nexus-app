@@ -18,6 +18,8 @@ import { EventCardMessage } from '@/features/events/components/EventCardMessage'
 import { PinDurationSheet } from '@/features/chat/components/sheets/PinDurationSheet'
 import { ChatSheetReact } from '@/features/chat/components/sheets/ChatSheetReact'
 import { useMessageReactions } from '@/features/chat/components/messages/useMessageReactions'
+import { LottieReactionIcon } from '@/shared/components/ui/LottieReactionIcon'
+import { REACTION_LOTTIE_MAP } from '@/shared/constants/config'
 import { TextEffectText } from '@/features/chat/components/text-effects/TextEffectText'
 import { ImagePreviewOverlay } from '@/shared/components/overlays/ImagePreviewOverlay'
 import { BottomSheet } from '@/shared/components/ui/BottomSheet'
@@ -287,6 +289,56 @@ function renderMessageContent(
     }
   }
   return result.length ? result : content
+}
+
+// ─── MsgReactionPills — Figma 424:4732 "reaction-pill" ───────────────────────
+// Active (current user included): purple border + purple count text.
+// Inactive (others only): border-hover (grey) border + tertiary count text.
+// Icon is the animated Lottie for the 6 quick-pick emoji (REACTION_LOTTIE_MAP);
+// any other/legacy emoji (🔥💧⚡🌿🌑🔮 from before this icon set) falls back to
+// the plain glyph so old reactions still render.
+function MsgReactionPills({
+  reactions, currentUserId, onReact,
+}: {
+  reactions:     [string, string[]][]
+  currentUserId: string
+  onReact:       (emoji: string) => void
+}) {
+  return (
+    <>
+      {reactions.map(([emoji, users]) => {
+        const active     = users.includes(currentUserId)
+        const lottieSrc  = REACTION_LOTTIE_MAP[emoji]
+        const tintColor  = active ? 'var(--color-purple)' : 'var(--color-tertiary)'
+        return (
+          <button
+            key={emoji}
+            onPointerDown={(e) => e.stopPropagation()}
+            onPointerUp={() => onReact(emoji)}
+            className="bg-surface-elevated flex items-center overflow-hidden select-none active:opacity-70 transition-opacity"
+            style={{
+              gap:          'var(--x2)',
+              padding:      'var(--x2)',
+              borderRadius: 'var(--x2)',
+              border:       `1px solid ${active ? 'var(--color-purple)' : 'var(--color-border-hover)'}`,
+            }}
+          >
+            {lottieSrc ? (
+              <LottieReactionIcon src={lottieSrc} size={16} />
+            ) : (
+              <span style={{ width: 16, height: 16, fontSize: 14, lineHeight: '16px', textAlign: 'center' }}>{emoji}</span>
+            )}
+            <span
+              className="font-body font-semibold leading-none tabular-nums"
+              style={{ fontSize: 'var(--xs)', color: tintColor, fontVariationSettings: '"opsz" 14' }}
+            >
+              {users.length}
+            </span>
+          </button>
+        )
+      })}
+    </>
+  )
 }
 
 // ─── VinylPill — pinned vinyl displayed in the message header ────────────────
@@ -923,7 +975,8 @@ function MessageBubbleImpl({
             {sortedReactions.length > 0 && (
               <motion.div
                 key="reaction-chips"
-                className="relative flex flex-wrap gap-[6px] mt-[6px]"
+                className="relative flex flex-wrap items-center"
+                style={{ gap: 'var(--x2)', marginTop: 'var(--x2)' }}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
@@ -951,37 +1004,7 @@ function MessageBubbleImpl({
                   )}
                 </AnimatePresence>
 
-                {sortedReactions.map(([emoji, users]) => {
-                  const active = users.includes(currentUserId)
-                  return (
-                    <button
-                      key={emoji}
-                      onPointerDown={(e) => e.stopPropagation()}
-                      onPointerUp={() => handleReactionTap(emoji)}
-                      className="flex items-center select-none active:opacity-70 transition-opacity"
-                      style={{
-                        gap: 6,
-                        height: 28,
-                        paddingLeft: 10,
-                        paddingRight: 10,
-                        border: `1px solid ${active ? '#bf5fff' : 'rgba(255,255,255,0.15)'}`,
-                        background: active ? 'rgba(191,95,255,0.18)' : 'rgba(255,255,255,0.06)',
-                      }}
-                    >
-                      <span style={{ fontSize: 15, lineHeight: 1 }}>{emoji}</span>
-                      <span
-                        className="font-body font-semibold tabular-nums leading-none"
-                        style={{
-                          fontSize: 12,
-                          color: active ? '#bf5fff' : 'rgba(255,255,255,0.75)',
-                          fontVariationSettings: '"opsz" 14',
-                        }}
-                      >
-                        {users.length}
-                      </span>
-                    </button>
-                  )
-                })}
+                <MsgReactionPills reactions={sortedReactions} currentUserId={currentUserId} onReact={handleReactionTap} />
               </motion.div>
             )}
           </AnimatePresence>

@@ -6,8 +6,13 @@ import { Note } from 'pixelarticons/react/Note'
 import { MagicEdit } from 'pixelarticons/react/MagicEdit'
 import { BottomSheet } from '@/shared/components/ui/BottomSheet'
 import { SheetActionButton } from '@/shared/components/ui/SheetActionButton'
+import { LottieReactionIcon } from '@/shared/components/ui/LottieReactionIcon'
+import { REACTION_LOTTIE_MAP } from '@/shared/constants/config'
 
-export const QUICK_REACTIONS = ['🔥', '💧', '⚡', '🌿', '🌑', '🔮'] as const
+// Standard Unicode emoji each JoyPixels animation represents — see
+// REACTION_LOTTIE_MAP (src/shared/constants/config.ts) for why reactions are
+// still keyed by these characters rather than a custom id.
+export const QUICK_REACTIONS = ['🤯', '😤', '😘', '😂', '🤬', '🤗'] as const
 
 interface ChatSheetReactProps {
   onClose:       () => void
@@ -45,12 +50,10 @@ export function ChatSheetReact({
                   height:       40,
                   borderRadius: '50%',
                   background:   active ? 'var(--color-purple)' : 'var(--color-surface-elevated)',
-                  fontSize:     20,
-                  lineHeight:   1,
                   transform:    active ? 'scale(1.1)' : undefined,
                 }}
               >
-                {emoji}
+                <LottieReactionIcon src={REACTION_LOTTIE_MAP[emoji]} size={24} />
               </button>
             )
           })}
