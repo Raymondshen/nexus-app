@@ -48,7 +48,7 @@ export function AnnouncementsSheet({ announcements }: { announcements: Announcem
           zIndex={80}
           maxHeight="85vh"
           background="var(--gradient-nexus)"
-          className="overflow-y-auto nexus-scroll px-[var(--space-5)]"
+          className="overflow-y-auto nexus-scroll px-[var(--space-5)] border-l border-r border-t border-purple"
         >
           <div
             className="w-full flex flex-col items-center"
@@ -73,10 +73,10 @@ export function AnnouncementsSheet({ announcements }: { announcements: Announcem
             <button
               onClick={dismissAll}
               className="w-full flex items-center justify-center bg-purple rounded-[8px]"
-              style={{ padding: 'var(--space-5)', border: '1px solid rgba(255,255,255,0.15)' }}
+              style={{ padding: 'var(--space-5)' }}
             >
               <span
-                className="font-body font-semibold text-primary leading-none"
+                className="font-body font-semibold text-primary whitespace-nowrap"
                 style={{ fontSize: 'var(--text-sm)', letterSpacing: '0.2px' }}
               >
                 Dismiss
