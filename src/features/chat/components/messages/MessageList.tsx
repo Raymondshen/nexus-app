@@ -53,12 +53,12 @@ function EmptyState({ inviteCode, justCreated }: { inviteCode?: string; justCrea
         <img
           src="/sprites/ghost/south-flip.gif"
           alt=""
-          width={56}
-          height={56}
-          style={{ imageRendering: 'pixelated', width: 56, height: 56, flexShrink: 0 }}
+          width={100}
+          height={100}
+          style={{ imageRendering: 'pixelated', width: 100, height: 100, flexShrink: 0 }}
         />
         <p
-          className="font-body font-normal leading-[1.5] text-center text-muted"
+          className="font-body font-normal leading-[1.5] text-center text-muted w-full"
           style={{ fontSize: 'var(--sm)', fontVariationSettings: '"opsz" 14' }}
         >
           {showInvite
@@ -67,7 +67,7 @@ function EmptyState({ inviteCode, justCreated }: { inviteCode?: string; justCrea
         </p>
       </div>
 
-      {showInvite && inviteCode && <InviteCodeCard inviteCode={inviteCode} style={{ maxWidth: 361 }} />}
+      {showInvite && inviteCode && <InviteCodeCard inviteCode={inviteCode} />}
     </div>
   )
 }
