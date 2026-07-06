@@ -90,15 +90,6 @@ export default function ClassSelectClient({
   const spriteId  = spriteIdFor(selected.id as AvatarClass)
   const stats     = CLASS_BASE_STATS[selected.id]
 
-  // Collapse this page's own history entry into /home before the class-selection
-  // redirect pushes /chat on top — otherwise back/swipe from chat lands here again,
-  // letting the user reselect a class. FloatingBackButton's own rewrite is skipped
-  // via the flag since we've already fixed the entry ourselves.
-  function handleSubmit() {
-    window.history.replaceState({ __NA: true }, '', '/home')
-    sessionStorage.setItem('nexus_chat_from', 'class-select')
-  }
-
   return (
     <div className="min-h-screen bg-black flex flex-col justify-end">
       <div
@@ -241,7 +232,7 @@ export default function ClassSelectClient({
             </p>
           )}
 
-          <form action={action} onSubmit={handleSubmit}>
+          <form action={action}>
             <input type="hidden" name="class"   value={selected.id} />
             <input type="hidden" name="crewId"  value={crewId} />
             <input type="hidden" name="welcome" value={welcome ? '1' : '0'} />
