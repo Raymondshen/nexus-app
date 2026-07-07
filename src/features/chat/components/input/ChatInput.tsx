@@ -56,7 +56,10 @@ const SLASH_COMMANDS = [
 type SlashCommandName = typeof SLASH_COMMANDS[number]['name']
 
 
-type MemberProfile = Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url' | 'background_url' | 'status'>
+// background_url is optional here (not a plain Pick field) because the DM page's
+// own MemberProfile — passed through unchanged as this same prop shape — never
+// fetches it (SquadDetailsSheet, the only consumer, is skipped for DMs).
+type MemberProfile = Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url' | 'status'> & { background_url?: string | null }
 
 interface PendingImage {
   id:        string
@@ -1841,7 +1844,6 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
       <AnimatePresence>
         {isExpanded && !isDM && (
           <SquadDetailsSheet
-            crewId={crewId}
             crewName={liveCrewName}
             memberCount={memberCount}
             crewImageUrl={crewImageUrl}
@@ -1850,7 +1852,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
               username:       m.username,
               avatar_url:     m.avatar_url as string | null,
               avatar_class:   m.avatar_class,
-              background_url: m.background_url,
+              background_url: m.background_url ?? null,
               status:         m.status,
             }))}
             onlineUserIds={onlineUserIds}

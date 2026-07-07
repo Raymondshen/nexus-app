@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useEffect, useLayoutEffect, useRef } from 'react'
+import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
 import Image from 'next/image'
-import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
+import { supabaseImageLoader, heightCropImageUrl } from '@/shared/supabase/imageLoader'
 import { UserAvatar } from '@/shared/components/ui/UserAvatar'
 import { GroupAvatar } from '@/shared/components/ui/GroupAvatar'
 import { getXPInCurrentLevel, getXPForCurrentLevel } from '@/shared/utils/xp'
@@ -38,7 +38,6 @@ export type MiniMember = {
 }
 
 interface SquadDetailsSheetProps {
-  crewId:                  string
   crewName:                string
   memberCount:             number
   crewImageUrl:            string | null
@@ -143,9 +142,11 @@ function UserCard({
       >
         {/* eslint-disable-next-line @next/next/no-img-element -- height-anchored crop (see CLAUDE.md Images: "Plain <img>: ... hero backgrounds") needs manual sizing next/image's fill mode can't express */}
         <img
-          src={profile.background_url ?? '/img/default_image.png'}
+          src={heightCropImageUrl(profile.background_url ?? '/img/default_image.png', 216)}
           alt=""
           aria-hidden
+          loading="lazy"
+          decoding="async"
           style={{
             position:      'absolute',
             top:           0,
@@ -443,7 +444,7 @@ function SquadDetailsEditSheet({
 // ─── SquadDetailsSheet ────────────────────────────────────────────────────────
 
 export function SquadDetailsSheet({
-  crewId, crewName, memberCount, crewImageUrl, crewBackgroundImageUrl, members, onlineUserIds,
+  crewName, memberCount, crewImageUrl, crewBackgroundImageUrl, members, onlineUserIds,
   crewXP, crewLevel, xpProgress, totalMessages, inviteCode, creatorId,
   currentUserId, memberMsgCounts, loadingCounts, allMuted, memberPinnedVinyls,
   onUploadPhoto, onUploadBackground, onSave, onTapMember, onNotif, onLibrary,
@@ -484,12 +485,15 @@ export function SquadDetailsSheet({
     if (info.offset.y > 60 || info.velocity.y > 300) onClose()
   }
 
-  const sortedMembers = [...members].sort((a, b) => {
+  // Re-sorting on every render (e.g. toggling the edit sheet) is wasted work
+  // for a list that only actually needs re-ordering when membership, presence,
+  // or message counts change.
+  const sortedMembers = useMemo(() => [...members].sort((a, b) => {
     const aOnline = onlineUserIds.has(a.id) ? 1 : 0
     const bOnline = onlineUserIds.has(b.id) ? 1 : 0
     if (bOnline !== aOnline) return bOnline - aOnline
     return (memberMsgCounts.get(b.id) ?? 0) - (memberMsgCounts.get(a.id) ?? 0)
-  })
+  }), [members, onlineUserIds, memberMsgCounts])
 
   return (
     <>

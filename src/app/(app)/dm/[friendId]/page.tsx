@@ -8,7 +8,10 @@ import { ErrorBoundary } from '@/shared/components/ui/ErrorBoundary'
 import { SlidePage } from '@/app/layouts/SlidePage'
 import type { Profile, AvatarClass } from '@/types'
 
-type MemberProfile = Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url' | 'background_url' | 'status'>
+// No background_url here — SquadDetailsSheet (the only consumer) never
+// renders for DMs (ChatInput guards it with `!isDM`), so fetching it would
+// just be wasted DB/egress on every DM page load.
+type MemberProfile = Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url' | 'status'>
 type MemberProfileMap = Record<string, MemberProfile>
 
 function getCachedDMMemberProfiles(crewId: string) {
@@ -17,7 +20,7 @@ function getCachedDMMemberProfiles(crewId: string) {
       const supabase = createServiceClient()
       const { data } = await supabase
         .from('crew_members')
-        .select('user_id, class, profile:profiles(id, username, avatar_url, background_url, status)')
+        .select('user_id, class, profile:profiles(id, username, avatar_url, status)')
         .eq('crew_id', crewId)
       type RawRow = { user_id: string; class: string | null; profile: Omit<MemberProfile, 'avatar_class'> | null }
       return (data ?? []).map((r) => {
@@ -30,8 +33,10 @@ function getCachedDMMemberProfiles(crewId: string) {
         }
       }) as { user_id: string; profile: MemberProfile | null }[]
     },
-    // v2: cache key bumped when background_url was added to the select — see
-    // chat/[crewId]/page.tsx's getCachedMemberProfiles for why.
+    // v2: cache key bumped by a prior change that briefly added background_url
+    // to this select (since reverted — see the type comment above). Any v2
+    // entries cached during that window carry a harmless extra field; the 60s
+    // TTL ages them out on its own, so no further bump is needed.
     [`dm-member-profiles-v2:${crewId}`],
     { tags: [`crew-members:${crewId}`], revalidate: 60 }
   )()
@@ -141,7 +146,7 @@ export default async function DMPage({ params }: DMPageProps) {
           userId={user.id}
           userProfile={
             memberProfiles[user.id] ?? {
-              id: user.id, username: '???', avatar_class: null, avatar_url: null, background_url: null, status: null,
+              id: user.id, username: '???', avatar_class: null, avatar_url: null, status: null,
             }
           }
           memberProfiles={memberProfiles}
