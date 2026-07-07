@@ -39,7 +39,7 @@ export function VinylPill({ imageUrl, title }: VinylPillProps) {
       {/* 12×12 spinning vinyl disc */}
       <div
         className="animate-vinyl"
-        style={{ width: 12, height: 12, borderRadius: 8, overflow: 'hidden', position: 'relative', flexShrink: 0 }}
+        style={{ width: 12, height: 12, borderRadius: 6.4, overflow: 'hidden', position: 'relative', flexShrink: 0 }}
       >
         {imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -54,7 +54,7 @@ export function VinylPill({ imageUrl, title }: VinylPillProps) {
         )}
         {/* Center hole */}
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ width: 1, height: 1, borderRadius: '50%', background: 'black', border: '0.5px solid var(--color-border)', flexShrink: 0 }} />
+          <div style={{ width: 0.914, height: 0.914, borderRadius: '50%', background: 'black', border: '0.114px solid var(--color-border)', flexShrink: 0 }} />
         </div>
       </div>
 
