@@ -1,14 +1,10 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
-import ReactCrop, {
-  type Crop,
-  type PixelCrop,
-  centerCrop,
-  makeAspectCrop,
-} from 'react-image-crop'
-import 'react-image-crop/dist/ReactCrop.css'
+import { useState, useEffect } from 'react'
+import type { Area } from 'react-easy-crop'
 import { AnimatePresence, motion } from 'framer-motion'
+import { ZoomPanCropper } from '@/shared/components/ui/ZoomPanCropper'
+import { loadImageEl, drawCroppedCanvas } from '@/shared/utils/cropImage'
 import { createClient } from '@/shared/supabase/client'
 import { updateCrewImageAction } from '@/app/(app)/chat/actions'
 import { compressCanvas } from '@/shared/utils/imageCompress'
@@ -22,31 +18,14 @@ const ACCEPTED_TYPES = new Set([
 ])
 const MAX_BYTES = 10 * 1024 * 1024 // 10 MB input limit
 
-function initCrop(width: number, height: number): Crop {
-  return centerCrop(
-    makeAspectCrop({ unit: '%', width: 90 }, 1, width, height),
-    width,
-    height,
-  )
-}
-
 async function cropToBlobs(
-  img: HTMLImageElement,
-  crop: PixelCrop,
+  imgSrc: string,
+  area: Area,
 ): Promise<{ size: VariantSize; blob: Blob }[]> {
-  const scaleX = img.naturalWidth / img.width
-  const scaleY = img.naturalHeight / img.height
+  const img = await loadImageEl(imgSrc)
   return Promise.all(
     SIZES.map(async (size) => {
-      const canvas = document.createElement('canvas')
-      canvas.width  = size
-      canvas.height = size
-      canvas.getContext('2d')!.drawImage(
-        img,
-        crop.x * scaleX, crop.y * scaleY,
-        crop.width * scaleX, crop.height * scaleY,
-        0, 0, size, size,
-      )
+      const canvas = drawCroppedCanvas(img, area, size, size)
       const blob = await compressCanvas(canvas)
       return { size, blob }
     }),
@@ -63,17 +42,14 @@ interface CrewImageUploadModalProps {
 export function CrewImageUploadModal({ file, crewId, onClose, onSuccess }: CrewImageUploadModalProps) {
   const isOpen = !!file
   const [imgSrc, setImgSrc]               = useState('')
-  const [crop, setCrop]                   = useState<Crop>()
-  const [completedCrop, setCompletedCrop] = useState<PixelCrop>()
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null)
   const [saving, setSaving]               = useState(false)
   const [uploadError, setUploadError]     = useState('')
-  const imgRef = useRef<HTMLImageElement>(null)
 
   useEffect(() => {
     if (!file) {
       setImgSrc('')
-      setCrop(undefined)
-      setCompletedCrop(undefined)
+      setCroppedAreaPixels(null)
       setUploadError('')
       return
     }
@@ -82,13 +58,8 @@ export function CrewImageUploadModal({ file, crewId, onClose, onSuccess }: CrewI
     return () => URL.revokeObjectURL(url)
   }, [file])
 
-  function onImageLoad(e: React.SyntheticEvent<HTMLImageElement>) {
-    const { naturalWidth, naturalHeight } = e.currentTarget
-    setCrop(initCrop(naturalWidth, naturalHeight))
-  }
-
   async function handleSave() {
-    if (!imgRef.current || !completedCrop || saving || !file) return
+    if (!croppedAreaPixels || saving || !file) return
     if (!ACCEPTED_TYPES.has(file.type.toLowerCase())) {
       setUploadError('Unsupported format. Use JPG, PNG, WebP, or HEIC.')
       return
@@ -102,7 +73,7 @@ export function CrewImageUploadModal({ file, crewId, onClose, onSuccess }: CrewI
     setUploadError('')
 
     try {
-      const variants = await cropToBlobs(imgRef.current, completedCrop)
+      const variants = await cropToBlobs(imgSrc, croppedAreaPixels)
       const ext = variants[0].blob.type === 'image/webp' ? 'webp'
         : variants[0].blob.type === 'image/jpeg' ? 'jpg' : 'png'
       const ts = Date.now()
@@ -179,27 +150,15 @@ export function CrewImageUploadModal({ file, crewId, onClose, onSuccess }: CrewI
             </div>
 
             {imgSrc && (
-              <div
-                className="flex items-center justify-center p-4 flex-1"
-                style={{ minHeight: 260, maxHeight: 360, overflow: 'hidden' }}
-              >
-                <ReactCrop
-                  crop={crop}
-                  onChange={(c) => setCrop(c)}
-                  onComplete={(c) => setCompletedCrop(c)}
+              <div className="flex items-center justify-center p-4 flex-1">
+                <ZoomPanCropper
+                  key={imgSrc}
+                  image={imgSrc}
                   aspect={1}
-                  style={{ maxWidth: '100%', maxHeight: 320 }}
-                >
-                  {/* plain <img> required — next/image interferes with crop overlay */}
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    ref={imgRef}
-                    src={imgSrc}
-                    alt="Crop preview"
-                    onLoad={onImageLoad}
-                    style={{ maxWidth: '100%', maxHeight: 320, display: 'block' }}
-                  />
-                </ReactCrop>
+                  cropShape="rect"
+                  height={320}
+                  onCropAreaChange={setCroppedAreaPixels}
+                />
               </div>
             )}
 
@@ -212,7 +171,7 @@ export function CrewImageUploadModal({ file, crewId, onClose, onSuccess }: CrewI
             <div className="px-4 pt-2 flex-shrink-0">
               <button
                 onClick={handleSave}
-                disabled={!completedCrop || saving}
+                disabled={!croppedAreaPixels || saving}
                 className="w-full h-12 bg-purple flex items-center justify-center transition-opacity disabled:opacity-40"
               >
                 <span className="font-pixel text-[10px] text-white leading-none">

@@ -3,9 +3,13 @@
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
+import type { Area } from 'react-easy-crop'
 import { Upload } from 'pixelarticons/react/Upload'
 import { createEventAction, updateEventAction } from '@/app/(app)/chat/actions'
 import { createClient } from '@/shared/supabase/client'
+import { compressCanvas } from '@/shared/utils/imageCompress'
+import { drawCroppedCanvas } from '@/shared/utils/cropImage'
+import { PhotoCropModal } from '@/shared/components/ui/PhotoCropModal'
 
 function formatDateDisplay(dateStr: string): string {
   const [y, m, d] = dateStr.split('-')
@@ -94,7 +98,8 @@ export function EventCreationSheet({
   const [submitting,   setSubmitting]   = useState(false)
   const [error,        setError]        = useState<string | null>(null)
 
-  const [coverImageFile,    setCoverImageFile]    = useState<File | null>(null)
+  const [pendingCoverImage, setPendingCoverImage] = useState<File | null>(null)
+  const [coverImageBlob,    setCoverImageBlob]    = useState<Blob | null>(null)
   const [coverImagePreview, setCoverImagePreview] = useState<string | null>(null)
   const fileInputRef  = useRef<HTMLInputElement>(null)
   const titleInputRef = useRef<HTMLInputElement>(null)
@@ -102,17 +107,21 @@ export function EventCreationSheet({
   useEffect(() => { titleInputRef.current?.blur() }, [])
 
   useEffect(() => {
-    if (!coverImageFile) { setCoverImagePreview(null); return }
-    const url = URL.createObjectURL(coverImageFile)
-    setCoverImagePreview(url)
-    return () => URL.revokeObjectURL(url)
-  }, [coverImageFile])
+    return () => { if (coverImagePreview) URL.revokeObjectURL(coverImagePreview) }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
-    if (!file) return
-    setCoverImageFile(file)
+    if (file) setPendingCoverImage(file)
     e.target.value = ''
+  }
+
+  async function handleCoverCropConfirm(area: Area, img: HTMLImageElement) {
+    setPendingCoverImage(null)
+    const blob = await compressCanvas(drawCroppedCanvas(img, area, 1200, 900))
+    if (coverImagePreview) URL.revokeObjectURL(coverImagePreview)
+    setCoverImageBlob(blob)
+    setCoverImagePreview(URL.createObjectURL(blob))
   }
 
   async function handleSubmit() {
@@ -124,16 +133,14 @@ export function EventCreationSheet({
 
     // Upload cover image if selected (create mode only)
     let coverImageUrl: string | undefined
-    if (coverImageFile && !isEdit) {
+    if (coverImageBlob && !isEdit) {
       try {
         const supabase = createClient()
         const ts = Date.now()
-        const ext = coverImageFile.type.includes('png') ? 'png'
-          : coverImageFile.type.includes('webp') ? 'webp' : 'jpg'
-        const path = `${crewId}/${currentUserId}/event-cover-${ts}.${ext}`
+        const path = `${crewId}/${currentUserId}/event-cover-${ts}.webp`
         const { error: uploadError } = await supabase.storage
           .from('chat-images')
-          .upload(path, coverImageFile, { contentType: coverImageFile.type, cacheControl: '31536000' })
+          .upload(path, coverImageBlob, { contentType: 'image/webp', cacheControl: '31536000' })
         if (uploadError) { setError('Image upload failed. Try again.'); setSubmitting(false); return }
         const { data: { publicUrl } } = supabase.storage.from('chat-images').getPublicUrl(path)
         coverImageUrl = publicUrl
@@ -262,7 +269,7 @@ export function EventCreationSheet({
                 >
                   <Upload style={{ width: 16, height: 16, color: 'var(--color-purple)' }} aria-hidden="true" />
                   <span className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-purple)' }}>
-                    {coverImageFile ? 'change photo' : 'upload photo'}
+                    {coverImageBlob ? 'change photo' : 'upload photo'}
                   </span>
                 </button>
                 <input
@@ -272,6 +279,14 @@ export function EventCreationSheet({
                   onChange={handleFileChange}
                   className="hidden"
                   aria-hidden="true"
+                />
+                <PhotoCropModal
+                  file={pendingCoverImage}
+                  aspect={4 / 3}
+                  cropShape="rect"
+                  title="EVENT IMAGE"
+                  onCancel={() => setPendingCoverImage(null)}
+                  onConfirm={handleCoverCropConfirm}
                 />
               </div>
             )}

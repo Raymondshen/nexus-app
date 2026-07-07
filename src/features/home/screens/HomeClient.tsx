@@ -35,7 +35,10 @@ import { DiamondGem } from 'pixelarticons/react/DiamondGem'
 import { isGemGateOpen } from '@/shared/utils/gems'
 import { GEM_DAILY_LIMIT } from '@/shared/constants/config'
 import { consumeHomeLastMessage } from '@/features/home/utils/homePreviewCache'
-import { resizeImageToBlob } from '@/shared/utils/imageCompress'
+import type { Area } from 'react-easy-crop'
+import { compressCanvas } from '@/shared/utils/imageCompress'
+import { drawCroppedCanvas } from '@/shared/utils/cropImage'
+import { PhotoCropModal } from '@/shared/components/ui/PhotoCropModal'
 import { getXPInCurrentLevel, getXPForCurrentLevel, getXPProgress } from '@/shared/utils/xp'
 
 export interface FriendSummary {
@@ -398,13 +401,15 @@ function HomeActionSheet({
   const [classError,       setClassError]       = useState<string | null>(null)
 
   // ── Create state ─────────────────────────────────────────────────────────
-  const [squadName,           setSquadName]           = useState('')
-  const [profilePhotoFile,    setProfilePhotoFile]    = useState<File | null>(null)
-  const [profilePhotoPreview, setProfilePhotoPreview] = useState<string | null>(null)
-  const [backgroundFile,      setBackgroundFile]      = useState<File | null>(null)
-  const [backgroundPreview,   setBackgroundPreview]   = useState<string | null>(null)
-  const [creating,            setCreating]            = useState(false)
-  const [createError,         setCreateError]         = useState<string | null>(null)
+  const [squadName,             setSquadName]             = useState('')
+  const [pendingProfilePhoto,   setPendingProfilePhoto]   = useState<File | null>(null)
+  const [profilePhotoBlobs,     setProfilePhotoBlobs]     = useState<{ blob256: Blob; blob128: Blob } | null>(null)
+  const [profilePhotoPreview,   setProfilePhotoPreview]   = useState<string | null>(null)
+  const [pendingBackground,     setPendingBackground]     = useState<File | null>(null)
+  const [backgroundBlob,        setBackgroundBlob]        = useState<Blob | null>(null)
+  const [backgroundPreview,     setBackgroundPreview]     = useState<string | null>(null)
+  const [creating,              setCreating]              = useState(false)
+  const [createError,           setCreateError]           = useState<string | null>(null)
 
   const profilePhotoRef = useRef<HTMLInputElement>(null)
   const backgroundRef   = useRef<HTMLInputElement>(null)
@@ -418,20 +423,33 @@ function HomeActionSheet({
 
   function handleProfilePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
-    if (!file) return
-    if (profilePhotoPreview) URL.revokeObjectURL(profilePhotoPreview)
-    setProfilePhotoFile(file)
-    setProfilePhotoPreview(URL.createObjectURL(file))
+    if (file) setPendingProfilePhoto(file)
     e.target.value = ''
   }
 
   function handleBackgroundChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
-    if (!file) return
-    if (backgroundPreview) URL.revokeObjectURL(backgroundPreview)
-    setBackgroundFile(file)
-    setBackgroundPreview(URL.createObjectURL(file))
+    if (file) setPendingBackground(file)
     e.target.value = ''
+  }
+
+  async function handleProfilePhotoCropConfirm(area: Area, img: HTMLImageElement) {
+    setPendingProfilePhoto(null)
+    const [blob256, blob128] = await Promise.all([
+      compressCanvas(drawCroppedCanvas(img, area, 256, 256)),
+      compressCanvas(drawCroppedCanvas(img, area, 128, 128)),
+    ])
+    if (profilePhotoPreview) URL.revokeObjectURL(profilePhotoPreview)
+    setProfilePhotoBlobs({ blob256, blob128 })
+    setProfilePhotoPreview(URL.createObjectURL(blob256))
+  }
+
+  async function handleBackgroundCropConfirm(area: Area, img: HTMLImageElement) {
+    setPendingBackground(null)
+    const blob = await compressCanvas(drawCroppedCanvas(img, area, 1080, 608))
+    if (backgroundPreview) URL.revokeObjectURL(backgroundPreview)
+    setBackgroundBlob(blob)
+    setBackgroundPreview(URL.createObjectURL(blob))
   }
 
   async function handleCreate() {
@@ -444,16 +462,12 @@ function HomeActionSheet({
       const { crewId } = result
       const supabase   = createClient()
 
-      if (profilePhotoFile) {
+      if (profilePhotoBlobs) {
         try {
           const ts = Date.now()
-          const [blob256, blob128] = await Promise.all([
-            resizeImageToBlob(profilePhotoFile, 256, 256),
-            resizeImageToBlob(profilePhotoFile, 128, 128),
-          ])
           const [res256] = await Promise.all([
-            supabase.storage.from('crew-images').upload(`${crewId}/${ts}-256.webp`, blob256, { contentType: 'image/webp', cacheControl: '31536000' }),
-            supabase.storage.from('crew-images').upload(`${crewId}/${ts}-128.webp`, blob128, { contentType: 'image/webp', cacheControl: '31536000' }),
+            supabase.storage.from('crew-images').upload(`${crewId}/${ts}-256.webp`, profilePhotoBlobs.blob256, { contentType: 'image/webp', cacheControl: '31536000' }),
+            supabase.storage.from('crew-images').upload(`${crewId}/${ts}-128.webp`, profilePhotoBlobs.blob128, { contentType: 'image/webp', cacheControl: '31536000' }),
           ])
           if (!res256.error) {
             const { data: { publicUrl } } = supabase.storage.from('crew-images').getPublicUrl(`${crewId}/${ts}-256.webp`)
@@ -462,13 +476,12 @@ function HomeActionSheet({
         } catch { /* non-fatal */ }
       }
 
-      if (backgroundFile) {
+      if (backgroundBlob) {
         try {
           const ts   = Date.now() + 1
-          const blob = await resizeImageToBlob(backgroundFile, 1080, 608)
           const path = `${crewId}/bg-${ts}.webp`
           const { error: upErr } = await supabase.storage.from('crew-images')
-            .upload(path, blob, { contentType: 'image/webp', cacheControl: '31536000' })
+            .upload(path, backgroundBlob, { contentType: 'image/webp', cacheControl: '31536000' })
           if (!upErr) {
             const { data: { publicUrl } } = supabase.storage.from('crew-images').getPublicUrl(path)
             await updateCrewBackgroundImageAction(crewId, publicUrl)
@@ -600,6 +613,24 @@ function HomeActionSheet({
           </div>
           <input ref={profilePhotoRef} type="file" accept="image/*" onChange={handleProfilePhotoChange} className="hidden" aria-hidden="true" />
           <input ref={backgroundRef}   type="file" accept="image/*" onChange={handleBackgroundChange}   className="hidden" aria-hidden="true" />
+
+          <PhotoCropModal
+            file={pendingProfilePhoto}
+            aspect={1}
+            cropShape="rect"
+            title="PROFILE PHOTO"
+            onCancel={() => setPendingProfilePhoto(null)}
+            onConfirm={handleProfilePhotoCropConfirm}
+          />
+          <PhotoCropModal
+            file={pendingBackground}
+            aspect={1080 / 608}
+            cropShape="rect"
+            title="BACKGROUND IMAGE"
+            height={220}
+            onCancel={() => setPendingBackground(null)}
+            onConfirm={handleBackgroundCropConfirm}
+          />
 
           {/* Squad Name input */}
           <div className="flex flex-col flex-shrink-0" style={{ gap: 8 }}>

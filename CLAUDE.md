@@ -3,7 +3,7 @@
 Group chat RPG: messages → XP → boss fights → artifacts. Pixel art (RotMG style).
 
 ## Stack
-Next.js 16 App Router · TypeScript · Tailwind · Framer Motion · Zustand · Supabase (Auth, Postgres, Realtime, Storage, Edge Functions) · next-pwa v5 · Vercel · @tanstack/react-virtual v3 · lottie-react (reaction icons)
+Next.js 16 App Router · TypeScript · Tailwind · Framer Motion · Zustand · Supabase (Auth, Postgres, Realtime, Storage, Edge Functions) · next-pwa v5 · Vercel · @tanstack/react-virtual v3 · lottie-react (reaction icons) · react-easy-crop (fixed-frame pan/zoom photo cropping)
 
 Icons: `pixelarticons` — `import { X } from 'pixelarticons/react/X'` · `<X style={{ width, height, color }} />` · named exports only · never lucide-react in chat/home UI
 
@@ -368,9 +368,18 @@ New notification type checklist:
 - **All person avatars must use `<UserAvatar>`** (`src/shared/components/ui/UserAvatar.tsx`) — never inline `avatarImageLoader` + `next/image` directly for avatar display
 - **All crew/squad images must use `<GroupAvatar>`** (`src/shared/components/ui/GroupAvatar.tsx`) — never inline `avatarImageLoader` + `next/image` directly for a crew's `image_url`
 - **All full-bleed profile hero backgrounds (`profiles.background_url`) must use `<ProfileHeroBackground>`** (`src/shared/components/ui/ProfileHeroBackground.tsx`) — used by `ProfileClient`, `AccountPageMember`, `MemberProfileClient`. Resizes via `supabaseImageLoader({ width: 480 })` before rendering as a plain `<img>` (`inset-0`/`object-cover`) — don't re-inline the old raw `<img src={backgroundUrl}>` pattern, it shipped the full-original uploaded photo for a ~390×280 display area.
-- Plain `<img>`: pixel sprites · crop target · Vibes OG thumbnails (external URLs) · `SquadDetailsSheet`'s member-card background (`heightCropImageUrl` from `imageLoader.ts`, height-anchored so the crop always eats width instead of height — see the SquadDetailsSheet section above; a different sizing need than `ProfileHeroBackground`'s width-anchored hero)
+- Plain `<img>`: pixel sprites · Vibes OG thumbnails (external URLs) · `SquadDetailsSheet`'s member-card background (`heightCropImageUrl` from `imageLoader.ts`, height-anchored so the crop always eats width instead of height — see the SquadDetailsSheet section above; a different sizing need than `ProfileHeroBackground`'s width-anchored hero)
 - Avatar upload: `AvatarUploadModal` → canvas → WebP → `avatars` bucket; `process-avatar` edge fn → AVIF; `custom_avatar = true` blocks Google photo overwrite
-- `resizeImageToBlob(file, w, h)` in `src/shared/utils/imageCompress.ts`: center-crop → WebP 0.85
+
+### Photo Cropping
+Every single-photo upload surface uses a fixed-frame pan/zoom cropper (`react-easy-crop`, not a movable/resizable selection box) — the frame stays put at the target aspect ratio; the user drags the photo to reposition it and a slider zooms in/out to fit. Two shared primitives, no upload/DB logic in either:
+- **`src/shared/utils/cropImage.ts`** — `loadImageEl(src)` + `drawCroppedCanvas(img, area, outW, outH)`. `area` (react-easy-crop's `Area` type) is already in the source image's *natural* pixel coordinates — no displayed-vs-natural `scaleX`/`scaleY` conversion needed, unlike the old `react-image-crop` approach.
+- **`src/shared/components/ui/ZoomPanCropper.tsx`** — the actual `<Cropper>` + zoom slider widget. `cropShape="round"` for the avatar (circular, matches `UserAvatar`), `"rect"` everywhere else (group avatars are always square per `GroupAvatar`). Pass `key={imgSrc}` so zoom/pan resets on a new file.
+- **`src/shared/components/ui/PhotoCropModal.tsx`** — generic bottom-sheet wrapper around `ZoomPanCropper` for surfaces with no bespoke modal chrome of their own (`PhotosGrid`, `HomeClient`'s crew-creation pickers, `EventCreationSheet`'s cover image). `onConfirm(area, img)` hands back an **already-loaded `HTMLImageElement`**, not a src string — the caller may close the modal (and thus revoke the underlying blob URL) synchronously inside its own confirm handler, and a fully-decoded `<img>` keeps its bitmap drawable via canvas even after its `src` URL is revoked. Passing back a string and re-`loadImageEl`-ing it in the caller would race the revoke.
+
+Bespoke modals (`AvatarUploadModal`, `BackgroundUploadModal`, `CrewImageUploadModal`, `CrewBackgroundUploadModal`) keep their own chrome (debug panels for the two profile ones, bucket/DB logic) and just use `ZoomPanCropper` internally instead of the generic wrapper.
+
+Aspect ratios by surface: avatar 1:1 round · user profile cover 1080:608 (16:9) · group profile photo 1:1 rect · group cover 1080:608 · profile photo gallery 1:1 · crew-creation photo/background 1:1 / 1080:608 · event cover 4:3 (matches `EventCard`'s display aspect). `resizeImageToBlob` (blind center-crop, no user interaction) was removed from `imageCompress.ts` once the last caller was converted — `compressCanvas` is still the shared canvas→blob compressor used by all of the above.
 
 ## Design Tokens (`src/app/globals.css`)
 Colors: `--color-primary` · `--color-secondary` · `--color-tertiary` · `--color-surface` · `--color-border` · `--color-purple` · `--color-blue` · `--color-muted`

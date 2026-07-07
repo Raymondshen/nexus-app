@@ -6,7 +6,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { ZoomPanCropper } from '@/shared/components/ui/ZoomPanCropper'
 import { loadImageEl, drawCroppedCanvas } from '@/shared/utils/cropImage'
 import { createClient } from '@/shared/supabase/client'
-import { updateBackgroundAction } from '@/app/(app)/profile/actions'
+import { updateCrewBackgroundImageAction } from '@/app/(app)/chat/actions'
 import { compressCanvas, MAX_OUT_BYTES } from '@/shared/utils/imageCompress'
 
 const ASPECT    = 1080 / 608 // 16:9
@@ -32,38 +32,25 @@ async function cropToBlob(imgSrc: string, area: Area): Promise<Blob> {
   return smallest!
 }
 
-type StepStatus = 'idle' | 'running' | 'ok' | 'fail'
-
-interface DebugStep {
-  label:  string
-  status: StepStatus
-  detail: string
-}
-
-interface BackgroundUploadModalProps {
+interface CrewBackgroundUploadModalProps {
   file:      File | null
-  userId:    string
-  isDev:     boolean
+  crewId:    string
   onClose:   () => void
   onSuccess: (url: string) => void
 }
 
-export function BackgroundUploadModal({ file, userId, isDev, onClose, onSuccess }: BackgroundUploadModalProps) {
+export function CrewBackgroundUploadModal({ file, crewId, onClose, onSuccess }: CrewBackgroundUploadModalProps) {
   const isOpen = !!file
-  const [imgSrc,         setImgSrc]         = useState('')
+  const [imgSrc, setImgSrc]                       = useState('')
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null)
-  const [saving,         setSaving]         = useState(false)
-  const [uploadError,    setUploadError]    = useState('')
-  const [debugSteps,     setDebugSteps]     = useState<DebugStep[]>([])
-  const [showDebug,      setShowDebug]      = useState(false)
+  const [saving, setSaving]                       = useState(false)
+  const [uploadError, setUploadError]             = useState('')
 
   useEffect(() => {
     if (!file) {
       setImgSrc('')
       setCroppedAreaPixels(null)
       setUploadError('')
-      setDebugSteps([])
-      setShowDebug(false)
       return
     }
     const url = URL.createObjectURL(file)
@@ -72,8 +59,7 @@ export function BackgroundUploadModal({ file, userId, isDev, onClose, onSuccess 
   }, [file])
 
   async function handleSave() {
-    if (!croppedAreaPixels || saving) return
-    if (!file) return
+    if (!croppedAreaPixels || saving || !file) return
     if (!ACCEPTED_TYPES.has(file.type.toLowerCase())) {
       setUploadError('Unsupported format. Use JPG, PNG, WebP, or HEIC.')
       return
@@ -86,78 +72,30 @@ export function BackgroundUploadModal({ file, userId, isDev, onClose, onSuccess 
     setSaving(true)
     setUploadError('')
 
-    const steps: DebugStep[] = [
-      { label: '1. Canvas crop + compress ≤200 KB',             status: 'running', detail: '' },
-      { label: '2. Supabase storage upload',                     status: 'idle',    detail: '' },
-      { label: '3. Profile DB update',                           status: 'idle',    detail: '' },
-    ]
-    if (isDev) { setDebugSteps([...steps]); setShowDebug(true) }
-
     try {
-      // ── Step 1: crop to blob ──────────────────────────────────────────────────
-      let blob: Blob
-      try {
-        blob = await cropToBlob(imgSrc, croppedAreaPixels)
-        const kb = (blob.size / 1024).toFixed(1)
-        const over = blob.size > MAX_OUT_BYTES ? ` ⚠ over ${Math.round(MAX_OUT_BYTES / 1024)} KB limit` : ''
-        steps[0] = { ...steps[0], status: 'ok', detail: `type=${blob.type} · ${kb} KB${over}` }
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e)
-        steps[0] = { ...steps[0], status: 'fail', detail: msg }
-        if (isDev) setDebugSteps([...steps])
-        throw new Error(`Canvas: ${msg}`)
-      }
-      if (isDev) setDebugSteps([...steps])
-
-      // ── Step 2: storage upload ────────────────────────────────────────────────
+      const blob = await cropToBlob(imgSrc, croppedAreaPixels)
       const ext  = blob.type === 'image/webp' ? 'webp' : blob.type === 'image/jpeg' ? 'jpg' : 'png'
       const ts   = Date.now()
-      const path = `${userId}/${ts}.${ext}`
-      steps[1] = { ...steps[1], status: 'running', detail: `uploading backgrounds/${path}…` }
-      if (isDev) setDebugSteps([...steps])
+      const path = `${crewId}/bg-${ts}.${ext}`
 
       const supabase = createClient()
       const { error: storageErr } = await supabase.storage
-        .from('backgrounds')
+        .from('crew-images')
         .upload(path, blob, { contentType: blob.type, cacheControl: '31536000' })
+      if (storageErr) throw new Error(`Storage: ${storageErr.message}`)
 
-      if (storageErr) {
-        steps[1] = { ...steps[1], status: 'fail', detail: storageErr.message }
-        if (isDev) setDebugSteps([...steps])
-        throw new Error(`Storage: ${storageErr.message}`)
-      }
-      const { data: { publicUrl } } = supabase.storage.from('backgrounds').getPublicUrl(path)
-      steps[1] = { ...steps[1], status: 'ok', detail: publicUrl }
-      if (isDev) setDebugSteps([...steps])
+      const { data: { publicUrl } } = supabase.storage.from('crew-images').getPublicUrl(path)
 
-      // ── Step 3: DB update ─────────────────────────────────────────────────────
-      steps[2] = { ...steps[2], status: 'running', detail: '' }
-      if (isDev) setDebugSteps([...steps])
-
-      const result = await updateBackgroundAction(publicUrl)
-      if (result.error) {
-        steps[2] = { ...steps[2], status: 'fail', detail: result.error }
-        if (isDev) setDebugSteps([...steps])
-        throw new Error(`DB: ${result.error}`)
-      }
-      steps[2] = { ...steps[2], status: 'ok', detail: 'background_url saved, caches revalidated' }
-      if (isDev) setDebugSteps([...steps])
+      const result = await updateCrewBackgroundImageAction(crewId, publicUrl)
+      if (result.error) throw new Error(`DB: ${result.error}`)
 
       onSuccess(publicUrl)
       onClose()
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e)
-      setUploadError(isDev ? msg : 'Upload failed. Try again.')
+      setUploadError(e instanceof Error ? e.message : 'Upload failed. Try again.')
     } finally {
       setSaving(false)
     }
-  }
-
-  const stepColor: Record<StepStatus, string> = {
-    idle:    'rgba(255,255,255,0.3)',
-    running: '#f59e0b',
-    ok:      '#66bb6a',
-    fail:    '#ef4444',
   }
 
   return (
@@ -165,7 +103,7 @@ export function BackgroundUploadModal({ file, userId, isDev, onClose, onSuccess 
       {isOpen && (
         <>
           <motion.div
-            key="bg-backdrop"
+            key="crew-bg-backdrop"
             className="fixed inset-0 bg-black/70 z-[70]"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -173,7 +111,7 @@ export function BackgroundUploadModal({ file, userId, isDev, onClose, onSuccess 
             onClick={saving ? undefined : onClose}
           />
           <motion.div
-            key="bg-sheet"
+            key="crew-bg-sheet"
             className="fixed bottom-0 left-0 right-0 z-[80] bg-surface border-t border-border-hover flex flex-col"
             style={{
               maxWidth: 480,
@@ -190,7 +128,6 @@ export function BackgroundUploadModal({ file, userId, isDev, onClose, onSuccess 
             dragElastic={{ top: 0, bottom: 1 }}
             onDragEnd={(_, info) => { if (info.offset.y > 80 || info.velocity.y > 400) onClose() }}
           >
-            {/* Header */}
             <div className="px-4 py-3 border-b border-border flex items-center justify-between flex-shrink-0">
               <span className="font-pixel text-[10px] text-primary leading-none">CHANGE COVER</span>
               <button
@@ -202,7 +139,6 @@ export function BackgroundUploadModal({ file, userId, isDev, onClose, onSuccess 
               </button>
             </div>
 
-            {/* Crop area */}
             {imgSrc && (
               <div className="flex items-center justify-center p-4 flex-1">
                 <ZoomPanCropper
@@ -216,34 +152,12 @@ export function BackgroundUploadModal({ file, userId, isDev, onClose, onSuccess 
               </div>
             )}
 
-            {/* Error */}
             {uploadError && (
               <p className="font-pixel text-[7px] text-[#ef4444] px-4 pb-2 leading-relaxed flex-shrink-0 break-all">
                 {uploadError}
               </p>
             )}
 
-            {/* Dev debug panel */}
-            {isDev && showDebug && debugSteps.length > 0 && (
-              <div className="mx-4 mb-3 flex-shrink-0 border border-[rgba(255,215,0,0.25)] bg-[rgba(255,215,0,0.04)] p-3 flex flex-col gap-2">
-                <p className="font-pixel text-[7px] text-[#ffd700] leading-none">DEBUG</p>
-                {debugSteps.map((step, i) => (
-                  <div key={i} className="flex flex-col gap-[2px]">
-                    <p className="font-silkscreen text-[9px] leading-none" style={{ color: stepColor[step.status] }}>
-                      {step.status === 'running' ? '⟳' : step.status === 'ok' ? '✓' : step.status === 'fail' ? '✗' : '○'}{' '}
-                      {step.label}
-                    </p>
-                    {step.detail && (
-                      <p className="font-silkscreen text-[8px] leading-relaxed break-all pl-3" style={{ color: stepColor[step.status], opacity: 0.8 }}>
-                        {step.detail}
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Save button */}
             <div className="px-4 pt-2 flex-shrink-0">
               <button
                 onClick={handleSave}

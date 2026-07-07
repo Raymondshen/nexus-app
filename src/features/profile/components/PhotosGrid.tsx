@@ -1,13 +1,16 @@
 'use client'
 
 import { useState, useRef, useCallback } from 'react'
+import type { Area } from 'react-easy-crop'
 import { AnimatePresence, motion } from 'framer-motion'
 import Image from 'next/image'
 import { addPhotoAction, deletePhotoAction } from '@/app/(app)/profile/actions'
-import { resizeImageToBlob } from '@/shared/utils/imageCompress'
+import { compressCanvas } from '@/shared/utils/imageCompress'
+import { drawCroppedCanvas } from '@/shared/utils/cropImage'
 import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
 import { createClient } from '@/shared/supabase/client'
 import { BottomSheet } from '@/shared/components/ui/BottomSheet'
+import { PhotoCropModal } from '@/shared/components/ui/PhotoCropModal'
 import type { ProfilePhoto } from '@/types'
 
 const ACCEPTED_TYPES = new Set([
@@ -197,6 +200,7 @@ export interface PhotosGridProps {
 
 export function PhotosGrid({ initialPhotos, userId, isOwner }: PhotosGridProps) {
   const [photos,       setPhotos]       = useState<ProfilePhoto[]>(initialPhotos)
+  const [pendingFile,  setPendingFile]  = useState<File | null>(null)
   const [uploading,    setUploading]    = useState(false)
   const [uploadError,  setUploadError]  = useState<string | null>(null)
   const [confirmPhoto, setConfirmPhoto] = useState<ProfilePhoto | null>(null)
@@ -207,7 +211,7 @@ export function PhotosGrid({ initialPhotos, userId, isOwner }: PhotosGridProps) 
     deletePhotoAction(photoId)
   }, [])
 
-  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) return
@@ -225,11 +229,18 @@ export function PhotosGrid({ initialPhotos, userId, isOwner }: PhotosGridProps) 
       return
     }
 
+    setUploadError(null)
+    setPendingFile(file)
+  }
+
+  async function handleCropConfirm(area: Area, img: HTMLImageElement) {
+    setPendingFile(null)
     setUploading(true)
     setUploadError(null)
 
     try {
-      const blob       = await resizeImageToBlob(file, PHOTO_SIZE, PHOTO_SIZE)
+      const canvas     = drawCroppedCanvas(img, area, PHOTO_SIZE, PHOTO_SIZE)
+      const blob       = await compressCanvas(canvas)
       const ext        = blob.type === 'image/webp' ? 'webp' : blob.type === 'image/jpeg' ? 'jpg' : 'png'
       const ts         = Date.now()
       const storageKey = `${userId}/${ts}.${ext}`
@@ -333,6 +344,15 @@ export function PhotosGrid({ initialPhotos, userId, isOwner }: PhotosGridProps) 
         accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif"
         style={{ position: 'fixed', top: -1, left: -1, width: 1, height: 1, opacity: 0, pointerEvents: 'none' }}
         onChange={handleFileChange}
+      />
+
+      <PhotoCropModal
+        file={pendingFile}
+        aspect={1}
+        cropShape="rect"
+        title="ADD PHOTO"
+        onCancel={() => setPendingFile(null)}
+        onConfirm={handleCropConfirm}
       />
 
       <AnimatePresence>

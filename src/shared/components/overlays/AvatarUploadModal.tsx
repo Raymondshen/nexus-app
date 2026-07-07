@@ -1,14 +1,10 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
-import ReactCrop, {
-  type Crop,
-  type PixelCrop,
-  centerCrop,
-  makeAspectCrop,
-} from 'react-image-crop'
-import 'react-image-crop/dist/ReactCrop.css'
+import { useState, useEffect } from 'react'
+import type { Area } from 'react-easy-crop'
 import { AnimatePresence, motion } from 'framer-motion'
+import { ZoomPanCropper } from '@/shared/components/ui/ZoomPanCropper'
+import { loadImageEl, drawCroppedCanvas } from '@/shared/utils/cropImage'
 import { createClient } from '@/shared/supabase/client'
 import { updateAvatarAction } from '@/app/(app)/profile/actions'
 import { compressCanvas } from '@/shared/utils/imageCompress'
@@ -22,31 +18,14 @@ const ACCEPTED_TYPES = new Set([
 ])
 const MAX_BYTES = 10 * 1024 * 1024 // 10 MB input limit
 
-function initCrop(width: number, height: number): Crop {
-  return centerCrop(
-    makeAspectCrop({ unit: '%', width: 90 }, 1, width, height),
-    width,
-    height,
-  )
-}
-
 async function cropToBlobs(
-  img: HTMLImageElement,
-  crop: PixelCrop,
+  imgSrc: string,
+  area: Area,
 ): Promise<{ size: VariantSize; blob: Blob }[]> {
-  const scaleX = img.naturalWidth / img.width
-  const scaleY = img.naturalHeight / img.height
+  const img = await loadImageEl(imgSrc)
   return Promise.all(
     SIZES.map(async (size) => {
-      const canvas = document.createElement('canvas')
-      canvas.width  = size
-      canvas.height = size
-      canvas.getContext('2d')!.drawImage(
-        img,
-        crop.x * scaleX, crop.y * scaleY,
-        crop.width * scaleX, crop.height * scaleY,
-        0, 0, size, size,
-      )
+      const canvas = drawCroppedCanvas(img, area, size, size)
       const blob = await compressCanvas(canvas)
       return { size, blob }
     }),
@@ -71,20 +50,17 @@ interface AvatarUploadModalProps {
 
 export function AvatarUploadModal({ file, userId, isDev, onClose, onSuccess }: AvatarUploadModalProps) {
   const isOpen = !!file
-  const [imgSrc, setImgSrc]               = useState('')
-  const [crop, setCrop]                   = useState<Crop>()
-  const [completedCrop, setCompletedCrop] = useState<PixelCrop>()
+  const [imgSrc, setImgSrc]                     = useState('')
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null)
   const [saving, setSaving]               = useState(false)
   const [uploadError, setUploadError]     = useState('')
   const [debugSteps, setDebugSteps]       = useState<DebugStep[]>([])
   const [showDebug, setShowDebug]         = useState(false)
-  const imgRef = useRef<HTMLImageElement>(null)
 
   useEffect(() => {
     if (!file) {
       setImgSrc('')
-      setCrop(undefined)
-      setCompletedCrop(undefined)
+      setCroppedAreaPixels(null)
       setUploadError('')
       setDebugSteps([])
       setShowDebug(false)
@@ -95,11 +71,6 @@ export function AvatarUploadModal({ file, userId, isDev, onClose, onSuccess }: A
     return () => URL.revokeObjectURL(url)
   }, [file])
 
-  function onImageLoad(e: React.SyntheticEvent<HTMLImageElement>) {
-    const { naturalWidth, naturalHeight } = e.currentTarget
-    setCrop(initCrop(naturalWidth, naturalHeight))
-  }
-
   function setStep(steps: DebugStep[], index: number, patch: Partial<DebugStep>): DebugStep[] {
     const next = [...steps]
     next[index] = { ...next[index], ...patch }
@@ -107,7 +78,7 @@ export function AvatarUploadModal({ file, userId, isDev, onClose, onSuccess }: A
   }
 
   async function handleSave() {
-    if (!imgRef.current || !completedCrop || saving) return
+    if (!croppedAreaPixels || saving) return
 
     if (!file) return
     if (!ACCEPTED_TYPES.has(file.type.toLowerCase())) {
@@ -133,7 +104,7 @@ export function AvatarUploadModal({ file, userId, isDev, onClose, onSuccess }: A
       // ── Step 1: crop to blobs (128px + 256px in parallel) ─────────────────
       let variants: { size: VariantSize; blob: Blob }[]
       try {
-        variants = await cropToBlobs(imgRef.current, completedCrop)
+        variants = await cropToBlobs(imgSrc, croppedAreaPixels)
         const detail = variants.map(v => `${v.size}px: ${(v.blob.size / 1024).toFixed(1)} KB`).join(' · ')
         steps[0] = { ...steps[0], status: 'ok', detail: `type=${variants[0].blob.type} · ${detail}` }
       } catch (e) {
@@ -248,27 +219,15 @@ export function AvatarUploadModal({ file, userId, isDev, onClose, onSuccess }: A
 
             {/* Crop area */}
             {imgSrc && (
-              <div
-                className="flex items-center justify-center p-4 flex-1"
-                style={{ minHeight: 260, maxHeight: 360, overflow: 'hidden' }}
-              >
-                <ReactCrop
-                  crop={crop}
-                  onChange={(c) => setCrop(c)}
-                  onComplete={(c) => setCompletedCrop(c)}
+              <div className="flex items-center justify-center p-4 flex-1">
+                <ZoomPanCropper
+                  key={imgSrc}
+                  image={imgSrc}
                   aspect={1}
-                  style={{ maxWidth: '100%', maxHeight: 320 }}
-                >
-                  {/* plain <img> required — next/image interferes with crop overlay positioning */}
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    ref={imgRef}
-                    src={imgSrc}
-                    alt="Crop preview"
-                    onLoad={onImageLoad}
-                    style={{ maxWidth: '100%', maxHeight: 320, display: 'block' }}
-                  />
-                </ReactCrop>
+                  cropShape="round"
+                  height={320}
+                  onCropAreaChange={setCroppedAreaPixels}
+                />
               </div>
             )}
 
@@ -303,7 +262,7 @@ export function AvatarUploadModal({ file, userId, isDev, onClose, onSuccess }: A
             <div className="px-4 pt-2 flex-shrink-0">
               <button
                 onClick={handleSave}
-                disabled={!completedCrop || saving}
+                disabled={!croppedAreaPixels || saving}
                 className="w-full h-12 bg-purple flex items-center justify-center transition-opacity disabled:opacity-40"
               >
                 <span className="font-pixel text-[10px] text-white leading-none">

@@ -25,11 +25,11 @@ import { ChevronUp } from 'pixelarticons/react/ChevronUp'
 import { CornerUpLeft } from 'pixelarticons/react/CornerUpLeft'
 import { Close } from 'pixelarticons/react/Close'
 import { MagicEdit } from 'pixelarticons/react/MagicEdit'
-import { kickMemberAction, renameCrewAction, birthdaysCommandAction, updateCrewBackgroundImageAction } from '@/app/(app)/chat/actions'
+import { kickMemberAction, renameCrewAction, birthdaysCommandAction } from '@/app/(app)/chat/actions'
 import { leaveCrewAction } from '@/app/(app)/home/actions'
-import { resizeImageToBlob } from '@/shared/utils/imageCompress'
 import { EventCreationSheet } from '@/features/events/components/EventCreationSheet'
 import { CrewImageUploadModal } from '@/features/chat/components/sheets/CrewImageUploadModal'
+import { CrewBackgroundUploadModal } from '@/features/chat/components/sheets/CrewBackgroundUploadModal'
 import { SquadDetailsSheet, type MiniMember } from '@/features/chat/components/sheets/SquadDetailsSheet'
 import { NotifSheet, type NotifPrefs } from '@/features/chat/components/sheets/NotifSheet'
 import { PollCreatorSheet } from '@/features/chat/components/polls/PollCreatorSheet'
@@ -218,7 +218,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, memberP
   const [crewImageUrl,   setCrewImageUrl]   = useState<string | null>(initialCrewImageUrl ?? null)
   const [crewImageFile,  setCrewImageFile]  = useState<File | null>(null)
   const [crewBgUrl,      setCrewBgUrl]      = useState<string | null>(initialCrewBgUrl ?? null)
-  const [bgUploading,    setBgUploading]    = useState(false)
+  const [crewBgFile,     setCrewBgFile]     = useState<File | null>(null)
 const [showPollCreator,  setShowPollCreator]  = useState(false)
   const [showGifPicker,    setShowGifPicker]    = useState(false)
   const [showMediaPicker,  setShowMediaPicker]  = useState(false)
@@ -1988,25 +1988,10 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
         type="file"
         accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif"
         style={{ position: 'fixed', top: -1, left: -1, width: 1, height: 1, opacity: 0, pointerEvents: 'none' }}
-        onChange={async (e) => {
-          const file = e.target.files?.[0]
+        onChange={(e) => {
+          const f = e.target.files?.[0]
+          if (f) setCrewBgFile(f)
           e.target.value = ''
-          if (!file || bgUploading) return
-          setBgUploading(true)
-          try {
-            const supabase = createClient()
-            const ts       = Date.now()
-            const blob     = await resizeImageToBlob(file, 1080, 608)
-            const path     = `${crewId}/bg-${ts}.webp`
-            const { error: upErr } = await supabase.storage.from('crew-images')
-              .upload(path, blob, { contentType: 'image/webp', cacheControl: '31536000' })
-            if (!upErr) {
-              const { data: { publicUrl } } = supabase.storage.from('crew-images').getPublicUrl(path)
-              await updateCrewBackgroundImageAction(crewId, publicUrl)
-              setCrewBgUrl(publicUrl)
-            }
-          } catch { /* non-fatal */ }
-          setBgUploading(false)
         }}
       />
 
@@ -2030,6 +2015,13 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
         crewId={crewId}
         onClose={() => setCrewImageFile(null)}
         onSuccess={(url) => setCrewImageUrl(url)}
+      />
+
+      <CrewBackgroundUploadModal
+        file={crewBgFile}
+        crewId={crewId}
+        onClose={() => setCrewBgFile(null)}
+        onSuccess={(url) => setCrewBgUrl(url)}
       />
 
       <AnimatePresence>
