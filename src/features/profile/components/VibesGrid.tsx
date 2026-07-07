@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useEffect, useRef, useMemo, useCallback } from 'react'
+import { useState, useTransition, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Close } from 'pixelarticons/react/Close'
 import { addNoteAction, deleteNoteAction } from '@/app/(app)/profile/notes/actions'
@@ -154,6 +154,61 @@ function VinylActionSheet({
   )
 }
 
+// ─── VinylTrackLabel — scrolling ticker so "Song · Artist" isn't clipped ─────
+// Same measure-then-scroll approach as VinylPill: static text if it fits the
+// disc's label width, otherwise a two-copy horizontal ticker loop.
+
+function VinylTrackLabel({ text }: { text: string }) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const measureRef   = useRef<HTMLSpanElement>(null)
+  const [textWidth, setTextWidth]   = useState(0)
+  const [availWidth, setAvailWidth] = useState(0)
+
+  useLayoutEffect(() => {
+    if (measureRef.current)   setTextWidth(measureRef.current.scrollWidth)
+    if (containerRef.current) setAvailWidth(containerRef.current.clientWidth)
+  }, [text])
+
+  const needsTicker = availWidth > 0 && textWidth > availWidth
+  const tickerDur   = Math.max(4, (textWidth / 60) * 3)
+
+  return (
+    <div ref={containerRef} style={{ width: '100%', overflow: 'hidden' }}>
+      {/* Off-viewport span used only for measuring rendered text width */}
+      <span
+        ref={measureRef}
+        aria-hidden
+        className="font-silkscreen"
+        style={{ fontSize: 8, whiteSpace: 'nowrap', position: 'fixed', left: -9999, top: 0, visibility: 'hidden', pointerEvents: 'none' }}
+      >
+        {text}
+      </span>
+
+      {needsTicker ? (
+        <motion.div
+          className="flex"
+          animate={{ x: [0, -(textWidth + 16)] }}
+          transition={{ duration: tickerDur, repeat: Infinity, ease: 'linear', repeatType: 'loop' }}
+        >
+          <span className="font-silkscreen leading-none text-primary" style={{ fontSize: 8, whiteSpace: 'nowrap', flexShrink: 0 }}>
+            {text}
+          </span>
+          <span className="font-silkscreen leading-none text-primary" style={{ fontSize: 8, whiteSpace: 'nowrap', paddingLeft: 16, flexShrink: 0 }}>
+            {text}
+          </span>
+        </motion.div>
+      ) : (
+        <p
+          className="font-silkscreen leading-none text-primary text-center w-full"
+          style={{ fontSize: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+        >
+          {text}
+        </p>
+      )}
+    </div>
+  )
+}
+
 // ─── VinylTrack — spinning disc + floating title label (Figma 329:3298) ──────
 
 function VinylTrack({
@@ -300,12 +355,7 @@ function VinylTrack({
         className="absolute bottom-0 left-0 w-full flex flex-col items-center justify-center"
         style={{ padding: 8 }}
       >
-        <p
-          className="font-silkscreen leading-none text-primary text-center w-full"
-          style={{ fontSize: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-        >
-          {note.og_title ?? note.url}
-        </p>
+        <VinylTrackLabel text={note.og_title ?? note.url} />
       </div>
 
       <AnimatePresence>

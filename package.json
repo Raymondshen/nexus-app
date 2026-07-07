@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "generate-icons": "node scripts/generate-icons.mjs"
+    "generate-icons": "node scripts/generate-icons.mjs",
+    "backfill-spotify-notes": "tsx scripts/backfill-spotify-notes.ts"
   },
   "dependencies": {
     "@hackernoon/pixel-icon-library": "^1.1.0",
@@ -41,6 +42,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "tailwindcss": "^4",
+    "tsx": "^4.23.0",
     "typescript": "^5"
   }
 }
