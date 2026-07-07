@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { AnimatePresence, motion } from 'framer-motion'
 import { UserAvatar } from '@/shared/components/ui/UserAvatar'
+import { ProfileHeroBackground } from '@/shared/components/ui/ProfileHeroBackground'
 import { useSlideBack } from '@/app/layouts/SlidePage'
 import { TickerBanner } from '@/shared/components/banners/TickerBanner'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
@@ -14,7 +15,6 @@ import { PhotosGrid } from '@/features/profile/components/PhotosGrid'
 import type { PublicNote, ProfilePhoto } from '@/types'
 
 interface Props {
-  crewId:           string
   userId:           string
   viewerId:         string
   username:         string
@@ -33,7 +33,6 @@ interface Props {
 const BOND_XP_PER_LEVEL = 100
 
 export function AccountPageMember({
-  crewId,
   userId,
   viewerId,
   username,
@@ -83,13 +82,7 @@ export function AccountPageMember({
         style={{ height: 'calc(280px + env(safe-area-inset-top, 0px))' }}
       >
         {/* Background image */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={backgroundUrl ?? '/img/default_image.png'}
-          alt=""
-          aria-hidden
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }}
-        />
+        <ProfileHeroBackground url={backgroundUrl} />
 
         {/* Bottom gradient */}
         <div

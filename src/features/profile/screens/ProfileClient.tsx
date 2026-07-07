@@ -9,6 +9,7 @@ import { Message } from 'pixelarticons/react/Message'
 import { SettingsCogIcon } from '@/shared/icons/SettingsCogIcon'
 import { TickerBanner } from '@/shared/components/banners/TickerBanner'
 import { UserAvatar } from '@/shared/components/ui/UserAvatar'
+import { ProfileHeroBackground } from '@/shared/components/ui/ProfileHeroBackground'
 import { VibesGrid } from '@/features/profile/components/VibesGrid'
 import { PhotosGrid } from '@/features/profile/components/PhotosGrid'
 import type { PublicNote, ProfilePhoto } from '@/types'
@@ -136,13 +137,7 @@ export function ProfileClient({
       {/* ── Hero section ──────────────────────────────────────────────────────── */}
       <div className="relative flex-shrink-0 w-full bg-black overflow-hidden" style={{ height: 'calc(280px + env(safe-area-inset-top, 0px))' }}>
 
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={localBackgroundUrl ?? '/img/default_image.png'}
-          alt=""
-          aria-hidden
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }}
-        />
+        <ProfileHeroBackground url={localBackgroundUrl} />
 
         <div
           className="absolute inset-0 pointer-events-none"

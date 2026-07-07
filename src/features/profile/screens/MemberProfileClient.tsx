@@ -3,6 +3,7 @@
 import { useState, useLayoutEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { UserAvatar } from '@/shared/components/ui/UserAvatar'
+import { ProfileHeroBackground } from '@/shared/components/ui/ProfileHeroBackground'
 import { useSlideBack } from '@/app/layouts/SlidePage'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { UserPlus } from 'pixelarticons/react/UserPlus'
@@ -159,13 +160,7 @@ export function MemberProfileClient({
         style={{ height: 'calc(280px + env(safe-area-inset-top, 0px))' }}
       >
         {/* Background image */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={backgroundUrl ?? '/img/default_image.png'}
-          alt=""
-          aria-hidden
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }}
-        />
+        <ProfileHeroBackground url={backgroundUrl} />
 
         {/* Full-height gradient — transparent top → black bottom */}
         <div

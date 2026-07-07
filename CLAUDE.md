@@ -367,7 +367,8 @@ New notification type checklist:
 - `next/image` + `supabaseImageLoader` for all Supabase storage images (backgrounds, photos, OG)
 - **All person avatars must use `<UserAvatar>`** (`src/shared/components/ui/UserAvatar.tsx`) — never inline `avatarImageLoader` + `next/image` directly for avatar display
 - **All crew/squad images must use `<GroupAvatar>`** (`src/shared/components/ui/GroupAvatar.tsx`) — never inline `avatarImageLoader` + `next/image` directly for a crew's `image_url`
-- Plain `<img>`: pixel sprites · crop target · hero backgrounds · Vibes OG thumbnails (external URLs)
+- **All full-bleed profile hero backgrounds (`profiles.background_url`) must use `<ProfileHeroBackground>`** (`src/shared/components/ui/ProfileHeroBackground.tsx`) — used by `ProfileClient`, `AccountPageMember`, `MemberProfileClient`. Resizes via `supabaseImageLoader({ width: 480 })` before rendering as a plain `<img>` (`inset-0`/`object-cover`) — don't re-inline the old raw `<img src={backgroundUrl}>` pattern, it shipped the full-original uploaded photo for a ~390×280 display area.
+- Plain `<img>`: pixel sprites · crop target · Vibes OG thumbnails (external URLs) · `SquadDetailsSheet`'s member-card background (`heightCropImageUrl`, height-anchored — see below, a different sizing need than the hero)
 - Avatar upload: `AvatarUploadModal` → canvas → WebP → `avatars` bucket; `process-avatar` edge fn → AVIF; `custom_avatar = true` blocks Google photo overwrite
 - `resizeImageToBlob(file, w, h)` in `src/shared/utils/imageCompress.ts`: center-crop → WebP 0.85
 

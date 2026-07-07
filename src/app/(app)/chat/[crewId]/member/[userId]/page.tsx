@@ -118,7 +118,6 @@ export default async function MemberProfilePage({ params }: Props) {
       }}
     >
       <AccountPageMember
-        crewId={crewId}
         userId={userId}
         viewerId={viewerId}
         username={profile.username}

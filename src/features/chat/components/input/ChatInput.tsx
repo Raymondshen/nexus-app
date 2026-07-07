@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useRef, useCallback, useEffect, useLayoutEffect } from 'react'
+import React, { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
@@ -279,8 +279,30 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   const pendingImagesRef  = useRef<PendingImage[]>([])
   pendingImagesRef.current = pendingImages
   const xpProgress  = getXPProgress(crewXP)
-  const members     = Object.values(memberProfiles).filter(m => !kickedIds.has(m.id))
+  // memberProfiles is a stable server-provided prop and kickedIds only changes on an
+  // actual kick, so memoizing here keeps this array/its identity stable across the
+  // component's frequent unrelated re-renders (realtime messages, XP, typing state) —
+  // which lets consumers like SquadDetailsSheet's sortedMembers memoization actually
+  // skip work instead of recomputing every time because `members` looked "new".
+  const members     = useMemo(
+    () => Object.values(memberProfiles).filter(m => !kickedIds.has(m.id)),
+    [memberProfiles, kickedIds]
+  )
   const memberCount = members.length
+  // Only meaningful while the squad sheet is open, but hooks must run
+  // unconditionally — cheap to recompute and now actually stable thanks to
+  // the `members` memoization above, instead of a fresh array+objects per render.
+  const squadSheetMembers = useMemo(
+    (): MiniMember[] => members.map((m) => ({
+      id:             m.id,
+      username:       m.username,
+      avatar_url:     m.avatar_url as string | null,
+      avatar_class:   m.avatar_class,
+      background_url: m.background_url ?? null,
+      status:         m.status,
+    })),
+    [members]
+  )
 
   useEffect(() => {
     setDevMode(localStorage.getItem('nexus_dev_mode') === '1')
@@ -1847,14 +1869,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
             crewName={liveCrewName}
             memberCount={memberCount}
             crewImageUrl={crewImageUrl}
-            members={members.map((m): MiniMember => ({
-              id:             m.id,
-              username:       m.username,
-              avatar_url:     m.avatar_url as string | null,
-              avatar_class:   m.avatar_class,
-              background_url: m.background_url ?? null,
-              status:         m.status,
-            }))}
+            members={squadSheetMembers}
             onlineUserIds={onlineUserIds}
             crewXP={crewXP}
             crewLevel={crewLevel}
