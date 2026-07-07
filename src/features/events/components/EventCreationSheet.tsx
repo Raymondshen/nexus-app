@@ -7,9 +7,11 @@ import type { Area } from 'react-easy-crop'
 import { Upload } from 'pixelarticons/react/Upload'
 import { createEventAction, updateEventAction } from '@/app/(app)/chat/actions'
 import { createClient } from '@/shared/supabase/client'
-import { compressCanvas } from '@/shared/utils/imageCompress'
+import { compressCanvas, extForBlob, validateImageFile } from '@/shared/utils/imageCompress'
 import { drawCroppedCanvas } from '@/shared/utils/cropImage'
 import { PhotoCropModal } from '@/shared/components/ui/PhotoCropModal'
+
+const MAX_COVER_BYTES = 15 * 1024 * 1024 // 15 MB input limit, matches other background-style uploads
 
 function formatDateDisplay(dateStr: string): string {
   const [y, m, d] = dateStr.split('-')
@@ -112,8 +114,11 @@ export function EventCreationSheet({
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
-    if (file) setPendingCoverImage(file)
     e.target.value = ''
+    if (!file) return
+    const validation = validateImageFile(file, MAX_COVER_BYTES)
+    if (!validation.ok) { setError(validation.error); return }
+    setPendingCoverImage(file)
   }
 
   async function handleCoverCropConfirm(area: Area, img: HTMLImageElement) {
@@ -137,10 +142,11 @@ export function EventCreationSheet({
       try {
         const supabase = createClient()
         const ts = Date.now()
-        const path = `${crewId}/${currentUserId}/event-cover-${ts}.webp`
+        const ext = extForBlob(coverImageBlob)
+        const path = `${crewId}/${currentUserId}/event-cover-${ts}.${ext}`
         const { error: uploadError } = await supabase.storage
           .from('chat-images')
-          .upload(path, coverImageBlob, { contentType: 'image/webp', cacheControl: '31536000' })
+          .upload(path, coverImageBlob, { contentType: coverImageBlob.type, cacheControl: '31536000' })
         if (uploadError) { setError('Image upload failed. Try again.'); setSubmitting(false); return }
         const { data: { publicUrl } } = supabase.storage.from('chat-images').getPublicUrl(path)
         coverImageUrl = publicUrl
@@ -275,7 +281,7 @@ export function EventCreationSheet({
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/*"
+                  accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif"
                   onChange={handleFileChange}
                   className="hidden"
                   aria-hidden="true"

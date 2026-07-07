@@ -7,18 +7,13 @@ import { ZoomPanCropper } from '@/shared/components/ui/ZoomPanCropper'
 import { loadImageEl, drawCroppedCanvas } from '@/shared/utils/cropImage'
 import { createClient } from '@/shared/supabase/client'
 import { updateCrewBackgroundImageAction } from '@/app/(app)/chat/actions'
-import { compressCanvas, MAX_OUT_BYTES } from '@/shared/utils/imageCompress'
+import { compressCanvas, extForBlob, validateImageFile, MAX_OUT_BYTES } from '@/shared/utils/imageCompress'
 
 const ASPECT    = 1080 / 608 // 16:9
 const MAX_BYTES = 15 * 1024 * 1024 // 15 MB input limit
 
 // Canvas sizes tried in order — compressCanvas is called for each until ≤200 KB
 const CANVAS_SIZES: [number, number][] = [[1080, 608], [800, 450], [540, 304]]
-
-const ACCEPTED_TYPES = new Set([
-  'image/jpeg', 'image/jpg', 'image/png', 'image/webp',
-  'image/heic', 'image/heic-sequence', 'image/heif',
-])
 
 // Tries progressively smaller canvas sizes until compressCanvas finds a blob ≤200 KB.
 async function cropToBlob(imgSrc: string, area: Area): Promise<Blob> {
@@ -60,21 +55,15 @@ export function CrewBackgroundUploadModal({ file, crewId, onClose, onSuccess }: 
 
   async function handleSave() {
     if (!croppedAreaPixels || saving || !file) return
-    if (!ACCEPTED_TYPES.has(file.type.toLowerCase())) {
-      setUploadError('Unsupported format. Use JPG, PNG, WebP, or HEIC.')
-      return
-    }
-    if (file.size > MAX_BYTES) {
-      setUploadError('File too large. Maximum 15 MB.')
-      return
-    }
+    const validation = validateImageFile(file, MAX_BYTES)
+    if (!validation.ok) { setUploadError(validation.error); return }
 
     setSaving(true)
     setUploadError('')
 
     try {
       const blob = await cropToBlob(imgSrc, croppedAreaPixels)
-      const ext  = blob.type === 'image/webp' ? 'webp' : blob.type === 'image/jpeg' ? 'jpg' : 'png'
+      const ext  = extForBlob(blob)
       const ts   = Date.now()
       const path = `${crewId}/bg-${ts}.${ext}`
 

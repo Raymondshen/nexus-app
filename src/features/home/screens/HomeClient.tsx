@@ -36,7 +36,7 @@ import { isGemGateOpen } from '@/shared/utils/gems'
 import { GEM_DAILY_LIMIT } from '@/shared/constants/config'
 import { consumeHomeLastMessage } from '@/features/home/utils/homePreviewCache'
 import type { Area } from 'react-easy-crop'
-import { compressCanvas } from '@/shared/utils/imageCompress'
+import { compressCanvas, extForBlob, validateImageFile } from '@/shared/utils/imageCompress'
 import { drawCroppedCanvas } from '@/shared/utils/cropImage'
 import { PhotoCropModal } from '@/shared/components/ui/PhotoCropModal'
 import { getXPInCurrentLevel, getXPForCurrentLevel, getXPProgress } from '@/shared/utils/xp'
@@ -423,14 +423,20 @@ function HomeActionSheet({
 
   function handleProfilePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
-    if (file) setPendingProfilePhoto(file)
     e.target.value = ''
+    if (!file) return
+    const validation = validateImageFile(file, 10 * 1024 * 1024) // 10 MB, matches avatar upload
+    if (!validation.ok) { setCreateError(validation.error); return }
+    setPendingProfilePhoto(file)
   }
 
   function handleBackgroundChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
-    if (file) setPendingBackground(file)
     e.target.value = ''
+    if (!file) return
+    const validation = validateImageFile(file, 15 * 1024 * 1024) // 15 MB, matches background upload
+    if (!validation.ok) { setCreateError(validation.error); return }
+    setPendingBackground(file)
   }
 
   async function handleProfilePhotoCropConfirm(area: Area, img: HTMLImageElement) {
@@ -464,13 +470,14 @@ function HomeActionSheet({
 
       if (profilePhotoBlobs) {
         try {
-          const ts = Date.now()
+          const ts  = Date.now()
+          const ext = extForBlob(profilePhotoBlobs.blob256)
           const [res256] = await Promise.all([
-            supabase.storage.from('crew-images').upload(`${crewId}/${ts}-256.webp`, profilePhotoBlobs.blob256, { contentType: 'image/webp', cacheControl: '31536000' }),
-            supabase.storage.from('crew-images').upload(`${crewId}/${ts}-128.webp`, profilePhotoBlobs.blob128, { contentType: 'image/webp', cacheControl: '31536000' }),
+            supabase.storage.from('crew-images').upload(`${crewId}/${ts}-256.${ext}`, profilePhotoBlobs.blob256, { contentType: profilePhotoBlobs.blob256.type, cacheControl: '31536000' }),
+            supabase.storage.from('crew-images').upload(`${crewId}/${ts}-128.${ext}`, profilePhotoBlobs.blob128, { contentType: profilePhotoBlobs.blob128.type, cacheControl: '31536000' }),
           ])
           if (!res256.error) {
-            const { data: { publicUrl } } = supabase.storage.from('crew-images').getPublicUrl(`${crewId}/${ts}-256.webp`)
+            const { data: { publicUrl } } = supabase.storage.from('crew-images').getPublicUrl(`${crewId}/${ts}-256.${ext}`)
             await updateCrewImageAction(crewId, publicUrl, `${crewId}/${ts}`)
           }
         } catch { /* non-fatal */ }
@@ -479,9 +486,10 @@ function HomeActionSheet({
       if (backgroundBlob) {
         try {
           const ts   = Date.now() + 1
-          const path = `${crewId}/bg-${ts}.webp`
+          const ext  = extForBlob(backgroundBlob)
+          const path = `${crewId}/bg-${ts}.${ext}`
           const { error: upErr } = await supabase.storage.from('crew-images')
-            .upload(path, backgroundBlob, { contentType: 'image/webp', cacheControl: '31536000' })
+            .upload(path, backgroundBlob, { contentType: backgroundBlob.type, cacheControl: '31536000' })
           if (!upErr) {
             const { data: { publicUrl } } = supabase.storage.from('crew-images').getPublicUrl(path)
             await updateCrewBackgroundImageAction(crewId, publicUrl)
@@ -611,8 +619,8 @@ function HomeActionSheet({
               </span>
             </button>
           </div>
-          <input ref={profilePhotoRef} type="file" accept="image/*" onChange={handleProfilePhotoChange} className="hidden" aria-hidden="true" />
-          <input ref={backgroundRef}   type="file" accept="image/*" onChange={handleBackgroundChange}   className="hidden" aria-hidden="true" />
+          <input ref={profilePhotoRef} type="file" accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif" onChange={handleProfilePhotoChange} className="hidden" aria-hidden="true" />
+          <input ref={backgroundRef}   type="file" accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif" onChange={handleBackgroundChange}   className="hidden" aria-hidden="true" />
 
           <PhotoCropModal
             file={pendingProfilePhoto}

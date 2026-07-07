@@ -5,6 +5,33 @@
 
 export const MAX_OUT_BYTES = 200 * 1024 // 200 KB
 
+// Single source of truth for every crop-based upload surface (avatar, profile/crew
+// background, crew image, photo gallery, crew-creation pickers, event cover) — do
+// not re-declare this set locally in a caller.
+export const ACCEPTED_IMAGE_TYPES = new Set([
+  'image/jpeg', 'image/jpg', 'image/png', 'image/webp',
+  'image/heic', 'image/heic-sequence', 'image/heif',
+])
+
+type ImageValidation = { ok: true } | { ok: false; error: string }
+
+export function validateImageFile(file: File, maxBytes: number): ImageValidation {
+  if (!ACCEPTED_IMAGE_TYPES.has(file.type.toLowerCase())) {
+    return { ok: false, error: 'Unsupported format. Use JPG, PNG, WebP, or HEIC.' }
+  }
+  if (file.size > maxBytes) {
+    return { ok: false, error: `File too large. Maximum ${Math.round(maxBytes / 1024 / 1024)} MB.` }
+  }
+  return { ok: true }
+}
+
+// compressCanvas falls back to JPEG (Safari) or PNG (toBlob failure) when WebP
+// encoding isn't available — always derive the extension/contentType from the
+// blob it actually returned, never assume WebP.
+export function extForBlob(blob: Blob): 'webp' | 'jpg' | 'png' {
+  return blob.type === 'image/webp' ? 'webp' : blob.type === 'image/jpeg' ? 'jpg' : 'png'
+}
+
 const WEBP_QUALITIES = [0.85, 0.70, 0.55, 0.40, 0.25, 0.10]
 const JPEG_QUALITIES = [0.90, 0.75, 0.60, 0.45, 0.30]
 

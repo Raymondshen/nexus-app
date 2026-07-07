@@ -5,7 +5,7 @@ import type { Area } from 'react-easy-crop'
 import { AnimatePresence, motion } from 'framer-motion'
 import Image from 'next/image'
 import { addPhotoAction, deletePhotoAction } from '@/app/(app)/profile/actions'
-import { compressCanvas } from '@/shared/utils/imageCompress'
+import { compressCanvas, extForBlob, validateImageFile } from '@/shared/utils/imageCompress'
 import { drawCroppedCanvas } from '@/shared/utils/cropImage'
 import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
 import { createClient } from '@/shared/supabase/client'
@@ -13,9 +13,6 @@ import { BottomSheet } from '@/shared/components/ui/BottomSheet'
 import { PhotoCropModal } from '@/shared/components/ui/PhotoCropModal'
 import type { ProfilePhoto } from '@/types'
 
-const ACCEPTED_TYPES = new Set([
-  'image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/heic', 'image/heif',
-])
 const MAX_INPUT_BYTES = 15 * 1024 * 1024 // 15 MB input limit
 const MAX_PHOTOS      = 30
 const PHOTO_SIZE      = 800  // target square dimension
@@ -216,14 +213,8 @@ export function PhotosGrid({ initialPhotos, userId, isOwner }: PhotosGridProps) 
     e.target.value = ''
     if (!file) return
 
-    if (!ACCEPTED_TYPES.has(file.type.toLowerCase())) {
-      setUploadError('Use JPG, PNG, WebP, or HEIC')
-      return
-    }
-    if (file.size > MAX_INPUT_BYTES) {
-      setUploadError('File too large — max 15 MB')
-      return
-    }
+    const validation = validateImageFile(file, MAX_INPUT_BYTES)
+    if (!validation.ok) { setUploadError(validation.error); return }
     if (photos.length >= MAX_PHOTOS) {
       setUploadError(`Maximum ${MAX_PHOTOS} photos reached`)
       return
@@ -241,7 +232,7 @@ export function PhotosGrid({ initialPhotos, userId, isOwner }: PhotosGridProps) 
     try {
       const canvas     = drawCroppedCanvas(img, area, PHOTO_SIZE, PHOTO_SIZE)
       const blob       = await compressCanvas(canvas)
-      const ext        = blob.type === 'image/webp' ? 'webp' : blob.type === 'image/jpeg' ? 'jpg' : 'png'
+      const ext        = extForBlob(blob)
       const ts         = Date.now()
       const storageKey = `${userId}/${ts}.${ext}`
 

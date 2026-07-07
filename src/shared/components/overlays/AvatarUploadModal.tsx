@@ -7,15 +7,11 @@ import { ZoomPanCropper } from '@/shared/components/ui/ZoomPanCropper'
 import { loadImageEl, drawCroppedCanvas } from '@/shared/utils/cropImage'
 import { createClient } from '@/shared/supabase/client'
 import { updateAvatarAction } from '@/app/(app)/profile/actions'
-import { compressCanvas } from '@/shared/utils/imageCompress'
+import { compressCanvas, extForBlob, validateImageFile } from '@/shared/utils/imageCompress'
 
 const SIZES = [128, 256] as const
 type VariantSize = typeof SIZES[number]
 
-const ACCEPTED_TYPES = new Set([
-  'image/jpeg', 'image/jpg', 'image/png', 'image/webp',
-  'image/heic', 'image/heic-sequence', 'image/heif',
-])
 const MAX_BYTES = 10 * 1024 * 1024 // 10 MB input limit
 
 async function cropToBlobs(
@@ -81,14 +77,8 @@ export function AvatarUploadModal({ file, userId, isDev, onClose, onSuccess }: A
     if (!croppedAreaPixels || saving) return
 
     if (!file) return
-    if (!ACCEPTED_TYPES.has(file.type.toLowerCase())) {
-      setUploadError('Unsupported format. Use JPG, PNG, WebP, or HEIC.')
-      return
-    }
-    if (file.size > MAX_BYTES) {
-      setUploadError('File too large. Maximum 10 MB.')
-      return
-    }
+    const validation = validateImageFile(file, MAX_BYTES)
+    if (!validation.ok) { setUploadError(validation.error); return }
 
     setSaving(true)
     setUploadError('')
@@ -118,7 +108,7 @@ export function AvatarUploadModal({ file, userId, isDev, onClose, onSuccess }: A
       // ── Step 2: storage upload (both variants in parallel) ─────────────────
       // Use the blob's actual type — Safari falls back to image/png since it
       // doesn't support WebP canvas output.
-      const ext = variants[0].blob.type === 'image/webp' ? 'webp' : variants[0].blob.type === 'image/jpeg' ? 'jpg' : 'png'
+      const ext = extForBlob(variants[0].blob)
       const ts = Date.now()
       steps[1] = { ...steps[1], status: 'running', detail: `uploading ${variants.length} variants…` }
       if (isDev) setDebugSteps([...steps])

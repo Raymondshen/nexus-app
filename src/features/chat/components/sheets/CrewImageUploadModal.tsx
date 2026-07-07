@@ -7,15 +7,11 @@ import { ZoomPanCropper } from '@/shared/components/ui/ZoomPanCropper'
 import { loadImageEl, drawCroppedCanvas } from '@/shared/utils/cropImage'
 import { createClient } from '@/shared/supabase/client'
 import { updateCrewImageAction } from '@/app/(app)/chat/actions'
-import { compressCanvas } from '@/shared/utils/imageCompress'
+import { compressCanvas, extForBlob, validateImageFile } from '@/shared/utils/imageCompress'
 
 const SIZES = [128, 256] as const
 type VariantSize = typeof SIZES[number]
 
-const ACCEPTED_TYPES = new Set([
-  'image/jpeg', 'image/jpg', 'image/png', 'image/webp',
-  'image/heic', 'image/heic-sequence', 'image/heif',
-])
 const MAX_BYTES = 10 * 1024 * 1024 // 10 MB input limit
 
 async function cropToBlobs(
@@ -60,22 +56,15 @@ export function CrewImageUploadModal({ file, crewId, onClose, onSuccess }: CrewI
 
   async function handleSave() {
     if (!croppedAreaPixels || saving || !file) return
-    if (!ACCEPTED_TYPES.has(file.type.toLowerCase())) {
-      setUploadError('Unsupported format. Use JPG, PNG, WebP, or HEIC.')
-      return
-    }
-    if (file.size > MAX_BYTES) {
-      setUploadError('File too large. Maximum 10 MB.')
-      return
-    }
+    const validation = validateImageFile(file, MAX_BYTES)
+    if (!validation.ok) { setUploadError(validation.error); return }
 
     setSaving(true)
     setUploadError('')
 
     try {
       const variants = await cropToBlobs(imgSrc, croppedAreaPixels)
-      const ext = variants[0].blob.type === 'image/webp' ? 'webp'
-        : variants[0].blob.type === 'image/jpeg' ? 'jpg' : 'png'
+      const ext = extForBlob(variants[0].blob)
       const ts = Date.now()
 
       const supabase = createClient()
