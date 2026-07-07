@@ -45,6 +45,12 @@ function isInstagramUrl(url: URL): boolean {
     || url.hostname === 'instagr.am'
 }
 
+function isSpotifyUrl(url: URL): boolean {
+  return url.hostname === 'open.spotify.com'
+    || url.hostname === 'www.spotify.com'
+    || url.hostname === 'spotify.com'
+}
+
 interface YouTubeOEmbed { title?: string; thumbnail_url?: string }
 
 async function fetchYouTubePreview(rawUrl: string, signal: AbortSignal): Promise<OGPreview | null> {
@@ -82,7 +88,9 @@ export async function fetchOGPreview(rawUrl: string): Promise<OGPreview | null> 
     }
 
     const fetchUrl  = isRedditUrl(parsedUrl) ? toOldRedditUrl(parsedUrl) : rawUrl
-    const userAgent = isInstagramUrl(parsedUrl)
+    // Spotify's default (non-crawler) response is a near-empty JS shell with no OG tags at
+    // all — like Instagram, it only serves the full meta tags to known crawler UAs.
+    const userAgent = isInstagramUrl(parsedUrl) || isSpotifyUrl(parsedUrl)
       ? 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)'
       : 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
 
@@ -122,9 +130,19 @@ export async function fetchOGPreview(rawUrl: string): Promise<OGPreview | null> 
       description = description.slice(0, OG_PREVIEW.OG_DESCRIPTION_MAX_CHARS) + '...'
     }
 
+    let title = ogTitle ?? (pageTitle ? decodeHtmlEntities(pageTitle.trim()) : undefined)
+
+    // Spotify track pages: og:title is just the song name with no artist. Album/playlist
+    // og:title already reads fine on its own ("Album — Album by Artist", "Playlist Name"),
+    // so only tracks need the artist appended.
+    if (title && isSpotifyUrl(parsedUrl) && getMeta(head, 'og:type') === 'music.song') {
+      const artist = getMeta(head, 'music:musician_description') ?? ogDesc?.split(' · ')[0]
+      if (artist) title = `${title} · ${artist}`
+    }
+
     return {
       url:         canonical ?? rawUrl,
-      title:       ogTitle ?? (pageTitle ? decodeHtmlEntities(pageTitle.trim()) : undefined),
+      title,
       description: description ?? undefined,
       image:       ogImage ?? undefined,
       site_name:   ogSiteName ?? undefined,
