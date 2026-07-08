@@ -63,6 +63,10 @@ export const GEM_TOAST_Z_INDEX        = 9000
 export const GEM_DAILY_LIMIT = 1
 export const GEM_IDB_KEY     = 'nexus_gem_claimed_at'
 
+// ─── Presence ────────────────────────────────────────────────────────────────
+/** A member is "online" if their last heartbeat is within this many ms of now. */
+export const PRESENCE_ONLINE_THRESHOLD_MS = 45_000
+
 export const PIN_MAX_PER_CREW          = 5
 export const PIN_MAX_DURATION_MINUTES  = 525960  // ~1 year
 

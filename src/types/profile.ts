@@ -18,9 +18,13 @@ export interface Profile extends Record<string, unknown> {
   is_dev: boolean
   gem_balance: number
   last_gem_claim: string | null
-  last_active_at: string | null
   needs_username_reset: boolean
   created_at: string
+}
+
+export interface UserPresence extends Record<string, unknown> {
+  user_id: string
+  last_active_at: string
 }
 
 export interface GemClaimResult extends Record<string, unknown> {

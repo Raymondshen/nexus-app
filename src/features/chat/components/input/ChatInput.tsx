@@ -5,23 +5,23 @@ import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
 import { UserAvatar } from '@/shared/components/ui/UserAvatar'
-import { GroupAvatar } from '@/shared/components/ui/GroupAvatar'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { createClient } from '@/shared/supabase/client'
 import { getXPProgress } from '@/shared/utils/xp'
 import { useChatStore } from '@/store/chatStore'
 import { FriendshipXPToast } from '@/shared/components/game/FriendshipXPToast'
 import { GemToast } from '@/shared/components/game/GemToast'
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/shared/constants/config'
+import { SUPABASE_URL, SUPABASE_ANON_KEY, PRESENCE_ONLINE_THRESHOLD_MS, config } from '@/shared/constants/config'
 import { haptic } from '@/shared/utils/sounds'
 import { compressImage, generateLQIP, validateImageUpload, getNetworkQuality } from '@/shared/utils/imageProcessing'
+import { computeOnlineIds } from '@/shared/utils/presence'
 import { IMAGE_CONFIG } from '@/shared/constants/config'
+import { ChatSquadDetailBar } from '@/features/chat/components/header/ChatSquadDetailBar'
 import { isGemGateOpen, recordGemClaim } from '@/shared/utils/gems'
 import type { GemClaimResult } from '@/types'
 import { Send } from 'pixelarticons/react/Send'
 import { Chart } from 'pixelarticons/react/Chart'
 import { Plus } from 'pixelarticons/react/Plus'
-import { ChevronUp } from 'pixelarticons/react/ChevronUp'
 import { CornerUpLeft } from 'pixelarticons/react/CornerUpLeft'
 import { Close } from 'pixelarticons/react/Close'
 import { MagicEdit } from 'pixelarticons/react/MagicEdit'
@@ -43,7 +43,7 @@ import type { Message, MessageWithProfile, Profile, ActiveRaid, CombatMember, Co
 const MAX_MESSAGE_LENGTH   = 2000
 const RATE_LIMIT_MAX       = 30
 const RATE_LIMIT_WINDOW    = 60_000
-const ONLINE_THRESHOLD_MS  = 45_000
+const ONLINE_THRESHOLD_MS  = PRESENCE_ONLINE_THRESHOLD_MS
 // Minimum gap between update_active DB writes triggered outside the 30s heartbeat interval
 const ACTIVE_WRITE_THROTTLE_MS = 10_000
 
@@ -59,7 +59,7 @@ type SlashCommandName = typeof SLASH_COMMANDS[number]['name']
 // background_url is optional here (not a plain Pick field) because the DM page's
 // own MemberProfile — passed through unchanged as this same prop shape — never
 // fetches it (SquadDetailsSheet, the only consumer, is skipped for DMs).
-type MemberProfile = Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url' | 'status'> & { background_url?: string | null }
+export type MemberProfile = Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url' | 'status'> & { background_url?: string | null }
 
 interface PendingImage {
   id:        string
@@ -120,74 +120,6 @@ async function tryClaimDailyGem(supabase: ReturnType<typeof createClient>, onCla
   }
 }
 
-
-// ─── ChatSquadDetailBar ───────────────────────────────────────────────────────
-
-interface ChatSquadDetailBarProps {
-  crewImageUrl:  string | null | undefined
-  crewName:      string
-  crewLevel:     number
-  memberCount:   number
-  members:       MemberProfile[]
-  onlineUserIds: Set<string>
-  onExpand:      () => void
-  onPanEnd:      (_: PointerEvent, info: PanInfo) => void
-}
-
-function ChatSquadDetailBar({
-  crewImageUrl, crewName, crewLevel, memberCount, members, onlineUserIds,
-  onExpand, onPanEnd,
-}: ChatSquadDetailBarProps) {
-  const onlineMembers = members.filter((m) => onlineUserIds.has(m.id))
-
-  return (
-    <motion.div
-      className="flex relative cursor-pointer items-center justify-between w-full"
-      style={{ touchAction: 'pan-x' }}
-      onPanEnd={onPanEnd}
-      onClick={onExpand}
-    >
-      {/* Crew image + name/level */}
-      <div className="flex items-center flex-shrink-0 min-w-0" style={{ gap: 8 }}>
-        <GroupAvatar imageUrl={crewImageUrl} name={crewName} size={24} />
-        <div className="flex flex-col min-w-0" style={{ gap: 2 }}>
-          <p className="font-body font-black text-secondary leading-none truncate" style={{ fontSize: 16, fontVariationSettings: '"opsz" 14' }}>
-            {crewName.toUpperCase()}
-          </p>
-          <p className="font-silkscreen text-tertiary leading-none" style={{ fontSize: 8 }}>
-            Lv.{crewLevel} · {memberCount} member
-          </p>
-        </div>
-      </div>
-
-      {/* Online member avatars only — up to 6 visible at once, scroll horizontally for more */}
-      {onlineMembers.length > 0 && (
-        <div
-          className="flex flex-1 min-w-0 items-center overflow-x-auto nexus-scroll no-scrollbar"
-          style={{ gap: 4, marginLeft: 16, marginRight: 16, maxWidth: 164 }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {onlineMembers.map((m) => (
-            <div key={m.id} className="relative flex-shrink-0">
-              <UserAvatar avatarUrl={m.avatar_url as string | null} username={m.username} size={24} />
-              <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#66bb6a] border-[1.5px] border-black" />
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Expand chevron */}
-      <button
-        onClick={(e) => { e.stopPropagation(); onExpand() }}
-        className="flex items-center justify-center flex-shrink-0"
-        style={{ width: 24, height: 24 }}
-        aria-label="Show squad details"
-      >
-        <ChevronUp style={{ width: 24, height: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
-      </button>
-    </motion.div>
-  )
-}
 
 // ─── ChatInput ────────────────────────────────────────────────────────────────
 
@@ -618,8 +550,11 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   }
 
   useEffect(() => {
-    // Clear stale crew data and mark self online instantly; DB fetch + peer broadcasts refine the set
-    useChatStore.getState().resetPresence(userId)
+    // Mark self online instantly, without discarding already-known peer presence
+    // (so a member who's already known online in this crew keeps showing online
+    // through a remount instead of flashing to empty); DB fetch + peer broadcasts
+    // below refine the rest of the set.
+    useChatStore.getState().markSelfOnline(userId)
 
     const supabase = createClient()
     const ch = supabase.channel(`messages:${crewId}`, {
@@ -634,34 +569,30 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
       setLastActive(userId, ts)
       ch.send({ type: 'broadcast', event: 'active', payload: { user_id: userId, ts } })
       lastActiveWriteRef.current = ts
-      supabase.rpc('update_active').then(() => {}, () => {})
+      supabase.rpc('update_active').then(() => {}, (err) => {
+        if (config.isDev) console.warn('[presence] update_active failed', err)
+      })
     }
 
     // Seed initial online set from DB — covers members active outside this tab
     const memberIds = Object.keys(profilesRef.current)
     if (memberIds.length > 0) {
       supabase
-        .from('profiles')
-        .select('id, last_active_at')
-        .in('id', memberIds)
+        .from('user_presence')
+        .select('user_id, last_active_at')
+        .in('user_id', memberIds)
         .then(({ data }) => {
           if (!data) return
-          // Build peer entries — skip self to protect the fresh Date.now() from resetPresence
+          // Build peer entries — skip self to protect the fresh Date.now() from markSelfOnline
           const peerEntries: Record<string, number> = {}
           data.forEach((p) => {
-            if (p.id === userId || !p.last_active_at) return
-            peerEntries[p.id] = new Date(p.last_active_at).getTime()
+            if (p.user_id === userId || !p.last_active_at) return
+            peerEntries[p.user_id] = new Date(p.last_active_at).getTime()
           })
           // Single atomic update: merge peers into map and recompute online set in one shot
           useChatStore.setState((s) => {
-            const newMap = { ...s.lastActiveMap, ...peerEntries }
-            const now = Date.now()
-            const ids = new Set(
-              Object.entries(newMap)
-                .filter(([, ts]) => now - ts < ONLINE_THRESHOLD_MS)
-                .map(([id]) => id)
-            )
-            return { lastActiveMap: newMap, onlineUserIds: ids }
+            const lastActiveMap = { ...s.lastActiveMap, ...peerEntries }
+            return { lastActiveMap, onlineUserIds: computeOnlineIds(lastActiveMap, ONLINE_THRESHOLD_MS) }
           })
         })
     }
@@ -1117,7 +1048,9 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
         msgChannelRef.current?.send({ type: 'broadcast', event: 'active', payload: { user_id: userId, ts } })
         if (ts - lastActiveWriteRef.current > ACTIVE_WRITE_THROTTLE_MS) {
           lastActiveWriteRef.current = ts
-          supabase.rpc('update_active').then(() => {}, () => {})
+          supabase.rpc('update_active').then(() => {}, (err) => {
+            if (config.isDev) console.warn('[presence] update_active failed', err)
+          })
         }
       }
 

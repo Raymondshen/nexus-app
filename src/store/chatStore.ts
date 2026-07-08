@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { Message, MessageWithProfile } from '@/types'
 import { getLevelFromXP } from '@/shared/utils/xp'
+import { computeOnlineIds, setsEqual } from '@/shared/utils/presence'
 
 interface ChatStore {
   messages:            Message[]
@@ -33,7 +34,7 @@ interface ChatStore {
   setOnlineUserIds:    (ids: Set<string>) => void
   setLastActive:       (userId: string, ts: number) => void
   sweepOnlineUserIds:  (thresholdMs: number) => void
-  resetPresence:       (selfId: string) => void
+  markSelfOnline:      (selfId: string) => void
   setUserCoins:        (coins: number) => void
   addUserCoins:        (amount: number) => void
   setGemBalance:       (gems: number) => void
@@ -123,21 +124,29 @@ export const useChatStore = create<ChatStore>((set) => ({
   setLastActive: (userId, ts) =>
     set((s) => ({ lastActiveMap: { ...s.lastActiveMap, [userId]: ts } })),
 
+  // Bails out (returns {}) when the recomputed set is identical to the current
+  // one — this runs on a 15s timer plus on every peer heartbeat broadcast, and
+  // without the equality check it allocated a new Set (forcing every
+  // subscriber, e.g. SquadDetailsSheet's member sort, to re-render) even when
+  // nobody's online/offline status actually changed.
   sweepOnlineUserIds: (thresholdMs) =>
     set((s) => {
-      const now = Date.now()
-      const ids = new Set(
-        Object.entries(s.lastActiveMap)
-          .filter(([, ts]) => now - ts < thresholdMs)
-          .map(([id]) => id)
-      )
-      return { onlineUserIds: ids }
+      const ids = computeOnlineIds(s.lastActiveMap, thresholdMs)
+      return setsEqual(ids, s.onlineUserIds) ? {} : { onlineUserIds: ids }
     }),
 
-  resetPresence: (selfId) => {
-    const now = Date.now()
-    set({ lastActiveMap: { [selfId]: now }, onlineUserIds: new Set([selfId]) })
-  },
+  // Marks self online without discarding already-known peer presence. This
+  // store is app-global but the only mount point that calls it is per-crew
+  // chat screens — clearing the whole map here (as the old resetPresence did)
+  // meant every crew switch flashed all online dots to empty before the peer
+  // DB fetch + broadcasts repopulated them.
+  markSelfOnline: (selfId) =>
+    set((s) => {
+      const lastActiveMap = { ...s.lastActiveMap, [selfId]: Date.now() }
+      const onlineUserIds = new Set(s.onlineUserIds)
+      onlineUserIds.add(selfId)
+      return { lastActiveMap, onlineUserIds }
+    }),
 
   setUserCoins: (coins) => set({ userCoins: coins }),
 
