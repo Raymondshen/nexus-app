@@ -99,6 +99,17 @@ const pwaConfig = {
         expiration: { maxEntries: 100, maxAgeSeconds: 30 * 24 * 60 * 60 },
       },
     },
+    // OG link-preview image proxy: CacheFirst, 7 days — same URL always
+    // returns the same bytes (Cache-Control on the route itself is 24h;
+    // this just avoids re-hitting the network at all while scrolling).
+    {
+      urlPattern: /^https?:\/\/[^/]+\/api\/og-image\?.*/i,
+      handler: 'CacheFirst',
+      options: {
+        cacheName: 'nexus-og-images',
+        expiration: { maxEntries: 200, maxAgeSeconds: 7 * 24 * 60 * 60 },
+      },
+    },
     // API routes: NetworkFirst, 10s timeout
     {
       urlPattern: /^https?:\/\/[^/]+\/api\/.*/i,

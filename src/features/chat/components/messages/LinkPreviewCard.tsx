@@ -29,14 +29,15 @@ export function LinkPreviewCard({ preview }: LinkPreviewCardProps) {
     >
       {preview.image && (
         <div style={{ position: 'relative', width: '100%', aspectRatio: '4 / 3', overflow: 'hidden' }}>
+          {/* Routed through /api/og-image (same-origin) so next/image can actually
+              resize/compress it — external hosts can't be optimized directly. */}
           <Image
-            src={preview.image}
+            src={`/api/og-image?url=${encodeURIComponent(preview.image)}`}
             alt={preview.title ?? ''}
             fill
             sizes="260px"
             style={{ objectFit: 'cover' }}
             loading="lazy"
-            unoptimized
           />
         </div>
       )}
