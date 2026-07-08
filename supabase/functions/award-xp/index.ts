@@ -56,7 +56,7 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { message_id, crew_id, user_id, username, message_type, content, mentioned_user_ids } = await req.json()
+    const { message_id, crew_id, user_id, username, message_type, content, mentioned_user_ids, reply_to_id } = await req.json()
     const mentionedIds: string[] = Array.isArray(mentioned_user_ids) ? mentioned_user_ids : []
 
     if (!message_id || !crew_id || !user_id || !message_type) {
@@ -71,8 +71,8 @@ Deno.serve(async (req: Request) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     )
 
-    // ─── BATCH 1: spam check + crew data + other members (4 queries in parallel) ──
-    const [prevMsgsResult, crewResult, membersResult] = await Promise.all([
+    // ─── BATCH 1: spam check + crew data + other members (+ reply target) ──
+    const [prevMsgsResult, crewResult, membersResult, replyMsgResult] = await Promise.all([
       // Cooldown: most recent message from this user in this crew (5 s gap check)
       supabase
         .from('messages')
@@ -96,6 +96,12 @@ Deno.serve(async (req: Request) => {
         .select('user_id')
         .eq('crew_id', crew_id)
         .neq('user_id', user_id),
+
+      // Author of the message being replied to, if any — resolved server-side
+      // (never trust a client-supplied target user_id for notification routing)
+      reply_to_id
+        ? supabase.from('messages').select('user_id').eq('id', reply_to_id).single()
+        : Promise.resolve({ data: null }),
     ])
 
     // ─── FIRE NOTIFICATION IMMEDIATELY (fire-and-forget) ────────────────────
@@ -110,8 +116,24 @@ Deno.serve(async (req: Request) => {
         crew_id,
       }
 
+      // Reply target takes priority over mention/message routing for the same
+      // recipient — a user who is both replied-to and mentioned gets one push,
+      // the more specific reply_received.
+      const replyAuthorId = replyMsgResult.data?.user_id as string | undefined
+      const replyTargetId = replyAuthorId && replyAuthorId !== user_id && otherUserIds.includes(replyAuthorId)
+        ? replyAuthorId
+        : null
+
+      if (replyTargetId) {
+        fetch(fnUrl, {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: replyTargetId, type: 'reply_received', payload: notifPayload }),
+        }).catch(() => {})
+      }
+
       if (mentionedSet.size > 0) {
-        const validMentioned = otherUserIds.filter((id: string) => mentionedSet.has(id))
+        const validMentioned = otherUserIds.filter((id: string) => mentionedSet.has(id) && id !== replyTargetId)
         if (validMentioned.length > 0) {
           fetch(fnUrl, {
             method:  'POST',
@@ -121,7 +143,7 @@ Deno.serve(async (req: Request) => {
         }
       }
 
-      const nonMentionedIds = otherUserIds.filter((id: string) => !mentionedSet.has(id))
+      const nonMentionedIds = otherUserIds.filter((id: string) => !mentionedSet.has(id) && id !== replyTargetId)
       if (nonMentionedIds.length > 0) {
         fetch(fnUrl, {
           method:  'POST',
@@ -130,7 +152,7 @@ Deno.serve(async (req: Request) => {
         }).catch(() => {})
       }
 
-      console.log(`[award-xp] notifications fired: ${nonMentionedIds.length} message_received, ${mentionedIds.length} mention_received (message ${message_id})`)
+      console.log(`[award-xp] notifications fired: ${nonMentionedIds.length} message_received, ${mentionedIds.length} mention_received, ${replyTargetId ? 1 : 0} reply_received (message ${message_id})`)
     }
 
     // ─── 5-SECOND COOLDOWN (soft block) ─────────────────────────────────────

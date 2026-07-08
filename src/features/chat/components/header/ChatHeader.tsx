@@ -153,7 +153,7 @@ export function ChatHeader({
   const { setCrewXP, crewName: storeCrewName, setCrewName } = useChatStore()
   const [showShare,      setShowShare]      = useState(false)
   const [showNotif,      setShowNotif]      = useState(false)
-  const [notifPrefs,     setNotifPrefs]     = useState<NotifPrefs>({ messages: true, mentions: true })
+  const [notifPrefs,     setNotifPrefs]     = useState<NotifPrefs>({ messages: true, mentions: true, replies: true })
   const [devMode,        setDevMode]        = useState(false)
   const [eventsEnabled,  setEventsEnabled]  = useState(false)
 
@@ -201,7 +201,7 @@ export function ChatHeader({
       const supabase = createClient()
       const { data } = await supabase
         .from('crew_notification_preferences')
-        .select('notif_messages, notif_mentions')
+        .select('notif_messages, notif_mentions, notif_replies')
         .eq('user_id', currentUserId)
         .eq('crew_id', crewId)
         .maybeSingle()
@@ -209,6 +209,7 @@ export function ChatHeader({
         setNotifPrefs({
           messages: data.notif_messages as boolean,
           mentions: data.notif_mentions as boolean,
+          replies:  data.notif_replies as boolean,
         })
       }
     }
@@ -227,6 +228,7 @@ export function ChatHeader({
           crew_id:        crewId,
           notif_messages: next.messages,
           notif_mentions: next.mentions,
+          notif_replies:  next.replies,
           updated_at:     new Date().toISOString(),
         },
         { onConflict: 'user_id,crew_id' },
@@ -236,7 +238,7 @@ export function ChatHeader({
   const handleCloseShare   = useCallback(() => setShowShare(false), [])
   const handleCloseNotif   = useCallback(() => setShowNotif(false), [])
 
-  const allMuted = !notifPrefs.messages && !notifPrefs.mentions
+  const allMuted = !notifPrefs.messages && !notifPrefs.mentions && !notifPrefs.replies
   const nextBirthday = getNextBirthday(memberBirthdays)
 
   return (

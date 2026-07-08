@@ -12,6 +12,7 @@ export interface NotificationPreferences extends Record<string, unknown> {
   user_id:        string
   notif_messages: boolean
   notif_mentions: boolean
+  notif_replies:  boolean
   updated_at:     string
 }
 
@@ -25,5 +26,6 @@ export interface CrewNotificationPreferences extends Record<string, unknown> {
   crew_id:        string
   notif_messages: boolean
   notif_mentions: boolean
+  notif_replies:  boolean
   updated_at:     string
 }

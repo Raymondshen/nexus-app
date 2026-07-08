@@ -206,7 +206,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, memberP
   const [gemToastVisible,   setGemToastVisible]   = useState(false)
   const [isExpanded,     setIsExpanded]     = useState(false)
   const [showNotifSheet,  setShowNotifSheet]  = useState(false)
-  const [notifPrefs,      setNotifPrefs]      = useState<NotifPrefs>({ messages: true, mentions: true })
+  const [notifPrefs,      setNotifPrefs]      = useState<NotifPrefs>({ messages: true, mentions: true, replies: true })
   const [memberMsgCounts, setMemberMsgCounts] = useState<Map<string, number>>(new Map())
   const [loadingCounts,  setLoadingCounts]  = useState(false)
   const [removeTarget,   setRemoveTarget]   = useState<MemberProfile | null>(null)
@@ -482,7 +482,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     let cancelled = false
     createClient()
       .from('crew_notification_preferences')
-      .select('notif_messages, notif_mentions')
+      .select('notif_messages, notif_mentions, notif_replies')
       .eq('user_id', userId)
       .eq('crew_id', crewId)
       .maybeSingle()
@@ -491,6 +491,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
         setNotifPrefs({
           messages: data.notif_messages as boolean,
           mentions: data.notif_mentions as boolean,
+          replies:  data.notif_replies as boolean,
         })
       })
     return () => { cancelled = true }
@@ -507,13 +508,14 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
           crew_id:        crewId,
           notif_messages: next.messages,
           notif_mentions: next.mentions,
+          notif_replies:  next.replies,
           updated_at:     new Date().toISOString(),
         },
         { onConflict: 'user_id,crew_id' },
       )
   }, [notifPrefs, userId, crewId])
 
-  const allMuted = !notifPrefs.messages && !notifPrefs.mentions
+  const allMuted = !notifPrefs.messages && !notifPrefs.mentions && !notifPrefs.replies
 
   // Sync overlay scroll with the active field so highlighted text stays aligned.
   useEffect(() => {
@@ -810,11 +812,11 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
 
   // Shared award-xp settlement used by every send path (text/image/gif): applies the
   // XP/coin response, broadcasts xp_update to peers, and kicks off attack-boss.
-  const settleXp = useCallback((msgId: string, messageType: string, content: string, mentionedUserIds: string[]) => {
+  const settleXp = useCallback((msgId: string, messageType: string, content: string, mentionedUserIds: string[], replyToId?: string | null) => {
     fetch(`${SUPABASE_URL}/functions/v1/award-xp`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
-      body:    JSON.stringify({ message_id: msgId, crew_id: crewId, user_id: userId, username: userProfile.username, message_type: messageType, content, mentioned_user_ids: mentionedUserIds }),
+      body:    JSON.stringify({ message_id: msgId, crew_id: crewId, user_id: userId, username: userProfile.username, message_type: messageType, content, mentioned_user_ids: mentionedUserIds, reply_to_id: replyToId ?? null }),
     })
       .then((r) => r.json())
       .then((data: { xp_earned?: number; new_total_xp?: number; coins_earned?: number }) => {
@@ -1120,7 +1122,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
       }
 
       tryClaimDailyGem(supabase, showGemToast)
-      settleXp(raw.id, 'text', content, mentionedUserIds)
+      settleXp(raw.id, 'text', content, mentionedUserIds, replyToId)
 
       if (fxpEnabled) {
         // Friendship XP — shared helper: fade-in 200ms, hold 2000ms, then exit animation (400ms) runs

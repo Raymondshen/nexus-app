@@ -108,6 +108,13 @@ When adding a new toggle, update **both** consumers' `select()`, load-mapping, a
 - `src/app/api/test/push/route.ts` — debug endpoint (`GET` = diagnostics on current subscriptions + muted crews, `POST` = sends a real `message_received` test push to the calling user)
 - `src/shared/components/pwa/PushDebugFAB.tsx` — dev-only floating action button UI for the above debug endpoint
 
+## Push delivery mechanics (VAPID, subscriptions, iOS)
+- **VAPID**: `VAPID_SUBJECT`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` are Supabase Edge Function secrets, read at the top of `send-notification/index.ts`. `VAPID_SUBJECT` must be a `mailto:` URI — `web-push` rejects other schemes.
+- **Subscribing** is INSERT-only, no delete-first — `push_subscriptions.endpoint` is `UNIQUE`, so a `23505` conflict on re-subscribe is the *success* path, not an error to surface.
+- **Notification `tag` must be unique per push** (`sw-push.js` appends `-{timestamp}`) — without it, iOS coalesces/suppresses rapid repeat pushes into a single alert instead of showing each one.
+- **iOS Web Push only supports a minimal `showNotification` option set** — `badge` is stripped, and `sw-push.js` retries with just `{ body }` if the full options object is rejected.
+- **Debugging**: HTTP 401 from `send-notification` means it was deployed without `--no-verify-jwt`; a result status of `expired_deleted` means APNs returned 410 for that subscription (already deleted from `push_subscriptions` by the cleanup step) — the client should force a re-subscribe.
+
 ## Gotchas
 - **Fire-and-forget only.** Every trigger call site uses `.catch(() => {})` and does not `await` into the response path. A notification failure must never fail or delay the user-facing action it's attached to.
 - **`payload.crew_id` is what turns on per-crew mute checking.** The edge function only queries `crew_notification_preferences` `if (payload?.crew_id)`. A crew-scoped type that forgets to pass `crew_id` will still honor global mute but silently ignore per-crew mute.
@@ -117,3 +124,4 @@ When adding a new toggle, update **both** consumers' `select()`, load-mapping, a
 - **`NotifPrefs` is duplicated state, not a shared hook.** `SettingsClient.tsx` (global) and `ChatHeader.tsx` (per-crew) each independently load/upsert — a new toggle key must be wired into both or one surface will silently keep defaulting.
 - **`git push` never deploys edge functions.** Any change to `send-notification/index.ts` needs an explicit `supabase functions deploy send-notification --project-ref tlveyeisjbythssmocth` or it stays live with the old code — same class of bug as the `react-to-message` "undeployed function" incident documented in CLAUDE.md's Edge Functions section.
 - **Legacy dead columns**: `notif_raids` and `notif_victory` existed in the original `notification_preferences`/`crew_notification_preferences` migration but were superseded by `notif_mentions` and are no longer read by `PREF_COLUMN` or any UI. If you see them referenced anywhere, it's stale — don't resurrect them for a new type; add a fresh `notif_<name>` column instead (see "Adding a whole new preference column").
+- **`award-xp` fires notifications before it writes XP, with no early return before that block.** The notification `fetch()` calls happen immediately after resolving crew/member data, ahead of the anti-spam soft-block and XP/coin writes (`supabase/functions/award-xp/index.ts:101-134`). If you add a new early-return path to `award-xp` for some other reason, make sure it doesn't land above the notification block — that would silently kill `message_received`/`mention_received` delivery for whatever case triggers the early return.

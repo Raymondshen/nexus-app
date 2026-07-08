@@ -549,16 +549,16 @@ export function SettingsClient({
   // ── Notifications ─────────────────────────────────────────────────────────
   const [showNotifSheet,   setShowNotifSheet]   = useState(false)
   const [showAccountSheet, setShowAccountSheet] = useState(false)
-  const [prefs, setPrefs] = useState<NotifPrefs>({ messages: true, mentions: true })
+  const [prefs, setPrefs] = useState<NotifPrefs>({ messages: true, mentions: true, replies: true })
 
   const fetchPrefs = useCallback(async () => {
     const supabase = createClient()
     const { data } = await supabase
       .from('notification_preferences')
-      .select('notif_messages, notif_mentions')
+      .select('notif_messages, notif_mentions, notif_replies')
       .eq('user_id', userId)
       .maybeSingle()
-    if (data) setPrefs({ messages: data.notif_messages as boolean, mentions: data.notif_mentions as boolean })
+    if (data) setPrefs({ messages: data.notif_messages as boolean, mentions: data.notif_mentions as boolean, replies: data.notif_replies as boolean })
   }, [userId])
 
   useEffect(() => { fetchPrefs() }, [fetchPrefs])
@@ -571,6 +571,7 @@ export function SettingsClient({
       user_id:        userId,
       notif_messages: next.messages,
       notif_mentions: next.mentions,
+      notif_replies:  next.replies,
       updated_at:     new Date().toISOString(),
     }, { onConflict: 'user_id' })
   }

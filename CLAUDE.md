@@ -295,7 +295,7 @@ Invite is surfaced only via the inline `<InviteCodeCard>` in the Members section
 ### award-xp
 - Batch 1 (parallel): prev msg gap + crew data + sender `is_dev` + other members
 - Anti-spam: gap < 5s → 0 XP, 0 coins
-- Notifications fire-and-forget BEFORE XP writes — do NOT add early returns before notification block
+- Fires `message_received`/`mention_received` notifications — see `notification-engine` skill for the ordering constraint (must fire before XP writes; no early returns before the notification block)
 
 ### Reactions
 - `messages.reactions` JSONB: `{ emoji: [userId,...] }`, empty arrays pruned
@@ -347,39 +347,18 @@ supabase functions deploy weekly-boss --project-ref tlveyeisjbythssmocth
 
 Live Vercel crons (`vercel.json`) call these over HTTP: `/api/cron/process-deletions` (daily 03:00 UTC — hard-deletes accounts past their 7-day `pending_deletions.delete_at` grace period) and `/api/cron/weekly-boss` (Sundays 00:00 UTC — soft-fails expired raids, then spawns a new raid for every qualifying non-DM crew with a combat-class member). `/api/cron/boss-attack` route exists but is **not** registered in `vercel.json` — dead code, see Gotchas.
 
-New notification type checklist:
-1. Add to `NotificationType` union in `send-notification/index.ts`
-2. Add to `PREF_COLUMN` map (`null` = always deliver)
-3. Add `case` to `buildPayload()` → `{ title, body, icon, data: { url } }`
-4. Call `send-notification` from trigger point; deploy `--no-verify-jwt`
+New notification type: see the `notification-engine` skill (`.claude/skills/notification-engine/SKILL.md`) for the full checklist, preference-column wiring, and `NotifSheet` UI steps.
 
 ## PWA / Push
 - SW: `public/sw-push.js` — handwritten, no workbox; no multi-arg `importScripts()` (kills iOS Safari)
 - `manifest.json` `start_url: "/home"` — avoids 2-hop redirect on icon launch
 - `sw-push.js` caching: `nexus-pages-v2` (StaleWhileRevalidate for app nav) · `nexus-static-v2` (CacheFirst `/_next/static/`) · `nexus-assets-v1` (CacheFirst `/sprites/`, `/icons/`, `/lottie/`, `/img/` — not content-hashed but effectively immutable; bump the version suffix if a file under these paths is ever replaced in place) · `nexus-images-v1` (CacheFirst Supabase storage)
 - `sw.js` (workbox) is **never registered** — `SWRegister` only registers `sw-push.js`
-- Strip `badge` from `showNotification` (iOS rejects); notification `tag` must be unique (`-{timestamp}`)
-- Subscribe: INSERT only, no delete-first; `23505` = success
-- VAPID vars in Supabase Edge Function secrets; `VAPID_SUBJECT` must be `mailto:` URI
-- Debugging: 401 = deployed without `--no-verify-jwt`; `expired_deleted` = APNs 410'd → FORCE RESUB
+
+Push notification delivery specifics (VAPID setup, subscription handling, iOS `showNotification` limits, debugging 401/`expired_deleted`): see the `notification-engine` skill.
 
 ## Images
-- `next/image` + `supabaseImageLoader` for all Supabase storage images (backgrounds, photos, OG)
-- **All person avatars must use `<UserAvatar>`** (`src/shared/components/ui/UserAvatar.tsx`) — never inline `avatarImageLoader` + `next/image` directly for avatar display
-- **All crew/squad images must use `<GroupAvatar>`** (`src/shared/components/ui/GroupAvatar.tsx`) — never inline `avatarImageLoader` + `next/image` directly for a crew's `image_url`
-- **All full-bleed profile hero backgrounds (`profiles.background_url`) must use `<ProfileHeroBackground>`** (`src/shared/components/ui/ProfileHeroBackground.tsx`) — used by `ProfileClient`, `AccountPageMember`, `MemberProfileClient`. Resizes via `supabaseImageLoader({ width: 480 })` before rendering as a plain `<img>` (`inset-0`/`object-cover`) — don't re-inline the old raw `<img src={backgroundUrl}>` pattern, it shipped the full-original uploaded photo for a ~390×280 display area.
-- Plain `<img>`: pixel sprites · Vibes OG thumbnails (external URLs) · `SquadDetailsSheet`'s member-card background (`heightCropImageUrl` from `imageLoader.ts`, height-anchored so the crop always eats width instead of height — see the SquadDetailsSheet section above; a different sizing need than `ProfileHeroBackground`'s width-anchored hero)
-- Avatar upload: `AvatarUploadModal` → canvas → WebP → `avatars` bucket; `process-avatar` edge fn → AVIF; `custom_avatar = true` blocks Google photo overwrite
-
-### Photo Cropping
-Every single-photo upload surface uses a fixed-frame pan/zoom cropper (`react-easy-crop`, not a movable/resizable selection box) — the frame stays put at the target aspect ratio; the user drags the photo to reposition it and a slider zooms in/out to fit. Two shared primitives, no upload/DB logic in either:
-- **`src/shared/utils/cropImage.ts`** — `loadImageEl(src)` + `drawCroppedCanvas(img, area, outW, outH)`. `area` (react-easy-crop's `Area` type) is already in the source image's *natural* pixel coordinates — no displayed-vs-natural `scaleX`/`scaleY` conversion needed, unlike the old `react-image-crop` approach.
-- **`src/shared/components/ui/ZoomPanCropper.tsx`** — the actual `<Cropper>` + zoom slider widget. `cropShape="round"` for the avatar (circular, matches `UserAvatar`), `"rect"` everywhere else (group avatars are always square per `GroupAvatar`). Pass `key={imgSrc}` so zoom/pan resets on a new file.
-- **`src/shared/components/ui/PhotoCropModal.tsx`** — generic bottom-sheet wrapper around `ZoomPanCropper` for surfaces with no bespoke modal chrome of their own (`PhotosGrid`, `HomeClient`'s crew-creation pickers, `EventCreationSheet`'s cover image). `onConfirm(area, img)` hands back an **already-loaded `HTMLImageElement`**, not a src string — the caller may close the modal (and thus revoke the underlying blob URL) synchronously inside its own confirm handler, and a fully-decoded `<img>` keeps its bitmap drawable via canvas even after its `src` URL is revoked. Passing back a string and re-`loadImageEl`-ing it in the caller would race the revoke.
-
-Bespoke modals (`AvatarUploadModal`, `BackgroundUploadModal`, `CrewImageUploadModal`, `CrewBackgroundUploadModal`) keep their own chrome (debug panels for the two profile ones, bucket/DB logic) and just use `ZoomPanCropper` internally instead of the generic wrapper.
-
-Aspect ratios by surface: avatar 1:1 round · user profile cover 1080:608 (16:9) · group profile photo 1:1 rect · group cover 1080:608 · profile photo gallery 1:1 · crew-creation photo/background 1:1 / 1080:608 · event cover 4:3 (matches `EventCard`'s display aspect). `resizeImageToBlob` (blind center-crop, no user interaction) was removed from `imageCompress.ts` once the last caller was converted — `compressCanvas` is still the shared canvas→blob compressor used by all of the above.
+See the `image-handling` skill (`.claude/skills/image-handling/SKILL.md`) for image storage, the Supabase render loaders (`supabaseImageLoader`/`avatarImageLoader`/`heightCropImageUrl`), the required display components (`UserAvatar`/`GroupAvatar`/`ProfileHeroBackground`), the crop+compress upload pipeline, and aspect ratios by surface. Load it whenever touching image upload, cropping, compression, avatars, or crew images.
 
 ## Design Tokens (`src/app/globals.css`)
 Colors: `--color-primary` · `--color-secondary` · `--color-tertiary` · `--color-surface` · `--color-border` · `--color-purple` · `--color-blue` · `--color-muted`

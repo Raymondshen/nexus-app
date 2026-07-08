@@ -3,7 +3,7 @@
 import { motion } from 'framer-motion'
 import { BottomSheet } from '@/shared/components/ui/BottomSheet'
 
-export type NotifPrefs = { messages: boolean; mentions: boolean }
+export type NotifPrefs = { messages: boolean; mentions: boolean; replies: boolean }
 
 export function NotifToggleRow({
   label,
@@ -93,6 +93,13 @@ export function NotifSheet({
             description="Notify me when someone mentions me by name"
             enabled={prefs.mentions}
             onToggle={() => onToggle('mentions')}
+          />
+          <div className="border-t border-border w-full" />
+          <NotifToggleRow
+            label="Replies"
+            description="Notify me when someone replies to my message"
+            enabled={prefs.replies}
+            onToggle={() => onToggle('replies')}
           />
         </div>
       </div>
