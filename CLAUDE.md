@@ -22,7 +22,7 @@ crew_combat_members id, raid_id (→ active_raids CASCADE), user_id (→ profile
 revive_tokens       crew_id (PK → crews CASCADE), count (int default 5) — supabase_realtime
 artifacts           id, crew_id, name, rarity (common|rare|epic|legendary), source_boss_id, earned_at, mvp_user_id, asset_type, metadata
 push_subscriptions  id, user_id, crew_id (nullable), endpoint (UNIQUE), p256dh, auth, created_at
-notification_preferences   user_id (PK), notif_messages, notif_raids, notif_victory, updated_at
+notification_preferences   user_id (PK), notif_messages, notif_mentions, updated_at
 friendships         id, requester_id, addressee_id, status (pending|accepted), created_at — UNIQUE(requester_id, addressee_id)
 coin_log            id, user_id, crew_id (nullable), coins, source, created_at
 app_invites         id, code (text unique), inviter_id (uuid → profiles), used (bool), used_by (uuid → profiles), used_at (timestamptz), created_at

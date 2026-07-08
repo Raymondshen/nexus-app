@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     // This is the most common reason SEND TEST works but real messages don't.
     const { data: mutedCrews } = await admin
       .from('crew_notification_preferences')
-      .select('crew_id, notif_messages, notif_raids, notif_victory')
+      .select('crew_id, notif_messages, notif_mentions')
       .eq('user_id', user.id)
       .eq('notif_messages', false)
 
