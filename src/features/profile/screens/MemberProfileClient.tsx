@@ -173,8 +173,7 @@ export function MemberProfileClient({
 
           {/* Details row — Figma I105:628;105:535 */}
           <div className="flex items-center gap-[var(--space-5)] w-full">
-            {/* Avatar 56×56 — Figma: plain square, no rounding */}
-            <UserAvatar avatarUrl={avatarUrl} username={username} size={56} shape="square" bg="border" />
+            <UserAvatar avatarUrl={avatarUrl} username={username} size={56} bg="border" />
 
             {/* Name + stats — Figma I105:628;105:537: flex-col gap-4px */}
             <div className="flex-1 min-w-0 flex flex-col justify-center leading-none" style={{ gap: 'var(--space-2)' }}>

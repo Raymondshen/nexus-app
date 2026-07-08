@@ -466,7 +466,7 @@ Icon inherits `currentColor` from the button wrapper — do not pass `color` on 
 
 ## UserAvatar (`src/shared/components/ui/UserAvatar.tsx`)
 
-Single component for all user profile photo rendering. Uses `avatarImageLoader` internally — Supabase storage URLs are resized + quality-compressed via the render API; Google OAuth URLs are resized via Google's CDN. Never render avatar images inline.
+Single component for all user profile photo rendering. Always circular — there is no square variant, and never render avatar images inline. Uses `avatarImageLoader` internally — Supabase storage URLs are resized + quality-compressed via the render API; Google OAuth URLs are resized via Google's CDN.
 
 ```tsx
 // Standard message / member list avatar (circle, bg-surface, 32px default)
@@ -475,8 +475,8 @@ Single component for all user profile photo rendering. Uses `avatarImageLoader` 
 // Above-fold hero (circle, bg-primary, black initial for contrast, priority)
 <UserAvatar avatarUrl={avatarUrl} username={username} size={56} bg="primary" initialColor="black" priority />
 
-// Square variant — DM headers / settings heroes (square, bg-border)
-<UserAvatar avatarUrl={avatarUrl} username={username} size={32} shape="square" bg="border" initialColor="primary" />
+// DM headers / profile heroes — circle, bg-border
+<UserAvatar avatarUrl={avatarUrl} username={username} size={32} bg="border" initialColor="primary" />
 
 // Custom fallback color — event "going" avatar stack (purple fallback, white initial)
 <UserAvatar avatarUrl={profile.avatar_url} username={profile.username} size={24} bg="border" fallbackBg="var(--color-purple)" initialColor="white" />
@@ -488,13 +488,14 @@ Props:
 | `avatarUrl` | `string \| null` | — | Supabase storage or Google URL |
 | `username` | `string \| null` | — | Used for `alt` text and initial fallback |
 | `size` | `number` | `32` | px; pick from `imageSizes` (24, 32, 48, 56) for best cache hits |
-| `shape` | `'circle' \| 'square'` | `'circle'` | Square for DM headers and profile heroes |
 | `bg` | `'surface' \| 'border' \| 'primary'` | `'surface'` | Container background (visible during load + fallback) |
 | `fallbackBg` | `string` | — | CSS color for the no-avatar state only (overrides `bg` on the inner div) |
 | `initialColor` | `'purple' \| 'primary' \| 'black' \| 'white'` | `'purple'` | Pixel-font initial letter color |
 | `priority` | `boolean` | `false` | Pass `true` for above-fold avatars |
 
 Online dot: render outside `<UserAvatar>` in a `div.relative` wrapper — the component does not include presence indicators.
+
+If a caller wraps `<UserAvatar>` in its own button/div to add a background or click target (e.g. an avatar-edit affordance), that wrapper must also be `border-radius: 50%` — a square wrapper around a circular avatar exposes the wrapper's own background color in the four corners (this was an actual bug in `SettingsClient`'s avatar-edit button, which had `overflow-hidden` but no border-radius, showing `--color-primary` white in the corners around the circular photo).
 
 ## GroupAvatar (`src/shared/components/ui/GroupAvatar.tsx`)
 

@@ -71,7 +71,7 @@ export function DMOverlayBack({
         >
           <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-purple)' }} aria-hidden="true" />
         </button>
-        <UserAvatar avatarUrl={friendAvatarUrl} username={friendUsername} size={24} shape="square" bg="border" initialColor="primary" priority />
+        <UserAvatar avatarUrl={friendAvatarUrl} username={friendUsername} size={24} bg="border" initialColor="primary" priority />
       </div>
     </div>
   )

@@ -28,7 +28,6 @@ export interface UserAvatarProps {
   username?:     string | null
   avatarUrl?:    string | null
   size?:         number
-  shape?:        'circle' | 'square'
   bg?:           'surface' | 'border' | 'primary'
   /** CSS color for the fallback state when no avatarUrl (overrides bg for the inner div) */
   fallbackBg?:   string
@@ -38,11 +37,11 @@ export interface UserAvatarProps {
   style?:        React.CSSProperties
 }
 
+// Every person avatar in the app is circular — there is no square variant.
 export function UserAvatar({
   username,
   avatarUrl,
   size = 32,
-  shape = 'circle',
   bg = 'surface',
   fallbackBg,
   initialColor = 'purple',
@@ -50,13 +49,12 @@ export function UserAvatar({
   className = '',
   style,
 }: UserAvatarProps) {
-  const initial      = username?.[0]?.toUpperCase() ?? '?'
-  const borderRadius = shape === 'circle' ? '50%' : undefined
+  const initial = username?.[0]?.toUpperCase() ?? '?'
 
   return (
     <div
       className={`relative flex-shrink-0 overflow-hidden${className ? ` ${className}` : ''}`}
-      style={{ width: size, height: size, background: BG[bg], borderRadius, ...style }}
+      style={{ width: size, height: size, background: BG[bg], borderRadius: '50%', ...style }}
     >
       {avatarUrl ? (
         <Image

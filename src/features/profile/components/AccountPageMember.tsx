@@ -95,7 +95,7 @@ export function AccountPageMember({
 
           {/* Avatar + name row */}
           <div className="flex items-center gap-[var(--space-5)] w-full">
-            <UserAvatar avatarUrl={avatarUrl} username={username} size={56} shape="square" bg="border" />
+            <UserAvatar avatarUrl={avatarUrl} username={username} size={56} bg="border" />
 
             <div className="flex-1 min-w-0 flex flex-col justify-center leading-none" style={{ gap: 'var(--space-2)' }}>
               {joinedYear && (

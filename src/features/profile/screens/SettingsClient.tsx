@@ -187,7 +187,7 @@ function EditProfileSheet({
                     <button
                       onClick={() => fileInputRef.current?.click()}
                       className="relative w-full h-full overflow-hidden"
-                      style={{ background: 'var(--color-primary)' }}
+                      style={{ borderRadius: '50%' }}
                       aria-label="Change photo"
                     >
                       <UserAvatar avatarUrl={avatarUrl} username={previewName} size={56} bg="primary" />

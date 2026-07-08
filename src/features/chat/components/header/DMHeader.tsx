@@ -62,7 +62,7 @@ export function DMHeader({
           <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-purple)' }} aria-hidden="true" />
         </button>
 
-        <UserAvatar avatarUrl={friendAvatarUrl} username={friendUsername} size={32} shape="square" bg="border" initialColor="primary" priority />
+        <UserAvatar avatarUrl={friendAvatarUrl} username={friendUsername} size={32} bg="border" initialColor="primary" priority />
 
         <div className="flex-1 min-w-0 flex flex-col justify-center">
           <h1 className="font-pixel text-[14px] text-primary truncate leading-none underline">

@@ -1568,7 +1568,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
                       className={`w-full flex items-center overflow-hidden p-2 text-left ${!isLast ? 'border-b border-border' : ''} ${i === mentionIndex ? 'bg-surface' : 'active:bg-surface'}`}
                       style={{ gap: 'var(--space-3)' }}
                     >
-                      <UserAvatar avatarUrl={url} username={m.username} size={24} shape="square" />
+                      <UserAvatar avatarUrl={url} username={m.username} size={24} />
                       <div className="flex flex-col flex-1 min-w-0 items-start">
                         <span className="font-silkscreen text-[length:var(--text-mini)] text-purple leading-normal w-full">@mention</span>
                         <span className="font-body font-normal text-[length:var(--text-xs)] text-primary leading-normal w-full" style={{ fontVariationSettings: '"opsz" 14' }}>{m.username}</span>
