@@ -16,6 +16,13 @@ const baseConfig: NextConfig = {
     // Cache Vercel-optimized images for 7 days (matches SW rule for Google avatars).
     // Without this, Next.js defaults to 60 s and re-optimizes on every cache miss.
     minimumCacheTTL: 604800,
+    localPatterns: [
+      // `search` is an exact-string match in Next.js (not a glob), and the
+      // encoded `url=` query differs per image — so match on pathname only.
+      {
+        pathname: '/api/og-image',
+      },
+    ],
     remotePatterns: [
       {
         protocol: 'https',
