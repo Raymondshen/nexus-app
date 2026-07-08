@@ -53,6 +53,8 @@ export interface Message extends Record<string, unknown> {
   event_id?:         string | null
   /** Client-only stable key for optimistic messages. Never sent to the server. */
   tempId?:           string
+  /** Client-only outbox status for an unconfirmed send. Absent once the server row lands. */
+  sendStatus?:       'sending' | 'failed'
 }
 
 export interface MessageWithProfile extends Message {

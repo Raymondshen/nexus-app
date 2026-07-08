@@ -48,6 +48,12 @@ interface ChatStore {
 
   squadDetailsOpen:        boolean
   setSquadDetailsOpen:     (open: boolean) => void
+
+  // Retry dispatcher for a failed outbox send — owned/registered by ChatInput (which
+  // holds the closures needed to redo XP/broadcast side effects on success), invoked
+  // by MessageBubble when the user taps a "failed — tap to retry" message.
+  requestRetrySend:        ((tempId: string) => void) | null
+  setRequestRetrySend:     (fn: ((tempId: string) => void) | null) => void
 }
 
 export const useChatStore = create<ChatStore>((set) => ({
@@ -65,6 +71,7 @@ export const useChatStore = create<ChatStore>((set) => ({
   friendshipXPByPair:     {},
   pinnedScrollTargetId:   null,
   squadDetailsOpen:       false,
+  requestRetrySend:       null,
 
   setMessages: (messages) => set({ messages }),
 
@@ -170,6 +177,8 @@ export const useChatStore = create<ChatStore>((set) => ({
   setPinnedScrollTargetId: (id) => set({ pinnedScrollTargetId: id }),
 
   setSquadDetailsOpen: (open) => set({ squadDetailsOpen: open }),
+
+  setRequestRetrySend: (fn) => set({ requestRetrySend: fn }),
 }))
 
 export function selectActivePins(messages: Message[]): Message[] {

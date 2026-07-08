@@ -124,6 +124,7 @@ function areEqual(prev: MessageBubbleProps, next: MessageBubbleProps): boolean {
   if (prev.isCreator                !== next.isCreator)                return false
   if (prev.message.reactions        !== next.message.reactions)        return false
   if (prev.message.xp_awarded       !== next.message.xp_awarded)       return false
+  if (prev.message.sendStatus       !== next.message.sendStatus)       return false
   if (prev.message.element_type     !== next.message.element_type)     return false
   if (prev.message.content          !== next.message.content)          return false
   if (prev.message.pinned           !== next.message.pinned)           return false
@@ -387,9 +388,10 @@ function MessageBubbleImpl({
   // Cached per-gesture list of all slide wrappers in this message's group
   const groupElsRef        = useRef<HTMLElement[]>([])
 
-  const updateMessage = useChatStore((s) => s.updateMessage)
-  const setReplyTo    = useChatStore((s) => s.setReplyTo)
-  const setEditTo     = useChatStore((s) => s.setEditTo)
+  const updateMessage     = useChatStore((s) => s.updateMessage)
+  const setReplyTo        = useChatStore((s) => s.setReplyTo)
+  const setEditTo         = useChatStore((s) => s.setEditTo)
+  const requestRetrySend  = useChatStore((s) => s.requestRetrySend)
 
   const { displayReactions, handleReaction } = useMessageReactions({
     messageId:     message.id,
@@ -766,12 +768,22 @@ function MessageBubbleImpl({
                 )}
               </div>
 
-              <span
-                className="font-body font-light text-[12px] shrink-0 leading-none whitespace-nowrap ml-1"
-                style={{ color: 'var(--color-tertiary)', fontVariationSettings: '"opsz" 14' }}
-              >
-                {timeStr}
-              </span>
+              {isOwn && message.sendStatus === 'failed' ? (
+                <button
+                  onClick={(e) => { e.stopPropagation(); requestRetrySend?.(message.tempId ?? message.id) }}
+                  className="font-body font-medium text-[12px] shrink-0 leading-none whitespace-nowrap ml-1"
+                  style={{ color: 'var(--color-danger)', fontVariationSettings: '"opsz" 14' }}
+                >
+                  Failed · Retry
+                </button>
+              ) : (
+                <span
+                  className="font-body font-light text-[12px] shrink-0 leading-none whitespace-nowrap ml-1"
+                  style={{ color: 'var(--color-tertiary)', fontVariationSettings: '"opsz" 14' }}
+                >
+                  {isOwn && message.sendStatus === 'sending' ? 'sending…' : timeStr}
+                </span>
+              )}
             </div>
           )}
 

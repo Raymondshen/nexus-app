@@ -11,6 +11,7 @@ const useBrowserLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect :
 import { motion, AnimatePresence } from 'framer-motion'
 import { format, isToday, isYesterday, isSameDay } from 'date-fns'
 import { createClient } from '@/shared/supabase/client'
+import { acquireCrewMessageChannel, releaseCrewMessageChannel } from '@/shared/supabase/crewMessageChannel'
 import { useChatStore } from '@/store/chatStore'
 import { useCombatStore } from '@/store/combatStore'
 import { MessageBubble } from './MessageBubble'
@@ -707,7 +708,6 @@ export function MessageList({
   // ─── Realtime: Postgres Changes (INSERT backup + UPDATE) + profile changes ────
 
   useEffect(() => {
-    const supabase = createClient()
     // Scope the profiles listener to this crew's members — without a filter, every
     // profile UPDATE in the entire database is pushed down this channel and discarded
     // client-side on every open chat screen.
@@ -715,8 +715,11 @@ export function MessageList({
     const profileFilter = memberIds.length > 0
       ? `id=in.(${memberIds.join(',')})`
       : 'id=eq.00000000-0000-0000-0000-000000000000'
-    const channel  = supabase
-      .channel(`db:messages:${crewId}`)
+    // Shared with ChatInput's broadcast/presence channel — see crewMessageChannel.ts.
+    // ChatInput owns the single .subscribe() call for this topic (deferred to a
+    // microtask so it always runs after these postgres_changes listeners attach,
+    // regardless of mount order); this effect only ever attaches listeners.
+    acquireCrewMessageChannel(crewId, currentUserId)
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'messages', filter: `crew_id=eq.${crewId}` },
@@ -838,10 +841,9 @@ export function MessageList({
           }
         }
       )
-      .subscribe()
 
-    return () => { supabase.removeChannel(channel) }
-  }, [crewId, addMessage, updateMessage, resolveProfile])
+    return () => { releaseCrewMessageChannel(crewId) }
+  }, [crewId, currentUserId, addMessage, updateMessage, resolveProfile])
 
   // ─── Squad definitions ────────────────────────────────────────────────────────
 

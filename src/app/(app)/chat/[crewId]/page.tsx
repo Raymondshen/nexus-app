@@ -133,34 +133,9 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
     redirect(`/onboarding/class?crew=${crewId}`)
   }
 
-  // Past usernames of current members — lets @mentions in old messages resolve to
-  // whatever the member's username is now. Small/rare table; no FK path from
-  // crew_members to username_history for an embedded select, so fetched separately.
-  const { data: historyRows } = await supabase
-    .from('username_history')
-    .select('user_id, old_username')
-    .in('user_id', lastSeenRows.map((r) => r.user_id))
-  const initialMentionAliases: [string, string][] = (
-    (historyRows ?? []) as { user_id: string; old_username: string }[]
-  ).map((h) => [h.old_username.toLowerCase(), h.user_id])
-
   // Combat data — results from the parallel Stage 2 queries above
-  let initialRaid:         ActiveRaid | null              = null
-  let initialMemberStats:  Record<string, CombatMember>  = {}
-  let initialReviveTokens: number                        = 5
-
-  initialRaid         = raidRes.data as ActiveRaid | null
-  initialReviveTokens = (tokenRes.data as { count: number } | null)?.count ?? 5
-
-  if (initialRaid) {
-    const { data: combatMembers } = await supabase
-      .from('crew_combat_members')
-      .select('id, raid_id, user_id, class, current_hp, max_hp, ability_bank, is_downed, downed_at, momentum_stack, last_msg_at, guard_expires_at')
-      .eq('raid_id', initialRaid.id)
-    initialMemberStats = Object.fromEntries(
-      (combatMembers ?? []).map((m) => [m.user_id, m as CombatMember])
-    )
-  }
+  const initialRaid         = raidRes.data as ActiveRaid | null
+  const initialReviveTokens = (tokenRes.data as { count: number } | null)?.count ?? 5
 
   // Creator = member with the earliest joined_at
   const creatorId = lastSeenRows.length > 0
@@ -193,14 +168,40 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
 
   // Pinned notes that aren't in the crew board need a global lookup
   const missingIds = Object.values(pinnedMap).filter((id): id is string => !!id && !noteById[id])
-  let extraById: Record<string, NoteRow> = {}
-  if (missingIds.length > 0) {
-    const { data: extra } = await supabase
-      .from('notes')
-      .select('id, created_by, og_title, og_image_url')
-      .in('id', missingIds)
-    for (const n of (extra ?? []) as unknown as NoteRow[]) extraById[n.id] = n
-  }
+
+  // None of these three depend on each other — only on data already available above
+  // (lastSeenRows, missingIds, initialRaid) — so they run as one parallel batch instead
+  // of up to three sequential round trips (username_history, then conditionally notes,
+  // then conditionally combat members, one after another).
+  const [historyResult, extraNotesResult, combatMembersResult] = await Promise.all([
+    // Past usernames of current members — lets @mentions in old messages resolve to
+    // whatever the member's username is now. Small/rare table; no FK path from
+    // crew_members to username_history for an embedded select, so fetched separately.
+    supabase
+      .from('username_history')
+      .select('user_id, old_username')
+      .in('user_id', lastSeenRows.map((r) => r.user_id)),
+    missingIds.length > 0
+      ? supabase.from('notes').select('id, created_by, og_title, og_image_url').in('id', missingIds)
+      : Promise.resolve({ data: null }),
+    initialRaid
+      ? supabase
+          .from('crew_combat_members')
+          .select('id, raid_id, user_id, class, current_hp, max_hp, ability_bank, is_downed, downed_at, momentum_stack, last_msg_at, guard_expires_at')
+          .eq('raid_id', initialRaid.id)
+      : Promise.resolve({ data: null }),
+  ])
+
+  const initialMentionAliases: [string, string][] = (
+    (historyResult.data ?? []) as { user_id: string; old_username: string }[]
+  ).map((h) => [h.old_username.toLowerCase(), h.user_id])
+
+  const initialMemberStats: Record<string, CombatMember> = Object.fromEntries(
+    ((combatMembersResult.data ?? []) as CombatMember[]).map((m) => [m.user_id, m])
+  )
+
+  const extraById: Record<string, NoteRow> = {}
+  for (const n of (extraNotesResult.data ?? []) as unknown as NoteRow[]) extraById[n.id] = n
 
   const memberPinnedVinyls: Record<string, { imageUrl: string | null; title: string | null }> = {}
   // Users with an explicit pin

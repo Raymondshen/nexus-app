@@ -15,6 +15,9 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY, PRESENCE_ONLINE_THRESHOLD_MS, config }
 import { haptic } from '@/shared/utils/sounds'
 import { compressImage, generateLQIP, validateImageUpload, getNetworkQuality } from '@/shared/utils/imageProcessing'
 import { computeOnlineIds } from '@/shared/utils/presence'
+import { sendWithRetry } from '@/shared/utils/sendWithRetry'
+import { addToOutbox, readOutbox, type OutboxJob } from '@/shared/utils/outbox'
+import { acquireCrewMessageChannel, releaseCrewMessageChannel, isActiveCrewMessageChannel } from '@/shared/supabase/crewMessageChannel'
 import { IMAGE_CONFIG } from '@/shared/constants/config'
 import { ChatSquadDetailBar } from '@/features/chat/components/header/ChatSquadDetailBar'
 import { isGemGateOpen, recordGemClaim } from '@/shared/utils/gems'
@@ -184,7 +187,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   const isTypingRef           = useRef(false)
   const countsFetchedForCrewRef = useRef<string | null>(null)
   const {
-    addMessage, removeMessage, updateMessage, setCrewXP, receiveXP, bumpCrewXP,
+    addMessage, updateMessage, setCrewXP, receiveXP, bumpCrewXP,
     crewXP, crewLevel,
     onlineUserIds, setOnlineUserIds, setLastActive, sweepOnlineUserIds, addUserCoins,
     crewName: storeCrewName, setCrewName,
@@ -557,9 +560,10 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     useChatStore.getState().markSelfOnline(userId)
 
     const supabase = createClient()
-    const ch = supabase.channel(`messages:${crewId}`, {
-      config: { presence: { key: userId } },
-    })
+    // Shared with MessageList's postgres_changes listeners — see crewMessageChannel.ts.
+    // This effect remains the sole owner of the actual .subscribe() call (deferred
+    // below) since it also owns the presence/heartbeat lifecycle.
+    const ch = acquireCrewMessageChannel(crewId, userId)
     const fallbackProfile = (uid: string): MemberProfile =>
       profilesRef.current[uid] ?? { id: uid, username: '???', avatar_class: null, avatar_url: null }
 
@@ -647,7 +651,15 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
         else if (xp_earned > 0 && !isDM)        receiveXP(xp_earned, new_total_xp)
         else                                    setCrewXP(new_total_xp)
       })
-      .subscribe(async (status) => {
+    // Defer the single subscribe() call to a microtask so it always runs after every
+    // same-tick mount effect (MessageList's postgres_changes listeners included) has
+    // attached its .on() bindings — regardless of which component's effect ran first.
+    // The isActiveCrewMessageChannel guard skips a stale call if this exact channel
+    // instance was already torn down before the microtask fired (StrictMode dev
+    // double-invoke: mount → cleanup → mount all happen synchronously before this runs).
+    queueMicrotask(() => {
+      if (!isActiveCrewMessageChannel(crewId, ch)) return
+      ch.subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
           channelReadyRef.current = true
           await ch.track({ username: userProfileRef.current.username, typing: false })
@@ -655,6 +667,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
           startHeartbeat()
         }
       })
+    })
 
     function handleVisibilityChange() {
       if (document.visibilityState === 'visible') {
@@ -675,7 +688,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       stopHeartbeat()
       clearInterval(sweepTimer)
-      supabase.removeChannel(ch)
+      releaseCrewMessageChannel(crewId)
       msgChannelRef.current     = null
       channelReadyRef.current   = false
       isTypingRef.current       = false
@@ -767,6 +780,81 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
       .catch(() => {})
   }, [crewId, userId, userProfile, updateMessage, setCrewXP, addUserCoins, callAttackBoss]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Shared "message successfully persisted" side effects — same for a fresh send and
+  // a retried one, so text/image/gif/retry all get identical broadcast/XP/friendship-xp
+  // behavior instead of four subtly-diverging inline copies of this logic.
+  const handleSendSuccess = useCallback((raw: Message, job: OutboxJob) => {
+    setHomeLastMessage(crewId, { content: job.content || raw.content, created_at: raw.created_at, sender: userProfile.username })
+
+    if (channelReadyRef.current) {
+      broadcastNewMessage(raw)
+      // Piggyback heartbeat on send — proves liveness, keeps DB timestamp fresh between intervals.
+      const ts = Date.now()
+      setLastActive(userId, ts)
+      msgChannelRef.current?.send({ type: 'broadcast', event: 'active', payload: { user_id: userId, ts } })
+      if (ts - lastActiveWriteRef.current > ACTIVE_WRITE_THROTTLE_MS) {
+        lastActiveWriteRef.current = ts
+        createClient().rpc('update_active').then(() => {}, (err) => {
+          if (config.isDev) console.warn('[presence] update_active failed', err)
+        })
+      }
+    }
+
+    tryClaimDailyGem(createClient(), showGemToast)
+    settleXp(raw.id, job.messageType, job.content, job.mentionedUserIds, job.replyToId)
+
+    if (fxpEnabled && job.messageType === 'text') {
+      // Friendship XP — shared helper: fade-in 200ms, hold 2000ms, then exit animation (400ms) runs
+      const showFriendshipToast = (totalXP: number, xpAwarded: number, partnerName: string, dailyCount: number) => {
+        if (friendshipToastTimerRef.current) clearTimeout(friendshipToastTimerRef.current)
+        setFriendshipToast({ totalXP, xpAwarded, partnerName, dailyCount })
+        friendshipToastTimerRef.current = setTimeout(() => setFriendshipToast(null), 2200)
+      }
+
+      // Local midnight as UTC ISO string — used by the server to compute the daily limit window
+      const now = new Date()
+      const localMidnightUTC = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).toISOString()
+
+      // Friendship XP — DM send
+      if (isDM && dmPartnerId) {
+        const dmPartnerName = liveCrewName
+        fetch(`${SUPABASE_URL}/functions/v1/award-friendship-xp`, {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
+          body:    JSON.stringify({ user_a_id: userId, user_b_id: dmPartnerId, source: 'dm', local_midnight_utc: localMidnightUTC }),
+        })
+          .then((r) => r.json())
+          .then((data: { total_xp?: number; xp_awarded?: number; skipped?: boolean; daily_count?: number }) => {
+            if (typeof data.total_xp === 'number' && (data.xp_awarded ?? 0) > 0) {
+              showFriendshipToast(data.total_xp, data.xp_awarded!, dmPartnerName, data.daily_count ?? 1)
+            }
+          })
+          .catch(() => {})
+      }
+
+      // Friendship XP — @mention in group chat (toast for first awarded pair)
+      if (!isDM && job.mentionedUserIds.length > 0) {
+        let toastShown = false
+        job.mentionedUserIds.forEach((friendId) => {
+          const partnerName = profilesRef.current[friendId]?.username ?? 'Friend'
+          fetch(`${SUPABASE_URL}/functions/v1/award-friendship-xp`, {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
+            body:    JSON.stringify({ user_a_id: userId, user_b_id: friendId, source: 'mention', local_midnight_utc: localMidnightUTC }),
+          })
+            .then((r) => r.json())
+            .then((data: { total_xp?: number; xp_awarded?: number; skipped?: boolean; daily_count?: number }) => {
+              if (!toastShown && typeof data.total_xp === 'number' && (data.xp_awarded ?? 0) > 0) {
+                toastShown = true
+                showFriendshipToast(data.total_xp, data.xp_awarded!, partnerName, data.daily_count ?? 1)
+              }
+            })
+            .catch(() => {})
+        })
+      }
+    }
+  }, [crewId, userId, userProfile, fxpEnabled, isDM, dmPartnerId, liveCrewName, broadcastNewMessage, setLastActive, settleXp]) // eslint-disable-line react-hooks/exhaustive-deps
+
   async function handleChatImagesPick(files: File[]) {
     if (files.length === 0) return
 
@@ -819,14 +907,13 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     }))
   }
 
-  const sendImages = useCallback(async () => {
+  const sendImages = useCallback(() => {
     const readyImages = pendingImagesRef.current.filter((img) => !!img.publicUrl)
-    if (readyImages.length === 0 || sending) return
+    if (readyImages.length === 0) return
 
     const snapshots   = readyImages.map((img) => ({ publicUrl: img.publicUrl!, lqip: img.lqip }))
     const textContent = sanitizeMessage(textRef.current)
 
-    setSending(true)
     setSendError(null)
     clearPendingImages()
 
@@ -845,9 +932,8 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
 
     haptic(10)
 
-    const supabase = createClient()
-    const urls     = snapshots.map((s) => s.publicUrl)
-    const lqips    = snapshots.map((s) => s.lqip ?? null)
+    const urls  = snapshots.map((s) => s.publicUrl)
+    const lqips = snapshots.map((s) => s.lqip ?? null)
     // Pack all URLs + LQIPs as JSON so the server stores one message regardless of count.
     // MessageBubble detects this by JSON.parse(image_url) → array.
     const imageUrlJson  = JSON.stringify(urls)
@@ -855,6 +941,9 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     // content = typed text (shown below images); fall back to first URL for home preview compat
     const msgContent = textContent || urls[0]
 
+    // Client-generated id doubles as the outbox job key — random suffix (not just
+    // Date.now()) avoids a collision if multiple sends fire within the same millisecond,
+    // which concurrent (non-blocking) sends make possible.
     const tempId = `opt_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
     const optimisticMsg: MessageWithProfile = {
       id:              tempId,
@@ -870,45 +959,24 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
       image_blur_hash: imageBlurJson,
       profile:         userProfile,
       tempId,
+      sendStatus:      'sending',
     }
     addMessage(optimisticMsg)
     if (!isDM) bumpCrewXP()
 
-    try {
-      const { data: raw, error } = await supabase.rpc('insert_message', {
-        p_crew_id:         crewId,
-        p_content:         msgContent,
-        p_message_type:    'image',
-        p_image_url:       imageUrlJson,
-        p_image_blur_hash: imageBlurJson,
-      })
-      if (error) throw error
-      if (!raw) throw new Error('No message returned from server.')
-
-      const alreadyAdded = useChatStore.getState().messages.some((m) => m.id === raw.id)
-      if (alreadyAdded) removeMessage(raw.id)
-      updateMessage(tempId, raw)
-      setHomeLastMessage(crewId, { content: textContent || raw.content, created_at: raw.created_at, sender: userProfile.username })
-
-      broadcastNewMessage(raw)
-      tryClaimDailyGem(supabase, showGemToast)
-      settleXp(raw.id, 'image', msgContent, [])
-
-    } catch (err) {
-      console.error('[sendImages]', err)
-      removeMessage(tempId)
-      setSendError(err instanceof Error ? err.message : 'Failed to send image.')
+    const job: OutboxJob = {
+      tempId, crewId, userId, username: userProfile.username, content: msgContent,
+      messageType: 'image', imageUrl: imageUrlJson, imageBlurHash: imageBlurJson,
+      mentionedUserIds: [], createdAt: optimisticMsg.created_at,
     }
+    addToOutbox(job).catch(() => {})
+    void sendWithRetry(job, (raw) => handleSendSuccess(raw, job))
 
-    setSending(false)
     focusField()
-  }, [sending, crewId, userId, userProfile, isDM, addMessage, removeMessage, updateMessage, addUserCoins, bumpCrewXP, clearPendingImages]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [crewId, userId, userProfile, isDM, addMessage, bumpCrewXP, clearPendingImages, handleSendSuccess]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const sendGif = useCallback(async (gifUrl: string) => {
-    if (sending) return
-
-    const tempId = `opt_${Date.now()}`
-    setSending(true)
+  const sendGif = useCallback((gifUrl: string) => {
+    const tempId = `opt_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
     setSendError(null)
     haptic(10)
 
@@ -926,46 +994,25 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
       image_blur_hash: undefined,
       profile:         userProfile,
       tempId,
+      sendStatus:      'sending',
     }
     addMessage(optimisticMsg)
     if (!isDM) bumpCrewXP()
 
-    try {
-      const supabase = createClient()
-      const { data: raw, error } = await supabase.rpc('insert_message', {
-        p_crew_id:         crewId,
-        p_content:         gifUrl,
-        p_message_type:    'image',
-        p_image_url:       gifUrl,
-        p_image_blur_hash: null,
-      })
-      if (error) throw error
-      if (!raw) throw new Error('No message returned from server.')
-
-      const alreadyAdded = useChatStore.getState().messages.some((m) => m.id === raw.id)
-      if (alreadyAdded) {
-        removeMessage(raw.id)
-      }
-      updateMessage(tempId, raw)
-      setHomeLastMessage(crewId, { content: raw.content, created_at: raw.created_at, sender: userProfile.username })
-
-      broadcastNewMessage(raw)
-      tryClaimDailyGem(supabase, showGemToast)
-      settleXp(raw.id, 'image', gifUrl, [])
-
-    } catch (err) {
-      console.error('[sendGif]', err)
-      removeMessage(tempId)
-      setSendError(err instanceof Error ? err.message : 'Failed to send GIF.')
-    } finally {
-      setSending(false)
-      focusField()
+    const job: OutboxJob = {
+      tempId, crewId, userId, username: userProfile.username, content: gifUrl,
+      messageType: 'image', imageUrl: gifUrl, imageBlurHash: null,
+      mentionedUserIds: [], createdAt: optimisticMsg.created_at,
     }
-  }, [sending, crewId, userId, userProfile, addMessage, removeMessage, updateMessage, addUserCoins]) // eslint-disable-line react-hooks/exhaustive-deps
+    addToOutbox(job).catch(() => {})
+    void sendWithRetry(job, (raw) => handleSendSuccess(raw, job))
 
-  const send = useCallback(async () => {
+    focusField()
+  }, [crewId, userId, userProfile, isDM, addMessage, bumpCrewXP, handleSendSuccess]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const send = useCallback(() => {
     const content = sanitizeMessage(text)
-    if (!content || sending) return
+    if (!content) return
 
     // Detect mentioned user IDs from @username patterns in the message
     const currentProfiles = profilesRef.current
@@ -989,7 +1036,6 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     // Capture reply context before clearing state
     const currentReply = useChatStore.getState().replyTo
 
-    setSending(true)
     setSendError(null)
     setText('')
     textRef.current = ''
@@ -1001,125 +1047,91 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     isMultilineRef.current = false
     if (wasMultiline) pendingCaretPosRef.current = 0
     haptic(10)
+    // Refocus immediately (not after the network round trip) — the compose box is
+    // already clear, so the user can keep typing the next message right away instead
+    // of waiting for this one to be confirmed by the server.
+    inputRef.current?.focus()
 
-    const supabase    = createClient()
-    const replyToId       = currentReply?.id ?? null
-    const replyPreview    = currentReply ? currentReply.content.slice(0, 100) : null
-    const replyUsername   = currentReply?.profile?.username ?? null
+    const replyToId     = currentReply?.id ?? null
+    const replyPreview  = currentReply ? currentReply.content.slice(0, 100) : null
+    const replyUsername = currentReply?.profile?.username ?? null
 
     // Optimistic: add the message instantly so it appears before the RPC round-trip.
-    const tempId = `opt_${Date.now()}`
+    // Client-generated id doubles as the outbox job key — random suffix avoids a
+    // collision if multiple sends fire within the same millisecond, which concurrent
+    // (non-blocking) sends make possible.
+    const tempId = `opt_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
     const optimisticMsg: MessageWithProfile = {
       id: tempId, crew_id: crewId, user_id: userId, content,
       message_type: 'text', element_type: null,
       xp_awarded: 1, reactions: {}, created_at: new Date().toISOString(),
       profile: userProfile,
       reply_to_id: replyToId, reply_preview: replyPreview, reply_username: replyUsername,
-      tempId,
+      tempId, sendStatus: 'sending',
     }
     addMessage(optimisticMsg)
     if (!isDM) bumpCrewXP()
 
-    try {
-      const { data: raw, error } = await supabase.rpc('insert_message', {
-        p_crew_id: crewId, p_content: content, p_message_type: 'text',
-        p_reply_to_id: replyToId, p_reply_preview: replyPreview, p_reply_username: replyUsername,
-      })
-      if (error) throw error
-
-      // Replace the optimistic message with the confirmed server row.
-      // If a Postgres Changes INSERT arrived first, raw.id is already in the store
-      // as a separate entry — remove that duplicate, then always patch the temp in
-      // place so the virtualizer key (tempId) stays stable and avoids a key swap.
-      const alreadyAdded = useChatStore.getState().messages.some((m) => m.id === raw.id)
-      if (alreadyAdded) {
-        removeMessage(raw.id)
-      }
-      updateMessage(tempId, raw)
-      setHomeLastMessage(crewId, { content: raw.content, created_at: raw.created_at, sender: userProfile.username })
-
-      if (channelReadyRef.current) {
-        broadcastNewMessage(raw)
-        // Piggyback heartbeat on send — proves liveness, keeps DB timestamp fresh between intervals.
-        // The broadcast is cheap and always fires; the DB write is throttled since the 30s
-        // heartbeat interval already keeps last_active_at fresh enough for presence purposes.
-        const ts = Date.now()
-        setLastActive(userId, ts)
-        msgChannelRef.current?.send({ type: 'broadcast', event: 'active', payload: { user_id: userId, ts } })
-        if (ts - lastActiveWriteRef.current > ACTIVE_WRITE_THROTTLE_MS) {
-          lastActiveWriteRef.current = ts
-          supabase.rpc('update_active').then(() => {}, (err) => {
-            if (config.isDev) console.warn('[presence] update_active failed', err)
-          })
-        }
-      }
-
-      tryClaimDailyGem(supabase, showGemToast)
-      settleXp(raw.id, 'text', content, mentionedUserIds, replyToId)
-
-      if (fxpEnabled) {
-        // Friendship XP — shared helper: fade-in 200ms, hold 2000ms, then exit animation (400ms) runs
-        const showFriendshipToast = (totalXP: number, xpAwarded: number, partnerName: string, dailyCount: number) => {
-          if (friendshipToastTimerRef.current) clearTimeout(friendshipToastTimerRef.current)
-          setFriendshipToast({ totalXP, xpAwarded, partnerName, dailyCount })
-          friendshipToastTimerRef.current = setTimeout(() => setFriendshipToast(null), 2200)
-        }
-
-        // Local midnight as UTC ISO string — used by the server to compute the daily limit window
-        const now = new Date()
-        const localMidnightUTC = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).toISOString()
-
-        // Friendship XP — DM send
-        if (isDM && dmPartnerId) {
-          const dmPartnerName = liveCrewName
-          fetch(`${SUPABASE_URL}/functions/v1/award-friendship-xp`, {
-            method:  'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
-            body:    JSON.stringify({ user_a_id: userId, user_b_id: dmPartnerId, source: 'dm', local_midnight_utc: localMidnightUTC }),
-          })
-            .then((r) => r.json())
-            .then((data: { total_xp?: number; xp_awarded?: number; skipped?: boolean; daily_count?: number }) => {
-              if (typeof data.total_xp === 'number' && (data.xp_awarded ?? 0) > 0) {
-                showFriendshipToast(data.total_xp, data.xp_awarded!, dmPartnerName, data.daily_count ?? 1)
-              }
-            })
-            .catch(() => {})
-        }
-
-        // Friendship XP — @mention in group chat (toast for first awarded pair)
-        if (!isDM && mentionedUserIds.length > 0) {
-          let toastShown = false
-          mentionedUserIds.forEach((friendId) => {
-            const partnerName = profilesRef.current[friendId]?.username ?? 'Friend'
-            fetch(`${SUPABASE_URL}/functions/v1/award-friendship-xp`, {
-              method:  'POST',
-              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
-              body:    JSON.stringify({ user_a_id: userId, user_b_id: friendId, source: 'mention', local_midnight_utc: localMidnightUTC }),
-            })
-              .then((r) => r.json())
-              .then((data: { total_xp?: number; xp_awarded?: number; skipped?: boolean; daily_count?: number }) => {
-                if (!toastShown && typeof data.total_xp === 'number' && (data.xp_awarded ?? 0) > 0) {
-                  toastShown = true
-                  showFriendshipToast(data.total_xp, data.xp_awarded!, partnerName, data.daily_count ?? 1)
-                }
-              })
-              .catch(() => {})
-          })
-        }
-      }
-
-    } catch (err) {
-      removeMessage(tempId)
-      setText(content)
-      textRef.current = content
-      if (currentReply) setReplyTo(currentReply)
-      setSendError(err instanceof Error ? err.message : 'Failed to send. Tap to retry.')
-      requestAnimationFrame(() => recheckOverflow(content))
-    } finally {
-      setSending(false)
-      inputRef.current?.focus()
+    const job: OutboxJob = {
+      tempId, crewId, userId, username: userProfile.username, content,
+      messageType: 'text', replyToId, replyPreview, replyUsername,
+      mentionedUserIds, createdAt: optimisticMsg.created_at,
     }
-  }, [text, sending, crewId, userId, userProfile, addMessage, removeMessage, updateMessage]) // eslint-disable-line react-hooks/exhaustive-deps
+    addToOutbox(job).catch(() => {})
+    // Fire-and-forget — sendWithRetry owns retries/backoff and never blocks the
+    // compose box, so the user is free to send more messages immediately, even on
+    // a connection slow enough that this particular send takes several seconds.
+    void sendWithRetry(job, (raw) => handleSendSuccess(raw, job))
+  }, [text, crewId, userId, userProfile, isDM, addMessage, bumpCrewXP, setReplyTo, handleSendSuccess]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Retries a previously-failed send. Reads the original job back from the outbox by
+  // tempId (persists across reloads, so this also works for a failed send resumed in
+  // a later session) and resumes it through the exact same success path as a fresh send.
+  const retrySend = useCallback((tempId: string) => {
+    readOutbox(crewId).then((jobs) => {
+      const job = jobs.find((j) => j.tempId === tempId)
+      if (!job) return
+      void sendWithRetry(job, (raw) => handleSendSuccess(raw, job))
+    })
+  }, [crewId, handleSendSuccess])
+
+  // Register this crew's retry dispatcher so MessageBubble's "failed — tap to retry"
+  // affordance can reach it despite living in a sibling component (MessageList).
+  useEffect(() => {
+    useChatStore.getState().setRequestRetrySend(retrySend)
+    return () => {
+      if (useChatStore.getState().requestRetrySend === retrySend) {
+        useChatStore.getState().setRequestRetrySend(null)
+      }
+    }
+  }, [retrySend])
+
+  // Resume any sends still pending from a previous session (app killed or tab closed
+  // mid-send) — reconstructs the optimistic bubble if it isn't already in the store
+  // (a fresh page load never persisted it), then re-attempts exactly like a manual retry.
+  useEffect(() => {
+    let cancelled = false
+    readOutbox(crewId).then((jobs) => {
+      if (cancelled) return
+      for (const job of jobs) {
+        const exists = useChatStore.getState().messages.some((m) => m.id === job.tempId)
+        if (!exists) {
+          const optimisticMsg: MessageWithProfile = {
+            id: job.tempId, crew_id: job.crewId, user_id: job.userId, content: job.content,
+            message_type: job.messageType, element_type: null,
+            xp_awarded: 1, reactions: {}, created_at: job.createdAt,
+            profile: userProfile,
+            reply_to_id: job.replyToId ?? null, reply_preview: job.replyPreview ?? null, reply_username: job.replyUsername ?? null,
+            image_url: job.imageUrl ?? undefined, image_blur_hash: job.imageBlurHash ?? undefined,
+            tempId: job.tempId, sendStatus: 'sending',
+          }
+          addMessage(optimisticMsg)
+        }
+        void sendWithRetry(job, (raw) => handleSendSuccess(raw, job))
+      }
+    })
+    return () => { cancelled = true }
+  }, [crewId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleEditSend = useCallback(async () => {
     const currentEdit = useChatStore.getState().editTo
@@ -1707,7 +1719,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
                     <div className="flex items-center gap-3 flex-shrink-0">
                       <button
                         onClick={editTo ? () => void handleEditSend() : canSendImgs ? sendImages : send}
-                        disabled={editTo ? !text.trim() : !canSend || sending}
+                        disabled={editTo ? !text.trim() : !canSend}
                         className={`flex items-center justify-center w-4 h-4 transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${canSend ? 'text-purple' : 'text-muted'}`}
                         aria-label="Send message"
                       >
