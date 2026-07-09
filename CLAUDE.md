@@ -144,7 +144,7 @@ Client-side (`nexus_dev_mode`): `MessageList` hides boss/artifact/level-up syste
 
 ### Own Profile Page (`src/features/profile/screens/ProfileClient.tsx`, route `/profile`)
 Top bar (Figma 339:3457): back chevron (left) + up to two icon buttons (right), all sharing the same `ProfileTopBarButton` style — `background: rgba(0,0,0,0.25)`, `padding: var(--x3)` (8px), no border/blur/shadow (this replaced the old bordered/blurred settings-cog button; match this flat style for any new button added to this bar, don't reintroduce the border+backdrop-blur treatment).
-- **`Braces`** icon (`isDev` **and** `nexus_dev_mode` localStorage flag both required — hidden if either is off) → `router.push('/profile/settings')`, the Developer tools page.
+- **`Braces`** icon (`isDev` only — no longer also gated on the `nexus_dev_mode` localStorage flag; that flag has no way to be set on-device without devtools access, which made the button unreachable on mobile PWAs for otherwise-legitimate dev accounts) → `router.push('/profile/settings')`, the Developer tools page. `/profile/settings` and `/profile/developer/announcements` still independently redirect non-dev users server-side, so this is cosmetic, not a security gate.
 - **`MagicEdit`** icon (rightmost, disabled for guests) → `router.push('/profile/manage')`, the Manage Profile page. No Notification row anywhere — notification preferences are per-crew only (`crew_notification_preferences`, via `SquadDetailsSheet`'s Bell icon → `NotifSheet`), not global.
 
 ### Manage Profile Page (`src/features/profile/screens/ManageUserProfile.tsx`, route `/profile/manage`, Figma 470:5491)

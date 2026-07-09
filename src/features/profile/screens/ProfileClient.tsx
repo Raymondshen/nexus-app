@@ -117,11 +117,6 @@ export function ProfileClient({
   // ── Dev feature flags ─────────────────────────────────────────────────────
   const [afkExp,      setAfkExp]      = useState(false)
   const [fxpEnabled,  setFxpEnabled]  = useState(false)
-  const [devModeOn,   setDevModeOn]   = useState(false)
-
-  useEffect(() => {
-    setDevModeOn(localStorage.getItem('nexus_dev_mode') === '1')
-  }, [])
 
   useEffect(() => {
     setAfkExp(localStorage.getItem('nexus_afk_exp') === '1')
@@ -231,7 +226,7 @@ export function ProfileClient({
           </div>
 
           <div className="flex items-center pointer-events-auto" style={{ gap: 16 }}>
-            {isDev && devModeOn && (
+            {isDev && (
               <ProfileTopBarButton onClick={() => router.push('/profile/settings')} ariaLabel="Developer settings">
                 <Braces style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
               </ProfileTopBarButton>
