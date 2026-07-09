@@ -110,7 +110,7 @@ export function ManageUserProfile({
     >
       <ManageProfileHeader />
 
-      <div className="flex-1 overflow-y-auto nexus-scroll flex flex-col">
+      <div className="flex-1 min-h-0 overflow-y-auto nexus-scroll flex flex-col">
 
         {/* Hero */}
         <div
@@ -252,19 +252,19 @@ export function ManageUserProfile({
           )}
         </div>
 
-        {/* Save Changes */}
-        <div className="flex flex-col w-full flex-shrink-0" style={{ paddingLeft: 16, paddingRight: 16, paddingTop: 16, paddingBottom: 28 }}>
-          <Button
-            shadow
-            onClick={handleSave}
-            disabled={saving || !displayName.trim() || displayName.trim().length < 3}
-            loading={saving}
-            className="w-full"
-          >
-            Save Changes
-          </Button>
-        </div>
+      </div>
 
+      {/* Save Changes — sticky footer, sibling of the scroll area so it docks to the true bottom */}
+      <div className="flex flex-col w-full flex-shrink-0" style={{ paddingLeft: 16, paddingRight: 16, paddingTop: 16, paddingBottom: 28 }}>
+        <Button
+          shadow
+          onClick={handleSave}
+          disabled={saving || !displayName.trim() || displayName.trim().length < 3}
+          loading={saving}
+          className="w-full"
+        >
+          Save Changes
+        </Button>
       </div>
 
       {/* Hidden avatar file input */}
