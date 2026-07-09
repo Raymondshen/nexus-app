@@ -9,8 +9,6 @@ import { Upload } from 'pixelarticons/react/Upload'
 import { TokeCircle } from 'pixelarticons/react/TokeCircle'
 import { Heart } from 'pixelarticons/react/Heart'
 import { Copy } from 'pixelarticons/react/Copy'
-import { Check } from 'pixelarticons/react/Check'
-import { Crown } from 'pixelarticons/react/Crown'
 import { Message as MessageIcon } from 'pixelarticons/react/Message'
 import { TickerBanner } from '@/shared/components/banners/TickerBanner'
 import { MailRight } from 'pixelarticons/react/MailRight'
@@ -18,11 +16,13 @@ import Image from 'next/image'
 import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
 import { UserAvatar } from '@/shared/components/ui/UserAvatar'
 import { GroupAvatar } from '@/shared/components/ui/GroupAvatar'
+import { InviteCodeCard } from '@/shared/components/ui/InviteCodeCard'
+import { UserCard, type MiniMember } from '@/shared/components/ui/UserCard'
 import { createClient } from '@/shared/supabase/client'
 import { leaveCrewAction, createCrewFromHomeAction, joinCrewFromHomeAction, joinSelectClassAction } from '@/app/(app)/home/actions'
-import { PixelSprite, spriteIdFor, spriteInfoFor } from '@/shared/components/game/PixelSprite'
+import { spriteIdFor } from '@/shared/components/game/PixelSprite'
 import { CLASS_BASE_STATS } from '@/features/combat/utils/combat'
-import type { AvatarClass, CombatClass } from '@/types'
+import type { CombatClass } from '@/types'
 import { updateCrewImageAction, updateCrewBackgroundImageAction } from '@/app/(app)/chat/actions'
 import { Button } from '@/shared/components/ui/Button'
 import type { CrewSummary } from '@/app/(app)/home/page'
@@ -1300,65 +1300,9 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
 }
 
 // ─── Home Squad Details Sheet ─────────────────────────────────────────────────
-
-const HOME_CLASS_LABELS: Record<string, string> = {
-  berserker: 'Berserker', sage: 'Sage', ghost: 'Ghost', hype_man: 'Hype Man',
-  the_voice: 'The Voice', meme_lord: 'Meme Lord', mage: 'Mage', warrior: 'Warrior',
-  rogue: 'Rogue', healer: 'Healer', archer: 'Archer',
-}
-
-interface SheetMember {
-  user_id:      string
-  username:     string
-  avatar_url:   string | null
-  avatar_class: string | null
-  combatClass:  string | null
-  msgCount:     number
-  isCreator:    boolean
-}
-
-function HomeSquadMemberRow({ member }: { member: SheetMember }) {
-  const spriteInfo = spriteInfoFor(member.avatar_class as AvatarClass)
-  const url        = member.avatar_url
-  const initial    = member.username[0]?.toUpperCase() ?? '?'
-  const classLabel = member.combatClass
-    ? (HOME_CLASS_LABELS[member.combatClass] ?? member.combatClass)
-    : 'Unknown'
-
-  return (
-    <div className="flex items-center gap-3">
-      {/* 32px avatar */}
-      <UserAvatar avatarUrl={url} username={member.username} size={32} />
-
-      {/* 32px pixel sprite — animated walk cycle */}
-      <div className="w-8 h-8 flex-shrink-0 flex items-center justify-center overflow-hidden">
-        {spriteInfo ? (
-          <PixelSprite spriteId={spriteInfo.id} nativePx={spriteInfo.nativePx} scale={1} animate />
-        ) : (
-          <span className="font-pixel text-[8px] text-purple">{initial}</span>
-        )}
-      </div>
-
-      {/* Name + class · msg count */}
-      <div className="flex flex-col gap-1 min-w-0 flex-1">
-        <div className="flex items-center gap-1 min-w-0">
-          <p
-            className="font-body font-bold text-primary truncate leading-none"
-            style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}
-          >
-            {member.username}
-          </p>
-          {member.isCreator && (
-            <Crown style={{ width: 12, height: 12, color: '#f59e0b', flexShrink: 0 }} aria-hidden="true" />
-          )}
-        </div>
-        <p className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>
-          {classLabel} · {member.msgCount.toLocaleString()} msg.
-        </p>
-      </div>
-    </div>
-  )
-}
+// Read-only mirror of SquadDetailsSheet (Figma 470:5082) — same header/invite/member-card
+// layout, minus the creator-only edit affordances and notif/library actions that belong
+// only to the in-chat version. Reuses UserCard + InviteCodeCard rather than re-inlining them.
 
 function HomeCrewDetailsSheet({
   summary,
@@ -1369,13 +1313,15 @@ function HomeCrewDetailsSheet({
   onLeaveRequest:  () => void
   onClose:         () => void
 }) {
+  const router = useRouter()
   const { crew, memberCount } = summary
-  const [members, setMembers] = useState<SheetMember[]>([])
-  const [bgUrl,   setBgUrl]   = useState<string | null>(
+  const [members,   setMembers]   = useState<MiniMember[]>([])
+  const [creatorId, setCreatorId] = useState<string | null>(null)
+  const [msgCounts, setMsgCounts] = useState<Map<string, number>>(new Map())
+  const [bgUrl,     setBgUrl]     = useState<string | null>(
     (crew.background_image_url as string | null | undefined) ?? null,
   )
   const [loading, setLoading] = useState(true)
-  const [copied,  setCopied]  = useState(false)
 
   const xpProgress = getXPProgress(crew.total_xp)
   const imageUrl   = crew.image_url as string | null | undefined
@@ -1390,7 +1336,7 @@ function HomeCrewDetailsSheet({
       const [membersResult, msgCountResult, crewResult] = await Promise.all([
         supabase
           .from('crew_members')
-          .select('user_id, class, joined_at, profiles(username, avatar_url, avatar_class)')
+          .select('user_id, class, joined_at, profiles(username, avatar_url, avatar_class, background_url, status)')
           .eq('crew_id', crew.id),
         supabase.rpc('get_crew_member_msg_counts', { p_crew_id: crew.id }),
         needsBg
@@ -1409,27 +1355,31 @@ function HomeCrewDetailsSheet({
         user_id:   string
         class:     string | null
         joined_at: string
-        profiles:  { username: string; avatar_url: string | null; avatar_class: string | null } | null
+        profiles:  {
+          username: string; avatar_url: string | null; avatar_class: string | null
+          background_url: string | null; status: string | null
+        } | null
       }>
 
-      const creatorId = rawMembers.reduce<{ id: string; ts: string } | null>((earliest, m) => {
+      const creator = rawMembers.reduce<{ id: string; ts: string } | null>((earliest, m) => {
         if (earliest === null || m.joined_at < earliest.ts) return { id: m.user_id, ts: m.joined_at }
         return earliest
       }, null)?.id ?? null
 
-      const list: SheetMember[] = rawMembers
+      const list: MiniMember[] = rawMembers
         .map((m) => ({
-          user_id:      m.user_id,
-          username:     m.profiles?.username     ?? 'Unknown',
-          avatar_url:   m.profiles?.avatar_url   ?? null,
-          avatar_class: m.profiles?.avatar_class ?? null,
-          combatClass:  m.class,
-          msgCount:     msgMap.get(m.user_id) ?? 0,
-          isCreator:    m.user_id === creatorId,
+          id:             m.user_id,
+          username:       m.profiles?.username       ?? 'Unknown',
+          avatar_url:     m.profiles?.avatar_url     ?? null,
+          avatar_class:   m.profiles?.avatar_class   ?? null,
+          background_url: m.profiles?.background_url ?? null,
+          status:         m.profiles?.status         ?? null,
         }))
-        .sort((a, b) => b.msgCount - a.msgCount)
+        .sort((a, b) => (msgMap.get(b.id) ?? 0) - (msgMap.get(a.id) ?? 0))
 
       setMembers(list)
+      setMsgCounts(msgMap)
+      setCreatorId(creator)
 
       if (needsBg && crewResult.data) {
         const bg = (crewResult.data as { background_image_url?: string | null }).background_image_url
@@ -1442,13 +1392,6 @@ function HomeCrewDetailsSheet({
     fetchData()
     return () => { cancelled = true }
   }, [crew.id]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  function handleCopyCode() {
-    if (!crew.invite_code || copied) return
-    navigator.clipboard.writeText(`Come join my squad on Nexus app ${crew.invite_code}`).catch(() => {})
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1000)
-  }
 
   return (
     <>
@@ -1475,10 +1418,10 @@ function HomeCrewDetailsSheet({
         style={{ maxHeight: '85vh' }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* ── Group header — 180px (matches SquadDetailsSheet pattern) ── */}
+        {/* ── Group header — 240px, full-bleed (Figma 470:5082 / matches SquadDetailsSheet) ── */}
         <div
           className="relative flex-shrink-0 flex flex-col justify-between rounded-tl-[16px] rounded-tr-[16px] overflow-hidden"
-          style={{ height: 180, padding: 16 }}
+          style={{ height: 240, padding: 16 }}
         >
           {bgUrl ? (
             <div className="absolute inset-0 pointer-events-none">
@@ -1499,9 +1442,9 @@ function HomeCrewDetailsSheet({
             style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.604) 33%, rgba(0,0,0,0.6) 66%, rgba(0,0,0,0.8) 100%)' }}
           />
 
-          {/* Top row: crew image + name/count | close */}
+          {/* Top row: crew image + name/level/count | close */}
           <div className="relative flex items-start justify-between">
-            <div className="flex items-center min-w-0 flex-1" style={{ gap: 16 }}>
+            <div className="flex items-center min-w-0 flex-1" style={{ gap: 8 }}>
               <GroupAvatar imageUrl={imageUrl} name={crew.name} size={40} />
               <div className="flex flex-col min-w-0" style={{ gap: 4 }}>
                 <p
@@ -1511,7 +1454,7 @@ function HomeCrewDetailsSheet({
                   {crew.name}
                 </p>
                 <p className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>
-                  {memberCount} {memberCount === 1 ? 'member' : 'members'}
+                  Lv.{crew.level} · {memberCount} {memberCount === 1 ? 'member' : 'members'}
                 </p>
               </div>
             </div>
@@ -1548,104 +1491,47 @@ function HomeCrewDetailsSheet({
           </div>
         </div>
 
-        {/* ── Invite card — fixed (not scrollable) ── */}
-        <div className="flex-shrink-0 px-4 pt-4">
-          <div
-            className="flex items-center justify-between overflow-hidden"
-            style={{ padding: 16, background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}
-          >
-            <div className="flex flex-col" style={{ gap: 4 }}>
-              <p className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-primary)' }}>
-                Invite new members
-              </p>
-              <p
-                className="font-silkscreen leading-none tracking-[0.2px] bg-clip-text bg-gradient-to-r from-[#a855f7] to-[#d946ef] text-transparent"
-                style={{ fontSize: 'var(--text-xl)', textShadow: '0px 0px 3px #a855f7' }}
-              >
-                {crew.invite_code}
-              </p>
-            </div>
-            <button
-              onClick={handleCopyCode}
-              className="flex items-center flex-shrink-0 transition-colors duration-150"
-              style={{
-                gap: 8,
-                padding: '12px 16px',
-                ...(copied
-                  ? { backgroundColor: 'var(--color-success)', boxShadow: '4px 4px 0px 0px rgba(34,197,94,0.5)' }
-                  : { backgroundColor: 'var(--color-purple)', boxShadow: '4px 4px 0px 0px rgba(168,85,247,0.5)' }
-                ),
-              }}
-            >
-              {copied ? (
-                <>
-                  <Check style={{ width: 12, height: 12, color: 'var(--color-primary)' }} aria-hidden="true" />
-                  <span className="font-silkscreen leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-xxs)', color: 'var(--color-primary)' }}>
-                    copied
-                  </span>
-                </>
+        {/* ── Members section (flex-1, vertical overflow only on short viewports —
+             matches SquadDetailsSheet's Members section exactly) ── */}
+        <div className="flex-1 min-h-0 flex flex-col overflow-y-auto nexus-scroll" style={{ padding: 16, gap: 16 }}>
+          <p className="flex-shrink-0 font-silkscreen leading-none" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-primary)' }}>
+            Members
+          </p>
+
+          {crew.invite_code && <InviteCodeCard inviteCode={crew.invite_code} style={{ flexShrink: 0 }} />}
+
+          {/* Horizontally-scrollable member card row */}
+          <div className="flex overflow-x-auto no-scrollbar flex-shrink-0" style={{ gap: 8 }}>
+            {(loading ? Array.from({ length: Math.min(memberCount, 3) }) : members).map((m, i) => (
+              loading || !m ? (
+                <div key={i} className="flex-shrink-0 bg-border animate-pulse rounded-[var(--x3,8px)]" style={{ width: 180, height: 216 }} />
               ) : (
-                <>
-                  <Copy style={{ width: 12, height: 12, color: 'var(--color-primary)' }} aria-hidden="true" />
-                  <span className="font-silkscreen leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-xxs)', color: 'var(--color-primary)' }}>
-                    Copy Code
-                  </span>
-                </>
-              )}
-            </button>
+                <UserCard
+                  key={(m as MiniMember).id}
+                  profile={m as MiniMember}
+                  msgCount={msgCounts.get((m as MiniMember).id) ?? 0}
+                  loading={false}
+                  isOnline={false}
+                  isCreator={(m as MiniMember).id === creatorId}
+                  onTap={() => router.push(`/chat/${crew.id}/member/${(m as MiniMember).id}`)}
+                />
+              )
+            ))}
           </div>
         </div>
 
-        {/* ── Members label — fixed ── */}
-        <div className="flex-shrink-0 px-4 pt-4">
-          <p className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-primary)' }}>
-            Members
-          </p>
-        </div>
-
-        {/* ── Scrollable member list ── */}
-        <div className="flex-1 overflow-y-auto nexus-scroll px-4 pt-4 min-h-0">
-          {loading ? (
-            <div className="flex flex-col" style={{ gap: 20 }}>
-              {Array.from({ length: Math.min(memberCount, 5) }).map((_, i) => (
-                <div key={i} className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-border animate-pulse flex-shrink-0" />
-                  <div className="w-8 h-8 bg-border animate-pulse flex-shrink-0" />
-                  <div className="flex flex-col gap-2 flex-1">
-                    <div className="h-4 w-28 bg-border animate-pulse" />
-                    <div className="h-2 w-20 bg-border animate-pulse" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="flex flex-col" style={{ gap: 20 }}>
-              {members.map((m) => (
-                <HomeSquadMemberRow key={m.user_id} member={m} />
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* ── Leave Squad — fixed (not scrollable) ── */}
+        {/* ── Fixed bottom: leave squad ── */}
         <div
-          className="flex-shrink-0 px-4 pt-4"
-          style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 28px)' }}
+          className="flex-shrink-0"
+          style={{ paddingLeft: 16, paddingRight: 16, paddingTop: 16, paddingBottom: 'max(env(safe-area-inset-bottom), 28px)' }}
         >
           <button
             type="button"
             onClick={onLeaveRequest}
-            className="w-full flex items-center justify-center gap-2 font-silkscreen overflow-hidden"
+            className="w-full flex items-center justify-center font-silkscreen overflow-hidden"
             style={{ height: 48, fontSize: 'var(--text-xs)', color: 'var(--red)', border: '1px solid var(--red)' }}
             aria-label="Leave squad"
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/icons/leave-pixel.svg"
-              alt=""
-              aria-hidden="true"
-              style={{ width: 16, height: 16, imageRendering: 'pixelated', maxWidth: 'none' }}
-            />
             leave squad
           </button>
         </div>

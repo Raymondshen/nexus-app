@@ -1,41 +1,24 @@
 'use client'
 
-import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
 import Image from 'next/image'
-import { supabaseImageLoader, heightCropImageUrl } from '@/shared/supabase/imageLoader'
-import { UserAvatar } from '@/shared/components/ui/UserAvatar'
+import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
 import { GroupAvatar } from '@/shared/components/ui/GroupAvatar'
 import { getXPInCurrentLevel, getXPForCurrentLevel } from '@/shared/utils/xp'
-import { PixelSprite, spriteInfoFor } from '@/shared/components/game/PixelSprite'
 import { MagicEdit } from 'pixelarticons/react/MagicEdit'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
 import { DoorClosed } from 'pixelarticons/react/DoorClosed'
-import { Crown } from 'pixelarticons/react/Crown'
-import { Message } from 'pixelarticons/react/Message'
 import { Upload } from 'pixelarticons/react/Upload'
 import { Bell } from 'pixelarticons/react/Bell'
 import { BellOff } from 'pixelarticons/react/BellOff'
 import { Library } from 'pixelarticons/react/Library'
 import { DefinitionButton } from '@/shared/components/ui/DefinitionButton'
 import { InviteCodeCard } from '@/shared/components/ui/InviteCodeCard'
-import { VinylPill } from '@/shared/components/ui/VinylPill'
+import { UserCard, type MiniMember } from '@/shared/components/ui/UserCard'
 
-const CLASS_LABELS: Record<string, string> = {
-  berserker: 'Berserker', sage: 'Sage', ghost: 'Ghost', hype_man: 'Hype Man',
-  the_voice: 'The Voice', meme_lord: 'Meme Lord', mage: 'Mage', warrior: 'Warrior',
-  rogue: 'Rogue', healer: 'Healer', archer: 'Archer',
-}
-
-export type MiniMember = {
-  id:             string
-  username:       string
-  avatar_url:     string | null
-  avatar_class:   string | null | undefined
-  background_url: string | null
-  status?:        string | null
-}
+export type { MiniMember }
 
 interface SquadDetailsSheetProps {
   crewName:                string
@@ -63,155 +46,6 @@ interface SquadDetailsSheetProps {
   onLibrary:               () => void
   onLeave?:                () => void
   onClose:                 () => void
-}
-
-function StatusTicker({ status }: { status: string }) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const itemRef      = useRef<HTMLSpanElement>(null)
-  const [numCopies, setNumCopies] = useState(6)
-  const [animPx,    setAnimPx]    = useState(0)
-
-  useLayoutEffect(() => {
-    const container = containerRef.current
-    const item      = itemRef.current
-    if (!container || !item) return
-    const cw = container.clientWidth
-    const iw = item.offsetWidth
-    if (iw <= 0) return
-    const halfNeeded = Math.ceil(cw / iw) + 1
-    const n          = Math.max(4, halfNeeded % 2 === 0 ? halfNeeded * 2 : (halfNeeded + 1) * 2)
-    setNumCopies(n)
-    setAnimPx(iw * (n / 2))
-  }, [status])
-
-  const duration = Math.max(11, status.length * 0.28 + 5)
-
-  return (
-    <div
-      ref={containerRef}
-      className="overflow-hidden border-t border-b border-border px-2"
-      style={{ paddingTop: 7, paddingBottom: 7 }}
-    >
-      <motion.div
-        key={status}
-        className="flex"
-        initial={{ x: 0 }}
-        animate={{ x: animPx > 0 ? [0, -animPx] : 0 }}
-        transition={{ duration, repeat: Infinity, ease: 'linear', repeatType: 'loop' }}
-      >
-        {Array.from({ length: numCopies }, (_, i) => (
-          <span
-            key={i}
-            ref={i === 0 ? itemRef : undefined}
-            className="inline-flex items-center flex-shrink-0 whitespace-nowrap pr-2"
-            style={{ gap: 4 }}
-          >
-            <Message style={{ width: 8, height: 8, color: 'var(--color-tertiary)' }} aria-hidden="true" />
-            <span className="font-silkscreen text-[length:var(--text-mini)] text-tertiary leading-none">
-              &ldquo;{status}&rdquo;
-            </span>
-          </span>
-        ))}
-      </motion.div>
-    </div>
-  )
-}
-
-function UserCard({
-  profile, msgCount, loading, isOnline, isCreator, vinyl, onTap,
-}: {
-  profile: MiniMember; msgCount: number; loading: boolean; isOnline: boolean
-  isCreator?: boolean
-  vinyl?: { imageUrl: string | null; title: string | null } | null
-  onTap?: () => void
-}) {
-  const spriteInfo = spriteInfoFor(profile.avatar_class ?? null)
-  const initial    = profile.username[0]?.toUpperCase() ?? '?'
-  const classLabel = profile.avatar_class ? (CLASS_LABELS[profile.avatar_class] ?? profile.avatar_class) : 'Unknown'
-
-  return (
-    <div
-      className="flex flex-col flex-shrink-0 bg-black border border-[var(--color-border-hover)] rounded-[var(--x3,8px)] overflow-hidden active:opacity-70 transition-opacity"
-      style={{ width: 180, gap: 12, paddingBottom: profile.status ? 0 : 16, cursor: onTap ? 'pointer' : undefined }}
-      onClick={onTap}
-    >
-      {/* Background header + avatar */}
-      <div
-        className="relative flex flex-col items-start justify-end flex-shrink-0 w-full overflow-hidden rounded-tl-[7px] rounded-tr-[7px]"
-        style={{ height: 108, padding: 12 }}
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element -- height-anchored crop (see CLAUDE.md Images: "Plain <img>: ... hero backgrounds") needs manual sizing next/image's fill mode can't express */}
-        <img
-          src={heightCropImageUrl(profile.background_url ?? '/img/default_image.png', 216)}
-          alt=""
-          aria-hidden
-          loading="lazy"
-          decoding="async"
-          style={{
-            position:      'absolute',
-            top:           0,
-            left:          '50%',
-            height:        '100%',
-            width:         'auto',
-            maxWidth:      'none',
-            transform:     'translateX(-50%)',
-            pointerEvents: 'none',
-          }}
-        />
-        <div
-          className="absolute inset-0 pointer-events-none rounded-tl-[7px] rounded-tr-[7px]"
-          style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.604) 33%, rgba(0,0,0,0.6) 66%, rgba(0,0,0,0.8) 100%)' }}
-        />
-        <div className="relative flex-shrink-0">
-          <UserAvatar avatarUrl={profile.avatar_url} username={profile.username} size={32} />
-          {isOnline && (
-            <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#66bb6a] border-[1.5px] border-black" />
-          )}
-        </div>
-      </div>
-
-      {/* Name + class/admin/sprite row + vinyl pill */}
-      <div className="flex flex-col w-full flex-shrink-0" style={{ paddingLeft: 12, paddingRight: 12, gap: 8 }}>
-        <p
-          className="font-body font-bold text-primary truncate leading-none w-full"
-          style={{ fontSize: 16, fontVariationSettings: '"opsz" 14' }}
-        >
-          {profile.username}
-        </p>
-
-        <div className="flex items-center flex-shrink-0" style={{ gap: 8 }}>
-          {isCreator && (
-            <Crown style={{ width: 12, height: 12, color: 'var(--color-coins)', flexShrink: 0 }} aria-hidden="true" />
-          )}
-          <div className="flex items-center justify-center overflow-hidden flex-shrink-0" style={{ width: 12, height: 12 }}>
-            {spriteInfo ? (
-              <PixelSprite spriteId={spriteInfo.id} nativePx={spriteInfo.nativePx} scale={0.5625} animate />
-            ) : (
-              <span className="font-pixel text-[6px] text-purple">{initial}</span>
-            )}
-          </div>
-          <p className="font-silkscreen leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>
-            {loading ? '...' : `${classLabel} · ${msgCount.toLocaleString()} msg.`}
-          </p>
-        </div>
-
-        {vinyl && (vinyl.imageUrl || vinyl.title) && (
-          <VinylPill imageUrl={vinyl.imageUrl} title={vinyl.title} />
-        )}
-      </div>
-
-      {/* Status ticker — marginTop: auto docks it to the card's true bottom edge even when
-          this card is stretched taller to match a taller sibling in the row (e.g. one with
-          a vinyl pill); without it the ticker would sit right after the content block and
-          leave the stretched slack below itself instead of above. No status → no ticker at
-          all, matching Figma's shorter no-status cards (e.g. 432:8008). */}
-      {profile.status && (
-        <div style={{ marginTop: 'auto' }}>
-          <StatusTicker status={profile.status} />
-        </div>
-      )}
-    </div>
-  )
 }
 
 // ─── Squad Details Edit Sheet ─────────────────────────────────────────────────
