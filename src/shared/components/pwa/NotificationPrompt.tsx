@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X } from 'lucide-react'
+import { Close } from 'pixelarticons/react/Close'
 import { requestPermission, subscribeToPush, isSupported, getPermissionState } from '@/shared/utils/notifications'
 
 const PROMPTED_KEY = 'nexus_notif_prompted'
@@ -100,7 +100,7 @@ function DefaultContent({
           className="w-8 h-8 flex items-center justify-center text-[#6b4f8f] hover:text-white"
           aria-label="Dismiss"
         >
-          <X size={16} />
+          <Close style={{ width: 16, height: 16 }} aria-hidden="true" />
         </button>
       </div>
 
@@ -154,7 +154,7 @@ function DeniedContent({ onClose }: { onClose: () => void }) {
           className="w-8 h-8 flex items-center justify-center text-[#6b4f8f] hover:text-white"
           aria-label="Close"
         >
-          <X size={16} />
+          <Close style={{ width: 16, height: 16 }} aria-hidden="true" />
         </button>
       </div>
       <p className="font-sans text-sm text-[#a78fc0] mb-4 leading-relaxed">

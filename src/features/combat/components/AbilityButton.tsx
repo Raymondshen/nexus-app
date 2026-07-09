@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useCombatStore } from '@/store/combatStore'
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/shared/constants/config'
+import { postEdgeFn } from '@/shared/utils/edgeFetch'
 import type { CombatClass } from '@/types'
 
 interface AbilityButtonProps {
@@ -26,7 +26,10 @@ const ABILITY_INFO: Record<CombatClass, { name: string; key: string; desc: strin
 export function AbilityButton({ crewId, userId, userClass, username }: AbilityButtonProps) {
   const [firing,  setFiring]  = useState(false)
   const [toast,   setToast]   = useState<{ text: string; ok: boolean } | null>(null)
-  const { activeRaid, memberStats } = useCombatStore()
+  // Individual selectors — the bare destructure also re-rendered on unrelated
+  // combatStore changes (damage floats, combat log events).
+  const activeRaid  = useCombatStore((s) => s.activeRaid)
+  const memberStats = useCombatStore((s) => s.memberStats)
 
   const ability   = ABILITY_INFO[userClass]
   const member    = memberStats[userId]
@@ -37,19 +40,17 @@ export function AbilityButton({ crewId, userId, userClass, username }: AbilityBu
     if (firing || !canAfford || downed || !activeRaid) return
     setFiring(true)
     try {
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/attack-boss`, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
-        body: JSON.stringify({
-          crew_id:      crewId,
-          user_id:      userId,
-          username,
-          message_type: 'text',
-          soft_blocked: false,
-          is_ability:   true,
-          ability_type: ability.key,
-        }),
+      // Session-token call — attack-boss verifies the caller IS user_id server-side.
+      const res = await postEdgeFn('attack-boss', {
+        crew_id:      crewId,
+        user_id:      userId,
+        username,
+        message_type: 'text',
+        soft_blocked: false,
+        is_ability:   true,
+        ability_type: ability.key,
       })
+      if (!res) throw new Error('no session')
       const data = await res.json() as { ability?: string; ability_blocked?: boolean; reason?: string; dmg?: number; heal_amount?: number; downed?: boolean }
       if (data.ability_blocked) {
         setToast({ text: 'Need 2 charges', ok: false })

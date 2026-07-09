@@ -66,6 +66,25 @@ Deno.serve(async (req: Request) => {
       )
     }
 
+    // Identity check: the caller must BE the user they're awarding XP for.
+    // verify_jwt alone is insufficient — the public anon key is a valid JWT, so
+    // without this anyone with the anon key (it ships in the client bundle)
+    // could mint XP/coins for arbitrary user_id/crew_id combinations. The
+    // client sends the user's session token; auth.getUser() resolves it and
+    // returns no user for the bare anon key or a forged token.
+    const authClient = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_ANON_KEY')!,
+      { global: { headers: { Authorization: req.headers.get('Authorization') ?? '' } } },
+    )
+    const { data: { user: caller } } = await authClient.auth.getUser()
+    if (!caller || caller.id !== user_id) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+      )
+    }
+
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,

@@ -147,6 +147,27 @@ function parseCombatEvent(content: string, messageId?: string, messageTs?: numbe
   }
 }
 
+// Content equality for the definitions list — covers every field MessageBubble
+// actually renders (inline highlight matching, the preview sheet, text effects).
+// Used to keep the previous array's identity when a re-fetch returns identical
+// content, so MessageBubble's memo comparator (which checks `definitions` by
+// reference) doesn't re-render every visible bubble for a no-op fetch.
+function definitionsEqual(a: SquadDefinitionWithCreator[], b: SquadDefinitionWithCreator[]): boolean {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i]
+    const y = b[i]
+    if (
+      x.id !== y.id ||
+      x.word !== y.word ||
+      x.definition !== y.definition ||
+      x.text_effect !== y.text_effect ||
+      x.creator_username !== y.creator_username
+    ) return false
+  }
+  return true
+}
+
 // Returns damage-float data for player attacks that deal boss damage; null otherwise
 function parseDamageFloat(content: string): { value: number; isCrit: boolean } | null {
   if (!content.startsWith('COMBAT:')) return null
@@ -188,8 +209,6 @@ export function MessageList({
   const prependMessages        = useChatStore((s) => s.prependMessages)
   const addMessage             = useChatStore((s) => s.addMessage)
   const updateMessage          = useChatStore((s) => s.updateMessage)
-  const setCrewXP              = useChatStore((s) => s.setCrewXP)
-  const receiveXP              = useChatStore((s) => s.receiveXP)
   const setPinnedScrollTargetId = useChatStore((s) => s.setPinnedScrollTargetId)
   const [localProfiles, setLocalProfiles] = useState<Record<string, Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url' | 'status'>>>(memberProfiles)
   const [historyLoaded, setHistoryLoaded] = useState(false)
@@ -885,7 +904,13 @@ export function MessageList({
       }
 
       if (!cancelled) {
-        setDefinitions(defs.map((d) => ({ ...d, creator_username: creatorMap[d.creator_id] })))
+        const next = defs.map((d) => ({ ...d, creator_username: creatorMap[d.creator_id] }))
+        // Preserve the previous array's identity when content is unchanged — the
+        // common case on remount (including the empty→empty case) — so this fetch
+        // doesn't invalidate every MessageBubble's memo for nothing. Realtime
+        // INSERT/DELETE handlers below still produce fresh arrays when content
+        // genuinely changes.
+        setDefinitions((prev) => (definitionsEqual(prev, next) ? prev : next))
       }
     }
 

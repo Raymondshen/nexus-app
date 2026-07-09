@@ -25,7 +25,9 @@ export function DMOverlayBack({
   friendId,
 }: DMOverlayBackProps) {
   const goBack = useSlideBack()
-  const { setCrewXP } = useChatStore()
+  // Selector, not a bare destructure — actions are stable, so this never re-renders;
+  // the destructure form subscribed this component to every chat-store change.
+  const setCrewXP = useChatStore((s) => s.setCrewXP)
 
   useEffect(() => {
     setCrewXP(initialXP)

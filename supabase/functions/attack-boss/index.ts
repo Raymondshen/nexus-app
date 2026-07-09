@@ -121,6 +121,17 @@ Deno.serve(async (req: Request) => {
 
     if (!crew_id || !user_id) return json({ error: 'Missing crew_id or user_id' }, 400)
 
+    // Identity check: caller must BE user_id. The anon key is a valid JWT for
+    // verify_jwt purposes but carries no user — without this, anyone with the
+    // (public) anon key could attack bosses / drain ability banks as any user.
+    const authClient = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_ANON_KEY')!,
+      { global: { headers: { Authorization: req.headers.get('Authorization') ?? '' } } },
+    )
+    const { data: { user: caller } } = await authClient.auth.getUser()
+    if (!caller || caller.id !== user_id) return json({ error: 'Unauthorized' }, 401)
+
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,

@@ -5,7 +5,9 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useCombatStore } from '@/store/combatStore'
 
 export function DamageFloatLayer() {
-  const { damageFloats } = useCombatStore()
+  // Selector — the bare destructure re-rendered this layer on every combatStore
+  // change (raid HP patches, member stats, log events), not just float spawns.
+  const damageFloats = useCombatStore((s) => s.damageFloats)
 
   return (
     <AnimatePresence>

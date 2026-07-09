@@ -1,7 +1,19 @@
 'use client'
 
 import { useState } from 'react'
-import Cropper, { type Area, type Point } from 'react-easy-crop'
+import dynamic from 'next/dynamic'
+import type { Area, Point } from 'react-easy-crop'
+
+// This is the only runtime import of react-easy-crop in the app (every other file
+// imports its types only), so lazy-loading it here defers the library for all crop
+// surfaces at once — the chunk is fetched the first time a cropper actually opens,
+// not on every chat/home page load that merely *can* open one.
+// Cast back to the original class-component type: react-easy-crop relies on
+// defaultProps for most of its props, and dynamic()'s inferred type drops the
+// LibraryManagedAttributes handling that makes those props optional in JSX.
+const Cropper = dynamic(() => import('react-easy-crop'), {
+  ssr: false,
+}) as unknown as typeof import('react-easy-crop').default
 
 interface ZoomPanCropperProps {
   image:    string

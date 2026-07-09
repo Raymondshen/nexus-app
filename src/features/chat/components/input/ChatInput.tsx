@@ -11,12 +11,13 @@ import { getXPProgress } from '@/shared/utils/xp'
 import { useChatStore } from '@/store/chatStore'
 import { FriendshipXPToast } from '@/shared/components/game/FriendshipXPToast'
 import { GemToast } from '@/shared/components/game/GemToast'
-import { SUPABASE_URL, SUPABASE_ANON_KEY, PRESENCE_ONLINE_THRESHOLD_MS, config } from '@/shared/constants/config'
+import { SUPABASE_URL, PRESENCE_ONLINE_THRESHOLD_MS, config } from '@/shared/constants/config'
 import { haptic } from '@/shared/utils/sounds'
 import { compressImage, generateLQIP, validateImageUpload, getNetworkQuality } from '@/shared/utils/imageProcessing'
 import { computeOnlineIds } from '@/shared/utils/presence'
 import { notifyActiveCrew } from '@/shared/utils/notifications'
 import { sendWithRetry } from '@/shared/utils/sendWithRetry'
+import { postEdgeFn } from '@/shared/utils/edgeFetch'
 import { addToOutbox, readOutbox, type OutboxJob } from '@/shared/utils/outbox'
 import { acquireCrewMessageChannel, releaseCrewMessageChannel, isActiveCrewMessageChannel } from '@/shared/supabase/crewMessageChannel'
 import { IMAGE_CONFIG } from '@/shared/constants/config'
@@ -31,14 +32,29 @@ import { Close } from 'pixelarticons/react/Close'
 import { MagicEdit } from 'pixelarticons/react/MagicEdit'
 import { kickMemberAction, renameCrewAction, birthdaysCommandAction } from '@/app/(app)/chat/actions'
 import { leaveCrewAction } from '@/app/(app)/home/actions'
-import { EventCreationSheet } from '@/features/events/components/EventCreationSheet'
+import dynamic from 'next/dynamic'
 import { CrewImageUploadModal } from '@/features/chat/components/sheets/CrewImageUploadModal'
 import { CrewBackgroundUploadModal } from '@/features/chat/components/sheets/CrewBackgroundUploadModal'
 import { SquadDetailsSheet, type MiniMember } from '@/features/chat/components/sheets/SquadDetailsSheet'
 import { NotifSheet, type NotifPrefs } from '@/features/chat/components/sheets/NotifSheet'
-import { PollCreatorSheet } from '@/features/chat/components/polls/PollCreatorSheet'
-import { GifPickerSheet } from '@/features/chat/components/input/GifPickerSheet'
 import { AddMediaSheet } from '@/features/chat/components/input/AddMediaSheet'
+
+// Rarely-opened sheets, all conditionally rendered below — code-split so their
+// weight (Klipy picker UI, event creation + crop flow, poll creator) stays out of
+// the eager chat bundle and is fetched on first open. SquadDetailsSheet and
+// NotifSheet stay static: they're a core, frequently-used part of the screen.
+const GifPickerSheet = dynamic(
+  () => import('@/features/chat/components/input/GifPickerSheet').then((m) => m.GifPickerSheet),
+  { ssr: false },
+)
+const PollCreatorSheet = dynamic(
+  () => import('@/features/chat/components/polls/PollCreatorSheet').then((m) => m.PollCreatorSheet),
+  { ssr: false },
+)
+const EventCreationSheet = dynamic(
+  () => import('@/features/events/components/EventCreationSheet').then((m) => m.EventCreationSheet),
+  { ssr: false },
+)
 import { setHomeLastMessage } from '@/features/home/utils/homePreviewCache'
 import { useCombatStore } from '@/store/combatStore'
 import { DamageFloatLayer } from '@/features/combat/components/DamageFloat'
@@ -187,15 +203,29 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   const lastActiveWriteRef    = useRef(0)
   const isTypingRef           = useRef(false)
   const countsFetchedForCrewRef = useRef<string | null>(null)
-  const {
-    addMessage, updateMessage, setCrewXP, receiveXP, bumpCrewXP,
-    crewXP, crewLevel,
-    onlineUserIds, setOnlineUserIds, setLastActive, sweepOnlineUserIds, addUserCoins,
-    crewName: storeCrewName, setCrewName,
-    replyTo, setReplyTo,
-    editTo, setEditTo,
-    squadDetailsOpen, setSquadDetailsOpen,
-  } = useChatStore()
+  // Individual selectors — a bare useChatStore() destructure subscribes to the whole
+  // store, so every Realtime-driven update (incoming messages, reaction patches,
+  // optimistic-send reconciliation — all of which replace the `messages` array this
+  // component never reads) re-rendered this entire component. Actions are stable
+  // references, so their selectors never trigger a re-render.
+  const addMessage        = useChatStore((s) => s.addMessage)
+  const updateMessage     = useChatStore((s) => s.updateMessage)
+  const setCrewXP         = useChatStore((s) => s.setCrewXP)
+  const receiveXP         = useChatStore((s) => s.receiveXP)
+  const bumpCrewXP        = useChatStore((s) => s.bumpCrewXP)
+  const crewXP            = useChatStore((s) => s.crewXP)
+  const crewLevel         = useChatStore((s) => s.crewLevel)
+  const onlineUserIds     = useChatStore((s) => s.onlineUserIds)
+  const setLastActive     = useChatStore((s) => s.setLastActive)
+  const addUserCoins      = useChatStore((s) => s.addUserCoins)
+  const storeCrewName     = useChatStore((s) => s.crewName)
+  const setCrewName       = useChatStore((s) => s.setCrewName)
+  const replyTo           = useChatStore((s) => s.replyTo)
+  const setReplyTo        = useChatStore((s) => s.setReplyTo)
+  const editTo            = useChatStore((s) => s.editTo)
+  const setEditTo         = useChatStore((s) => s.setEditTo)
+  const squadDetailsOpen  = useChatStore((s) => s.squadDetailsOpen)
+  const setSquadDetailsOpen = useChatStore((s) => s.setSquadDetailsOpen)
 
   // Reactive combat state — re-renders when raid or member stats change
   const activeCombatRaid  = useCombatStore((s) => s.activeRaid)
@@ -228,6 +258,12 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   // Only meaningful while the squad sheet is open, but hooks must run
   // unconditionally — cheap to recompute and now actually stable thanks to
   // the `members` memoization above, instead of a fresh array+objects per render.
+  // Lowercased usernames for the @mention overlay — renderHighlightedInput runs on
+  // every keystroke render, so build this Set once per membership change, not per call.
+  const memberUsernameSet = useMemo(
+    () => new Set(members.map((m) => m.username.toLowerCase())),
+    [members]
+  )
   const squadSheetMembers = useMemo(
     (): MiniMember[] => members.map((m) => ({
       id:             m.id,
@@ -433,10 +469,17 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     return () => { cancelled = true }
   }, [isDM, userId, crewId])
 
+  // Read prefs through a ref so this callback never closes over a stale snapshot —
+  // with `notifPrefs` as a dep, a toggle racing the initial prefs fetch wrote the
+  // pre-fetch defaults for the two untouched columns. The ref also keeps the
+  // callback identity stable, so NotifSheet's onToggle prop doesn't churn.
+  const notifPrefsRef = useRef(notifPrefs)
+  notifPrefsRef.current = notifPrefs
   const handleToggleNotif = useCallback(async (type: keyof NotifPrefs) => {
-    const next = { ...notifPrefs, [type]: !notifPrefs[type] }
+    const prev = notifPrefsRef.current
+    const next = { ...prev, [type]: !prev[type] }
     setNotifPrefs(next)
-    await createClient()
+    const { error } = await createClient()
       .from('crew_notification_preferences')
       .upsert(
         {
@@ -449,7 +492,9 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
         },
         { onConflict: 'user_id,crew_id' },
       )
-  }, [notifPrefs, userId, crewId])
+    // Roll back the optimistic flip if the write failed, so the bell can't lie.
+    if (error) setNotifPrefs(prev)
+  }, [userId, crewId])
 
   const allMuted = !notifPrefs.messages && !notifPrefs.mentions && !notifPrefs.replies
 
@@ -752,26 +797,20 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     msgChannelRef.current?.send({ type: 'broadcast', event: 'new_message', payload: message })
   }, [])
 
-  // Fire-and-forget attack-boss after award-xp settles (joined members only)
+  // Fire-and-forget attack-boss after award-xp settles (joined members only).
+  // postEdgeFn sends the session token (attack-boss verifies caller identity)
+  // and aborts hung requests; no retry — attacks aren't idempotent.
   const callAttackBoss = useCallback((messageType: string, softBlocked: boolean) => {
     const { activeRaid, memberStats } = useCombatStore.getState()
     if (!combatEnabledRef.current || !activeRaid || !memberStats[userId]) return
-    fetch(`${SUPABASE_URL}/functions/v1/attack-boss`, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
-      body:    JSON.stringify({ crew_id: crewId, user_id: userId, username: userProfile.username, message_type: messageType, soft_blocked: softBlocked }),
-    }).catch(() => {})
+    postEdgeFn('attack-boss', { crew_id: crewId, user_id: userId, username: userProfile.username, message_type: messageType, soft_blocked: softBlocked }).catch(() => {})
   }, [crewId, userId, userProfile]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Shared award-xp settlement used by every send path (text/image/gif): applies the
   // XP/coin response, broadcasts xp_update to peers, and kicks off attack-boss.
   const settleXp = useCallback((msgId: string, messageType: string, content: string, mentionedUserIds: string[], replyToId?: string | null) => {
-    fetch(`${SUPABASE_URL}/functions/v1/award-xp`, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
-      body:    JSON.stringify({ message_id: msgId, crew_id: crewId, user_id: userId, username: userProfile.username, message_type: messageType, content, mentioned_user_ids: mentionedUserIds, reply_to_id: replyToId ?? null }),
-    })
-      .then((r) => r.json())
+    postEdgeFn('award-xp', { message_id: msgId, crew_id: crewId, user_id: userId, username: userProfile.username, message_type: messageType, content, mentioned_user_ids: mentionedUserIds, reply_to_id: replyToId ?? null })
+      .then((r) => { if (!r) throw new Error('no session'); return r.json() })
       .then((data: { xp_earned?: number; new_total_xp?: number; coins_earned?: number }) => {
         if (typeof data.xp_earned === 'number') updateMessage(msgId, { xp_awarded: data.xp_earned })
         if (typeof data.new_total_xp === 'number') {
@@ -827,12 +866,8 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
       // Friendship XP — DM send
       if (isDM && dmPartnerId) {
         const dmPartnerName = liveCrewName
-        fetch(`${SUPABASE_URL}/functions/v1/award-friendship-xp`, {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
-          body:    JSON.stringify({ user_a_id: userId, user_b_id: dmPartnerId, source: 'dm', local_midnight_utc: localMidnightUTC }),
-        })
-          .then((r) => r.json())
+        postEdgeFn('award-friendship-xp', { user_a_id: userId, user_b_id: dmPartnerId, source: 'dm', local_midnight_utc: localMidnightUTC })
+          .then((r) => { if (!r) throw new Error('no session'); return r.json() })
           .then((data: { total_xp?: number; xp_awarded?: number; skipped?: boolean; daily_count?: number }) => {
             if (typeof data.total_xp === 'number' && (data.xp_awarded ?? 0) > 0) {
               showFriendshipToast(data.total_xp, data.xp_awarded!, dmPartnerName, data.daily_count ?? 1)
@@ -846,12 +881,8 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
         let toastShown = false
         job.mentionedUserIds.forEach((friendId) => {
           const partnerName = profilesRef.current[friendId]?.username ?? 'Friend'
-          fetch(`${SUPABASE_URL}/functions/v1/award-friendship-xp`, {
-            method:  'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON_KEY}` },
-            body:    JSON.stringify({ user_a_id: userId, user_b_id: friendId, source: 'mention', local_midnight_utc: localMidnightUTC }),
-          })
-            .then((r) => r.json())
+          postEdgeFn('award-friendship-xp', { user_a_id: userId, user_b_id: friendId, source: 'mention', local_midnight_utc: localMidnightUTC })
+            .then((r) => { if (!r) throw new Error('no session'); return r.json() })
             .then((data: { total_xp?: number; xp_awarded?: number; skipped?: boolean; daily_count?: number }) => {
               if (!toastShown && typeof data.total_xp === 'number' && (data.xp_awarded ?? 0) > 0) {
                 toastShown = true
@@ -1289,12 +1320,21 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
 
   async function handleLeaveSquad() {
     setLeavingSquad(true)
+    setSendError(null)
     const supabase = createClient()
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) { setLeavingSquad(false); return }
+    // Navigate only on success — a failed leave (network/RLS) used to still push
+    // to /home, leaving the user believing they'd left a crew they hadn't.
+    const result = await leaveCrewAction(crewId, session.access_token)
+    if (result?.error) {
+      setLeavingSquad(false)
+      setShowLastMemberWarning(false)
+      setSendError(result.error)
+      return
+    }
     setIsExpanded(false)
     setShowLastMemberWarning(false)
-    await leaveCrewAction(crewId, session.access_token)
     router.push('/home')
   }
 
@@ -1333,7 +1373,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   }
 
   function renderHighlightedInput(val: string): React.ReactNode {
-    const memberSet = new Set(members.map((m) => m.username.toLowerCase()))
+    const memberSet = memberUsernameSet
     const regex     = /@(\w+)/g
     const parts: React.ReactNode[] = []
     let lastIdx = 0

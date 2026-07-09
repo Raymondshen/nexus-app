@@ -1,7 +1,15 @@
 'use client'
 
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
-import Lottie, { type LottieRef } from 'lottie-react'
+import dynamic from 'next/dynamic'
+import type { LottieRef } from 'lottie-react'
+
+// Lazy-load the Lottie player: lottie-web is ~300KB and was shipping in the eager
+// chat bundle via this component's static import (MessageBubble → MsgReactionPills
+// → here). The chunk now loads the first time a mapped-emoji reaction or the
+// quick-pick sheet renders; the module is shared by every subsequent instance.
+// ssr: false — the player is animation-only chrome with no SSR value.
+const Lottie = dynamic(() => import('lottie-react'), { ssr: false })
 
 function subscribeReducedMotion(callback: () => void) {
   const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
@@ -48,6 +56,12 @@ export function LottieReactionIcon({ src, size = 24, className }: LottieReaction
   const [animationData, setAnimationData] = useState<object | null>(null)
   const [inView,        setInView]        = useState(false)
   const [pageVisible,   setPageVisible]   = useState(true)
+  // With the player dynamically imported, the play/pause effect below can run while
+  // the chunk is still loading (lottieRef.current === null) and its play() call
+  // silently no-ops — the icon would then sit frozen on frame 0 until the next
+  // visibility change. onDOMLoaded flips this so the effect re-fires once the
+  // player actually exists.
+  const [playerReady,   setPlayerReady]   = useState(false)
   // Respect the OS-level reduced-motion setting — renders a static frame instead.
   const reducedMotion = useSyncExternalStore(
     subscribeReducedMotion, getReducedMotionSnapshot, getReducedMotionServerSnapshot,
@@ -98,7 +112,7 @@ export function LottieReactionIcon({ src, size = 24, className }: LottieReaction
     }
     if (shouldPlay) lottieRef.current?.play()
     else lottieRef.current?.pause()
-  }, [shouldPlay, reducedMotion, animationData])
+  }, [shouldPlay, reducedMotion, animationData, playerReady])
 
   // Clear any pending replay timer on unmount.
   useEffect(() => () => { if (restTimerRef.current) clearTimeout(restTimerRef.current) }, [])
@@ -123,6 +137,7 @@ export function LottieReactionIcon({ src, size = 24, className }: LottieReaction
           loop={false}
           autoplay={false}
           onComplete={handleComplete}
+          onDOMLoaded={() => setPlayerReady(true)}
           renderer="svg"
           rendererSettings={{ preserveAspectRatio: 'xMidYMid meet', progressiveLoad: true }}
           style={{ width: size, height: size }}

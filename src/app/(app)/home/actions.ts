@@ -59,7 +59,10 @@ export async function generateAppInviteAction(): Promise<
 
     const [insertErr, coinErr] = await Promise.all([
       service.from('app_invites').insert({ code, inviter_id: user.id }).then(r => r.error),
-      supabase.rpc('increment_user_coins', { p_user_id: user.id, p_amount: -25 }).then(r => r.error),
+      // Service client (not the user's session): client EXECUTE on
+      // increment_user_coins is revoked — a direct RPC with an arbitrary
+      // p_amount would otherwise let any user mint coins for themselves.
+      service.rpc('increment_user_coins', { p_user_id: user.id, p_amount: -25 }).then(r => r.error),
     ])
 
     if (insertErr) continue // race collision, retry

@@ -38,6 +38,23 @@ Deno.serve(async (req: Request) => {
       )
     }
 
+    // Identity check: the caller must BE the sender (user_a_id). The anon key
+    // is a valid JWT for verify_jwt purposes but carries no user — without
+    // this, anyone with the (public) anon key could farm friendship XP for
+    // arbitrary user pairs.
+    const authClient = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_ANON_KEY')!,
+      { global: { headers: { Authorization: req.headers.get('Authorization') ?? '' } } },
+    )
+    const { data: { user: caller } } = await authClient.auth.getUser()
+    if (!caller || caller.id !== user_a_id) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+      )
+    }
+
     // Canonical ordering: lesser UUID is always user_a
     const canonA = user_a_id < user_b_id ? user_a_id : user_b_id
     const canonB = user_a_id < user_b_id ? user_b_id : user_a_id
