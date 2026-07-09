@@ -5,8 +5,9 @@ import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { SlidePage, useSlideBack } from '@/app/layouts/SlidePage'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
+import { MagicEdit } from 'pixelarticons/react/MagicEdit'
+import { Braces } from 'pixelarticons/react/Braces'
 import { Message } from 'pixelarticons/react/Message'
-import { SettingsCogIcon } from '@/shared/icons/SettingsCogIcon'
 import { TickerBanner } from '@/shared/components/banners/TickerBanner'
 import { UserAvatar } from '@/shared/components/ui/UserAvatar'
 import { ProfileHeroBackground } from '@/shared/components/ui/ProfileHeroBackground'
@@ -20,7 +21,7 @@ interface ProfileClientProps {
   avatarUrl:         string | null
   backgroundUrl:     string | null
   isDev:             boolean
-  memberSinceYear:   string
+  isGuest:           boolean
   totalMessages:     number
   groupChats:        number
   inviterUsername:   string | null
@@ -44,25 +45,40 @@ function ProfileStatusTicker({ status }: { status: string }) {
   )
 }
 
+// ─── Top-bar icon button (Figma "profile-Btn": rgba(0,0,0,0.25), 8px padding, no border) ──
+
+function ProfileTopBarButton({
+  onClick,
+  ariaLabel,
+  disabled,
+  children,
+}: {
+  onClick?:  () => void
+  ariaLabel: string
+  disabled?: boolean
+  children:  React.ReactNode
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={ariaLabel}
+      className="flex items-center justify-center overflow-hidden flex-shrink-0 disabled:opacity-50"
+      style={{ padding: 'var(--x3)', background: 'rgba(0,0,0,0.25)' }}
+    >
+      {children}
+    </button>
+  )
+}
+
 // ─── BackButton ───────────────────────────────────────────────────────────────
 
 function BackButton() {
   const goBack = useSlideBack()
   return (
-    <button
-      onClick={goBack}
-      aria-label="Back"
-      className="flex items-center justify-center border border-border flex-shrink-0"
-      style={{
-        padding:             'var(--x3)',
-        background:          'rgba(0,0,0,0)',
-        backdropFilter:      'blur(7px)',
-        WebkitBackdropFilter:'blur(7px)',
-        boxShadow:           '0px 0px 20px 12px rgba(0,0,0,0.1)',
-      }}
-    >
+    <ProfileTopBarButton onClick={goBack} ariaLabel="Back">
       <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
-    </button>
+    </ProfileTopBarButton>
   )
 }
 
@@ -74,7 +90,7 @@ export function ProfileClient({
   avatarUrl,
   backgroundUrl,
   isDev,
-  memberSinceYear,
+  isGuest,
   totalMessages,
   groupChats,
   inviterUsername,
@@ -98,15 +114,14 @@ export function ProfileClient({
     setActiveTab(tab)
   }
 
-  // ── Hero display state ────────────────────────────────────────────────────
-  const [localAvatarUrl,     setLocalAvatarUrl]     = useState(avatarUrl)
-  const [localBackgroundUrl, setLocalBackgroundUrl] = useState(backgroundUrl)
-  const [localUsername,      setLocalUsername]      = useState(initialUsername)
-  const [localStatus,        setLocalStatus]        = useState(initialStatus ?? '')
-
   // ── Dev feature flags ─────────────────────────────────────────────────────
   const [afkExp,      setAfkExp]      = useState(false)
   const [fxpEnabled,  setFxpEnabled]  = useState(false)
+  const [devModeOn,   setDevModeOn]   = useState(false)
+
+  useEffect(() => {
+    setDevModeOn(localStorage.getItem('nexus_dev_mode') === '1')
+  }, [])
 
   useEffect(() => {
     setAfkExp(localStorage.getItem('nexus_afk_exp') === '1')
@@ -137,7 +152,7 @@ export function ProfileClient({
       {/* ── Hero section ──────────────────────────────────────────────────────── */}
       <div className="relative flex-shrink-0 w-full bg-black overflow-hidden" style={{ height: 'calc(280px + env(safe-area-inset-top, 0px))' }}>
 
-        <ProfileHeroBackground url={localBackgroundUrl} />
+        <ProfileHeroBackground url={backgroundUrl} />
 
         <div
           className="absolute inset-0 pointer-events-none"
@@ -149,14 +164,14 @@ export function ProfileClient({
 
           {/* Details row */}
           <div className="flex items-center gap-[var(--space-5)] w-full">
-            <UserAvatar avatarUrl={localAvatarUrl} username={localUsername} size={56} bg="primary" priority />
+            <UserAvatar avatarUrl={avatarUrl} username={initialUsername} size={56} bg="primary" priority />
 
             <div className="flex-1 min-w-0 flex flex-col gap-[var(--space-2)] justify-center leading-none">
               <p className="font-silkscreen" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>
                 Lifetime msg. {msgFormatted}
               </p>
               <p className="font-body font-bold truncate" style={{ fontSize: 'var(--text-xl)', fontVariationSettings: '"opsz" 14', color: 'var(--color-primary)' }}>
-                {localUsername}
+                {initialUsername}
               </p>
               <p className="font-silkscreen" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>
                 {groupChats} group chat{groupChats !== 1 ? 's' : ''}
@@ -206,7 +221,7 @@ export function ProfileClient({
           }}
         />
 
-        {/* Top bar: back button (left) + settings cog (right) */}
+        {/* Top bar: back button (left) + braces/edit buttons (right) */}
         <div
           className="absolute z-20 left-0 right-0 flex items-center justify-between pointer-events-none"
           style={{ top: 'calc(env(safe-area-inset-top, 0px) + 18px)', paddingLeft: 16, paddingRight: 16 }}
@@ -215,26 +230,23 @@ export function ProfileClient({
             <BackButton />
           </div>
 
-          <button
-            onClick={() => router.push('/profile/settings')}
-            aria-label="Profile settings"
-            className="flex items-center justify-center border border-border flex-shrink-0 pointer-events-auto"
-            style={{
-              padding:             'var(--x3)',
-              background:          'rgba(0,0,0,0)',
-              backdropFilter:      'blur(7px)',
-              WebkitBackdropFilter:'blur(7px)',
-              boxShadow:           '0px 0px 20px 12px rgba(0,0,0,0.1)',
-            }}
-          >
-            <SettingsCogIcon style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
-          </button>
+          <div className="flex items-center pointer-events-auto" style={{ gap: 16 }}>
+            {isDev && devModeOn && (
+              <ProfileTopBarButton onClick={() => router.push('/profile/settings')} ariaLabel="Developer settings">
+                <Braces style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+              </ProfileTopBarButton>
+            )}
+
+            <ProfileTopBarButton onClick={() => router.push('/profile/manage')} ariaLabel="Edit profile" disabled={isGuest}>
+              <MagicEdit style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+            </ProfileTopBarButton>
+          </div>
         </div>
 
       </div>
 
       {/* ── Status ticker ─────────────────────────────────────────────────────── */}
-      {localStatus && <ProfileStatusTicker status={localStatus} />}
+      {initialStatus && <ProfileStatusTicker status={initialStatus} />}
 
       {/* ── Tab bar: Photos | Vibes ─────────────────────────────────────────── */}
       <div className="flex flex-shrink-0" style={{ borderBottom: '1px solid var(--color-border)' }}>

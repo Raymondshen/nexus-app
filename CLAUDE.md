@@ -142,10 +142,27 @@ Client-side (`nexus_dev_mode`): `MessageList` hides boss/artifact/level-up syste
 
 `nexus_dev_mode`, `nexus_push_diag`, and `nexus_chat_camera` have **no in-app toggle UI** — set them directly via browser devtools `localStorage.setItem(...)`. The Settings page's Developer section (see below) only exposes toggles for `nexus_infinite_coins`, `nexus_poll_feature`, `nexus_events_enabled`, `nexus_friendship_xp`, and `nexus_combat_system`.
 
-### Settings Page (`src/features/profile/screens/SettingsClient.tsx`, route `/profile/settings`)
-- **Edit Profile** row opens a bottom sheet (display name, status, avatar/background upload) that also hosts the **Account** section — signed-in email, pending-deletion banner + cancel, Log out, Delete account (opens `DeleteAccountSheet`). There is no separate Account Details row/sheet.
-- No Notification row — notification preferences are per-crew only (`crew_notification_preferences`, via `SquadDetailsSheet`'s Bell icon → `NotifSheet`), not global.
-- **Developer section** (`isDev` only) is inlined directly into this page — there is no separate `/profile/developer` route. Contains: Announcements composer + `Published Announcements` nav (→ `/profile/developer/announcements`), a `Notification Subscription` test toggle, and feature toggles (Infinite Coins, Poll Feature, Events Feature, Friendship XP System, Combat System). `Error Logs` nav (→ `/profile/error-logs`), `Dev Mode` toggle, `Chat Camera` toggle, `Preview Announcements Sheet`, `Reset Gem Cooldown`, `Reset Friendship XP`, and the whole `Combat Testing` section (spawn boss/end raid/down self/revive/trigger attack/reset combat) were removed from this UI — the underlying server actions still exist in `src/app/(app)/profile/developer/actions.ts` (unused by any UI) and `/profile/error-logs` is still a live route, just unlinked.
+### Own Profile Page (`src/features/profile/screens/ProfileClient.tsx`, route `/profile`)
+Top bar (Figma 339:3457): back chevron (left) + up to two icon buttons (right), all sharing the same `ProfileTopBarButton` style — `background: rgba(0,0,0,0.25)`, `padding: var(--x3)` (8px), no border/blur/shadow (this replaced the old bordered/blurred settings-cog button; match this flat style for any new button added to this bar, don't reintroduce the border+backdrop-blur treatment).
+- **`Braces`** icon (`isDev` **and** `nexus_dev_mode` localStorage flag both required — hidden if either is off) → `router.push('/profile/settings')`, the Developer tools page.
+- **`MagicEdit`** icon (rightmost, disabled for guests) → `router.push('/profile/manage')`, the Manage Profile page. No Notification row anywhere — notification preferences are per-crew only (`crew_notification_preferences`, via `SquadDetailsSheet`'s Bell icon → `NotifSheet`), not global.
+
+### Manage Profile Page (`src/features/profile/screens/ManageUserProfile.tsx`, route `/profile/manage`, Figma 470:5491)
+Full page (not a bottom sheet — this replaced the former `EditProfileSheet`). Redirects guests to `/profile` server-side (`page.tsx`), matching the disabled `MagicEdit` entry point. Header: bare `ChevronLeft` (24×24, `--color-tertiary`, no border/button-box) + gap 8 + uppercase Silkscreen `--text-xl` "MANAGE PROFILE" — same bare-icon header pattern reused by `DeveloperUserSettings` (see below), not the old bordered back-button box style. Hero: 240px (not 280px), same gradient overlay string as `SquadDetailsSheet`'s header (`rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.604) 33%, rgba(0,0,0,0.6) 66%, rgba(0,0,0,0.8) 100%`) — reuse that exact string, don't reintroduce the different `ProfileClient`-hero gradient here. Hero shows currency pills (`DiamondGem` gem count with purple→`#d946ef` gradient text, `TokeCircle` coin count in `--color-coins`) instead of the group-chats/member-since line — same pattern as `HomeClient`'s profile preview card, first reuse of it outside Home. Body fields: read-only **Account** box (email, `--color-border-hover` border, `--color-tertiary` text — always in the "active" border state, unlike `InputField`'s idle→hover transition) → side-by-side **Profile Photo** / **Background Image** Upload buttons (exact markup reused from `SquadDetailsSheet`'s crew-image upload buttons: h-12, border-purple, `Upload` icon 16×16 purple + "Upload" text) → **Display Name** / **Status** via the shared `InputField`. Footer: `<Button shadow>` "Save Changes" (the `shadow` prop alone reproduces Figma's exact padding + `4px 4px 0px 0px rgba(168,85,247,0.5)` box-shadow spec).
+
+**Log Out and Delete Account have no UI anywhere right now.** They lived in `EditProfileSheet`'s folded-in Account section before this page replaced it; the Figma design for this page doesn't show them, and per an explicit product decision they were dropped rather than appended below the Figma-specified content. `signOut`, `requestAccountDeletionAction`, and `cancelAccountDeletionAction` are still valid, unmodified server actions — just currently uncalled from any component, same pattern as the orphaned `profile/developer/actions.ts` functions. If these need a home again, they don't have one today.
+
+### Developer Settings Page (`src/features/profile/screens/DeveloperUserSettings.tsx`, route `/profile/settings`, Figma 470:5687)
+Renamed from `SettingsClient`. Dev-only: `page.tsx` redirects to `/profile` if `!isDev` server-side, so the component itself takes no `isDev` prop — it only ever renders for dev users. Header matches `ManageUserProfile`'s bare-icon pattern exactly (`ChevronLeft` 24×24 `--color-tertiary`, no button box, gap 8, uppercase Silkscreen `--text-xl` "DEVELOPER SETTINGS"). Body is a single flat flex column (gap 20, not the old nested per-section wrappers) of section labels + rows:
+- **Admin**: `Announcements` nav row only (→ `/profile/developer/announcements`) — the inline announcement-composer form that used to live directly on this page moved into `AnnouncementsClient` itself (see below), matching this row's Figma description "Add new announcements or updates."
+- **Debug**: `Notification Subscription` toggle only ("Test push notifications" — exact Figma copy, not the old "Test push notification.")
+- **Features**: `Infinite Coins`, `Poll Feature`, `Events Feature`, `Friendship XP` (renamed from "Friendship XP System" to match Figma). **`Combat System` toggle is gone** — Figma's design for this page never had it; `nexus_combat_system` now joins `nexus_dev_mode`/`nexus_push_diag`/`nexus_chat_camera` as a devtools-only flag with no in-app toggle.
+
+Two distinct row styles per Figma, don't conflate them: **nav rows** (`DevNavRow`) use `font-semibold` titles, 0 gap between title/description, `tracking-[0.2px]`, and a `ChevronRight` in `--color-secondary`. **Toggle rows** (`DevToggleRow`) use `font-medium` titles, `font-light` descriptions, 8px gap between title/description, no tracking. The toggle switch itself: off-track is `var(--color-muted)` (not `--color-border` — a real Figma-vs-code mismatch that was fixed here), thumb is `var(--color-primary)` (not literal white), on-track stays `--color-purple`.
+
+`AnnouncementsClient.tsx` (route `/profile/developer/announcements`) now does double duty: the create-new-announcement form (title/image-path/body inputs + "Add announcement" button, same markup that used to live in the Developer Settings page) sits above the existing manage-list (view/edit/toggle-active/delete). `createAnnouncementAction` is now imported there instead.
+
+`Error Logs` nav, `Dev Mode` toggle, `Chat Camera` toggle, `Preview Announcements Sheet`, `Reset Gem Cooldown`, `Reset Friendship XP`, and the whole `Combat Testing` section (spawn boss/end raid/down self/revive/trigger attack/reset combat) were removed from this UI in an earlier pass — the underlying server actions still exist in `src/app/(app)/profile/developer/actions.ts` (unused by any UI) and `/profile/error-logs` is still a live route, just unlinked.
 
 ## Storage Keys
 
@@ -179,7 +196,7 @@ src/
 │   ├── events/                 EventCreationSheet, EventCard, GroupEventsClient (dev-gated: `nexus_events_enabled`)
 │   ├── auth/                   LoginForm
 │   ├── onboarding/             BirthdayClient, ClassSelectClient, WelcomeClient
-│   └── profile/                ProfileClient, SettingsClient, ErrorLogsClient, VibesGrid, PhotosGrid
+│   └── profile/                ProfileClient, ManageUserProfile, DeveloperUserSettings, ErrorLogsClient, VibesGrid, PhotosGrid
 ├── shared/
 │   ├── supabase/               client.ts, server.ts, auth.ts, imageLoader.ts
 │   ├── constants/config.ts     BOSS_XP_THRESHOLD, LEVEL_XP_BASE, etc.
@@ -385,6 +402,12 @@ Icons (`pixelarticons`) — key usages:
 | Floating nav — notifs | `Bell` / `BellOff` | 24×24 |
 | Floating nav — glossary | `Library` | 24×24 |
 | SquadDetailsSheet — edit | `MagicEdit` | 24×24 |
+| Own Profile page — dev settings | `Braces` | 24×24, `--color-primary` |
+| Own Profile page — edit profile | `MagicEdit` | 24×24, `--color-primary` |
+| Manage Profile page — back | `ChevronLeft` | 24×24, `--color-tertiary` (bare, no button box — not the usual back-button treatment) |
+| Manage Profile / SquadDetailsSheet — photo/bg upload | `Upload` | 16×16, `--color-purple` |
+| Manage Profile / HomeClient — gem pill | `DiamondGem` | 12×12, `--color-purple` |
+| Manage Profile / HomeClient — coin pill | `TokeCircle` | 12×12, `--color-coins` |
 | DefinitionPreviewSheet — edit | `MagicEdit` | 20×20, `--color-purple` |
 | DefinitionPreviewSheet — cancel | `Close` | 20×20, `--color-tertiary` |
 | SquadDetailsSheet — leave | `DoorClosed` | 16×16 |
@@ -482,7 +505,7 @@ Props:
 
 Online dot: render outside `<UserAvatar>` in a `div.relative` wrapper — the component does not include presence indicators.
 
-If a caller wraps `<UserAvatar>` in its own button/div to add a background or click target (e.g. an avatar-edit affordance), that wrapper must also be `border-radius: 50%` — a square wrapper around a circular avatar exposes the wrapper's own background color in the four corners (this was an actual bug in `SettingsClient`'s avatar-edit button, which had `overflow-hidden` but no border-radius, showing `--color-primary` white in the corners around the circular photo).
+If a caller wraps `<UserAvatar>` in its own button/div to add a background or click target (e.g. an avatar-edit affordance), that wrapper must also be `border-radius: 50%` — a square wrapper around a circular avatar exposes the wrapper's own background color in the four corners (this was an actual bug in the profile-edit avatar button (now in `ManageUserProfile`), which had `overflow-hidden` but no border-radius, showing `--color-primary` white in the corners around the circular photo).
 
 ## GroupAvatar (`src/shared/components/ui/GroupAvatar.tsx`)
 

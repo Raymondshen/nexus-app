@@ -3,7 +3,9 @@
 import { useState, useCallback } from 'react'
 import { SlidePage, useSlideBack } from '@/app/layouts/SlidePage'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
+import { Plus } from 'pixelarticons/react/Plus'
 import {
+  createAnnouncementAction,
   getAllAnnouncementsAction,
   updateAnnouncementAction,
   toggleAnnouncementAction,
@@ -38,12 +40,34 @@ export function AnnouncementsClient({ initialAnnouncements }: AnnouncementsClien
   const [error,        setError]        = useState<string | null>(null)
   const [loading,      setLoading]      = useState(false)
 
+  const [newTitle,     setNewTitle]     = useState('')
+  const [newText,      setNewText]      = useState('')
+  const [newImageUrl,  setNewImageUrl]  = useState('')
+  const [addingBanner, setAddingBanner] = useState(false)
+  const [addError,     setAddError]     = useState<string | null>(null)
+  const [addedSuccess, setAddedSuccess] = useState(false)
+
   const reload = useCallback(async () => {
     setLoading(true)
     const result = await getAllAnnouncementsAction()
     setLoading(false)
     if ('data' in result) setBanners(result.data ?? [])
   }, [])
+
+  async function handleCreate() {
+    if (!newTitle.trim() || !newText.trim() || !newImageUrl.trim() || addingBanner) return
+    setAddingBanner(true)
+    setAddError(null)
+    const result = await createAnnouncementAction(newTitle.trim(), newText.trim(), newImageUrl.trim())
+    setAddingBanner(false)
+    if (result.error) { setAddError(result.error); return }
+    setNewTitle('')
+    setNewText('')
+    setNewImageUrl('')
+    setAddedSuccess(true)
+    setTimeout(() => setAddedSuccess(false), 2000)
+    reload()
+  }
 
   async function handleUpdate(id: string) {
     if (!editingTitle.trim() || !editingText.trim() || !editingImage.trim()) return
@@ -100,6 +124,81 @@ export function AnnouncementsClient({ initialAnnouncements }: AnnouncementsClien
           paddingBottom: 'max(env(safe-area-inset-bottom), var(--space-5))',
         }}
       >
+        {/* Create new announcement */}
+        <div className="flex flex-col" style={{ gap: 'var(--space-3)' }}>
+          <div
+            className="border flex h-[48px] items-center overflow-hidden w-full"
+            style={{ borderColor: 'var(--color-border)', paddingLeft: 'var(--space-5)', paddingRight: 'var(--space-5)' }}
+          >
+            <input
+              value={newTitle}
+              onChange={(e) => { setNewTitle(e.target.value.slice(0, 200)); setAddError(null) }}
+              placeholder="Title, e.g. Text Effects"
+              maxLength={200}
+              className="flex-1 bg-transparent font-body font-normal text-primary placeholder:text-muted focus:outline-none leading-normal"
+              style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
+            />
+          </div>
+
+          <div
+            className="border flex h-[48px] items-center overflow-hidden w-full"
+            style={{ borderColor: 'var(--color-border)', paddingLeft: 'var(--space-5)', paddingRight: 'var(--space-5)' }}
+          >
+            <input
+              value={newImageUrl}
+              onChange={(e) => { setNewImageUrl(e.target.value.slice(0, 300)); setAddError(null) }}
+              placeholder="Image path, e.g. /img/announcements/foo.svg"
+              maxLength={300}
+              className="flex-1 bg-transparent font-body font-normal text-primary placeholder:text-muted focus:outline-none leading-normal"
+              style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
+            />
+          </div>
+
+          <div
+            className="border flex h-[48px] items-center overflow-hidden w-full"
+            style={{ borderColor: 'var(--color-border)', paddingLeft: 'var(--space-5)', paddingRight: 'var(--space-5)' }}
+          >
+            <input
+              value={newText}
+              onChange={(e) => { setNewText(e.target.value.slice(0, 500)); setAddError(null) }}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleCreate() }}
+              placeholder="Body text..."
+              maxLength={500}
+              className="flex-1 bg-transparent font-body font-normal text-primary placeholder:text-muted focus:outline-none leading-normal"
+              style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
+            />
+          </div>
+
+          {addError && (
+            <p className="font-pixel leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-danger)' }}>
+              {addError}
+            </p>
+          )}
+
+          <button
+            onClick={handleCreate}
+            disabled={!newTitle.trim() || !newText.trim() || !newImageUrl.trim() || addingBanner}
+            className="flex items-center justify-center overflow-hidden w-full disabled:opacity-40"
+            style={{
+              background: addedSuccess ? '#22c55e' : 'var(--color-purple)',
+              gap:          'var(--space-3)',
+              paddingLeft:  'var(--space-6)',
+              paddingRight: 'var(--space-6)',
+              paddingTop:   'var(--space-5)',
+              paddingBottom: 'var(--space-5)',
+              boxShadow: addedSuccess
+                ? '4px 4px 0px 0px rgba(34,197,94,0.5)'
+                : '4px 4px 0px 0px rgba(168,85,247,0.5)',
+              transition: 'background 0.2s, box-shadow 0.2s',
+            }}
+          >
+            <Plus style={{ width: 16, height: 16, color: 'var(--color-primary)', flexShrink: 0 }} aria-hidden="true" />
+            <span className="font-silkscreen text-primary leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-xs)' }}>
+              {addingBanner ? '...' : addedSuccess ? 'Added!' : 'Add announcement'}
+            </span>
+          </button>
+        </div>
+
         {error && (
           <p className="font-pixel leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-danger)' }}>
             {error}

@@ -27,10 +27,10 @@ function getCachedProfile(userId: string) {
       const supabase = createServiceClient()
       const { data } = await supabase
         .from('profiles')
-        .select('username, avatar_url, is_dev, created_at, custom_avatar, status, background_url, pinned_vinyl_id')
+        .select('username, avatar_url, is_dev, custom_avatar, status, background_url, pinned_vinyl_id')
         .eq('id', userId)
         .single()
-      return data as { username: string; avatar_url: string | null; is_dev: boolean; created_at: string; custom_avatar: boolean; status: string | null; background_url: string | null; pinned_vinyl_id: string | null } | null
+      return data as { username: string; avatar_url: string | null; is_dev: boolean; custom_avatar: boolean; status: string | null; background_url: string | null; pinned_vinyl_id: string | null } | null
     },
     [`profile:${userId}`],
     { tags: [`profile:${userId}`], revalidate: 60 }
@@ -97,7 +97,6 @@ export default async function ProfilePage() {
     .limit(30)
   const initialNotes = (notesResult.data ?? []) as unknown as PublicNote[]
 
-  const memberSinceYear   = profile?.created_at ? new Date(profile.created_at).getFullYear().toString() : ''
   const totalMessages     = messagesResult.count ?? 0
   const groupChats        = crewIds.length
   const totalFriendshipXP = (friendshipXPResult.data ?? []).reduce((sum, r) => sum + ((r as { total_xp: number }).total_xp ?? 0), 0)
@@ -110,7 +109,7 @@ export default async function ProfilePage() {
       avatarUrl={profile?.avatar_url ?? null}
       backgroundUrl={profile?.background_url ?? null}
       isDev={profile?.is_dev === true}
-      memberSinceYear={memberSinceYear}
+      isGuest={user.is_anonymous === true}
       totalMessages={totalMessages}
       groupChats={groupChats}
       inviterUsername={inviterUsername}
