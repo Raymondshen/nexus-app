@@ -40,6 +40,7 @@ import { compressCanvas, extForBlob, validateImageFile } from '@/shared/utils/im
 import { drawCroppedCanvas } from '@/shared/utils/cropImage'
 import { PhotoCropModal } from '@/shared/components/ui/PhotoCropModal'
 import { getXPInCurrentLevel, getXPForCurrentLevel, getXPProgress } from '@/shared/utils/xp'
+import { MUSIC_DOMAINS } from '@/shared/constants/config'
 
 export interface FriendSummary {
   id:            string
@@ -1318,6 +1319,7 @@ function HomeCrewDetailsSheet({
   const [members,   setMembers]   = useState<MiniMember[]>([])
   const [creatorId, setCreatorId] = useState<string | null>(null)
   const [msgCounts, setMsgCounts] = useState<Map<string, number>>(new Map())
+  const [vinyls,    setVinyls]    = useState<Record<string, { imageUrl: string | null; title: string | null }>>({})
   const [bgUrl,     setBgUrl]     = useState<string | null>(
     (crew.background_image_url as string | null | undefined) ?? null,
   )
@@ -1333,7 +1335,7 @@ function HomeCrewDetailsSheet({
     async function fetchData() {
       const needsBg = !bgUrl
 
-      const [membersResult, msgCountResult, crewResult] = await Promise.all([
+      const [membersResult, msgCountResult, crewResult, vibeNotesResult, memberPinResult] = await Promise.all([
         supabase
           .from('crew_members')
           .select('user_id, class, joined_at, profiles(username, avatar_url, avatar_class, background_url, status)')
@@ -1342,6 +1344,19 @@ function HomeCrewDetailsSheet({
         needsBg
           ? supabase.from('crews').select('background_image_url').eq('id', crew.id).single()
           : Promise.resolve({ data: null as unknown }),
+        // Most-recent music notes per member within this crew (fallback source)
+        supabase
+          .from('notes')
+          .select('id, created_by, og_title, og_image_url')
+          .eq('crew_id', crew.id)
+          .in('source_domain', MUSIC_DOMAINS)
+          .order('created_at', { ascending: false })
+          .limit(100),
+        // Each member's pinned_vinyl_id from their profile
+        supabase
+          .from('crew_members')
+          .select('user_id, profile:profiles(pinned_vinyl_id)')
+          .eq('crew_id', crew.id),
       ])
 
       if (cancelled) return
@@ -1380,6 +1395,52 @@ function HomeCrewDetailsSheet({
       setMembers(list)
       setMsgCounts(msgMap)
       setCreatorId(creator)
+
+      // Vinyl pill map — priority: user's pinned vibe → most-recent music note in this crew.
+      // Mirrors chat/[crewId]/page.tsx's server-side logic (see CLAUDE.md UserCard vinyl notes).
+      type NoteRow = { id: string; created_by: string; og_title: string | null; og_image_url: string | null }
+      type PinRow  = { user_id: string; profile: { pinned_vinyl_id: string | null } | null }
+
+      const noteById:    Record<string, NoteRow>   = {}
+      const notesByUser: Record<string, NoteRow[]> = {}
+      for (const n of (vibeNotesResult.data ?? []) as unknown as NoteRow[]) {
+        noteById[n.id] = n
+        if (!notesByUser[n.created_by]) notesByUser[n.created_by] = []
+        notesByUser[n.created_by].push(n)
+      }
+
+      const pinnedMap: Record<string, string | null> = {}
+      for (const r of (memberPinResult.data ?? []) as unknown as PinRow[]) {
+        pinnedMap[r.user_id] = r.profile?.pinned_vinyl_id ?? null
+      }
+
+      const missingIds = Object.values(pinnedMap).filter((id): id is string => !!id && !noteById[id])
+      const extraNotesResult = missingIds.length > 0
+        ? await supabase.from('notes').select('id, created_by, og_title, og_image_url').in('id', missingIds)
+        : { data: null }
+      if (cancelled) return
+
+      const extraById: Record<string, NoteRow> = {}
+      for (const n of (extraNotesResult.data ?? []) as unknown as NoteRow[]) extraById[n.id] = n
+
+      const vinylMap: Record<string, { imageUrl: string | null; title: string | null }> = {}
+      for (const [userId, pinnedId] of Object.entries(pinnedMap)) {
+        if (pinnedId) {
+          const note = noteById[pinnedId] ?? extraById[pinnedId]
+          if (note) {
+            vinylMap[userId] = { imageUrl: note.og_image_url, title: note.og_title }
+            continue
+          }
+        }
+        const fallback = notesByUser[userId]?.[0]
+        if (fallback) vinylMap[userId] = { imageUrl: fallback.og_image_url, title: fallback.og_title }
+      }
+      for (const [userId, notes] of Object.entries(notesByUser)) {
+        if (!vinylMap[userId] && notes.length > 0) {
+          vinylMap[userId] = { imageUrl: notes[0].og_image_url, title: notes[0].og_title }
+        }
+      }
+      setVinyls(vinylMap)
 
       if (needsBg && crewResult.data) {
         const bg = (crewResult.data as { background_image_url?: string | null }).background_image_url
@@ -1513,6 +1574,7 @@ function HomeCrewDetailsSheet({
                   loading={false}
                   isOnline={false}
                   isCreator={(m as MiniMember).id === creatorId}
+                  vinyl={vinyls[(m as MiniMember).id] ?? null}
                   onTap={() => router.push(`/chat/${crew.id}/member/${(m as MiniMember).id}`)}
                 />
               )

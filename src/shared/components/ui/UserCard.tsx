@@ -49,7 +49,7 @@ function StatusTicker({ status }: { status: string }) {
     <div
       ref={containerRef}
       className="overflow-hidden border-t border-b border-border px-2"
-      style={{ paddingTop: 7, paddingBottom: 7 }}
+      style={{ paddingTop: 12, paddingBottom: 12 }}
     >
       <motion.div
         key={status}
@@ -62,13 +62,20 @@ function StatusTicker({ status }: { status: string }) {
           <span
             key={i}
             ref={i === 0 ? itemRef : undefined}
-            className="inline-flex items-center flex-shrink-0 whitespace-nowrap pr-2"
-            style={{ gap: 4 }}
+            className="inline-flex items-center flex-shrink-0 whitespace-nowrap"
+            style={{ gap: 8, paddingRight: 8 }}
           >
-            <Message style={{ width: 8, height: 8, color: 'var(--color-tertiary)' }} aria-hidden="true" />
-            <span className="font-silkscreen text-[length:var(--text-mini)] text-tertiary leading-none">
-              &ldquo;{status}&rdquo;
+            <span className="inline-flex items-center flex-shrink-0" style={{ gap: 4 }}>
+              <Message style={{ width: 8, height: 8, color: 'var(--color-tertiary)' }} aria-hidden="true" />
+              <span className="font-silkscreen text-[length:var(--text-mini)] text-tertiary leading-none">
+                &ldquo;{status}&rdquo;
+              </span>
             </span>
+            <span
+              aria-hidden
+              className="flex-shrink-0"
+              style={{ width: 2, height: 2, background: '#d9d9d9', border: '1px solid var(--color-border-hover)' }}
+            />
           </span>
         ))}
       </motion.div>
