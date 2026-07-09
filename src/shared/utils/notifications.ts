@@ -125,6 +125,17 @@ export async function subscribeToPush(): Promise<PushSubscription | null> {
   }
 }
 
+/**
+ * Tells the service worker which crew's chat screen (if any) is currently mounted
+ * and foregrounded, so it can skip showing a push banner for a message the user is
+ * already seeing live via Realtime — see sw-push.js's 'push' handler. Call with the
+ * crew id on mount/visible, and with null on backgrounding, unmount, or crew switch.
+ */
+export function notifyActiveCrew(crewId: string | null): void {
+  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return
+  navigator.serviceWorker.controller?.postMessage({ type: 'nexus-active-crew', crewId })
+}
+
 export function getPermissionState(): PermissionState {
   if (!isSupported()) return 'unsupported'
   const stored = localStorage.getItem(PERMISSION_KEY) as PermissionState | null

@@ -15,6 +15,7 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY, PRESENCE_ONLINE_THRESHOLD_MS, config }
 import { haptic } from '@/shared/utils/sounds'
 import { compressImage, generateLQIP, validateImageUpload, getNetworkQuality } from '@/shared/utils/imageProcessing'
 import { computeOnlineIds } from '@/shared/utils/presence'
+import { notifyActiveCrew } from '@/shared/utils/notifications'
 import { sendWithRetry } from '@/shared/utils/sendWithRetry'
 import { addToOutbox, readOutbox, type OutboxJob } from '@/shared/utils/outbox'
 import { acquireCrewMessageChannel, releaseCrewMessageChannel, isActiveCrewMessageChannel } from '@/shared/supabase/crewMessageChannel'
@@ -559,6 +560,11 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     // below refine the rest of the set.
     useChatStore.getState().markSelfOnline(userId)
 
+    // Tell the SW this crew's chat is open so a push for it can be suppressed —
+    // the message is already visible here via Realtime. Only announce while the
+    // page is actually foregrounded; handleVisibilityChange below keeps it in sync.
+    if (document.visibilityState === 'visible') notifyActiveCrew(crewId)
+
     const supabase = createClient()
     // Shared with MessageList's postgres_changes listeners — see crewMessageChannel.ts.
     // This effect remains the sole owner of the actual .subscribe() call (deferred
@@ -675,9 +681,11 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
         ch.track({ username: userProfileRef.current.username, typing: false }).catch(() => {})
         heartbeat()
         startHeartbeat()
+        notifyActiveCrew(crewId)
       } else {
         // Stop heartbeating when hidden — let timestamp age naturally; no iOS throttle fights
         stopHeartbeat()
+        notifyActiveCrew(null)
       }
     }
     document.addEventListener('visibilitychange', handleVisibilityChange)
@@ -692,6 +700,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
       msgChannelRef.current     = null
       channelReadyRef.current   = false
       isTypingRef.current       = false
+      notifyActiveCrew(null)
     }
   }, [crewId, userId]) // eslint-disable-line react-hooks/exhaustive-deps
 

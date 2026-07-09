@@ -38,7 +38,10 @@ function buildPayload(type: NotificationType, data: Record<string, unknown>) {
         body:  String(data.content_preview || 'sent'),
         icon:  '/icons/icon-192.png',
         badge: '/icons/icon-192.png',
-        data:  { url: `/chat/${data.crew_id}` },
+        // crew_id (not just baked into url) lets the SW match against the client's
+        // currently-active crew directly — /dm/[friendId] routes don't expose crew_id
+        // in their URL, so URL-string matching alone can't detect an open DM.
+        data:  { url: `/chat/${data.crew_id}`, crew_id: data.crew_id },
       }
     case 'mention_received':
       return {
@@ -46,7 +49,7 @@ function buildPayload(type: NotificationType, data: Record<string, unknown>) {
         body:  String(data.content_preview || 'sent'),
         icon:  '/icons/icon-192.png',
         badge: '/icons/icon-192.png',
-        data:  { url: `/chat/${data.crew_id}` },
+        data:  { url: `/chat/${data.crew_id}`, crew_id: data.crew_id },
       }
     case 'reply_received':
       return {
@@ -54,7 +57,7 @@ function buildPayload(type: NotificationType, data: Record<string, unknown>) {
         body:  String(data.content_preview || 'sent'),
         icon:  '/icons/icon-192.png',
         badge: '/icons/icon-192.png',
-        data:  { url: `/chat/${data.crew_id}` },
+        data:  { url: `/chat/${data.crew_id}`, crew_id: data.crew_id },
       }
     case 'friend_request':
       return {

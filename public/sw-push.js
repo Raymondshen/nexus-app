@@ -150,6 +150,22 @@ self.addEventListener('activate', (event) => {
 
 // ─── Push notifications ───────────────────────────────────────────────────────
 
+// Set by ChatInput (via notifyActiveCrew in shared/utils/notifications.ts) whenever
+// its chat screen is mounted AND the page is foregrounded/visible — cleared on
+// backgrounding, unmount, or crew switch. Used below to skip showing a push banner
+// for a message the recipient is already looking at live via Realtime. Module-scope
+// state is lost if the SW is evicted and restarted, but that's an acceptable gap:
+// the client re-announces on every visibility 'visible' transition, so the window
+// where this is stale is small and fails open (shows the notification) rather than
+// silently swallowing a real one.
+var activeCrewId = null
+
+self.addEventListener('message', function(event) {
+  if (event.data && event.data.type === 'nexus-active-crew') {
+    activeCrewId = event.data.crewId || null
+  }
+})
+
 self.addEventListener('push', (event) => {
   let title = 'Nexus'
   let body  = ''
@@ -179,6 +195,15 @@ self.addEventListener('push', (event) => {
   var clientPromise = self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(openClients) {
     openClients.forEach(function(c) { c.postMessage({ type: 'nexus-push-received', ts: ts, title: title }) })
   })
+
+  // Suppress the OS banner (and badge bump) when the recipient currently has this
+  // exact crew's chat open and foregrounded — they're already seeing the message
+  // live, a push on top is redundant/annoying. Only message/mention/reply pushes
+  // carry crew_id; friend_request/recruit_arrived are never suppressed this way.
+  if (notifData && notifData.crew_id && notifData.crew_id === activeCrewId) {
+    event.waitUntil(Promise.all([logPromise, clientPromise]))
+    return
+  }
 
   if (typeof navigator !== 'undefined' && navigator.setAppBadge) {
     navigator.setAppBadge().catch(function() {})
