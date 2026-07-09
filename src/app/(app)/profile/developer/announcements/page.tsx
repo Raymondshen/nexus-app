@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient, createServiceClient } from '@/shared/supabase/server'
-import { AnnouncementsClient } from '@/features/profile/screens/AnnouncementsClient'
+import { DeveloperUserAnnouncements } from '@/features/profile/screens/DeveloperUserAnnouncements'
 import type { Announcement } from '@/types'
 
 export default async function AnnouncementsPage() {
@@ -22,5 +22,5 @@ export default async function AnnouncementsPage() {
     .select('*')
     .order('created_at', { ascending: false })
 
-  return <AnnouncementsClient initialAnnouncements={(data ?? []) as Announcement[]} />
+  return <DeveloperUserAnnouncements initialAnnouncements={(data ?? []) as Announcement[]} />
 }
