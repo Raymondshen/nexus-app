@@ -31,7 +31,7 @@ function AnnouncementsHeader() {
   return (
     <div
       className="flex-shrink-0 flex items-center"
-      style={{ height: 56, paddingLeft: 16, paddingRight: 16, paddingTop: 8, paddingBottom: 8, gap: 8 }}
+      style={{ paddingLeft: 16, paddingRight: 16, paddingTop: 'max(env(safe-area-inset-top, 0px), 8px)', paddingBottom: 8, gap: 8 }}
     >
       <button
         onClick={goBack}
