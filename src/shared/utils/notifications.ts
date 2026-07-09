@@ -84,10 +84,18 @@ export async function subscribeToPush(): Promise<PushSubscription | null> {
     throw new Error(`insert failed: ${error.message} (code=${error.code})`)
   }
 
+  // getSubscription() can throw or transiently return null on iOS before the SW is
+  // fully controlling — retrying a couple times avoids mistaking that race for "no
+  // subscription exists" and minting a needless fresh one (each fresh subscribe()
+  // gets its own unique endpoint on iOS, so every false negative here leaves a
+  // permanent extra row in push_subscriptions instead of reusing the real one).
   let sub: PushSubscription | null = null
-  try {
-    sub = await registration.pushManager.getSubscription()
-  } catch { /* iOS can throw before SW is fully controlling */ }
+  for (let attempt = 0; attempt < 3 && !sub; attempt++) {
+    if (attempt > 0) await new Promise((r) => setTimeout(r, 150))
+    try {
+      sub = await registration.pushManager.getSubscription()
+    } catch { /* iOS can throw before SW is fully controlling — retry */ }
+  }
 
   if (sub) {
     try {

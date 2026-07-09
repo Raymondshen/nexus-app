@@ -1763,6 +1763,17 @@ export function HomeClient({
 
   useEffect(() => { setCrews(initialCrews) }, [initialCrews])
 
+  // Unlocks NotificationPrompt eligibility for any device that has a crew to be
+  // notified about, not just the device that happened to run onboarding. Without
+  // this, `nexus_crew_created` (set once by WelcomeDetector during onboarding)
+  // stays unset forever on a second device/reinstall/new phone — the prompt then
+  // never appears there and the user has no way to ever get subscribed.
+  useEffect(() => {
+    if (initialCrews.length > 0 && !localStorage.getItem('nexus_crew_created')) {
+      localStorage.setItem('nexus_crew_created', '1')
+    }
+  }, [initialCrews])
+
   useEffect(() => {
     router.refresh()
     // Clear any stale _skipNextSlideEnter flag from a previous back-navigation.
