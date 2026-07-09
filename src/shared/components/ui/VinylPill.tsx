@@ -33,6 +33,8 @@ export function VinylPill({ imageUrl, title }: VinylPillProps) {
         borderRadius:  56,
         padding:       4,
         flexShrink:    0,
+        alignSelf:     'flex-start',
+        width:         'fit-content',
         position:      'relative',
       }}
     >
