@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { createClient, createServiceClient } from '@/shared/supabase/server'
+import { createClient } from '@/shared/supabase/server'
 import { SettingsClient } from '@/features/profile/screens/SettingsClient'
 
 export default async function SettingsPage() {
@@ -11,7 +11,7 @@ export default async function SettingsPage() {
   const [profileResult, membershipsResult, messagesResult, pendingDeletion] = await Promise.all([
     supabase
       .from('profiles')
-      .select('username, avatar_url, background_url, is_dev, custom_avatar, status, created_at')
+      .select('username, avatar_url, background_url, is_dev, custom_avatar, status, created_at, coins')
       .eq('id', user.id)
       .single(),
     supabase
@@ -30,7 +30,7 @@ export default async function SettingsPage() {
       .maybeSingle(),
   ])
 
-  const profile    = profileResult.data as { username: string; avatar_url: string | null; background_url: string | null; is_dev: boolean; custom_avatar: boolean; status: string | null; created_at: string } | null
+  const profile    = profileResult.data as { username: string; avatar_url: string | null; background_url: string | null; is_dev: boolean; custom_avatar: boolean; status: string | null; created_at: string; coins: number } | null
   const groupChats = (membershipsResult.data ?? []).length
   const totalMessages = messagesResult.count ?? 0
   const pendingDeleteAt = (pendingDeletion.data as { delete_at?: string } | null)?.delete_at ?? null
@@ -51,6 +51,7 @@ export default async function SettingsPage() {
       totalMessages={totalMessages}
       groupChats={groupChats}
       pendingDeleteAt={pendingDeleteAt}
+      initialCoins={profile?.coins ?? 0}
     />
   )
 }

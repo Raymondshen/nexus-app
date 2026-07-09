@@ -146,7 +146,7 @@ async function requireDev(): Promise<{ userId: string } | { error: string }> {
 
 // Cached: active announcements (invalidated by revalidateTag('announcements')).
 // Sole place that encodes "what's currently live" — reused by the home page
-// and DeveloperClient's preview button so both stay on the same rule.
+// and SettingsClient's Developer-section preview button so both stay on the same rule.
 function getCachedActiveAnnouncements() {
   return unstable_cache(
     async () => {

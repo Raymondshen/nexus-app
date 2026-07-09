@@ -140,6 +140,13 @@ Dev flags (`localStorage`): `nexus_dev_mode` · `nexus_push_diag` · `nexus_infi
 Server-side (`award-xp`): boss spawn + `LEVEL_UP:` only when `isDevUser = true`
 Client-side (`nexus_dev_mode`): `MessageList` hides boss/artifact/level-up system msgs + cards; `ChatInput` hides DamageFloat + RAID ACTIVE indicator
 
+`nexus_dev_mode`, `nexus_push_diag`, and `nexus_chat_camera` have **no in-app toggle UI** — set them directly via browser devtools `localStorage.setItem(...)`. The Settings page's Developer section (see below) only exposes toggles for `nexus_infinite_coins`, `nexus_poll_feature`, `nexus_events_enabled`, `nexus_friendship_xp`, and `nexus_combat_system`.
+
+### Settings Page (`src/features/profile/screens/SettingsClient.tsx`, route `/profile/settings`)
+- **Edit Profile** row opens a bottom sheet (display name, status, avatar/background upload) that also hosts the **Account** section — signed-in email, pending-deletion banner + cancel, Log out, Delete account (opens `DeleteAccountSheet`). There is no separate Account Details row/sheet.
+- No Notification row — notification preferences are per-crew only (`crew_notification_preferences`, via `SquadDetailsSheet`'s Bell icon → `NotifSheet`), not global.
+- **Developer section** (`isDev` only) is inlined directly into this page — there is no separate `/profile/developer` route. Contains: Announcements composer + `Published Announcements` nav (→ `/profile/developer/announcements`), a `Notification Subscription` test toggle, and feature toggles (Infinite Coins, Poll Feature, Events Feature, Friendship XP System, Combat System). `Error Logs` nav (→ `/profile/error-logs`), `Dev Mode` toggle, `Chat Camera` toggle, `Preview Announcements Sheet`, `Reset Gem Cooldown`, `Reset Friendship XP`, and the whole `Combat Testing` section (spawn boss/end raid/down self/revive/trigger attack/reset combat) were removed from this UI — the underlying server actions still exist in `src/app/(app)/profile/developer/actions.ts` (unused by any UI) and `/profile/error-logs` is still a live route, just unlinked.
+
 ## Storage Keys
 
 sessionStorage: `nexus-msgs-{crewId}` (envelope `{ messages, savedAt }`, 50 msg cap) · `nexus_chat_from`
@@ -172,7 +179,7 @@ src/
 │   ├── events/                 EventCreationSheet, EventCard, GroupEventsClient (dev-gated: `nexus_events_enabled`)
 │   ├── auth/                   LoginForm
 │   ├── onboarding/             BirthdayClient, ClassSelectClient, WelcomeClient
-│   └── profile/                ProfileClient, DeveloperClient, VibesGrid, PhotosGrid
+│   └── profile/                ProfileClient, SettingsClient, ErrorLogsClient, VibesGrid, PhotosGrid
 ├── shared/
 │   ├── supabase/               client.ts, server.ts, auth.ts, imageLoader.ts
 │   ├── constants/config.ts     BOSS_XP_THRESHOLD, LEVEL_XP_BASE, etc.
@@ -571,3 +578,4 @@ Same label/helper/border design as `InputField` but renders a `<textarea>`. Heig
 - **Any new path that writes `profiles.username` must call `validateUsernameFormat()`** (`src/shared/utils/username.ts`) — it's the only enforcement of the `^[A-Za-z0-9_]+$` rule; nothing checks it at the DB level (no `CHECK` constraint). See Username Format.
 - **Data migrations that backfill a flag/state should select by a condition, not hardcoded ids** — `needs_username_reset`'s backfill used `where username !~ '^[A-Za-z0-9_]+$'` rather than the specific ids found during audit, so it stays correct if more legacy rows are discovered later.
 - **Memoizing a derived value only helps if its own inputs are stable.** `ChatInput`'s `members` (`Object.values(memberProfiles).filter(...)`) built a fresh array every render; wrapping a *downstream* consumer (e.g. `SquadDetailsSheet`'s `sortedMembers`) in `useMemo` still recomputed every time because its dependency (`members`) never `===` the previous render's. Had to memoize `members` itself (deps: `memberProfiles`, `kickedIds` — both genuinely stable) before the downstream memoizations became effective. When adding `useMemo`/`useCallback` around something derived from a prop, check whether that prop's own upstream derivation is stable — otherwise the memoization is a no-op.
+- **The global `notification_preferences` table (`notif_messages`/`notif_mentions`/`notif_replies`) has no client write path anymore** — the Settings page's Notification row (which used to toggle it) was removed since notification prefs are now per-crew (`crew_notification_preferences`, via `SquadDetailsSheet`). But `send-notification`'s edge function still reads `notification_preferences` first and ANDs it with the per-crew row — it's a global kill-switch that gates `message_received`/`mention_received`/`reply_received` regardless of crew. Any row a user previously set to `false` there is now permanently stuck off with no UI to re-enable it, and no one can newly mute all-crews notifications. If global mute needs to come back, it belongs inside the Account section of the Edit Profile sheet, not as its own top-level Settings row.

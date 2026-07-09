@@ -26,7 +26,7 @@ export interface AnnouncementsSheetViewProps {
 }
 
 // Presentational body shared by the production sheet (dismissed-state driven)
-// and the dev-only preview (`DeveloperClient`'s AnnouncementsSheetView usage) —
+// and the dev-only preview (`SettingsClient`'s Developer section, AnnouncementsSheetView usage) —
 // keep this the sole place that lays out the sheet chrome + card list.
 export function AnnouncementsSheetView({ announcements, onClose }: AnnouncementsSheetViewProps) {
   return (

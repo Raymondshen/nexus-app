@@ -1,16 +1,13 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { SlidePage, useSlideBack } from '@/app/layouts/SlidePage'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
 import { MagicEdit } from 'pixelarticons/react/MagicEdit'
-import { Bell } from 'pixelarticons/react/Bell'
-import { User } from 'pixelarticons/react/User'
-import { Terminal } from 'pixelarticons/react/Terminal'
-import { createClient } from '@/shared/supabase/client'
+import { Plus } from 'pixelarticons/react/Plus'
 import { validateUsernameFormat } from '@/shared/utils/username'
 import { formatShortDate } from '@/shared/utils/date'
 import { UserAvatar } from '@/shared/components/ui/UserAvatar'
@@ -23,7 +20,7 @@ import {
   requestAccountDeletionAction,
   cancelAccountDeletionAction,
 } from '@/app/(app)/profile/actions'
-import { NotifSheet, type NotifPrefs } from '@/features/chat/components/sheets/NotifSheet'
+import { createAnnouncementAction } from '@/app/(app)/home/actions'
 import { AvatarUploadModal } from '@/shared/components/overlays/AvatarUploadModal'
 import { BackgroundUploadModal } from '@/shared/components/overlays/BackgroundUploadModal'
 import { Button } from '@/shared/components/ui/Button'
@@ -44,6 +41,7 @@ export interface SettingsClientProps {
   totalMessages:   number
   groupChats:      number
   pendingDeleteAt: string | null
+  initialCoins:    number
 }
 
 // ─── Status ticker preview ────────────────────────────────────────────────────
@@ -75,6 +73,15 @@ function EditProfileSheet({
   memberSinceYear,
   groupChats,
   totalMessages,
+  userEmail,
+  isGuest,
+  deletePending,
+  localDeleteAt,
+  loggingOut,
+  onLogout,
+  cancellingDelete,
+  onCancelDeletion,
+  onOpenDeleteSheet,
 }: {
   isOpen:             boolean
   onClose:            () => void
@@ -90,6 +97,15 @@ function EditProfileSheet({
   memberSinceYear:    string
   groupChats:         number
   totalMessages:      number
+  userEmail:          string
+  isGuest:            boolean
+  deletePending:      boolean
+  localDeleteAt:      string | null
+  loggingOut:         boolean
+  onLogout:           () => void
+  cancellingDelete:   boolean
+  onCancelDeletion:   () => void
+  onOpenDeleteSheet:  () => void
 }) {
   const [displayName, setDisplayName] = useState(initialDisplayName)
   const [status,      setStatus]      = useState(initialStatus)
@@ -151,7 +167,7 @@ function EditProfileSheet({
               dragConstraints={{ top: 0, bottom: 0 }}
               dragElastic={{ top: 0, bottom: 1 }}
               onDragEnd={(_, info) => { if (info.offset.y > 80 || info.velocity.y > 400) onClose() }}
-              style={{ paddingBottom: 'max(28px, env(safe-area-inset-bottom))' }}
+              style={{ paddingBottom: 'max(28px, env(safe-area-inset-bottom))', maxHeight: '90vh', overflowY: 'auto' }}
               onClick={(e) => e.stopPropagation()}
             >
               {/* Profile hero preview */}
@@ -269,6 +285,67 @@ function EditProfileSheet({
                 >
                   Save Changes
                 </Button>
+
+                {/* Account section (folded in from the former Account Details sheet) */}
+                <div className="flex flex-col gap-[var(--space-2)] w-full border-t border-border" style={{ paddingTop: 24 }}>
+                  <p className="font-body font-bold text-primary leading-none w-full" style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}>
+                    Account
+                  </p>
+                  <p className="font-body font-normal leading-normal w-full" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-tertiary)', fontVariationSettings: '"opsz" 14' }}>
+                    {'Signed in with '}
+                    <span style={{ color: 'var(--color-primary)' }}>{userEmail}</span>
+                  </p>
+                </div>
+
+                {deletePending && localDeleteAt && (
+                  <div
+                    className="flex flex-col gap-[var(--space-2)] p-[var(--space-4)] w-full"
+                    style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.3)' }}
+                  >
+                    <p className="font-silkscreen leading-relaxed" style={{ fontSize: 'var(--text-mini)', color: '#ef4444' }}>
+                      Account deletion scheduled
+                    </p>
+                    <p className="font-body font-normal leading-normal tracking-[0.2px]" style={{ fontSize: 'var(--text-xxs)', color: 'var(--color-secondary)', fontVariationSettings: '"opsz" 14' }}>
+                      Permanent deletion on{' '}
+                      <span style={{ color: 'var(--color-primary)' }}>
+                        {formatShortDate(localDeleteAt)}
+                      </span>
+                      . All data will be erased.
+                    </p>
+                    <button
+                      onClick={onCancelDeletion}
+                      disabled={cancellingDelete}
+                      className="self-start font-silkscreen leading-none disabled:opacity-50 transition-opacity hover:opacity-70"
+                      style={{ fontSize: 'var(--text-xs)', color: 'var(--color-primary)' }}
+                    >
+                      {cancellingDelete ? '...' : 'Cancel deletion'}
+                    </button>
+                  </div>
+                )}
+
+                <div className="flex flex-col w-full" style={{ gap: 'var(--space-5)' }}>
+                  <button
+                    onClick={onLogout}
+                    disabled={loggingOut}
+                    className="w-full h-12 flex items-center justify-center overflow-hidden disabled:opacity-50 transition-opacity"
+                    style={{ background: '#ef4444' }}
+                  >
+                    <span className="font-silkscreen leading-none whitespace-nowrap text-primary" style={{ fontSize: 'var(--text-xs)' }}>
+                      {loggingOut ? '...' : 'Log out'}
+                    </span>
+                  </button>
+
+                  {!isGuest && !deletePending && (
+                    <button
+                      onClick={onOpenDeleteSheet}
+                      className="w-full h-12 border border-[#ef4444] flex items-center justify-center overflow-hidden transition-colors hover:bg-[#ef4444]/8"
+                    >
+                      <span className="font-silkscreen leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-xs)', color: '#ef4444' }}>
+                        Delete account
+                      </span>
+                    </button>
+                  )}
+                </div>
               </div>
             </motion.div>
           </motion.div>
@@ -379,127 +456,6 @@ function DeleteAccountSheet({
   )
 }
 
-// ─── Account Details bottom sheet ────────────────────────────────────────────
-
-function AccountDetailsSheet({
-  isOpen,
-  onClose,
-  userEmail,
-  isGuest,
-  deletePending,
-  localDeleteAt,
-  loggingOut,
-  onLogout,
-  cancellingDelete,
-  onCancelDeletion,
-  onOpenDeleteSheet,
-}: {
-  isOpen:            boolean
-  onClose:           () => void
-  userEmail:         string
-  isGuest:           boolean
-  deletePending:     boolean
-  localDeleteAt:     string | null
-  loggingOut:        boolean
-  onLogout:          () => void
-  cancellingDelete:  boolean
-  onCancelDeletion:  () => void
-  onOpenDeleteSheet: () => void
-}) {
-  return (
-    <AnimatePresence>
-      {isOpen && (
-        <>
-          <motion.div
-            className="fixed inset-0 z-[48] bg-black/60"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-          />
-          <motion.div
-            className="fixed bottom-0 left-0 right-0 z-[50] max-w-[480px] mx-auto"
-            initial={{ y: '100%' }}
-            animate={{ y: 0 }}
-            exit={{ y: '100%' }}
-            transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-          >
-            <div
-              className="bg-[var(--color-surface-sheet)] rounded-tl-[16px] rounded-tr-[16px] overflow-hidden flex flex-col gap-[var(--space-7)]"
-              style={{
-                paddingTop:    'var(--space-7)',
-                paddingLeft:   'var(--space-5)',
-                paddingRight:  'var(--space-5)',
-                paddingBottom: 'max(28px, env(safe-area-inset-bottom))',
-              }}
-            >
-              <div className="flex flex-col gap-[var(--space-2)] w-full">
-                <p className="font-body font-bold text-primary leading-none w-full" style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}>
-                  Account
-                </p>
-                <p className="font-body font-normal leading-normal w-full" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-tertiary)', fontVariationSettings: '"opsz" 14' }}>
-                  {'Signed in with '}
-                  <span style={{ color: 'var(--color-primary)' }}>{userEmail}</span>
-                </p>
-              </div>
-
-              {deletePending && localDeleteAt && (
-                <div
-                  className="flex flex-col gap-[var(--space-2)] p-[var(--space-4)]"
-                  style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.3)' }}
-                >
-                  <p className="font-silkscreen leading-relaxed" style={{ fontSize: 'var(--text-mini)', color: '#ef4444' }}>
-                    Account deletion scheduled
-                  </p>
-                  <p className="font-body font-normal leading-normal tracking-[0.2px]" style={{ fontSize: 'var(--text-xxs)', color: 'var(--color-secondary)', fontVariationSettings: '"opsz" 14' }}>
-                    Permanent deletion on{' '}
-                    <span style={{ color: 'var(--color-primary)' }}>
-                      {formatShortDate(localDeleteAt)}
-                    </span>
-                    . All data will be erased.
-                  </p>
-                  <button
-                    onClick={onCancelDeletion}
-                    disabled={cancellingDelete}
-                    className="self-start font-silkscreen leading-none disabled:opacity-50 transition-opacity hover:opacity-70"
-                    style={{ fontSize: 'var(--text-xs)', color: 'var(--color-primary)' }}
-                  >
-                    {cancellingDelete ? '...' : 'Cancel deletion'}
-                  </button>
-                </div>
-              )}
-
-              <div className="flex flex-col w-full" style={{ gap: 'var(--space-5)' }}>
-                <button
-                  onClick={onLogout}
-                  disabled={loggingOut}
-                  className="w-full h-12 flex items-center justify-center overflow-hidden disabled:opacity-50 transition-opacity"
-                  style={{ background: '#ef4444' }}
-                >
-                  <span className="font-silkscreen leading-none whitespace-nowrap text-primary" style={{ fontSize: 'var(--text-xs)' }}>
-                    {loggingOut ? '...' : 'Log out'}
-                  </span>
-                </button>
-
-                {!isGuest && !deletePending && (
-                  <button
-                    onClick={onOpenDeleteSheet}
-                    className="w-full h-12 border border-[#ef4444] flex items-center justify-center overflow-hidden transition-colors hover:bg-[#ef4444]/8"
-                  >
-                    <span className="font-silkscreen leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-xs)', color: '#ef4444' }}>
-                      Delete account
-                    </span>
-                  </button>
-                )}
-              </div>
-            </div>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
-  )
-}
-
 // ─── BackButton — must render inside SlidePage context ───────────────────────
 
 function SettingsBackButton() {
@@ -513,6 +469,303 @@ function SettingsBackButton() {
     >
       <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
     </button>
+  )
+}
+
+// ─── Developer section (folded in from the former standalone /profile/developer page) ─
+
+function ToggleSwitch({ enabled, onChange }: { enabled: boolean; onChange: () => void }) {
+  return (
+    <button
+      onClick={onChange}
+      className="relative flex-shrink-0 overflow-hidden"
+      style={{
+        width: 48,
+        height: 28,
+        borderRadius: 40,
+        background: enabled ? 'var(--color-purple)' : 'var(--color-border)',
+      }}
+      aria-checked={enabled}
+      role="switch"
+    >
+      <motion.span
+        className="absolute top-[4px] rounded-full bg-white pointer-events-none"
+        style={{ width: 20, height: 20 }}
+        animate={{ left: enabled ? 24 : 4 }}
+        transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+      />
+    </button>
+  )
+}
+
+function DevNavRow({ title, description, onClick }: { title: string; description: string; onClick: () => void }) {
+  return (
+    <button onClick={onClick} className="flex items-center w-full text-left" style={{ gap: 'var(--space-3)' }}>
+      <div className="flex-1 min-w-0 flex flex-col gap-0 leading-[0] tracking-[0.2px]">
+        <p className="font-body font-semibold text-secondary leading-normal" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}>
+          {title}
+        </p>
+        <p className="font-body font-normal text-tertiary leading-normal" style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}>
+          {description}
+        </p>
+      </div>
+      <ChevronRight style={{ width: 20, height: 20, color: 'var(--color-tertiary)', flexShrink: 0 }} aria-hidden="true" />
+    </button>
+  )
+}
+
+function DevToggleRow({ title, description, enabled, onChange }: { title: string; description: string; enabled: boolean; onChange: () => void }) {
+  return (
+    <div className="flex items-center w-full" style={{ gap: 'var(--space-3)' }}>
+      <div className="flex-1 min-w-0 flex flex-col gap-0 leading-[0] tracking-[0.2px]">
+        <p className="font-body font-semibold text-secondary leading-normal" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}>
+          {title}
+        </p>
+        <p className="font-body font-normal text-tertiary leading-normal" style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}>
+          {description}
+        </p>
+      </div>
+      <ToggleSwitch enabled={enabled} onChange={onChange} />
+    </div>
+  )
+}
+
+function DeveloperSection({ initialCoins }: { initialCoins: number }) {
+  const router = useRouter()
+
+  const [showPush,      setShowPush]      = useState(false)
+  const [infiniteCoins, setInfiniteCoins] = useState(false)
+  const [pollFeature,   setPollFeature]   = useState(false)
+  const [eventsFeature, setEventsFeature] = useState(false)
+  const [friendshipXP,  setFriendshipXP]  = useState(false)
+  const [combatSystem,  setCombatSystem]  = useState(false)
+  const [newTitle,     setNewTitle]     = useState('')
+  const [newText,      setNewText]      = useState('')
+  const [newImageUrl,  setNewImageUrl]  = useState('')
+  const [addingBanner, setAddingBanner] = useState(false)
+  const [bannerError,  setBannerError]  = useState<string | null>(null)
+  const [addedSuccess, setAddedSuccess] = useState(false)
+
+  useEffect(() => {
+    setShowPush(localStorage.getItem('nexus_push_diag') === '1')
+    setInfiniteCoins(localStorage.getItem('nexus_infinite_coins') === '1')
+    setPollFeature(localStorage.getItem('nexus_poll_feature') === '1')
+    setEventsFeature(localStorage.getItem('nexus_events_enabled') === '1')
+    setFriendshipXP(localStorage.getItem('nexus_friendship_xp') === '1')
+    setCombatSystem(localStorage.getItem('nexus_combat_system') === '1')
+  }, [])
+
+  function toggleShowPush() {
+    const next = !showPush
+    setShowPush(next)
+    if (next) localStorage.setItem('nexus_push_diag', '1')
+    else localStorage.removeItem('nexus_push_diag')
+    window.dispatchEvent(new CustomEvent('nexus-push-diag-change', { detail: { on: next } }))
+  }
+
+  function toggleInfiniteCoins() {
+    const next = !infiniteCoins
+    setInfiniteCoins(next)
+    if (next) localStorage.setItem('nexus_infinite_coins', '1')
+    else localStorage.removeItem('nexus_infinite_coins')
+    window.dispatchEvent(new CustomEvent('nexus-infinite-coins-change', { detail: { on: next } }))
+  }
+
+  function togglePollFeature() {
+    const next = !pollFeature
+    setPollFeature(next)
+    if (next) localStorage.setItem('nexus_poll_feature', '1')
+    else localStorage.removeItem('nexus_poll_feature')
+    window.dispatchEvent(new CustomEvent('nexus-poll-feature-change', { detail: { on: next } }))
+  }
+
+  function toggleEventsFeature() {
+    const next = !eventsFeature
+    setEventsFeature(next)
+    if (next) localStorage.setItem('nexus_events_enabled', '1')
+    else localStorage.removeItem('nexus_events_enabled')
+    window.dispatchEvent(new CustomEvent('nexus-events-feature-change', { detail: { on: next } }))
+  }
+
+  function toggleFriendshipXP() {
+    const next = !friendshipXP
+    setFriendshipXP(next)
+    if (next) localStorage.setItem('nexus_friendship_xp', '1')
+    else localStorage.removeItem('nexus_friendship_xp')
+    window.dispatchEvent(new CustomEvent('nexus-friendship-xp-change', { detail: { on: next } }))
+  }
+
+  function toggleCombatSystem() {
+    const next = !combatSystem
+    setCombatSystem(next)
+    if (next) localStorage.setItem('nexus_combat_system', '1')
+    else localStorage.removeItem('nexus_combat_system')
+    window.dispatchEvent(new CustomEvent('nexus-combat-system-change', { detail: { on: next } }))
+  }
+
+  async function handleCreateBanner() {
+    if (!newTitle.trim() || !newText.trim() || !newImageUrl.trim() || addingBanner) return
+    setAddingBanner(true)
+    setBannerError(null)
+    const result = await createAnnouncementAction(newTitle.trim(), newText.trim(), newImageUrl.trim())
+    setAddingBanner(false)
+    if (result.error) { setBannerError(result.error); return }
+    setNewTitle('')
+    setNewText('')
+    setNewImageUrl('')
+    setAddedSuccess(true)
+    setTimeout(() => setAddedSuccess(false), 2000)
+  }
+
+  return (
+    <div className="flex flex-col w-full" style={{ gap: 'var(--space-7)' }}>
+      <p className="font-silkscreen leading-normal tracking-[0.2px] uppercase" style={{ fontSize: 'var(--text-sm)', color: 'var(--color-purple)' }}>
+        Developer
+      </p>
+
+      {/* Announcements */}
+      <div className="flex flex-col w-full" style={{ gap: 'var(--space-5)' }}>
+        <div className="flex flex-col" style={{ gap: 'var(--space-3)' }}>
+          <p className="font-body font-medium text-primary tracking-[0.2px] leading-normal" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}>
+            Announcements
+          </p>
+
+          <div
+            className="border flex h-[48px] items-center overflow-hidden w-full"
+            style={{ borderColor: 'var(--color-border)', paddingLeft: 'var(--space-5)', paddingRight: 'var(--space-5)' }}
+          >
+            <input
+              value={newTitle}
+              onChange={(e) => { setNewTitle(e.target.value.slice(0, 200)); setBannerError(null) }}
+              placeholder="Title, e.g. Text Effects"
+              maxLength={200}
+              className="flex-1 bg-transparent font-body font-normal text-primary placeholder:text-muted focus:outline-none leading-normal"
+              style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
+            />
+          </div>
+
+          <div
+            className="border flex h-[48px] items-center overflow-hidden w-full"
+            style={{ borderColor: 'var(--color-border)', paddingLeft: 'var(--space-5)', paddingRight: 'var(--space-5)' }}
+          >
+            <input
+              value={newImageUrl}
+              onChange={(e) => { setNewImageUrl(e.target.value.slice(0, 300)); setBannerError(null) }}
+              placeholder="Image path, e.g. /img/announcements/foo.svg"
+              maxLength={300}
+              className="flex-1 bg-transparent font-body font-normal text-primary placeholder:text-muted focus:outline-none leading-normal"
+              style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
+            />
+          </div>
+
+          <div
+            className="border flex h-[48px] items-center overflow-hidden w-full"
+            style={{ borderColor: 'var(--color-border)', paddingLeft: 'var(--space-5)', paddingRight: 'var(--space-5)' }}
+          >
+            <input
+              value={newText}
+              onChange={(e) => { setNewText(e.target.value.slice(0, 500)); setBannerError(null) }}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleCreateBanner() }}
+              placeholder="Body text..."
+              maxLength={500}
+              className="flex-1 bg-transparent font-body font-normal text-primary placeholder:text-muted focus:outline-none leading-normal"
+              style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
+            />
+          </div>
+
+          {bannerError && (
+            <p className="font-pixel leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-danger)' }}>
+              {bannerError}
+            </p>
+          )}
+
+          <button
+            onClick={handleCreateBanner}
+            disabled={!newTitle.trim() || !newText.trim() || !newImageUrl.trim() || addingBanner}
+            className="flex items-center justify-center overflow-hidden w-full disabled:opacity-40"
+            style={{
+              background: addedSuccess ? '#22c55e' : 'var(--color-purple)',
+              gap:          'var(--space-3)',
+              paddingLeft:  'var(--space-6)',
+              paddingRight: 'var(--space-6)',
+              paddingTop:   'var(--space-5)',
+              paddingBottom: 'var(--space-5)',
+              boxShadow: addedSuccess
+                ? '4px 4px 0px 0px rgba(34,197,94,0.5)'
+                : '4px 4px 0px 0px rgba(168,85,247,0.5)',
+              transition: 'background 0.2s, box-shadow 0.2s',
+            }}
+          >
+            <Plus style={{ width: 16, height: 16, color: 'var(--color-primary)', flexShrink: 0 }} aria-hidden="true" />
+            <span className="font-silkscreen text-primary leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-xs)' }}>
+              {addingBanner ? '...' : addedSuccess ? 'Added!' : 'Add announcement'}
+            </span>
+          </button>
+        </div>
+
+        <DevNavRow
+          title="Published Announcements"
+          description="View all published announcements"
+          onClick={() => router.push('/profile/developer/announcements')}
+        />
+      </div>
+
+      {/* Debug */}
+      <div className="flex flex-col w-full" style={{ gap: 'var(--space-5)' }}>
+        <p className="font-silkscreen leading-normal tracking-[0.2px] uppercase" style={{ fontSize: 'var(--text-sm)', color: 'var(--color-purple)' }}>
+          Debug
+        </p>
+
+        <DevToggleRow
+          title="Notification Subscription"
+          description="Test push notification."
+          enabled={showPush}
+          onChange={toggleShowPush}
+        />
+      </div>
+
+      {/* Features */}
+      <div className="flex flex-col w-full" style={{ gap: 'var(--space-5)' }}>
+        <p className="font-silkscreen leading-normal tracking-[0.2px] uppercase" style={{ fontSize: 'var(--text-sm)', color: 'var(--color-purple)' }}>
+          Features
+        </p>
+
+        <DevToggleRow
+          title="Infinite Coins"
+          description={`Balance : ${initialCoins.toLocaleString()} coins`}
+          enabled={infiniteCoins}
+          onChange={toggleInfiniteCoins}
+        />
+
+        <DevToggleRow
+          title="Poll Feature"
+          description="Show poll creation button in chat input"
+          enabled={pollFeature}
+          onChange={togglePollFeature}
+        />
+
+        <DevToggleRow
+          title="Events Feature"
+          description="Enable group event creation and calendar in chat"
+          enabled={eventsFeature}
+          onChange={toggleEventsFeature}
+        />
+
+        <DevToggleRow
+          title="Friendship XP System"
+          description="DM and @mention XP, bond progress bar, and toast"
+          enabled={friendshipXP}
+          onChange={toggleFriendshipXP}
+        />
+
+        <DevToggleRow
+          title="Combat System"
+          description="Show raid HUD, boss damage floats, and ability controls"
+          enabled={combatSystem}
+          onChange={toggleCombatSystem}
+        />
+      </div>
+    </div>
   )
 }
 
@@ -532,6 +785,7 @@ export function SettingsClient({
   totalMessages,
   groupChats,
   pendingDeleteAt,
+  initialCoins,
 }: SettingsClientProps) {
   const router = useRouter()
 
@@ -545,36 +799,6 @@ export function SettingsClient({
 
   // ── Edit profile sheet ────────────────────────────────────────────────────
   const [showEditSheet, setShowEditSheet] = useState(false)
-
-  // ── Notifications ─────────────────────────────────────────────────────────
-  const [showNotifSheet,   setShowNotifSheet]   = useState(false)
-  const [showAccountSheet, setShowAccountSheet] = useState(false)
-  const [prefs, setPrefs] = useState<NotifPrefs>({ messages: true, mentions: true, replies: true })
-
-  const fetchPrefs = useCallback(async () => {
-    const supabase = createClient()
-    const { data } = await supabase
-      .from('notification_preferences')
-      .select('notif_messages, notif_mentions, notif_replies')
-      .eq('user_id', userId)
-      .maybeSingle()
-    if (data) setPrefs({ messages: data.notif_messages as boolean, mentions: data.notif_mentions as boolean, replies: data.notif_replies as boolean })
-  }, [userId])
-
-  useEffect(() => { fetchPrefs() }, [fetchPrefs])
-
-  async function handleTogglePref(key: keyof NotifPrefs) {
-    const next = { ...prefs, [key]: !prefs[key] }
-    setPrefs(next)
-    const supabase = createClient()
-    await supabase.from('notification_preferences').upsert({
-      user_id:        userId,
-      notif_messages: next.messages,
-      notif_mentions: next.mentions,
-      notif_replies:  next.replies,
-      updated_at:     new Date().toISOString(),
-    }, { onConflict: 'user_id' })
-  }
 
   // ── Logout ────────────────────────────────────────────────────────────────
   const [loggingOut, setLoggingOut] = useState(false)
@@ -667,65 +891,14 @@ export function SettingsClient({
           <ChevronRight style={{ width: 20, height: 20, color: 'var(--color-tertiary)', flexShrink: 0 }} aria-hidden="true" />
         </button>
 
-        {/* Notification */}
-        <button
-          onClick={() => setShowNotifSheet(true)}
-          className="w-full flex gap-3 items-center text-left"
-          style={{ minHeight: 34 }}
-        >
-          <Bell style={{ width: 20, height: 20, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
-          <div className="flex-1 min-w-0 flex flex-col gap-0 leading-[0] tracking-[0.2px]">
-            <p className="font-body font-semibold text-secondary leading-normal" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}>
-              Notification
-            </p>
-            <p className="font-body font-normal text-tertiary leading-normal" style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}>
-              Control what pulls you back into the chat.
-            </p>
-          </div>
-          <ChevronRight style={{ width: 20, height: 20, color: 'var(--color-tertiary)', flexShrink: 0 }} aria-hidden="true" />
-        </button>
-
-        {/* Account Details */}
-        <button
-          onClick={() => setShowAccountSheet(true)}
-          className="w-full flex gap-3 items-center text-left"
-          style={{ minHeight: 34 }}
-        >
-          <User style={{ width: 20, height: 20, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
-          <div className="flex-1 min-w-0 flex flex-col gap-0 leading-[0] tracking-[0.2px]">
-            <p className="font-body font-semibold text-secondary leading-normal" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}>
-              Account Details
-            </p>
-            <p className="font-body font-normal text-tertiary leading-normal truncate" style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}>
-              Signed in with {userEmail}
-            </p>
-          </div>
-          <ChevronRight style={{ width: 20, height: 20, color: 'var(--color-tertiary)', flexShrink: 0 }} aria-hidden="true" />
-        </button>
-
-        {/* Developer Page — dev only */}
+        {/* Developer section — dev only, inlined from the former /profile/developer page */}
         {isDev && (
-          <button
-            onClick={() => router.push('/profile/developer')}
-            className="w-full flex gap-3 items-center text-left"
-            style={{ minHeight: 34 }}
-          >
-            <Terminal style={{ width: 20, height: 20, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
-            <div className="flex-1 min-w-0 flex flex-col gap-0 leading-[0] tracking-[0.2px]">
-              <p className="font-body font-semibold text-secondary leading-normal" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}>
-                Developer Page
-              </p>
-              <p className="font-body font-normal text-tertiary leading-normal" style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}>
-                Debug, Manage, and Test new features
-              </p>
-            </div>
-            <ChevronRight style={{ width: 20, height: 20, color: 'var(--color-tertiary)', flexShrink: 0 }} aria-hidden="true" />
-          </button>
+          <DeveloperSection initialCoins={initialCoins} />
         )}
 
       </div>
 
-      {/* Edit Profile sheet */}
+      {/* Edit Profile sheet (now also hosts the former Account Details content) */}
       <EditProfileSheet
         isOpen={showEditSheet}
         onClose={() => setShowEditSheet(false)}
@@ -745,23 +918,6 @@ export function SettingsClient({
         memberSinceYear={memberSinceYear}
         groupChats={groupChats}
         totalMessages={totalMessages}
-      />
-
-      {/* Notification sheet */}
-      <AnimatePresence>
-        {showNotifSheet && (
-          <NotifSheet
-            prefs={prefs}
-            onToggle={handleTogglePref}
-            onClose={() => setShowNotifSheet(false)}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* Account details sheet */}
-      <AccountDetailsSheet
-        isOpen={showAccountSheet}
-        onClose={() => setShowAccountSheet(false)}
         userEmail={userEmail}
         isGuest={isGuest}
         deletePending={deletePending}
@@ -771,7 +927,7 @@ export function SettingsClient({
         cancellingDelete={cancellingDelete}
         onCancelDeletion={handleCancelDeletion}
         onOpenDeleteSheet={() => {
-          setShowAccountSheet(false)
+          setShowEditSheet(false)
           setShowDeleteSheet(true)
         }}
       />
