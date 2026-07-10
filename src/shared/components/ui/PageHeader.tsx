@@ -24,7 +24,7 @@ export function PageHeader({ title, onBack, right }: PageHeaderProps) {
       }}
     >
       <div className="flex items-center justify-between h-10">
-        <div className="flex items-center h-full" style={{ gap: 'var(--x3)' }}>
+        <div className="flex items-center h-full" style={{ gap: 'var(--x5)' }}>
           <button
             onClick={onBack}
             aria-label="Back"
