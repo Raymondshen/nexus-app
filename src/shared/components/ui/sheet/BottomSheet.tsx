@@ -1,7 +1,8 @@
 'use client'
 
-import { type ReactNode, useRef } from 'react'
-import { motion, useDragControls } from 'framer-motion'
+import { type ReactNode } from 'react'
+import { motion } from 'framer-motion'
+import { useSheetDrag } from './useSheetDrag'
 
 interface BottomSheetProps {
   onClose:              () => void
@@ -24,10 +25,6 @@ interface BottomSheetProps {
   dismissOnPointerDown?: boolean
 }
 
-// How far the finger must travel downward before a pull-to-close drag takes over
-// from a (potential) native scroll.
-const DRAG_START_THRESHOLD = 6
-
 export function BottomSheet({
   onClose,
   children,
@@ -38,50 +35,8 @@ export function BottomSheet({
   background = 'var(--color-surface-sheet)',
   dismissOnPointerDown = false,
 }: BottomSheetProps) {
-  // dragListener is disabled below so Framer doesn't stamp `touch-action: pan-x` on the
-  // sheet (which would kill native vertical scrolling of any inner list). Instead the
-  // drag is started manually via these controls only for a downward pull that begins
-  // while the inner content is already scrolled to the top — iOS-style pull-to-close.
-  const dragControls = useDragControls()
-  const sheetRef      = useRef<HTMLDivElement>(null)
-  // Per-gesture state captured on pointer-down: start Y + whether a sheet drag is even
-  // allowed to begin (i.e. the touch isn't on a list that's scrolled down mid-way).
-  const gestureRef    = useRef<{ y: number; canDrag: boolean } | null>(null)
-
-  // Walk from the touched element up to the sheet root looking for a vertically
-  // scrollable ancestor. If one exists, a sheet drag may only begin when it's at the
-  // top (so pulling down closes, but scrolling within the list scrolls). No scroller →
-  // always draggable, matching a short sheet like AddMediaSheet.
-  function canDragFrom(target: EventTarget | null): boolean {
-    let el = target as HTMLElement | null
-    const root = sheetRef.current
-    while (el && el !== root) {
-      if (el.scrollHeight > el.clientHeight) {
-        const overflowY = getComputedStyle(el).overflowY
-        if (overflowY === 'auto' || overflowY === 'scroll') return el.scrollTop <= 0
-      }
-      el = el.parentElement
-    }
-    return true
-  }
-
-  function onPointerDown(e: React.PointerEvent) {
-    if (disableDrag) { gestureRef.current = null; return }
-    gestureRef.current = { y: e.clientY, canDrag: canDragFrom(e.target) }
-  }
-
-  function onPointerMove(e: React.PointerEvent) {
-    const g = gestureRef.current
-    if (!g || !g.canDrag) return
-    if (e.clientY - g.y > DRAG_START_THRESHOLD) {
-      gestureRef.current = null
-      dragControls.start(e)
-    }
-  }
-
-  function endGesture() {
-    gestureRef.current = null
-  }
+  // Pull-to-close that coexists with inner scrolling — see useSheetDrag.
+  const { sheetRef, dragProps } = useSheetDrag(onClose, disableDrag)
 
   const backdropProps = dismissOnPointerDown
     ? {
@@ -109,18 +64,7 @@ export function BottomSheet({
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
         transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-        drag={disableDrag ? false : 'y'}
-        dragListener={false}
-        dragControls={dragControls}
-        dragConstraints={{ top: 0, bottom: 0 }}
-        dragElastic={{ top: 0, bottom: 1 }}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={endGesture}
-        onPointerCancel={endGesture}
-        onDragEnd={(_, info) => {
-          if (!disableDrag && (info.offset.y > 80 || info.velocity.y > 400)) onClose()
-        }}
+        {...dragProps}
         onClick={(e) => e.stopPropagation()}
       >
         {children}

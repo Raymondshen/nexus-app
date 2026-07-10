@@ -463,7 +463,7 @@ Action rows inside sheets use `<SheetActionButton>` (`src/shared/components/ui/S
 Pass icon without a `color` style — it inherits `currentColor` from the button.
 
 ### Panel (SquadDetailsSheet only)
-Full-height swipe-up with `onPanEnd` pull-to-close (offset > 60 or vel > 300). Do not replicate.
+Full-height swipe-up. Shares the standard sheet's pull-to-close gesture via `useSheetDrag` (`src/shared/components/ui/sheet/useSheetDrag.ts`) — the same hook `BottomSheet` uses, so the drag feels identical (`dragListener={false}` + `useDragControls`, downward-pull-at-scroll-top, close past offset 80 / velocity 400, coexists with the members list's inner scroll). Do not replicate the sheet chrome, but reuse `useSheetDrag` for any new draggable sheet.
 
 ## Definition Buttons (`src/shared/components/ui/DefinitionButton.tsx`)
 

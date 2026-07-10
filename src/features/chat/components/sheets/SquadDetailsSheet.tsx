@@ -1,8 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useRef } from 'react'
+import { useMemo } from 'react'
 import { motion } from 'framer-motion'
-import type { PanInfo } from 'framer-motion'
 import Image from 'next/image'
 import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
 import { GroupAvatar } from '@/shared/components/ui/GroupAvatar'
@@ -16,6 +15,7 @@ import { Library } from 'pixelarticons/react/Library'
 import { DefinitionButton } from '@/shared/components/ui/DefinitionButton'
 import { InviteCodeCard } from '@/shared/components/ui/InviteCodeCard'
 import { UserCard, type MiniMember } from '@/shared/components/ui/UserCard'
+import { useSheetDrag } from '@/shared/components/ui/sheet/useSheetDrag'
 
 export type { MiniMember }
 
@@ -55,39 +55,9 @@ export function SquadDetailsSheet({
   onEditSquad, onTapMember, onNotif, onLibrary,
   onLeave, onClose,
 }: SquadDetailsSheetProps) {
-  const scrollRef      = useRef<HTMLDivElement>(null)
-  const pullToCloseRef = useRef({ startY: 0, atTop: false })
-
-  // Pull-to-close: drag down from scroll-top dismisses the sheet
-  useEffect(() => {
-    const el = scrollRef.current
-    if (!el) return
-
-    function onTouchStart(e: TouchEvent) {
-      pullToCloseRef.current = { startY: e.touches[0].clientY, atTop: el!.scrollTop === 0 }
-    }
-    function onTouchMove(e: TouchEvent) {
-      if (!pullToCloseRef.current.atTop) return
-      if (e.touches[0].clientY - pullToCloseRef.current.startY > 0) e.preventDefault()
-    }
-    function onTouchEnd(e: TouchEvent) {
-      if (!pullToCloseRef.current.atTop) return
-      if (e.changedTouches[0].clientY - pullToCloseRef.current.startY > 60) onClose()
-    }
-
-    el.addEventListener('touchstart', onTouchStart, { passive: true })
-    el.addEventListener('touchmove',  onTouchMove,  { passive: false })
-    el.addEventListener('touchend',   onTouchEnd,   { passive: true })
-    return () => {
-      el.removeEventListener('touchstart', onTouchStart)
-      el.removeEventListener('touchmove',  onTouchMove)
-      el.removeEventListener('touchend',   onTouchEnd)
-    }
-  }, [onClose])
-
-  function handlePanelPanEnd(_: PointerEvent, info: PanInfo) {
-    if (info.offset.y > 60 || info.velocity.y > 300) onClose()
-  }
+  // Pull-to-close drag that coexists with the members list's inner scroll — the same
+  // gesture the standard BottomSheet uses (see useSheetDrag).
+  const { sheetRef, dragProps } = useSheetDrag(onClose)
 
   // Re-sorting on every render (e.g. toggling the edit sheet) is wasted work
   // for a list that only actually needs re-ordering when membership, presence,
@@ -113,13 +83,14 @@ export function SquadDetailsSheet({
 
       {/* Sheet */}
       <motion.div
+        ref={sheetRef}
         className="absolute bottom-0 left-0 right-0 z-[70] bg-[var(--color-surface-sheet)] rounded-tl-[16px] rounded-tr-[16px] flex flex-col overflow-hidden"
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
         transition={{ type: 'spring', stiffness: 320, damping: 32 }}
         style={{ maxHeight: '85vh' }}
-        onPanEnd={handlePanelPanEnd}
+        {...dragProps}
       >
 
         {/* ── Group Header (240px, full-bleed) ── */}
@@ -238,7 +209,6 @@ export function SquadDetailsSheet({
 
         {/* ── Members section (flex-1, vertical overflow only on short viewports) ── */}
         <div
-          ref={scrollRef}
           className="flex-1 min-h-0 flex flex-col overflow-y-auto nexus-scroll"
           style={{ padding: 16, gap: 16 }}
         >
