@@ -557,6 +557,12 @@ Same label/helper/border design as `InputField` but renders a `<textarea>`. Heig
 />
 ```
 
+## Working Agreement
+- **Never modify Supabase schema/RLS/data directly** — always via a reviewable migration file (`supabase/migrations/`). No ad-hoc `apply_migration`/dashboard/`execute_sql` DDL or data edits against production; write the migration, let it be reviewed, then apply.
+- **After any refactor touching optimistic updates or Realtime**, explain the data flow before and after in plain language — not just the diff.
+- **Prefer small, reviewable diffs over large rewrites.** If a fix requires touching >5 files, pause and describe the plan first.
+- **Run lint + typecheck + build after every change** before reporting it as done.
+
 ## Development Rules
 - TypeScript strict · server components default · `'use client'` for interactivity only
 - Mobile-first 390px · game logic in Edge Functions · Realtime for live state
