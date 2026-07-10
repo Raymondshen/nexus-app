@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 import Image from 'next/image'
 import { Upload } from 'pixelarticons/react/Upload'
@@ -48,6 +48,32 @@ export function ManageSquadProfile({
 
   const trimmedName = nameValue.trim()
 
+  // Keep the OS/browser back gesture on the chat instead of exiting to home. The
+  // chat page uses SlidePage `nativeSwipe`, and it keeps /home as the history entry
+  // beneath /chat, so a back gesture would otherwise pop straight to home while this
+  // overlay is up. Push a history entry when the page opens; a back gesture pops
+  // THAT entry, which we intercept (popstate) to close the page and stay on the chat.
+  // The back button and a successful save go through the same pop so it never lingers.
+  const onCloseRef = useRef(onClose)
+  useEffect(() => { onCloseRef.current = onClose }, [onClose])
+  const closingRef  = useRef(false)
+
+  useEffect(() => {
+    window.history.pushState({ nexusManageSquad: true }, '')
+    function onPopState() {
+      closingRef.current = true
+      onCloseRef.current()
+    }
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [])
+
+  function requestClose() {
+    if (closingRef.current) return
+    closingRef.current = true
+    window.history.back()   // pops our pushed entry → popstate → onClose (stays on the chat)
+  }
+
   async function handleSave() {
     if (saving) return
     if (!trimmedName || trimmedName.length < 2 || trimmedName.length > 30) {
@@ -59,7 +85,7 @@ export function ManageSquadProfile({
     const result = await onSave(trimmedName)
     setSaving(false)
     if (result && 'error' in result && result.error) { setSaveError(result.error); return }
-    onClose()
+    requestClose()
   }
 
   return (
@@ -71,7 +97,7 @@ export function ManageSquadProfile({
       exit={{ x: '100%' }}
       transition={{ type: 'spring', stiffness: 380, damping: 36 }}
     >
-      <PageHeader title="Manage Squad Profile" onBack={onClose} />
+      <PageHeader title="Manage Squad Profile" onBack={requestClose} />
 
       <div className="flex-1 min-h-0 overflow-y-auto nexus-scroll flex flex-col">
 
