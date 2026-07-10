@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { motion } from 'framer-motion'
+import { motion, useAnimation } from 'framer-motion'
 import Image from 'next/image'
 import { Upload } from 'pixelarticons/react/Upload'
 import { PageHeader } from '@/shared/components/ui/PageHeader'
@@ -74,6 +74,90 @@ export function ManageSquadProfile({
     window.history.back()   // pops our pushed entry → popstate → onClose (stays on the chat)
   }
 
+  // Left-edge swipe-to-dismiss, driven entirely by our own touch handling instead of
+  // the native OS back-swipe. This page opens by simultaneously closing SquadDetailsSheet
+  // (z-70) and mounting this page off-screen (x:100%) — the `pushState` above fires from
+  // this component's OWN mount effect, i.e. while that cross-fade is still mid-flight. On
+  // iOS, a native edge-swipe-back snapshots whatever's on screen at pushState time to use
+  // as the "reveal" preview during the drag — which at that instant is still the sheet
+  // (still visible, still above this page's z-index, since this page hasn't slid into view
+  // yet). That baked-in stale snapshot is what showed the sheet mid-swipe before finally
+  // landing on the chat. Handling the edge-swipe ourselves (preventDefault suppresses the
+  // native gesture) and routing a qualifying swipe through the same `requestClose()` the
+  // back button uses makes the two paths identical — no native preview, no stale frame.
+  const controls    = useAnimation()
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    controls.start({ x: 0, transition: { type: 'spring', stiffness: 380, damping: 36 } })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+
+    let startX = 0
+    let startY = 0
+    let lastX  = 0
+    let lastT  = 0
+    let active = false
+
+    function onTouchStart(e: TouchEvent) {
+      startX = e.touches[0].clientX
+      startY = e.touches[0].clientY
+      lastX  = startX
+      lastT  = Date.now()
+      if (startX < 40) {
+        active = true
+        e.preventDefault()
+        controls.stop()
+      }
+    }
+
+    function onTouchMove(e: TouchEvent) {
+      if (!active) return
+      const dx = e.touches[0].clientX - startX
+      const dy = Math.abs(e.touches[0].clientY - startY)
+      if (dy > dx || dx < 0) {
+        active = false
+        controls.start({ x: 0, transition: { type: 'spring', stiffness: 500, damping: 40 } })
+        return
+      }
+      e.preventDefault()
+      lastX = e.touches[0].clientX
+      lastT = Date.now()
+      controls.set({ x: dx })
+    }
+
+    function onTouchEnd(e: TouchEvent) {
+      if (!active || closingRef.current) return
+      active = false
+      const endX = e.changedTouches[0].clientX
+      const dx   = endX - startX
+      const dt   = Date.now() - lastT
+      const vel  = dt > 0 ? (endX - lastX) / dt * 1000 : 0
+
+      if (dx > 80 || vel > 400) {
+        controls.start({
+          x: window.innerWidth,
+          transition: { type: 'tween', ease: [0.32, 0, 0.67, 0], duration: 0.12 },
+        })
+        requestClose()
+      } else {
+        controls.start({ x: 0, transition: { type: 'spring', stiffness: 500, damping: 40 } })
+      }
+    }
+
+    el.addEventListener('touchstart', onTouchStart, { passive: false })
+    el.addEventListener('touchmove',  onTouchMove,  { passive: false })
+    el.addEventListener('touchend',   onTouchEnd)
+    return () => {
+      el.removeEventListener('touchstart', onTouchStart)
+      el.removeEventListener('touchmove',  onTouchMove)
+      el.removeEventListener('touchend',   onTouchEnd)
+    }
+  }, [controls])
+
   async function handleSave() {
     if (saving) return
     if (!trimmedName || trimmedName.length < 2 || trimmedName.length > 30) {
@@ -90,10 +174,11 @@ export function ManageSquadProfile({
 
   return (
     <motion.div
+      ref={containerRef}
       className="fixed inset-0 z-[68] bg-black flex flex-col"
       style={{ maxWidth: 480, marginLeft: 'auto', marginRight: 'auto' }}
       initial={{ x: '100%' }}
-      animate={{ x: 0 }}
+      animate={controls}
       exit={{ x: '100%' }}
       transition={{ type: 'spring', stiffness: 380, damping: 36 }}
     >
