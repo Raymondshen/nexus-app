@@ -36,6 +36,7 @@ import dynamic from 'next/dynamic'
 import { CrewImageUploadModal } from '@/features/chat/components/sheets/CrewImageUploadModal'
 import { CrewBackgroundUploadModal } from '@/features/chat/components/sheets/CrewBackgroundUploadModal'
 import { SquadDetailsSheet, type MiniMember } from '@/features/chat/components/sheets/SquadDetailsSheet'
+import { ManageSquadProfile } from '@/features/chat/screens/ManageSquadProfile'
 import { NotifSheet, type NotifPrefs } from '@/features/chat/components/sheets/NotifSheet'
 import { AddMediaSheet } from '@/features/chat/components/input/AddMediaSheet'
 
@@ -158,6 +159,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, memberP
   const [gemToastVisible,   setGemToastVisible]   = useState(false)
   const [isExpanded,     setIsExpanded]     = useState(false)
   const [showNotifSheet,  setShowNotifSheet]  = useState(false)
+  const [showManageSquad, setShowManageSquad] = useState(false)
   const [notifPrefs,      setNotifPrefs]      = useState<NotifPrefs>({ messages: true, mentions: true, replies: true })
   const [memberMsgCounts, setMemberMsgCounts] = useState<Map<string, number>>(new Map())
   const [loadingCounts,  setLoadingCounts]  = useState(false)
@@ -1905,16 +1907,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
             allMuted={allMuted}
             memberPinnedVinyls={memberPinnedVinyls}
             crewBackgroundImageUrl={crewBgUrl}
-            onUploadPhoto={() => crewImageInputRef.current?.click()}
-            onUploadBackground={() => crewBgInputRef.current?.click()}
-            onSave={async (newName) => {
-              const trimmed = newName.trim()
-              if (!trimmed || trimmed.length < 2) return
-              const prev = liveCrewName
-              setCrewName(trimmed)
-              const result = await renameCrewAction(crewId, trimmed)
-              if (result?.error) setCrewName(prev)
-            }}
+            onEditSquad={() => { setIsExpanded(false); setShowManageSquad(true) }}
             onTapMember={(memberId) => {
               setIsExpanded(false)
               sessionStorage.setItem('nexus_chat_from', 'chat')
@@ -1927,6 +1920,35 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
             }}
             onLeave={handleLeaveSquadTapped}
             onClose={() => setIsExpanded(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* ── Manage Squad Profile page (creator edit — full-screen, replaces the old
+          edit bottom sheet). Reuses the crew crop-upload modals + rename below, so
+          the chat header's crew image/name/background preview updates live. ── */}
+      <AnimatePresence>
+        {showManageSquad && !isDM && (
+          <ManageSquadProfile
+            crewName={liveCrewName}
+            crewImageUrl={crewImageUrl}
+            crewBackgroundImageUrl={crewBgUrl}
+            crewLevel={crewLevel}
+            memberCount={memberCount}
+            crewXP={crewXP}
+            xpProgress={xpProgress}
+            totalMessages={totalMessages}
+            onUploadPhoto={() => crewImageInputRef.current?.click()}
+            onUploadBackground={() => crewBgInputRef.current?.click()}
+            onSave={async (newName) => {
+              const trimmed = newName.trim()
+              const prev = liveCrewName
+              setCrewName(trimmed)
+              const result = await renameCrewAction(crewId, trimmed)
+              if (result?.error) { setCrewName(prev); return result }
+              return result
+            }}
+            onClose={() => setShowManageSquad(false)}
           />
         )}
       </AnimatePresence>

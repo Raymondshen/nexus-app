@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect, useMemo, useRef } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { useEffect, useMemo, useRef } from 'react'
+import { motion } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
 import Image from 'next/image'
 import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
@@ -10,7 +10,6 @@ import { getXPInCurrentLevel, getXPForCurrentLevel } from '@/shared/utils/xp'
 import { MagicEdit } from 'pixelarticons/react/MagicEdit'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
 import { DoorClosed } from 'pixelarticons/react/DoorClosed'
-import { Upload } from 'pixelarticons/react/Upload'
 import { Bell } from 'pixelarticons/react/Bell'
 import { BellOff } from 'pixelarticons/react/BellOff'
 import { Library } from 'pixelarticons/react/Library'
@@ -38,241 +37,13 @@ interface SquadDetailsSheetProps {
   loadingCounts:           boolean
   allMuted:                boolean
   memberPinnedVinyls?:     Record<string, { imageUrl: string | null; title: string | null }>
-  onUploadPhoto:           () => void
-  onUploadBackground?:     () => void
-  onSave:                  (newName: string) => Promise<void>
+  /** Creator-only — opens the full-screen Manage Squad Profile page (owned by ChatInput). */
+  onEditSquad:             () => void
   onTapMember:             (memberId: string) => void
   onNotif:                 () => void
   onLibrary:               () => void
   onLeave?:                () => void
   onClose:                 () => void
-}
-
-// ─── Squad Details Edit Sheet ─────────────────────────────────────────────────
-
-interface SquadDetailsEditSheetProps {
-  crewName:               string
-  memberCount:            number
-  crewImageUrl:           string | null
-  crewBackgroundImageUrl: string | null
-  crewXP:                 number
-  xpProgress:             number
-  totalMessages:          number
-  onUploadPhoto:          () => void
-  onUploadBackground:     () => void
-  onSave:                 (newName: string) => Promise<void>
-  onClose:                () => void
-}
-
-function SquadDetailsEditSheet({
-  crewName, memberCount, crewImageUrl, crewBackgroundImageUrl,
-  crewXP, xpProgress, totalMessages,
-  onUploadPhoto, onUploadBackground, onSave, onClose,
-}: SquadDetailsEditSheetProps) {
-  const [nameValue, setNameValue] = useState(crewName)
-  const [saving,    setSaving]    = useState(false)
-
-  const nameInputRef = useRef<HTMLInputElement>(null)
-  useEffect(() => { nameInputRef.current?.blur() }, [])
-
-  async function handleSave() {
-    const trimmed = nameValue.trim()
-    if (!trimmed || trimmed.length < 2) return
-    setSaving(true)
-    await onSave(trimmed)
-    setSaving(false)
-    onClose()
-  }
-
-  return (
-    <>
-      {/* Backdrop */}
-      <motion.div
-        className="fixed inset-0 z-[80] bg-black/60"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.18 }}
-        onClick={onClose}
-      />
-
-      <motion.div
-        className="fixed bottom-0 left-0 right-0 z-[81] bg-[var(--color-surface-sheet)] rounded-tl-[16px] rounded-tr-[16px] flex flex-col overflow-y-auto nexus-scroll"
-        initial={{ y: '100%' }}
-        animate={{ y: 0 }}
-        exit={{ y: '100%' }}
-        transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-        style={{
-          maxHeight:     '90vh',
-          gap:           16,
-          paddingTop:    16,
-          paddingLeft:   16,
-          paddingRight:  16,
-          paddingBottom: 'max(env(safe-area-inset-bottom), 28px)',
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* ── Header ── */}
-        <div className="flex flex-col flex-shrink-0" style={{ gap: 8 }}>
-          <p className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}>
-            Edit {crewName}
-          </p>
-          <div className="flex flex-col" style={{ gap: 4 }}>
-            <p className="font-body font-bold text-primary leading-none" style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}>
-              Edit {crewName}
-            </p>
-            <p className="font-body font-light text-tertiary leading-none" style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}>
-              Invite friends, create a squad, or share your invite code.
-            </p>
-          </div>
-        </div>
-
-        {/* ── Squad Card Preview ── */}
-        <div className="flex flex-col flex-shrink-0" style={{ gap: 8 }}>
-          <p className="font-body font-medium text-primary leading-none" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}>
-            Squad Card Preview
-          </p>
-
-          <div className="relative w-full overflow-hidden flex-shrink-0 flex flex-col justify-between" style={{ height: 180, padding: 8 }}>
-            {crewBackgroundImageUrl ? (
-              <div className="absolute inset-0 pointer-events-none">
-                <Image
-                  src={crewBackgroundImageUrl}
-                  alt=""
-                  fill
-                  sizes="(max-width: 480px) 100vw, 480px"
-                  className="object-cover"
-                  loader={supabaseImageLoader}
-                />
-              </div>
-            ) : (
-              <div className="absolute inset-0 bg-[var(--color-surface)]" />
-            )}
-            <div
-              className="absolute inset-0 pointer-events-none"
-              style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.604) 33%, rgba(0,0,0,0.6) 66%, rgba(0,0,0,0.8) 100%)' }}
-            />
-
-            <div className="relative flex items-center justify-between w-full flex-shrink-0">
-              <div className="flex items-center flex-1 min-w-0" style={{ gap: 16 }}>
-                <GroupAvatar imageUrl={crewImageUrl} name={nameValue || crewName} size={40} />
-                <div className="flex flex-col" style={{ gap: 4 }}>
-                  <p className="font-body font-black leading-none" style={{ fontSize: 'var(--text-md)', color: 'var(--color-secondary)', fontVariationSettings: '"opsz" 14' }}>
-                    {(nameValue || crewName).toUpperCase()}
-                  </p>
-                  <p className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>
-                    {memberCount} {memberCount === 1 ? 'member' : 'members'}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="relative flex flex-col w-full flex-shrink-0" style={{ gap: 8 }}>
-              <p className="leading-[0] text-[0px] font-silkscreen">
-                <span className="leading-none text-tertiary" style={{ fontSize: 'var(--text-mini)' }}>
-                  {`${getXPInCurrentLevel(crewXP)} / ${getXPForCurrentLevel(crewXP)}XP`}
-                </span>
-                {totalMessages > 0 && (
-                  <>
-                    <span className="leading-none text-tertiary" style={{ fontSize: 'var(--text-mini)' }}>{` · `}</span>
-                    <span className="leading-none text-secondary" style={{ fontSize: 'var(--text-mini)' }}>
-                      {totalMessages.toLocaleString()} total Squad msg.
-                    </span>
-                  </>
-                )}
-              </p>
-              <div className="bg-[var(--color-surface)] overflow-hidden w-full relative" style={{ height: 4 }}>
-                <div
-                  className="absolute left-0 top-0 h-full bg-purple"
-                  style={{ width: `${xpProgress}%`, transition: 'width 0.5s ease-out' }}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ── Upload buttons (side by side) ── */}
-        <div className="flex flex-shrink-0 w-full" style={{ gap: 16 }}>
-          <div className="flex flex-col flex-1 min-w-0" style={{ gap: 8 }}>
-            <p className="font-body font-medium text-primary leading-none" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}>
-              Profile Photo
-            </p>
-            <button
-              type="button"
-              onClick={onUploadPhoto}
-              disabled={saving}
-              className="flex items-center justify-center w-full h-12 border border-[var(--color-purple)] active:opacity-70 transition-opacity disabled:opacity-40"
-              style={{ gap: 8 }}
-            >
-              <Upload style={{ width: 16, height: 16, color: 'var(--color-purple)' }} aria-hidden="true" />
-              <span className="font-silkscreen leading-none pb-0.5" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-purple)' }}>
-                Upload
-              </span>
-            </button>
-          </div>
-
-          <div className="flex flex-col flex-1 min-w-0" style={{ gap: 8 }}>
-            <p className="font-body font-medium text-primary leading-none" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}>
-              Background Image
-            </p>
-            <button
-              type="button"
-              onClick={onUploadBackground}
-              disabled={saving}
-              className="flex items-center justify-center w-full h-12 border border-[var(--color-purple)] active:opacity-70 transition-opacity disabled:opacity-40"
-              style={{ gap: 8 }}
-            >
-              <Upload style={{ width: 16, height: 16, color: 'var(--color-purple)' }} aria-hidden="true" />
-              <span className="font-silkscreen leading-none pb-0.5" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-purple)' }}>
-                Upload
-              </span>
-            </button>
-          </div>
-        </div>
-
-        {/* ── Squad Name ── */}
-        <div className="flex flex-col flex-shrink-0" style={{ gap: 8 }}>
-          <p className="font-body font-medium text-primary leading-none" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}>
-            Squad Name
-          </p>
-          <input
-            ref={nameInputRef}
-            value={nameValue}
-            onChange={(e) => setNameValue(e.target.value.slice(0, 30))}
-            onKeyDown={(e) => { if (e.key === 'Enter') handleSave() }}
-            maxLength={30}
-            placeholder={crewName}
-            className="w-full h-12 bg-[var(--color-surface-sheet)] font-body text-primary placeholder:text-muted focus:outline-none"
-            style={{ border: '1px solid var(--color-border-hover)', padding: 12, fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
-            autoComplete="off"
-            autoCapitalize="off"
-          />
-        </div>
-
-        {/* ── Buttons ── */}
-        <div className="flex flex-col flex-shrink-0" style={{ gap: 20 }}>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving}
-            className="w-full flex items-center justify-center font-silkscreen text-primary bg-[var(--color-purple)] overflow-hidden disabled:opacity-40"
-            style={{ fontSize: 'var(--text-xs)', height: 48, boxShadow: '4px 4px 0 rgba(168,85,247,0.5)' }}
-          >
-            {saving ? '...' : 'Save Changes'}
-          </button>
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={saving}
-            className="w-full flex items-center justify-center font-silkscreen overflow-hidden disabled:opacity-40"
-            style={{ height: 48, fontSize: 'var(--text-xs)', color: 'var(--red)', border: '1px solid var(--red)' }}
-          >
-            Cancel
-          </button>
-        </div>
-      </motion.div>
-    </>
-  )
 }
 
 // ─── SquadDetailsSheet ────────────────────────────────────────────────────────
@@ -281,10 +52,9 @@ export function SquadDetailsSheet({
   crewName, memberCount, crewImageUrl, crewBackgroundImageUrl, members, onlineUserIds,
   crewXP, crewLevel, xpProgress, totalMessages, inviteCode, creatorId,
   currentUserId, memberMsgCounts, loadingCounts, allMuted, memberPinnedVinyls,
-  onUploadPhoto, onUploadBackground, onSave, onTapMember, onNotif, onLibrary,
+  onEditSquad, onTapMember, onNotif, onLibrary,
   onLeave, onClose,
 }: SquadDetailsSheetProps) {
-  const [showSquadEdit, setShowSquadEdit] = useState(false)
   const scrollRef      = useRef<HTMLDivElement>(null)
   const pullToCloseRef = useRef({ startY: 0, atTop: false })
 
@@ -401,7 +171,7 @@ export function SquadDetailsSheet({
             <div className="flex items-center flex-shrink-0" style={{ gap: 16 }}>
               {currentUserId === creatorId && (
                 <button
-                  onClick={() => setShowSquadEdit(true)}
+                  onClick={onEditSquad}
                   className="flex items-center justify-center"
                   style={{ width: 24, height: 24 }}
                   aria-label="Edit squad details"
@@ -517,26 +287,6 @@ export function SquadDetailsSheet({
           </div>
         )}
       </motion.div>
-
-      {/* ── Squad Details edit sheet ── */}
-      <AnimatePresence>
-        {showSquadEdit && (
-          <SquadDetailsEditSheet
-            key="squad-edit"
-            crewName={crewName}
-            memberCount={memberCount}
-            crewImageUrl={crewImageUrl}
-            crewBackgroundImageUrl={crewBackgroundImageUrl ?? null}
-            crewXP={crewXP}
-            xpProgress={xpProgress}
-            totalMessages={totalMessages}
-            onUploadPhoto={onUploadPhoto}
-            onUploadBackground={onUploadBackground ?? (() => {})}
-            onSave={onSave}
-            onClose={() => setShowSquadEdit(false)}
-          />
-        )}
-      </AnimatePresence>
     </>
   )
 }
