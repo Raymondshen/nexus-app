@@ -403,11 +403,7 @@ Push notification delivery specifics (VAPID setup, subscription handling, iOS `s
 See the `image-handling` skill (`.claude/skills/image-handling/SKILL.md`) for image storage, the Supabase render loaders (`supabaseImageLoader`/`avatarImageLoader`/`heightCropImageUrl`), the required display components (`UserAvatar`/`GroupAvatar`/`ProfileHeroBackground`), the crop+compress upload pipeline, and aspect ratios by surface. Load it whenever touching image upload, cropping, compression, avatars, or crew images.
 
 ## Design System Rules
-
-- Always use design tokens.
-- Never hardcode colors, spacing, typography, or sizing values.
-- Reuse existing components before creating new ones.
-- Use Figma variables as the source of truth for design decisions.
+See the `design-system` skill (`.claude/skills/design-system/SKILL.md`) for the rules (use existing components + design tokens, never hardcode values, follow Figma) and the token references (`colors.md`, `spacing.md`, `typography.md`, `icon-usage.md`, `gradients.md`). Load it before creating a page/component, implementing a Figma design, or introducing any color/spacing/gradient value.
 
 ## Design Tokens (`src/app/globals.css`)
 Colors: `--color-primary` · `--color-secondary` · `--color-tertiary` · `--color-surface` · `--color-border` · `--color-purple` · `--color-blue` · `--color-muted`
