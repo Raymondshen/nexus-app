@@ -282,7 +282,7 @@ Reply icon (`CornerUpLeft` 16×16): absolutely positioned, `top` = `var(--space-
 Absolute-positioned gradient overlay (`linear-gradient black → transparent`). Left: `ChevronLeft` back button. Right: `Calendar2` group-events button, dev-gated (`nexus_dev_mode` + `nexus_events_enabled`) — no other buttons live here; Bell/Library live in `SquadDetailsSheet` (see below). All buttons: `border border-border p-2 backdrop-blur(7px)`.
 
 ### Definitions Page (`src/features/chat/screens/DefinitionHomePage.tsx`)
-Route: `/chat/[crewId]/definitions`. Header: back chevron + "DEFINITIONS" title + `Plus` opens `CreateDefinitionPage`. Cards (Figma 402:9403): aliases/word/definition + creator byline (highlighted if own) + amber suggestion-count badge when `suggestion_count > 0`.
+Route: `/chat/[crewId]/definitions`. Header: shared `PageHeader` pattern (see Page Structure) — "DEFINITIONS" title, `right` = `Plus` opens `CreateDefinitionPage`. Cards (Figma 402:9403): aliases/word/definition + creator byline (highlighted if own) + amber suggestion-count badge when `suggestion_count > 0`.
 
 Any card tap opens `DefinitionPreviewSheet` (Figma 402:9507, `<BottomSheet>` z-70): full aliases/word/definition + "Author : {username}" + `Edit Definition` (purple, creator-only) + `Cancel`. Edit closes the preview and opens `CreateDefinitionPage` in edit mode.
 
@@ -438,6 +438,15 @@ Icons (`pixelarticons`) — key usages:
 | ChatInput — send | `Send` | 16×16 |
 | ChatInput — poll | `Chart` | 16×16 |
 | Upload buttons | `Upload` | 16×16, `--color-purple` |
+
+## Page Structure
+
+- All subpages must use the shared `PageHeader` component (`src/shared/components/ui/PageHeader.tsx`).
+- Do not create custom page header implementations.
+- Reuse the existing header styling, spacing, typography, and navigation pattern.
+- Keep page headers consistent throughout the application.
+
+`PageHeader` props: `title` (string, rendered uppercase Silkscreen `--xl` `--color-primary`), `onBack` (back handler wired to the left `ChevronLeft` 24×24 `--color-primary`), and optional `right` (ReactNode for a right-side action). Container padding `paddingX: var(--md)`, `paddingTop: max(env(safe-area-inset-top), var(--x5))`, `paddingBottom: var(--x5)`; back-button↔title gap `var(--x5)`. Used by `ManageSquadProfile`; the Definitions list page (`/chat/[crewId]/definitions`) and `CreateDefinitionPage` overlay follow the same back-chevron + uppercase-Silkscreen-title pattern, differing only in the right-side action (Definitions list: `Plus` opens `CreateDefinitionPage`).
 
 ## Bottom Sheet Patterns
 
