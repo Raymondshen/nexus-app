@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useSlideBack } from '@/app/layouts/SlidePage'
+import { useEffect, useState, useCallback } from 'react'
+import { useSlideBack, markHomeParallaxReveal } from '@/app/layouts/SlidePage'
 import { AnimatePresence } from 'framer-motion'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { Calendar2 } from 'pixelarticons/react/Calendar2'
@@ -18,6 +18,11 @@ interface FloatingBackButtonProps {
 export function FloatingBackButton({ crewId, currentUserId, initialGemBalance }: FloatingBackButtonProps) {
   const goBack  = useSlideBack()
   const setGemBalance       = useChatStore((s) => s.setGemBalance)
+
+  const handleBack = useCallback(() => {
+    markHomeParallaxReveal()
+    goBack()
+  }, [goBack])
 
   const [showEventPreview, setShowEventPreview] = useState(false)
   const [devMode,          setDevMode]          = useState(false)
@@ -70,7 +75,7 @@ export function FloatingBackButton({ crewId, currentUserId, initialGemBalance }:
         >
           {/* Back button */}
           <button
-            onClick={goBack}
+            onClick={handleBack}
             aria-label="Go back"
             className="pointer-events-auto flex items-center justify-center border border-border flex-shrink-0"
             style={btnStyle}

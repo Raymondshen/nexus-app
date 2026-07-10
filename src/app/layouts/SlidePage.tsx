@@ -22,6 +22,27 @@ export function clearSkipNextSlideEnter() {
   _skipNextSlideEnter = false
 }
 
+// Set by chat's FloatingBackButton right before it calls goBack(), so
+// HomeClient knows to play a slide-in + dim "reveal" animation on mount
+// instead of a static mount — matching the parallax WebKit's native
+// edge-swipe gesture already gives for free. Only the tap path needs this:
+// chat's SlidePage uses nativeSwipe, so its own swipe-to-close handler
+// (which also calls goBack()) never runs, and the native gesture doesn't
+// need any app-level animation to reveal the previous page.
+let _homeParallaxPending = false
+
+export function markHomeParallaxReveal() {
+  _homeParallaxPending = true
+}
+
+// Read-and-clear, so a flag left over from one back-nav can't leak into a
+// later, unrelated mount of Home.
+export function consumeHomeParallaxReveal(): boolean {
+  const pending = _homeParallaxPending
+  _homeParallaxPending = false
+  return pending
+}
+
 interface SlidePageProps {
   children:    React.ReactNode
   className?:  string

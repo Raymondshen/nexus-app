@@ -28,7 +28,7 @@ import { Button } from '@/shared/components/ui/Button'
 import type { CrewSummary } from '@/app/(app)/home/page'
 import type { Message, MessageWithProfile } from '@/types'
 import { useChatStore } from '@/store/chatStore'
-import { clearSkipNextSlideEnter } from '@/app/layouts/SlidePage'
+import { clearSkipNextSlideEnter, consumeHomeParallaxReveal } from '@/app/layouts/SlidePage'
 import { AnnouncementsSheet } from '@/shared/components/banners/AnnouncementsSheet'
 import type { AnnouncementItem } from '@/shared/components/banners/AnnouncementsSheet'
 import { DiamondGem } from 'pixelarticons/react/DiamondGem'
@@ -1621,6 +1621,10 @@ export function HomeClient({
 }: HomeClientProps) {
   const router = useRouter()
 
+  // Read-and-clear on mount only — true when chat's tap-to-back button sent us
+  // here (see markHomeParallaxReveal), false for every other way of reaching Home.
+  const [playParallaxReveal] = useState(() => consumeHomeParallaxReveal())
+
   const [crews,             setCrews]             = useState<CrewSummary[]>(() =>
     initialCrews.map((cs) => {
       const cached = consumeHomeLastMessage(cs.crew.id)
@@ -1899,7 +1903,23 @@ export function HomeClient({
   }, [leaving])
 
   return (
-    <div className="h-screen bg-black flex flex-col overflow-hidden">
+    <motion.div
+      className="h-screen bg-black flex flex-col overflow-hidden relative"
+      initial={playParallaxReveal ? { x: '-30%' } : false}
+      animate={{ x: 0 }}
+      transition={{ type: 'spring', stiffness: 380, damping: 36, mass: 0.9 }}
+    >
+      {/* Dim scrim matching the parallax reveal, mirrors the tap-back exit's
+          feel when chat's own custom drag handler isn't in play (nativeSwipe). */}
+      {playParallaxReveal && (
+        <motion.div
+          className="absolute inset-0 z-40 pointer-events-none"
+          style={{ background: '#000' }}
+          initial={{ opacity: 0.35 }}
+          animate={{ opacity: 0 }}
+          transition={{ duration: 0.22 }}
+        />
+      )}
 
       {/* ── Static header: account card ── */}
       <div
@@ -2015,6 +2035,6 @@ export function HomeClient({
           />
         )}
       </AnimatePresence>
-    </div>
+    </motion.div>
   )
 }
