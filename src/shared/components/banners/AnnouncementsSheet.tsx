@@ -1,33 +1,41 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from 'react'
-import { AnimatePresence } from 'framer-motion'
-import { BottomSheet } from '@/shared/components/ui/BottomSheet'
-import { AnnouncementCard } from './AnnouncementCard'
+import { useState, useEffect } from "react";
+import { AnimatePresence } from "framer-motion";
+import { BottomSheet } from "@/shared/components/ui/sheet/BottomSheet";
+import { AnnouncementCard } from "./AnnouncementCard";
 
 export interface AnnouncementItem {
-  id:         string
-  title:      string
-  text:       string
-  image_url:  string
-  created_at: string
+  id: string;
+  title: string;
+  text: string;
+  image_url: string;
+  created_at: string;
 }
 
-const STORAGE_KEY = 'nexus_dismissed_banners'
+const STORAGE_KEY = "nexus_dismissed_banners";
 
 function getDismissed(): Set<string> {
-  try { return new Set(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]') as string[]) }
-  catch { return new Set() }
+  try {
+    return new Set(
+      JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "[]") as string[],
+    );
+  } catch {
+    return new Set();
+  }
 }
 
 export interface AnnouncementsSheetViewProps {
-  announcements: AnnouncementItem[]
-  onClose:       () => void
+  announcements: AnnouncementItem[];
+  onClose: () => void;
 }
 
 // Presentational body for the production sheet (dismissed-state driven) —
 // keep this the sole place that lays out the sheet chrome + card list.
-export function AnnouncementsSheetView({ announcements, onClose }: AnnouncementsSheetViewProps) {
+export function AnnouncementsSheetView({
+  announcements,
+  onClose,
+}: AnnouncementsSheetViewProps) {
   return (
     <AnimatePresence>
       {announcements.length > 0 && (
@@ -40,32 +48,50 @@ export function AnnouncementsSheetView({ announcements, onClose }: Announcements
         >
           <div
             className="w-full flex flex-col items-center"
-            style={{ gap: 'var(--space-5)', paddingBottom: 'max(env(safe-area-inset-bottom), var(--space-8))' }}
+            style={{
+              gap: "var(--space-5)",
+              paddingBottom: "max(env(safe-area-inset-bottom), var(--space-8))",
+            }}
           >
-            <div className="w-full flex flex-col items-start" style={{ gap: 'var(--space-3)' }}>
-              <p className="font-silkscreen leading-none text-tertiary" style={{ fontSize: 'var(--text-mini)' }}>
+            <div
+              className="w-full flex flex-col items-start"
+              style={{ gap: "var(--space-3)" }}
+            >
+              <p
+                className="font-silkscreen leading-none text-tertiary"
+                style={{ fontSize: "var(--text-mini)" }}
+              >
                 Boom!
               </p>
               <p
                 className="w-full font-body font-bold leading-none text-primary"
-                style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}
+                style={{
+                  fontSize: "var(--text-md)",
+                  fontVariationSettings: '"opsz" 14',
+                }}
               >
                 Latest Updates...
               </p>
             </div>
 
             {announcements.map((a) => (
-              <AnnouncementCard key={a.id} title={a.title} text={a.text} imageUrl={a.image_url} createdAt={a.created_at} />
+              <AnnouncementCard
+                key={a.id}
+                title={a.title}
+                text={a.text}
+                imageUrl={a.image_url}
+                createdAt={a.created_at}
+              />
             ))}
 
             <button
               onClick={onClose}
               className="w-full flex items-center justify-center bg-purple rounded-[8px]"
-              style={{ padding: 'var(--space-5)' }}
+              style={{ padding: "var(--space-5)" }}
             >
               <span
                 className="font-body font-semibold text-primary whitespace-nowrap"
-                style={{ fontSize: 'var(--text-sm)', letterSpacing: '0.2px' }}
+                style={{ fontSize: "var(--text-sm)", letterSpacing: "0.2px" }}
               >
                 Dismiss
               </span>
@@ -74,26 +100,35 @@ export function AnnouncementsSheetView({ announcements, onClose }: Announcements
         </BottomSheet>
       )}
     </AnimatePresence>
-  )
+  );
 }
 
 // Figma 419:1930 — "what's new" sheet, nexus-gradient background (an explicit
 // exception to BottomSheet's default solid --color-surface-sheet).
-export function AnnouncementsSheet({ announcements }: { announcements: AnnouncementItem[] }) {
-  const [visible, setVisible] = useState<AnnouncementItem[] | null>(null) // null = dismissed-state not checked yet
+export function AnnouncementsSheet({
+  announcements,
+}: {
+  announcements: AnnouncementItem[];
+}) {
+  const [visible, setVisible] = useState<AnnouncementItem[] | null>(null); // null = dismissed-state not checked yet
 
   useEffect(() => {
-    const dismissed = getDismissed()
-    setVisible(announcements.filter(a => !dismissed.has(a.id)))
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+    const dismissed = getDismissed();
+    setVisible(announcements.filter((a) => !dismissed.has(a.id)));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function dismissAll() {
-    if (!visible || visible.length === 0) return
-    const dismissed = getDismissed()
-    for (const a of visible) dismissed.add(a.id)
-    localStorage.setItem(STORAGE_KEY, JSON.stringify([...dismissed]))
-    setVisible([])
+    if (!visible || visible.length === 0) return;
+    const dismissed = getDismissed();
+    for (const a of visible) dismissed.add(a.id);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify([...dismissed]));
+    setVisible([]);
   }
 
-  return <AnnouncementsSheetView announcements={visible ?? []} onClose={dismissAll} />
+  return (
+    <AnnouncementsSheetView
+      announcements={visible ?? []}
+      onClose={dismissAll}
+    />
+  );
 }

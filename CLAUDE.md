@@ -426,12 +426,19 @@ See the `design-system` skill (`.claude/skills/design-system/SKILL.md`) for the 
 
 Current consumers: `DefinitionHomePage` (list; no `onBack` → context goBack; `right` = `Plus` opens `CreateDefinitionPage`), `ManageUserProfile` (no `onBack` → context goBack; save uses `router.back()`), `DeveloperUserSettings` (no `onBack` → context goBack); explicit-`onBack` cases: `CreateDefinitionPage` (overlay slide-out `handleBack`, not under a `SlidePage`) and `ManageSquadProfile` (`requestClose` → `window.history.back()`, dismisses the details sheet). This unified the former "bare-icon" header variant (`--color-tertiary` chevron, `--x3` spacing) that `ManageUserProfile`/`DeveloperUserSettings` used — they now match the `--color-primary` chevron + `--x5` spacing of the rest.
 
+## Shared UI Components
+
+- Use the shared `BottomSheet` component for all bottom sheet interfaces.
+- Do not create custom bottom sheet implementations.
+- Extend existing variants before creating new ones.
+- Keep bottom sheet behavior and styling consistent across the application.
+
 ## Bottom Sheet Patterns
 
 Two named patterns — every new sheet must use one; no custom dismiss logic.
 
 ### Sheet (standard)
-Backdrop tap + drag-to-dismiss. Spring `stiffness 320, damping 32`. Use `<BottomSheet>` (`src/shared/components/ui/BottomSheet.tsx`) — do not inline the motion markup.
+Backdrop tap + drag-to-dismiss. Spring `stiffness 320, damping 32`. Use `<BottomSheet>` (`src/shared/components/ui/sheet/BottomSheet.tsx`) — do not inline the motion markup.
 
 ```tsx
 <BottomSheet onClose={onClose} zIndex={70}>

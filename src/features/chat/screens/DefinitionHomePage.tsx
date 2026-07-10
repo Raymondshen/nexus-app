@@ -11,7 +11,7 @@ import {
   updateDefinitionAction,
   deleteDefinitionAction,
 } from "@/app/(app)/chat/[crewId]/definitions/actions";
-import { BottomSheet } from "@/shared/components/ui/BottomSheet";
+import { BottomSheet } from "@/shared/components/ui/sheet/BottomSheet";
 import { DefinitionButton } from "@/shared/components/ui/DefinitionButton";
 import { InputField, TextareaField } from "@/shared/components/ui/InputField";
 import { MagicEdit } from "pixelarticons/react/MagicEdit";
@@ -31,21 +31,32 @@ function TextEffectToggleRow({
   enabled,
   onToggle,
 }: {
-  enabled:  boolean;
+  enabled: boolean;
   onToggle: () => void;
 }) {
   return (
     <div className="flex items-center w-full" style={{ gap: 8, height: 34 }}>
-      <div className="flex flex-1 min-w-0 flex-col justify-center" style={{ gap: 8 }}>
+      <div
+        className="flex flex-1 min-w-0 flex-col justify-center"
+        style={{ gap: 8 }}
+      >
         <p
           className="font-body font-medium leading-none"
-          style={{ fontSize: "var(--sm)", color: "var(--color-secondary)", fontVariationSettings: '"opsz" 14' }}
+          style={{
+            fontSize: "var(--sm)",
+            color: "var(--color-secondary)",
+            fontVariationSettings: '"opsz" 14',
+          }}
         >
           Text Effect
         </p>
         <p
           className="font-body font-light leading-none"
-          style={{ fontSize: "var(--xs)", color: "var(--color-tertiary)", fontVariationSettings: '"opsz" 14' }}
+          style={{
+            fontSize: "var(--xs)",
+            color: "var(--color-tertiary)",
+            fontVariationSettings: '"opsz" 14',
+          }}
         >
           Apply text animation for this keyword.
         </p>
@@ -82,8 +93,8 @@ function TextEffectOptionCard({
   selected,
   onSelect,
 }: {
-  effect:   TextEffect;
-  label:    string;
+  effect: TextEffect;
+  label: string;
   selected: boolean;
   onSelect: () => void;
 }) {
@@ -95,7 +106,9 @@ function TextEffectOptionCard({
       className="flex items-center justify-between w-full rounded-[var(--x3)] appearance-none"
       style={{
         padding: "var(--x5)",
-        background: selected ? "var(--color-surface-elevated)" : "var(--color-surface-sheet)",
+        background: selected
+          ? "var(--color-surface-elevated)"
+          : "var(--color-surface-sheet)",
         border: `1px solid ${selected ? "var(--color-purple)" : "var(--color-border)"}`,
       }}
     >
@@ -106,10 +119,18 @@ function TextEffectOptionCard({
         <TextEffectText text={label} effect={selected ? effect : null} />
       </span>
       {selected ? (
-        <Check style={{ width: 24, height: 24, color: "var(--color-purple)" }} aria-hidden="true" />
+        <Check
+          style={{ width: 24, height: 24, color: "var(--color-purple)" }}
+          aria-hidden="true"
+        />
       ) : (
         <span
-          style={{ width: 24, height: 24, borderRadius: 9999, border: "1px solid var(--color-border)" }}
+          style={{
+            width: 24,
+            height: 24,
+            borderRadius: 9999,
+            border: "1px solid var(--color-border)",
+          }}
           aria-hidden="true"
         />
       )}
