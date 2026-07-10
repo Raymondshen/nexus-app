@@ -13,10 +13,11 @@ import { setQuickReactions } from "@/shared/utils/quickReactions";
 
 // Figma 490:5343 — full-catalog emoji reaction picker. Opened from the "+" button in
 // ChatSheetReact. Two modes, keyed on whether a primary slot is selected:
-//   • CUSTOMIZE — tap-and-hold a primary slot to SELECT it (purple stroke); tap-and-hold
+//   • CUSTOMIZE — tap-and-hold a primary slot to SELECT it (purple ring); tap-and-hold
 //     it again (or short-tap it) to DESELECT. While a slot is selected, tapping any
-//     catalog emoji SWAPS it into that slot. "Save Changes" persists the primary set to
-//     localStorage (see quickReactions.ts).
+//     catalog emoji SWAPS it into that slot and persists the primary set to localStorage
+//     immediately (the design has no Save button — every swap commits live). See
+//     quickReactions.ts.
 //   • REACT — with NO slot selected, tapping a catalog emoji REACTS to the message,
 //     identical to tapping a quick-pick emoji in ChatSheetReact (delegates to onReact,
 //     then closes). This makes the full ~200-emoji grid a reaction picker for the
@@ -49,13 +50,10 @@ export function EmojiReactionPickerSheet({
   onClose,
 }: EmojiReactionPickerSheetProps) {
   const [slots, setSlots] = useState<string[]>(current);
-  // null = no slot selected → grid taps INSERT. A number = that slot is selected
+  // null = no slot selected → grid taps REACT. A number = that slot is selected
   // (via long-press) → grid taps SWAP it.
   const [selected, setSelected] = useState<number | null>(null);
   const [query, setQuery] = useState("");
-
-  const changed =
-    slots.length !== current.length || slots.some((e, i) => e !== current[i]);
 
   const results = useMemo(() => {
     const q = norm(query);
@@ -101,7 +99,7 @@ export function EmojiReactionPickerSheet({
     clearPress();
     pressTimer.current = setTimeout(() => {
       longFiredRef.current = true;
-      // Toggle: holding a slot that's already selected deselects it (req 1).
+      // Toggle: holding a slot that's already selected deselects it.
       setSelected((prev) => (prev === i ? null : i));
       navigator.vibrate?.(10);
     }, LONG_PRESS_MS);
@@ -113,27 +111,24 @@ export function EmojiReactionPickerSheet({
       longFiredRef.current = false;
       return;
     }
-    // Short-tap only deselects the already-selected slot (returns to insert mode).
+    // Short-tap only deselects the already-selected slot (returns to react mode).
     setSelected((prev) => (prev === i ? null : prev));
   }
 
   // ── Grid emoji tap: swap the selected slot, or react to the message ─────────
   function handleGridTap(emoji: string) {
     if (selected !== null) {
-      // Customize mode: drop the tapped emoji into the selected primary slot.
-      setSlots((prev) => prev.map((e, i) => (i === selected ? emoji : e)));
+      // Customize mode: drop the tapped emoji into the selected primary slot and
+      // persist immediately — the design has no Save button, so each swap commits live.
+      const next = slots.map((e, i) => (i === selected ? emoji : e));
+      setSlots(next);
+      setQuickReactions(next);
     } else {
       // React mode: apply the reaction to the message, same as ChatSheetReact's
-      // quick-pick row, then dismiss (req 2). onReact already closes the parent sheet.
+      // quick-pick row, then dismiss. onReact already closes the parent sheet.
       onReact(emoji);
       onClose();
     }
-  }
-
-  function handleSave() {
-    if (!changed) return;
-    setQuickReactions(slots);
-    onClose();
   }
 
   return (
@@ -166,7 +161,7 @@ export function EmojiReactionPickerSheet({
           </p>
         </div>
 
-        {/* ── Editable primary slots ────────────────────────────────────────── */}
+        {/* ── Editable primary slots (Figma 490:2144) ───────────────────────── */}
         <div
           className="flex-shrink-0 flex items-center justify-between w-full"
           style={{ paddingLeft: 16, paddingRight: 16, paddingTop: 16 }}
@@ -204,7 +199,7 @@ export function EmojiReactionPickerSheet({
           })}
         </div>
 
-        {/* ── Search ────────────────────────────────────────────────────────── */}
+        {/* ── Search (Figma 490:5589) ───────────────────────────────────────── */}
         <div
           className="flex-shrink-0"
           style={{ paddingLeft: 16, paddingRight: 16, paddingTop: 16 }}
@@ -239,11 +234,16 @@ export function EmojiReactionPickerSheet({
           </div>
         </div>
 
-        {/* ── Virtualized emoji grid ────────────────────────────────────────── */}
+        {/* ── Virtualized emoji grid (Figma 490:2245+) ──────────────────────── */}
         <div
           ref={scrollRef}
           className="flex-1 min-h-0 overflow-y-auto nexus-scroll"
-          style={{ paddingLeft: 16, paddingRight: 16, paddingTop: 16 }}
+          style={{
+            paddingLeft: 16,
+            paddingRight: 16,
+            paddingTop: 16,
+            paddingBottom: "max(env(safe-area-inset-bottom), 16px)",
+          }}
         >
           {rows.length === 0 ? (
             <p
@@ -307,44 +307,6 @@ export function EmojiReactionPickerSheet({
               })}
             </div>
           )}
-        </div>
-
-        {/* ── Save ──────────────────────────────────────────────────────────── */}
-        <div
-          className="flex-shrink-0"
-          style={{
-            paddingLeft: 16,
-            paddingRight: 16,
-            paddingTop: 16,
-            paddingBottom: "max(env(safe-area-inset-bottom), 28px)",
-          }}
-        >
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={!changed}
-            className="w-full flex items-center justify-center appearance-none transition-colors"
-            style={{
-              height: 48,
-              paddingLeft: 16,
-              paddingRight: 16,
-              background: changed
-                ? "var(--color-purple)"
-                : "var(--color-muted)",
-            }}
-          >
-            <span
-              className="font-silkscreen uppercase leading-none"
-              style={{
-                fontSize: "var(--xs)",
-                color: changed
-                  ? "var(--color-primary)"
-                  : "var(--color-tertiary)",
-              }}
-            >
-              Save Changes
-            </span>
-          </button>
         </div>
       </div>
     </BottomSheet>
