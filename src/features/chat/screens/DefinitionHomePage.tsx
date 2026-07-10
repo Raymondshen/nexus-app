@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence, useAnimation } from "framer-motion";
 import { SlidePage, useSlideBack } from "@/app/layouts/SlidePage";
-import { ChevronLeft } from "pixelarticons/react/ChevronLeft";
 import { Plus } from "pixelarticons/react/Plus";
 import { createClient } from "@/shared/supabase/client";
 import {
@@ -11,6 +10,7 @@ import {
   updateDefinitionAction,
   deleteDefinitionAction,
 } from "@/app/(app)/chat/[crewId]/definitions/actions";
+import { PageHeader } from "@/shared/components/ui/PageHeader";
 import { BottomSheet } from "@/shared/components/ui/BottomSheet";
 import { DefinitionButton } from "@/shared/components/ui/DefinitionButton";
 import { InputField, TextareaField } from "@/shared/components/ui/InputField";
@@ -113,23 +113,6 @@ function TextEffectOptionCard({
           aria-hidden="true"
         />
       )}
-    </button>
-  );
-}
-
-function BackButton() {
-  const goBack = useSlideBack();
-  return (
-    <button
-      onClick={goBack}
-      aria-label="Back"
-      className="flex-shrink-0 flex items-center justify-center"
-      style={{ width: 24, height: 40 }}
-    >
-      <ChevronLeft
-        style={{ width: 24, height: 24, color: "var(--color-primary)" }}
-        aria-hidden="true"
-      />
     </button>
   );
 }
@@ -318,36 +301,10 @@ function CreateDefinitionPage({
       initial={{ x: "100%" }}
       animate={controls}
     >
-      {/* Header — matches DefinitionHomePage header spec */}
-      <div
-        className="flex-shrink-0 flex flex-col"
-        style={{
-          paddingLeft: "var(--md)",
-          paddingRight: "var(--md)",
-          paddingTop: "max(env(safe-area-inset-top), var(--x3))",
-          paddingBottom: "var(--x3)",
-        }}
-      >
-        <div className="flex items-center h-10" style={{ gap: "var(--x3)" }}>
-          <button
-            onClick={handleBack}
-            aria-label="Back"
-            className="flex-shrink-0 flex items-center justify-center"
-            style={{ width: 24, height: 40 }}
-          >
-            <ChevronLeft
-              style={{ width: 24, height: 24, color: "var(--color-primary)" }}
-              aria-hidden="true"
-            />
-          </button>
-          <h1
-            className="font-silkscreen uppercase leading-none text-primary"
-            style={{ fontSize: "var(--xl)" }}
-          >
-            {mode === "edit" ? "Edit Definition" : "Add Definition"}
-          </h1>
-        </div>
-      </div>
+      <PageHeader
+        title={mode === "edit" ? "Edit Definition" : "Add Definition"}
+        onBack={handleBack}
+      />
 
       {/* Scrollable form body */}
       <div
@@ -591,6 +548,7 @@ export function DefinitionHomePage({
   currentUsername,
   initialDefinitions,
 }: DefinitionHomePageProps) {
+  const goBack = useSlideBack();
   const [definitions, setDefinitions] =
     useState<SquadDefinitionWithCreator[]>(initialDefinitions);
   const [showCreate, setShowCreate] = useState(false);
@@ -776,31 +734,10 @@ export function DefinitionHomePage({
         overflow: "hidden",
       }}
     >
-      {/* Header — Figma 402:9394: px-md py-x3, heading h-40px justify-between */}
-      <div
-        className="flex-shrink-0 flex flex-col"
-        style={{
-          paddingLeft: "var(--md)",
-          paddingRight: "var(--md)",
-          paddingTop: "max(env(safe-area-inset-top), var(--x3))",
-          paddingBottom: "var(--x3)",
-        }}
-      >
-        <div className="flex items-center justify-between h-10">
-          {/* Left container — icon+title gap-x3 (Figma I402:9394;189:2437) */}
-          <div
-            className="flex items-center h-full"
-            style={{ gap: "var(--x3)" }}
-          >
-            <BackButton />
-            <h1
-              className="font-silkscreen uppercase leading-none text-primary"
-              style={{ fontSize: "var(--xl)" }}
-            >
-              Definitions
-            </h1>
-          </div>
-          {/* Right — add button (Figma I402:9394;189:2442) */}
+      <PageHeader
+        title="Definitions"
+        onBack={goBack}
+        right={
           <button
             onClick={() => setShowCreate(true)}
             aria-label="Add definition"
@@ -812,8 +749,8 @@ export function DefinitionHomePage({
               aria-hidden="true"
             />
           </button>
-        </div>
-      </div>
+        }
+      />
 
       {/* Body — Figma 402:9281: px-md py-x5 gap-x6 */}
       <div
