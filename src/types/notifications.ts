@@ -16,11 +16,6 @@ export interface NotificationPreferences extends Record<string, unknown> {
   updated_at:     string
 }
 
-export interface CrewNotificationMute extends Record<string, unknown> {
-  user_id: string
-  crew_id: string
-}
-
 export interface CrewNotificationPreferences extends Record<string, unknown> {
   user_id:        string
   crew_id:        string

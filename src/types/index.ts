@@ -12,7 +12,7 @@ export * from './system'
 // ─── Local imports for use in Database type ───────────────────────────────────
 import type { Profile, GemClaimResult, CoinLog, FriendshipXP, FriendshipXPLog, ProfilePhoto, UsernameHistory, UserPresence } from './profile'
 import type { Crew, CrewMember, Message, CrewXPLog, Announcement, Poll, SquadDefinition, DefinitionSuggestion } from './chat'
-import type { PushSubscription, NotificationPreferences, CrewNotificationMute, CrewNotificationPreferences } from './notifications'
+import type { PushSubscription, NotificationPreferences, CrewNotificationPreferences } from './notifications'
 import type { Friendship } from './friends'
 import type { Event, EventRsvp } from './events'
 import type { Note, BoardSection } from './board'
@@ -93,12 +93,6 @@ export type Database = {
         Row: NotificationPreferences
         Insert: Omit<NotificationPreferences, 'updated_at'> & { updated_at?: string }
         Update: Partial<Omit<NotificationPreferences, 'user_id'>>
-        Relationships: []
-      }
-      crew_notification_mutes: {
-        Row: CrewNotificationMute
-        Insert: CrewNotificationMute
-        Update: Partial<CrewNotificationMute>
         Relationships: []
       }
       crew_notification_preferences: {

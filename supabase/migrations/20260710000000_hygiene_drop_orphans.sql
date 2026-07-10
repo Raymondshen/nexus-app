@@ -1,0 +1,149 @@
+-- =============================================================================
+-- SUPABASE HYGIENE — orphan tables + a dead index  (AUDIT_REPORT.md §8)
+-- =============================================================================
+-- STATUS: APPLIED to production 2026-07-10 (via MCP apply_migration, name
+-- "hygiene_drop_orphans"); committed here for repo/DB parity. Every drop was
+-- verified unreferenced (see the per-item evidence) and confirmed gone after.
+--
+-- Verification method for each drop:
+--   * codebase grep of src/**  and  supabase/functions/**  (runtime .from()/rpc)
+--   * generated types (src/types/index.ts)
+--   * pg_constraint  — no INCOMING foreign keys point at the table
+--   * pg_class       — no views / materialized views reference it
+--   * pg_proc        — no function body references it
+--
+-- Reversibility: each section documents the exact recreate DDL. Because these
+-- are DROPs, a plain "revert the migration" needs that DDL — it is inlined in
+-- comments so you never have to dig through old migrations.
+--
+-- NOT included here (intentionally), from the same audit section:
+--   * RPC EXECUTE revokes on trigger/internal functions — already shipped in
+--     20260709100000_security_column_guards_and_rpc_grants.sql.
+--   * notification_preferences — still read by the send-notification edge fn as
+--     a global kill switch; it is a missing-UI problem, NOT dead. Do not drop.
+--   * The ~30 other "unused" FK-covering indexes flagged by the advisor — they
+--     were added deliberately in 20260708010000 to keep parent-side cascade
+--     DELETEs off seq scans. They read as unused only because that path is rare
+--     and the indexes are days old. Keeping them; dropping re-opens that risk.
+--   * Undeployed/undeployed-mismatch edge functions (check-raid-expiry,
+--     check-void-spawn, generate-artifact) — not schema; handle via the
+--     Supabase functions CLI, not a migration.
+-- =============================================================================
+
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 1. DROP TABLE crew_notification_mutes
+-- ─────────────────────────────────────────────────────────────────────────────
+-- WHY: superseded by crew_notification_preferences (which send-notification
+--   actually reads — see supabase/functions/send-notification/index.ts:135).
+-- EVIDENCE OF DISUSE:
+--   * No .from('crew_notification_mutes') anywhere in src/ or supabase/functions/.
+--     Its only appearances are its own schema/RLS/index migrations and the
+--     generated type in src/types/index.ts (a type entry is not a query).
+--   * 0 rows in production.
+--   * No incoming FKs, views, or function bodies reference it.
+-- Dropping the table also drops its index (crew_notification_mutes_crew_id) and
+-- its RLS policy automatically.
+--
+-- REVERSE (recreate exactly as 20240103000004_crew_notification_mutes.sql):
+--   create table crew_notification_mutes (
+--     user_id uuid not null references auth.users(id) on delete cascade,
+--     crew_id uuid not null references public.crews(id) on delete cascade,
+--     primary key (user_id, crew_id)
+--   );
+--   alter table crew_notification_mutes enable row level security;
+--   create policy "Users manage own crew notification mutes"
+--     on crew_notification_mutes for all
+--     using (auth.uid() = user_id) with check (auth.uid() = user_id);
+--   create index crew_notification_mutes_crew_id on crew_notification_mutes (crew_id);
+
+drop table if exists public.crew_notification_mutes;
+
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 2. DROP TABLE artifact_templates
+-- ─────────────────────────────────────────────────────────────────────────────
+-- WHY: a "reference designs" catalog that no shipped code path reads. Live
+--   artifact drops are generated directly by the combat edge functions into the
+--   `artifacts` table; nothing consults this template catalog.
+-- EVIDENCE OF DISUSE:
+--   * No .from('artifact_templates') in src/ or supabase/functions/. Only
+--     appearances: its create+seed in the initial schema and its FK index.
+--   * The plausible consumer (a generate-artifact function) does not reference
+--     it and is not a live/deployed code path.
+--   * No incoming FKs, views, or function bodies reference it.
+-- DATA LOSS: 1 seed row ("Arcane Codex of the First Sage", legendary). It is
+--   reference/flavor data, never served to a client. Preserved below for reversal.
+--
+-- REVERSE (recreate — table, RLS, index, and the single seed row):
+--   create table artifact_templates (
+--     id         uuid primary key default gen_random_uuid(),
+--     name       text not null,
+--     rarity     text not null check (rarity in ('common','rare','epic','legendary')),
+--     boss_id    uuid references bosses(id) on delete set null,
+--     asset_type text,
+--     metadata   jsonb,
+--     created_at timestamptz not null default now()
+--   );
+--   alter table artifact_templates enable row level security;
+--   create policy "artifact_templates: anyone can read"
+--     on artifact_templates for select using (true);
+--   create index artifact_templates_boss_id on artifact_templates (boss_id);
+--   -- seed row (boss_id references the pre-existing "The Sage's Trial" boss):
+--   insert into artifact_templates (id, name, rarity, boss_id, asset_type, metadata, created_at)
+--   values (
+--     '5c674097-cda4-4b8b-b26d-f6410d16f7e6',
+--     'Arcane Codex of the First Sage', 'legendary',
+--     '3adf0369-b147-4913-a20b-7a44ac514981', 'sprite',
+--     '{"lore":"Found in the ruins of a chat that once went 47 days without a single dry reply. The crew that left it behind is still out there. Somewhere.","class":"sage","visual":{"glow_color":"#bf5fff","frame_style":"arcane","rarity_color":"#e8b4ff","particle_effect":"arcane_orb"},"sprite_ref":"SageMage","description":"Carried by the one who broke the silence with a single thought. The crew that earns this speaks less and says more.","active_bonus":"Deep Cut cooldown reduced by 30%","passive_bonus":"Long messages deal 25% bonus arcane damage"}'::jsonb,
+--     '2026-05-31T21:31:19.814337+00:00'
+--   );
+
+drop table if exists public.artifact_templates;
+
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 3. DROP INDEX username_history_old_username_ci_idx
+-- ─────────────────────────────────────────────────────────────────────────────
+-- WHY: a functional index on lower(old_username) that no query uses. Mention
+--   resolution fetches username_history rows BY user_id and lowercases in JS
+--   (chat/[crewId]/page.tsx:181, dm/[friendId]/page.tsx:100) — nothing ever
+--   filters WHERE lower(old_username) = ?, so this index is pure write overhead.
+--   Unlike the FK indexes above it covers no foreign key, so there is no
+--   cascade-delete downside to removing it.
+-- EVIDENCE: idx_scan = 0 in pg_stat_user_indexes; no matching query pattern.
+--
+-- REVERSE:
+--   create index username_history_old_username_ci_idx
+--     on public.username_history (lower(old_username));
+
+drop index if exists public.username_history_old_username_ci_idx;
+
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 4. OPTIONAL — two FK indexes on the hot `messages` table  (LEFT COMMENTED)
+-- ─────────────────────────────────────────────────────────────────────────────
+-- These are a genuine judgment call — decide, then uncomment if you agree.
+--
+-- messages is the busiest write table (~3.5k rows and growing; every send is an
+-- INSERT). It carries three unused FK indexes. messages_reply_to_id backs a
+-- common relationship (replies point at messages) — KEEP it. The other two:
+--
+--   * messages_event_id   (FK → events)   — events are dev-gated and rarely
+--                                            deleted.
+--   * messages_pinned_by  (FK → profiles) — only exercised when an account is
+--                                            hard-deleted (the daily deletion
+--                                            cron), which is rare.
+--
+-- TRADE-OFF: each index is updated on EVERY message INSERT (hot path cost),
+-- but only *read* during a parent-side DELETE of an event / profile (rare).
+-- On a high-write table with rare parent deletes, dropping them favors write
+-- throughput. The downside: those rare deletes seq-scan messages instead of
+-- index-scanning. 48 kB each today; grows with the table.
+--
+-- If you drop them and later see slow event/account deletion, recreate with:
+--   create index messages_event_id  on public.messages (event_id);
+--   create index messages_pinned_by on public.messages (pinned_by);
+--
+-- drop index if exists public.messages_event_id;
+-- drop index if exists public.messages_pinned_by;
