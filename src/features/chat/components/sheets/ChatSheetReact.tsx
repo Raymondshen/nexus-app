@@ -4,6 +4,7 @@ import { CornerUpLeft } from 'pixelarticons/react/CornerUpLeft'
 import { Copy } from 'pixelarticons/react/Copy'
 import { Note } from 'pixelarticons/react/Note'
 import { MagicEdit } from 'pixelarticons/react/MagicEdit'
+import { Plus } from 'pixelarticons/react/Plus'
 import { BottomSheet } from '@/shared/components/ui/BottomSheet'
 import { SheetActionButton } from '@/shared/components/ui/SheetActionButton'
 import { LottieReactionIcon } from '@/shared/components/ui/LottieReactionIcon'
@@ -12,7 +13,7 @@ import { REACTION_LOTTIE_MAP } from '@/shared/constants/config'
 // Standard Unicode emoji each JoyPixels animation represents — see
 // REACTION_LOTTIE_MAP (src/shared/constants/config.ts) for why reactions are
 // still keyed by these characters rather than a custom id.
-export const QUICK_REACTIONS = ['🤯', '😤', '😘', '😂', '🤬', '🤗'] as const
+export const QUICK_REACTIONS = ['👍', '👎', '😭', '🤣', '😤'] as const
 
 interface ChatSheetReactProps {
   onClose:       () => void
@@ -57,6 +58,23 @@ export function ChatSheetReact({
               </button>
             )
           })}
+
+          {/* Figma 391:8863 — "add reaction" affordance. Non-functional for now:
+              reactions only support the QUICK_REACTIONS set; a full emoji picker
+              would be needed to wire this up. */}
+          <button
+            type="button"
+            aria-label="More reactions"
+            className="flex items-center justify-center select-none transition-transform active:scale-90"
+            style={{
+              width:        40,
+              height:       40,
+              borderRadius: '50%',
+              background:   'var(--color-surface-elevated)',
+            }}
+          >
+            <Plus style={{ width: 24, height: 24, color: 'var(--color-primary)' }} />
+          </button>
         </div>
 
         {/* Action buttons */}

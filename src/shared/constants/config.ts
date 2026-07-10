@@ -96,8 +96,14 @@ export const MUSIC_DOMAINS = [
 // reactions (🔥💧⚡🌿🌑🔮) and any future quick-pick set stay data-compatible.
 // See LottieReactionIcon (src/shared/components/ui/LottieReactionIcon.tsx).
 export const REACTION_LOTTIE_MAP: Record<string, string> = {
-  '🤯': '/lottie/reactions/exploding_head.json',
+  // Current quick-pick set (see QUICK_REACTIONS in ChatSheetReact.tsx)
+  '👍': '/lottie/reactions/thumbs_up.json',
+  '👎': '/lottie/reactions/thumbs_down.json',
+  '😭': '/lottie/reactions/loudly_crying_face.json',
+  '🤣': '/lottie/reactions/rolling_on_the_floor_laughing.json',
   '😤': '/lottie/reactions/face_with_steam_from_nose.json',
+  // Retired quick-pick emojis — kept so existing reaction data still renders animated
+  '🤯': '/lottie/reactions/exploding_head.json',
   '😘': '/lottie/reactions/face_blowing_a_kiss.json',
   '😂': '/lottie/reactions/face_with_tears_of_joy.json',
   '🤬': '/lottie/reactions/face_with_symbols_on_mouth.json',
