@@ -724,6 +724,71 @@ export function MessageList({
     []
   )
 
+  // ─── Reconnect / foreground catch-up ──────────────────────────────────────────
+  // Broadcast + Postgres Changes are live-only: a message that lands while the
+  // socket is down (backgrounded, screen locked, network blip, or a failed join)
+  // is never replayed when the socket resumes. Before this, the only backfill was
+  // a full remount's DB fetch — which is why a missed message needed exit+rejoin.
+  //
+  // ChatInput's channel lifecycle calls this whenever the socket reaches SUBSCRIBED
+  // (initial join, the 30s cache fast-path, or an auto-rejoin after an error), on
+  // foreground, and on the browser `online` event. It fetches everything at/after
+  // our newest CONFIRMED message and merges via addMessage — which dedups by id, so
+  // rows realtime already delivered are ignored and only the gap is filled.
+  const isResyncingRef = useRef(false)
+  const resyncMessages = useCallback(async () => {
+    if (isResyncingRef.current) return
+    const store = useChatStore.getState()
+    // Anchor on the newest PERSISTED message (a tempId optimistic send has a
+    // client-side created_at that could sit ahead of a peer's real timestamp and
+    // make us skip it). If we have no persisted messages yet, the mount fetch owns
+    // the cold start — nothing to catch up against.
+    let cursor: string | null = null
+    for (const m of store.messages) {
+      if (!m.tempId && (cursor === null || m.created_at > cursor)) cursor = m.created_at
+    }
+    if (cursor === null) return
+
+    isResyncingRef.current = true
+    try {
+      const supabase = createClient()
+      // Newest-first + reverse (same shape as the initial load), filtered to
+      // at/after our cursor. >= (not >) so same-timestamp siblings aren't skipped;
+      // addMessage dedups the boundary row we already have. Ordering by newest
+      // guarantees the tail (the message the user is missing) is always fetched —
+      // a >50-message outage gap keeps the latest and leaves only a rare middle
+      // hole that upward pagination can't fill.
+      const { data } = await supabase
+        .from('messages')
+        .select('*')
+        .eq('crew_id', crewId)
+        .gte('created_at', cursor)
+        .order('created_at', { ascending: false })
+        .limit(LOAD_OLDER_BATCH)
+      const rows = ((data ?? []) as Message[]).reverse()
+      const add = useChatStore.getState().addMessage
+      for (const raw of rows) {
+        if (typeof raw.content !== 'string') continue
+        add({ ...raw, profile: resolveProfile(raw.user_id) } as MessageWithProfile)
+      }
+    } catch {
+      // Best-effort — the next reconnect/foreground will try again.
+    } finally {
+      isResyncingRef.current = false
+    }
+  }, [crewId, resolveProfile])
+
+  // Register the catch-up dispatcher for ChatInput's channel lifecycle to invoke.
+  // Same store-callback pattern as requestRetrySend.
+  useEffect(() => {
+    useChatStore.getState().setRequestResync(resyncMessages)
+    return () => {
+      if (useChatStore.getState().requestResync === resyncMessages) {
+        useChatStore.getState().setRequestResync(null)
+      }
+    }
+  }, [resyncMessages])
+
   // ─── Realtime: Postgres Changes (INSERT backup + UPDATE) + profile changes ────
 
   useEffect(() => {

@@ -716,6 +716,17 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
           await ch.track({ username: userProfileRef.current.username, typing: false })
           heartbeat()
           startHeartbeat()
+          // SUBSCRIBED fires on the initial join AND on every auto-rejoin after a
+          // drop — so this is exactly when to backfill anything that landed while
+          // the socket was down. Dedup-safe (see MessageList.resyncMessages).
+          useChatStore.getState().requestResync?.()
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          // Socket is not deliverable — stop broadcasting into the void (a send
+          // while this is false skips the broadcast; peers get it via Postgres
+          // Changes once we rejoin, and our own catch-up runs on the next
+          // SUBSCRIBED). realtime-js handles the actual rejoin/backoff.
+          channelReadyRef.current = false
+          if (config.isDev) console.warn('[realtime] channel status', status, 'for crew', crewId)
         }
       })
     })
@@ -727,6 +738,11 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
         heartbeat()
         startHeartbeat()
         notifyActiveCrew(crewId)
+        // Backfill anything that arrived while backgrounded. If the socket stayed
+        // up (brief background) no SUBSCRIBED re-fires, so this is the only catch-up
+        // trigger for that case; if it dropped, this runs before the rejoin's
+        // SUBSCRIBED and that one runs again — both are dedup-safe.
+        useChatStore.getState().requestResync?.()
       } else {
         // Stop heartbeating when hidden — let timestamp age naturally; no iOS throttle fights
         stopHeartbeat()
@@ -735,10 +751,20 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     }
     document.addEventListener('visibilitychange', handleVisibilityChange)
 
+    // Network came back (e.g. tunnel, elevator, wifi↔cellular handoff) without a
+    // visibility change — nudge presence and catch up on the missed window.
+    function handleOnline() {
+      heartbeat()
+      startHeartbeat()
+      useChatStore.getState().requestResync?.()
+    }
+    window.addEventListener('online', handleOnline)
+
     msgChannelRef.current     = ch
     channelReadyRef.current   = false
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('online', handleOnline)
       stopHeartbeat()
       clearInterval(sweepTimer)
       releaseCrewMessageChannel(crewId)

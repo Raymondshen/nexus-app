@@ -54,6 +54,14 @@ interface ChatStore {
   // by MessageBubble when the user taps a "failed — tap to retry" message.
   requestRetrySend:        ((tempId: string) => void) | null
   setRequestRetrySend:     (fn: ((tempId: string) => void) | null) => void
+
+  // Catch-up dispatcher — owned/registered by MessageList (which owns the message
+  // fetch + profile-resolution + cache logic), invoked by ChatInput's channel
+  // lifecycle whenever the realtime socket (re)connects or the app returns to the
+  // foreground. Backfills messages that landed while the socket was down, since
+  // broadcast + Postgres Changes are live-only and never replay a missed window.
+  requestResync:           (() => void) | null
+  setRequestResync:        (fn: (() => void) | null) => void
 }
 
 export const useChatStore = create<ChatStore>((set) => ({
@@ -72,6 +80,7 @@ export const useChatStore = create<ChatStore>((set) => ({
   pinnedScrollTargetId:   null,
   squadDetailsOpen:       false,
   requestRetrySend:       null,
+  requestResync:          null,
 
   setMessages: (messages) => set({ messages }),
 
@@ -179,6 +188,8 @@ export const useChatStore = create<ChatStore>((set) => ({
   setSquadDetailsOpen: (open) => set({ squadDetailsOpen: open }),
 
   setRequestRetrySend: (fn) => set({ requestRetrySend: fn }),
+
+  setRequestResync: (fn) => set({ requestResync: fn }),
 }))
 
 export function selectActivePins(messages: Message[]): Message[] {
