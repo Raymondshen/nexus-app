@@ -4,35 +4,11 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { SlidePage, useSlideBack } from '@/app/layouts/SlidePage'
-import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
+import { PageHeader } from '@/shared/components/ui/PageHeader'
 
 export interface DeveloperUserSettingsProps {
   initialCoins: number
-}
-
-// ─── Header — bare icon + title, matches ManageUserProfile's page-header ─────
-
-function DeveloperSettingsHeader() {
-  const goBack = useSlideBack()
-  return (
-    <div
-      className="flex-shrink-0 flex items-center"
-      style={{ paddingLeft: 16, paddingRight: 16, paddingTop: 'max(env(safe-area-inset-top, 0px), 8px)', paddingBottom: 8, gap: 8 }}
-    >
-      <button
-        onClick={goBack}
-        aria-label="Back"
-        className="flex items-center justify-center flex-shrink-0"
-        style={{ width: 24, height: 24 }}
-      >
-        <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
-      </button>
-      <p className="font-silkscreen uppercase leading-none" style={{ fontSize: 'var(--text-xl)', color: 'var(--color-primary)' }}>
-        Developer Settings
-      </p>
-    </div>
-  )
 }
 
 // ─── Section label ("Admin" / "Debug" / "Features") ──────────────────────────
@@ -111,6 +87,7 @@ function DevToggleRow({ title, description, enabled, onChange }: { title: string
 
 export function DeveloperUserSettings({ initialCoins }: DeveloperUserSettingsProps) {
   const router = useRouter()
+  const goBack = useSlideBack()
 
   const [showPush,      setShowPush]      = useState(false)
   const [infiniteCoins, setInfiniteCoins] = useState(false)
@@ -171,7 +148,7 @@ export function DeveloperUserSettings({ initialCoins }: DeveloperUserSettingsPro
       className="bg-black flex flex-col"
       style={{ position: 'fixed', inset: 0, maxWidth: 480, marginLeft: 'auto', marginRight: 'auto', overflow: 'hidden' }}
     >
-      <DeveloperSettingsHeader />
+      <PageHeader title="Developer Settings" onBack={goBack} />
 
       <div
         className="flex-1 overflow-y-auto nexus-scroll flex flex-col"

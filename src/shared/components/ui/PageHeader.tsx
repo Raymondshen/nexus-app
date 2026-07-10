@@ -9,9 +9,10 @@ interface PageHeaderProps {
   right?: ReactNode
 }
 
-// Shared header for the Definitions list page and the CreateDefinitionPage
-// overlay (create/edit) — same back button + uppercase Silkscreen title,
-// differing only in the optional right-side action.
+// Shared header for every subpage — ChevronLeft back button + uppercase
+// Silkscreen title, with an optional right-side action. Used by the
+// Definitions list page, CreateDefinitionPage overlay, ManageSquadProfile,
+// ManageUserProfile, and DeveloperUserSettings. See CLAUDE.md → Page Structure.
 export function PageHeader({ title, onBack, right }: PageHeaderProps) {
   return (
     <div
