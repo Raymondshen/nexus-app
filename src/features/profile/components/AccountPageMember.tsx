@@ -84,10 +84,10 @@ export function AccountPageMember({
         {/* Background image */}
         <ProfileHeroBackground url={backgroundUrl} />
 
-        {/* Bottom gradient */}
+        {/* Image overlay — light top → dark bottom (--gradient-image-overlay) */}
         <div
           className="absolute inset-0 pointer-events-none"
-          style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.5) 48.668%, rgba(0,0,0,0.8) 82.216%, rgb(0,0,0) 100%)' }}
+          style={{ background: 'var(--gradient-image-overlay)' }}
         />
 
         {/* Content anchored to bottom */}

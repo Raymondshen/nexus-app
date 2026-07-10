@@ -565,7 +565,7 @@ function HomeActionSheet({
             ) : (
               <div style={{ position: 'absolute', inset: 0, background: 'var(--color-surface)' }} />
             )}
-            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.5) 50%, rgba(0,0,0,0.85) 100%)' }} />
+            <div style={{ position: 'absolute', inset: 0, background: 'var(--gradient-image-overlay)' }} />
             <div style={{ position: 'relative', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: 16 }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
                 <div style={{ width: 40, height: 40, overflow: 'hidden', flexShrink: 0, background: profilePhotoPreview ? 'transparent' : '#27272a' }}>
