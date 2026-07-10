@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Search } from 'pixelarticons/react/Search'
 import { Reload } from 'pixelarticons/react/Reload'
 import { useVirtualizer } from '@tanstack/react-virtual'
@@ -10,9 +10,13 @@ import { REACTION_CATALOG, REACTION_LOTTIE_MAP } from '@/shared/constants/config
 import { setQuickReactions } from '@/shared/utils/quickReactions'
 
 // Figma 490:5343 — full-catalog emoji reaction picker. Opened from the "+" button in
-// ChatSheetReact. Lets a user re-pick each slot of their quick-pick reaction set:
-// tap a top-row slot to select it (purple stroke), then tap any catalog emoji to swap
-// it in. "Save Changes" persists the set to localStorage (see quickReactions.ts).
+// ChatSheetReact. Edits the user's row of primary quick-pick reactions:
+//   • Tap-and-hold a primary slot to SELECT it (purple stroke). While a slot is
+//     selected, tapping any catalog emoji SWAPS it into that slot. Short-tap the
+//     selected slot again to deselect.
+//   • With NO slot selected, tapping a catalog emoji INSERTS it — prepended to the
+//     primary row (deduped, capped at the row length, dropping the oldest).
+// "Save Changes" persists the set to localStorage (see quickReactions.ts).
 //
 // The catalog is ~200 animated Lottie icons; each LottieReactionIcon fetches its JSON
 // on mount, so the grid is row-virtualized to only ever mount the visible rows.
@@ -24,9 +28,10 @@ interface EmojiReactionPickerSheetProps {
 }
 
 const GRID_COLS = 6
-const CELL = 40        // circle diameter
-const ROW_GAP = 16     // vertical gap between grid rows
+const CELL = 40          // circle diameter
+const ROW_GAP = 16       // vertical gap between grid rows
 const ROW_STRIDE = CELL + ROW_GAP
+const LONG_PRESS_MS = 400
 
 // Forgiving filename match: ignore case, underscores and spaces so "steam", "thumbs up"
 // and "thumbsup" all match the underlying Lottie file names.
@@ -34,10 +39,12 @@ const norm = (s: string) => s.toLowerCase().replace(/[\s_]+/g, '')
 
 export function EmojiReactionPickerSheet({ current, onClose }: EmojiReactionPickerSheetProps) {
   const [slots, setSlots]       = useState<string[]>(current)
-  const [selected, setSelected] = useState(0)
+  // null = no slot selected → grid taps INSERT. A number = that slot is selected
+  // (via long-press) → grid taps SWAP it.
+  const [selected, setSelected] = useState<number | null>(null)
   const [query, setQuery]       = useState('')
 
-  const changed = slots.some((e, i) => e !== current[i])
+  const changed = slots.length !== current.length || slots.some((e, i) => e !== current[i])
 
   const results = useMemo(() => {
     const q = norm(query)
@@ -60,8 +67,39 @@ export function EmojiReactionPickerSheet({ current, onClose }: EmojiReactionPick
     overscan:        3,
   })
 
-  function pickEmoji(emoji: string) {
-    setSlots((prev) => prev.map((e, i) => (i === selected ? emoji : e)))
+  // ── Long-press handling for the primary slots ──────────────────────────────
+  const pressTimer   = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const longFiredRef = useRef(false)
+
+  function clearPress() {
+    if (pressTimer.current) { clearTimeout(pressTimer.current); pressTimer.current = null }
+  }
+  useEffect(() => () => { if (pressTimer.current) clearTimeout(pressTimer.current) }, [])
+
+  function onSlotPointerDown(i: number) {
+    longFiredRef.current = false
+    clearPress()
+    pressTimer.current = setTimeout(() => {
+      longFiredRef.current = true
+      setSelected(i)
+      navigator.vibrate?.(10)
+    }, LONG_PRESS_MS)
+  }
+
+  function onSlotClick(i: number) {
+    // A completed long-press already handled selection — swallow the trailing click.
+    if (longFiredRef.current) { longFiredRef.current = false; return }
+    // Short-tap only deselects the already-selected slot (returns to insert mode).
+    setSelected((prev) => (prev === i ? null : prev))
+  }
+
+  // ── Grid emoji tap: swap the selected slot, or insert when none selected ────
+  function handleGridTap(emoji: string) {
+    if (selected !== null) {
+      setSlots((prev) => prev.map((e, i) => (i === selected ? emoji : e)))
+    } else {
+      setSlots((prev) => [emoji, ...prev.filter((e) => e !== emoji)].slice(0, prev.length))
+    }
   }
 
   function handleSave() {
@@ -74,26 +112,43 @@ export function EmojiReactionPickerSheet({ current, onClose }: EmojiReactionPick
     <BottomSheet onClose={onClose} zIndex={110} maxHeight="85vh">
       <div className="flex flex-col flex-1 min-h-0">
 
-        {/* ── Editable quick-pick slots ─────────────────────────────────────── */}
+        {/* ── Header (Figma 491:5849) ───────────────────────────────────────── */}
+        <div className="flex-shrink-0 flex flex-col" style={{ paddingLeft: 16, paddingRight: 16, gap: 4 }}>
+          <p className="font-body font-bold" style={{ fontSize: 'var(--md)', color: 'var(--color-primary)', lineHeight: 1 }}>
+            Emoji Reactions
+          </p>
+          <p className="font-body font-light" style={{ fontSize: 'var(--xs)', color: 'var(--color-tertiary)', lineHeight: 1.3 }}>
+            Tap and hold to switch among the 6 primary reactions.
+          </p>
+        </div>
+
+        {/* ── Editable primary slots ────────────────────────────────────────── */}
         <div
           className="flex-shrink-0 flex items-center justify-between w-full"
-          style={{ paddingLeft: 16, paddingRight: 16 }}
+          style={{ paddingLeft: 16, paddingRight: 16, paddingTop: 16 }}
         >
           {slots.map((emoji, i) => {
-            const isSel = i === selected
+            const isSel = selected === i
             return (
               <button
                 key={i}
                 type="button"
-                onClick={() => setSelected(i)}
-                aria-label={`Reaction slot ${i + 1}${isSel ? ' (selected)' : ''}`}
+                onPointerDown={() => onSlotPointerDown(i)}
+                onPointerUp={clearPress}
+                onPointerLeave={clearPress}
+                onPointerCancel={clearPress}
+                onClick={() => onSlotClick(i)}
+                onContextMenu={(e) => e.preventDefault()}
+                aria-label={`Primary reaction slot ${i + 1}${isSel ? ' (selected — tap an emoji to swap)' : ''}`}
                 className="relative flex items-center justify-center transition-transform active:scale-95"
                 style={{
-                  width:        CELL,
-                  height:       CELL,
-                  borderRadius: '50%',
-                  background:   'var(--color-surface-elevated)',
-                  border:       `1px solid ${isSel ? 'var(--color-purple)' : 'transparent'}`,
+                  width:              CELL,
+                  height:             CELL,
+                  borderRadius:       '50%',
+                  background:         'var(--color-surface-elevated)',
+                  border:             `1px solid ${isSel ? 'var(--color-purple)' : 'transparent'}`,
+                  WebkitUserSelect:   'none',
+                  WebkitTouchCallout: 'none',
                 }}
               >
                 <LottieReactionIcon src={REACTION_LOTTIE_MAP[emoji]} size={24} />
@@ -122,11 +177,7 @@ export function EmojiReactionPickerSheet({ current, onClose }: EmojiReactionPick
         <div className="flex-shrink-0" style={{ paddingLeft: 16, paddingRight: 16, paddingTop: 16 }}>
           <div
             className="flex items-center w-full"
-            style={{
-              gap:          16,
-              padding:      16,
-              border:       '1px solid var(--color-border)',
-            }}
+            style={{ gap: 16, padding: 16, border: '1px solid var(--color-border)' }}
           >
             <Search style={{ width: 16, height: 16, color: 'var(--color-muted)', flexShrink: 0 }} aria-hidden="true" />
             <input
@@ -178,7 +229,7 @@ export function EmojiReactionPickerSheet({ current, onClose }: EmojiReactionPick
                       <button
                         key={r.file}
                         type="button"
-                        onClick={() => pickEmoji(r.emoji)}
+                        onClick={() => handleGridTap(r.emoji)}
                         aria-label={r.file.replace(/_/g, ' ')}
                         className="flex items-center justify-center transition-transform active:scale-90"
                         style={{

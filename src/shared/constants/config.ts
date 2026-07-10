@@ -311,10 +311,10 @@ export const REACTION_LOTTIE_MAP: Record<string, string> = Object.fromEntries(
   REACTION_CATALOG.map((r) => [r.emoji, `/lottie/reactions/${r.file}.json`]),
 )
 
-// Default quick-pick reaction set (Figma 490:5343 top row). Users can customize
-// their own set via EmojiReactionPickerSheet; the choice persists in localStorage
-// (nexus_quick_reactions) — see src/shared/utils/quickReactions.ts.
-export const DEFAULT_QUICK_REACTIONS = ['👍', '👎', '😭', '🤣', '😤'] as const
+// Default quick-pick reaction set (Figma 490:5343 top row — 6 primary reactions).
+// Users can customize their own set via EmojiReactionPickerSheet; the choice persists
+// in localStorage (nexus_quick_reactions) — see src/shared/utils/quickReactions.ts.
+export const DEFAULT_QUICK_REACTIONS = ['👍', '👎', '😭', '🤣', '😤', '🔥'] as const
 
 export const KLIPY_API_BASE_URL                = 'https://api.klipy.com/api/v1'
 export const KLIPY_RATING                      = 'g'
