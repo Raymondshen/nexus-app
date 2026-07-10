@@ -2,7 +2,7 @@
 
 import { useState, useLayoutEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
-import { heightCropImageUrl } from '@/shared/supabase/imageLoader'
+import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
 import { UserAvatar } from '@/shared/components/ui/UserAvatar'
 import { PixelSprite, spriteInfoFor } from '@/shared/components/game/PixelSprite'
 import { Crown } from 'pixelarticons/react/Crown'
@@ -109,23 +109,14 @@ export function UserCard({
         className="relative flex flex-col items-start justify-end flex-shrink-0 w-full overflow-hidden rounded-tl-[7px] rounded-tr-[7px]"
         style={{ height: 108, padding: 12 }}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element -- height-anchored crop (see CLAUDE.md Images: "Plain <img>: ... hero backgrounds") needs manual sizing next/image's fill mode can't express */}
+        {/* eslint-disable-next-line @next/next/no-img-element -- full-bleed cover fill, same pattern as ProfileHeroBackground/ManageUserProfile's hero */}
         <img
-          src={heightCropImageUrl(profile.background_url ?? '/img/default_image.png', 216)}
+          src={supabaseImageLoader({ src: profile.background_url ?? '/img/default_image.png', width: 360, quality: 75 })}
           alt=""
           aria-hidden
           loading="lazy"
           decoding="async"
-          style={{
-            position:      'absolute',
-            top:           0,
-            left:          '50%',
-            height:        '100%',
-            width:         'auto',
-            maxWidth:      'none',
-            transform:     'translateX(-50%)',
-            pointerEvents: 'none',
-          }}
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }}
         />
         <div
           className="absolute inset-0 pointer-events-none rounded-tl-[7px] rounded-tr-[7px]"

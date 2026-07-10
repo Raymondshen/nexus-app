@@ -16,13 +16,12 @@ description: Reference for how images are stored, uploaded, cropped, compressed,
 ## Runtime image loaders (`src/shared/supabase/imageLoader.ts`)
 - `supabaseImageLoader({ src, width, quality })` — standard `next/image` loader. Rewrites `/storage/v1/object/public/` → `/storage/v1/render/image/public/`, sets `width` + `quality` (default 75). No-ops for non-Supabase URLs.
 - `avatarImageLoader({ src, width, quality })` — forces a square crop: for Supabase storage sets both `width` and `height` to the same value; for `googleusercontent.com` URLs rewrites the `=sNNN` suffix to `=s{width}-c`. Used exclusively by `UserAvatar`.
-- `heightCropImageUrl(src, height, quality)` — **not** a `next/image` loader (call directly to build a plain `<img src>`, since the loader contract always receives `width`). Sizes by height only, proportional width. Used where a manual height-anchored crop is needed (e.g. `SquadDetailsSheet`'s member-card background).
 - External URLs (e.g. Vibes OG thumbnails) bypass all loaders — they're not Supabase-hosted, so they render as a plain `<img>` alongside pixel sprites, not through `next/image`.
 
 ## Shared display components — never inline `avatarImageLoader`/`supabaseImageLoader` directly
 - `<UserAvatar>` — every person avatar.
 - `<GroupAvatar>` — every crew/squad image.
-- `<ProfileHeroBackground>` — full-bleed `profiles.background_url` hero (resizes to 480w via `supabaseImageLoader` before rendering as a plain `<img>`).
+- `<ProfileHeroBackground>` — full-bleed `profiles.background_url` hero (resizes to 480w via `supabaseImageLoader` before rendering as a plain `<img>`). `UserCard`'s member-card background and `ManageUserProfile`'s hero preview use the same plain-`<img>` + `object-cover` pattern inline (not this shared component, since their container dimensions/gradient differ) — all three should stay visually consistent since they render the same `background_url`.
 
 ## Upload + compression — two pipelines, one shared engine for pipeline 1
 
@@ -68,7 +67,7 @@ avatar 1:1 round · profile cover 1080:608 (16:9) · group photo 1:1 rect · gro
 - `src/shared/utils/imageProcessing.ts` — the separate chat-image engine: `compressImage`, `generateLQIP`, `validateImageUpload`, `getNetworkQuality`
 - `src/shared/components/ui/ZoomPanCropper.tsx` — the `react-easy-crop` widget
 - `src/shared/components/ui/PhotoCropModal.tsx` — generic crop bottom-sheet (no upload/DB logic of its own)
-- `src/shared/supabase/imageLoader.ts` — `supabaseImageLoader`, `avatarImageLoader`, `heightCropImageUrl`
+- `src/shared/supabase/imageLoader.ts` — `supabaseImageLoader`, `avatarImageLoader`
 - `supabase/functions/process-avatar/index.ts` — `sharp`-based AVIF generation, deployed with `--no-verify-jwt`
 
 ## Gotchas

@@ -12,22 +12,6 @@ export function supabaseImageLoader({ src, width, quality }: ImageLoaderProps): 
   return url.toString()
 }
 
-// Height-anchored crop: requests a render sized to a target height (proportional
-// width), for callers rendering a plain <img> with height:100%/width:auto
-// (a manual crop next/image's fill mode can't express) that still want the
-// Supabase render API to downscale/compress the source instead of shipping
-// the full original — e.g. SquadDetailsSheet's member card background.
-// Not a next/image ImageLoader (that contract always receives `width`); call
-// this directly to build the <img src> string.
-export function heightCropImageUrl(src: string, height: number, quality = 75): string {
-  if (!src.includes('/storage/v1/object/public/')) return src
-  const transformed = src.replace('/storage/v1/object/public/', '/storage/v1/render/image/public/')
-  const url = new URL(transformed)
-  url.searchParams.set('height', String(height))
-  url.searchParams.set('quality', String(quality))
-  return url.toString()
-}
-
 // Avatar-specific loader: forces a square crop so the circular avatar frame
 // is always filled correctly regardless of source aspect ratio.
 // - Supabase storage: passes both width+height so the render API center-crops to 1:1
