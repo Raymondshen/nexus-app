@@ -114,7 +114,7 @@ Leveling: `xpForLevel(n) = round(120 × 1.0435^(n-1))` · `LEVEL_CAP = 100` · c
 
 Elements: fire=<20 chars · water=>150 chars · lightning=voice · nature=images · shadow=reactions · arcane=daily/system
 
-Quick-pick emojis: `['🤯','😤','😘','😂','🤬','🤗']` (`QUICK_REACTIONS` in `ChatSheetReact.tsx`) — animated via `REACTION_LOTTIE_MAP` (JoyPixels Lottie JSON, `public/lottie/reactions/`), see MsgReactionPills below. Reactions are still keyed by these Unicode characters in `messages.reactions`, so any older reaction data (previously `🔥💧⚡🌿🌑🔮`) stays valid — it just renders as a plain glyph since it has no Lottie mapping.
+Quick-pick reactions: default set `['👍','👎','😭','🤣','😤','🔥']` (`DEFAULT_QUICK_REACTIONS` in `config.ts`), **user-customizable per-device** via `EmojiReactionPickerSheet` — persisted in localStorage (`nexus_quick_reactions`) and read through `useQuickReactions()`; see Reaction Quick-Pick & Picker below. `REACTION_CATALOG` (`config.ts`, ~200 JoyPixels emojis) maps each Unicode emoji → Lottie JSON (`public/lottie/reactions/`) and drives both the picker grid and the derived `REACTION_LOTTIE_MAP`. Reactions are keyed by the Unicode emoji in `messages.reactions`; any emoji not in the catalog (e.g. legacy `💧⚡🌿🌑🔮` element reactions) renders as a plain glyph.
 
 ## Auth
 - Google OAuth: `signInWithOAuth` → `/auth/callback` → `/home`
@@ -182,7 +182,7 @@ Renamed from `AnnouncementsClient`. Still uses the standalone bare-icon header (
 sessionStorage: `nexus-msgs-{crewId}` (envelope `{ messages, savedAt }`, 50 msg cap) · `nexus_chat_from`
 IndexedDB (idb-keyval): `nexus-msgs-{crewId}` — same envelope; survives iOS PWA kill
 
-localStorage: `nexus_first_message` · `nexus_install_prompted` · `nexus_crew_created` · `nexus_notif_prompted` · `nexus_notif_state` · `nexus_dismissed_banners` · dev flags above
+localStorage: `nexus_first_message` · `nexus_install_prompted` · `nexus_crew_created` · `nexus_notif_prompted` · `nexus_notif_state` · `nexus_dismissed_banners` · `nexus_quick_reactions` (custom quick-pick reaction set) · dev flags above
 
 ## Architecture
 
@@ -198,7 +198,8 @@ src/
 │   │   ├── messages/           MessageList, MessageBubble, LinkPreviewCard
 │   │   ├── sheets/             SquadDetailsSheet, PinDurationSheet, PinListSheet,
 │   │   │                       NotifSheet, CrewImageUploadModal,
-│   │   │                       SuggestDefinitionSheet, ReviewSuggestionSheet, ChatSheetReact
+│   │   │                       SuggestDefinitionSheet, ReviewSuggestionSheet,
+│   │   │                       ChatSheetReact, EmojiReactionPickerSheet
 │   │   ├── polls/              PollCard, PollCreatorSheet
 │   │   ├── header/             ChatHeader, DMHeader
 │   │   └── navigation/         FloatingBackButton, DMOverlayBack, ShareModal
@@ -252,18 +253,18 @@ src/
 - **Images** (`message_type === 'image'`): all through `MultiImageGrid` → `MultiImageCell` (160×160, object-cover). GIFs use `<img>`; photos use `next/image fill` + `supabaseImageLoader`. `parseJsonArray()` normalises plain URL or JSON `string[]`.
 - **Header row** (username · vinyl · crown · timestamp): no dot separators. `VinylPill` shows spinning 12×12 disc + scrolling title (no play icon). `Crown` 12×12 shown only on creator's own bubbles.
 - **`VinylPill`** (`src/shared/components/ui/VinylPill.tsx`, shared with `SquadDetailsSheet`'s member `UserCard`s): `{ imageUrl, title }`. Measures title width via off-screen span; scrolls with Framer Motion ticker if `textWidth > 32`, else static ellipsis.
-- Long-press (500ms) → `ChatSheetReact`: emoji quick-pick · Edit (own text messages) · Reply · Copy · Pin (admin).
+- Long-press (500ms) → `ChatSheetReact`: emoji quick-pick row (+ a `Plus` button opening `EmojiReactionPickerSheet`) · Edit (own text messages) · Reply · Copy · Pin (admin).
 - OG previews: `extractFirstUrl` → `useOGPreview` → `<LinkPreviewCard>` below body; text-only messages only.
-- **`MsgReactionPills`** (Figma 424:4732 "reaction-pill") — one pill per reacted emoji, `bg-surface-elevated`, `rounded-x2`, `p-x2`, `gap-x2`. Active (current user included): `--color-purple` border + purple `xs` SemiBold count. Inactive (others only): `--color-border-hover` border + `--color-tertiary` count. Icon is `LottieReactionIcon` (16×16) for any emoji in `REACTION_LOTTIE_MAP`, else the plain glyph (legacy `🔥💧⚡🌿🌑🔮` reactions).
+- **`MsgReactionPills`** (Figma 424:4732 "reaction-pill") — one pill per reacted emoji, `bg-surface-elevated`, `rounded-x2`, `p-x2`, `gap-x2`. Active (current user included): `--color-purple` border + purple `xs` SemiBold count. Inactive (others only): `--color-border-hover` border + `--color-tertiary` count. Icon is `LottieReactionIcon` (16×16) for any emoji in `REACTION_LOTTIE_MAP`, else the plain glyph (legacy `💧⚡🌿🌑🔮` element reactions not in the catalog).
 
 ### LottieReactionIcon (`src/shared/components/ui/LottieReactionIcon.tsx`)
-Renders one JoyPixels Lottie animation (SVG renderer — most cross-platform-compatible on iOS PWA/Android). Used in both `ChatSheetReact`'s quick-pick (24×24) and `MsgReactionPills` (16×16). Battery/perf-conscious by design, since a chat can have many reacted messages on screen at once:
+Renders one JoyPixels Lottie animation (SVG renderer — most cross-platform-compatible on iOS PWA/Android). Used in `ChatSheetReact`'s quick-pick row + `EmojiReactionPickerSheet`'s slots/grid (24×24) and `MsgReactionPills` (16×16). Battery/perf-conscious by design, since a chat can have many reacted messages on screen at once:
 - **Shared fetch+parse cache** (module-level `Map<url, Promise>`) — every instance of the same icon (e.g. several messages all reacted with 🤗) reuses one fetch and one parsed object instead of refetching/reparsing the 20–70KB JSON per instance.
 - **Paced "pulse" loop, not continuous looping** — plays once (`loop={false}`), then waits `LOOP_REST_MS` (1.5s) before replaying via `onComplete` + `goToAndPlay(0, true)`. A tight continuous loop never stops ticking `requestAnimationFrame`; resting between plays costs a fraction of the CPU with multiple instances visible.
 - **`IntersectionObserver`-gated** — only plays while actually scrolled into view (virtualization overscan keeps some off-screen bubbles mounted, which would otherwise animate unseen).
 - **Paused on `visibilitychange`** — stops when the PWA is backgrounded/screen locked.
 - **`prefers-reduced-motion`** via `useSyncExternalStore` on `matchMedia` — renders a static first frame, never plays.
-- `REACTION_LOTTIE_MAP` (`src/shared/constants/config.ts`) keys each animation by the Unicode emoji it represents — reactions stay keyed/stored by that emoji character (not a custom id), so this is purely a rendering swap; the data model (`toggle_reaction`, `messages.reactions`) is unaffected.
+- `REACTION_LOTTIE_MAP` (`src/shared/constants/config.ts`) is derived from `REACTION_CATALOG` and keys each animation by the Unicode emoji it represents — reactions stay keyed/stored by that emoji character (not a custom id), so this is purely a rendering swap; the data model (`toggle_reaction`, `messages.reactions`) is unaffected.
 
 ### Swipe-to-reply
 Only on `!isOwn` messages. Swipe left past 64px to commit. Slide wrapper (`data-group={groupId}`) covers avatar + content so they move together. Group slide: all `[data-group="${groupId}"]` elements transform as a unit. Reply icon fades in from 30–100% of swipe. `chatStore.replyTo` + `replyGroupId` set atomically; cleared on `ChatInput` unmount.
@@ -341,6 +342,13 @@ Invite is surfaced only via the inline `<InviteCodeCard>` in the Members section
 - `messages.reactions` JSONB: `{ emoji: [userId,...] }`, empty arrays pruned
 - `useMessageReactions` hook (`src/features/chat/components/messages/useMessageReactions.ts`) owns optimistic state + the write + the in-flight guard for one message: optimistic update → `react-to-message` edge fn → `toggle_reaction` RPC → apply `data.reactions`; rollback only on `FunctionsHttpError`
 - `chatStore.pendingReactionIds`: message ids with a toggle in flight, set/cleared by the hook. `MessageList`'s realtime UPDATE merge and its background history-fetch merge both check this set and unconditionally preserve local reactions while pending — do NOT reintroduce an "is the incoming value empty" staleness heuristic there, it only protects an add and silently clobbers a remove
+
+### Reaction Quick-Pick & Picker
+- **Quick-pick set** = the row of 6 primary reactions in `ChatSheetReact`. Source of truth is `useQuickReactions()` (`src/shared/utils/quickReactions.ts`), a `useSyncExternalStore` hook over localStorage `nexus_quick_reactions`, falling back to `DEFAULT_QUICK_REACTIONS`. `sanitize()` coerces stored data to a fixed length and drops any emoji no longer in `REACTION_LOTTIE_MAP` (so a retired-catalog emoji reverts to the positional default). Customization is **per-device**, not synced — a deliberate scope call; if it ever needs to sync, migrate the storage layer to a `profiles` column (component/UI stays the same).
+- **`EmojiReactionPickerSheet`** (`sheets/`, Figma 490:5343) — opened by the `Plus` button in `ChatSheetReact` (z-110, above the z-90 react sheet). Header + the 6 editable slots + a search box + the full `REACTION_CATALOG` grid + a `Save Changes` button (grey→purple only when the set changed; writes via `setQuickReactions`, which dispatches `nexus-quick-reactions-change` so the open react sheet re-renders live).
+  - **Swap vs insert**: tap-and-hold a slot (`LONG_PRESS_MS` 400) to SELECT it (purple stroke) → grid taps then swap that slot; short-tap the selected slot to deselect. With **no** slot selected, a grid tap INSERTS (prepend + dedupe + `slice(0, len)`, dropping the oldest) so the set stays a valid length.
+  - **Search** matches the Lottie **file name** (`norm()` strips case/underscores/spaces), not the emoji glyph.
+  - **Grid is row-virtualized** (`useVirtualizer`, 6 cols/row) — `LottieReactionIcon` fetches its JSON on mount, so mounting all ~200 at once would pull ~14 MB; only visible rows mount.
 
 ### Polls
 `message.content = 'POLL:{pollId}'` · `create_poll` RPC · `vote_on_poll` one toggleable vote · 0 XP
