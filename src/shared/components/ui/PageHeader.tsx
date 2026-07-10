@@ -19,8 +19,8 @@ export function PageHeader({ title, onBack, right }: PageHeaderProps) {
       style={{
         paddingLeft: 'var(--md)',
         paddingRight: 'var(--md)',
-        paddingTop: 'max(env(safe-area-inset-top), var(--x3))',
-        paddingBottom: 'var(--x3)',
+        paddingTop: 'max(env(safe-area-inset-top), var(--x5))',
+        paddingBottom: 'var(--x5)',
       }}
     >
       <div className="flex items-center justify-between h-10">
