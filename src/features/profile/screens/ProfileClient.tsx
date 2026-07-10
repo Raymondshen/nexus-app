@@ -212,7 +212,7 @@ export function ProfileClient({
           className="absolute left-0 right-0 top-0 pointer-events-none"
           style={{
             height:     'calc(86px + env(safe-area-inset-top, 0px))',
-            background: 'linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.25) 46.158%, rgba(0,0,0,0) 100%)',
+            background: 'var(--gradient-hero-top-scrim)',
           }}
         />
 

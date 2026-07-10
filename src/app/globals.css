@@ -30,6 +30,15 @@
     color-mix(in srgb, var(--color-background) 25%, transparent) 33%,
     color-mix(in srgb, var(--color-background) 80%, transparent) 100%
   );
+  /* Hero top scrim — dark top → transparent, purely for back/edit button legibility
+     over profile heroes (~86px band). NOT the cover overlay (--gradient-image-overlay).
+     Built from --color-background so it tracks the theme's black. */
+  --gradient-hero-top-scrim: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--color-background) 80%, transparent) 0%,
+    color-mix(in srgb, var(--color-background) 25%, transparent) 46%,
+    transparent 100%
+  );
   /* Game / chat accent colors (not in Figma — kept for game logic) */
   --color-paper-150:   #b3b3b3;
   --color-paper-200:   #9a9a9a;
