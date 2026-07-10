@@ -1948,7 +1948,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
               if (result?.error) { setCrewName(prev); return result }
               return result
             }}
-            onClose={() => setShowManageSquad(false)}
+            onClose={() => { setShowManageSquad(false); setIsExpanded(false) }}
           />
         )}
       </AnimatePresence>
