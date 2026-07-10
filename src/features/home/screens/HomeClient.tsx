@@ -716,7 +716,7 @@ function HomeActionSheet({
             ) : (
               <div style={{ position: 'absolute', inset: 0, background: 'var(--color-surface)' }} />
             )}
-            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.604) 33%, rgba(0,0,0,0.6) 66%, rgba(0,0,0,0.8) 100%)' }} />
+            <div style={{ position: 'absolute', inset: 0, background: 'var(--gradient-image-overlay)' }} />
             <div className="relative flex items-start justify-between w-full">
               <div className="flex items-center flex-1 min-w-0" style={{ gap: 16 }}>
                 {/* Crew avatar */}
@@ -1500,7 +1500,7 @@ function HomeCrewDetailsSheet({
           )}
           <div
             className="absolute inset-0 pointer-events-none"
-            style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.604) 33%, rgba(0,0,0,0.6) 66%, rgba(0,0,0,0.8) 100%)' }}
+            style={{ background: 'var(--gradient-image-overlay)' }}
           />
 
           {/* Top row: crew image + name/level/count | close */}

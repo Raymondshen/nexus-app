@@ -22,6 +22,14 @@
   --color-yellow:       #f59e0b;    /* yellow       #F59E0B */
   --color-red:          #ef4444;    /* red          #EF4444 */
   --gradient-nexus:     linear-gradient(to right, #a855f7, #d946ef); /* nexus gradient — purple to pink */
+  /* Image overlay — light top → dark bottom scrim over background/hero images (Figma 470:5083).
+     Built from the background color token so the scrim tracks the theme's black. */
+  --gradient-image-overlay: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-background) 20%, transparent) 0%,
+    color-mix(in srgb, var(--color-background) 25%, transparent) 33%,
+    color-mix(in srgb, var(--color-background) 80%, transparent) 100%
+  );
   /* Game / chat accent colors (not in Figma — kept for game logic) */
   --color-paper-150:   #b3b3b3;
   --color-paper-200:   #9a9a9a;

@@ -145,7 +145,7 @@ export function SquadDetailsSheet({
           {/* Gradient overlay */}
           <div
             className="absolute inset-0 pointer-events-none rounded-tl-[16px] rounded-tr-[16px]"
-            style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.604) 33%, rgba(0,0,0,0.6) 66%, rgba(0,0,0,0.8) 100%)' }}
+            style={{ background: 'var(--gradient-image-overlay)' }}
           />
 
           {/* Top row: image+name | action buttons */}

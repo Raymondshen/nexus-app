@@ -129,7 +129,7 @@ export function UserCard({
         />
         <div
           className="absolute inset-0 pointer-events-none rounded-tl-[7px] rounded-tr-[7px]"
-          style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.604) 33%, rgba(0,0,0,0.6) 66%, rgba(0,0,0,0.8) 100%)' }}
+          style={{ background: 'var(--gradient-image-overlay)' }}
         />
         <div className="relative flex-shrink-0">
           <UserAvatar avatarUrl={profile.avatar_url} username={profile.username} size={32} />
