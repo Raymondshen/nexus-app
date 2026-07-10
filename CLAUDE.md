@@ -70,6 +70,16 @@ All `SECURITY DEFINER`. Declared in `Database.Functions` in `src/types/index.ts`
 - `apply_boss_damage(p_raid_id, p_member_id, p_final_dmg)` → `(new_hp, is_downed, downed_at)`
 - `use_revive_token(p_raid_id, p_target_user_id)` → jsonb `{ok, new_hp?, tokens_remaining?}`
 
+### Server Authority (column guards + RPC grants)
+Migration `20260709100000_security_column_guards_and_rpc_grants.sql` is the source of truth. Two enforcement layers beyond RLS:
+
+**Column-protection triggers** — block client-role (`authenticated`/`anon`) writes to privileged columns; the trigger no-ops for `service_role`, so server/edge writes pass. RLS lets a user UPDATE their own `profiles`/`crews`/`messages` row, so column guards are what stop a direct PostgREST PATCH from tampering:
+- `profiles`: `is_dev`, `coins` are server-only (`prevent_client_privileged_profile_writes`); `username` must match `^[A-Za-z0-9_]{3,20}$` (`enforce_username_format`) — DB-level backstop to `validateUsernameFormat()`. Gems already guarded by `prevent_client_gem_writes`.
+- `crews`: `total_xp`, `level`, `invite_code`, `is_dm`, `dm_partner_*` server-only (`prevent_client_crew_stat_writes`). Name/image/`last_message_*` stay client-writable.
+- `messages`: `reactions`, `xp_awarded`, `element_type`, `message_type`, `user_id`, `crew_id`, `created_at` server-only (`prevent_client_message_field_writes`) — only `content` + image fields are client-editable (the message-edit flow). Pin columns keep their own separate trigger.
+
+**Revoked client EXECUTE** — these SECURITY DEFINER RPCs are callable only by `service_role` (revoked from `public`/`anon`/`authenticated`, incl. the inherited PUBLIC grant): `increment_user_coins`, `increment_crew_xp`, `increment_friendship_xp`, `damage_raid`, `apply_boss_damage`, `claim_daily_gem`, `init_combat_members`, `toggle_reaction`, plus the trigger fns. Call them from edge functions / server actions via the service client, never `supabase.rpc(...)` on a browser/cookie client. The rest (`insert_message`, `join_crew`, polls, pins, `update_active`, `get_*`, …) keep `authenticated` EXECUTE.
+
 ## Game Values
 
 XP: first-msg-today=10 (flat, one-time per UTC day) · all other messages=1
@@ -80,7 +90,7 @@ Coins: text/voice/image=1 · reaction/system=0 · generate-invite=−25 · seed-
 
 Friendship XP: 1pt per DM send or @mention · 10pt daily cap · `award-friendship-xp` edge function · **dev-gated: `nexus_friendship_xp`**
 
-Gems: 1/day on first message in any crew · `award-gem` edge function + `claim_daily_gem` RPC sole authority — client never awards · blocked from client writes by `profiles_protect_gem_columns` trigger
+Gems: 1/day on first message in any crew · `award-gem` edge function + `claim_daily_gem` RPC sole authority — client never awards · blocked from client writes by `profiles_protect_gem_columns` trigger (one of a family of column-protection triggers — see Server Authority) · `claim_daily_gem` client EXECUTE is revoked, so it's callable only via the `award-gem` edge fn (service role)
 
 Boss: every 500 XP (`BOSS_XP_THRESHOLD`) · 48h window · 3 phases · defeat → artifact drop
 - Rarity: legendary 5% / epic 15% / rare 30% / common 50%
@@ -322,6 +332,7 @@ Invite is surfaced only via the inline `<InviteCodeCard>` in the Members section
 **combatStore**: `activeRaid`, `memberStats`, `combatEvents` (cap 200), `reviveTokens`, `damageFloats`. `replayCombatEvents` merges by id after initial DB fetch.
 
 ### award-xp
+- Identity check first: rejects (401) unless the JWT-resolved caller === body `user_id` (see Edge Functions → session-token note)
 - Batch 1 (parallel): prev msg gap + crew data + sender `is_dev` + other members
 - Anti-spam: gap < 5s → 0 XP, 0 coins
 - Fires `message_received`/`mention_received` notifications — see `notification-engine` skill for the ordering constraint (must fire before XP writes; no early returns before the notification block)
@@ -371,6 +382,8 @@ supabase functions deploy weekly-boss --project-ref tlveyeisjbythssmocth
 ```
 
 `git push` does NOT deploy edge functions. Inter-function calls use raw `fetch()` — never `supabase.functions.invoke()`. `send-notification` accepts `user_id: string` or `user_ids: string[]`.
+
+**Client → game-economy edge functions must send the user's session token, not the anon key.** `award-xp`, `attack-boss`, and `award-friendship-xp` verify the caller's identity server-side (`authClient.auth.getUser()` on the `Authorization` header) and reject if the resolved user ≠ the body's `user_id`/`user_a_id`. `verify_jwt` alone is insufficient — the public anon key is a valid JWT but carries no user, so it 401s. Call them from the client only via `postEdgeFn()` (`src/shared/utils/edgeFetch.ts`), which attaches the session access token and an AbortController timeout (no retry — these aren't idempotent; a lost-response retry would double-award XP / double-spend ability charges). `award-gem` already used session-token auth; `send-notification`/`process-avatar` stay `--no-verify-jwt` (called server-side/inter-function).
 
 **A function can be fully correct in the repo and still be missing from the live project** — `react-to-message` sat undeployed for an unknown period (absent from `supabase functions list`), so every `supabase.functions.invoke('react-to-message', …)` call 404'd, which the client correctly read as `FunctionsHttpError` and rolled back — producing a deterministic "reaction appears then vanishes on every tap" bug that looked like a client-side race and survived several client-code-only fix attempts before the real cause was found. When a client → edge-function flow misbehaves in a way that looks like a race/rollback bug, check `supabase functions list --project-ref tlveyeisjbythssmocth` for that function **before** re-auditing the optimistic-update logic.
 

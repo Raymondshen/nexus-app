@@ -14,6 +14,8 @@ description: How developer-only access is gated in Nexus — profiles.is_dev as 
 
 If a new feature only satisfies #1 (hidden button) but its underlying action skips #2, a non-dev user who discovers the action's name/signature can still invoke it. If it only satisfies #2 without #1, it works but is needlessly undiscoverable-by-accident only — still do #1 for a clean UX, but #2 is the one that must never be skipped.
 
+**`is_dev` itself can't be self-granted from the client.** `profiles` RLS lets a user UPDATE their own row, but the `prevent_client_privileged_profile_writes` trigger (migration `20260709100000`) blocks any client-role write to `is_dev` (and `coins`) — a direct PostgREST `PATCH profiles?id=eq.<self>` with `{is_dev:true}` raises rather than escalating. So the boundary holds even against someone hitting the REST API directly, not just the UI. Granting dev access is server-only: `UPDATE profiles SET is_dev = true …` via the SQL editor / service role (see the grant command below). Don't try to expose an in-app "become dev" affordance — it would have to run as `service_role` to bypass the trigger, which defeats the point.
+
 ## Pattern A — gating a page
 
 Redirect server-side, before the client component ever mounts:
