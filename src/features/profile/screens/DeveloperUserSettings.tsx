@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { SlidePage, useSlideBack } from '@/app/layouts/SlidePage'
+import { SlidePage } from '@/app/layouts/SlidePage'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
 import { PageHeader } from '@/shared/components/ui/PageHeader'
 
@@ -87,7 +87,6 @@ function DevToggleRow({ title, description, enabled, onChange }: { title: string
 
 export function DeveloperUserSettings({ initialCoins }: DeveloperUserSettingsProps) {
   const router = useRouter()
-  const goBack = useSlideBack()
 
   const [showPush,      setShowPush]      = useState(false)
   const [infiniteCoins, setInfiniteCoins] = useState(false)
@@ -148,7 +147,7 @@ export function DeveloperUserSettings({ initialCoins }: DeveloperUserSettingsPro
       className="bg-black flex flex-col"
       style={{ position: 'fixed', inset: 0, maxWidth: 480, marginLeft: 'auto', marginRight: 'auto', overflow: 'hidden' }}
     >
-      <PageHeader title="Developer Settings" onBack={goBack} />
+      <PageHeader title="Developer Settings" />
 
       <div
         className="flex-1 overflow-y-auto nexus-scroll flex flex-col"

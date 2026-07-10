@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { SlidePage, useSlideBack } from '@/app/layouts/SlidePage'
+import { useRouter } from 'next/navigation'
+import { SlidePage } from '@/app/layouts/SlidePage'
 import { Upload } from 'pixelarticons/react/Upload'
 import { DiamondGem } from 'pixelarticons/react/DiamondGem'
 import { TokeCircle } from 'pixelarticons/react/TokeCircle'
@@ -43,7 +44,7 @@ export function ManageUserProfile({
   coins,
   gemBalance,
 }: ManageUserProfileProps) {
-  const goBack = useSlideBack()
+  const router = useRouter()
 
   const [localAvatarUrl,     setLocalAvatarUrl]     = useState(avatarUrl)
   const [localBackgroundUrl, setLocalBackgroundUrl] = useState(backgroundUrl)
@@ -71,7 +72,7 @@ export function ManageUserProfile({
       if (result.error === 'taken') { setSaveError('Name already taken'); return }
       if (result.error) { setSaveError(result.error); return }
       await revalidateProfileAction()
-      goBack()
+      router.back()
     } catch {
       setSaveError('Failed to save — try again')
     } finally {
@@ -84,7 +85,7 @@ export function ManageUserProfile({
       className="bg-black flex flex-col"
       style={{ position: 'fixed', inset: 0, maxWidth: 480, marginLeft: 'auto', marginRight: 'auto', overflow: 'hidden' }}
     >
-      <PageHeader title="Manage Profile" onBack={goBack} />
+      <PageHeader title="Manage Profile" />
 
       <div className="flex-1 min-h-0 overflow-y-auto nexus-scroll flex flex-col">
 

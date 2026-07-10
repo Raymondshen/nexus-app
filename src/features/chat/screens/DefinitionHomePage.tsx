@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence, useAnimation } from "framer-motion";
-import { SlidePage, useSlideBack } from "@/app/layouts/SlidePage";
+import { SlidePage } from "@/app/layouts/SlidePage";
 import { Plus } from "pixelarticons/react/Plus";
 import { PageHeader } from "@/shared/components/ui/PageHeader";
 import { createClient } from "@/shared/supabase/client";
@@ -548,7 +548,6 @@ export function DefinitionHomePage({
   currentUsername,
   initialDefinitions,
 }: DefinitionHomePageProps) {
-  const goBack = useSlideBack();
   const [definitions, setDefinitions] =
     useState<SquadDefinitionWithCreator[]>(initialDefinitions);
   const [showCreate, setShowCreate] = useState(false);
@@ -736,7 +735,6 @@ export function DefinitionHomePage({
     >
       <PageHeader
         title="Definitions"
-        onBack={goBack}
         right={
           <button
             onClick={() => setShowCreate(true)}
