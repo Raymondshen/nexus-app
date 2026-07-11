@@ -4,6 +4,8 @@ import { useState, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { SlidePage, useSlideBack } from '@/app/layouts/SlidePage'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
+import { PageFooter } from '@/shared/components/ui/PageFooter'
+import { Button } from '@/shared/components/ui/Button'
 import {
   createAnnouncementAction,
   getAllAnnouncementsAction,
@@ -200,24 +202,6 @@ export function DeveloperUserAnnouncements({ initialAnnouncements }: DeveloperUs
                 {addError}
               </p>
             )}
-
-            <div className="flex" style={{ gap: 'var(--space-3)' }}>
-              <button
-                onClick={handleCreate}
-                disabled={!newTitle.trim() || !newText.trim() || !newImageUrl.trim() || addingBanner}
-                className="flex-1 h-8 font-pixel border disabled:opacity-40"
-                style={{ fontSize: 'var(--text-mini)', color: '#66bb6a', borderColor: 'rgba(102,187,106,0.4)', background: 'rgba(102,187,106,0.08)' }}
-              >
-                {addingBanner ? '...' : 'SAVE'}
-              </button>
-              <button
-                onClick={() => { setShowCreate(false); setAddError(null) }}
-                className="flex-1 h-8 font-pixel border"
-                style={{ fontSize: 'var(--text-mini)', color: 'var(--color-coins)', borderColor: 'rgba(255,215,0,0.3)', background: 'rgba(255,215,0,0.06)' }}
-              >
-                CANCEL
-              </button>
-            </div>
           </div>
         )}
 
@@ -310,26 +294,31 @@ export function DeveloperUserAnnouncements({ initialAnnouncements }: DeveloperUs
         )}
       </div>
 
-      {/* Add announcement */}
-      {!showCreate && (
-        <div className="flex flex-col w-full flex-shrink-0" style={{ paddingLeft: 16, paddingRight: 16, paddingTop: 16, paddingBottom: 28 }}>
-          <button
-            onClick={() => setShowCreate(true)}
-            className="flex items-center justify-center overflow-hidden w-full"
-            style={{
-              background: 'var(--color-purple)',
-              paddingLeft: 'var(--space-6)',
-              paddingRight: 'var(--space-6)',
-              paddingTop: 'var(--space-5)',
-              paddingBottom: 'var(--space-5)',
-              boxShadow: '4px 4px 0px 0px rgba(168,85,247,0.5)',
-            }}
+      {showCreate ? (
+        <PageFooter>
+          <Button
+            onClick={handleCreate}
+            disabled={!newTitle.trim() || !newText.trim() || !newImageUrl.trim() || addingBanner}
+            loading={addingBanner}
+            className="w-full"
           >
-            <span className="font-silkscreen text-primary leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-xs)' }}>
-              Add announcement
-            </span>
-          </button>
-        </div>
+            Save
+          </Button>
+          <Button
+            variant="outlined"
+            color="tertiary"
+            onClick={() => { setShowCreate(false); setAddError(null) }}
+            className="w-full"
+          >
+            Cancel
+          </Button>
+        </PageFooter>
+      ) : (
+        <PageFooter>
+          <Button onClick={() => setShowCreate(true)} className="w-full">
+            Add announcement
+          </Button>
+        </PageFooter>
       )}
     </SlidePage>
   )

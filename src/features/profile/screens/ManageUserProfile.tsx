@@ -11,6 +11,7 @@ import { TickerBanner } from '@/shared/components/banners/TickerBanner'
 import { UserAvatar } from '@/shared/components/ui/UserAvatar'
 import { InputField } from '@/shared/components/ui/InputField'
 import { PageHeader } from '@/shared/components/ui/PageHeader'
+import { PageFooter } from '@/shared/components/ui/PageFooter'
 import { Button } from '@/shared/components/ui/Button'
 import { validateUsernameFormat } from '@/shared/utils/username'
 import { revalidateProfileAction, updateProfileDetailsAction } from '@/app/(app)/profile/actions'
@@ -231,10 +232,8 @@ export function ManageUserProfile({
 
       </div>
 
-      {/* Save Changes — sticky footer, sibling of the scroll area so it docks to the true bottom */}
-      <div className="flex flex-col w-full flex-shrink-0" style={{ paddingLeft: 16, paddingRight: 16, paddingTop: 16, paddingBottom: 28 }}>
+      <PageFooter>
         <Button
-          shadow
           onClick={handleSave}
           disabled={saving || !displayName.trim() || displayName.trim().length < 3}
           loading={saving}
@@ -242,7 +241,7 @@ export function ManageUserProfile({
         >
           Save Changes
         </Button>
-      </div>
+      </PageFooter>
 
       {/* Hidden avatar file input */}
       <input

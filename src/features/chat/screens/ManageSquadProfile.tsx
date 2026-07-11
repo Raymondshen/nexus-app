@@ -5,6 +5,7 @@ import { motion, useAnimation } from 'framer-motion'
 import Image from 'next/image'
 import { Upload } from 'pixelarticons/react/Upload'
 import { PageHeader } from '@/shared/components/ui/PageHeader'
+import { PageFooter } from '@/shared/components/ui/PageFooter'
 import { GroupAvatar } from '@/shared/components/ui/GroupAvatar'
 import { InputField } from '@/shared/components/ui/InputField'
 import { Button } from '@/shared/components/ui/Button'
@@ -305,10 +306,8 @@ export function ManageSquadProfile({
         </div>
       </div>
 
-      {/* ── Save Changes — pinned footer (sibling of the scroll area) ── */}
-      <div className="flex flex-col w-full flex-shrink-0" style={{ paddingLeft: 16, paddingRight: 16, paddingTop: 16, paddingBottom: 'max(env(safe-area-inset-bottom), 28px)' }}>
+      <PageFooter>
         <Button
-          shadow
           onClick={handleSave}
           disabled={saving || !trimmedName || trimmedName.length < 2}
           loading={saving}
@@ -316,7 +315,7 @@ export function ManageSquadProfile({
         >
           Save Changes
         </Button>
-      </div>
+      </PageFooter>
     </motion.div>
   )
 }

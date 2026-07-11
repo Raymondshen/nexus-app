@@ -5,6 +5,8 @@ import { motion, AnimatePresence, useAnimation } from "framer-motion";
 import { SlidePage } from "@/app/layouts/SlidePage";
 import { Plus } from "pixelarticons/react/Plus";
 import { PageHeader } from "@/shared/components/ui/PageHeader";
+import { PageFooter } from "@/shared/components/ui/PageFooter";
+import { Button } from "@/shared/components/ui/Button";
 import { createClient } from "@/shared/supabase/client";
 import {
   createDefinitionAction,
@@ -393,25 +395,11 @@ function CreateDefinitionPage({
         )}
       </div>
 
-      {/* Sticky save button */}
-      <div
-        className="flex-shrink-0"
-        style={{
-          paddingLeft: "var(--md)",
-          paddingRight: "var(--md)",
-          paddingTop: "var(--x5)",
-          paddingBottom: "max(env(safe-area-inset-bottom), var(--x5))",
-        }}
-      >
-        <DefinitionButton
-          variant="fill"
-          onClick={handleSave}
-          disabled={saving}
-          loading={saving}
-        >
+      <PageFooter>
+        <Button onClick={handleSave} disabled={saving} loading={saving} className="w-full">
           Save definition
-        </DefinitionButton>
-      </div>
+        </Button>
+      </PageFooter>
     </motion.div>
   );
 }

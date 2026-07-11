@@ -6,7 +6,9 @@ import { clsx } from 'clsx'
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   // 'primary'→filled, 'secondary'→outlined kept for backward compat
   variant?: 'filled' | 'outlined' | 'primary' | 'secondary' | 'danger'
-  color?:   'purple' | 'red'
+  // Only applies to outlined: 'purple' (502:2788), 'red' (502:2789), or
+  // 'tertiary' (502:2723) — border + text in that color, no background fill
+  color?:   'purple' | 'red' | 'tertiary'
   size?:    'lg' | 'md' | 'sm'
   shadow?:  boolean
   icon?:    ReactNode
@@ -28,6 +30,7 @@ export function Button({
 }: ButtonProps) {
   const isOutlined = variant === 'outlined' || variant === 'secondary'
   const isRed      = variant === 'danger' || color === 'red'
+  const isTertiary = !isRed && color === 'tertiary'
 
   return (
     <button
@@ -48,11 +51,12 @@ export function Button({
         size === 'lg' &&  shadow && ['py-[var(--space-5)] px-[var(--space-6)]', 'gap-[var(--x2)]'],
         size === 'md'            && ['py-[var(--space-4)] px-[var(--space-5)]', 'gap-[var(--x2)]'],
         size === 'sm'            && ['py-[var(--space-3)] px-[var(--space-5)]', 'gap-[var(--x2)]'],
-        // Colors
+        // Colors — outlined is always transparent (Figma 502:2788 purple / 502:2789 red / 502:2723 tertiary), never filled
         !isOutlined && !isRed && 'bg-purple active:opacity-80',
         !isOutlined &&  isRed && 'bg-[var(--red)] active:opacity-80',
-         isOutlined && !isRed && 'bg-black border border-purple active:opacity-70',
-         isOutlined &&  isRed && 'bg-black border border-[var(--red)] active:opacity-70',
+         isOutlined &&  isTertiary && 'border border-tertiary active:opacity-70',
+         isOutlined && !isRed && !isTertiary && 'border border-purple active:opacity-70',
+         isOutlined &&  isRed && 'border border-[var(--red)] active:opacity-70',
         className
       )}
       {...props}
@@ -70,7 +74,7 @@ export function Button({
           style={{
             fontSize: size === 'lg' ? 'var(--text-xs)' : 'var(--text-xxs)',
             color: isOutlined
-              ? isRed ? 'var(--red)' : 'var(--color-purple)'
+              ? isTertiary ? 'var(--color-tertiary)' : isRed ? 'var(--red)' : 'var(--color-purple)'
               : 'var(--color-primary)',
           }}
         >
