@@ -486,15 +486,7 @@ Full-height swipe-up. Shares the standard sheet's pull-to-close gesture via `use
 
 ## Definition Buttons (`src/shared/components/ui/DefinitionButton.tsx`)
 
-Figma 402:9772 — rounded (`rounded-x3`), DM Sans SemiBold sm, `p-x5` padding, full-width, optional icon (inherits `currentColor`, don't pass `color` on the icon style). Predates the `Button` outlined variants (see below) and is being phased out in their favor — `SquadDetailsSheet`'s `SheetFooter` "Leave Squad" is the one remaining consumer:
-
-```tsx
-<DefinitionButton variant="stroke" color="red" icon={<DoorClosed style={{ width: 20, height: 20 }} />} onClick={onLeave}>
-  Leave Squad
-</DefinitionButton>
-```
-
-New sheet/subpage CTAs should use `Button` (outlined/filled, size lg) instead — see `SheetFooter` above / `PageFooter` in Page Structure.
+Figma 402:9772 — rounded (`rounded-x3`), DM Sans SemiBold sm, `p-x5` padding, full-width, optional icon. Superseded by the `Button` outlined/filled variants (size lg) for all sheet/subpage CTAs — see `SheetFooter` above / `PageFooter` in Page Structure. No live consumers remain; the component is kept but orphaned rather than deleted, same treatment as other unused-but-valid code noted elsewhere in this doc.
 
 ## UserAvatar (`src/shared/components/ui/UserAvatar.tsx`)
 

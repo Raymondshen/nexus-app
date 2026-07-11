@@ -8,11 +8,10 @@ import { GroupAvatar } from '@/shared/components/ui/GroupAvatar'
 import { getXPInCurrentLevel, getXPForCurrentLevel } from '@/shared/utils/xp'
 import { MagicEdit } from 'pixelarticons/react/MagicEdit'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
-import { DoorClosed } from 'pixelarticons/react/DoorClosed'
 import { Bell } from 'pixelarticons/react/Bell'
 import { BellOff } from 'pixelarticons/react/BellOff'
 import { Library } from 'pixelarticons/react/Library'
-import { DefinitionButton } from '@/shared/components/ui/DefinitionButton'
+import { Button } from '@/shared/components/ui/Button'
 import { InviteCodeCard } from '@/shared/components/ui/InviteCodeCard'
 import { UserCard, type MiniMember } from '@/shared/components/ui/UserCard'
 import { useSheetDrag } from '@/shared/components/ui/sheet/useSheetDrag'
@@ -239,14 +238,14 @@ export function SquadDetailsSheet({
         {/* ── Fixed bottom: leave squad ── */}
         {onLeave && (
           <SheetFooter>
-            <DefinitionButton
-              variant="stroke"
+            <Button
+              variant="outlined"
               color="red"
-              icon={<DoorClosed style={{ width: 20, height: 20 }} aria-hidden="true" />}
               onClick={onLeave}
+              className="w-full"
             >
               Leave Squad
-            </DefinitionButton>
+            </Button>
           </SheetFooter>
         )}
       </motion.div>
