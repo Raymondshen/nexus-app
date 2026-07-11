@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { suggestDefinitionAction } from "@/app/(app)/chat/[crewId]/definitions/actions";
 import { BottomSheet } from "@/shared/components/ui/sheet/BottomSheet";
+import { SheetFooter } from "@/shared/components/ui/sheet/SheetFooter";
 import { Button } from "@/shared/components/ui/Button";
 import type { SquadDefinitionWithCreator } from "@/types";
 
@@ -65,13 +66,14 @@ export function SuggestDefinitionSheet({
       onClose={onClose}
       zIndex={zBase + 10}
       maxHeight="90vh"
-      className="overflow-y-auto px-4"
+      className="overflow-y-auto"
     >
       <div
         className="flex flex-col"
         style={{
           gap: "var(--space-7)",
-          paddingBottom: "max(env(safe-area-inset-bottom), 28px)",
+          paddingLeft: "var(--x5)",
+          paddingRight: "var(--x5)",
         }}
       >
         {/* Title — DM Sans Bold 18px text-primary */}
@@ -160,31 +162,28 @@ export function SuggestDefinitionSheet({
             {error}
           </p>
         )}
-
-        {/* Buttons */}
-        <div
-          className="flex flex-col w-full flex-shrink-0"
-          style={{ gap: "var(--space-5)" }}
-        >
-          <Button
-            onClick={handleSuggest}
-            disabled={saving}
-            loading={saving}
-            className="w-full"
-          >
-            Suggest
-          </Button>
-          <Button
-            variant="outlined"
-            color="red"
-            onClick={onClose}
-            disabled={saving}
-            className="w-full"
-          >
-            Cancel suggestion
-          </Button>
-        </div>
       </div>
+
+      {/* Buttons */}
+      <SheetFooter>
+        <Button
+          onClick={handleSuggest}
+          disabled={saving}
+          loading={saving}
+          className="w-full"
+        >
+          Suggest
+        </Button>
+        <Button
+          variant="outlined"
+          color="red"
+          onClick={onClose}
+          disabled={saving}
+          className="w-full"
+        >
+          Cancel suggestion
+        </Button>
+      </SheetFooter>
     </BottomSheet>
   );
 }

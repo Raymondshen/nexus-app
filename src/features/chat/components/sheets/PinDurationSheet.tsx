@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { createClient } from "@/shared/supabase/client";
 import { BottomSheet } from "@/shared/components/ui/sheet/BottomSheet";
+import { SheetFooter } from "@/shared/components/ui/sheet/SheetFooter";
+import { Button } from "@/shared/components/ui/Button";
 import { ChevronRight } from "pixelarticons/react/ChevronRight";
 import type { Message, MessageWithProfile } from "@/types";
 
@@ -100,7 +102,6 @@ export function PinDurationSheet({
           gap: 24,
           paddingLeft: 16,
           paddingRight: 16,
-          paddingBottom: "max(env(safe-area-inset-bottom), 28px)",
         }}
       >
         {/* Header */}
@@ -238,22 +239,19 @@ export function PinDurationSheet({
             {error}
           </p>
         )}
+      </div>
 
-        {/* PIN IT button */}
-        <button
+      {/* PIN IT button */}
+      <SheetFooter>
+        <Button
           onClick={() => void handlePin()}
           disabled={pinning}
-          className="flex-shrink-0 w-full flex items-center justify-center overflow-hidden disabled:opacity-40 transition-opacity"
-          style={{ height: 48, background: "var(--color-purple)" }}
+          loading={pinning}
+          className="w-full"
         >
-          <span
-            className="font-silkscreen leading-none text-primary"
-            style={{ fontSize: 12 }}
-          >
-            {pinning ? "..." : "PIN IT"}
-          </span>
-        </button>
-      </div>
+          Pin It
+        </Button>
+      </SheetFooter>
     </BottomSheet>
   );
 }

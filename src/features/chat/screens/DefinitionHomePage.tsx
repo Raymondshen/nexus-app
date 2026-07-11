@@ -14,11 +14,8 @@ import {
   deleteDefinitionAction,
 } from "@/app/(app)/chat/[crewId]/definitions/actions";
 import { BottomSheet } from "@/shared/components/ui/sheet/BottomSheet";
-import { DefinitionButton } from "@/shared/components/ui/DefinitionButton";
+import { SheetFooter } from "@/shared/components/ui/sheet/SheetFooter";
 import { InputField, TextareaField } from "@/shared/components/ui/InputField";
-import { MagicEdit } from "pixelarticons/react/MagicEdit";
-import { Close } from "pixelarticons/react/Close";
-import { Trash } from "pixelarticons/react/Trash";
 import { Check } from "pixelarticons/react/Check";
 import { TEXT_EFFECTS } from "@/features/chat/components/text-effects/registry";
 import { TextEffectText } from "@/features/chat/components/text-effects/TextEffectText";
@@ -443,101 +440,79 @@ function DefinitionPreviewSheet({
 
   return (
     <BottomSheet onClose={onClose} zIndex={70}>
+      {/* Definition details — Figma 402:9535 */}
       <div
-        className="flex flex-col w-full"
+        className="flex flex-col items-start justify-center w-full"
         style={{
-          gap: "var(--x5)",
-          paddingLeft: "var(--md)",
-          paddingRight: "var(--md)",
-          paddingBottom: "max(env(safe-area-inset-bottom), 28px)",
+          gap: "var(--x3)",
+          paddingLeft: "var(--x5)",
+          paddingRight: "var(--x5)",
+          paddingBottom: isCreator
+            ? undefined
+            : "max(env(safe-area-inset-bottom), var(--x8))",
         }}
       >
-        {/* Definition details — Figma 402:9535 */}
-        <div
-          className="flex flex-col items-start justify-center w-full"
-          style={{ gap: "var(--x3)" }}
+        <p
+          className="font-silkscreen text-tertiary leading-none w-full"
+          style={{ fontSize: "var(--mini)" }}
         >
+          {aliases}
+        </p>
+        <div className="flex flex-col w-full" style={{ gap: "var(--x2)" }}>
           <p
-            className="font-silkscreen text-tertiary leading-none w-full"
-            style={{ fontSize: "var(--mini)" }}
+            className="font-body font-bold text-primary leading-none w-full"
+            style={{
+              fontSize: "var(--md)",
+              fontVariationSettings: '"opsz" 14',
+            }}
           >
-            {aliases}
+            {definition.actual_word || definition.word.split(",")[0].trim()}
           </p>
-          <div className="flex flex-col w-full" style={{ gap: "var(--x2)" }}>
-            <p
-              className="font-body font-bold text-primary leading-none w-full"
-              style={{
-                fontSize: "var(--md)",
-                fontVariationSettings: '"opsz" 14',
-              }}
-            >
-              {definition.actual_word || definition.word.split(",")[0].trim()}
-            </p>
-            <p
-              className="font-body text-secondary leading-[1.5] overflow-hidden text-ellipsis w-full"
-              style={{ fontSize: "14px", fontVariationSettings: '"opsz" 14' }}
-            >
-              {definition.definition}
-            </p>
-          </div>
-          {definition.creator_username && (
-            <p
-              className="font-body font-light text-tertiary leading-none overflow-hidden text-ellipsis w-full"
-              style={{ fontSize: "12px", fontVariationSettings: '"opsz" 14' }}
-            >
-              Author : {definition.creator_username}
-            </p>
-          )}
+          <p
+            className="font-body text-secondary leading-[1.5] overflow-hidden text-ellipsis w-full"
+            style={{ fontSize: "14px", fontVariationSettings: '"opsz" 14' }}
+          >
+            {definition.definition}
+          </p>
         </div>
+        {definition.creator_username && (
+          <p
+            className="font-body font-light text-tertiary leading-none overflow-hidden text-ellipsis w-full"
+            style={{ fontSize: "12px", fontVariationSettings: '"opsz" 14' }}
+          >
+            Author : {definition.creator_username}
+          </p>
+        )}
+      </div>
 
-        {/* Action buttons — Figma 402:9509 / 402:9507 */}
-        <div className="flex flex-col w-full" style={{ gap: "var(--x5)" }}>
-          {isCreator && (
-            <DefinitionButton
-              variant="stroke"
-              color="purple"
-              icon={
-                <MagicEdit
-                  style={{ width: 20, height: 20 }}
-                  aria-hidden="true"
-                />
-              }
-              onClick={onEdit}
-            >
-              Edit Definition
-            </DefinitionButton>
-          )}
-          {isCreator && (
-            <DefinitionButton
-              variant="stroke"
-              color="red"
-              icon={
-                <Trash style={{ width: 20, height: 20 }} aria-hidden="true" />
-              }
-              onClick={handleDelete}
-              disabled={deleting}
-              loading={deleting}
-            >
-              Delete Definition
-            </DefinitionButton>
-          )}
+      {/* Action buttons — Figma 502:2783 */}
+      {isCreator && (
+        <SheetFooter>
+          <Button
+            variant="outlined"
+            color="purple"
+            onClick={onEdit}
+            className="w-full"
+          >
+            Edit Definition
+          </Button>
+          <Button
+            variant="outlined"
+            color="red"
+            onClick={handleDelete}
+            disabled={deleting}
+            loading={deleting}
+            className="w-full"
+          >
+            Delete Definition
+          </Button>
           {deleteError && (
             <p className="font-silkscreen text-[8px] text-[#ef4444] leading-relaxed">
               {deleteError}
             </p>
           )}
-          <DefinitionButton
-            variant="stroke"
-            color="tertiary"
-            icon={
-              <Close style={{ width: 20, height: 20 }} aria-hidden="true" />
-            }
-            onClick={onClose}
-          >
-            Cancel
-          </DefinitionButton>
-        </div>
-      </div>
+        </SheetFooter>
+      )}
     </BottomSheet>
   );
 }

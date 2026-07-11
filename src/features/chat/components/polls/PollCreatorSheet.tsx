@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { BottomSheet } from "@/shared/components/ui/sheet/BottomSheet";
+import { SheetFooter } from "@/shared/components/ui/sheet/SheetFooter";
 import { Close } from "pixelarticons/react/Close";
 import { PlusBox } from "pixelarticons/react/PlusBox";
 import { createClient } from "@/shared/supabase/client";
@@ -239,10 +240,7 @@ export function PollCreatorSheet({
       </div>
 
       {/* Footer buttons */}
-      <div
-        className="flex-shrink-0 px-4 pt-6 flex flex-col gap-4"
-        style={{ paddingBottom: "max(env(safe-area-inset-bottom), 16px)" }}
-      >
+      <SheetFooter>
         <Button
           onClick={handleSubmit}
           disabled={!canSubmit}
@@ -260,7 +258,7 @@ export function PollCreatorSheet({
         >
           Cancel
         </Button>
-      </div>
+      </SheetFooter>
     </BottomSheet>
   );
 }

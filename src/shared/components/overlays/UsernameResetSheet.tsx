@@ -6,6 +6,8 @@ import { AnimatePresence } from "framer-motion";
 import { createClient } from "@/shared/supabase/client";
 import { validateUsernameFormat } from "@/shared/utils/username";
 import { BottomSheet } from "@/shared/components/ui/sheet/BottomSheet";
+import { SheetFooter } from "@/shared/components/ui/sheet/SheetFooter";
+import { Button } from "@/shared/components/ui/Button";
 import { InputField } from "@/shared/components/ui/InputField";
 import { setUsernameAfterResetAction } from "@/app/(app)/profile/actions";
 
@@ -80,9 +82,8 @@ export function UsernameResetSheet() {
             className="flex flex-col items-center w-full"
             style={{
               gap: "var(--x5)",
-              paddingLeft: "var(--md)",
-              paddingRight: "var(--md)",
-              paddingBottom: "max(env(safe-area-inset-bottom), var(--x8))",
+              paddingLeft: "var(--x5)",
+              paddingRight: "var(--x5)",
             }}
           >
             <div
@@ -146,25 +147,19 @@ export function UsernameResetSheet() {
                 </p>
               )}
             </div>
+          </div>
 
-            <button
+          <SheetFooter>
+            <Button
+              shadow
               onClick={handleSubmit}
               disabled={submitting}
-              className="w-full flex items-center justify-center appearance-none transition-opacity active:opacity-80 disabled:opacity-50"
-              style={{
-                background: "var(--color-purple)",
-                boxShadow: "4px 4px 0 rgba(168,85,247,0.5)",
-                padding: "var(--x5) var(--x6)",
-              }}
+              loading={submitting}
+              className="w-full"
             >
-              <span
-                className="font-silkscreen leading-none text-primary whitespace-nowrap"
-                style={{ fontSize: "var(--xs)" }}
-              >
-                {submitting ? "Saving..." : "Set username"}
-              </span>
-            </button>
-          </div>
+              Set username
+            </Button>
+          </SheetFooter>
         </BottomSheet>
       )}
     </AnimatePresence>

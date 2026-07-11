@@ -285,11 +285,11 @@ Absolute-positioned gradient overlay (`linear-gradient black → transparent`). 
 ### Definitions Page (`src/features/chat/screens/DefinitionHomePage.tsx`)
 Route: `/chat/[crewId]/definitions`. Header: shared `PageHeader` pattern (see Page Structure) — "DEFINITIONS" title, `right` = `Plus` opens `CreateDefinitionPage`. Cards (Figma 402:9403): aliases/word/definition + creator byline (highlighted if own) + amber suggestion-count badge when `suggestion_count > 0`.
 
-Any card tap opens `DefinitionPreviewSheet` (Figma 402:9507, `<BottomSheet>` z-70): full aliases/word/definition + "Author : {username}" + `Edit Definition` (purple, creator-only) + `Cancel`. Edit closes the preview and opens `CreateDefinitionPage` in edit mode.
+Any card tap opens `DefinitionPreviewSheet` (Figma 402:9507, `<BottomSheet>` z-70): full aliases/word/definition + "Author : {username}". Creator-only, a `SheetFooter` (Figma 502:2783, see Bottom Sheet Patterns) holds `Edit Definition` (`Button` outlined purple) + `Delete Definition` (`Button` outlined red) — no icons, no Cancel; non-creators see no footer at all, since backdrop tap / swipe already dismiss the sheet. Edit closes the preview and opens `CreateDefinitionPage` in edit mode.
 
 **`CreateDefinitionPage`** — full-screen slide-in overlay (spring 380/36, `z-[80]`):
 - Fields: aliases `InputField`, word `InputField`, definition `TextareaField` (rows=5), Text Effect picker (Figma 405:2634, released to all users) — options `bouncy_text` / `show_up` / `particles` / `blur_in` / `explode`; only the selected option's own label previews live (others stay static). Persists to `squad_definitions.text_effect`; effect components live in `src/features/chat/components/text-effects/` (`registry.ts` + `TextEffectText.tsx`), applied both in the picker and inline via `MessageBubble`'s `renderWithDefinitions`.
-- Footer: shared `PageFooter` (see Page Structure) wrapping `Button` "Save definition" — migrated off `DefinitionButton` so this page's footer matches the rest of the app's subpage CTA pattern (`DefinitionButton` is still used by `DefinitionPreviewSheet`'s Edit/Delete/Cancel stroke buttons, unaffected).
+- Footer: shared `PageFooter` (see Page Structure) wrapping `Button` "Save definition".
 - Back button, left-edge swipe, and successful save all route through `handleBack()` (slide-out animation → `onClose()`) — never `router.back()`, so nav always stays on the definitions list.
 - `DefinitionHomePage` passes `nativeSwipe={showCreate || !!editTarget}` to `SlidePage` while the overlay is open so its own gesture can't race with `SlidePage`'s swipe handler.
 
@@ -455,6 +455,18 @@ Backdrop tap + drag-to-dismiss. Spring `stiffness 320, damping 32`. Use `<Bottom
 
 Upload modals: pass `disableDrag={saving}`. Sheets with inputs: blur on mount to suppress keyboard.
 
+### SheetFooter — CTA footer (`src/shared/components/ui/sheet/SheetFooter.tsx`, Figma 502:2783)
+Sheet counterpart to `PageFooter` — not every sheet has one. See the `bottom-sheets` skill for the full pattern (placement as a sibling after content, padding ownership, button reuse).
+
+```tsx
+<BottomSheet onClose={onClose}>
+  {/* content */}
+  <SheetFooter>
+    <Button onClick={handleSave} loading={saving} className="w-full">Save</Button>
+  </SheetFooter>
+</BottomSheet>
+```
+
 ### SheetActionButton
 Action rows inside sheets use `<SheetActionButton>` (`src/shared/components/ui/SheetActionButton.tsx`). Renders `bg-surface-elevated` buttons with correct typography and `appearance-none` to prevent iOS Safari's `-webkit-appearance` from overriding the background.
 
@@ -474,26 +486,15 @@ Full-height swipe-up. Shares the standard sheet's pull-to-close gesture via `use
 
 ## Definition Buttons (`src/shared/components/ui/DefinitionButton.tsx`)
 
-Figma 402:9772 — two variants used in the Definitions flow. DM Sans SemiBold sm, `p-x5` padding, `rounded-x3`, full-width.
+Figma 402:9772 — rounded (`rounded-x3`), DM Sans SemiBold sm, `p-x5` padding, full-width, optional icon (inherits `currentColor`, don't pass `color` on the icon style). Predates the `Button` outlined variants (see below) and is being phased out in their favor — `SquadDetailsSheet`'s `SheetFooter` "Leave Squad" is the one remaining consumer:
 
 ```tsx
-// Fill — purple background, primary text (Save Definition)
-<DefinitionButton variant="fill" onClick={handleSave} loading={saving}>
-  Save definition
-</DefinitionButton>
-
-// Stroke purple — purple border + text, optional icon (Edit Definition)
-<DefinitionButton variant="stroke" color="purple" icon={<MagicEdit style={{ width: 20, height: 20 }} />} onClick={onEdit}>
-  Edit Definition
-</DefinitionButton>
-
-// Stroke tertiary — tertiary border + text, optional icon (Cancel)
-<DefinitionButton variant="stroke" color="tertiary" icon={<Close style={{ width: 20, height: 20 }} />} onClick={onClose}>
-  Cancel
+<DefinitionButton variant="stroke" color="red" icon={<DoorClosed style={{ width: 20, height: 20 }} />} onClick={onLeave}>
+  Leave Squad
 </DefinitionButton>
 ```
 
-Icon inherits `currentColor` from the button wrapper — do not pass `color` on the icon style.
+New sheet/subpage CTAs should use `Button` (outlined/filled, size lg) instead — see `SheetFooter` above / `PageFooter` in Page Structure.
 
 ## UserAvatar (`src/shared/components/ui/UserAvatar.tsx`)
 

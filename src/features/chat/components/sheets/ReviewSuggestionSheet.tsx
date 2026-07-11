@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
 import { createClient } from '@/shared/supabase/client'
 import { approveSuggestionAction, denySuggestionAction } from '@/app/(app)/chat/[crewId]/definitions/actions'
+import { BottomSheet } from '@/shared/components/ui/sheet/BottomSheet'
+import { SheetFooter } from '@/shared/components/ui/sheet/SheetFooter'
 import { Button } from '@/shared/components/ui/Button'
 import type { DefinitionSuggestion, SquadDefinitionWithCreator } from '@/types'
 
@@ -83,30 +84,14 @@ export function ReviewSuggestionSheet({
   }
 
   return (
-    <>
-      {/* Backdrop */}
-      <motion.div
-        className="fixed inset-0 bg-black/60"
-        style={{ zIndex: 60 }}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={onClose}
-      />
-
-      {/* Sheet — Figma 143:714 */}
-      <motion.div
-        className="fixed bottom-0 left-0 right-0 bg-[var(--color-surface-sheet)] rounded-tl-[16px] rounded-tr-[16px] flex flex-col px-4 overflow-y-auto"
-        style={{ zIndex: 70, gap: 'var(--space-7)', maxHeight: '90vh', paddingTop: 'var(--space-7)', paddingBottom: 'max(env(safe-area-inset-bottom), 28px)' }}
-        initial={{ y: '100%' }}
-        animate={{ y: 0 }}
-        exit={{ y: '100%' }}
-        transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-        drag="y"
-        dragConstraints={{ top: 0, bottom: 0 }}
-        dragElastic={{ top: 0, bottom: 1 }}
-        onDragEnd={(_, info) => { if (info.offset.y > 80 || info.velocity.y > 400) onClose() }}
-        onClick={(e) => e.stopPropagation()}
+    <BottomSheet onClose={onClose} zIndex={70} maxHeight="90vh" className="overflow-y-auto">
+      {/* Figma 143:714 */}
+      <div
+        className="flex flex-col px-4"
+        style={{
+          gap: 'var(--space-7)',
+          paddingBottom: suggestion ? undefined : 'max(env(safe-area-inset-bottom), var(--x8))',
+        }}
       >
         {/* Title — DM Sans Bold 18px text-primary */}
         <h2
@@ -187,30 +172,32 @@ export function ReviewSuggestionSheet({
             {error && (
               <p className="font-silkscreen text-[8px] text-[#ef4444] leading-relaxed flex-shrink-0">{error}</p>
             )}
-
-            {/* Buttons — Figma 143:728 */}
-            <div className="flex flex-col w-full flex-shrink-0" style={{ gap: 'var(--space-5)' }}>
-              <Button
-                onClick={handleApprove}
-                disabled={!!acting}
-                loading={acting === 'approve'}
-                className="w-full"
-              >
-                Approve changes
-              </Button>
-              <Button
-                variant="danger"
-                onClick={handleDeny}
-                disabled={!!acting}
-                loading={acting === 'deny'}
-                className="w-full"
-              >
-                Deny changes
-              </Button>
-            </div>
           </>
         )}
-      </motion.div>
-    </>
+      </div>
+
+      {/* Buttons — Figma 143:728 */}
+      {suggestion && (
+        <SheetFooter>
+          <Button
+            onClick={handleApprove}
+            disabled={!!acting}
+            loading={acting === 'approve'}
+            className="w-full"
+          >
+            Approve changes
+          </Button>
+          <Button
+            variant="danger"
+            onClick={handleDeny}
+            disabled={!!acting}
+            loading={acting === 'deny'}
+            className="w-full"
+          >
+            Deny changes
+          </Button>
+        </SheetFooter>
+      )}
+    </BottomSheet>
   )
 }

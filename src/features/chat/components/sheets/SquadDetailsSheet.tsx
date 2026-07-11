@@ -16,6 +16,7 @@ import { DefinitionButton } from '@/shared/components/ui/DefinitionButton'
 import { InviteCodeCard } from '@/shared/components/ui/InviteCodeCard'
 import { UserCard, type MiniMember } from '@/shared/components/ui/UserCard'
 import { useSheetDrag } from '@/shared/components/ui/sheet/useSheetDrag'
+import { SheetFooter } from '@/shared/components/ui/sheet/SheetFooter'
 
 export type { MiniMember }
 
@@ -237,15 +238,7 @@ export function SquadDetailsSheet({
 
         {/* ── Fixed bottom: leave squad ── */}
         {onLeave && (
-          <div
-            className="flex-shrink-0"
-            style={{
-              paddingLeft:   16,
-              paddingRight:  16,
-              paddingTop:    16,
-              paddingBottom: 'max(env(safe-area-inset-bottom), 28px)',
-            }}
-          >
+          <SheetFooter>
             <DefinitionButton
               variant="stroke"
               color="red"
@@ -254,7 +247,7 @@ export function SquadDetailsSheet({
             >
               Leave Squad
             </DefinitionButton>
-          </div>
+          </SheetFooter>
         )}
       </motion.div>
     </>
