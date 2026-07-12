@@ -526,7 +526,6 @@ export function PhotosGrid({
               <ImagePreviewOverlay
                 src={previewPhoto.url}
                 alt="Profile photo"
-                square
                 onClose={() => setPreviewPhoto(null)}
               />
             )}

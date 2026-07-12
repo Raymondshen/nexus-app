@@ -11,12 +11,10 @@ interface ImagePreviewOverlayProps {
   src:          string
   blurDataURL?: string
   alt?:         string
-  /** Source is guaranteed 1:1 (e.g. a pre-cropped profile photo) — frame it in a centered square instead of full-bleed contain. */
-  square?:      boolean
   onClose:      () => void
 }
 
-export function ImagePreviewOverlay({ src, blurDataURL, alt, square, onClose }: ImagePreviewOverlayProps) {
+export function ImagePreviewOverlay({ src, blurDataURL, alt, onClose }: ImagePreviewOverlayProps) {
   const touchStartY = useRef(0)
 
   useEffect(() => {
@@ -74,25 +72,13 @@ export function ImagePreviewOverlay({ src, blurDataURL, alt, square, onClose }: 
         transition={{ duration: 0.2 }}
         onClick={(e) => e.stopPropagation()}
         onTouchStart={(e) => e.stopPropagation()}
-        style={
-          square
-            ? {
-                position: 'absolute',
-                top: '50%',
-                left: '50%',
-                width: 'min(100vw, 100vh)',
-                height: 'min(100vw, 100vh)',
-                transform: 'translate(-50%, -50%)',
-                touchAction: 'pinch-zoom',
-              }
-            : { position: 'absolute', inset: 0, touchAction: 'pinch-zoom' }
-        }
+        style={{ position: 'absolute', inset: 0, touchAction: 'pinch-zoom' }}
       >
         <Image
           src={src}
           alt={alt ?? 'Shared image'}
           fill
-          sizes={square ? '100vh' : '100vw'}
+          sizes="100vw"
           style={{ objectFit: 'contain' }}
           placeholder="blur"
           blurDataURL={blurDataURL ?? FALLBACK_BLUR}
