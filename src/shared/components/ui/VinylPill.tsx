@@ -2,6 +2,8 @@
 
 import { useState, useLayoutEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
+import Image from 'next/image'
+import { avatarImageLoader } from '@/shared/supabase/imageLoader'
 
 interface VinylPillProps {
   imageUrl: string | null
@@ -44,12 +46,14 @@ export function VinylPill({ imageUrl, title }: VinylPillProps) {
         style={{ width: 12, height: 12, borderRadius: 6.4, overflow: 'hidden', position: 'relative', flexShrink: 0 }}
       >
         {imageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <Image
             src={imageUrl}
             alt=""
             aria-hidden
-            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', maxWidth: 'none' }}
+            fill
+            sizes="12px"
+            className="object-cover"
+            loader={avatarImageLoader}
           />
         ) : (
           <div style={{ position: 'absolute', inset: 0, background: 'var(--color-surface)' }} />

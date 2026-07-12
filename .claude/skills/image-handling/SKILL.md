@@ -15,8 +15,8 @@ description: Reference for how images are stored, uploaded, cropped, compressed,
 
 ## Runtime image loaders (`src/shared/supabase/imageLoader.ts`)
 - `supabaseImageLoader({ src, width, quality })` — standard `next/image` loader. Rewrites `/storage/v1/object/public/` → `/storage/v1/render/image/public/`, sets `width` + `quality` (default 75). No-ops for non-Supabase URLs.
-- `avatarImageLoader({ src, width, quality })` — forces a square crop: for Supabase storage sets both `width` and `height` to the same value; for `googleusercontent.com` URLs rewrites the `=sNNN` suffix to `=s{width}-c`. Used exclusively by `UserAvatar`.
-- External URLs (e.g. Vibes OG thumbnails) bypass all loaders — they're not Supabase-hosted, so they render as a plain `<img>` alongside pixel sprites, not through `next/image`.
+- `avatarImageLoader({ src, width, quality })` — forces a square crop: for Supabase storage sets both `width` and `height` to the same value; for `googleusercontent.com` URLs rewrites the `=sNNN` suffix to `=s{width}-c`; other URLs pass through unchanged. Used by `UserAvatar` and `VinylPill`'s 12×12 disc (both squares, `fill` + `object-cover`). A custom `loader` prop bypasses `next/image`'s `images.remotePatterns` domain check entirely (that validation lives inside `defaultLoader` only), so `VinylPill` can safely route arbitrary external OG-thumbnail hosts through it — the pass-through branch just returns the URL unchanged, identical to the plain `<img>` it replaced.
+- Other external-URL surfaces (e.g. `NotesGrid`'s OG thumbnails) still render via plain `<img>`, not `next/image` — no forced-square framing needed there, so there's nothing for a custom loader to add.
 
 ## Shared display components — never inline `avatarImageLoader`/`supabaseImageLoader` directly
 - `<UserAvatar>` — every person avatar.
