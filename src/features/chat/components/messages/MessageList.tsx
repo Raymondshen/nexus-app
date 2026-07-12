@@ -691,6 +691,12 @@ export function MessageList({
   // are filtered from the chat display), the user can never scroll up and handleScroll
   // never fires — pagination is stuck. Keep fetching older batches until the viewport
   // has enough real chat messages to scroll through.
+  //
+  // Retriggers on `messages.length` (the raw fetched count), NOT `items.length` (the
+  // filtered display count) — a combat-heavy crew can have a whole 50-message page that's
+  // entirely COMBAT/BOSS_SPAWN, which leaves `items.length` unchanged after the prepend.
+  // Depending on `items.length` would silently stop the retry chain right there, even
+  // though `hasMore` is still true and real messages exist further back.
   useEffect(() => {
     if (!historyLoaded || !hasMore) return
     const raf = requestAnimationFrame(() => {
@@ -701,7 +707,7 @@ export function MessageList({
       }
     })
     return () => cancelAnimationFrame(raf)
-  }, [historyLoaded, items.length, hasMore]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [historyLoaded, messages.length, hasMore]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleScroll() {
     const el = scrollRef.current
