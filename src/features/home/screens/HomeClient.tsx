@@ -21,7 +21,7 @@ import { UserCard, type MiniMember } from '@/shared/components/ui/UserCard'
 import { createClient } from '@/shared/supabase/client'
 import { leaveCrewAction, createCrewFromHomeAction, joinCrewFromHomeAction, joinSelectClassAction } from '@/app/(app)/home/actions'
 import { spriteIdFor } from '@/shared/components/game/PixelSprite'
-import { CLASS_BASE_STATS } from '@/features/combat/utils/combat'
+import { CLASS_BASE_STATS } from '@/shared/constants/classStats'
 import type { CombatClass } from '@/types'
 import { updateCrewImageAction, updateCrewBackgroundImageAction } from '@/app/(app)/chat/actions'
 import { Button } from '@/shared/components/ui/Button'
@@ -1054,7 +1054,7 @@ function LeaveConfirmSheet({
           >
             {isLast
               ? 'You are the last member. This will permanently delete the crew and all its history.'
-              : 'Your XP and artifact gains will be redistributed to the remaining members.'}
+              : 'Your XP gains will be redistributed to the remaining members.'}
           </p>
         </div>
 

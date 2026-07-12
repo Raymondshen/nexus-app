@@ -49,13 +49,6 @@
   --color-danger:      #ff4444;
   --color-success:     #66bb6a;
   --color-system-msg:  #1a0d2e;
-  /* Combat tokens */
-  --color-hp:          #ef4444;
-  --color-hp-low:      #ff6b00;
-  --color-mp:          #3b82f6;
-  --color-downed:      #52525b;
-  --color-boss-bar:    #9333ea;
-  --color-crit:        #fbbf24;
 
   /* Spacing tokens — Figma collection: size.tokens.json */
   --space-1:  0px;    /* x1  */

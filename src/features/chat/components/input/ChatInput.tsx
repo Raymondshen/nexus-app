@@ -57,9 +57,7 @@ const EventCreationSheet = dynamic(
   { ssr: false },
 )
 import { setHomeLastMessage } from '@/features/home/utils/homePreviewCache'
-import { useCombatStore } from '@/store/combatStore'
-import { DamageFloatLayer } from '@/features/combat/components/DamageFloat'
-import type { Message, MessageWithProfile, Profile, ActiveRaid, CombatMember, CombatClass } from '@/types'
+import type { Message, MessageWithProfile, Profile } from '@/types'
 
 const MAX_MESSAGE_LENGTH   = 2000
 const RATE_LIMIT_MAX       = 30
@@ -106,10 +104,6 @@ interface ChatInputProps {
   currentUserId?:      string
   isDM?:               boolean
   dmPartnerId?:        string
-  userCombatClass?:    CombatClass | null
-  initialRaid?:        ActiveRaid | null
-  initialMemberStats?: Record<string, CombatMember>
-  initialReviveTokens?: number
 }
 
 function sanitizeMessage(raw: string): string {
@@ -144,7 +138,7 @@ async function tryClaimDailyGem(supabase: ReturnType<typeof createClient>, onCla
 
 // ─── ChatInput ────────────────────────────────────────────────────────────────
 
-export function ChatInput({ crewId, userId, userProfile, memberProfiles, memberPinnedVinyls, crewName, inviteCode, creatorId, crewImageUrl: initialCrewImageUrl, crewBackgroundImageUrl: initialCrewBgUrl, initialXP, isDM, dmPartnerId, userCombatClass, initialRaid, initialMemberStats, initialReviveTokens }: ChatInputProps) {
+export function ChatInput({ crewId, userId, userProfile, memberProfiles, memberPinnedVinyls, crewName, inviteCode, creatorId, crewImageUrl: initialCrewImageUrl, crewBackgroundImageUrl: initialCrewBgUrl, initialXP, isDM, dmPartnerId }: ChatInputProps) {
   const router = useRouter()
   const [text,           setText]          = useState('')
   const [sending,        setSending]        = useState(false)
@@ -154,8 +148,6 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, memberP
   const [pollEnabled,      setPollEnabled]       = useState(false)
   const [eventsEnabled,    setEventsEnabled]     = useState(false)
   const [fxpEnabled,       setFxpEnabled]        = useState(false)
-  const [combatEnabled,    setCombatEnabled]     = useState(false)
-  const combatEnabledRef                         = useRef(false)
   const [gemToastVisible,   setGemToastVisible]   = useState(false)
   const [isExpanded,     setIsExpanded]     = useState(false)
   const [showNotifSheet,  setShowNotifSheet]  = useState(false)
@@ -229,11 +221,6 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   const squadDetailsOpen  = useChatStore((s) => s.squadDetailsOpen)
   const setSquadDetailsOpen = useChatStore((s) => s.setSquadDetailsOpen)
 
-  // Reactive combat state — re-renders when raid or member stats change
-  const activeCombatRaid  = useCombatStore((s) => s.activeRaid)
-  const combatMemberStats = useCombatStore((s) => s.memberStats)
-  const hasJoinedRaid     = !!(activeCombatRaid && combatMemberStats[userId])
-
   const liveCrewName = storeCrewName || crewName
 
   // Keep refs in sync on every render so closures and effects always see current values
@@ -283,26 +270,16 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     setFxpEnabled(localStorage.getItem('nexus_friendship_xp') === '1')
     setPollEnabled(localStorage.getItem('nexus_poll_feature') === '1')
     setEventsEnabled(localStorage.getItem('nexus_events_enabled') === '1')
-    const combatOn = localStorage.getItem('nexus_combat_system') === '1'
-    setCombatEnabled(combatOn)
-    combatEnabledRef.current = combatOn
     function onFxpChange(e: Event)    { setFxpEnabled((e as CustomEvent<{ on: boolean }>).detail.on) }
     function onPollChange(e: Event)   { setPollEnabled((e as CustomEvent<{ on: boolean }>).detail.on) }
     function onEventsChange(e: Event) { setEventsEnabled((e as CustomEvent<{ on: boolean }>).detail.on) }
-    function onCombatChange(e: Event) {
-      const on = (e as CustomEvent<{ on: boolean }>).detail.on
-      setCombatEnabled(on)
-      combatEnabledRef.current = on
-    }
     window.addEventListener('nexus-friendship-xp-change', onFxpChange)
     window.addEventListener('nexus-poll-feature-change', onPollChange)
     window.addEventListener('nexus-events-feature-change', onEventsChange)
-    window.addEventListener('nexus-combat-system-change', onCombatChange)
     return () => {
       window.removeEventListener('nexus-friendship-xp-change', onFxpChange)
       window.removeEventListener('nexus-poll-feature-change', onPollChange)
       window.removeEventListener('nexus-events-feature-change', onEventsChange)
-      window.removeEventListener('nexus-combat-system-change', onCombatChange)
     }
   }, [])
 
@@ -333,79 +310,6 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     setCrewName(crewName)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Seed combatStore with server-fetched raid/member data
-  useEffect(() => {
-    const store = useCombatStore.getState()
-    store.clearCombatEvents()  // Scope log to this crew's current raid
-    store.setActiveRaid(initialRaid ?? null)
-    if (initialMemberStats) store.setAllMembers(Object.values(initialMemberStats))
-    if (initialReviveTokens !== undefined) store.setReviveTokens(initialReviveTokens)
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Realtime: keep combat state in sync
-  useEffect(() => {
-    const supabase = createClient()
-
-    const combatCh = supabase
-      .channel(`combat:${crewId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'crew_combat_members' }, (payload) => {
-        const store = useCombatStore.getState()
-        if (!store.activeRaid) return
-        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-          const row = payload.new as CombatMember
-          if (row.raid_id !== store.activeRaid?.id) return
-          store.setMemberStats(row.user_id, row)
-        }
-      })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'active_raids' }, (payload) => {
-        const store = useCombatStore.getState()
-        const updated = payload.new as ActiveRaid
-        if (updated.crew_id !== crewId) return
-        if (updated.defeated_at) {
-          store.setActiveRaid(null)
-          store.setAllMembers([])
-        } else {
-          // Only patch fields not owned by system-message patches.
-          // current_hp and phase are patched from COMBAT:* messages to avoid
-          // stale active_raids UPDATE events racing and reverting correct HP.
-          store.patchRaid({
-            guard_user_id:       updated.guard_user_id,
-            guard_expires_at:    updated.guard_expires_at,
-            volley_expires_at:   updated.volley_expires_at,
-            last_boss_attack_at: updated.last_boss_attack_at,
-          })
-        }
-      })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'active_raids' }, (payload) => {
-        const newRaid = payload.new as ActiveRaid
-        if (newRaid.crew_id !== crewId) return
-        const store = useCombatStore.getState()
-        // Skip if this INSERT is for a raid already in the store — a late-arriving
-        // Postgres Changes event (after HP patches from COMBAT: messages) would
-        // otherwise overwrite patched HP with the original spawn-time max HP
-        if (store.activeRaid?.id === newRaid.id) return
-        store.setActiveRaid(newRaid)
-        // Fetch crew_combat_members immediately — Postgres Changes events across
-        // tables have no ordering guarantee, so crew_combat_members INSERTs from
-        // init_combat_members may have already arrived (and been dropped because
-        // activeRaid was null). Re-fetch now that the raid is set.
-        supabase
-          .from('crew_combat_members')
-          .select('id, raid_id, user_id, class, current_hp, max_hp, ability_bank, is_downed, downed_at, momentum_stack, last_msg_at, guard_expires_at')
-          .eq('raid_id', newRaid.id)
-          .then(({ data: members }) => {
-            if (members && members.length > 0) store.setAllMembers(members as CombatMember[])
-          })
-      })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'revive_tokens' }, (payload) => {
-        const row = payload.new as { crew_id: string; count: number }
-        if (row.crew_id !== crewId) return
-        useCombatStore.getState().setReviveTokens(row.count)
-      })
-      .subscribe()
-
-    return () => { supabase.removeChannel(combatCh) }
-  }, [crewId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Update last_seen every 60s for accurate server-side unread cursors
   useEffect(() => {
@@ -825,17 +729,8 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     msgChannelRef.current?.send({ type: 'broadcast', event: 'new_message', payload: message })
   }, [])
 
-  // Fire-and-forget attack-boss after award-xp settles (joined members only).
-  // postEdgeFn sends the session token (attack-boss verifies caller identity)
-  // and aborts hung requests; no retry — attacks aren't idempotent.
-  const callAttackBoss = useCallback((messageType: string, softBlocked: boolean) => {
-    const { activeRaid, memberStats } = useCombatStore.getState()
-    if (!combatEnabledRef.current || !activeRaid || !memberStats[userId]) return
-    postEdgeFn('attack-boss', { crew_id: crewId, user_id: userId, username: userProfile.username, message_type: messageType, soft_blocked: softBlocked }).catch(() => {})
-  }, [crewId, userId, userProfile]) // eslint-disable-line react-hooks/exhaustive-deps
-
   // Shared award-xp settlement used by every send path (text/image/gif): applies the
-  // XP/coin response, broadcasts xp_update to peers, and kicks off attack-boss.
+  // XP/coin response and broadcasts xp_update to peers.
   const settleXp = useCallback((msgId: string, messageType: string, content: string, mentionedUserIds: string[], replyToId?: string | null) => {
     postEdgeFn('award-xp', { message_id: msgId, crew_id: crewId, user_id: userId, username: userProfile.username, message_type: messageType, content, mentioned_user_ids: mentionedUserIds, reply_to_id: replyToId ?? null })
       .then((r) => { if (!r) throw new Error('no session'); return r.json() })
@@ -849,12 +744,9 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
           })
         }
         if (typeof data.coins_earned === 'number' && data.coins_earned > 0) addUserCoins(data.coins_earned)
-        // soft_blocked = no XP and no coins awarded (5s gap check fired)
-        const softBlocked = (data.xp_earned ?? 0) === 0 && (data.coins_earned ?? 0) === 0
-        callAttackBoss(messageType, softBlocked)
       })
       .catch(() => {})
-  }, [crewId, userId, userProfile, updateMessage, setCrewXP, addUserCoins, callAttackBoss]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [crewId, userId, userProfile, updateMessage, setCrewXP, addUserCoins]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Shared "message successfully persisted" side effects — same for a fresh send and
   // a retried one, so text/image/gif/retry all get identical broadcast/XP/friendship-xp
@@ -1339,8 +1231,8 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   }
 
   // Leaving as the last member permanently deletes the crew (CASCADE wipes its
-  // messages, artifacts, and vibes) — gate that path behind an explicit warning
-  // instead of letting it fire silently from a single tap.
+  // messages and vibes) — gate that path behind an explicit warning instead of
+  // letting it fire silently from a single tap.
   function handleLeaveSquadTapped() {
     if (memberCount <= 1) { setShowLastMemberWarning(true); return }
     void handleLeaveSquad()
@@ -1436,7 +1328,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
 
   return (
     <div
-      className={`bg-black border-t ${!isDM && combatEnabled && hasJoinedRaid ? 'border-[var(--color-danger)]' : 'border-border'} flex flex-col flex-shrink-0 relative z-[65]`}
+      className="bg-black border-t border-border flex flex-col flex-shrink-0 relative z-[65]"
       style={{
         paddingTop:    'var(--space-5)',
         paddingLeft:   'var(--space-5)',
@@ -1445,10 +1337,6 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
         gap:           'var(--space-5)',
       }}
     >
-      {!isDM && combatEnabled && (
-        <DamageFloatLayer />
-      )}
-
       {/* ── Friendship XP toast (DM send or group @mention) — dev-gated: nexus_friendship_xp ── */}
       {fxpEnabled && (
         <FriendshipXPToast
@@ -1984,7 +1872,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
                     {liveCrewName}
                   </h2>
                   <p className="font-body text-[12px] text-secondary leading-normal">
-                    Leaving will permanently delete this squad — its messages, artifacts, and vibes cannot be recovered.
+                    Leaving will permanently delete this squad — its messages and vibes cannot be recovered.
                   </p>
                 </div>
               </div>

@@ -1,6 +1,6 @@
 # Nexus
 
-Group chat RPG: messages → XP → boss fights → artifacts. Pixel art (RotMG style).
+Group chat RPG: messages → XP → levels. Pixel art (RotMG style).
 
 ## Stack
 Next.js 16 App Router · TypeScript · Tailwind · Framer Motion · Zustand · Supabase (Auth, Postgres, Realtime, Storage, Edge Functions) · next-pwa v5 · Vercel · @tanstack/react-virtual v3 · lottie-react (reaction icons) · react-easy-crop (fixed-frame pan/zoom photo cropping)
@@ -13,14 +13,9 @@ Build: `next build --webpack` (Turbopack breaks next-pwa + proxy.ts)
 ```
 profiles            id, username (unique case-insensitive, ^[A-Za-z0-9_]+$ 3-20 chars — see Username Format), first_name, last_name, avatar_class, avatar_url, avatar_storage_key, custom_avatar (bool default false), background_url (text nullable — profile page hero image), birthday, is_dev, coins (int default 0), gem_balance (int default 0), last_gem_claim (timestamptz nullable), status (text nullable ≤100 chars), pinned_vinyl_id (text nullable), needs_username_reset (bool default false), created_at
 crews               id, name, invite_code (6 chars unique), level, total_xp, created_at, is_dm (bool default false), dm_partner_1 (uuid nullable), dm_partner_2 (uuid nullable), image_url, image_storage_key, background_image_url (text nullable), last_message_preview (text nullable), last_message_at (timestamptz nullable), last_message_sender_id (uuid nullable)
-crew_members        id, crew_id, user_id, class, joined_at, last_seen, ability_bank (int default 0), stat_boosts (jsonb default '{}')
+crew_members        id, crew_id, user_id, class (flavor-only sprite/onboarding choice — no combat system consumes it), joined_at, last_seen
 messages            id, crew_id, user_id, content, message_type, element_type, xp_awarded, reactions (jsonb default '{}'), reply_to_id, reply_preview, reply_username, image_url, image_blur_hash, pinned (bool default false), pinned_by (uuid nullable), pinned_at (timestamptz nullable), pin_expires_at (timestamptz nullable), created_at
 crew_xp_log         id, crew_id, user_id, xp_amount, source, created_at
-bosses              id, name, type (void|ghost|flood|scheduled), max_hp, weak_element, description
-active_raids        id, crew_id, boss_id, current_hp, max_hp, phase, started_at, expires_at, defeated_at, mvp_user_id, expiry_notif_sent, last_boss_attack_at (timestamptz nullable), guard_user_id (uuid nullable), guard_expires_at (timestamptz nullable), volley_expires_at (timestamptz nullable) — supabase_realtime
-crew_combat_members id, raid_id (→ active_raids CASCADE), user_id (→ profiles CASCADE), class, current_hp, max_hp, ability_bank (int default 0), is_downed (bool default false), downed_at (timestamptz nullable), guard_expires_at (timestamptz nullable), momentum_stack (int default 0), last_msg_at (timestamptz nullable), created_at — UNIQUE(raid_id, user_id); supabase_realtime
-revive_tokens       crew_id (PK → crews CASCADE), count (int default 5) — supabase_realtime
-artifacts           id, crew_id, name, rarity (common|rare|epic|legendary), source_boss_id, earned_at, mvp_user_id, asset_type, metadata
 push_subscriptions  id, user_id, crew_id (nullable), endpoint (UNIQUE), p256dh, auth, created_at
 notification_preferences   user_id (PK), notif_messages, notif_mentions, updated_at
 friendships         id, requester_id, addressee_id, status (pending|accepted), created_at — UNIQUE(requester_id, addressee_id)
@@ -47,9 +42,8 @@ All `SECURITY DEFINER`. Declared in `Database.Functions` in `src/types/index.ts`
 
 - `create_crew(p_name, p_invite_code)` → uuid
 - `join_crew(p_invite_code)` → uuid
-- `leave_crew(p_crew_id)` → jsonb `{ok|deleted}` — last member leaving hard-deletes the crew (CASCADE wipes messages/artifacts/notes); client shows a confirmation sheet in this case (`ChatInput.handleLeaveSquadTapped`) before calling it
+- `leave_crew(p_crew_id)` → jsonb `{ok|deleted}` — last member leaving hard-deletes the crew (CASCADE wipes messages/notes); client shows a confirmation sheet in this case (`ChatInput.handleLeaveSquadTapped`) before calling it
 - `insert_message(p_crew_id, p_content, p_message_type, p_reply_to_id?, p_reply_preview?, p_reply_username?, p_image_url?, p_image_blur_hash?)` → messages row
-- `damage_raid(p_raid_id, p_damage, p_user_id)` → `(current_hp, phase, defeated_at)`
 - `increment_crew_xp(p_crew_id, p_xp_delta)` → `(new_total_xp, new_level)`
 - `is_crew_member(p_crew_id)` → boolean
 - `get_or_create_dm(other_user_id)` → uuid
@@ -66,9 +60,6 @@ All `SECURITY DEFINER`. Declared in `Database.Functions` in `src/types/index.ts`
 - `pin_message(p_message_id, p_duration_minutes?)` → jsonb — admin only, cap=5
 - `unpin_message(p_message_id)` → jsonb — admin only
 - `update_active()` → void — upserts `user_presence.last_active_at = now()` for `auth.uid()`; presence heartbeat
-- `init_combat_members(p_raid_id, p_crew_id, p_crew_level)` → void
-- `apply_boss_damage(p_raid_id, p_member_id, p_final_dmg)` → `(new_hp, is_downed, downed_at)`
-- `use_revive_token(p_raid_id, p_target_user_id)` → jsonb `{ok, new_hp?, tokens_remaining?}`
 
 ### Server Authority (column guards + RPC grants)
 Migration `20260709100000_security_column_guards_and_rpc_grants.sql` is the source of truth. Two enforcement layers beyond RLS:
@@ -78,7 +69,7 @@ Migration `20260709100000_security_column_guards_and_rpc_grants.sql` is the sour
 - `crews`: `total_xp`, `level`, `invite_code`, `is_dm`, `dm_partner_*` server-only (`prevent_client_crew_stat_writes`). Name/image/`last_message_*` stay client-writable.
 - `messages`: `reactions`, `xp_awarded`, `element_type`, `message_type`, `user_id`, `crew_id`, `created_at` server-only (`prevent_client_message_field_writes`) — only `content` + image fields are client-editable (the message-edit flow). Pin columns keep their own separate trigger.
 
-**Revoked client EXECUTE** — these SECURITY DEFINER RPCs are callable only by `service_role` (revoked from `public`/`anon`/`authenticated`, incl. the inherited PUBLIC grant): `increment_user_coins`, `increment_crew_xp`, `increment_friendship_xp`, `damage_raid`, `apply_boss_damage`, `claim_daily_gem`, `init_combat_members`, `toggle_reaction`, plus the trigger fns. Call them from edge functions / server actions via the service client, never `supabase.rpc(...)` on a browser/cookie client. The rest (`insert_message`, `join_crew`, polls, pins, `update_active`, `get_*`, …) keep `authenticated` EXECUTE.
+**Revoked client EXECUTE** — these SECURITY DEFINER RPCs are callable only by `service_role` (revoked from `public`/`anon`/`authenticated`, incl. the inherited PUBLIC grant): `increment_user_coins`, `increment_crew_xp`, `increment_friendship_xp`, `claim_daily_gem`, `toggle_reaction`, plus the trigger fns. Call them from edge functions / server actions via the service client, never `supabase.rpc(...)` on a browser/cookie client. The rest (`insert_message`, `join_crew`, polls, pins, `update_active`, `get_*`, …) keep `authenticated` EXECUTE.
 
 ## Game Values
 
@@ -92,23 +83,7 @@ Friendship XP: 1pt per DM send or @mention · 10pt daily cap · `award-friendshi
 
 Gems: 1/day on first message in any crew · `award-gem` edge function + `claim_daily_gem` RPC sole authority — client never awards · blocked from client writes by `profiles_protect_gem_columns` trigger (one of a family of column-protection triggers — see Server Authority) · `claim_daily_gem` client EXECUTE is revoked, so it's callable only via the `award-gem` edge fn (service role)
 
-Boss: every 500 XP (`BOSS_XP_THRESHOLD`) · 48h window · 3 phases · defeat → artifact drop
-- Rarity: legendary 5% / epic 15% / rare 30% / common 50%
-- Phase dmg multipliers: 1→1.0×, 2→1.3×, 3→1.6× · Boss attacks: phase 1/2 = every 2h, phase 3 = every 1h (trigger via dev panel)
-- Downed members auto-regen after 8h
-
-Combat classes (dev-gated: `nexus_combat_system`):
-| Class | HP | Ability | Cost | Effect |
-|---|---|---|---|---|
-| warrior | 42 | GUARD | 2 | Taunt + DEF+40% 60s |
-| healer | 32 | MEND | 2 | INT-scaled crew-wide heal |
-| archer | 28 | VOLLEY | 2 | Boss +20% dmg 30s + ATK hit |
-| rogue | 24 | BACKSTAB | 2 | Crit 2.5× if boss HP>50% |
-| mage | 24 | CAST | 2 | 3× ATK arcane nuke |
-
-**Ability Bank**: 2 charges per ability. Earn 1 charge per eligible message (text ≥5 chars OR image, not soft-blocked, not repeat). `crew_members.ability_bank` = durable; `crew_combat_members.ability_bank` = live HUD. Both synced on earn/spend by `attack-boss`.
-
-Stat scaling: `round(base × (1 + 0.018 × (level - 1)))` · Stat boosts: +1 random stat on boss defeat, persisted in `crew_members.stat_boosts` jsonb.
+Classes (warrior/healer/archer/rogue/mage, plus `berserker` for DMs/default): flavor-only onboarding/sprite choice — the boss-fight combat system that used to consume them was removed; base display stats live in `src/shared/constants/classStats.ts` (`CLASS_BASE_STATS`), shown on the onboarding class-select screen and `HomeClient`'s join-crew picker only.
 
 Leveling: `xpForLevel(n) = round(120 × 1.0435^(n-1))` · `LEVEL_CAP = 100` · constants in `src/shared/constants/config.ts`
 
@@ -120,7 +95,7 @@ Quick-pick reactions: default set `['👍','👎','😭','🤣','😤','🔥']` 
 - Google OAuth: `signInWithOAuth` → `/auth/callback` → `/home`
 - Anonymous: `signInAnonymously`; guest badge + Save Progress in header
 - `src/proxy.ts` only — DO NOT add `src/middleware.ts` (Next.js 16 errors if both exist)
-- Protected routes: `/home` `/chat` `/vault` `/profile` `/onboarding` `/friends` `/dm`
+- Protected routes: `/home` `/chat` `/profile` `/onboarding` `/friends` `/dm`
 - Auth check: `getSession()` (cookie-only), NOT `getUser()` (100–300ms overhead)
 
 ### Login — `/login`
@@ -145,12 +120,9 @@ Letters, digits, underscore only (`^[A-Za-z0-9_]+$`), 3–20 chars — enforced 
 ## Dev Mode
 `profiles.is_dev = true` — grant: `UPDATE profiles SET is_dev = true WHERE id IN (SELECT id FROM auth.users WHERE email = '...')`
 
-Dev flags (`localStorage`): `nexus_dev_mode` · `nexus_push_diag` · `nexus_infinite_coins` · `nexus_afk_exp` · `nexus_chat_camera` · `nexus_friendship_xp` · `nexus_poll_feature` · `nexus_events_enabled` · `nexus_combat_system`
+Dev flags (`localStorage`): `nexus_dev_mode` · `nexus_push_diag` · `nexus_infinite_coins` · `nexus_afk_exp` · `nexus_chat_camera` · `nexus_friendship_xp` · `nexus_poll_feature` · `nexus_events_enabled`
 
-Server-side (`award-xp`): boss spawn + `LEVEL_UP:` only when `isDevUser = true`
-Client-side (`nexus_dev_mode`): `MessageList` hides boss/artifact/level-up system msgs + cards; `ChatInput` hides DamageFloat + RAID ACTIVE indicator
-
-`nexus_dev_mode`, `nexus_push_diag`, and `nexus_chat_camera` have **no in-app toggle UI** — set them directly via browser devtools `localStorage.setItem(...)`. The Settings page's Developer section (see below) only exposes toggles for `nexus_infinite_coins`, `nexus_poll_feature`, `nexus_events_enabled`, `nexus_friendship_xp`, and `nexus_combat_system`.
+`nexus_dev_mode`, `nexus_push_diag`, and `nexus_chat_camera` have **no in-app toggle UI** — set them directly via browser devtools `localStorage.setItem(...)`. The Settings page's Developer section (see below) only exposes toggles for `nexus_infinite_coins`, `nexus_poll_feature`, `nexus_events_enabled`, and `nexus_friendship_xp`.
 
 ### Own Profile Page (`src/features/profile/screens/ProfileClient.tsx`, route `/profile`)
 Top bar (Figma 339:3457): back chevron (left) + up to two icon buttons (right), all sharing the same `ProfileTopBarButton` style — `background: rgba(0,0,0,0.25)`, `padding: var(--x3)` (8px), no border/blur/shadow (this replaced the old bordered/blurred settings-cog button; match this flat style for any new button added to this bar, don't reintroduce the border+backdrop-blur treatment).
@@ -166,7 +138,7 @@ Full page (not a bottom sheet — this replaced the former `EditProfileSheet`). 
 Renamed from `SettingsClient`. Dev-only: `page.tsx` redirects to `/profile` if `!isDev` server-side, so the component itself takes no `isDev` prop — it only ever renders for dev users. Header: shared `PageHeader` (see Page Structure) — "DEVELOPER SETTINGS" (migrated from the former bare-icon pattern, same as `ManageUserProfile`). Body is a single flat flex column (gap 20, not the old nested per-section wrappers) of section labels + rows:
 - **Admin**: `Announcements` nav row only (→ `/profile/developer/announcements`) — the inline announcement-composer form that used to live directly on this page moved into `DeveloperUserAnnouncements` itself (see below), matching this row's Figma description "Add new announcements or updates."
 - **Debug**: `Notification Subscription` toggle only ("Test push notifications" — exact Figma copy, not the old "Test push notification.")
-- **Features**: `Infinite Coins`, `Poll Feature`, `Events Feature`, `Friendship XP` (renamed from "Friendship XP System" to match Figma). **`Combat System` toggle is gone** — Figma's design for this page never had it; `nexus_combat_system` now joins `nexus_dev_mode`/`nexus_push_diag`/`nexus_chat_camera` as a devtools-only flag with no in-app toggle.
+- **Features**: `Infinite Coins`, `Poll Feature`, `Events Feature`, `Friendship XP` (renamed from "Friendship XP System" to match Figma).
 
 Two distinct row styles per Figma, don't conflate them: **nav rows** (`DevNavRow`) use `font-semibold` titles, 0 gap between title/description, `tracking-[0.2px]`, and a `ChevronRight` in `--color-secondary`. **Toggle rows** (`DevToggleRow`) use `font-medium` titles, `font-light` descriptions, 8px gap between title/description, no tracking. The toggle switch itself: off-track is `var(--color-muted)` (not `--color-border` — a real Figma-vs-code mismatch that was fixed here), thumb is `var(--color-primary)` (not literal white), on-track stays `--color-purple`.
 
@@ -175,7 +147,7 @@ Renamed from `AnnouncementsClient`. Still uses the standalone bare-icon header (
 
 **No Edit or Delete button anywhere, per an explicit product decision** (Figma's cards show no such affordance) — tapping a card (anywhere except the toggle, which calls `stopPropagation()`) opens the same inline title/image/text edit form in place of the card's details, with its own small in-card Save/Cancel pill row (unchanged, not part of the `PageFooter` migration below), same as before just without a dedicated EDIT button to trigger it. Delete is gone entirely: `deleteAnnouncementAction` in `home/actions.ts` is untouched but now uncalled from anywhere, same treatment as the other orphaned actions from earlier passes. The create form (same fields) is triggered by the Figma-specified `Add announcement` footer button and renders inline at the top of the list — Figma's static frame only shows the button, not the form, so its exact appearance was a judgment call, not a literal Figma match. Unlike the existing-card inline edit, the create form's own Save/Cancel live in the shared `PageFooter` (`src/shared/components/ui/PageFooter.tsx`) pinned to the page bottom, not inside the form card — `PageFooter` swaps between the `Add announcement` trigger (flat `Button`) when idle and a `Save`/`Cancel` (flat `Button` + `Button variant="outlined" color="tertiary"`) pair while `showCreate` is true — no `shadow` on either, matching the canonical flat subpage CTA (Figma 480:6187).
 
-`Error Logs` nav, `Dev Mode` toggle, `Chat Camera` toggle, `Preview Announcements Sheet`, `Reset Gem Cooldown`, `Reset Friendship XP`, and the whole `Combat Testing` section (spawn boss/end raid/down self/revive/trigger attack/reset combat) were removed from this UI in an earlier pass — the underlying server actions still exist in `src/app/(app)/profile/developer/actions.ts` (unused by any UI) and `/profile/error-logs` is still a live route, just unlinked.
+`Error Logs` nav, `Dev Mode` toggle, `Chat Camera` toggle, `Preview Announcements Sheet`, `Reset Gem Cooldown`, and `Reset Friendship XP` were removed from this UI in an earlier pass — the underlying server actions still exist in `src/app/(app)/profile/developer/actions.ts` (unused by any UI) and `/profile/error-logs` is still a live route, just unlinked. The former `Combat Testing` section (spawn boss/end raid/down self/revive/trigger attack/reset combat) was deleted outright, actions and all, along with the rest of the boss-fight combat system.
 
 ## Storage Keys
 
@@ -204,7 +176,6 @@ src/
 │   │   ├── header/             ChatHeader, DMHeader
 │   │   └── navigation/         FloatingBackButton, DMOverlayBack, ShareModal
 │   ├── chat/screens/           DefinitionHomePage (definitions list page; stub re-export DefinitionsClient.tsx)
-│   ├── combat/                 CombatHUD, CombatLog, AbilityButton, DamageFloat, VaultClient
 │   ├── home/                   HomeClient, InviteArsenal, homePreviewCache.ts
 │   ├── friends/                FriendsClient, InboxClient
 │   ├── events/                 EventCreationSheet, EventCard, GroupEventsClient (dev-gated: `nexus_events_enabled`)
@@ -213,11 +184,11 @@ src/
 │   └── profile/                ProfileClient, ManageUserProfile, DeveloperUserSettings, DeveloperUserAnnouncements, ErrorLogsClient, VibesGrid, PhotosGrid
 ├── shared/
 │   ├── supabase/               client.ts, server.ts, auth.ts, imageLoader.ts
-│   ├── constants/config.ts     BOSS_XP_THRESHOLD, LEVEL_XP_BASE, etc.
+│   ├── constants/config.ts     LEVEL_XP_BASE, etc.
 │   ├── utils/                  xp.ts, gems.ts, notifications.ts, imageCompress.ts, etc.
 │   └── components/             ui/, banners/, overlays/, pwa/, game/
-├── store/                      chatStore.ts, combatStore.ts
-└── types/                      index.ts (barrel) + chat.ts, profile.ts, combat.ts, etc.
+├── store/                      chatStore.ts
+└── types/                      index.ts (barrel) + chat.ts, profile.ts, etc.
 ```
 
 ### File Ownership Rules
@@ -225,7 +196,7 @@ src/
 - `app/(app)/*/actions.ts` — server actions colocated with route
 - `features/{domain}/` — owns its screens, components, hooks
 - `shared/` — only code reused by 2+ features
-- `store/` — chatStore + combatStore (cross-feature)
+- `store/` — chatStore (cross-feature)
 - `src/proxy.ts` — Next.js middleware; never rename or duplicate as `middleware.ts`
 - Types: import from `'@/types'` everywhere (re-exported from `src/types/index.ts`)
 
@@ -242,9 +213,8 @@ src/
 - **Mention aliases**: `initialMentionAliases` prop (`[oldUsernameLower, userId][]`, fetched server-side from `username_history` in `chat/[crewId]/page.tsx` / `dm/[friendId]/page.tsx`) seeds `oldUsernameToUserId`. The `profiles` UPDATE realtime handler adds an entry the instant a member renames while the chat is open (no reload needed). `mentionAliases` (passed to `MessageBubble`) is derived by re-resolving each entry's userId against the **current** `localProfiles` on every render — so it's always correct through multiple renames, never stale, without needing to update old map entries in place.
 - **Three-tier cache**: (1) sessionStorage sync on mount → instant render; (2) IDB fallback if sessionStorage empty (iOS PWA kill resilience); (3) DB fetch newest 50, merged with in-flight Realtime. `setMessages([])` before load prevents crew bleed.
 - **Cursor pagination**: scroll-up within 120px → keyset fetch `WHERE created_at < cursor LIMIT 50`; scroll position restored after prepend.
-- **DisplayItems**: `spacer | divider | boss | artifact | level_up | message`. `COMBAT:` and `BOSS_SPAWN:` system messages always skipped (shown in CombatLog).
+- **DisplayItems**: `spacer | divider | message`. Historical `COMBAT:`/`BOSS_SPAWN:` system messages (from the removed boss-fight combat system) are always skipped — old rows still exist in the DB but stay hidden rather than rendering as raw text.
 - **Empty state** (Figma 426:1996, `EmptyState` in `MessageList.tsx`): bypasses the virtualizer (`messages.length === 0` → plain `h-full` flex column, `justify-end`) so it's bottom-anchored against the composer, not sized off a fixed virtual-row estimate. Ghost gif (`/sprites/ghost/south-flip.gif`, 100×100) + full-width copy text: `justCreated` (`memberProfiles` count ≤ 1) shows the shared `<InviteCodeCard>` (no `maxWidth` here, or at its other call site in `SquadDetailsSheet`'s Members section — both just let it fill the container); otherwise plain "no messages yet" text. `inviteCode` is optional/omitted for DMs.
-- **Combat wiring**: system message INSERTs patch combatStore. `active_raids` UPDATE handler patches only `guard_user_id`, `guard_expires_at`, `volley_expires_at`, `last_boss_attack_at` — never `current_hp` or `phase`.
 
 ### MessageBubble
 - `renderMessageContent` — splits on `@username` tokens, then links + definitions on each segment. A token is rendered as a mention (purple, no link) if it matches a current member's username (`memberUsernames`) **or** a member's past username (`mentionAliases: Map<oldUsernameLower, currentUsername>`, from `MessageList`) — the latter is what makes a rename retroactively fix `@mentions` baked into old message text (mentions are plain text, never a stored user id; see MessageList below).
@@ -272,12 +242,12 @@ Only on `!isOwn` messages. Swipe left past 64px to commit. Slide wrapper (`data-
 Reply icon (`CornerUpLeft` 16×16): absolutely positioned, `top` = `var(--space-6)` (header messages) or `var(--space-2)` (continuations) to match wrapper `padding-top` — ensures `flex items-center` centers the icon within the content area, not the full wrapper including group-spacing dead space.
 
 ### ChatInput
-- Send: `addMessage(optimisticMsg)` → `insert_message` RPC → `updateMessage(tempId, { id })` in place → broadcast → `award-xp` → `attack-boss`. On error: `removeMessage(tempId)`.
+- Send: `addMessage(optimisticMsg)` → `insert_message` RPC → `updateMessage(tempId, { id })` in place → broadcast → `award-xp`. On error: `removeMessage(tempId)`.
 - Edit mode: `chatStore.editTo`; optimistic update → DB write → rollback on error. Text messages only.
 - Multi-image: `PendingImage[]` max 4; parallel uploads, sequential sends. `clearPendingImages` revokes blob URLs.
 - Hybrid input/textarea: swaps to textarea when text width exceeds container (measured via hidden mirror span).
 - **Klipy API**: trending → `data.clips[]` flat `file.thumbnail_url`; search → `data.data[]` nested `file.sm/md/hd/xs`. Separate parsers — do NOT unify.
-- `callAttackBoss` fires after every send. Poll feature dev-gated (`nexus_poll_feature`).
+- Poll feature dev-gated (`nexus_poll_feature`).
 
 ### FloatingBackButton (`src/features/chat/components/navigation/FloatingBackButton.tsx`)
 Absolute-positioned gradient overlay (`linear-gradient black → transparent`). Left: `ChevronLeft` back button. Right: `Calendar2` group-events button, dev-gated (`nexus_dev_mode` + `nexus_events_enabled`) — no other buttons live here; Bell/Library live in `SquadDetailsSheet` (see below). All buttons: `border border-border p-2 backdrop-blur(7px)`.
@@ -310,27 +280,6 @@ Invite is surfaced only via the inline `<InviteCodeCard>` in the Members section
 - `pin_message` / `unpin_message` RPCs only — trigger blocks direct client writes
 - `PinListSheet`: lists pins; admin: unpin + display toggle
 - `selectActivePins(messages)` from chatStore; `hiddenPinIds` + `toggleHiddenPin` in chatStore
-
-### Combat System
-
-**System message formats** (`message_type: 'system'`, inserted directly — NOT via `insert_message`):
-| Content | Meaning |
-|---|---|
-| `BOSS_SPAWN:{bossName}:{maxHP}` | Boss spawned |
-| `COMBAT:attack:{username}:{dmg}:{newBossHP}:{isCrit}` | Normal attack |
-| `COMBAT:volley:{username}:{dmg}:{newBossHP}:{newBank}` | Archer volley |
-| `COMBAT:backstab:{username}:{dmg}:{newBossHP}:{newBank}` | Rogue backstab |
-| `COMBAT:cast:{username}:{dmg}:{newBossHP}:{newBank}` | Mage cast |
-| `COMBAT:guard:{username}:{newBank}` | Warrior guard |
-| `COMBAT:mend:{username}:{healAmount}:{newBank}` | Healer mend |
-| `COMBAT:boss_attack:{targetUsername}:{dmg}:{newTargetHP}` | Boss hits player |
-| `COMBAT:downed:{username}:{dmg}` | Player downed |
-| `COMBAT:phase:{newPhase}` | Phase transition |
-| `COMBAT:victory:{mvpUsername}:{rarity}:{artifactName}` | Boss defeated |
-| `COMBAT:escaped:{bossName}` | Raid expired |
-| `COMBAT:stat_up:{username}:{stat}` | +1 stat on victory |
-
-**combatStore**: `activeRaid`, `memberStats`, `combatEvents` (cap 200), `reviveTokens`, `damageFloats`. `replayCombatEvents` merges by id after initial DB fetch.
 
 ### award-xp
 - Identity check first: rejects (401) unless the JWT-resolved caller === body `user_id` (see Edge Functions → session-token note)
@@ -368,9 +317,8 @@ Server (`unstable_cache` via `createServiceClient()`):
 | Friend profiles | 300s | `profile:{friendId}` |
 | Friendships | 300s | `friends:{userId}` |
 | Announcements | 300s | `announcements` |
-| Vault crew + artifacts | 300s | `vault:{crewId}`, `artifacts:{crewId}` |
 
-Never cache: `crews.total_xp` · `crews.level` · `active_raids` · `crew_members.last_seen` · auth sessions
+Never cache: `crews.total_xp` · `crews.level` · `crew_members.last_seen` · auth sessions
 
 Next.js 16: `revalidateTag(tag, 'max')` — second arg required
 
@@ -383,19 +331,16 @@ supabase functions deploy award-friendship-xp --project-ref tlveyeisjbythssmocth
 supabase functions deploy react-to-message --project-ref tlveyeisjbythssmocth
 supabase functions deploy process-avatar --project-ref tlveyeisjbythssmocth --no-verify-jwt
 supabase functions deploy award-gem --project-ref tlveyeisjbythssmocth
-supabase functions deploy attack-boss --project-ref tlveyeisjbythssmocth
-supabase functions deploy boss-attack --project-ref tlveyeisjbythssmocth
 supabase functions deploy process-deletions --project-ref tlveyeisjbythssmocth
-supabase functions deploy weekly-boss --project-ref tlveyeisjbythssmocth
 ```
 
 `git push` does NOT deploy edge functions. Inter-function calls use raw `fetch()` — never `supabase.functions.invoke()`. `send-notification` accepts `user_id: string` or `user_ids: string[]`.
 
-**Client → game-economy edge functions must send the user's session token, not the anon key.** `award-xp`, `attack-boss`, and `award-friendship-xp` verify the caller's identity server-side (`authClient.auth.getUser()` on the `Authorization` header) and reject if the resolved user ≠ the body's `user_id`/`user_a_id`. `verify_jwt` alone is insufficient — the public anon key is a valid JWT but carries no user, so it 401s. Call them from the client only via `postEdgeFn()` (`src/shared/utils/edgeFetch.ts`), which attaches the session access token and an AbortController timeout (no retry — these aren't idempotent; a lost-response retry would double-award XP / double-spend ability charges). `award-gem` already used session-token auth; `send-notification`/`process-avatar` stay `--no-verify-jwt` (called server-side/inter-function).
+**Client → game-economy edge functions must send the user's session token, not the anon key.** `award-xp` and `award-friendship-xp` verify the caller's identity server-side (`authClient.auth.getUser()` on the `Authorization` header) and reject if the resolved user ≠ the body's `user_id`/`user_a_id`. `verify_jwt` alone is insufficient — the public anon key is a valid JWT but carries no user, so it 401s. Call them from the client only via `postEdgeFn()` (`src/shared/utils/edgeFetch.ts`), which attaches the session access token and an AbortController timeout (no retry — these aren't idempotent; a lost-response retry would double-award XP). `award-gem` already used session-token auth; `send-notification`/`process-avatar` stay `--no-verify-jwt` (called server-side/inter-function).
 
 **A function can be fully correct in the repo and still be missing from the live project** — `react-to-message` sat undeployed for an unknown period (absent from `supabase functions list`), so every `supabase.functions.invoke('react-to-message', …)` call 404'd, which the client correctly read as `FunctionsHttpError` and rolled back — producing a deterministic "reaction appears then vanishes on every tap" bug that looked like a client-side race and survived several client-code-only fix attempts before the real cause was found. When a client → edge-function flow misbehaves in a way that looks like a race/rollback bug, check `supabase functions list --project-ref tlveyeisjbythssmocth` for that function **before** re-auditing the optimistic-update logic.
 
-Live Vercel crons (`vercel.json`) call these over HTTP: `/api/cron/process-deletions` (daily 03:00 UTC — hard-deletes accounts past their 7-day `pending_deletions.delete_at` grace period) and `/api/cron/weekly-boss` (Sundays 00:00 UTC — soft-fails expired raids, then spawns a new raid for every qualifying non-DM crew with a combat-class member). `/api/cron/boss-attack` route exists but is **not** registered in `vercel.json` — dead code, see Gotchas.
+Live Vercel crons (`vercel.json`) call this over HTTP: `/api/cron/process-deletions` (daily 03:00 UTC — hard-deletes accounts past their 7-day `pending_deletions.delete_at` grace period).
 
 New notification type: see the `notification-engine` skill (`.claude/skills/notification-engine/SKILL.md`) for the full checklist, preference-column wiring, and `NotifSheet` UI steps.
 
@@ -595,16 +540,12 @@ Same label/helper/border design as `InputField` but renders a `<textarea>`. Heig
 - Voice notes: UI removed; `XP_VALUES['voice']` + element `lightning` still defined server-side
 - Poll creation: dev-gated via `nexus_poll_feature`; dispatches `nexus-poll-feature-change` event
 - Events (`message_type: 'event'`, `features/events/`): dev-gated via `nexus_events_enabled`
-- Combat system: dev-gated via `nexus_combat_system` (see Game Values combat table)
 
 ## Gotchas
 - `CREATE OR REPLACE FUNCTION` only replaces if signature matches exactly. Adding/removing params creates a new overload → ambiguous RPC errors. Always `DROP FUNCTION` old signatures first.
 - Optimistic messages carry `tempId`. Reconciliation **must** call `updateMessage(tempId, { id })` in place — never `removeMessage(tempId)` on success. Only remove on RPC error.
 - `insert_message` RPC uses `auth.uid()` internally — returns `null` from service role. For server-side inserts use `service.from('messages').insert(...)` directly.
-- Vercel Hobby: daily/weekly crons only. `boss-attack` (phase-attack ticks) has no cron — trigger from dev panel only; the route file is orphaned (not in `vercel.json`). Weekly raid spawn/expiry runs automatically via the `weekly-boss` cron instead.
-- **Combat HP/phase must come from system message INSERTs, not `active_raids` realtime UPDATEs.** UPDATEs arrive out of order. `active_raids` UPDATE handler: guard/volley/timer fields only.
 - **Don't use Framer Motion `animate={{ width }}` inside a TanStack virtualizer.** Use CSS `transition: width 0.5s ease-out` instead.
-- `init_combat_members` only creates rows for `is_dev = true` AND a combat class. Dev user with `berserker` class gets no combat row.
 - **`RETURNS TABLE` creates implicit output variables that shadow columns.** Always qualify table-prefixed column names in PL/pgSQL to avoid `42702` ambiguity.
 - **iOS Safari clears sessionStorage on PWA kill/relaunch.** Always write to both sessionStorage and IDB; read sessionStorage first (sync), fall back to IDB (async ~5ms).
 - **`SwipeableCrewCard`**: `wasDragging` set in `onDragEnd` only (not `onDragStart`) — setting it in `onDragStart` blocks `onClick` for micro-movements. `onDragStart` calls `cancelLongPress()` to prevent 500ms timer firing on slow swipes.

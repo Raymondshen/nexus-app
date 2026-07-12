@@ -322,50 +322,11 @@ export const KLIPY_SEARCH_DEBOUNCE_MS          = 400
 export const KLIPY_PAGE_SIZE                   = 20
 export const KLIPY_TRENDING_REVALIDATE_SECONDS = 300
 
-// ─── Combat (Phase 2 — dev-gated) ────────────────────────────────────────────
-
-export const COMBAT_ENABLED_CLASSES = ['warrior', 'healer', 'archer', 'rogue', 'mage'] as const
-
-/** Boss attack interval — fixed 2 hours for the entire fight */
-export const BOSS_ATTACK_INTERVAL_MS = 2 * 60 * 60 * 1000
-
-/** Flat boss damage multiplier applied every attack */
-export const BOSS_DAMAGE_MULT = 1.3
-
-/** Hours before a downed member naturally revives */
-export const DOWNED_REGEN_HOURS = 8
-
-/** Coins to buy one additional revive token */
-export const REVIVE_TOKEN_COIN_COST = 20
-
-/** Free revive tokens each crew starts with */
-export const REVIVE_TOKEN_FREE_COUNT = 5
-
-/** Rogue momentum resets after this many ms of inactivity in a raid */
-export const ROGUE_MOMENTUM_DECAY_MS = 60 * 60 * 1000  // 1 hour
-
-/** Warrior guard duration in ms */
-export const WARRIOR_GUARD_DURATION_MS = 60 * 1000  // 60 s
-
-/** Archer volley debuff duration in ms */
-export const ARCHER_VOLLEY_DURATION_MS = 30 * 1000  // 30 s
-
-/** Tier base stats — HP and DMG for each crew level range */
-export const BOSS_TIERS = [
-  { name: 'Rookie',     minLevel: 1,  maxLevel: 20,  baseHP: 500,   baseDMG: 10  },
-  { name: 'Adventurer', minLevel: 21, maxLevel: 40,  baseHP: 2000,  baseDMG: 25  },
-  { name: 'Veteran',    minLevel: 41, maxLevel: 60,  baseHP: 6000,  baseDMG: 50  },
-  { name: 'Elite',      minLevel: 61, maxLevel: 80,  baseHP: 15000, baseDMG: 90  },
-  { name: 'Mythic',     minLevel: 81, maxLevel: 100, baseHP: 35000, baseDMG: 150 },
-] as const
-
 export const IMAGE_CONFIG = {
   MAX_UPLOAD_BYTES:          15_728_640, // 15 MB
   MAX_GIF_BYTES:              5_242_880, //  5 MB
   CHAT_IMAGE_MAX_WIDTH_PX:        1200,
   CHAT_IMAGE_QUALITY:             0.80,
-  ARTIFACT_IMAGE_MAX_WIDTH_PX:     800,
-  ARTIFACT_IMAGE_QUALITY:         0.85,
   AVATAR_IMAGE_MAX_WIDTH_PX:       256,
   AVATAR_IMAGE_QUALITY:           0.70,
   LQIP_SIZE_PX:                     20,

@@ -4,12 +4,11 @@ import { createClient, createServiceClient } from "@/shared/supabase/server";
 import { FloatingBackButton } from "@/features/chat/components/navigation/FloatingBackButton";
 import { MessageList } from "@/features/chat/components/messages/MessageList";
 import { ChatInput } from "@/features/chat/components/input/ChatInput";
-import { CombatHUD } from "@/features/combat/components/CombatHUD";
 import { WelcomeDetector } from "@/shared/components/pwa/WelcomeDetector";
 import { ErrorBoundary } from "@/shared/components/ui/ErrorBoundary";
 import { SlidePage } from "@/app/layouts/SlidePage";
 import { MUSIC_DOMAINS } from "@/shared/constants/config";
-import type { Profile, Crew, AvatarClass, ActiveRaid, CombatMember, CombatClass } from "@/types";
+import type { Profile, Crew, AvatarClass } from "@/types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -71,14 +70,11 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
   if (!session) redirect("/login");
   const user = session.user;
 
-  // Stage 2 — all 7 queries in parallel.
-  // raid + token were previously a sequential Stage 3 (they only need crewId
-  // from Stage 1, not any Stage 2 result), so we move them here to eliminate
-  // one full server round-trip on every chat open.
+  // Stage 2 — all 5 queries in parallel.
   // crew (total_xp) stays uncached — it changes with every message.
   // crew_members fetched fresh for membership check (RLS returns empty for non-members).
   // vibeNotesRes fetches most-recent music note per member for vinyl pills in message bubbles.
-  const [cachedProfiles, crewResult, lastSeenResult, gemResult, raidRes, tokenRes, vibeNotesRes, memberPinRes] = await Promise.all([
+  const [cachedProfiles, crewResult, lastSeenResult, gemResult, vibeNotesRes, memberPinRes] = await Promise.all([
     getCachedMemberProfiles(crewId),
     supabase.from("crews").select("id, name, invite_code, level, total_xp, image_url, background_image_url").eq("id", crewId).single(),
     supabase
@@ -86,18 +82,6 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
       .select("user_id, last_seen, class, joined_at")
       .eq("crew_id", crewId),
     supabase.from("profiles").select("gem_balance").eq("id", user.id).single(),
-    supabase
-      .from('active_raids')
-      .select('id, crew_id, boss_id, current_hp, max_hp, phase, started_at, expires_at, defeated_at, last_boss_attack_at, guard_user_id, guard_expires_at, volley_expires_at')
-      .eq('crew_id', crewId)
-      .is('defeated_at', null)
-      .gt('expires_at', new Date().toISOString())
-      .maybeSingle(),
-    supabase
-      .from('revive_tokens')
-      .select('count')
-      .eq('crew_id', crewId)
-      .maybeSingle(),
     // Most-recent music notes per member within this crew (fallback source)
     supabase
       .from('notes')
@@ -133,10 +117,6 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
     redirect(`/onboarding/class?crew=${crewId}`)
   }
 
-  // Combat data — results from the parallel Stage 2 queries above
-  const initialRaid         = raidRes.data as ActiveRaid | null
-  const initialReviveTokens = (tokenRes.data as { count: number } | null)?.count ?? 5
-
   // Creator = member with the earliest joined_at
   const creatorId = lastSeenRows.length > 0
     ? lastSeenRows.reduce((earliest, row) => {
@@ -169,11 +149,10 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
   // Pinned notes that aren't in the crew board need a global lookup
   const missingIds = Object.values(pinnedMap).filter((id): id is string => !!id && !noteById[id])
 
-  // None of these three depend on each other — only on data already available above
-  // (lastSeenRows, missingIds, initialRaid) — so they run as one parallel batch instead
-  // of up to three sequential round trips (username_history, then conditionally notes,
-  // then conditionally combat members, one after another).
-  const [historyResult, extraNotesResult, combatMembersResult] = await Promise.all([
+  // Neither depends on the other — only on data already available above
+  // (lastSeenRows, missingIds) — so they run as one parallel batch instead of two
+  // sequential round trips.
+  const [historyResult, extraNotesResult] = await Promise.all([
     // Past usernames of current members — lets @mentions in old messages resolve to
     // whatever the member's username is now. Small/rare table; no FK path from
     // crew_members to username_history for an embedded select, so fetched separately.
@@ -184,21 +163,11 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
     missingIds.length > 0
       ? supabase.from('notes').select('id, created_by, og_title, og_image_url').in('id', missingIds)
       : Promise.resolve({ data: null }),
-    initialRaid
-      ? supabase
-          .from('crew_combat_members')
-          .select('id, raid_id, user_id, class, current_hp, max_hp, ability_bank, is_downed, downed_at, momentum_stack, last_msg_at, guard_expires_at')
-          .eq('raid_id', initialRaid.id)
-      : Promise.resolve({ data: null }),
   ])
 
   const initialMentionAliases: [string, string][] = (
     (historyResult.data ?? []) as { user_id: string; old_username: string }[]
   ).map((h) => [h.old_username.toLowerCase(), h.user_id])
-
-  const initialMemberStats: Record<string, CombatMember> = Object.fromEntries(
-    ((combatMembersResult.data ?? []) as CombatMember[]).map((m) => [m.user_id, m])
-  )
 
   const extraById: Record<string, NoteRow> = {}
   for (const n of (extraNotesResult.data ?? []) as unknown as NoteRow[]) extraById[n.id] = n
@@ -257,13 +226,6 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
         />
       </ErrorBoundary>
 
-      <CombatHUD
-        currentUserId={user.id}
-        crewId={crewId}
-        memberProfiles={memberProfiles}
-        userCombatClass={(currentMemberRow?.class as CombatClass | null) ?? undefined}
-      />
-
       <ErrorBoundary>
         <ChatInput
           crewId={crewId}
@@ -282,10 +244,6 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
           crewBackgroundImageUrl={(crew as { background_image_url?: string | null }).background_image_url ?? null}
           initialXP={crew.total_xp}
           currentUserId={user.id}
-          userCombatClass={(currentMemberRow?.class as CombatClass | null) ?? null}
-          initialRaid={initialRaid}
-          initialMemberStats={initialMemberStats}
-          initialReviveTokens={initialReviveTokens}
         />
       </ErrorBoundary>
 

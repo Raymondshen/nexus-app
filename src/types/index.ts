@@ -6,7 +6,6 @@ export * from './notifications'
 export * from './friends'
 export * from './events'
 export * from './board'
-export * from './combat'
 export * from './system'
 
 // ─── Local imports for use in Database type ───────────────────────────────────
@@ -16,7 +15,6 @@ import type { PushSubscription, NotificationPreferences, CrewNotificationPrefere
 import type { Friendship } from './friends'
 import type { Event, EventRsvp } from './events'
 import type { Note, BoardSection } from './board'
-import type { ActiveRaid, CombatMember, ReviveToken } from './combat'
 import type { ReservedUser, AppInvite, ClientError, PendingDeletion } from './system'
 
 // ─── Supabase Database type ───────────────────────────────────────────────────
@@ -191,24 +189,6 @@ export type Database = {
         Update: Partial<Pick<BoardSection, 'name' | 'position'>>
         Relationships: []
       }
-      active_raids: {
-        Row: ActiveRaid
-        Insert: Omit<ActiveRaid, 'id' | 'expiry_notif_sent' | 'last_boss_attack_at' | 'guard_user_id' | 'guard_expires_at' | 'volley_expires_at'> & { id?: string; expiry_notif_sent?: boolean; last_boss_attack_at?: string | null; guard_user_id?: string | null; guard_expires_at?: string | null; volley_expires_at?: string | null }
-        Update: Partial<Omit<ActiveRaid, 'id'>>
-        Relationships: []
-      }
-      crew_combat_members: {
-        Row: CombatMember
-        Insert: Omit<CombatMember, 'id' | 'created_at' | 'is_downed' | 'momentum_stack'> & { id?: string; created_at?: string; is_downed?: boolean; momentum_stack?: number }
-        Update: Partial<Omit<CombatMember, 'id' | 'raid_id' | 'user_id' | 'created_at'>>
-        Relationships: []
-      }
-      revive_tokens: {
-        Row: ReviveToken
-        Insert: ReviveToken
-        Update: Partial<Pick<ReviveToken, 'count'>>
-        Relationships: []
-      }
     }
     Views: Record<string, never>
     Functions: {
@@ -292,22 +272,6 @@ export type Database = {
       update_active: {
         Args: Record<string, never>
         Returns: void
-      }
-      init_combat_members: {
-        Args: { p_raid_id: string; p_crew_id: string; p_crew_level: number }
-        Returns: void
-      }
-      apply_boss_damage: {
-        Args: { p_raid_id: string; p_member_id: string; p_final_dmg: number }
-        Returns: Array<{ new_hp: number; is_downed: boolean; downed_at: string | null }>
-      }
-      use_revive_token: {
-        Args: { p_raid_id: string; p_target_user_id: string }
-        Returns: Record<string, unknown>
-      }
-      damage_raid: {
-        Args: { p_raid_id: string; p_damage: number; p_user_id: string }
-        Returns: Array<{ current_hp: number; phase: number; defeated_at: string | null }>
       }
     }
     Enums: Record<string, never>

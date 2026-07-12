@@ -4,7 +4,7 @@ import { useState, useActionState } from 'react'
 import { useRouter } from 'next/navigation'
 import { selectClassAction } from '@/app/(app)/onboarding/class/actions'
 import { spriteIdFor } from '@/shared/components/game/PixelSprite'
-import { CLASS_BASE_STATS } from '@/features/combat/utils/combat'
+import { CLASS_BASE_STATS } from '@/shared/constants/classStats'
 import type { AvatarClass, CombatClass } from '@/types'
 
 // ─── Class metadata ───────────────────────────────────────────────────────────

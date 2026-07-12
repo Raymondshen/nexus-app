@@ -1,14 +1,11 @@
 // Sound effect stubs — infrastructure for adding sounds later.
 // All functions are safe to call; they no-op when audio isn't configured.
 
-type SoundKey = 'messageSend' | 'bossDamage' | 'bossDefeat' | 'levelUp' | 'artifactDrop'
+type SoundKey = 'messageSend' | 'levelUp'
 
 const SOUNDS: Record<SoundKey, string | null> = {
-  messageSend:  null,
-  bossDamage:   null,
-  bossDefeat:   null,
-  levelUp:      null,
-  artifactDrop: null,
+  messageSend: null,
+  levelUp:     null,
 }
 
 let muted = false

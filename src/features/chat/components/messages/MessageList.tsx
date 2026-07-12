@@ -13,12 +13,11 @@ import { format, isToday, isYesterday, isSameDay } from 'date-fns'
 import { createClient } from '@/shared/supabase/client'
 import { acquireCrewMessageChannel, releaseCrewMessageChannel } from '@/shared/supabase/crewMessageChannel'
 import { useChatStore } from '@/store/chatStore'
-import { useCombatStore } from '@/store/combatStore'
 import { MessageBubble } from './MessageBubble'
 import { ChatMessageStampDivider } from './ChatMessageStampDivider'
 import { ArrowBarDown } from 'pixelarticons/react/ArrowBarDown'
 import { InviteCodeCard } from '@/shared/components/ui/InviteCodeCard'
-import type { MessageWithProfile, Message, Profile, AvatarClass, SquadDefinition, SquadDefinitionWithCreator, CombatEvent, CombatEventKind } from '@/types'
+import type { MessageWithProfile, Message, Profile, AvatarClass, SquadDefinition, SquadDefinitionWithCreator } from '@/types'
 
 interface MessageListProps {
   crewId:               string
@@ -94,59 +93,6 @@ const EMPTY_ALIAS_ENTRIES: [string, string][] = []
 // Envelope stored in both sessionStorage (sync, fast) and IDB (persistent across iOS PWA kills)
 type MsgCache = { messages: MessageWithProfile[]; savedAt: number }
 
-// ─── Combat event parsers (used by realtime INSERT handler) ───────────────────
-
-function parseCombatEvent(content: string, messageId?: string, messageTs?: number): CombatEvent | null {
-  const id = messageId ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`
-  const ts = messageTs ?? Date.now()
-
-  if (content.startsWith('BOSS_SPAWN:')) {
-    const [, name, hp] = content.split(':')
-    return { id, ts, kind: 'boss_spawn' as CombatEventKind, text: `⚔ ${name} appears — ${hp} HP` }
-  }
-
-  if (!content.startsWith('COMBAT:')) return null
-  const parts = content.split(':')
-  const type  = parts[1]
-
-  switch (type) {
-    case 'attack': {
-      const isCrit = parts[5] === '1'
-      return { id, ts, kind: (isCrit ? 'player_crit' : 'player_attack') as CombatEventKind, value: Number(parts[3]),
-               text: isCrit ? `${parts[2]} landed a CRIT for ${parts[3]}!` : `${parts[2]} attacked for ${parts[3]}` }
-    }
-    case 'volley':
-      return { id, ts, kind: 'ability_used' as CombatEventKind, value: Number(parts[3]),
-               text: `${parts[2]} uses VOLLEY — ${parts[3]} dmg` }
-    case 'backstab':
-      return { id, ts, kind: 'player_crit' as CombatEventKind, value: Number(parts[3]),
-               text: `${parts[2]} backstabs for ${parts[3]}! (CRIT)` }
-    case 'cast':
-      return { id, ts, kind: 'ability_used' as CombatEventKind, value: Number(parts[3]),
-               text: `${parts[2]} casts for ${parts[3]} dmg` }
-    case 'guard':
-      return { id, ts, kind: 'ability_used' as CombatEventKind, text: `${parts[2]} raises GUARD` }
-    case 'mend':
-      return { id, ts, kind: 'heal' as CombatEventKind, value: Number(parts[3]),
-               text: `${parts[2]} mends — +${parts[3]} HP` }
-    case 'boss_attack':
-      return { id, ts, kind: 'boss_attack' as CombatEventKind, value: Number(parts[3]),
-               text: `Boss strikes ${parts[2]} — ${parts[3]} dmg` }
-    case 'downed':
-      return { id, ts, kind: 'member_downed' as CombatEventKind, text: `${parts[2]} has been downed!` }
-    case 'victory':
-      return { id, ts, kind: 'raid_victory' as CombatEventKind,
-               text: `✦ Victory! ${parts[2]} earns ${parts[3]} ${parts.slice(4).join(':')}` }
-    case 'escaped':
-      return { id, ts, kind: 'raid_escaped' as CombatEventKind,
-               text: `${parts.slice(2).join(':')} escaped without defeating the boss.` }
-    case 'stat_up':
-      return { id, ts, kind: 'stat_boost' as CombatEventKind,
-               text: `✦ ${parts[2]} +1 ${parts[3].toUpperCase()}` }
-    default: return null
-  }
-}
-
 // Content equality for the definitions list — covers every field MessageBubble
 // actually renders (inline highlight matching, the preview sheet, text effects).
 // Used to keep the previous array's identity when a re-fetch returns identical
@@ -166,19 +112,6 @@ function definitionsEqual(a: SquadDefinitionWithCreator[], b: SquadDefinitionWit
     ) return false
   }
   return true
-}
-
-// Returns damage-float data for player attacks that deal boss damage; null otherwise
-function parseDamageFloat(content: string): { value: number; isCrit: boolean } | null {
-  if (!content.startsWith('COMBAT:')) return null
-  const parts = content.split(':')
-  switch (parts[1]) {
-    case 'attack':   return { value: Number(parts[3]), isCrit: parts[5] === '1' }
-    case 'volley':   return { value: Number(parts[3]), isCrit: false }
-    case 'backstab': return { value: Number(parts[3]), isCrit: true }
-    case 'cast':     return { value: Number(parts[3]), isCrit: false }
-    default:         return null
-  }
 }
 
 export function MessageList({
@@ -396,19 +329,6 @@ export function MessageList({
 
         setMessages(merged)
 
-        // Replay combat events from loaded messages so the log persists across page loads
-        {
-          const combatStore = useCombatStore.getState()
-          const raid = combatStore.activeRaid
-          if (raid) {
-            const replayEvents = merged
-              .filter((m) => m.message_type === 'system' && m.created_at >= raid.started_at)
-              .map((m) => parseCombatEvent(m.content, m.id, Date.parse(m.created_at)))
-              .filter((e): e is CombatEvent => e !== null)
-            if (replayEvents.length > 0) combatStore.replayCombatEvents(replayEvents)
-          }
-        }
-
         // Record the oldest message as the pagination cursor
         if (merged.length > 0) {
           oldestCursorRef.current = merged[0].created_at
@@ -499,7 +419,8 @@ export function MessageList({
     for (const msg of messages) {
       if (!msg.id || typeof msg.content !== 'string') continue
 
-      // Combat system messages are shown in CombatLog, not in the chat history
+      // Historical combat system messages (from the now-removed boss-fight feature)
+      // stay hidden rather than rendering as raw text.
       if (msg.message_type === 'system' &&
           (msg.content.startsWith('COMBAT:') || msg.content.startsWith('BOSS_SPAWN:'))) {
         continue
@@ -595,7 +516,7 @@ export function MessageList({
     // Skip when a prepend is in progress — anchor restoration handles scroll instead
     if (skipAutoScrollRef.current) { skipAutoScrollRef.current = false; return }
     const lastMsg = messages[messages.length - 1]
-    // Combat system messages are shown in CombatLog, not in the chat scroll.
+    // Historical combat system messages stay hidden — see the filter above.
     if (
       lastMsg?.message_type === 'system' &&
       typeof lastMsg.content === 'string' &&
@@ -817,37 +738,6 @@ export function MessageList({
           const raw = payload.new as Message
           if (!raw?.id || typeof raw.content !== 'string') return
           addMessage({ ...raw, profile: resolveProfile(raw.user_id) } as MessageWithProfile)
-          // Feed combat events and damage floats to the combat store (combat toggle only)
-          if (raw.message_type === 'system') {
-            const store = useCombatStore.getState()
-            const event = parseCombatEvent(raw.content, raw.id, Date.parse(raw.created_at))
-            if (event) store.addCombatEvent(event)
-            const float = parseDamageFloat(raw.content)
-            if (float) {
-              store.spawnDamageFloat({
-                id:     raw.id,
-                value:  float.value,
-                isCrit: float.isCrit,
-                x:      window.innerWidth * 0.5 + (Math.random() * 80 - 40),
-                y:      window.innerHeight * 0.65,
-              })
-            }
-            // Patch raid HP/phase from message content — more reliable than active_raids realtime
-            const p = raw.content.split(':')
-            const t = p[1]
-            if (t === 'attack' || t === 'volley' || t === 'backstab' || t === 'cast') {
-              const newHp = Math.round(Number(p[4]))
-              const curHp = store.activeRaid?.current_hp
-              // Only accept decreasing HP — out-of-order messages (concurrent attackers,
-              // network jitter) must never revert HP to a stale higher value
-              if (!isNaN(newHp) && (curHp === undefined || newHp < curHp)) {
-                store.patchRaid({ current_hp: newHp })
-              }
-            } else if (t === 'victory' || t === 'escaped') {
-              store.setActiveRaid(null)
-              store.setAllMembers([])
-            }
-          }
         }
       )
       .on(
