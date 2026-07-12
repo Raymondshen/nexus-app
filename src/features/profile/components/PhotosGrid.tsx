@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
+import { createPortal } from "react-dom";
 import type { Area } from "react-easy-crop";
 import { AnimatePresence, motion } from "framer-motion";
 import Image from "next/image";
@@ -15,6 +16,7 @@ import { supabaseImageLoader } from "@/shared/supabase/imageLoader";
 import { createClient } from "@/shared/supabase/client";
 import { BottomSheet } from "@/shared/components/ui/sheet/BottomSheet";
 import { PhotoCropModal } from "@/shared/components/ui/PhotoCropModal";
+import { ImagePreviewOverlay } from "@/shared/components/overlays/ImagePreviewOverlay";
 import type { ProfilePhoto } from "@/types";
 
 const MAX_INPUT_BYTES = 15 * 1024 * 1024; // 15 MB input limit
@@ -111,10 +113,12 @@ function PhotoCell({
   photo,
   isOwner,
   onRemove,
+  onView,
 }: {
   photo: ProfilePhoto;
   isOwner: boolean;
   onRemove: () => void;
+  onView: () => void;
 }) {
   const [showActions, setShowActions] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -141,7 +145,7 @@ function PhotoCell({
       firedRef.current = false;
       return;
     }
-    window.open(photo.url, "_blank", "noopener,noreferrer");
+    onView();
   }
 
   return (
@@ -172,9 +176,7 @@ function PhotoCell({
         {showActions && (
           <PhotoActionSheet
             isOwner={isOwner}
-            onView={() =>
-              window.open(photo.url, "_blank", "noopener,noreferrer")
-            }
+            onView={onView}
             onRemove={onRemove}
             onClose={() => setShowActions(false)}
           />
@@ -264,7 +266,13 @@ export function PhotosGrid({
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [confirmPhoto, setConfirmPhoto] = useState<ProfilePhoto | null>(null);
+  const [previewPhoto, setPreviewPhoto] = useState<ProfilePhoto | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- SSR-safe createPortal mount flag, same pattern as MessageBubble
+    setMounted(true);
+  }, []);
 
   const handleRemove = useCallback((photoId: string) => {
     setPhotos((prev) => prev.filter((p) => p.id !== photoId));
@@ -397,6 +405,7 @@ export function PhotosGrid({
                     photo={item}
                     isOwner={isOwner}
                     onRemove={() => setConfirmPhoto(item)}
+                    onView={() => setPreviewPhoto(item)}
                   />
                 ),
               )}
@@ -509,6 +518,20 @@ export function PhotosGrid({
           </BottomSheet>
         )}
       </AnimatePresence>
+
+      {mounted &&
+        createPortal(
+          <AnimatePresence>
+            {previewPhoto && (
+              <ImagePreviewOverlay
+                src={previewPhoto.url}
+                alt="Profile photo"
+                onClose={() => setPreviewPhoto(null)}
+              />
+            )}
+          </AnimatePresence>,
+          document.body,
+        )}
     </>
   );
 }
