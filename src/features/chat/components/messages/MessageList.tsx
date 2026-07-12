@@ -541,7 +541,13 @@ export function MessageList({
     if (!el) return
     const delta = virtualizer.getTotalSize() - prevTotalSizeRef.current
     if (delta > 0) el.scrollTop = prevScrollTopRef.current + delta
-  }, [items.length]) // eslint-disable-line react-hooks/exhaustive-deps
+    // Depend on `messages.length` (raw fetched count), NOT `items.length` (filtered
+    // display count) — a prepended batch that's entirely COMBAT/BOSS_SPAWN leaves
+    // `items.length` unchanged, so this effect would never re-fire and
+    // `anchorPendingRef` would stay stuck `true` forever, permanently blocking both
+    // the auto-fill effect and manual scroll-up pagination (both gate on it). Same
+    // reasoning as the auto-fill effect's dependency choice below.
+  }, [messages.length]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Pinned message scroll ────────────────────────────────────────────────────
 
