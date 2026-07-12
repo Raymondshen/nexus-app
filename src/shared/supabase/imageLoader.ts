@@ -12,8 +12,9 @@ export function supabaseImageLoader({ src, width, quality }: ImageLoaderProps): 
   return url.toString()
 }
 
-// Avatar-specific loader: forces a square crop so the circular avatar frame
-// is always filled correctly regardless of source aspect ratio.
+// Forces a square (1:1) render regardless of source aspect ratio — used
+// anywhere the display frame is guaranteed square (avatars, group images,
+// pre-cropped profile gallery photos).
 // - Supabase storage: passes both width+height so the render API center-crops to 1:1
 // - Google profile photos: normalises the size param and adds the -c crop flag
 // - Other URLs: falls through unchanged

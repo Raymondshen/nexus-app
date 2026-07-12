@@ -12,7 +12,7 @@ import {
   validateImageFile,
 } from "@/shared/utils/imageCompress";
 import { drawCroppedCanvas } from "@/shared/utils/cropImage";
-import { supabaseImageLoader } from "@/shared/supabase/imageLoader";
+import { avatarImageLoader } from "@/shared/supabase/imageLoader";
 import { createClient } from "@/shared/supabase/client";
 import { BottomSheet } from "@/shared/components/ui/sheet/BottomSheet";
 import { PhotoCropModal } from "@/shared/components/ui/PhotoCropModal";
@@ -169,7 +169,7 @@ function PhotoCell({
         className="object-cover"
         style={{ pointerEvents: "none" }}
         loading="lazy"
-        loader={supabaseImageLoader}
+        loader={avatarImageLoader}
       />
 
       <AnimatePresence>
@@ -526,6 +526,7 @@ export function PhotosGrid({
               <ImagePreviewOverlay
                 src={previewPhoto.url}
                 alt="Profile photo"
+                square
                 onClose={() => setPreviewPhoto(null)}
               />
             )}
