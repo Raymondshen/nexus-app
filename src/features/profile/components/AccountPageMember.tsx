@@ -9,7 +9,6 @@ import { useSlideBack } from '@/app/layouts/SlidePage'
 import { TickerBanner } from '@/shared/components/banners/TickerBanner'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { SettingsCog } from 'pixelarticons/react/SettingsCog'
-import { Message } from 'pixelarticons/react/Message'
 import { VibesGrid } from '@/features/profile/components/VibesGrid'
 import { PhotosGrid } from '@/features/profile/components/PhotosGrid'
 import type { PublicNote, ProfilePhoto } from '@/types'
@@ -170,13 +169,7 @@ export function AccountPageMember({
       </div>
 
       {/* ── Status ticker ────────────────────────────────────────────────────── */}
-      {status && (
-        <TickerBanner
-          text={status}
-          icon={<Message style={{ width: 8, height: 8, color: 'var(--color-tertiary)' }} aria-hidden="true" />}
-          quoted
-        />
-      )}
+      {status && <TickerBanner text={status} />}
 
       {/* ── Tab bar ──────────────────────────────────────────────────────────── */}
       <div className="flex flex-shrink-0" style={{ borderBottom: '1px solid var(--color-border)' }}>

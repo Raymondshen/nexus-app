@@ -1,68 +1,15 @@
 'use client'
 
-import { useState, useLayoutEffect, useRef } from 'react'
+import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { UserAvatar } from '@/shared/components/ui/UserAvatar'
 import { ProfileHeroBackground } from '@/shared/components/ui/ProfileHeroBackground'
 import { useSlideBack } from '@/app/layouts/SlidePage'
+import { TickerBanner } from '@/shared/components/banners/TickerBanner'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { UserPlus } from 'pixelarticons/react/UserPlus'
-import { Message } from 'pixelarticons/react/Message'
 import { sendFriendRequestAction, acceptFriendRequestAction } from '@/app/(app)/friends/actions'
 import type { AvatarClass } from '@/types'
-
-// ─── Status ticker ───────────────────────────────────────────────────────────
-
-function ProfileStatusTicker({ status }: { status: string }) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const itemRef      = useRef<HTMLSpanElement>(null)
-  const [numCopies, setNumCopies] = useState(6)
-  const [animPx,    setAnimPx]    = useState(0)
-
-  useLayoutEffect(() => {
-    const container = containerRef.current
-    const item      = itemRef.current
-    if (!container || !item) return
-    const cw = container.clientWidth
-    const iw = item.offsetWidth
-    if (iw <= 0) return
-    const halfNeeded = Math.ceil(cw / iw) + 1
-    const n          = Math.max(4, halfNeeded % 2 === 0 ? halfNeeded * 2 : (halfNeeded + 1) * 2)
-    setNumCopies(n)
-    setAnimPx(iw * (n / 2))
-  }, [status])
-
-  const duration = Math.max(21, status.length * 0.28 + 15)
-
-  return (
-    <div
-      ref={containerRef}
-      className="overflow-hidden border-t border-b border-border bg-black px-2"
-      style={{ paddingTop: 12, paddingBottom: 12 }}
-    >
-      <motion.div
-        key={status}
-        className="flex"
-        initial={{ x: 0 }}
-        animate={{ x: animPx > 0 ? [0, -animPx] : 0 }}
-        transition={{ duration, repeat: Infinity, ease: 'linear', repeatType: 'loop' }}
-      >
-        {Array.from({ length: numCopies }, (_, i) => (
-          <span
-            key={i}
-            ref={i === 0 ? itemRef : undefined}
-            className="inline-flex items-center gap-1 pr-6 flex-shrink-0 whitespace-nowrap"
-          >
-            <Message style={{ width: 8, height: 8, color: 'var(--color-tertiary)' }} aria-hidden="true" />
-            <span className="font-silkscreen text-tertiary leading-none" style={{ fontSize: 'var(--text-xxs)' }}>
-              &ldquo;{status}&rdquo;
-            </span>
-          </span>
-        ))}
-      </motion.div>
-    </div>
-  )
-}
 
 type FriendState = 'none' | 'pending_sent' | 'pending_received' | 'accepted'
 
@@ -239,7 +186,7 @@ export function MemberProfileClient({
       </div>
 
       {/* ── Status ticker — full-width row between hero and body ──────────── */}
-      {status && <ProfileStatusTicker status={status} />}
+      {status && <TickerBanner text={status} />}
 
       {/* ── Body — Figma 57:172: flex-col items-center px-16px py-16px ── */}
       <div

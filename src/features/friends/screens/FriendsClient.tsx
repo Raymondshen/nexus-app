@@ -1,15 +1,15 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, useMotionValue, animate } from 'framer-motion'
 import { UserAvatar } from '@/shared/components/ui/UserAvatar'
 import type { PanInfo } from 'framer-motion'
 import { SlidePage, useSlideBack } from '@/app/layouts/SlidePage'
+import { TickerBanner } from '@/shared/components/banners/TickerBanner'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { Search } from 'pixelarticons/react/Search'
 import { Inbox } from 'pixelarticons/react/Inbox'
-import { Message as MessageIcon } from 'pixelarticons/react/Message'
 import { MailRight } from 'pixelarticons/react/MailRight'
 import { AvatarCircleMinus } from 'pixelarticons/react/AvatarCircleMinus'
 import { createClient } from '@/shared/supabase/client'
@@ -48,60 +48,6 @@ interface FriendsClientProps {
 
 function friendshipYear(iso: string): string {
   try { return new Date(iso).getFullYear().toString() } catch { return '' }
-}
-
-// ─── Status ticker — used in search results ───────────────────────────────────
-
-function StatusTicker({ status }: { status: string }) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const itemRef      = useRef<HTMLSpanElement>(null)
-  const [numCopies, setNumCopies] = useState(6)
-  const [animPx,    setAnimPx]    = useState(0)
-
-  useLayoutEffect(() => {
-    const container = containerRef.current
-    const item      = itemRef.current
-    if (!container || !item) return
-    const cw = container.clientWidth
-    const iw = item.offsetWidth
-    if (iw <= 0) return
-    const halfNeeded = Math.ceil(cw / iw) + 1
-    const n          = Math.max(4, halfNeeded % 2 === 0 ? halfNeeded * 2 : (halfNeeded + 1) * 2)
-    setNumCopies(n)
-    setAnimPx(iw * (n / 2))
-  }, [status])
-
-  const duration = Math.max(21, status.length * 0.28 + 15)
-
-  return (
-    <div
-      ref={containerRef}
-      className="overflow-hidden border-t border-b border-border"
-      style={{ paddingTop: 7, paddingBottom: 7, paddingLeft: 8, paddingRight: 8 }}
-    >
-      <motion.div
-        key={status}
-        className="flex"
-        initial={{ x: 0 }}
-        animate={{ x: animPx > 0 ? [0, -animPx] : 0 }}
-        transition={{ duration, repeat: Infinity, ease: 'linear', repeatType: 'loop' }}
-      >
-        {Array.from({ length: numCopies }, (_, i) => (
-          <span
-            key={i}
-            ref={i === 0 ? itemRef : undefined}
-            className="inline-flex items-center flex-shrink-0 whitespace-nowrap pr-2"
-            style={{ gap: 4 }}
-          >
-            <MessageIcon style={{ width: 8, height: 8, color: 'var(--color-tertiary)' }} aria-hidden="true" />
-            <span className="font-silkscreen text-[length:var(--text-mini)] text-tertiary leading-none">
-              &ldquo;{status}&rdquo;
-            </span>
-          </span>
-        ))}
-      </motion.div>
-    </div>
-  )
 }
 
 // ─── Avatar ───────────────────────────────────────────────────────────────────
@@ -443,7 +389,7 @@ export function FriendsClient({
                         </button>
                       )}
                     </div>
-                    {profile.status && <StatusTicker status={profile.status} />}
+                    {profile.status && <TickerBanner text={profile.status} />}
                   </div>
                 )
               })

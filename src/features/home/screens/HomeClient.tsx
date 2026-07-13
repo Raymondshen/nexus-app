@@ -9,7 +9,6 @@ import { Upload } from 'pixelarticons/react/Upload'
 import { TokeCircle } from 'pixelarticons/react/TokeCircle'
 import { Heart } from 'pixelarticons/react/Heart'
 import { Copy } from 'pixelarticons/react/Copy'
-import { Message as MessageIcon } from 'pixelarticons/react/Message'
 import { TickerBanner } from '@/shared/components/banners/TickerBanner'
 import { MailRight } from 'pixelarticons/react/MailRight'
 import Image from 'next/image'
@@ -297,11 +296,7 @@ function AccountPreview({
       </div>
 
       {/* Status ticker — full-width, flush at card bottom */}
-      <TickerBanner
-        text={status ?? 'Whats the mood today...'}
-        icon={<MessageIcon style={{ width: 8, height: 8, color: 'var(--color-secondary)' }} aria-hidden="true" />}
-        quoted
-      />
+      <TickerBanner text={status ?? 'Whats the mood today...'} />
     </div>
   )
 }

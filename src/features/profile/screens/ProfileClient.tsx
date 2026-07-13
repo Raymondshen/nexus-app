@@ -7,7 +7,6 @@ import { SlidePage, useSlideBack } from '@/app/layouts/SlidePage'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { MagicEdit } from 'pixelarticons/react/MagicEdit'
 import { Braces } from 'pixelarticons/react/Braces'
-import { Message } from 'pixelarticons/react/Message'
 import { TickerBanner } from '@/shared/components/banners/TickerBanner'
 import { UserAvatar } from '@/shared/components/ui/UserAvatar'
 import { ProfileHeroBackground } from '@/shared/components/ui/ProfileHeroBackground'
@@ -31,18 +30,6 @@ interface ProfileClientProps {
   notesCrews:        Array<{ id: string; name: string }>
   initialPhotos:     ProfilePhoto[]
   initialPinnedId?:  string | null
-}
-
-// ─── Profile status ticker ────────────────────────────────────────────────────
-
-function ProfileStatusTicker({ status }: { status: string }) {
-  return (
-    <TickerBanner
-      text={status}
-      icon={<Message style={{ width: 8, height: 8, color: 'var(--color-tertiary)' }} aria-hidden="true" />}
-      quoted
-    />
-  )
 }
 
 // ─── Top-bar icon button (Figma "profile-Btn": rgba(0,0,0,0.25), 8px padding, no border) ──
@@ -241,7 +228,7 @@ export function ProfileClient({
       </div>
 
       {/* ── Status ticker ─────────────────────────────────────────────────────── */}
-      {initialStatus && <ProfileStatusTicker status={initialStatus} />}
+      {initialStatus && <TickerBanner text={initialStatus} />}
 
       {/* ── Tab bar: Photos | Vibes ─────────────────────────────────────────── */}
       <div className="flex flex-shrink-0" style={{ borderBottom: '1px solid var(--color-border)' }}>

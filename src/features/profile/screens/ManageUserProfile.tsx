@@ -6,7 +6,6 @@ import { SlidePage } from '@/app/layouts/SlidePage'
 import { Upload } from 'pixelarticons/react/Upload'
 import { DiamondGem } from 'pixelarticons/react/DiamondGem'
 import { TokeCircle } from 'pixelarticons/react/TokeCircle'
-import { Message } from 'pixelarticons/react/Message'
 import { TickerBanner } from '@/shared/components/banners/TickerBanner'
 import { UserAvatar } from '@/shared/components/ui/UserAvatar'
 import { InputField } from '@/shared/components/ui/InputField'
@@ -148,11 +147,7 @@ export function ManageUserProfile({
         </div>
 
         {/* Status ticker */}
-        <TickerBanner
-          text={status.trim() || 'Whats the mood today...'}
-          icon={<Message style={{ width: 8, height: 8, color: 'var(--color-tertiary)' }} aria-hidden="true" />}
-          quoted
-        />
+        <TickerBanner text={status.trim() || 'Whats the mood today...'} />
 
         {/* Body */}
         <div className="flex flex-col w-full" style={{ gap: 20, paddingLeft: 16, paddingRight: 16, paddingTop: 16, paddingBottom: 16 }}>

@@ -1,13 +1,11 @@
 'use client'
 
-import { useState, useLayoutEffect, useRef } from 'react'
-import { motion } from 'framer-motion'
 import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
 import { UserAvatar } from '@/shared/components/ui/UserAvatar'
 import { PixelSprite, spriteInfoFor } from '@/shared/components/game/PixelSprite'
 import { Crown } from 'pixelarticons/react/Crown'
-import { Message } from 'pixelarticons/react/Message'
 import { VinylPill } from '@/shared/components/ui/VinylPill'
+import { TickerBanner } from '@/shared/components/banners/TickerBanner'
 
 const CLASS_LABELS: Record<string, string> = {
   berserker: 'Berserker', sage: 'Sage', ghost: 'Ghost', hype_man: 'Hype Man',
@@ -24,61 +22,23 @@ export type MiniMember = {
   status?:        string | null
 }
 
-function StatusTicker({ status }: { status: string }) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const itemRef      = useRef<HTMLSpanElement>(null)
-  const [numCopies, setNumCopies] = useState(6)
-  const [animPx,    setAnimPx]    = useState(0)
+// VinylPill's own natural height (12px disc + 4px padding × 2, Figma 438:8053) — used to
+// reserve its slot even when a member has no vinyl, so every card in a row is the same
+// height without depending on the row's align-items:stretch.
+const VINYL_PILL_HEIGHT = 20
 
-  useLayoutEffect(() => {
-    const container = containerRef.current
-    const item      = itemRef.current
-    if (!container || !item) return
-    const cw = container.clientWidth
-    const iw = item.offsetWidth
-    if (iw <= 0) return
-    const halfNeeded = Math.ceil(cw / iw) + 1
-    const n          = Math.max(4, halfNeeded % 2 === 0 ? halfNeeded * 2 : (halfNeeded + 1) * 2)
-    setNumCopies(n)
-    setAnimPx(iw * (n / 2))
-  }, [status])
-
-  const duration = Math.max(11, status.length * 0.28 + 5)
-
+// Mirrors TickerBanner's own outer wrapper exactly (border-t/border-b, px-2, py-12, same
+// font-size/leading for the line box) so a blank slot renders at the identical height a
+// real ticker would, matching Figma 432:7827's full-height card (438:8058, 35px) instead
+// of collapsing like the shorter no-status card (432:8008).
+function BlankTickerSlot() {
   return (
     <div
-      ref={containerRef}
+      aria-hidden="true"
       className="overflow-hidden border-t border-b border-border px-2"
       style={{ paddingTop: 12, paddingBottom: 12 }}
     >
-      <motion.div
-        key={status}
-        className="flex"
-        initial={{ x: 0 }}
-        animate={{ x: animPx > 0 ? [0, -animPx] : 0 }}
-        transition={{ duration, repeat: Infinity, ease: 'linear', repeatType: 'loop' }}
-      >
-        {Array.from({ length: numCopies }, (_, i) => (
-          <span
-            key={i}
-            ref={i === 0 ? itemRef : undefined}
-            className="inline-flex items-center flex-shrink-0 whitespace-nowrap"
-            style={{ gap: 8, paddingRight: 8 }}
-          >
-            <span className="inline-flex items-center flex-shrink-0" style={{ gap: 4 }}>
-              <Message style={{ width: 8, height: 8, color: 'var(--color-tertiary)' }} aria-hidden="true" />
-              <span className="font-silkscreen text-[length:var(--text-mini)] text-tertiary leading-none">
-                &ldquo;{status}&rdquo;
-              </span>
-            </span>
-            <span
-              aria-hidden
-              className="flex-shrink-0"
-              style={{ width: 2, height: 2, background: '#d9d9d9', border: '1px solid var(--color-border-hover)' }}
-            />
-          </span>
-        ))}
-      </motion.div>
+      <span className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-xxs)' }}>&nbsp;</span>
     </div>
   )
 }
@@ -101,7 +61,7 @@ export function UserCard({
   return (
     <div
       className="flex flex-col flex-shrink-0 bg-black border border-[var(--color-border-hover)] rounded-[var(--x3,8px)] overflow-hidden active:opacity-70 transition-opacity"
-      style={{ width: 180, gap: 12, paddingBottom: profile.status ? 0 : 16, cursor: onTap ? 'pointer' : undefined }}
+      style={{ width: 180, gap: 12, cursor: onTap ? 'pointer' : undefined }}
       onClick={onTap}
     >
       {/* Background header + avatar */}
@@ -155,21 +115,17 @@ export function UserCard({
           </p>
         </div>
 
-        {vinyl && (vinyl.imageUrl || vinyl.title) && (
+        {/* Vinyl pill slot — always reserved (Figma 432:7827 vs 432:8008: every card in
+            the row is the same total height regardless of which members have one). */}
+        {vinyl && (vinyl.imageUrl || vinyl.title) ? (
           <VinylPill imageUrl={vinyl.imageUrl} title={vinyl.title} />
+        ) : (
+          <div aria-hidden="true" style={{ height: VINYL_PILL_HEIGHT }} />
         )}
       </div>
 
-      {/* Status ticker — marginTop: auto docks it to the card's true bottom edge even when
-          this card is stretched taller to match a taller sibling in the row (e.g. one with
-          a vinyl pill); without it the ticker would sit right after the content block and
-          leave the stretched slack below itself instead of above. No status → no ticker at
-          all, matching Figma's shorter no-status cards (e.g. 432:8008). */}
-      {profile.status && (
-        <div style={{ marginTop: 'auto' }}>
-          <StatusTicker status={profile.status} />
-        </div>
-      )}
+      {/* Status ticker slot — always reserved, same reasoning as the vinyl pill slot. */}
+      {profile.status ? <TickerBanner text={profile.status} /> : <BlankTickerSlot />}
     </div>
   )
 }
