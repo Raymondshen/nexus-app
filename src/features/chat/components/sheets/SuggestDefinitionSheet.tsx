@@ -5,6 +5,7 @@ import { suggestDefinitionAction } from "@/app/(app)/chat/[crewId]/definitions/a
 import { BottomSheet } from "@/shared/components/ui/sheet/BottomSheet";
 import { SheetFooter } from "@/shared/components/ui/sheet/SheetFooter";
 import { Button } from "@/shared/components/ui/Button";
+import { TextareaField } from "@/shared/components/ui/InputField";
 import type { SquadDefinitionWithCreator } from "@/types";
 
 interface SuggestDefinitionSheetProps {
@@ -135,24 +136,15 @@ export function SuggestDefinitionSheet({
         </div>
 
         {/* Suggestion textarea */}
-        <div
-          className="flex flex-col items-start w-full flex-shrink-0"
-          style={{ gap: "var(--space-2)" }}
-        >
-          <p
-            className="font-body font-medium text-[14px] text-primary tracking-[0.2px] leading-normal w-full"
-            style={{ fontVariationSettings: '"opsz" 14' }}
-          >
-            Suggest a new definition
-          </p>
-          <textarea
+        <div className="flex flex-col w-full flex-shrink-0">
+          <TextareaField
             ref={suggestionRef}
+            label="Suggest a new definition"
             value={suggestion}
-            onChange={(e) => setSuggestion(e.target.value)}
+            onChange={setSuggestion}
             maxLength={500}
             placeholder="What does it mean in your squad?"
-            className="w-full h-[78px] bg-black border border-border-hover px-3 py-3 font-body text-[14px] text-primary placeholder:text-muted focus:outline-none focus:border-purple transition-colors resize-none overflow-hidden"
-            style={{ fontVariationSettings: '"opsz" 14' }}
+            rows={3}
           />
         </div>
 

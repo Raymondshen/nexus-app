@@ -143,9 +143,13 @@ Renamed from `SettingsClient`. Dev-only: `page.tsx` redirects to `/profile` if `
 Two distinct row styles per Figma, don't conflate them: **nav rows** (`DevNavRow`) use `font-semibold` titles, 0 gap between title/description, `tracking-[0.2px]`, and a `ChevronRight` in `--color-secondary`. **Toggle rows** (`DevToggleRow`) use `font-medium` titles, `font-light` descriptions, 8px gap between title/description, no tracking. The toggle switch itself: off-track is `var(--color-muted)` (not `--color-border` — a real Figma-vs-code mismatch that was fixed here), thumb is `var(--color-primary)` (not literal white), on-track stays `--color-purple`.
 
 ### Announcements Management Page (`src/features/profile/screens/DeveloperUserAnnouncements.tsx`, route `/profile/developer/announcements`, Figma 472:5971)
-Renamed from `AnnouncementsClient`. Still uses the standalone bare-icon header (`ChevronLeft` 24×24 `--color-tertiary`, no button box, gap 8, uppercase Silkscreen `--text-xl`) — it was NOT migrated to the shared `PageHeader` when `ManageUserProfile`/`DeveloperUserSettings` were, so it's now the last page on this pattern. Cards: flat `var(--color-surface-sheet)` background, 8px radius, no active/inactive border or background tinting (a real change from before — the container no longer changes color by state, only the publish-status text and toggle do). Title always `--color-primary` (no longer dims to muted when inactive), description always `--color-secondary`, 2-line clamp (`WebkitLineClamp`) matching the truncated body text in the design, `src : {filename}` in Silkscreen mini/`--color-tertiary` (was wrongly `font-pixel` before — fixed to `font-silkscreen` to match Figma's actual font). Bottom row: "Published {date}" (`--color-purple`) or "Not published since {date}" (`--color-tertiary`), both using `created_at` formatted `MM/DD/YYYY` — there's no separate published/deactivated timestamp column, so both branches reuse the one date the schema actually has. Same `ToggleSwitch` spec as `DeveloperUserSettings`.
+Renamed from `AnnouncementsClient`. List page still uses the standalone bare-icon header (`ChevronLeft` 24×24 `--color-tertiary`, no button box, gap 8, uppercase Silkscreen `--text-xl`) — it was NOT migrated to the shared `PageHeader` when `ManageUserProfile`/`DeveloperUserSettings` were, so it's still the last *list* page on that pattern (the editor overlay below is a separate surface and does use `PageHeader` — see next paragraph). Cards: flat `var(--color-surface-sheet)` background, 8px radius, no active/inactive border or background tinting. Title always `--color-primary`, description always `--color-secondary`, 2-line clamp (`WebkitLineClamp`), `src : {filename}` in Silkscreen mini/`--color-tertiary`. Bottom row: "Published {date}" (`--color-purple`) or "Not published since {date}" (`--color-tertiary`), both using `created_at` formatted `MM/DD/YYYY`. Same `ToggleSwitch` spec as `DeveloperUserSettings`. Tapping a card (anywhere except the toggle, which calls `stopPropagation()`) opens the editor overlay below in edit mode.
 
-**No Edit or Delete button anywhere, per an explicit product decision** (Figma's cards show no such affordance) — tapping a card (anywhere except the toggle, which calls `stopPropagation()`) opens the same inline title/image/text edit form in place of the card's details, with its own small in-card Save/Cancel pill row (unchanged, not part of the `PageFooter` migration below), same as before just without a dedicated EDIT button to trigger it. Delete is gone entirely: `deleteAnnouncementAction` in `home/actions.ts` is untouched but now uncalled from anywhere, same treatment as the other orphaned actions from earlier passes. The create form (same fields) is triggered by the Figma-specified `Add announcement` footer button and renders inline at the top of the list — Figma's static frame only shows the button, not the form, so its exact appearance was a judgment call, not a literal Figma match. Unlike the existing-card inline edit, the create form's own Save/Cancel live in the shared `PageFooter` (`src/shared/components/ui/PageFooter.tsx`) pinned to the page bottom, not inside the form card — `PageFooter` swaps between the `Add announcement` trigger (flat `Button`) when idle and a `Save`/`Cancel` (flat `Button` + `Button variant="outlined" color="tertiary"`) pair while `showCreate` is true — no `shadow` on either, matching the canonical flat subpage CTA (Figma 480:6187).
+**Add/Edit is a full-screen slide-in overlay** (`AnnouncementEditorPage`, Figma 472:6072 add / 505:1953 edit), one component driven by a `mode: 'create' | 'edit'` prop — same "one component, mode prop" pattern as chat's `CreateDefinitionPage` (spring 380/36 slide-in, left-edge swipe + back button both call `handleBack()` which animates off-screen then `onClose()`, never `router.back()`; the list page passes `nativeSwipe={showCreate || !!editTarget}` to its `SlidePage` while the overlay is open). Unlike the list page, this overlay uses the shared `PageHeader` ("Add announcement" / "Edit announcement") since Figma's header here is the primary/`--color-primary` chevron variant, not the list page's bare-icon tertiary one.
+
+Body: a live preview using the **same shared `AnnouncementCard`** (`src/shared/components/banners/AnnouncementCard.tsx`) the production announcements sheet renders — not a separate hand-rolled preview — fed directly from the form's current `title`/`text`/`imageUrl` state, so edits reflect immediately. `AnnouncementCard` accepts `imageUrl: string | null` / `createdAt: string | null` for exactly this purpose: `null` image renders the Figma gradient "Image here." placeholder (`var(--gradient-nexus)`), and empty title/text/date fall back to "Sample title" / "Sample preview" / "Date here" — production call sites (the sheet) always pass real non-null data, so this is additive only. Below the preview: a `SelectField` "Image Source :" (opens `ImageSourceSheet`, a `BottomSheet` list of thumbnail rows), then a single-line `InputField` "Title" and a multi-row `TextareaField` "Description" (rows=5, same as `CreateDefinitionPage`'s definition field — a deliberate departure from Figma's literal single-line reuse, since `text` supports up to 500 chars and needs to wrap while editing). `AnnouncementCard`'s body-text paragraph carries `whiteSpace: 'pre-wrap'` so multi-line descriptions both wrap and preserve the author's line breaks in the live preview and the production sheet. Footer: shared `PageFooter` with a `Publish` button always, plus a `Delete Announcement` (`Button variant="outlined" color="red"`) in edit mode only — this is what un-orphans `deleteAnnouncementAction` in `home/actions.ts`, previously defined but uncalled.
+
+**Image Source is a fixed manifest, not an upload flow** — announcement images are static assets checked into `public/img/announcements/` (see the `image-handling` skill), so `ImageSourceSheet` picks from a hardcoded `ANNOUNCEMENT_IMAGE_OPTIONS` array (filename + path) defined at the top of `DeveloperUserAnnouncements.tsx`, not a directory scan (avoids depending on `public/` being fs-readable at runtime, which isn't guaranteed on Vercel). Adding a new banner asset means adding the `.svg` under that folder *and* a matching entry to this array by hand — same manual-sync expectation as any other static-asset manifest in this codebase.
 
 `Error Logs` nav, `Dev Mode` toggle, `Chat Camera` toggle, `Preview Announcements Sheet`, `Reset Gem Cooldown`, and `Reset Friendship XP` were removed from this UI in an earlier pass — the underlying server actions still exist in `src/app/(app)/profile/developer/actions.ts` (unused by any UI) and `/profile/error-logs` is still a live route, just unlinked. The former `Combat Testing` section (spawn boss/end raid/down self/revive/trigger attack/reset combat) was deleted outright, actions and all, along with the rest of the boss-fight combat system.
 
@@ -482,10 +486,12 @@ Props: `imageUrl`, `name` (alt text only, no initial fallback), `size` (default 
 
 ## Form Components (`src/shared/components/ui/InputField.tsx`)
 
-Two reusable components matching Figma 402:9678. Use these for all in-app forms (not auth/onboarding, which uses the older `Input.tsx`).
+Three reusable components matching Figma 402:9678's `type` (`standard`/`dropdown`) × `state` (`default`/`active`) × `required` × `helperText` variants. Use these for all in-app forms (not auth/onboarding, which uses the older `Input.tsx`). All three share the same internal (unexported) `FieldLabel`/`FieldHelperText` — label row with optional red `*` (`var(--red)`, required only) and helper text row — so any future variant of this component should extend those, not re-inline the label/helper markup a fourth time.
+
+**Before building any new labelled input, textarea, or select/picker-style field UI, reuse one of these three rather than hand-rolling the label/border/helper markup.**
 
 ### `InputField`
-Single-line labelled input. Fixed `h-[50px]`, `border-border` idle → `border-border-hover` on `focus-within`. Label: DM Sans Medium sm primary. Input text: DM Sans Regular sm primary, muted placeholder. Optional helper text: DM Sans Regular xxs tertiary tracking-[0.2px].
+Single-line labelled input (Figma's `type="standard"`). Fixed `h-[50px]`, `border-border` idle → `border-border-hover` on `focus-within` (Figma's `default`→`active` state). Label: DM Sans Medium sm primary. Input text: DM Sans Regular sm primary, muted placeholder. Optional helper text: DM Sans Regular xxs tertiary tracking-[0.2px]. `required` renders a red `*` after the label and sets the native `required` attribute.
 
 ```tsx
 <InputField
@@ -496,11 +502,12 @@ Single-line labelled input. Fixed `h-[50px]`, `border-border` idle → `border-b
   helperText="Comma-separated aliases map to the same definition."
   maxLength={100}
   autoComplete="off"
+  required
 />
 ```
 
 ### `TextareaField`
-Same label/helper/border design as `InputField` but renders a `<textarea>`. Height set via `rows` prop (default 5). Padding `p-x5` wraps the textarea.
+Same label/helper/border design as `InputField` but renders a `<textarea>`. Height set via `rows` prop (default 5). Padding `p-x5` wraps the textarea. Same `required` behavior as `InputField`.
 
 ```tsx
 <TextareaField
@@ -510,6 +517,19 @@ Same label/helper/border design as `InputField` but renders a `<textarea>`. Heig
   placeholder="What does it mean in your squad?"
   maxLength={500}
   rows={5}
+/>
+```
+
+### `SelectField`
+Figma's `type="dropdown"` variant. Same label/border/helper-text shell, but renders a `<button type="button">` trigger (not an editable input) showing `value` (primary text) or `placeholder` (muted text), with a trailing `ChevronDown` (24×24, `--color-primary`). Border is always `border-border-hover` — Figma's file has no dim "default" instance of the dropdown type, unlike the standard input's idle state. This component is **only the closed trigger** — Figma's dev-mode node doesn't specify an open/options-list state, so there's no popover baked in here. The caller owns what opens on `onClick` (typically a `BottomSheet` picker).
+
+```tsx
+<SelectField
+  label="Class"
+  value={selectedClass}
+  placeholder="Choose a class"
+  onClick={() => setShowClassSheet(true)}
+  required
 />
 ```
 
