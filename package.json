@@ -3,11 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "predev": "node scripts/generate-announcement-manifest.mjs",
     "dev": "next dev",
+    "prebuild": "node scripts/generate-announcement-manifest.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
     "generate-icons": "node scripts/generate-icons.mjs",
+    "generate-announcement-manifest": "node scripts/generate-announcement-manifest.mjs",
     "backfill-spotify-notes": "tsx scripts/backfill-spotify-notes.ts"
   },
   "dependencies": {

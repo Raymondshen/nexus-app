@@ -72,7 +72,8 @@ export interface Announcement extends Record<string, unknown> {
   id:         string
   title:      string
   text:       string
-  image_url:  string
+  /** null when saved as a draft before an image source is chosen (Figma 515:4664) — required to publish. */
+  image_url:  string | null
   active:     boolean
   created_at: string
 }

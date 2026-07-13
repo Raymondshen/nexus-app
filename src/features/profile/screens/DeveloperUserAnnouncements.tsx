@@ -12,6 +12,7 @@ import { SelectField, InputField, TextareaField } from '@/shared/components/ui/I
 import { BottomSheet } from '@/shared/components/ui/sheet/BottomSheet'
 import { AnnouncementCard } from '@/shared/components/banners/AnnouncementCard'
 import { AnnouncementsSheetView } from '@/shared/components/banners/AnnouncementsSheet'
+import { ANNOUNCEMENT_IMAGE_OPTIONS } from './announcementImageManifest.generated'
 import {
   createAnnouncementAction,
   getAllAnnouncementsAction,
@@ -35,19 +36,10 @@ function fileNameFromUrl(url: string): string {
 
 // ─── Image source options ─────────────────────────────────────────────────────
 // Announcement images are static assets checked into public/img/announcements/
-// (see the image-handling skill) — there's no upload flow here, so the picker
-// is this fixed manifest, kept in sync by hand whenever a new banner asset is
-// added to that folder.
-
-interface AnnouncementImageOption {
-  filename: string
-  path:     string
-}
-
-const ANNOUNCEMENT_IMAGE_OPTIONS: AnnouncementImageOption[] = [
-  { filename: 'chatroom-update-v1.svg', path: '/img/announcements/chatroom-update-v1.svg' },
-  { filename: 'text-effects-v1.svg',    path: '/img/announcements/text-effects-v1.svg' },
-]
+// (see the image-handling skill) — there's no upload flow here. The picker's
+// options come from the generated manifest (announcementImageManifest.generated.ts),
+// regenerated from that folder's contents on every dev start / build — see
+// scripts/generate-announcement-manifest.mjs.
 
 // ─── Header — bare icon + title, matches ManageUserProfile / DeveloperUserSettings ──
 
@@ -251,7 +243,8 @@ function AnnouncementEditorPage({ mode, target, onClose, onSaved, onDeleted }: A
   }, [controls, handleBack])
 
   async function handleSave(active: boolean) {
-    if (!title.trim() || !text.trim() || !imageUrl.trim() || savingDraft || savingPublish) return
+    if (!title.trim() || !text.trim() || savingDraft || savingPublish) return
+    if (active && !imageUrl.trim()) return
     const setSaving = active ? setSavingPublish : setSavingDraft
     setSaving(true)
     setError('')
@@ -333,7 +326,7 @@ function AnnouncementEditorPage({ mode, target, onClose, onSaved, onDeleted }: A
           <Button
             variant="outlined"
             onClick={() => handleSave(false)}
-            disabled={!title.trim() || !text.trim() || !imageUrl.trim() || savingDraft || savingPublish}
+            disabled={!title.trim() || !text.trim() || savingDraft || savingPublish}
             loading={savingDraft}
             className="w-full"
           >
@@ -465,7 +458,7 @@ export function DeveloperUserAnnouncements({ initialAnnouncements }: DeveloperUs
                     </p>
                   </div>
                   <p className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}>
-                    src : {fileNameFromUrl(b.image_url)}
+                    {b.image_url ? `src : ${fileNameFromUrl(b.image_url)}` : 'No image selected'}
                   </p>
                 </div>
 
@@ -525,7 +518,9 @@ export function DeveloperUserAnnouncements({ initialAnnouncements }: DeveloperUs
 
       {showTest && (
         <AnnouncementsSheetView
-          announcements={banners.filter((b) => b.active)}
+          announcements={banners.filter(
+            (b): b is Announcement & { image_url: string } => b.active && b.image_url != null
+          )}
           onClose={() => setShowTest(false)}
         />
       )}

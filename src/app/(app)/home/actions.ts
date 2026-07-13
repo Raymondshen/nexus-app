@@ -179,6 +179,7 @@ export async function getAllAnnouncementsAction(): Promise<{ data?: Announcement
   return { data: (data ?? []) as Announcement[] }
 }
 
+// Drafts (active=false) may omit an image; publishing (active=true) always requires one.
 export async function createAnnouncementAction(title: string, text: string, imageUrl: string, active: boolean): Promise<{ ok?: boolean; error?: string }> {
   const auth = await requireDev()
   if ('error' in auth) return auth
@@ -187,8 +188,8 @@ export async function createAnnouncementAction(title: string, text: string, imag
   const trimmedImage = imageUrl.trim()
   if (!trimmedTitle) return { error: 'Title is required' }
   if (!trimmedText)  return { error: 'Text is required' }
-  if (!trimmedImage) return { error: 'Image URL is required' }
-  const { error } = await createServiceClient().from('announcements').insert({ title: trimmedTitle, text: trimmedText, image_url: trimmedImage, active })
+  if (active && !trimmedImage) return { error: 'Image URL is required' }
+  const { error } = await createServiceClient().from('announcements').insert({ title: trimmedTitle, text: trimmedText, image_url: trimmedImage || null, active })
   if (error) return { error: error.message }
   revalidateTag('announcements', 'max')
   return { ok: true }
@@ -202,8 +203,8 @@ export async function updateAnnouncementAction(id: string, title: string, text: 
   const trimmedImage = imageUrl.trim()
   if (!trimmedTitle) return { error: 'Title is required' }
   if (!trimmedText)  return { error: 'Text is required' }
-  if (!trimmedImage) return { error: 'Image URL is required' }
-  const { error } = await createServiceClient().from('announcements').update({ title: trimmedTitle, text: trimmedText, image_url: trimmedImage, active }).eq('id', id)
+  if (active && !trimmedImage) return { error: 'Image URL is required' }
+  const { error } = await createServiceClient().from('announcements').update({ title: trimmedTitle, text: trimmedText, image_url: trimmedImage || null, active }).eq('id', id)
   if (error) return { error: error.message }
   revalidateTag('announcements', 'max')
   return { ok: true }
@@ -212,7 +213,14 @@ export async function updateAnnouncementAction(id: string, title: string, text: 
 export async function toggleAnnouncementAction(id: string, active: boolean): Promise<{ ok?: boolean; error?: string }> {
   const auth = await requireDev()
   if ('error' in auth) return auth
-  const { error } = await createServiceClient().from('announcements').update({ active }).eq('id', id)
+  const service = createServiceClient()
+  if (active) {
+    const { data } = await service.from('announcements').select('image_url').eq('id', id).single()
+    if (!(data as { image_url: string | null } | null)?.image_url) {
+      return { error: 'Add an image before publishing' }
+    }
+  }
+  const { error } = await service.from('announcements').update({ active }).eq('id', id)
   if (error) return { error: error.message }
   revalidateTag('announcements', 'max')
   return { ok: true }
