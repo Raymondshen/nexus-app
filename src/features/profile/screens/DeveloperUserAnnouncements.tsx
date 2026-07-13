@@ -177,7 +177,8 @@ function AnnouncementEditorPage({ mode, target, onClose, onSaved, onDeleted }: A
   const [imageUrl, setImageUrl] = useState(target?.image_url ?? '')
   const [showImageSource, setShowImageSource] = useState(false)
   const [error,   setError]   = useState('')
-  const [saving,  setSaving]  = useState(false)
+  const [savingDraft,   setSavingDraft]   = useState(false)
+  const [savingPublish, setSavingPublish] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const exitingRef = useRef(false)
@@ -249,13 +250,14 @@ function AnnouncementEditorPage({ mode, target, onClose, onSaved, onDeleted }: A
     }
   }, [controls, handleBack])
 
-  async function handlePublish() {
-    if (!title.trim() || !text.trim() || !imageUrl.trim() || saving) return
+  async function handleSave(active: boolean) {
+    if (!title.trim() || !text.trim() || !imageUrl.trim() || savingDraft || savingPublish) return
+    const setSaving = active ? setSavingPublish : setSavingDraft
     setSaving(true)
     setError('')
     const result = mode === 'edit' && target
-      ? await updateAnnouncementAction(target.id, title.trim(), text.trim(), imageUrl.trim())
-      : await createAnnouncementAction(title.trim(), text.trim(), imageUrl.trim())
+      ? await updateAnnouncementAction(target.id, title.trim(), text.trim(), imageUrl.trim(), active)
+      : await createAnnouncementAction(title.trim(), text.trim(), imageUrl.trim(), active)
     setSaving(false)
     if (result.error) { setError(result.error); return }
     onSaved()
@@ -327,10 +329,21 @@ function AnnouncementEditorPage({ mode, target, onClose, onSaved, onDeleted }: A
       </div>
 
       <PageFooter>
+        {mode === 'create' && (
+          <Button
+            variant="outlined"
+            onClick={() => handleSave(false)}
+            disabled={!title.trim() || !text.trim() || !imageUrl.trim() || savingDraft || savingPublish}
+            loading={savingDraft}
+            className="w-full"
+          >
+            Save as draft
+          </Button>
+        )}
         <Button
-          onClick={handlePublish}
-          disabled={!title.trim() || !text.trim() || !imageUrl.trim() || saving}
-          loading={saving}
+          onClick={() => handleSave(true)}
+          disabled={!title.trim() || !text.trim() || !imageUrl.trim() || savingDraft || savingPublish}
+          loading={savingPublish}
           className="w-full"
         >
           Publish

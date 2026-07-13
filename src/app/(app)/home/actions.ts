@@ -179,7 +179,7 @@ export async function getAllAnnouncementsAction(): Promise<{ data?: Announcement
   return { data: (data ?? []) as Announcement[] }
 }
 
-export async function createAnnouncementAction(title: string, text: string, imageUrl: string): Promise<{ ok?: boolean; error?: string }> {
+export async function createAnnouncementAction(title: string, text: string, imageUrl: string, active: boolean): Promise<{ ok?: boolean; error?: string }> {
   const auth = await requireDev()
   if ('error' in auth) return auth
   const trimmedTitle = title.trim()
@@ -188,13 +188,13 @@ export async function createAnnouncementAction(title: string, text: string, imag
   if (!trimmedTitle) return { error: 'Title is required' }
   if (!trimmedText)  return { error: 'Text is required' }
   if (!trimmedImage) return { error: 'Image URL is required' }
-  const { error } = await createServiceClient().from('announcements').insert({ title: trimmedTitle, text: trimmedText, image_url: trimmedImage })
+  const { error } = await createServiceClient().from('announcements').insert({ title: trimmedTitle, text: trimmedText, image_url: trimmedImage, active })
   if (error) return { error: error.message }
   revalidateTag('announcements', 'max')
   return { ok: true }
 }
 
-export async function updateAnnouncementAction(id: string, title: string, text: string, imageUrl: string): Promise<{ ok?: boolean; error?: string }> {
+export async function updateAnnouncementAction(id: string, title: string, text: string, imageUrl: string, active: boolean): Promise<{ ok?: boolean; error?: string }> {
   const auth = await requireDev()
   if ('error' in auth) return auth
   const trimmedTitle = title.trim()
@@ -203,7 +203,7 @@ export async function updateAnnouncementAction(id: string, title: string, text: 
   if (!trimmedTitle) return { error: 'Title is required' }
   if (!trimmedText)  return { error: 'Text is required' }
   if (!trimmedImage) return { error: 'Image URL is required' }
-  const { error } = await createServiceClient().from('announcements').update({ title: trimmedTitle, text: trimmedText, image_url: trimmedImage }).eq('id', id)
+  const { error } = await createServiceClient().from('announcements').update({ title: trimmedTitle, text: trimmedText, image_url: trimmedImage, active }).eq('id', id)
   if (error) return { error: error.message }
   revalidateTag('announcements', 'max')
   return { ok: true }
