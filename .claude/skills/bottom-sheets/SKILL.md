@@ -18,13 +18,29 @@ Figma 502:2783 — sheets with pinned CTA buttons (Save/Cancel/Edit/Delete, etc)
 
 ```tsx
 <BottomSheet onClose={onClose}>
-  <div className="flex flex-col" style={{ gap: 'var(--space-5)', paddingLeft: 'var(--x5)', paddingRight: 'var(--x5)' }}>
+  <div
+    className="flex flex-col"
+    style={{
+      gap: "var(--space-5)",
+      paddingLeft: "var(--x5)",
+      paddingRight: "var(--x5)",
+    }}
+  >
     {/* content — owns its own horizontal padding, no bottom padding when a footer follows */}
   </div>
 
   <SheetFooter>
-    <Button onClick={handleSave} loading={saving} className="w-full">Save</Button>
-    <Button variant="outlined" color="tertiary" onClick={onClose} className="w-full">Cancel</Button>
+    <Button onClick={handleSave} loading={saving} className="w-full">
+      Save
+    </Button>
+    <Button
+      variant="outlined"
+      color="tertiary"
+      onClick={onClose}
+      className="w-full"
+    >
+      Cancel
+    </Button>
   </SheetFooter>
 </BottomSheet>
 ```
@@ -32,6 +48,8 @@ Figma 502:2783 — sheets with pinned CTA buttons (Save/Cancel/Edit/Delete, etc)
 `SheetFooter` is a sibling **after** the content, not a wrapper around it — same relationship as `PageHeader`/`PageFooter` around a page's scrollable body. It owns `gap: x5`, `padding: pt-x5 px-x5 pb-max(safe-area,x8)`; content sections must own their own horizontal padding. If the footer is conditionally rendered (e.g. creator-only actions), give the content section its own bottom safe-area padding for the no-footer case.
 
 Reuse `Button`/`DefinitionButton` for the CTA itself — `SheetFooter` only owns the container, same rule as `PageFooter`.
+
+**When the content needs to scroll independently of a pinned footer**, don't put `overflow-y-auto` on `BottomSheet` itself (that scrolls the footer along with the content). Instead give the content div its own `flex-1 min-h-0 overflow-y-auto` and let `SheetFooter` stay a `flex-shrink-0` sibling — `BottomSheet`'s outer container is already `flex flex-col`, so this pins the footer while only the content scrolls. See `SquadDetailsSheet` (leave-squad button) and `AnnouncementsSheet` (Dismiss button) for reference implementations.
 
 ---
 
@@ -57,6 +75,8 @@ Reuse the existing:
 - Design tokens
 
 Never hardcode styling values.
+
+Review the design-system folder SKILL.md for further references.
 
 ---
 

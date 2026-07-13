@@ -11,6 +11,7 @@ import { Button } from '@/shared/components/ui/Button'
 import { SelectField, InputField, TextareaField } from '@/shared/components/ui/InputField'
 import { BottomSheet } from '@/shared/components/ui/sheet/BottomSheet'
 import { AnnouncementCard } from '@/shared/components/banners/AnnouncementCard'
+import { AnnouncementsSheetView } from '@/shared/components/banners/AnnouncementsSheet'
 import {
   createAnnouncementAction,
   getAllAnnouncementsAction,
@@ -372,6 +373,7 @@ export function DeveloperUserAnnouncements({ initialAnnouncements }: DeveloperUs
 
   const [showCreate,  setShowCreate]  = useState(false)
   const [editTarget,  setEditTarget]  = useState<Announcement | null>(null)
+  const [showTest,    setShowTest]    = useState(false)
 
   const reload = useCallback(async () => {
     setLoading(true)
@@ -476,6 +478,14 @@ export function DeveloperUserAnnouncements({ initialAnnouncements }: DeveloperUs
         <Button onClick={() => setShowCreate(true)} className="w-full">
           Add announcement
         </Button>
+        {/* Figma 472:6048 — outlined purple, dev-only trigger for the real production
+            sheet. Safe beyond this page's existing server-side is_dev gate: it renders
+            AnnouncementsSheetView directly (the stateless half of AnnouncementsSheet),
+            which never touches the nexus_dismissed_banners localStorage key real
+            end-users are tracked by, so previewing can't dismiss it for anyone. */}
+        <Button variant="outlined" onClick={() => setShowTest(true)} className="w-full">
+          Test Announcement
+        </Button>
       </PageFooter>
 
       <AnimatePresence>
@@ -499,6 +509,13 @@ export function DeveloperUserAnnouncements({ initialAnnouncements }: DeveloperUs
           />
         )}
       </AnimatePresence>
+
+      {showTest && (
+        <AnnouncementsSheetView
+          announcements={banners.filter((b) => b.active)}
+          onClose={() => setShowTest(false)}
+        />
+      )}
     </SlidePage>
   )
 }
