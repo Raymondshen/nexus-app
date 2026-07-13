@@ -69,14 +69,14 @@ export function UserCard({
         className="relative flex flex-col items-start justify-end flex-shrink-0 w-full overflow-hidden rounded-tl-[7px] rounded-tr-[7px]"
         style={{ height: 108, padding: 12 }}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element -- full-bleed cover fill, same pattern as ProfileHeroBackground/ManageUserProfile's hero */}
+        {/* eslint-disable-next-line @next/next/no-img-element -- full-bleed fill, same pattern as ProfileHeroBackground/ManageUserProfile's hero */}
         <img
           src={supabaseImageLoader({ src: profile.background_url ?? '/img/default_image.png', width: 360, quality: 75 })}
           alt=""
           aria-hidden
           loading="lazy"
           decoding="async"
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }}
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'fill', pointerEvents: 'none' }}
         />
         <div
           className="absolute inset-0 pointer-events-none rounded-tl-[7px] rounded-tr-[7px]"
