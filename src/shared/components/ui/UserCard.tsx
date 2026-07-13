@@ -71,7 +71,7 @@ export function UserCard({
       >
         {/* eslint-disable-next-line @next/next/no-img-element -- full-bleed cover fill, same pattern as ProfileHeroBackground/ManageUserProfile's hero */}
         <img
-          src={supabaseImageLoader({ src: profile.background_url ?? '/img/default_image.png', width: 360, quality: 75 })}
+          src={supabaseImageLoader({ src: profile.background_url ?? '/img/default_image.png', width: 540, quality: 90 })}
           alt=""
           aria-hidden
           loading="lazy"

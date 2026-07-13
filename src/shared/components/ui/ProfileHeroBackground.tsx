@@ -30,7 +30,12 @@ export function ProfileHeroBackground({ url }: ProfileHeroBackgroundProps) {
   return (
     // eslint-disable-next-line @next/next/no-img-element -- full-bleed cover fill; next/image fill would work here too, but this keeps parity with the plain <img> hero markup it replaces
     <img
-      src={supabaseImageLoader({ src: url ?? '/img/default_image.png', width: 480, quality: 75 })}
+      // width matches BackgroundUploadModal's max upload canvas (1080x608) — the hero is
+      // full-bleed up to SlidePage's 480px maxWidth, so on a 2-3x DPR phone a smaller
+      // request forces the browser to upscale an already-compressed source, which read as
+      // pixelation. Requesting the source's own max resolution avoids compounding that
+      // with a second lossy downscale+upscale round-trip.
+      src={supabaseImageLoader({ src: url ?? '/img/default_image.png', width: 1080, quality: 90 })}
       alt=""
       aria-hidden
       decoding="async"
