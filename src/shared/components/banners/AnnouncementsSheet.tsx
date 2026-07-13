@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { AnimatePresence } from "framer-motion";
 import { BottomSheet } from "@/shared/components/ui/sheet/BottomSheet";
+import { SheetFooter } from "@/shared/components/ui/sheet/SheetFooter";
+import { Button } from "@/shared/components/ui/Button";
 import { AnnouncementCard } from "./AnnouncementCard";
 
 export interface AnnouncementItem {
@@ -43,15 +45,11 @@ export function AnnouncementsSheetView({
           onClose={onClose}
           zIndex={80}
           maxHeight="85vh"
-          background="var(--gradient-nexus)"
-          className="overflow-y-auto nexus-scroll px-[var(--space-5)] border-l border-r border-t border-purple"
+          className="border-l border-r border-t border-purple"
         >
           <div
-            className="w-full flex flex-col items-center"
-            style={{
-              gap: "var(--space-5)",
-              paddingBottom: "max(env(safe-area-inset-bottom), var(--space-8))",
-            }}
+            className="flex-1 min-h-0 overflow-y-auto nexus-scroll w-full flex flex-col items-center px-[var(--space-5)]"
+            style={{ gap: "var(--space-5)" }}
           >
             <div
               className="w-full flex flex-col items-start"
@@ -83,28 +81,20 @@ export function AnnouncementsSheetView({
                 createdAt={a.created_at}
               />
             ))}
-
-            <button
-              onClick={onClose}
-              className="w-full flex items-center justify-center bg-purple rounded-[8px]"
-              style={{ padding: "var(--space-5)" }}
-            >
-              <span
-                className="font-body font-semibold text-primary whitespace-nowrap"
-                style={{ fontSize: "var(--text-sm)", letterSpacing: "0.2px" }}
-              >
-                Dismiss
-              </span>
-            </button>
           </div>
+
+          <SheetFooter>
+            <Button onClick={onClose} shadow className="w-full">
+              Dismiss
+            </Button>
+          </SheetFooter>
         </BottomSheet>
       )}
     </AnimatePresence>
   );
 }
 
-// Figma 419:1930 — "what's new" sheet, nexus-gradient background (an explicit
-// exception to BottomSheet's default solid --color-surface-sheet).
+// Figma 419:1930 — "what's new" sheet.
 export function AnnouncementsSheet({
   announcements,
 }: {
