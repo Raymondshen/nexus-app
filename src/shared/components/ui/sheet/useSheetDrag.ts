@@ -27,9 +27,9 @@ const CLOSE_VELOCITY = 400
 export function useSheetDrag(onClose: () => void, disabled = false) {
   const dragControls = useDragControls()
   const sheetRef     = useRef<HTMLDivElement>(null)
-  // Per-gesture state captured on pointer-down: start Y + whether a sheet drag is even
+  // Per-gesture state captured on pointer-down: start X/Y + whether a sheet drag is even
   // allowed to begin (i.e. the touch isn't on a list that's scrolled part-way down).
-  const gestureRef   = useRef<{ y: number; canDrag: boolean } | null>(null)
+  const gestureRef   = useRef<{ x: number; y: number; canDrag: boolean } | null>(null)
 
   // Walk from the touched element up to the sheet root looking for a vertically
   // scrollable ancestor. If one exists, a drag may only begin when it's at the top (so
@@ -56,14 +56,23 @@ export function useSheetDrag(onClose: () => void, disabled = false) {
     dragElastic: { top: 0, bottom: 1 },
     onPointerDown(e: ReactPointerEvent) {
       if (disabled) { gestureRef.current = null; return }
-      gestureRef.current = { y: e.clientY, canDrag: canDragFrom(e.target) }
+      gestureRef.current = { x: e.clientX, y: e.clientY, canDrag: canDragFrom(e.target) }
     },
     onPointerMove(e: ReactPointerEvent) {
       const g = gestureRef.current
       if (!g || !g.canDrag) return
-      if (e.clientY - g.y > DRAG_START_THRESHOLD) {
+      const dy = e.clientY - g.y
+      const dx = e.clientX - g.x
+      // Require the gesture to be predominantly vertical before hijacking it into the
+      // sheet's pull-to-close drag — otherwise a horizontal swipe across a nested
+      // horizontal scroller (e.g. the member card row) gets stolen by its small
+      // incidental vertical component, breaking native horizontal scrolling.
+      if (dy > DRAG_START_THRESHOLD && dy > Math.abs(dx)) {
         gestureRef.current = null
         dragControls.start(e)
+      } else if (Math.abs(dx) > DRAG_START_THRESHOLD) {
+        // Horizontal intent established — stop evaluating this gesture for vertical drag.
+        gestureRef.current = null
       }
     },
     onPointerUp()     { gestureRef.current = null },
