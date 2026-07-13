@@ -74,6 +74,14 @@ const SLASH_COMMANDS = [
 ] as const
 type SlashCommandName = typeof SLASH_COMMANDS[number]['name']
 
+// Figma 507:2519 "loader" — three dots bouncing in sequence, 2s linear loop (per
+// get_motion_context on 507:2528/2530/2531). Each dot has its own y-keyframe/timing pair.
+const TYPING_LOADER_DOTS: { y: number[]; times: number[] }[] = [
+  { y: [0, -2, 0, 0],    times: [0, 0.2035, 0.401, 1] },
+  { y: [0, 0, -2, 0, 0], times: [0, 0.2035, 0.401, 0.6015, 1] },
+  { y: [0, 0, -2, 0, 0], times: [0, 0.401, 0.6015, 0.7995, 1] },
+]
+
 
 // background_url is optional here (not a plain Pick field) because the DM page's
 // own MemberProfile — passed through unchanged as this same prop shape — never
@@ -1327,182 +1335,165 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   const totalMessages = [...memberMsgCounts.values()].reduce((s, n) => s + n, 0)
 
   return (
-    <div
-      className="bg-black border-t border-border flex flex-col flex-shrink-0 relative z-[65]"
-      style={{
-        paddingTop:    'var(--space-5)',
-        paddingLeft:   'var(--space-5)',
-        paddingRight:  'var(--space-5)',
-        paddingBottom: 'max(env(safe-area-inset-bottom), 32px)',
-        gap:           'var(--space-5)',
-      }}
-    >
-      {/* ── Friendship XP toast (DM send or group @mention) — dev-gated: nexus_friendship_xp ── */}
-      {fxpEnabled && (
-        <FriendshipXPToast
-          visible={!!friendshipToast}
-          xpAwarded={friendshipToast?.xpAwarded ?? 0}
-          totalXP={friendshipToast?.totalXP ?? 0}
-          partnerName={friendshipToast?.partnerName ?? ''}
-          dailyCount={friendshipToast?.dailyCount ?? 1}
-        />
+    <div className="bg-black flex flex-col flex-shrink-0 relative z-[65]">
+      {/* ── Typing presence (Figma 507:2518) — own top section, no gap before the
+          bordered squad+input box below; the box's border-t is what divides them. ── */}
+      {typingLabel && (
+        <div
+          className="flex items-center justify-center w-full"
+          style={{
+            gap:           'var(--space-3)',
+            paddingLeft:   'var(--space-5)',
+            paddingRight:  'var(--space-5)',
+            paddingTop:    'var(--space-4)',
+            paddingBottom: 'var(--space-4)',
+          }}
+        >
+          <span className="flex items-center flex-shrink-0" style={{ gap: 'var(--space-2)' }}>
+            {TYPING_LOADER_DOTS.map((dot, i) => (
+              <motion.span
+                key={i}
+                className="inline-block rounded-full flex-shrink-0"
+                style={{ width: 4, height: 4, background: 'var(--color-tertiary)' }}
+                animate={{ y: dot.y }}
+                transition={{ duration: 2, times: dot.times, ease: 'linear', repeat: Infinity }}
+              />
+            ))}
+          </span>
+          <p
+            className="flex-1 min-w-0 font-body font-light text-tertiary leading-none [word-break:break-word]"
+            style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}
+          >
+            {typingLabel}
+          </p>
+        </div>
       )}
 
-      {/* ── Daily gem toast ── */}
-      <GemToast visible={gemToastVisible} stacked={!!friendshipToast} />
-
-
-      {/* ── DM: "Chatting with" label ── */}
-      {isDM && (
-        <p className="font-silkscreen text-[12px] leading-none">
-          <span className="text-tertiary">Chatting with </span>
-          <span className="text-purple">{liveCrewName.toLowerCase()}</span>
-        </p>
-      )}
-
-      {/* ── ChatSquadDetailBar — tap or swipe up to expand ── */}
-      {!isDM && (
-        <ChatSquadDetailBar
-          crewImageUrl={crewImageUrl}
-          crewName={liveCrewName}
-          crewLevel={crewLevel}
-          memberCount={memberCount}
-          members={members}
-          onlineUserIds={onlineUserIds}
-          onExpand={() => setIsExpanded(true)}
-          onPanEnd={handleTopPanEnd}
-        />
-      )}
-
-      {/* ── Status indicators + input — fade out when expanded ── */}
-      <motion.div
-        animate={{ opacity: isExpanded ? 0 : 1, y: isExpanded ? 16 : 0 }}
-        transition={{ duration: 0.18 }}
-        style={{ pointerEvents: isExpanded ? 'none' : 'auto' }}
+      <div
+        className="border-t border-border flex flex-col"
+        style={{
+          paddingTop:    'var(--space-5)',
+          paddingLeft:   'var(--space-5)',
+          paddingRight:  'var(--space-5)',
+          paddingBottom: 'max(env(safe-area-inset-bottom), 32px)',
+          gap:           'var(--space-5)',
+        }}
       >
-        {sendError && (
-          <button className="w-full font-pixel text-[7px] text-[#ff4444] mb-2 text-left" onClick={send}>
-            ↺ {sendError}
-          </button>
+        {/* ── Friendship XP toast (DM send or group @mention) — dev-gated: nexus_friendship_xp ── */}
+        {fxpEnabled && (
+          <FriendshipXPToast
+            visible={!!friendshipToast}
+            xpAwarded={friendshipToast?.xpAwarded ?? 0}
+            totalXP={friendshipToast?.totalXP ?? 0}
+            partnerName={friendshipToast?.partnerName ?? ''}
+            dailyCount={friendshipToast?.dailyCount ?? 1}
+          />
         )}
 
-        {typingLabel && (
-          <div className="flex items-center gap-1 mb-2">
-            <span className="flex gap-0.5">
-              {[0, 1, 2].map((i) => (
-                <span key={i} className="inline-block w-1 h-1 rounded-full bg-purple animate-bounce" style={{ animationDelay: `${i * 150}ms` }} />
-              ))}
-            </span>
-            <span className="font-pixel text-[7px] text-tertiary">{typingLabel}</span>
-          </div>
+        {/* ── Daily gem toast ── */}
+        <GemToast visible={gemToastVisible} stacked={!!friendshipToast} />
+
+
+        {/* ── DM: "Chatting with" label ── */}
+        {isDM && (
+          <p className="font-silkscreen text-[12px] leading-none">
+            <span className="text-tertiary">Chatting with </span>
+            <span className="text-purple">{liveCrewName.toLowerCase()}</span>
+          </p>
         )}
 
-        {/* ── Edit mode bar ── */}
-        {editTo && (
-          <div
-            className="flex items-center w-full"
-            style={{ background: 'var(--color-surface)', padding: 16, gap: 8, marginBottom: 8 }}
-          >
-            <MagicEdit style={{ width: 16, height: 16, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
-            <p
-              className="flex-1 min-w-0 font-body font-medium leading-none tracking-[0.1px] whitespace-nowrap overflow-hidden text-ellipsis"
-              style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14', color: 'var(--color-primary)' }}
-            >
-              Editing message
-            </p>
-            <button
-              onClick={() => { setEditTo(null); setText(''); textRef.current = '' }}
-              className="flex-shrink-0 flex items-center justify-center active:opacity-60"
-              style={{ width: 32, height: 32, marginRight: -8 }}
-              aria-label="Cancel edit"
-            >
-              <Close style={{ width: 16, height: 16, color: 'var(--color-secondary)' }} aria-hidden="true" />
+        {/* ── ChatSquadDetailBar — tap or swipe up to expand ── */}
+        {!isDM && (
+          <ChatSquadDetailBar
+            crewImageUrl={crewImageUrl}
+            crewName={liveCrewName}
+            crewLevel={crewLevel}
+            memberCount={memberCount}
+            members={members}
+            onlineUserIds={onlineUserIds}
+            onExpand={() => setIsExpanded(true)}
+            onPanEnd={handleTopPanEnd}
+          />
+        )}
+
+        {/* ── Status indicators + input — fade out when expanded ── */}
+        <motion.div
+          animate={{ opacity: isExpanded ? 0 : 1, y: isExpanded ? 16 : 0 }}
+          transition={{ duration: 0.18 }}
+          style={{ pointerEvents: isExpanded ? 'none' : 'auto' }}
+        >
+          {sendError && (
+            <button className="w-full font-pixel text-[7px] text-[#ff4444] mb-2 text-left" onClick={send}>
+              ↺ {sendError}
             </button>
-          </div>
-        )}
+          )}
 
-        {/* ── Reply preview bar ── */}
-        {replyTo && (
-          <div
-            className="flex items-center w-full"
-            style={{ background: 'var(--color-surface)', padding: 16, gap: 8, marginBottom: 8 }}
-          >
-            <CornerUpLeft style={{ width: 16, height: 16, color: 'var(--color-tertiary)', flexShrink: 0 }} aria-hidden="true" />
-
-            {/* msg wrapper — flex-[1_0_0], no height clamp so text is never clipped */}
-            <div style={{ flex: '1 0 0', minWidth: 1, display: 'flex', alignItems: 'center' }}>
+          {/* ── Edit mode bar ── */}
+          {editTo && (
+            <div
+              className="flex items-center w-full"
+              style={{ background: 'var(--color-surface)', padding: 16, gap: 8, marginBottom: 8 }}
+            >
+              <MagicEdit style={{ width: 16, height: 16, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
               <p
-                className="font-body font-medium leading-[0] tracking-[0.1px] whitespace-nowrap overflow-hidden text-ellipsis w-full"
-                style={{ fontSize: 12, minWidth: 1, fontVariationSettings: '"opsz" 14' }}
+                className="flex-1 min-w-0 font-body font-medium leading-none tracking-[0.1px] whitespace-nowrap overflow-hidden text-ellipsis"
+                style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14', color: 'var(--color-primary)' }}
               >
-                <span className="leading-none" style={{ color: 'var(--color-purple)' }}>@{replyTo.profile?.username ?? replyTo.reply_username ?? '???'} </span>
-                {(() => {
-                  const preview = replyTo.content?.trim() || (replyTo.image_url ? '(photo)' : null)
-                  return preview
-                    ? <span className="leading-none" style={{ color: 'var(--color-tertiary)' }}>{preview}</span>
-                    : null
-                })()}
+                Editing message
               </p>
-            </div>
-
-            <button
-              onClick={() => setReplyTo(null)}
-              className="flex-shrink-0 flex items-center justify-center active:opacity-60"
-              style={{ width: 32, height: 32, marginRight: -8 }}
-              aria-label="Cancel reply"
-            >
-              <Close style={{ width: 16, height: 16, color: 'var(--color-tertiary)' }} aria-hidden="true" />
-            </button>
-          </div>
-        )}
-
-        {/* ── Input wrapper: pickers float above via absolute positioning ── */}
-        <div className="relative">
-          {/* @mention picker — absolute, grows upward over group details */}
-          <AnimatePresence>
-            {mentionQuery !== null && mentionMatches.length > 0 && (
-              <motion.div
-                key="mention-menu"
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 4 }}
-                transition={{ duration: 0.12 }}
-                className="absolute bottom-full left-0 right-0 border border-border bg-black"
+              <button
+                onClick={() => { setEditTo(null); setText(''); textRef.current = '' }}
+                className="flex-shrink-0 flex items-center justify-center active:opacity-60"
+                style={{ width: 32, height: 32, marginRight: -8 }}
+                aria-label="Cancel edit"
               >
-                <div className="nexus-scroll" style={{ maxHeight: 220, overflowY: 'scroll' }}>
-                {mentionMatches.map((m, i) => {
-                  const url     = m.avatar_url as string | null | undefined
-                  const isLast  = i === mentionMatches.length - 1
-                  return (
-                    <button
-                      key={m.id}
-                      onMouseDown={(e) => { e.preventDefault(); completeMention(m.username) }}
-                      className={`w-full flex items-center overflow-hidden p-2 text-left ${!isLast ? 'border-b border-border' : ''} ${i === mentionIndex ? 'bg-surface' : 'active:bg-surface'}`}
-                      style={{ gap: 'var(--space-3)' }}
-                    >
-                      <UserAvatar avatarUrl={url} username={m.username} size={24} />
-                      <div className="flex flex-col flex-1 min-w-0 items-start">
-                        <span className="font-silkscreen text-[length:var(--text-mini)] text-purple leading-normal w-full">@mention</span>
-                        <span className="font-body font-normal text-[length:var(--text-xs)] text-primary leading-normal w-full" style={{ fontVariationSettings: '"opsz" 14' }}>{m.username}</span>
-                      </div>
-                    </button>
-                  )
-                })}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+                <Close style={{ width: 16, height: 16, color: 'var(--color-secondary)' }} aria-hidden="true" />
+              </button>
+            </div>
+          )}
 
-          {/* ── Slash command menu — absolute, grows upward over group details ── */}
-          {(() => {
-            const isCmd = text.startsWith('/') && !text.includes(' ')
-            const filter = isCmd ? text.slice(1).toLowerCase() : ''
-            const matches = isCmd ? SLASH_COMMANDS.filter((c) => c.name.startsWith(filter) && (c.name !== 'event' || eventsEnabled)) : []
-            if (!isCmd || matches.length === 0) return null
-            return (
-              <AnimatePresence>
+          {/* ── Reply preview bar ── */}
+          {replyTo && (
+            <div
+              className="flex items-center w-full"
+              style={{ background: 'var(--color-surface)', padding: 16, gap: 8, marginBottom: 8 }}
+            >
+              <CornerUpLeft style={{ width: 16, height: 16, color: 'var(--color-tertiary)', flexShrink: 0 }} aria-hidden="true" />
+
+              {/* msg wrapper — flex-[1_0_0], no height clamp so text is never clipped */}
+              <div style={{ flex: '1 0 0', minWidth: 1, display: 'flex', alignItems: 'center' }}>
+                <p
+                  className="font-body font-medium leading-[0] tracking-[0.1px] whitespace-nowrap overflow-hidden text-ellipsis w-full"
+                  style={{ fontSize: 12, minWidth: 1, fontVariationSettings: '"opsz" 14' }}
+                >
+                  <span className="leading-none" style={{ color: 'var(--color-purple)' }}>@{replyTo.profile?.username ?? replyTo.reply_username ?? '???'} </span>
+                  {(() => {
+                    const preview = replyTo.content?.trim() || (replyTo.image_url ? '(photo)' : null)
+                    return preview
+                      ? <span className="leading-none" style={{ color: 'var(--color-tertiary)' }}>{preview}</span>
+                      : null
+                  })()}
+                </p>
+              </div>
+
+              <button
+                onClick={() => setReplyTo(null)}
+                className="flex-shrink-0 flex items-center justify-center active:opacity-60"
+                style={{ width: 32, height: 32, marginRight: -8 }}
+                aria-label="Cancel reply"
+              >
+                <Close style={{ width: 16, height: 16, color: 'var(--color-tertiary)' }} aria-hidden="true" />
+              </button>
+            </div>
+          )}
+
+          {/* ── Input wrapper: pickers float above via absolute positioning ── */}
+          <div className="relative">
+            {/* @mention picker — absolute, grows upward over group details */}
+            <AnimatePresence>
+              {mentionQuery !== null && mentionMatches.length > 0 && (
                 <motion.div
-                  key="cmd-menu"
+                  key="mention-menu"
                   initial={{ opacity: 0, y: 4 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: 4 }}
@@ -1510,193 +1501,234 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
                   className="absolute bottom-full left-0 right-0 border border-border bg-black"
                 >
                   <div className="nexus-scroll" style={{ maxHeight: 220, overflowY: 'scroll' }}>
-                  {matches.map((cmd, i) => {
-                    const isLast = i === matches.length - 1
+                  {mentionMatches.map((m, i) => {
+                    const url     = m.avatar_url as string | null | undefined
+                    const isLast  = i === mentionMatches.length - 1
                     return (
                       <button
-                        key={cmd.name}
-                        onMouseDown={(e) => { e.preventDefault(); executeCommand(cmd.name) }}
-                        className={`w-full flex flex-col items-start overflow-hidden p-2 text-left active:bg-surface ${!isLast ? 'border-b border-border' : ''}`}
+                        key={m.id}
+                        onMouseDown={(e) => { e.preventDefault(); completeMention(m.username) }}
+                        className={`w-full flex items-center overflow-hidden p-2 text-left ${!isLast ? 'border-b border-border' : ''} ${i === mentionIndex ? 'bg-surface' : 'active:bg-surface'}`}
+                        style={{ gap: 'var(--space-3)' }}
                       >
-                        <span className="font-silkscreen text-[length:var(--text-mini)] text-purple leading-normal w-full">/{cmd.name}</span>
-                        <span className="font-body font-normal text-[length:var(--text-xs)] text-tertiary leading-normal w-full" style={{ fontVariationSettings: '"opsz" 14' }}>{cmd.description}</span>
+                        <UserAvatar avatarUrl={url} username={m.username} size={24} />
+                        <div className="flex flex-col flex-1 min-w-0 items-start">
+                          <span className="font-silkscreen text-[length:var(--text-mini)] text-purple leading-normal w-full">@mention</span>
+                          <span className="font-body font-normal text-[length:var(--text-xs)] text-primary leading-normal w-full" style={{ fontVariationSettings: '"opsz" 14' }}>{m.username}</span>
+                        </div>
                       </button>
                     )
                   })}
                   </div>
                 </motion.div>
-              </AnimatePresence>
-            )
-          })()}
+              )}
+            </AnimatePresence>
 
-          {/* Input container — flex-col when images are staged; outline brightens on focus */}
-          <div
-            className="w-full flex flex-col"
-              style={{
-                outline:       '1px solid',
-                outlineColor:  isFocused ? 'var(--color-border-hover)' : 'var(--color-border)',
-                outlineOffset: '-1px',
-                transition:    'outline-color 0.15s ease',
-                paddingLeft:   16,
-                paddingRight:  16,
-                paddingTop:    pendingImages.length > 0 ? 16 : 0,
-                paddingBottom: pendingImages.length > 0 ? 16 : 0,
-                gap:           pendingImages.length > 0 ? 16 : 0,
-                minHeight:     48,
-              }}
-            >
-              {/* ── Image tray (inside border, animates in/out) ── */}
-              <AnimatePresence>
-                {pendingImages.length > 0 && (
+            {/* ── Slash command menu — absolute, grows upward over group details ── */}
+            {(() => {
+              const isCmd = text.startsWith('/') && !text.includes(' ')
+              const filter = isCmd ? text.slice(1).toLowerCase() : ''
+              const matches = isCmd ? SLASH_COMMANDS.filter((c) => c.name.startsWith(filter) && (c.name !== 'event' || eventsEnabled)) : []
+              if (!isCmd || matches.length === 0) return null
+              return (
+                <AnimatePresence>
                   <motion.div
-                    key="image-tray"
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    transition={{ duration: 0.18, ease: 'easeOut' }}
-                    style={{ overflow: 'hidden' }}
+                    key="cmd-menu"
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 4 }}
+                    transition={{ duration: 0.12 }}
+                    className="absolute bottom-full left-0 right-0 border border-border bg-black"
                   >
-                    {/* 80×80 image slots — gap 8px, overflow clips 4th at narrow widths */}
-                    <div className="flex items-start" style={{ gap: 8, overflow: 'hidden' }}>
-                      {pendingImages.map((img) => (
-                        <div
-                          key={img.id}
-                          className="relative flex-shrink-0"
-                          style={{ width: 80, height: 80, background: 'var(--color-surface)' }}
+                    <div className="nexus-scroll" style={{ maxHeight: 220, overflowY: 'scroll' }}>
+                    {matches.map((cmd, i) => {
+                      const isLast = i === matches.length - 1
+                      return (
+                        <button
+                          key={cmd.name}
+                          onMouseDown={(e) => { e.preventDefault(); executeCommand(cmd.name) }}
+                          className={`w-full flex flex-col items-start overflow-hidden p-2 text-left active:bg-surface ${!isLast ? 'border-b border-border' : ''}`}
                         >
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={img.localUrl}
-                            alt=""
-                            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                          />
-                          {img.uploading && (
-                            <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                              <span className="font-pixel text-[6px] text-white leading-none">···</span>
-                            </div>
-                          )}
-                          {img.error && (
-                            <div className="absolute inset-0 bg-[#ef4444]/70 flex items-center justify-center">
-                              <span className="font-pixel text-[5px] text-white leading-none text-center px-1">ERR</span>
-                            </div>
-                          )}
-                          {/* Close button — 16×16 white circle, 4px inset from top-right */}
-                          <button
-                            onClick={() => removePendingImage(img.id)}
-                            className="absolute flex items-center justify-center active:opacity-70"
-                            style={{ top: 4, right: 4, width: 16, height: 16, background: 'var(--color-primary)', borderRadius: '50%' }}
-                            aria-label="Remove image"
-                          >
-                            <Close style={{ width: 10, height: 10, color: '#000' }} aria-hidden="true" />
-                          </button>
-                        </div>
-                      ))}
+                          <span className="font-silkscreen text-[length:var(--text-mini)] text-purple leading-normal w-full">/{cmd.name}</span>
+                          <span className="font-body font-normal text-[length:var(--text-xs)] text-tertiary leading-normal w-full" style={{ fontVariationSettings: '"opsz" 14' }}>{cmd.description}</span>
+                        </button>
+                      )
+                    })}
                     </div>
                   </motion.div>
-                )}
-              </AnimatePresence>
+                </AnimatePresence>
+              )
+            })()}
 
-              {/* ── Text input + send button row ── */}
-              <div className="flex items-center" style={{ gap: 16, minHeight: pendingImages.length > 0 ? 18 : 48 }}>
-                {/* Plus button — slides left and fades out on focus */}
-                <motion.div
-                  className="flex-shrink-0 overflow-hidden flex items-center justify-center"
-                  animate={{
-                    width:       isFocused ? 0 : 16,
-                    opacity:     isFocused ? 0 : 1,
-                    marginRight: isFocused ? -16 : 0,
-                  }}
-                  transition={{ type: 'spring', stiffness: 320, damping: 28 }}
-                  style={{ pointerEvents: isFocused ? 'none' : 'auto' }}
-                >
-                  <button
-                    onClick={() => setShowMediaPicker(true)}
-                    disabled={pendingImages.length >= 4}
-                    className="flex-shrink-0 flex items-center justify-center text-muted active:text-purple disabled:opacity-30 disabled:cursor-not-allowed"
-                    style={{ width: 16, height: 16 }}
-                    aria-label="Add media"
-                  >
-                    <Plus style={{ width: 16, height: 16 }} aria-hidden="true" />
-                  </button>
-                </motion.div>
-                <div ref={innerContainerRef} className="relative flex-1 min-w-0 overflow-hidden">
-                  {/* Hidden mirror span — measures text pixel width for overflow detection */}
-                  <span
-                    ref={mirrorRef}
-                    aria-hidden="true"
-                    className="font-body"
-                    style={{
-                      position: 'fixed',
-                      top: -9999,
-                      left: -9999,
-                      visibility: 'hidden',
-                      pointerEvents: 'none',
-                      whiteSpace: 'pre',
-                      fontSize: 14,
-                      lineHeight: 'normal',
-                      fontVariationSettings: '"opsz" 14',
-                    }}
-                  />
-                  {/* Overlay renders @mention highlights behind the transparent input/textarea */}
-                  <div
-                    ref={overlayRef}
-                    aria-hidden="true"
-                    className="pointer-events-none absolute inset-0 font-body text-[14px] leading-normal overflow-hidden"
-                    style={{ paddingTop: 12, paddingBottom: 12, fontVariationSettings: '"opsz" 14', whiteSpace: isMultiline ? 'pre-wrap' : 'nowrap', wordBreak: isMultiline ? 'break-word' : 'normal', color: 'var(--color-primary)' }}
-                  >
-                    {renderHighlightedInput(text)}
-                  </div>
-                  {isMultiline ? (
-                    <textarea
-                      ref={textareaRef}
-                      value={text}
-                      onChange={(e) => handleInput(e)}
-                      onKeyDown={(e) => handleKeyDown(e)}
-                      onBlur={handleBlur}
-                      placeholder={isDM ? 'Send a message...' : 'Message the squad...'}
-                      rows={1}
-                      onFocus={() => setIsFocused(true)}
-                      className="relative w-full bg-transparent font-body text-[14px] placeholder:text-muted resize-none focus:outline-none leading-normal"
-                      style={{ paddingTop: 12, paddingBottom: 12, fontVariationSettings: '"opsz" 14', color: 'transparent', caretColor: 'var(--color-primary)', overflowY: 'auto', overflowX: 'hidden' }}
-                    />
-                  ) : (
-                    <input
-                      ref={inputRef}
-                      type="text"
-                      value={text}
-                      onChange={(e) => handleInput(e)}
-                      onKeyDown={(e) => handleKeyDown(e)}
-                      onBlur={handleBlur}
-                      placeholder={isDM ? 'Send a message...' : 'Message the squad...'}
-                      onFocus={() => setIsFocused(true)}
-                      className="relative w-full bg-transparent font-body text-[14px] placeholder:text-muted focus:outline-none leading-normal"
-                      style={{ paddingTop: 12, paddingBottom: 12, fontVariationSettings: '"opsz" 14', color: 'transparent', caretColor: 'var(--color-primary)' }}
-                    />
+            {/* Input container — flex-col when images are staged; outline brightens on focus */}
+            <div
+              className="w-full flex flex-col"
+                style={{
+                  outline:       '1px solid',
+                  outlineColor:  isFocused ? 'var(--color-border-hover)' : 'var(--color-border)',
+                  outlineOffset: '-1px',
+                  transition:    'outline-color 0.15s ease',
+                  paddingLeft:   16,
+                  paddingRight:  16,
+                  paddingTop:    pendingImages.length > 0 ? 16 : 0,
+                  paddingBottom: pendingImages.length > 0 ? 16 : 0,
+                  gap:           pendingImages.length > 0 ? 16 : 0,
+                  minHeight:     48,
+                }}
+              >
+                {/* ── Image tray (inside border, animates in/out) ── */}
+                <AnimatePresence>
+                  {pendingImages.length > 0 && (
+                    <motion.div
+                      key="image-tray"
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.18, ease: 'easeOut' }}
+                      style={{ overflow: 'hidden' }}
+                    >
+                      {/* 80×80 image slots — gap 8px, overflow clips 4th at narrow widths */}
+                      <div className="flex items-start" style={{ gap: 8, overflow: 'hidden' }}>
+                        {pendingImages.map((img) => (
+                          <div
+                            key={img.id}
+                            className="relative flex-shrink-0"
+                            style={{ width: 80, height: 80, background: 'var(--color-surface)' }}
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={img.localUrl}
+                              alt=""
+                              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                            />
+                            {img.uploading && (
+                              <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                                <span className="font-pixel text-[6px] text-white leading-none">···</span>
+                              </div>
+                            )}
+                            {img.error && (
+                              <div className="absolute inset-0 bg-[#ef4444]/70 flex items-center justify-center">
+                                <span className="font-pixel text-[5px] text-white leading-none text-center px-1">ERR</span>
+                              </div>
+                            )}
+                            {/* Close button — 16×16 white circle, 4px inset from top-right */}
+                            <button
+                              onClick={() => removePendingImage(img.id)}
+                              className="absolute flex items-center justify-center active:opacity-70"
+                              style={{ top: 4, right: 4, width: 16, height: 16, background: 'var(--color-primary)', borderRadius: '50%' }}
+                              aria-label="Remove image"
+                            >
+                              <Close style={{ width: 10, height: 10, color: '#000' }} aria-hidden="true" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </motion.div>
                   )}
-                </div>
-                {(() => {
-                  const isCmd       = text.startsWith('/') && !text.includes(' ')
-                  const hasMatch    = isCmd && SLASH_COMMANDS.some((c) => c.name.startsWith(text.slice(1).toLowerCase()))
-                  const canSendImgs = pendingImages.some((img) => !!img.publicUrl) && !pendingImages.some((img) => img.uploading)
-                  const canSendText = !!text.trim() && !hasMatch
-                  const canSend     = canSendImgs || canSendText
-                  return (
-                    <div className="flex items-center gap-3 flex-shrink-0">
-                      <button
-                        onClick={editTo ? () => void handleEditSend() : canSendImgs ? sendImages : send}
-                        disabled={editTo ? !text.trim() : !canSend}
-                        className={`flex items-center justify-center w-4 h-4 transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${canSend ? 'text-purple' : 'text-muted'}`}
-                        aria-label="Send message"
-                      >
-                        <Send style={{ width: 16, height: 16 }} aria-hidden="true" />
-                      </button>
+                </AnimatePresence>
+
+                {/* ── Text input + send button row ── */}
+                <div className="flex items-center" style={{ gap: 16, minHeight: pendingImages.length > 0 ? 18 : 48 }}>
+                  {/* Plus button — slides left and fades out on focus */}
+                  <motion.div
+                    className="flex-shrink-0 overflow-hidden flex items-center justify-center"
+                    animate={{
+                      width:       isFocused ? 0 : 16,
+                      opacity:     isFocused ? 0 : 1,
+                      marginRight: isFocused ? -16 : 0,
+                    }}
+                    transition={{ type: 'spring', stiffness: 320, damping: 28 }}
+                    style={{ pointerEvents: isFocused ? 'none' : 'auto' }}
+                  >
+                    <button
+                      onClick={() => setShowMediaPicker(true)}
+                      disabled={pendingImages.length >= 4}
+                      className="flex-shrink-0 flex items-center justify-center text-muted active:text-purple disabled:opacity-30 disabled:cursor-not-allowed"
+                      style={{ width: 16, height: 16 }}
+                      aria-label="Add media"
+                    >
+                      <Plus style={{ width: 16, height: 16 }} aria-hidden="true" />
+                    </button>
+                  </motion.div>
+                  <div ref={innerContainerRef} className="relative flex-1 min-w-0 overflow-hidden">
+                    {/* Hidden mirror span — measures text pixel width for overflow detection */}
+                    <span
+                      ref={mirrorRef}
+                      aria-hidden="true"
+                      className="font-body"
+                      style={{
+                        position: 'fixed',
+                        top: -9999,
+                        left: -9999,
+                        visibility: 'hidden',
+                        pointerEvents: 'none',
+                        whiteSpace: 'pre',
+                        fontSize: 14,
+                        lineHeight: 'normal',
+                        fontVariationSettings: '"opsz" 14',
+                      }}
+                    />
+                    {/* Overlay renders @mention highlights behind the transparent input/textarea */}
+                    <div
+                      ref={overlayRef}
+                      aria-hidden="true"
+                      className="pointer-events-none absolute inset-0 font-body text-[14px] leading-normal overflow-hidden"
+                      style={{ paddingTop: 12, paddingBottom: 12, fontVariationSettings: '"opsz" 14', whiteSpace: isMultiline ? 'pre-wrap' : 'nowrap', wordBreak: isMultiline ? 'break-word' : 'normal', color: 'var(--color-primary)' }}
+                    >
+                      {renderHighlightedInput(text)}
                     </div>
-                  )
-                })()}
-              </div>{/* end text+send row */}
-          </div>{/* end input container */}
-        </div>{/* end relative wrapper */}
-      </motion.div>
+                    {isMultiline ? (
+                      <textarea
+                        ref={textareaRef}
+                        value={text}
+                        onChange={(e) => handleInput(e)}
+                        onKeyDown={(e) => handleKeyDown(e)}
+                        onBlur={handleBlur}
+                        placeholder={isDM ? 'Send a message...' : 'Message the squad...'}
+                        rows={1}
+                        onFocus={() => setIsFocused(true)}
+                        className="relative w-full bg-transparent font-body text-[14px] placeholder:text-muted resize-none focus:outline-none leading-normal"
+                        style={{ paddingTop: 12, paddingBottom: 12, fontVariationSettings: '"opsz" 14', color: 'transparent', caretColor: 'var(--color-primary)', overflowY: 'auto', overflowX: 'hidden' }}
+                      />
+                    ) : (
+                      <input
+                        ref={inputRef}
+                        type="text"
+                        value={text}
+                        onChange={(e) => handleInput(e)}
+                        onKeyDown={(e) => handleKeyDown(e)}
+                        onBlur={handleBlur}
+                        placeholder={isDM ? 'Send a message...' : 'Message the squad...'}
+                        onFocus={() => setIsFocused(true)}
+                        className="relative w-full bg-transparent font-body text-[14px] placeholder:text-muted focus:outline-none leading-normal"
+                        style={{ paddingTop: 12, paddingBottom: 12, fontVariationSettings: '"opsz" 14', color: 'transparent', caretColor: 'var(--color-primary)' }}
+                      />
+                    )}
+                  </div>
+                  {(() => {
+                    const isCmd       = text.startsWith('/') && !text.includes(' ')
+                    const hasMatch    = isCmd && SLASH_COMMANDS.some((c) => c.name.startsWith(text.slice(1).toLowerCase()))
+                    const canSendImgs = pendingImages.some((img) => !!img.publicUrl) && !pendingImages.some((img) => img.uploading)
+                    const canSendText = !!text.trim() && !hasMatch
+                    const canSend     = canSendImgs || canSendText
+                    return (
+                      <div className="flex items-center gap-3 flex-shrink-0">
+                        <button
+                          onClick={editTo ? () => void handleEditSend() : canSendImgs ? sendImages : send}
+                          disabled={editTo ? !text.trim() : !canSend}
+                          className={`flex items-center justify-center w-4 h-4 transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${canSend ? 'text-purple' : 'text-muted'}`}
+                          aria-label="Send message"
+                        >
+                          <Send style={{ width: 16, height: 16 }} aria-hidden="true" />
+                        </button>
+                      </div>
+                    )
+                  })()}
+                </div>{/* end text+send row */}
+            </div>{/* end input container */}
+          </div>{/* end relative wrapper */}
+        </motion.div>
+      </div>{/* end squad+input bordered box (Figma 507:2485) */}
 
       {/* ── Media picker sheet (Upload Photo / GIF) ── */}
       <AnimatePresence>

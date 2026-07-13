@@ -555,6 +555,51 @@ Figma's `type="dropdown"` variant. Same label/border/helper-text shell, but rend
 />
 ```
 
+## Decision Framework
+
+When multiple valid implementations exist, prefer the solution that best aligns with the project's long-term architecture.
+
+Prioritize decisions in the following order:
+
+1. Reuse existing code before creating new code.
+2. Reuse existing shared components before creating new components.
+3. Extend existing implementations before duplicating functionality.
+4. Follow the project's design system and architecture.
+5. Match existing UI, interaction, and naming patterns.
+6. Minimize complexity while maintaining readability.
+7. Improve maintainability and scalability.
+8. Reduce duplication where it provides clear long-term value.
+9. Introduce new abstractions only when they are justified by repeated usage.
+
+When uncertain, prefer consistency with the existing codebase over introducing a new pattern.
+
+## Implementation Mindset
+
+Approach every task as a senior software engineer responsible for the long-term health of the codebase.
+
+Before implementing:
+- Understand the existing architecture.
+- Search for similar implementations.
+- Reuse established patterns.
+- Consider maintainability before introducing new code.
+
+During implementation:
+- Keep changes focused on the requested task.
+- Avoid unnecessary refactoring.
+- Preserve existing behavior unless instructed otherwise.
+- Maintain consistency with the design system and shared components.
+
+After implementation, perform a brief Architecture Review. If appropriate, recommend:
+- Shared component extraction
+- Utility extraction
+- Design system improvements
+- Code organization improvements
+- New or updated Claude Skills
+- `CLAUDE.md` updates
+- Technical debt reductions
+
+Complete the requested work before presenting recommendations. Recommendations should be concise, actionable, and based on repeated patterns rather than isolated occurrences. The objective is to continuously improve the project without introducing unnecessary abstractions or disrupting development flow.
+
 ## Working Agreement
 - **Never modify Supabase schema/RLS/data directly** — always via a reviewable migration file (`supabase/migrations/`). No ad-hoc `apply_migration`/dashboard/`execute_sql` DDL or data edits against production; write the migration, let it be reviewed, then apply.
 - **After any refactor touching optimistic updates or Realtime**, explain the data flow before and after in plain language — not just the diff.

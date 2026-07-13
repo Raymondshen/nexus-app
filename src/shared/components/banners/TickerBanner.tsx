@@ -5,16 +5,21 @@ import { motion } from 'framer-motion'
 
 interface TickerBannerProps {
   text: string
+  // Figma 189:1785 "Status" component — x2 (default, --text-xxs/11px) vs x1 (--text-mini/8px).
+  // Quote icon stays 8×8 in both variants; only the text size (and thus the ticker's total
+  // height) changes.
+  size?: 'default' | 'small'
 }
 
-// Figma 438:8058 — the status ticker instance is a fixed 35px (24px vertical padding +
-// 11px text line), not an emergent height. UserCard's member row stretches every card to
+// Figma 438:8058 — the status ticker instance is a fixed height (24px vertical padding +
+// one text line), not an emergent height. UserCard's member row stretches every card to
 // the tallest sibling (default flex align-items:stretch); since none of UserCard's children
 // carry flex-grow, any height drift between this and BlankTickerSlot collapses into blank
-// space after the last child — i.e. a gap below the ticker. Pin both to this constant
+// space after the last child — i.e. a gap below the ticker. Pin both to these constants
 // instead of relying on matching padding/line-height to happen to agree pixel-for-pixel
 // (same fix already applied to the vinyl pill via VINYL_PILL_HEIGHT).
-export const TICKER_HEIGHT = 35
+export const TICKER_HEIGHT       = 35 // default (x2): 24 + 11px line
+export const TICKER_HEIGHT_SMALL = 32 // small (x1, Figma 507:5706): 24 + 8px line
 
 function Dot() {
   return (
@@ -49,7 +54,7 @@ function QuoteIcon() {
 
 // Figma 189:1767 — shared status/mood ticker. The sole place that renders this
 // pattern; don't hand-roll a second marquee for a status string elsewhere.
-export function TickerBanner({ text }: TickerBannerProps) {
+export function TickerBanner({ text, size = 'default' }: TickerBannerProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const itemRef      = useRef<HTMLSpanElement>(null)
   const [numCopies, setNumCopies] = useState(6)
@@ -70,12 +75,14 @@ export function TickerBanner({ text }: TickerBannerProps) {
 
   const duration    = Math.max(21, text.length * 0.28 + 15)
   const displayText = `“${text}”`
+  const fontSize    = size === 'small' ? 'var(--text-mini)' : 'var(--text-xxs)'
+  const height      = size === 'small' ? TICKER_HEIGHT_SMALL : TICKER_HEIGHT
 
   return (
     <div
       ref={containerRef}
       className="overflow-hidden border-t border-b border-border px-2"
-      style={{ height: TICKER_HEIGHT, paddingTop: 12, paddingBottom: 12, flexShrink: 0 }}
+      style={{ height, paddingTop: 12, paddingBottom: 12, flexShrink: 0 }}
     >
       <motion.div
         key={text}
@@ -94,7 +101,7 @@ export function TickerBanner({ text }: TickerBannerProps) {
               <QuoteIcon />
               <span
                 className="font-silkscreen leading-none"
-                style={{ fontSize: 'var(--text-xxs)', color: 'var(--color-secondary)' }}
+                style={{ fontSize, color: 'var(--color-secondary)' }}
               >
                 {displayText}
               </span>

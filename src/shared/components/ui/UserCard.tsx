@@ -5,7 +5,7 @@ import { UserAvatar } from '@/shared/components/ui/UserAvatar'
 import { PixelSprite, spriteInfoFor } from '@/shared/components/game/PixelSprite'
 import { Crown } from 'pixelarticons/react/Crown'
 import { VinylPill } from '@/shared/components/ui/VinylPill'
-import { TickerBanner, TICKER_HEIGHT } from '@/shared/components/banners/TickerBanner'
+import { TickerBanner, TICKER_HEIGHT_SMALL } from '@/shared/components/banners/TickerBanner'
 
 const CLASS_LABELS: Record<string, string> = {
   berserker: 'Berserker', sage: 'Sage', ghost: 'Ghost', hype_man: 'Hype Man',
@@ -28,22 +28,22 @@ export type MiniMember = {
 const VINYL_PILL_HEIGHT = 20
 
 // Mirrors TickerBanner's own outer wrapper (border-t/border-b, px-2, py-12) so a blank slot
-// looks like a real ticker's chrome, matching Figma 432:7827's full-height card (438:8058,
-// 35px) instead of collapsing like the shorter no-status card (432:8008). Height is pinned
-// to TICKER_HEIGHT rather than left to emerge from padding/line-height — the member row
-// (SquadDetailsSheet) stretches every card to its tallest sibling (flex align-items:stretch),
-// and since no child carries flex-grow, even a sub-pixel mismatch between this and
-// TickerBanner's real content height collapses into visible blank space below the ticker on
-// some platforms (observed on iOS PWA). Same fix already applied to the vinyl pill via
-// VINYL_PILL_HEIGHT.
+// looks like a real ticker's chrome, matching Figma 432:7827's full-height card (438:8058)
+// instead of collapsing like the shorter no-status card (432:8008). Height is pinned to
+// TICKER_HEIGHT_SMALL (the "x1" size variant this card uses — Figma 189:1785) rather than
+// left to emerge from padding/line-height — the member row (SquadDetailsSheet) stretches
+// every card to its tallest sibling (flex align-items:stretch), and since no child carries
+// flex-grow, even a sub-pixel mismatch between this and TickerBanner's real content height
+// collapses into visible blank space below the ticker on some platforms (observed on iOS
+// PWA). Same fix already applied to the vinyl pill via VINYL_PILL_HEIGHT.
 function BlankTickerSlot() {
   return (
     <div
       aria-hidden="true"
       className="overflow-hidden border-t border-b border-border px-2"
-      style={{ height: TICKER_HEIGHT, paddingTop: 12, paddingBottom: 12, flexShrink: 0 }}
+      style={{ height: TICKER_HEIGHT_SMALL, paddingTop: 12, paddingBottom: 12, flexShrink: 0 }}
     >
-      <span className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-xxs)' }}>&nbsp;</span>
+      <span className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)' }}>&nbsp;</span>
     </div>
   )
 }
@@ -130,7 +130,7 @@ export function UserCard({
       </div>
 
       {/* Status ticker slot — always reserved, same reasoning as the vinyl pill slot. */}
-      {profile.status ? <TickerBanner text={profile.status} /> : <BlankTickerSlot />}
+      {profile.status ? <TickerBanner text={profile.status} size="small" /> : <BlankTickerSlot />}
     </div>
   )
 }
