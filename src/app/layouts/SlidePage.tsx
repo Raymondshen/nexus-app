@@ -22,8 +22,8 @@ export function clearSkipNextSlideEnter() {
   _skipNextSlideEnter = false
 }
 
-// Set by chat's FloatingBackButton right before it calls goBack(), so
-// HomeClient knows to play a slide-in + dim "reveal" animation on mount
+// Set by chat's ChatFloatingNav (src/shared/components/ui/PageFloatButton.tsx) right before
+// it calls goBack(), so HomeClient knows to play a slide-in + dim "reveal" animation on mount
 // instead of a static mount — matching the parallax WebKit's native
 // edge-swipe gesture already gives for free. Only the tap path needs this:
 // chat's SlidePage uses nativeSwipe, so its own swipe-to-close handler

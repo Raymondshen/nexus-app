@@ -7,6 +7,15 @@ interface TickerBannerProps {
   text: string
 }
 
+// Figma 438:8058 — the status ticker instance is a fixed 35px (24px vertical padding +
+// 11px text line), not an emergent height. UserCard's member row stretches every card to
+// the tallest sibling (default flex align-items:stretch); since none of UserCard's children
+// carry flex-grow, any height drift between this and BlankTickerSlot collapses into blank
+// space after the last child — i.e. a gap below the ticker. Pin both to this constant
+// instead of relying on matching padding/line-height to happen to agree pixel-for-pixel
+// (same fix already applied to the vinyl pill via VINYL_PILL_HEIGHT).
+export const TICKER_HEIGHT = 35
+
 function Dot() {
   return (
     <span
@@ -66,7 +75,7 @@ export function TickerBanner({ text }: TickerBannerProps) {
     <div
       ref={containerRef}
       className="overflow-hidden border-t border-b border-border px-2"
-      style={{ paddingTop: 12, paddingBottom: 12 }}
+      style={{ height: TICKER_HEIGHT, paddingTop: 12, paddingBottom: 12, flexShrink: 0 }}
     >
       <motion.div
         key={text}

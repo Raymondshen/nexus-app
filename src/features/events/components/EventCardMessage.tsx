@@ -103,7 +103,7 @@ export function EventCardMessage({ eventId, crewId }: EventCardMessageProps) {
       }}
       onClick={(e) => {
         e.stopPropagation()
-        // Prevent FloatingBackButton from re-injecting /home when chat remounts on back nav
+        // Prevent ChatFloatingNav from re-injecting /home when chat remounts on back nav
         sessionStorage.setItem('nexus_chat_from', 'event')
         router.push(`/chat/${crewId}/events/${eventId}?from=chat`)
       }}

@@ -10,6 +10,7 @@ import { Braces } from 'pixelarticons/react/Braces'
 import { TickerBanner } from '@/shared/components/banners/TickerBanner'
 import { UserAvatar } from '@/shared/components/ui/UserAvatar'
 import { ProfileHeroBackground } from '@/shared/components/ui/ProfileHeroBackground'
+import { PageFloatButton } from '@/shared/components/ui/PageFloatButton'
 import { VibesGrid } from '@/features/profile/components/VibesGrid'
 import { PhotosGrid } from '@/features/profile/components/PhotosGrid'
 import type { PublicNote, ProfilePhoto } from '@/types'
@@ -32,40 +33,20 @@ interface ProfileClientProps {
   initialPinnedId?:  string | null
 }
 
-// ─── Top-bar icon button (Figma "profile-Btn": rgba(0,0,0,0.25), 8px padding, no border) ──
-
-function ProfileTopBarButton({
-  onClick,
-  ariaLabel,
-  disabled,
-  children,
-}: {
-  onClick?:  () => void
-  ariaLabel: string
-  disabled?: boolean
-  children:  React.ReactNode
-}) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      aria-label={ariaLabel}
-      className="flex items-center justify-center overflow-hidden flex-shrink-0 disabled:opacity-50"
-      style={{ padding: 'var(--x3)', background: 'rgba(0,0,0,0.25)' }}
-    >
-      {children}
-    </button>
-  )
-}
-
 // ─── BackButton ───────────────────────────────────────────────────────────────
-
+// Kept as its own component (rather than resolving useSlideBack() in ProfileClient's own
+// body) because it renders as a descendant of the <SlidePage> ProfileClient returns —
+// see the useSlideBack context-trap note in CLAUDE.md's Page Structure section. Resolving
+// the hook at ProfileClient's top level would run before SlidePage's provider exists in
+// the tree and silently no-op the back button.
 function BackButton() {
   const goBack = useSlideBack()
   return (
-    <ProfileTopBarButton onClick={goBack} ariaLabel="Back">
-      <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
-    </ProfileTopBarButton>
+    <PageFloatButton
+      onClick={goBack}
+      ariaLabel="Back"
+      icon={<ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />}
+    />
   )
 }
 
@@ -214,14 +195,19 @@ export function ProfileClient({
 
           <div className="flex items-center pointer-events-auto" style={{ gap: 16 }}>
             {isDev && (
-              <ProfileTopBarButton onClick={() => router.push('/profile/settings')} ariaLabel="Developer settings">
-                <Braces style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
-              </ProfileTopBarButton>
+              <PageFloatButton
+                onClick={() => router.push('/profile/settings')}
+                ariaLabel="Developer settings"
+                icon={<Braces style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />}
+              />
             )}
 
-            <ProfileTopBarButton onClick={() => router.push('/profile/manage')} ariaLabel="Edit profile" disabled={isGuest}>
-              <MagicEdit style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
-            </ProfileTopBarButton>
+            <PageFloatButton
+              onClick={() => router.push('/profile/manage')}
+              ariaLabel="Edit profile"
+              disabled={isGuest}
+              icon={<MagicEdit style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />}
+            />
           </div>
         </div>
 

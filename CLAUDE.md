@@ -125,7 +125,7 @@ Dev flags (`localStorage`): `nexus_dev_mode` · `nexus_push_diag` · `nexus_infi
 `nexus_dev_mode`, `nexus_push_diag`, and `nexus_chat_camera` have **no in-app toggle UI** — set them directly via browser devtools `localStorage.setItem(...)`. The Settings page's Developer section (see below) only exposes toggles for `nexus_infinite_coins`, `nexus_poll_feature`, `nexus_events_enabled`, and `nexus_friendship_xp`.
 
 ### Own Profile Page (`src/features/profile/screens/ProfileClient.tsx`, route `/profile`)
-Top bar (Figma 339:3457): back chevron (left) + up to two icon buttons (right), all sharing the same `ProfileTopBarButton` style — `background: rgba(0,0,0,0.25)`, `padding: var(--x3)` (8px), no border/blur/shadow (this replaced the old bordered/blurred settings-cog button; match this flat style for any new button added to this bar, don't reintroduce the border+backdrop-blur treatment).
+Top bar (Figma 339:3457): back chevron (left) + up to two icon buttons (right), all rendered via the shared `PageFloatButton` (Figma 340:3665 — see the PageFloatButton section below), which replaced this page's former one-off `ProfileTopBarButton`/`BackButton` local components. The back chevron stays its own tiny wrapper component (not resolved inline in `ProfileClient`'s body) purely because of the `useSlideBack` context trap — see that gotcha in Page Structure — not because its styling differs from the other two buttons.
 - **`Braces`** icon (`isDev` only — no longer also gated on the `nexus_dev_mode` localStorage flag; that flag has no way to be set on-device without devtools access, which made the button unreachable on mobile PWAs for otherwise-legitimate dev accounts) → `router.push('/profile/settings')`, the Developer tools page. `/profile/settings` and `/profile/developer/announcements` still independently redirect non-dev users server-side, so this is cosmetic, not a security gate.
 - **`MagicEdit`** icon (rightmost, disabled for guests) → `router.push('/profile/manage')`, the Manage Profile page. No Notification row anywhere — notification preferences are per-crew only (`crew_notification_preferences`, via `SquadDetailsSheet`'s Bell icon → `NotifSheet`), not global.
 
@@ -182,7 +182,7 @@ src/
 │   │   │                       ChatSheetReact, EmojiReactionPickerSheet
 │   │   ├── polls/              PollCard, PollCreatorSheet
 │   │   ├── header/             ChatHeader, DMHeader
-│   │   └── navigation/         FloatingBackButton, DMOverlayBack, ShareModal
+│   │   └── navigation/         DMOverlayBack, ShareModal
 │   ├── chat/screens/           DefinitionHomePage (definitions list page; stub re-export DefinitionsClient.tsx)
 │   ├── home/                   HomeClient, InviteArsenal, homePreviewCache.ts
 │   ├── friends/                FriendsClient, InboxClient
@@ -257,8 +257,8 @@ Reply icon (`CornerUpLeft` 16×16): absolutely positioned, `top` = `var(--space-
 - **Klipy API**: trending → `data.clips[]` flat `file.thumbnail_url`; search → `data.data[]` nested `file.sm/md/hd/xs`. Separate parsers — do NOT unify.
 - Poll feature dev-gated (`nexus_poll_feature`).
 
-### FloatingBackButton (`src/features/chat/components/navigation/FloatingBackButton.tsx`)
-Absolute-positioned gradient overlay (`linear-gradient black → transparent`). Left: `ChevronLeft` back button. Right: `Calendar2` group-events button, dev-gated (`nexus_dev_mode` + `nexus_events_enabled`) — no other buttons live here; Bell/Library live in `SquadDetailsSheet` (see below). All buttons: `border border-border p-2 backdrop-blur(7px)`.
+### ChatFloatingNav (`ChatFloatingNav`, exported alongside `PageFloatButton` from `src/shared/components/ui/PageFloatButton.tsx`)
+Absolute-positioned gradient overlay (`linear-gradient black → transparent`) for the chat room header. Left: `ChevronLeft` back button. Right: `Calendar2` group-events button, dev-gated (`nexus_dev_mode` + `nexus_events_enabled`) — no other buttons live here; Bell/Library live in `SquadDetailsSheet` (see below). Both buttons render via the shared `PageFloatButton` (see its own section below). Formerly its own `FloatingBackButton` component/file — merged into `PageFloatButton.tsx` so the chat-specific wiring (back-nav history-stacking guard, gem-balance seeding, dev/events gating, the event-preview sheet trigger) lives alongside the button it drives instead of in a separate file; see the PageFloatButton section for the tradeoff this accepted (the shared button module now imports `useChatStore`/`EventSheetBottomPreview`, unused by its other consumers).
 
 ### Definitions Page (`src/features/chat/screens/DefinitionHomePage.tsx`)
 Route: `/chat/[crewId]/definitions`. Header: shared `PageHeader` pattern (see Page Structure) — "DEFINITIONS" title, `right` = `Plus` opens `CreateDefinitionPage`. Cards (Figma 402:9403): aliases/word/definition + creator byline (highlighted if own) + amber suggestion-count badge when `suggestion_count > 0`.
@@ -385,6 +385,24 @@ Current consumers: `DefinitionHomePage` (list; no `onBack` → context goBack; `
 - The opener closes the sheet and opens the subpage in the same state update (`setIsExpanded(false); setShowManageSquad(true)`), and the subpage's `onClose` prop resets *both* flags together, so there is only one combined "closed" state to return to, not two nested ones.
 - The subpage pushes exactly one `history.pushState()` entry on mount and listens for a single `popstate` to fire that combined `onClose` — both the `PageHeader` back chevron (`onBack`) and a successful save route through the same `requestClose()` (`window.history.back()`), so every dismissal path is identical.
 - **Swipe must not be left to the native OS edge-swipe-back gesture when the underlying page's `SlidePage` uses `nativeSwipe`.** The browser snapshots the screen at `pushState` time to use as the native drag-preview; if that snapshot is captured mid cross-fade (sheet still visible above the subpage, which hasn't slid into view yet), swiping back visibly flashes the sheet before landing on the correct page, even though the final state is correct. Fix: give the subpage its own left-edge touch listener (`preventDefault()` on a touch starting `< 40px` from the edge suppresses the native gesture) that routes a qualifying swipe through the same `requestClose()` the button uses — this guarantees swipe and tap are visually and functionally identical, with no native preview involved. `ManageSquadProfile.tsx` is the reference implementation.
+
+## PageFloatButton (`src/shared/components/ui/PageFloatButton.tsx`, Figma 340:3665 "page-floatButton")
+
+The small square glass-effect icon button used **in page headers that float over a hero/cover image** (back chevron, settings, edit, calendar, …) — distinct from `PageHeader`'s opaque flat top bar, which is for standard subpages with no background image underneath. 40×40 total: `padding: var(--x3)` (8px) around a caller-supplied 24×24 icon, `background: rgba(0,0,0,0.25)`, `backdrop-filter: blur(7px)` (glass effect), no border/radius/shadow. Sets `color: var(--color-primary)` on the button itself so a passed icon defaults to primary via `currentColor` even if the caller doesn't set its own `color` — though per the usual pixelarticons convention, always pass explicit `style={{ width, height, color }}` on the icon anyway.
+
+Positioning (absolute placement, `env(safe-area-inset-top)`, any gradient scrim behind it) is owned by the caller, not this component — it only renders the button, matching the Figma symbol's own scope. Also accepts an optional `disabled` prop (`ProfileClient`'s `MagicEdit` button uses it to gate guests).
+
+```tsx
+<PageFloatButton
+  icon={<ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />}
+  onClick={goBack}
+  ariaLabel="Go back"
+/>
+```
+
+Current consumers: `ProfileClient` (back/`Braces`/`MagicEdit`, replacing the former one-off `ProfileTopBarButton`), `AccountPageMember` (back/`SettingsCog`, replacing a hand-rolled blur button that had no explicit background), `ChatFloatingNav` (back/`Calendar2`, replacing a hand-rolled button that also carried a `border-border` + glow `boxShadow` neither present in the Figma spec — dropped on migration). `MemberProfileClient.tsx` has an equivalent back button but is dead code (unused by any route — `AccountPageMember` is what actually renders at `/chat/[crewId]/member/[userId]`) and was left untouched. `DMOverlayBack`'s back+avatar pill is a distinct composite pattern (border-purple, avatar inline) and intentionally wasn't folded into this.
+
+**`ChatFloatingNav`** is also exported from this same file (`PageFloatButton.tsx`) — it's the chat room's floating top nav (gradient wrapper + back button + dev-gated events button), and used to be its own `FloatingBackButton` component under `features/chat/components/navigation/`. It was merged in by explicit request so there's one file for "the floating button" instead of two, even though it means this shared/ui module now carries chat-only imports (`useChatStore`, `EventSheetBottomPreview`, the `nexus_chat_from` history-stacking guard, gem-balance seeding, dev/events-flag gating) that `PageFloatButton`'s other consumers (`ProfileClient`, `AccountPageMember`) never touch. `ChatFloatingNav` itself still renders a plain `<PageFloatButton>` for each of its two buttons — a single button component never had to grow a "sometimes renders two buttons and a sheet" mode; only the *file* was consolidated, not the button's own props/behavior. See the `ChatFloatingNav` entry under Chat further down for what it does.
 
 ## Shared UI Components
 
@@ -574,7 +592,7 @@ Figma's `type="dropdown"` variant. Same label/border/helper-text shell, but rend
 - **iOS Safari clears sessionStorage on PWA kill/relaunch.** Always write to both sessionStorage and IDB; read sessionStorage first (sync), fall back to IDB (async ~5ms).
 - **`SwipeableCrewCard`**: `wasDragging` set in `onDragEnd` only (not `onDragStart`) — setting it in `onDragStart` blocks `onClick` for micro-movements. `onDragStart` calls `cancelLongPress()` to prevent 500ms timer firing on slow swipes.
 - **iOS Safari `<button>` background**: `-webkit-appearance: button` overrides custom `background` values. Always include `appearance-none` (Tailwind) on styled `<button>` elements — `SheetActionButton` already does this.
-- **`FloatingBackButton`'s `replaceState(/home) + pushState(/chat)` effect runs on every mount** — including returning from a sub-page. Before any `router.push()` away from chat, call `sessionStorage.setItem('nexus_chat_from', 'chat')` so the effect skips re-manipulation on return; otherwise it stacks an extra `/home` history entry per round trip.
+- **`ChatFloatingNav`'s `replaceState(/home) + pushState(/chat)` effect runs on every mount** — including returning from a sub-page. Before any `router.push()` away from chat, call `sessionStorage.setItem('nexus_chat_from', 'chat')` so the effect skips re-manipulation on return; otherwise it stacks an extra `/home` history entry per round trip.
 - **`SlidePage`'s left-edge swipe listener fires through fixed overlays** — they're still DOM children, so touch events bubble up. Pass `nativeSwipe={overlayOpen}` whenever any overlay is active, or the swipe handler can call `router.back()` while the overlay is showing.
 - **`squad_definitions.creator_id` FK points to `auth.users`, not `public.profiles`.** Supabase embedded selects (`profiles!creator_id(username)`) will fail — the FK hint resolves to `auth.users` which is a different schema. Fetch creator usernames via a separate `profiles` query keyed on the collected `creator_id` values.
 - **Realtime INSERT handlers that need profile data should cache known usernames in a `useRef`.** Seed the cache from `initialDefinitions` (or equivalent server-fetched data) on mount, then only hit Supabase for unseen `creator_id` values. This avoids a DB round-trip for every INSERT from a known user. See `profileCacheRef` in `DefinitionHomePage`.

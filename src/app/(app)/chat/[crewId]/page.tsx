@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { unstable_cache } from "next/cache"
 import { createClient, createServiceClient } from "@/shared/supabase/server";
-import { FloatingBackButton } from "@/features/chat/components/navigation/FloatingBackButton";
+import { ChatFloatingNav } from "@/shared/components/ui/PageFloatButton";
 import { MessageList } from "@/features/chat/components/messages/MessageList";
 import { ChatInput } from "@/features/chat/components/input/ChatInput";
 import { WelcomeDetector } from "@/shared/components/pwa/WelcomeDetector";
@@ -211,7 +211,7 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
     >
       {welcome === "1" && <WelcomeDetector crewId={crewId} />}
 
-      <FloatingBackButton crewId={crewId} currentUserId={user.id} initialGemBalance={gemBalance} creatorId={creatorId} />
+      <ChatFloatingNav crewId={crewId} currentUserId={user.id} initialGemBalance={gemBalance} />
 
       <ErrorBoundary>
         <MessageList

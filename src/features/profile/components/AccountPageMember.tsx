@@ -9,6 +9,7 @@ import { useSlideBack } from '@/app/layouts/SlidePage'
 import { TickerBanner } from '@/shared/components/banners/TickerBanner'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { SettingsCog } from 'pixelarticons/react/SettingsCog'
+import { PageFloatButton } from '@/shared/components/ui/PageFloatButton'
 import { VibesGrid } from '@/features/profile/components/VibesGrid'
 import { PhotosGrid } from '@/features/profile/components/PhotosGrid'
 import type { PublicNote, ProfilePhoto } from '@/types'
@@ -145,25 +146,23 @@ export function AccountPageMember({
           style={{ top: 'calc(env(safe-area-inset-top, 0px) + 18px)' }}
         >
           {/* Back button */}
-          <button
-            onClick={goBack}
-            aria-label="Back"
-            className="pointer-events-auto flex items-center justify-center rounded-[4px]"
-            style={{ padding: 8, backdropFilter: 'blur(7px)', filter: 'drop-shadow(0px 0px 20px rgba(0,0,0,0.1))' }}
-          >
-            <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
-          </button>
+          <div className="pointer-events-auto">
+            <PageFloatButton
+              onClick={goBack}
+              ariaLabel="Back"
+              icon={<ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />}
+            />
+          </div>
 
           {/* Owner-only: settings */}
           {isOwner && (
-            <button
-              onClick={() => router.push('/profile')}
-              aria-label="Settings"
-              className="pointer-events-auto flex items-center justify-center rounded-[4px]"
-              style={{ padding: 8, backdropFilter: 'blur(7px)', filter: 'drop-shadow(0px 0px 20px rgba(0,0,0,0.1))' }}
-            >
-              <SettingsCog style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
-            </button>
+            <div className="pointer-events-auto">
+              <PageFloatButton
+                onClick={() => router.push('/profile')}
+                ariaLabel="Settings"
+                icon={<SettingsCog style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />}
+              />
+            </div>
           )}
         </div>
       </div>
