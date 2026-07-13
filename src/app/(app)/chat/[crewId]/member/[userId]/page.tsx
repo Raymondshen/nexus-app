@@ -54,10 +54,10 @@ export default async function MemberProfilePage({ params }: Props) {
       .eq('created_by', userId)
       .order('created_at', { ascending: false })
       .limit(30),
-    // Global crew count for the member
+    // Global crew memberships for the member (filtered to non-DM below — DMs aren't group chats)
     supabase
       .from('crew_members')
-      .select('crew_id', { count: 'exact', head: true })
+      .select('crew_id')
       .eq('user_id', userId),
     // Global message count for the member
     supabase
@@ -97,8 +97,19 @@ export default async function MemberProfilePage({ params }: Props) {
   const crewName     = (crewResult.data as { name?: string } | null)?.name ?? ''
   const notesCrews   = [{ id: crewId, name: crewName }]
   const joinedYear   = profile.created_at ? new Date(profile.created_at).getFullYear() : null
-  const globalGroups = globalMembershipsResult.count ?? 0
   const globalMsgs   = globalMessagesResult.count ?? 0
+
+  // Group chat count excludes DM channels (crews.is_dm = true) — DMs aren't group chats
+  const globalCrewIds = (globalMembershipsResult.data ?? []).map(m => (m as { crew_id: string }).crew_id)
+  let globalGroups = 0
+  if (globalCrewIds.length > 0) {
+    const { count } = await supabase
+      .from('crews')
+      .select('id', { count: 'exact', head: true })
+      .in('id', globalCrewIds)
+      .eq('is_dm', false)
+    globalGroups = count ?? 0
+  }
   const friendshipXP   = (friendshipXPResult.data as { total_xp?: number } | null)?.total_xp ?? null
   const initialPhotos  = (photosResult.data ?? []) as unknown as ProfilePhoto[]
 

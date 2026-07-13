@@ -191,7 +191,6 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   const channelReadyRef       = useRef(false)
   const lastActiveWriteRef    = useRef(0)
   const isTypingRef           = useRef(false)
-  const countsFetchedForCrewRef = useRef<string | null>(null)
   // Individual selectors — a bare useChatStore() destructure subscribes to the whole
   // store, so every Realtime-driven update (incoming messages, reaction patches,
   // optimistic-send reconciliation — all of which replace the `messages` array this
@@ -332,10 +331,11 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
 
   // Member message counts are only ever displayed inside SquadDetailsSheet, so defer
   // the RPC until the sheet is actually opened rather than fetching on every chat
-  // mount. Cached per crew — reopening the sheet for the same crew won't refetch.
+  // mount. Refetches on every open (not cached per crew) so the total stays active —
+  // messages sent since the sheet was last open must be reflected, matching
+  // HomeCrewDetailsSheet's fetch-on-mount behavior.
   useEffect(() => {
-    if (!isExpanded || countsFetchedForCrewRef.current === crewId) return
-    countsFetchedForCrewRef.current = crewId
+    if (!isExpanded) return
     let cancelled = false
     setLoadingCounts(true)
     createClient()

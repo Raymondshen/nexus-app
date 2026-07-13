@@ -98,7 +98,7 @@ export default async function ProfilePage() {
   const initialNotes = (notesResult.data ?? []) as unknown as PublicNote[]
 
   const totalMessages     = messagesResult.count ?? 0
-  const groupChats        = crewIds.length
+  const groupChats        = notesCrews.length
   const totalFriendshipXP = (friendshipXPResult.data ?? []).reduce((sum, r) => sum + ((r as { total_xp: number }).total_xp ?? 0), 0)
   const initialPhotos     = (photosResult.data ?? []) as unknown as ProfilePhoto[]
 

@@ -1320,8 +1320,9 @@ function HomeCrewDetailsSheet({
   )
   const [loading, setLoading] = useState(true)
 
-  const xpProgress = getXPProgress(crew.total_xp)
-  const imageUrl   = crew.image_url as string | null | undefined
+  const xpProgress    = getXPProgress(crew.total_xp)
+  const imageUrl      = crew.image_url as string | null | undefined
+  const totalMessages = [...msgCounts.values()].reduce((s, n) => s + n, 0)
 
   useEffect(() => {
     const supabase  = createClient()
@@ -1533,10 +1534,14 @@ function HomeCrewDetailsSheet({
               <span className="leading-none text-tertiary" style={{ fontSize: 'var(--text-mini)' }}>
                 {`${getXPInCurrentLevel(crew.total_xp)} / ${getXPForCurrentLevel(crew.total_xp)}XP`}
               </span>
-              <span className="leading-none text-tertiary" style={{ fontSize: 'var(--text-mini)' }}>{` · `}</span>
-              <span className="leading-none text-secondary" style={{ fontSize: 'var(--text-mini)' }}>
-                {crew.total_xp.toLocaleString()} total Squad msg.
-              </span>
+              {totalMessages > 0 && (
+                <>
+                  <span className="leading-none text-tertiary" style={{ fontSize: 'var(--text-mini)' }}>{` · `}</span>
+                  <span className="leading-none text-secondary" style={{ fontSize: 'var(--text-mini)' }}>
+                    {totalMessages.toLocaleString()} total Squad msg.
+                  </span>
+                </>
+              )}
             </p>
             <div className="bg-[var(--color-surface)] overflow-hidden w-full relative" style={{ height: 4 }}>
               <div
