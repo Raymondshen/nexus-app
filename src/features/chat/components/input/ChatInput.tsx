@@ -22,10 +22,10 @@ import { addToOutbox, readOutbox, type OutboxJob } from '@/shared/utils/outbox'
 import { acquireCrewMessageChannel, releaseCrewMessageChannel, isActiveCrewMessageChannel } from '@/shared/supabase/crewMessageChannel'
 import { IMAGE_CONFIG } from '@/shared/constants/config'
 import { ChatSquadDetailBar } from '@/features/chat/components/header/ChatSquadDetailBar'
+import { ChatTypingIndicator } from '@/features/chat/components/input/ChatTypingIndicator'
 import { isGemGateOpen, recordGemClaim } from '@/shared/utils/gems'
 import type { GemClaimResult } from '@/types'
 import { Send } from 'pixelarticons/react/Send'
-import { Chart } from 'pixelarticons/react/Chart'
 import { Plus } from 'pixelarticons/react/Plus'
 import { CornerUpLeft } from 'pixelarticons/react/CornerUpLeft'
 import { Close } from 'pixelarticons/react/Close'
@@ -66,21 +66,11 @@ const ONLINE_THRESHOLD_MS  = PRESENCE_ONLINE_THRESHOLD_MS
 // Minimum gap between update_active DB writes triggered outside the 30s heartbeat interval
 const ACTIVE_WRITE_THROTTLE_MS = 10_000
 
-const CREW_AVATAR_COLORS = ['#bf5fff', '#00e5ff', '#ffd700', '#ff4444', '#66bb6a', '#ff9800']
-
 const SLASH_COMMANDS = [
   { name: 'birthdays', icon: '🎂', description: 'See upcoming squad birthdays' },
   { name: 'event',     icon: '📅', description: 'Create a group event' },
 ] as const
 type SlashCommandName = typeof SLASH_COMMANDS[number]['name']
-
-// Figma 507:2519 "loader" — three dots bouncing in sequence, 2s linear loop (per
-// get_motion_context on 507:2528/2530/2531). Each dot has its own y-keyframe/timing pair.
-const TYPING_LOADER_DOTS: { y: number[]; times: number[] }[] = [
-  { y: [0, -2, 0, 0],    times: [0, 0.2035, 0.401, 1] },
-  { y: [0, 0, -2, 0, 0], times: [0, 0.2035, 0.401, 0.6015, 1] },
-  { y: [0, 0, -2, 0, 0], times: [0, 0.401, 0.6015, 0.7995, 1] },
-]
 
 
 // background_url is optional here (not a plain Pick field) because the DM page's
@@ -149,10 +139,7 @@ async function tryClaimDailyGem(supabase: ReturnType<typeof createClient>, onCla
 export function ChatInput({ crewId, userId, userProfile, memberProfiles, memberPinnedVinyls, crewName, inviteCode, creatorId, crewImageUrl: initialCrewImageUrl, crewBackgroundImageUrl: initialCrewBgUrl, initialXP, isDM, dmPartnerId }: ChatInputProps) {
   const router = useRouter()
   const [text,           setText]          = useState('')
-  const [sending,        setSending]        = useState(false)
   const [sendError,      setSendError]      = useState<string | null>(null)
-  const [typingUsers,    setTypingUsers]    = useState<string[]>([])
-  const [devMode,          setDevMode]          = useState(false)
   const [pollEnabled,      setPollEnabled]       = useState(false)
   const [eventsEnabled,    setEventsEnabled]     = useState(false)
   const [fxpEnabled,       setFxpEnabled]        = useState(false)
@@ -274,7 +261,6 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   )
 
   useEffect(() => {
-    setDevMode(localStorage.getItem('nexus_dev_mode') === '1')
     setFxpEnabled(localStorage.getItem('nexus_friendship_xp') === '1')
     setPollEnabled(localStorage.getItem('nexus_poll_feature') === '1')
     setEventsEnabled(localStorage.getItem('nexus_events_enabled') === '1')
@@ -583,14 +569,16 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
 
     ch
       .on('presence', { event: 'sync' }, () => {
-        // Presence channel used for typing indicators only — online status comes from timestamps
+        // Presence channel used for typing indicators only — online status comes from timestamps.
+        // Written into chatStore (not local state) — see ChatTypingIndicator; the store's own
+        // equality check bails out when this sync didn't actually change who's typing.
         const state = ch.presenceState<{ username: string; typing: boolean }>()
         const others = Object.entries(state)
           .filter(([key]) => key !== userId)
           .flatMap(([, presences]) => presences)
           .filter((p) => p.typing)
           .map((p) => p.username)
-        setTypingUsers(others)
+        useChatStore.getState().setTypingUsernames(others)
       })
       .on('broadcast', { event: 'active' }, ({ payload }) => {
         const { user_id: uid, ts } = payload as { user_id: string; ts: number }
@@ -685,6 +673,9 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
       msgChannelRef.current     = null
       channelReadyRef.current   = false
       isTypingRef.current       = false
+      // Clear so a stale "X is typing" from this crew never bleeds into the next
+      // crew's chat before its own first presence sync arrives.
+      useChatStore.getState().setTypingUsernames([])
       notifyActiveCrew(null)
     }
   }, [crewId, userId]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -1204,7 +1195,6 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     }
 
     if (name === 'birthdays') {
-      setSending(true)
       setSendError(null)
       try {
         const result = await birthdaysCommandAction(crewId)
@@ -1215,8 +1205,12 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
           addMessage(msgWithProfile)
           broadcastNewMessage(result.message)
         }
-      } finally {
-        setSending(false)
+      } catch {
+        // The server action call itself can throw (dropped request, or a stale
+        // PWA-cached build calling an action id the deployment no longer
+        // recognizes) — same class of failure fixed in DefinitionHomePage's
+        // handleSave; surface it instead of failing silently.
+        setSendError('Failed to send — try again')
       }
     }
   }
@@ -1326,48 +1320,15 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     ? members.filter((m) => m.id !== userId && m.username.toLowerCase().startsWith(mentionQuery.toLowerCase()))
     : []
 
-  const typingLabel = typingUsers.length === 1
-    ? `${typingUsers[0]} is typing...`
-    : typingUsers.length === 2
-      ? `${typingUsers[0]} and ${typingUsers[1]} are typing...`
-      : typingUsers.length > 2 ? 'Several warriors are typing...' : null
-
   const totalMessages = [...memberMsgCounts.values()].reduce((s, n) => s + n, 0)
 
   return (
     <div className="bg-black flex flex-col flex-shrink-0 relative z-[65]">
       {/* ── Typing presence (Figma 507:2518) — own top section, no gap before the
-          bordered squad+input box below; the box's border-t is what divides them. ── */}
-      {typingLabel && (
-        <div
-          className="flex items-center justify-center w-full"
-          style={{
-            gap:           'var(--space-3)',
-            paddingLeft:   'var(--space-5)',
-            paddingRight:  'var(--space-5)',
-            paddingTop:    'var(--space-4)',
-            paddingBottom: 'var(--space-4)',
-          }}
-        >
-          <span className="flex items-center flex-shrink-0" style={{ gap: 'var(--space-2)' }}>
-            {TYPING_LOADER_DOTS.map((dot, i) => (
-              <motion.span
-                key={i}
-                className="inline-block rounded-full flex-shrink-0"
-                style={{ width: 4, height: 4, background: 'var(--color-tertiary)' }}
-                animate={{ y: dot.y }}
-                transition={{ duration: 2, times: dot.times, ease: 'linear', repeat: Infinity }}
-              />
-            ))}
-          </span>
-          <p
-            className="flex-1 min-w-0 font-body font-light text-tertiary leading-none [word-break:break-word]"
-            style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}
-          >
-            {typingLabel}
-          </p>
-        </div>
-      )}
+          bordered squad+input box below; the box's border-t is what divides them.
+          Isolated into its own component reading straight from chatStore so a
+          presence sync doesn't re-render all of ChatInput — see ChatTypingIndicator. ── */}
+      <ChatTypingIndicator />
 
       <div
         className="border-t border-border flex flex-col"

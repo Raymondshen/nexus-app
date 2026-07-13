@@ -9,6 +9,10 @@ interface ChatStore {
   crewLevel:           number
   onlineUserIds:       Set<string>
   lastActiveMap:       Record<string, number>
+  // Usernames currently typing in the active crew, sorted for stable equality checks.
+  // Lives here (not ChatInput local state) so a presence sync only re-renders the small
+  // typing-indicator component that selects this slice, not all of ChatInput.
+  typingUsernames:     string[]
   userCoins:           number
   gemBalance:          number
   crewName:            string
@@ -32,6 +36,7 @@ interface ChatStore {
   bumpCrewXP:          () => void
   receiveXP:           (earned: number, newTotal: number) => void
   setOnlineUserIds:    (ids: Set<string>) => void
+  setTypingUsernames:  (names: string[]) => void
   setLastActive:       (userId: string, ts: number) => void
   sweepOnlineUserIds:  (thresholdMs: number) => void
   markSelfOnline:      (selfId: string) => void
@@ -70,6 +75,7 @@ export const useChatStore = create<ChatStore>((set) => ({
   crewLevel:          1,
   onlineUserIds:      new Set<string>(),
   lastActiveMap:      {},
+  typingUsernames:    [],
   userCoins:          0,
   gemBalance:         0,
   crewName:           '',
@@ -136,6 +142,18 @@ export const useChatStore = create<ChatStore>((set) => ({
     set({ crewXP: newTotal, crewLevel: getLevelFromXP(newTotal) }),
 
   setOnlineUserIds: (ids) => set({ onlineUserIds: ids }),
+
+  // Presence 'sync' fires on every join/leave/track change on the channel, not just
+  // typing edges — bail out (return {}) when the sorted name list is unchanged so a
+  // sync that didn't actually alter who's typing doesn't force a re-render of every
+  // subscriber (mirrors sweepOnlineUserIds's setsEqual bail-out below).
+  setTypingUsernames: (names) =>
+    set((s) => {
+      const sorted = [...names].sort()
+      const prev = s.typingUsernames
+      if (sorted.length === prev.length && sorted.every((n, i) => n === prev[i])) return {}
+      return { typingUsernames: sorted }
+    }),
 
   setLastActive: (userId, ts) =>
     set((s) => ({ lastActiveMap: { ...s.lastActiveMap, [userId]: ts } })),

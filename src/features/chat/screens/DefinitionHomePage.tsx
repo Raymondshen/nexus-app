@@ -285,30 +285,39 @@ function CreateDefinitionPage({
 
     const effectToSave = textEffectEnabled ? textEffect : null;
 
-    const result =
-      mode === "edit" && definitionId
-        ? await updateDefinitionAction(
-            definitionId,
-            word,
-            definition,
-            actualWord,
-            effectToSave,
-          )
-        : await createDefinitionAction(
-            crewId,
-            word,
-            definition,
-            actualWord,
-            effectToSave,
-          );
+    try {
+      const result =
+        mode === "edit" && definitionId
+          ? await updateDefinitionAction(
+              definitionId,
+              word,
+              definition,
+              actualWord,
+              effectToSave,
+            )
+          : await createDefinitionAction(
+              crewId,
+              word,
+              definition,
+              actualWord,
+              effectToSave,
+            );
 
-    setSaving(false);
-    if (result.error) {
-      setError(result.error);
-      return;
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+      if (result.data) onSaved(result.data);
+      handleBack();
+    } catch {
+      // The server action call itself can throw (dropped/suspended request,
+      // or a stale PWA-cached build calling an action id the current
+      // deployment no longer recognizes) — surface it instead of leaving
+      // the button stuck mid-save with no feedback.
+      setError("Failed to save — try again");
+    } finally {
+      setSaving(false);
     }
-    if (result.data) onSaved(result.data);
-    handleBack();
   }
 
   return (
