@@ -48,7 +48,7 @@ export default async function ProfilePage() {
     getCachedProfile(user.id),
     supabase
       .from('messages')
-      .select('id', { count: 'estimated', head: true })
+      .select('id', { count: 'exact', head: true })
       .eq('user_id', user.id)
       .neq('message_type', 'system'),
     supabase

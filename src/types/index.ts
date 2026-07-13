@@ -225,6 +225,10 @@ export type Database = {
         Args: { p_crew_ids: string[]; p_cutoffs: string[] }
         Returns: Array<{ crew_id: string; unread_count: number }>
       }
+      get_crew_message_counts: {
+        Args: { p_crew_ids: string[] }
+        Returns: Array<{ crew_id: string; msg_count: number }>
+      }
       get_crew_member_msg_counts: {
         Args: { p_crew_id: string }
         Returns: Array<{ user_id: string; msg_count: number }>

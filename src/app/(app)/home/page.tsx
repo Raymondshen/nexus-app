@@ -35,6 +35,7 @@ export interface CrewSummary {
   unreadCount: number
   lastSeen:    string | null
   memberCount: number
+  msgCount:    number
 }
 
 type MemberRow = { crew_id: string; user_id: string; profiles: { username: string } | null }
@@ -52,7 +53,7 @@ function getCachedHomeProfile(userId: string) {
       const supabase = createServiceClient()
       const [{ data: profile }, { count: msgCount }, { data: fxpRows }] = await Promise.all([
         supabase.from('profiles').select('username, avatar_url, birthday, coins, gem_balance, created_at, status').eq('id', userId).single(),
-        supabase.from('messages').select('id', { count: 'estimated', head: true }).eq('user_id', userId).neq('message_type', 'system'),
+        supabase.from('messages').select('id', { count: 'exact', head: true }).eq('user_id', userId).neq('message_type', 'system'),
         supabase.from('friendship_xp').select('total_xp').or(`user_a.eq.${userId},user_b.eq.${userId}`),
       ])
       const totalFriendshipXP = (fxpRows ?? []).reduce((sum, r) => sum + ((r as { total_xp: number }).total_xp ?? 0), 0)
@@ -188,16 +189,18 @@ export default async function HomePage() {
 
   // Stage 2 — 3 parallel calls, only 1 hits the DB (get_unread_counts RPC).
   // Last-message preview comes from denormalized crews columns fetched in Stage 1.
-  const [cachedMembers, unreadResult, friendProfiles] = await Promise.all([
+  const [cachedMembers, unreadResult, msgCountResult, friendProfiles] = await Promise.all([
     getCachedHomeMembers(crewIds),
     supabase.rpc('get_unread_counts', {
       p_crew_ids: crewIds,
       p_cutoffs:  memberships.map(m => (m.last_seen ?? m.joined_at) as string),
     }),
+    supabase.rpc('get_crew_message_counts', { p_crew_ids: crewIds }),
     getCachedFriendProfiles(friendUserIds),
   ])
 
-  const unreadMap = new Map((unreadResult.data ?? []).map(r => [r.crew_id, r.unread_count]))
+  const unreadMap   = new Map((unreadResult.data ?? []).map(r => [r.crew_id, r.unread_count]))
+  const msgCountMap = new Map((msgCountResult.data ?? []).map(r => [r.crew_id, r.msg_count]))
 
   // Build crew map from the already-fetched embedded crew data — no separate crews query needed
   const crewMap = new Map(
@@ -253,6 +256,7 @@ export default async function HomePage() {
       unreadCount: unreadMap.get(m.crew_id) ?? 0,
       lastSeen:    m.last_seen as string | null,
       memberCount: memberCountMap[m.crew_id] ?? 1,
+      msgCount:    msgCountMap.get(m.crew_id) ?? 0,
     }]
   })
 

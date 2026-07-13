@@ -1079,7 +1079,7 @@ function LeaveConfirmSheet({
 // ─── Crew card content ────────────────────────────────────────────────────────
 
 function SquadCardPreview({ summary }: { summary: CrewSummary }) {
-  const { crew, lastMessage, unreadCount } = summary
+  const { crew, lastMessage, unreadCount, msgCount } = summary
   const hasUnread = unreadCount > 0
   const imageUrl  = crew.image_url as string | null | undefined
   const state     = !lastMessage ? 'default' : hasUnread ? 'unread' : 'active'
@@ -1098,7 +1098,7 @@ function SquadCardPreview({ summary }: { summary: CrewSummary }) {
           </span>
           <div className="w-[2px] h-[2px] bg-border flex-shrink-0" />
           <span className="font-silkscreen text-[length:var(--text-mini)] text-tertiary leading-none whitespace-nowrap">
-            Total MSG. {crew.total_xp.toLocaleString()}
+            Total MSG. {msgCount.toLocaleString()}
           </span>
           {hasUnread && (
             <>

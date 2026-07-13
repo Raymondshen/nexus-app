@@ -62,7 +62,7 @@ export default async function MemberProfilePage({ params }: Props) {
     // Global message count for the member
     supabase
       .from('messages')
-      .select('id', { count: 'estimated', head: true })
+      .select('id', { count: 'exact', head: true })
       .eq('user_id', userId)
       .neq('message_type', 'system'),
     // Friendship XP between viewer and member
