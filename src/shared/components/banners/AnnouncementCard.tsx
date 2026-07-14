@@ -41,7 +41,7 @@ export function AnnouncementCard({ title, text, imageUrl, createdAt }: Announcem
         )}
       </div>
       <div className="w-full flex flex-col p-[var(--space-5)]" style={{ gap: 8 }}>
-        <div className="w-full flex items-center leading-none" style={{ gap: 8 }}>
+        <div className="w-full flex items-center leading-none" style={{ gap: 'var(--space-5)' }}>
           <p
             className="flex-1 min-w-0 font-body font-bold text-primary truncate"
             style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}
@@ -49,7 +49,7 @@ export function AnnouncementCard({ title, text, imageUrl, createdAt }: Announcem
             {title || 'Sample title'}
           </p>
           <p
-            className="flex-1 min-w-0 font-body font-light text-tertiary text-right whitespace-nowrap"
+            className="flex-shrink-0 font-body font-light text-tertiary whitespace-nowrap"
             style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}
           >
             {createdAt ? formatShortDate(createdAt) : 'Date here'}
