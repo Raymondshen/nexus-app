@@ -465,12 +465,11 @@ function MessageBubbleImpl({
   const [previewSrc, setPreviewSrc] = useState<string | null>(null);
   const [pinSheetOpen, setPinSheetOpen] = useState(false);
 
-  const lastTapRef = useRef(0);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasMoved = useRef(false);
 
   // Swipe-to-reply (other messages only)
   const SWIPE_THRESHOLD = 64;
-  const DOUBLE_TAP_MS = 300;
   const touchStartXRef = useRef(0);
   const touchStartYRef = useRef(0);
   const isDraggingXRef = useRef(false);
@@ -561,7 +560,7 @@ function MessageBubbleImpl({
     }, 700);
   }
 
-  // ─── Double-tap + swipe-to-reply handlers ───────────────────────────────────
+  // ─── Long-press + swipe-to-reply handlers ───────────────────────────────────
 
   // Apply transform to every slide wrapper in this message's group.
   function applyGroupTransform(x: number) {
@@ -585,6 +584,9 @@ function MessageBubbleImpl({
 
   function handleTouchStart(e: React.TouchEvent) {
     hasMoved.current = false;
+    longPressTimer.current = setTimeout(() => {
+      if (!hasMoved.current) setSheetOpen(true);
+    }, 500);
     if (!isOwn) {
       // Cache all slide wrappers for this group once per gesture — avoids
       // repeated querySelector calls during high-frequency touchmove events.
@@ -615,25 +617,23 @@ function MessageBubbleImpl({
     }
   }
   function handleTouchEnd() {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
     if (!isOwn && isDraggingXRef.current) {
       const wasCommitted = swipeCommittedRef.current;
       isDraggingXRef.current = false;
       swipeCommittedRef.current = false;
       resetSwipeDOM();
       if (wasCommitted) setReplyTo({ ...message }, groupId);
-      return;
-    }
-    if (!hasMoved.current) {
-      const now = Date.now();
-      if (now - lastTapRef.current < DOUBLE_TAP_MS) {
-        lastTapRef.current = 0;
-        setSheetOpen(true);
-      } else {
-        lastTapRef.current = now;
-      }
     }
   }
   function handleTouchCancel() {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
     if (!isOwn && isDraggingXRef.current) {
       const wasCommitted = swipeCommittedRef.current;
       isDraggingXRef.current = false;
@@ -644,6 +644,10 @@ function MessageBubbleImpl({
   }
   function handleTouchMove(e: React.TouchEvent) {
     hasMoved.current = true;
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
     if (!isOwn) {
       const t = e.touches[0];
       const dx = t.clientX - touchStartXRef.current;
