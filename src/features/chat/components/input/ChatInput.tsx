@@ -1405,7 +1405,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
               <button
                 onClick={() => { setEditTo(null); setText(''); textRef.current = '' }}
                 className="flex-shrink-0 flex items-center justify-center active:opacity-60"
-                style={{ width: 32, height: 32, marginRight: -8 }}
+                style={{ width: 32, height: 32, marginTop: -8, marginRight: -8, marginBottom: -8 }}
                 aria-label="Cancel edit"
               >
                 <Close style={{ width: 16, height: 16, color: 'var(--color-secondary)' }} aria-hidden="true" />
@@ -1440,7 +1440,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
               <button
                 onClick={() => setReplyTo(null)}
                 className="flex-shrink-0 flex items-center justify-center active:opacity-60"
-                style={{ width: 32, height: 32, marginRight: -8 }}
+                style={{ width: 32, height: 32, marginTop: -8, marginRight: -8, marginBottom: -8 }}
                 aria-label="Cancel reply"
               >
                 <Close style={{ width: 16, height: 16, color: 'var(--color-secondary)' }} aria-hidden="true" />
