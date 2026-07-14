@@ -406,7 +406,7 @@ export function DeveloperUserAnnouncements({ initialAnnouncements }: DeveloperUs
 
       {/* Body */}
       <div
-        className="flex-1 overflow-y-auto nexus-scroll flex flex-col"
+        className="flex-1 min-h-0 overflow-y-auto nexus-scroll flex flex-col"
         style={{ gap: 20, paddingLeft: 16, paddingRight: 16, paddingTop: 16, paddingBottom: 16 }}
       >
         {error && (
