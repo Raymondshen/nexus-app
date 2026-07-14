@@ -1419,7 +1419,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
               className="flex items-center w-full"
               style={{ background: 'var(--color-surface)', padding: 16, gap: 8, marginBottom: 8 }}
             >
-              <CornerUpLeft style={{ width: 16, height: 16, color: 'var(--color-tertiary)', flexShrink: 0 }} aria-hidden="true" />
+              <CornerUpLeft style={{ width: 16, height: 16, color: 'var(--color-muted)', flexShrink: 0 }} aria-hidden="true" />
 
               {/* msg wrapper — flex-[1_0_0], no height clamp so text is never clipped */}
               <div style={{ flex: '1 0 0', minWidth: 1, display: 'flex', alignItems: 'center' }}>
@@ -1443,7 +1443,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
                 style={{ width: 32, height: 32, marginRight: -8 }}
                 aria-label="Cancel reply"
               >
-                <Close style={{ width: 16, height: 16, color: 'var(--color-tertiary)' }} aria-hidden="true" />
+                <Close style={{ width: 16, height: 16, color: 'var(--color-secondary)' }} aria-hidden="true" />
               </button>
             </div>
           )}
