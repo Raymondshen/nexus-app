@@ -49,7 +49,7 @@ Figma 502:2783 — sheets with pinned CTA buttons (Save/Cancel/Edit/Delete, etc)
 
 Reuse `Button`/`DefinitionButton` for the CTA itself — `SheetFooter` only owns the container, same rule as `PageFooter`.
 
-**When the content needs to scroll independently of a pinned footer**, don't put `overflow-y-auto` on `BottomSheet` itself (that scrolls the footer along with the content). Instead give the content div its own `flex-1 min-h-0 overflow-y-auto` and let `SheetFooter` stay a `flex-shrink-0` sibling — `BottomSheet`'s outer container is already `flex flex-col`, so this pins the footer while only the content scrolls. See `SquadDetailsSheet` (leave-squad button) and `AnnouncementsSheet` (Dismiss button) for reference implementations.
+**When the content needs to scroll independently of a pinned footer**, don't put `overflow-y-auto` on `BottomSheet` itself (that scrolls the footer along with the content). Instead give the content div its own `flex-1 min-h-0 overflow-y-auto` and let `SheetFooter` stay a `flex-shrink-0` sibling — `BottomSheet`'s outer container is already `flex flex-col`, so this pins the footer while only the content scrolls. See `SquadDetailsSheet` (leave-squad button) for a reference implementation. (`AnnouncementsSheet` used to be this pattern's other example, but it's no longer a `BottomSheet` at all — it was converted to a full-page overlay; see CLAUDE.md's "Squad Updates" section if you need the fixed-header-over-scrolling-list version of this same idea.)
 
 ---
 
