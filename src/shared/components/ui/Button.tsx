@@ -6,9 +6,11 @@ import { clsx } from 'clsx'
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   // 'primary'→filled, 'secondary'→outlined kept for backward compat
   variant?: 'filled' | 'outlined' | 'primary' | 'secondary' | 'danger'
-  // Only applies to outlined: 'purple' (502:2788), 'red' (502:2789), or
-  // 'tertiary' (502:2723) — border + text in that color, no background fill
-  color?:   'purple' | 'red' | 'tertiary'
+  // Outlined: border + text in that color, no background fill —
+  // 'purple' (502:2788), 'red' (502:2789), 'tertiary' (502:2723), 'green'.
+  // Filled: only 'red' and 'green' override the default purple background
+  // (danger / success states, e.g. the "Reserved" success button).
+  color?:   'purple' | 'red' | 'green' | 'tertiary'
   size?:    'lg' | 'md' | 'sm'
   shadow?:  boolean
   icon?:    ReactNode
@@ -30,7 +32,8 @@ export function Button({
 }: ButtonProps) {
   const isOutlined = variant === 'outlined' || variant === 'secondary'
   const isRed      = variant === 'danger' || color === 'red'
-  const isTertiary = !isRed && color === 'tertiary'
+  const isGreen    = !isRed && color === 'green'
+  const isTertiary = !isRed && !isGreen && color === 'tertiary'
 
   return (
     <button
@@ -52,10 +55,12 @@ export function Button({
         size === 'md'            && ['py-[var(--space-4)] px-[var(--space-5)]', 'gap-[var(--x2)]'],
         size === 'sm'            && ['py-[var(--space-3)] px-[var(--space-5)]', 'gap-[var(--x2)]'],
         // Colors — outlined is always transparent (Figma 502:2788 purple / 502:2789 red / 502:2723 tertiary), never filled
-        !isOutlined && !isRed && 'bg-purple active:opacity-80',
-        !isOutlined &&  isRed && 'bg-[var(--red)] active:opacity-80',
+        !isOutlined && !isRed && !isGreen && 'bg-purple active:opacity-80',
+        !isOutlined &&  isRed             && 'bg-[var(--red)] active:opacity-80',
+        !isOutlined &&  isGreen           && 'bg-[var(--green)] active:opacity-80',
          isOutlined &&  isTertiary && 'border border-tertiary active:opacity-70',
-         isOutlined && !isRed && !isTertiary && 'border border-purple active:opacity-70',
+         isOutlined &&  isGreen && 'border border-[var(--green)] active:opacity-70',
+         isOutlined && !isRed && !isTertiary && !isGreen && 'border border-purple active:opacity-70',
          isOutlined &&  isRed && 'border border-[var(--red)] active:opacity-70',
         className
       )}
@@ -74,7 +79,7 @@ export function Button({
           style={{
             fontSize: size === 'lg' ? 'var(--text-xs)' : 'var(--text-xxs)',
             color: isOutlined
-              ? isTertiary ? 'var(--color-tertiary)' : isRed ? 'var(--red)' : 'var(--color-purple)'
+              ? isTertiary ? 'var(--color-tertiary)' : isRed ? 'var(--red)' : isGreen ? 'var(--green)' : 'var(--color-purple)'
               : 'var(--color-primary)',
           }}
         >

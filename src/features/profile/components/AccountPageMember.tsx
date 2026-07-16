@@ -8,6 +8,7 @@ import { useSlideBack } from '@/app/layouts/SlidePage'
 import { TickerBanner } from '@/shared/components/banners/TickerBanner'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { PageFloatButton } from '@/shared/components/ui/PageFloatButton'
+import { SocialLinksRow } from '@/shared/components/ui/SocialLinksRow'
 import { VibesGrid } from '@/features/profile/components/VibesGrid'
 import { PhotosGrid } from '@/features/profile/components/PhotosGrid'
 import type { PublicNote, ProfilePhoto } from '@/types'
@@ -26,6 +27,11 @@ interface Props {
   initialNotes:     PublicNote[]
   notesCrews:       Array<{ id: string; name: string }>
   initialPhotos:    ProfilePhoto[]
+  instagramUrl?:    string | null
+  xUrl?:            string | null
+  redditUrl?:       string | null
+  linkedinUrl?:     string | null
+  customSiteUrl?:   string | null
 }
 
 const BOND_XP_PER_LEVEL = 100
@@ -44,6 +50,11 @@ export function AccountPageMember({
   initialNotes,
   notesCrews,
   initialPhotos,
+  instagramUrl = null,
+  xUrl = null,
+  redditUrl = null,
+  linkedinUrl = null,
+  customSiteUrl = null,
 }: Props) {
   const goBack      = useSlideBack()
   const isOwner     = viewerId === userId
@@ -151,6 +162,15 @@ export function AccountPageMember({
           </div>
         </div>
       </div>
+
+      {/* ── Social links ─────────────────────────────────────────────────────── */}
+      <SocialLinksRow
+        instagramUrl={instagramUrl}
+        xUrl={xUrl}
+        redditUrl={redditUrl}
+        linkedinUrl={linkedinUrl}
+        customSiteUrl={customSiteUrl}
+      />
 
       {/* ── Status ticker ────────────────────────────────────────────────────── */}
       {status && <TickerBanner text={status} />}

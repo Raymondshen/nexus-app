@@ -12,7 +12,7 @@ export default async function ManageProfilePage() {
   const [{ data: profile }, messagesResult] = await Promise.all([
     supabase
       .from('profiles')
-      .select('username, avatar_url, background_url, is_dev, status, coins, gem_balance')
+      .select('username, avatar_url, background_url, is_dev, status, coins, gem_balance, instagram_url, x_url, reddit_url, linkedin_url, custom_site_url')
       .eq('id', user.id)
       .single(),
     supabase
@@ -30,6 +30,11 @@ export default async function ManageProfilePage() {
     status:        string | null
     coins:         number
     gem_balance:   number
+    instagram_url: string | null
+    x_url:         string | null
+    reddit_url:    string | null
+    linkedin_url:  string | null
+    custom_site_url: string | null
   }
   const row = profile as ProfileRow | null
 
@@ -45,6 +50,11 @@ export default async function ManageProfilePage() {
       totalMessages={messagesResult.count ?? 0}
       coins={row?.coins ?? 0}
       gemBalance={row?.gem_balance ?? 0}
+      initialInstagramUrl={row?.instagram_url ?? null}
+      initialXUrl={row?.x_url ?? null}
+      initialRedditUrl={row?.reddit_url ?? null}
+      initialLinkedinUrl={row?.linkedin_url ?? null}
+      initialCustomSiteUrl={row?.custom_site_url ?? null}
     />
   )
 }

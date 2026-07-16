@@ -3,7 +3,16 @@
 import { revalidateTag } from 'next/cache'
 import { createClient, createServiceClient } from '@/shared/supabase/server'
 import { validateUsernameFormat } from '@/shared/utils/username'
+import { normalizeSocialUrl } from '@/shared/utils/socialLinks'
 import type { ProfilePhoto } from '@/types'
+
+export interface SocialLinksInput {
+  instagramUrl?:  string
+  xUrl?:          string
+  redditUrl?:     string
+  linkedinUrl?:   string
+  customSiteUrl?: string
+}
 
 export async function revalidateProfileAction() {
   const supabase = await createClient()
@@ -190,13 +199,21 @@ export async function updateAvatarAction(newAvatarUrl: string): Promise<{ error:
 export async function updateProfileDetailsAction(
   displayName: string,
   status: string,
+  socialLinks: SocialLinksInput = {},
 ): Promise<{ error: string | null }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Not authenticated' }
 
   const trimmedStatus = status.trim().slice(0, 100)
-  return updateUsername(supabase, user.id, displayName, { status: trimmedStatus || null })
+  return updateUsername(supabase, user.id, displayName, {
+    status: trimmedStatus || null,
+    instagram_url:   normalizeSocialUrl(socialLinks.instagramUrl ?? ''),
+    x_url:           normalizeSocialUrl(socialLinks.xUrl ?? ''),
+    reddit_url:      normalizeSocialUrl(socialLinks.redditUrl ?? ''),
+    linkedin_url:    normalizeSocialUrl(socialLinks.linkedinUrl ?? ''),
+    custom_site_url: normalizeSocialUrl(socialLinks.customSiteUrl ?? ''),
+  })
 }
 
 /**

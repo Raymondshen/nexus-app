@@ -19,6 +19,11 @@ export interface Profile extends Record<string, unknown> {
   gem_balance: number
   last_gem_claim: string | null
   needs_username_reset: boolean
+  instagram_url: string | null
+  x_url: string | null
+  reddit_url: string | null
+  linkedin_url: string | null
+  custom_site_url: string | null
   created_at: string
 }
 

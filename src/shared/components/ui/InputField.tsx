@@ -43,6 +43,7 @@ interface InputFieldProps {
   placeholder?:    string
   helperText?:     string
   required?:       boolean
+  disabled?:       boolean
   maxLength?:      number
   autoComplete?:   string
   autoCapitalize?: string
@@ -56,6 +57,7 @@ export const InputField = forwardRef<HTMLInputElement, InputFieldProps>(function
   placeholder,
   helperText,
   required = false,
+  disabled = false,
   maxLength,
   autoComplete = 'off',
   autoCapitalize,
@@ -68,7 +70,7 @@ export const InputField = forwardRef<HTMLInputElement, InputFieldProps>(function
       <FieldLabel htmlFor={id} label={label} required={required} />
       <div
         className="w-full border border-border h-[50px] flex items-center overflow-hidden transition-colors focus-within:border-border-hover"
-        style={{ paddingLeft: 'var(--x5)', paddingRight: 'var(--x5)' }}
+        style={{ paddingLeft: 'var(--x5)', paddingRight: 'var(--x5)', opacity: disabled ? 0.4 : undefined }}
       >
         <input
           ref={ref}
@@ -81,7 +83,8 @@ export const InputField = forwardRef<HTMLInputElement, InputFieldProps>(function
           autoComplete={autoComplete}
           autoCapitalize={autoCapitalize}
           required={required}
-          className="w-full h-full bg-transparent font-body font-normal text-primary placeholder:text-muted focus:outline-none"
+          disabled={disabled}
+          className="w-full h-full bg-transparent font-body font-normal text-primary placeholder:text-muted focus:outline-none disabled:cursor-not-allowed"
           style={{ fontSize: 'var(--sm)', fontVariationSettings: '"opsz" 14' }}
         />
       </div>

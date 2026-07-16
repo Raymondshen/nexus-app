@@ -11,6 +11,7 @@ import { TickerBanner } from '@/shared/components/banners/TickerBanner'
 import { UserAvatar } from '@/shared/components/ui/UserAvatar'
 import { ProfileHeroBackground } from '@/shared/components/ui/ProfileHeroBackground'
 import { PageFloatButton } from '@/shared/components/ui/PageFloatButton'
+import { SocialLinksRow } from '@/shared/components/ui/SocialLinksRow'
 import { VibesGrid } from '@/features/profile/components/VibesGrid'
 import { PhotosGrid } from '@/features/profile/components/PhotosGrid'
 import type { PublicNote, ProfilePhoto } from '@/types'
@@ -31,6 +32,11 @@ interface ProfileClientProps {
   notesCrews:        Array<{ id: string; name: string }>
   initialPhotos:     ProfilePhoto[]
   initialPinnedId?:  string | null
+  instagramUrl?:     string | null
+  xUrl?:             string | null
+  redditUrl?:        string | null
+  linkedinUrl?:      string | null
+  customSiteUrl?:    string | null
 }
 
 // ─── BackButton ───────────────────────────────────────────────────────────────
@@ -68,6 +74,11 @@ export function ProfileClient({
   notesCrews,
   initialPhotos,
   initialPinnedId = null,
+  instagramUrl = null,
+  xUrl = null,
+  redditUrl = null,
+  linkedinUrl = null,
+  customSiteUrl = null,
 }: ProfileClientProps) {
   const router = useRouter()
 
@@ -212,6 +223,15 @@ export function ProfileClient({
         </div>
 
       </div>
+
+      {/* ── Social links ───────────────────────────────────────────────────────── */}
+      <SocialLinksRow
+        instagramUrl={instagramUrl}
+        xUrl={xUrl}
+        redditUrl={redditUrl}
+        linkedinUrl={linkedinUrl}
+        customSiteUrl={customSiteUrl}
+      />
 
       {/* ── Status ticker ─────────────────────────────────────────────────────── */}
       {initialStatus && <TickerBanner text={initialStatus} />}

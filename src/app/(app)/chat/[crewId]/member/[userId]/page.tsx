@@ -38,7 +38,7 @@ export default async function MemberProfilePage({ params }: Props) {
       .maybeSingle(),
     supabase
       .from('profiles')
-      .select('username, avatar_url, background_url, status, created_at')
+      .select('username, avatar_url, background_url, status, created_at, instagram_url, x_url, reddit_url, linkedin_url, custom_site_url')
       .eq('id', userId)
       .single(),
     supabase
@@ -92,7 +92,10 @@ export default async function MemberProfilePage({ params }: Props) {
   if (!viewerMembership.data) redirect('/home')
   if (!targetMembership.data || !profileResult.data) redirect(`/chat/${crewId}`)
 
-  type ProfileRow = { username: string; avatar_url: string | null; background_url: string | null; status: string | null; created_at: string }
+  type ProfileRow = {
+    username: string; avatar_url: string | null; background_url: string | null; status: string | null; created_at: string
+    instagram_url: string | null; x_url: string | null; reddit_url: string | null; linkedin_url: string | null; custom_site_url: string | null
+  }
   const profile      = profileResult.data as ProfileRow
   const crewName     = (crewResult.data as { name?: string } | null)?.name ?? ''
   const notesCrews   = [{ id: crewId, name: crewName }]
@@ -142,6 +145,11 @@ export default async function MemberProfilePage({ params }: Props) {
         initialNotes={(notesResult.data ?? []) as unknown as PublicNote[]}
         notesCrews={notesCrews}
         initialPhotos={initialPhotos}
+        instagramUrl={profile.instagram_url}
+        xUrl={profile.x_url}
+        redditUrl={profile.reddit_url}
+        linkedinUrl={profile.linkedin_url}
+        customSiteUrl={profile.custom_site_url}
       />
     </SlidePage>
   )

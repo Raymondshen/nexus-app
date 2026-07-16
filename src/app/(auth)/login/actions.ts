@@ -2,6 +2,7 @@
 
 import { createClient, createServiceClient } from '@/shared/supabase/server'
 import { validateUsernameFormat } from '@/shared/utils/username'
+import { normalizeSocialUrl } from '@/shared/utils/socialLinks'
 import type { AvatarClass } from '@/types'
 
 export interface ReservedUserData {
@@ -9,9 +10,22 @@ export interface ReservedUserData {
   class: string | null
 }
 
+// Current-session profile snapshot needed by the Create Profile screen: the
+// upload modals' userId prop, the read-only Account email box, and the hero
+// preview's live coin/gem values (msg count is always 0 at this onboarding
+// point — no crew joined yet — so it isn't fetched here).
+export interface SessionProfileSnapshot {
+  userId:     string
+  email:      string
+  coins:      number
+  gemBalance: number
+  avatarUrl:  string | null
+}
+
 export type CheckReservedResult =
-  | { found: false; hasSession: boolean }
-  | { found: true; hasSession: true; data: ReservedUserData }
+  | { found: false; hasSession: false }
+  | ({ found: false; hasSession: true } & SessionProfileSnapshot)
+  | ({ found: true; hasSession: true; data: ReservedUserData } & SessionProfileSnapshot)
 
 export async function validateInviteCodeAction(
   code: string
@@ -37,20 +51,38 @@ export async function checkReservedUserAction(): Promise<CheckReservedResult> {
   if (!session?.user?.email) return { found: false, hasSession: false }
 
   const service = createServiceClient()
-  const { data } = await service
-    .from('reserved_users')
-    .select('username, class')
-    .eq('email', session.user.email.toLowerCase())
-    .maybeSingle()
+  const [{ data: reserved }, { data: profile }] = await Promise.all([
+    service
+      .from('reserved_users')
+      .select('username, class')
+      .eq('email', session.user.email.toLowerCase())
+      .maybeSingle(),
+    service
+      .from('profiles')
+      .select('coins, gem_balance, avatar_url')
+      .eq('id', session.user.id)
+      .maybeSingle(),
+  ])
 
-  if (!data) return { found: false, hasSession: true }
+  type ProfileSnapshotRow = { coins?: number; gem_balance?: number; avatar_url?: string | null }
+  const profileRow = profile as ProfileSnapshotRow | null
+  const snapshot: SessionProfileSnapshot = {
+    userId:     session.user.id,
+    email:      session.user.email,
+    coins:      profileRow?.coins ?? 0,
+    gemBalance: profileRow?.gem_balance ?? 0,
+    avatarUrl:  profileRow?.avatar_url ?? null,
+  }
+
+  if (!reserved) return { found: false, hasSession: true, ...snapshot }
   return {
     found: true,
     hasSession: true,
     data: {
-      username: data.username,
-      class: data.class,
+      username: reserved.username,
+      class: reserved.class,
     },
+    ...snapshot,
   }
 }
 
@@ -107,12 +139,22 @@ export async function reservePlaceAction(
   return { success: true }
 }
 
+export interface CompleteInviteExtra {
+  status?:         string
+  instagramUrl?:   string
+  xUrl?:           string
+  redditUrl?:      string
+  linkedinUrl?:    string
+  customSiteUrl?:  string
+}
+
 export async function completeInviteFlowAction(
   code: string,
   username: string,
   cls: string,
   firstName: string = '',
   lastName: string = '',
+  extra: CompleteInviteExtra = {},
 ): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()
   const { data: { session } } = await supabase.auth.getSession()
@@ -163,6 +205,12 @@ export async function completeInviteFlowAction(
   const profileUpdate: Record<string, unknown> = { username: usernameClean, avatar_class: cls as AvatarClass }
   if (firstNameClean) profileUpdate.first_name = firstNameClean
   if (lastNameClean)  profileUpdate.last_name  = lastNameClean
+  if (extra.status !== undefined) profileUpdate.status = extra.status.trim().slice(0, 100) || null
+  profileUpdate.instagram_url   = normalizeSocialUrl(extra.instagramUrl ?? '')
+  profileUpdate.x_url           = normalizeSocialUrl(extra.xUrl ?? '')
+  profileUpdate.reddit_url      = normalizeSocialUrl(extra.redditUrl ?? '')
+  profileUpdate.linkedin_url    = normalizeSocialUrl(extra.linkedinUrl ?? '')
+  profileUpdate.custom_site_url = normalizeSocialUrl(extra.customSiteUrl ?? '')
 
   const { error: profileError } = await service
     .from('profiles')
@@ -181,4 +229,46 @@ export async function completeInviteFlowAction(
     .eq('used', false)
 
   return { success: true }
+}
+
+/**
+ * "Sign in with Google" (no invite code) landed on a Google account with no
+ * Nexus profile yet (Figma 547:2452/2587 — the "no account exists" screen).
+ * The user is already authenticated at this point (real session from
+ * exchangeCodeForSession), unlike the pre-auth `reservePlaceAction` flow.
+ * If an invite code is entered here, complete registration immediately via
+ * the same path as the invite flow. Otherwise, just reserve the display name
+ * against this account's email — `checkReservedUserAction`/
+ * `completeInviteFlowAction` already auto-detect a matching `reserved_users`
+ * row by email once a real invite arrives later, so this is a new entry
+ * point into that same existing mechanism, not a separate one.
+ */
+export async function reserveAfterGoogleAction(
+  displayName: string,
+  inviteCode: string,
+): Promise<{ success: boolean; reserved?: boolean; error?: string }> {
+  const supabase = await createClient()
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session?.user?.email) return { success: false, error: 'Session expired. Please sign in again.' }
+
+  const usernameClean = displayName.trim().replace(/<[^>]*>/g, '').slice(0, 20)
+  const usernameError = validateUsernameFormat(usernameClean)
+  if (usernameError) return { success: false, error: usernameError }
+
+  const codeClean = inviteCode.trim().toUpperCase()
+  if (codeClean) {
+    return completeInviteFlowAction(codeClean, usernameClean, 'mage')
+  }
+
+  const service = createServiceClient()
+  const { error } = await service
+    .from('reserved_users')
+    .upsert({ email: session.user.email.toLowerCase(), username: usernameClean }, { onConflict: 'email' })
+
+  if (error) {
+    if (error.code === '23505') return { success: false, error: 'A warrior already guards this name.' }
+    return { success: false, error: 'The rift destabilized. Try again.' }
+  }
+
+  return { success: true, reserved: true }
 }

@@ -16,18 +16,24 @@ import { validateUsernameFormat } from '@/shared/utils/username'
 import { revalidateProfileAction, updateProfileDetailsAction } from '@/app/(app)/profile/actions'
 import { AvatarUploadModal } from '@/shared/components/overlays/AvatarUploadModal'
 import { BackgroundUploadModal } from '@/shared/components/overlays/BackgroundUploadModal'
+import { signOut } from '@/shared/supabase/auth'
 
 export interface ManageUserProfileProps {
-  userId:          string
-  userEmail:       string
-  initialUsername: string
-  initialStatus:   string | null
-  avatarUrl:       string | null
-  backgroundUrl:   string | null
-  isDev:           boolean
-  totalMessages:   number
-  coins:           number
-  gemBalance:      number
+  userId:              string
+  userEmail:           string
+  initialUsername:     string
+  initialStatus:       string | null
+  avatarUrl:           string | null
+  backgroundUrl:       string | null
+  isDev:               boolean
+  totalMessages:       number
+  coins:               number
+  gemBalance:          number
+  initialInstagramUrl: string | null
+  initialXUrl:         string | null
+  initialRedditUrl:    string | null
+  initialLinkedinUrl:  string | null
+  initialCustomSiteUrl: string | null
 }
 
 // ─── ManageUserProfile ────────────────────────────────────────────────────────
@@ -43,6 +49,11 @@ export function ManageUserProfile({
   totalMessages,
   coins,
   gemBalance,
+  initialInstagramUrl,
+  initialXUrl,
+  initialRedditUrl,
+  initialLinkedinUrl,
+  initialCustomSiteUrl,
 }: ManageUserProfileProps) {
   const router = useRouter()
 
@@ -50,8 +61,14 @@ export function ManageUserProfile({
   const [localBackgroundUrl, setLocalBackgroundUrl] = useState(backgroundUrl)
   const [displayName,        setDisplayName]        = useState(initialUsername)
   const [status,             setStatus]             = useState(initialStatus ?? '')
+  const [instagramUrl,       setInstagramUrl]       = useState(initialInstagramUrl ?? '')
+  const [xUrl,               setXUrl]               = useState(initialXUrl ?? '')
+  const [redditUrl,          setRedditUrl]          = useState(initialRedditUrl ?? '')
+  const [linkedinUrl,        setLinkedinUrl]        = useState(initialLinkedinUrl ?? '')
+  const [customSiteUrl,      setCustomSiteUrl]      = useState(initialCustomSiteUrl ?? '')
   const [saving,             setSaving]             = useState(false)
   const [saveError,          setSaveError]          = useState<string | null>(null)
+  const [loggingOut,         setLoggingOut]         = useState(false)
 
   const [pendingAvatarFile, setPendingAvatarFile] = useState<File | null>(null)
   const [pendingBgFile,     setPendingBgFile]     = useState<File | null>(null)
@@ -68,7 +85,13 @@ export function ManageUserProfile({
     setSaving(true)
     setSaveError(null)
     try {
-      const result = await updateProfileDetailsAction(trimmed, status.trim())
+      const result = await updateProfileDetailsAction(trimmed, status.trim(), {
+        instagramUrl: instagramUrl.trim(),
+        xUrl: xUrl.trim(),
+        redditUrl: redditUrl.trim(),
+        linkedinUrl: linkedinUrl.trim(),
+        customSiteUrl: customSiteUrl.trim(),
+      })
       if (result.error === 'taken') { setSaveError('Name already taken'); return }
       if (result.error) { setSaveError(result.error); return }
       await revalidateProfileAction()
@@ -77,6 +100,17 @@ export function ManageUserProfile({
       setSaveError('Failed to save — try again')
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function handleLogOut() {
+    if (loggingOut) return
+    setLoggingOut(true)
+    try {
+      await signOut()
+      router.push('/login')
+    } catch {
+      setLoggingOut(false)
     }
   }
 
@@ -220,6 +254,16 @@ export function ManageUserProfile({
             maxLength={100}
           />
 
+          <p className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-primary)' }}>
+            Social Links
+          </p>
+
+          <InputField label="Instagram"   value={instagramUrl}  onChange={setInstagramUrl}  placeholder="instagram.com/yourname"   maxLength={200} />
+          <InputField label="X"           value={xUrl}          onChange={setXUrl}          placeholder="x.com/yourname"            maxLength={200} />
+          <InputField label="Reddit"      value={redditUrl}     onChange={setRedditUrl}     placeholder="reddit.com/u/yourname"     maxLength={200} />
+          <InputField label="Linkedin"    value={linkedinUrl}   onChange={setLinkedinUrl}   placeholder="linkedin.com/in/yourname"  maxLength={200} />
+          <InputField label="Custom Site" value={customSiteUrl} onChange={setCustomSiteUrl} placeholder="yourwebsite.com"           maxLength={200} />
+
           {saveError && (
             <p className="font-pixel text-[8px] text-[#ef4444]">{saveError}</p>
           )}
@@ -235,6 +279,16 @@ export function ManageUserProfile({
           className="w-full"
         >
           Save Changes
+        </Button>
+        <Button
+          variant="outlined"
+          color="red"
+          onClick={handleLogOut}
+          disabled={saving}
+          loading={loggingOut}
+          className="w-full"
+        >
+          Log Out
         </Button>
       </PageFooter>
 

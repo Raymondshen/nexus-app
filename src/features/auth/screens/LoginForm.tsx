@@ -1,16 +1,27 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { AnimatePresence, motion } from 'framer-motion'
+import { Upload } from 'pixelarticons/react/Upload'
+import { DiamondGem } from 'pixelarticons/react/DiamondGem'
+import { TokeCircle } from 'pixelarticons/react/TokeCircle'
 import { Button } from '@/shared/components/ui/Button'
 import { Input } from '@/shared/components/ui/Input'
+import { InputField } from '@/shared/components/ui/InputField'
+import { PageHeader } from '@/shared/components/ui/PageHeader'
+import { PageFooter } from '@/shared/components/ui/PageFooter'
+import { UserAvatar } from '@/shared/components/ui/UserAvatar'
+import { TickerBanner } from '@/shared/components/banners/TickerBanner'
+import { AvatarUploadModal } from '@/shared/components/overlays/AvatarUploadModal'
+import { BackgroundUploadModal } from '@/shared/components/overlays/BackgroundUploadModal'
 import { signInWithGoogleForInvite, signInWithGoogle } from '@/shared/supabase/auth'
 import {
   validateInviteCodeAction,
   checkReservedUserAction,
   reservePlaceAction,
   completeInviteFlowAction,
+  reserveAfterGoogleAction,
   type CheckReservedResult,
 } from '@/app/(auth)/login/actions'
 import type { AvatarClass } from '@/types'
@@ -28,6 +39,7 @@ type Step =
   | 'invite-code'    // enter & validate invite code first
   | 'invite-oauth'   // google sign-in (after code validated)
   | 'invite-profile' // username + class (after oauth)
+  | 'reserve-google'  // direct Google sign-in, no Nexus account yet (Figma 547:2452/2587)
   | 'reserve-email'
   | 'reserve-class'
   | 'reserve-name'
@@ -104,41 +116,6 @@ function ClassCarousel({
   )
 }
 
-function GoogleButton({
-  onClick,
-  loading,
-}: {
-  onClick: () => void
-  loading: boolean
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={loading}
-      className="w-full flex items-center justify-center gap-3 bg-[#1a1a2e] hover:bg-[#252540] border border-[#3a3a5c] text-white font-pixel text-[11px] tracking-wider px-4 py-3 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-[3px_3px_0px_#0d0d1a] active:shadow-none active:translate-y-[2px]"
-    >
-      {loading ? (
-        <span className="flex gap-1">
-          <span className="inline-block w-1 h-1 bg-white animate-bounce" style={{ animationDelay: '0ms' }} />
-          <span className="inline-block w-1 h-1 bg-white animate-bounce" style={{ animationDelay: '150ms' }} />
-          <span className="inline-block w-1 h-1 bg-white animate-bounce" style={{ animationDelay: '300ms' }} />
-        </span>
-      ) : (
-        <>
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" />
-            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-          </svg>
-          CONTINUE WITH GOOGLE
-        </>
-      )}
-    </button>
-  )
-}
-
 function BackButton({ onClick }: { onClick: () => void }) {
   return (
     <button
@@ -155,14 +132,6 @@ function ErrorBox({ message }: { message: string }) {
   return (
     <div className="bg-[#ff4444]/10 border border-[#ff4444]/50 px-3 py-2">
       <p className="font-pixel text-[9px] text-[#ff4444] leading-relaxed">{message}</p>
-    </div>
-  )
-}
-
-function InfoBox({ message }: { message: string }) {
-  return (
-    <div className="bg-[#bf5fff]/10 border border-[#bf5fff]/30 px-3 py-2">
-      <p className="font-pixel text-[9px] text-[#bf5fff] leading-relaxed">{message}</p>
     </div>
   )
 }
@@ -187,7 +156,9 @@ export function LoginForm({
   const router = useRouter()
 
   const [step, setStep] = useState<Step>(
-    flow === 'invite' && stepParam === '2' ? 'invite-profile' : 'landing'
+    flow === 'invite' && stepParam === '2' ? 'invite-profile'
+    : urlError === 'no_account' ? 'reserve-google'
+    : 'landing'
   )
   const [email, setEmail]                 = useState('')
   const [username, setUsername]           = useState('')
@@ -204,15 +175,36 @@ export function LoginForm({
   const [doneUsername, setDoneUsername]   = useState('')
   const [doneClass, setDoneClass]         = useState('')
 
-  // When reaching invite-profile, check reservation then auto-complete if possible
+  // ── Create Profile step (Figma 547:2289) ──────────────────────────────────
+  const [status,         setStatus]         = useState('')
+  const [instagramUrl,   setInstagramUrl]   = useState('')
+  const [xUrl,           setXUrl]           = useState('')
+  const [redditUrl,      setRedditUrl]      = useState('')
+  const [linkedinUrl,    setLinkedinUrl]    = useState('')
+  const [customSiteUrl,  setCustomSiteUrl]  = useState('')
+  const [avatarUrl,      setAvatarUrl]      = useState<string | null>(null)
+  const [backgroundUrl,  setBackgroundUrl]  = useState<string | null>(null)
+  const [pendingAvatarFile, setPendingAvatarFile] = useState<File | null>(null)
+  const [pendingBgFile,     setPendingBgFile]     = useState<File | null>(null)
+  const avatarFileInputRef = useRef<HTMLInputElement>(null)
+  const bgFileInputRef     = useRef<HTMLInputElement>(null)
+
+  // ── Reserve-after-Google step (Figma 547:2452/2587) ───────────────────────
+  const [reservedSuccess, setReservedSuccess] = useState(false)
+
+  // When reaching invite-profile or reserve-google, fetch the session snapshot
+  // (email/coins/gems/avatar) and any existing reservation. The auto-complete
+  // branch below only fires when `code` is set, which never happens on the
+  // reserve-google entry path (no invite flow cookie) — safe to share.
   useEffect(() => {
-    if (step !== 'invite-profile') return
+    if (step !== 'invite-profile' && step !== 'reserve-google') return
     let cancelled = false
     setLoadingReserved(true)
 
     checkReservedUserAction().then(async result => {
       if (cancelled) return
       setReservedData(result)
+      if (result.hasSession) setAvatarUrl(result.avatarUrl)
 
       if (result.found) {
         setUsername(result.data.username)
@@ -287,11 +279,41 @@ export function LoginForm({
     setError(null)
     setLoading(true)
     try {
-      const result = await completeInviteFlowAction(code, username, selectedClass, firstName, lastName)
+      const result = await completeInviteFlowAction(code, username, selectedClass, firstName, lastName, {
+        status,
+        instagramUrl,
+        xUrl,
+        redditUrl,
+        linkedinUrl,
+        customSiteUrl,
+      })
       if (result.success) {
         router.push('/home')
       } else {
         setError(result.error ?? 'The rift destabilized. Try again.')
+      }
+    } catch {
+      setError('The rift destabilized. Try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleReserveGoogle() {
+    if (reservedSuccess) return
+    setError(null)
+    setLoading(true)
+    try {
+      const result = await reserveAfterGoogleAction(username, inviteCode)
+      if (!result.success) {
+        setError(result.error ?? 'The rift destabilized. Try again.')
+        return
+      }
+      if (result.reserved) {
+        setReservedSuccess(true)
+      } else {
+        // A valid invite code was entered — registration completed immediately.
+        router.push('/home')
       }
     } catch {
       setError('The rift destabilized. Try again.')
@@ -335,8 +357,17 @@ export function LoginForm({
     setError(null)
     switch (step) {
       case 'invite-code':    setStep('landing');       break
-      case 'invite-oauth':   setStep('invite-code');   break
+      case 'invite-oauth':
+        setStep('landing')
+        setInviteCode('')
+        break
       case 'invite-profile': setStep('landing');       break
+      case 'reserve-google':
+        setStep('landing')
+        setUsername('')
+        setInviteCode('')
+        setReservedSuccess(false)
+        break
       case 'reserve-email':  setStep('landing');       break
       case 'reserve-class':  setStep('reserve-email'); break
       case 'reserve-name':   setStep('reserve-class'); break
@@ -388,15 +419,6 @@ export function LoginForm({
         </div>
 
         <div className="flex flex-col items-start w-full" style={{ gap: 'var(--x5)' }}>
-          {urlError === 'no_account' && (
-            <p
-              className="font-body font-normal text-center w-full leading-relaxed"
-              style={{ fontSize: 'var(--xs)', color: 'var(--red)', fontVariationSettings: '"opsz" 14' }}
-            >
-              No Nexus account found for that Google sign-in. Ask a squad member for an invite code.
-            </p>
-          )}
-
           <Button
             type="button"
             variant="filled"
@@ -434,6 +456,502 @@ export function LoginForm({
     )
   }
 
+  // ── Reserve after Google sign-in (Figma 547:2452 / 547:2587) ─────────────
+  // "SIGN IN WITH GOOGLE" (no invite code) succeeded, but this Google account
+  // has no Nexus profile yet — /auth/callback redirects here with
+  // ?error=no_account. The user is already authenticated; this screen lets
+  // them reserve a display name against that account (or, if they happen to
+  // have an invite code, complete registration immediately via the same
+  // field).
+  if (step === 'reserve-google') {
+    const sessionSnapshot = reservedData && reservedData.hasSession ? reservedData : null
+
+    return (
+      <div
+        className="flex-1 flex flex-col items-center justify-center w-full"
+        style={{
+          gap: 'var(--x6)',
+          paddingLeft: 'var(--x5)',
+          paddingRight: 'var(--x5)',
+          paddingTop: 'max(env(safe-area-inset-top), var(--x5))',
+          paddingBottom: 'max(env(safe-area-inset-bottom), var(--x5))',
+        }}
+      >
+        <div className="flex flex-col items-center w-full" style={{ gap: 'var(--x3)' }}>
+          <h1
+            className="font-pixel text-primary text-center leading-none tracking-[0.2px]"
+            style={{ fontSize: 'var(--display)' }}
+          >
+            NEXUS
+          </h1>
+          <p
+            className="font-body font-normal text-secondary text-center w-full leading-[1.5]"
+            style={{ fontSize: 'var(--sm)', fontVariationSettings: '"opsz" 14' }}
+          >
+            Unfortunately no account exists for that google account. You may reserve this account and display name until you receive a code. Code invites are only possible through sending a request to the dev&rsquo;s or existing users of Nexus.
+          </p>
+        </div>
+
+        <div className="flex flex-col items-start w-full" style={{ gap: 'var(--x5)' }}>
+          {error && (
+            <p
+              className="font-body font-normal text-center w-full leading-relaxed"
+              style={{ fontSize: 'var(--xs)', color: 'var(--red)', fontVariationSettings: '"opsz" 14' }}
+            >
+              {error}
+            </p>
+          )}
+
+          <InputField
+            label="Account"
+            disabled
+            value={sessionSnapshot?.email ?? ''}
+            onChange={() => {}}
+          />
+
+          <InputField
+            label="Display Name"
+            required
+            disabled={reservedSuccess}
+            value={username}
+            onChange={(v) => setUsername(v.replace(/<[^>]*>/g, '').slice(0, 20))}
+            placeholder="your display name"
+            maxLength={20}
+          />
+
+          <InputField
+            label="Enter Invite Code"
+            disabled={reservedSuccess}
+            value={inviteCode}
+            onChange={(v) => setInviteCode(v.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10))}
+            placeholder="ABCDEF"
+            helperText="Enter the personal invite code given to you."
+            autoComplete="off"
+            autoCapitalize="characters"
+          />
+
+          <Button
+            type="button"
+            variant="filled"
+            color={reservedSuccess ? 'green' : undefined}
+            loading={loading}
+            disabled={loading || !username.trim()}
+            className="w-full"
+            onClick={handleReserveGoogle}
+          >
+            {reservedSuccess ? 'RESERVED' : 'RESERVE MY NAME'}
+          </Button>
+
+          <Button
+            type="button"
+            variant="outlined"
+            color="tertiary"
+            className="w-full"
+            onClick={goBack}
+          >
+            BACK HOME
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Invite — Code entry (Figma 545:5713) ────────────────────────────────
+  // Full-bleed screen matching the landing step's layout — no boxed card.
+  // Validation runs on Enter (form submit) via handleValidateCode; Cancel
+  // creation routes back to the landing step (Google sign-in / invite-code
+  // entry point).
+  if (step === 'invite-code') {
+    return (
+      <div
+        className="flex-1 flex flex-col items-center justify-center w-full"
+        style={{
+          gap: 'var(--x6)',
+          paddingLeft: 'var(--x5)',
+          paddingRight: 'var(--x5)',
+          paddingTop: 'max(env(safe-area-inset-top), var(--x5))',
+          paddingBottom: 'max(env(safe-area-inset-bottom), var(--x5))',
+        }}
+      >
+        <div className="flex flex-col items-center w-full" style={{ gap: 'var(--x3)' }}>
+          <h1
+            className="font-pixel text-primary text-center leading-none tracking-[0.2px]"
+            style={{ fontSize: 'var(--display)' }}
+          >
+            NEXUS
+          </h1>
+          <p
+            className="font-body font-normal text-secondary text-center w-full leading-[1.5]"
+            style={{ fontSize: 'var(--sm)', fontVariationSettings: '"opsz" 14' }}
+          >
+            Let&rsquo;s create your account
+          </p>
+        </div>
+
+        <form
+          className="flex flex-col items-start w-full"
+          style={{ gap: 'var(--x5)' }}
+          onSubmit={e => { e.preventDefault(); handleValidateCode() }}
+        >
+          {error && (
+            <p
+              className="font-body font-normal text-center w-full leading-relaxed"
+              style={{ fontSize: 'var(--xs)', color: 'var(--red)', fontVariationSettings: '"opsz" 14' }}
+            >
+              {error}
+            </p>
+          )}
+
+          <InputField
+            label="Enter Invite Code"
+            required
+            value={inviteCode}
+            onChange={v => setInviteCode(v.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10))}
+            placeholder="ABCDEF"
+            helperText="Enter the personal invite code given to you."
+            autoComplete="off"
+            autoCapitalize="characters"
+          />
+
+          <Button
+            type="submit"
+            variant="filled"
+            loading={loading}
+            disabled={loading || !inviteCode.trim()}
+            className="w-full"
+          >
+            ENTER
+          </Button>
+
+          <Button
+            type="button"
+            variant="outlined"
+            color="tertiary"
+            className="w-full"
+            onClick={goBack}
+          >
+            CANCEL CREATION
+          </Button>
+        </form>
+      </div>
+    )
+  }
+
+  // ── Invite — OAuth (Figma 546:2052) ──────────────────────────────────────
+  // Full-bleed screen matching the landing/invite-code layout. Cancel
+  // creation returns straight to the landing step (goBack resets step +
+  // inviteCode), not back to the code-entry step.
+  if (step === 'invite-oauth') {
+    return (
+      <div
+        className="flex-1 flex flex-col items-center justify-center w-full"
+        style={{
+          gap: 'var(--x6)',
+          paddingLeft: 'var(--x5)',
+          paddingRight: 'var(--x5)',
+          paddingTop: 'max(env(safe-area-inset-top), var(--x5))',
+          paddingBottom: 'max(env(safe-area-inset-bottom), var(--x5))',
+        }}
+      >
+        <div className="flex flex-col items-center w-full" style={{ gap: 'var(--x3)' }}>
+          <h1
+            className="font-pixel text-primary text-center leading-none tracking-[0.2px]"
+            style={{ fontSize: 'var(--display)' }}
+          >
+            NEXUS
+          </h1>
+          <p
+            className="font-body font-normal text-secondary text-center w-full leading-[1.5]"
+            style={{ fontSize: 'var(--sm)', fontVariationSettings: '"opsz" 14' }}
+          >
+            Welcome! Invite code was valid. Sign in with google to create your account.
+          </p>
+        </div>
+
+        <div className="flex flex-col items-start w-full" style={{ gap: 'var(--x5)' }}>
+          {error && (
+            <p
+              className="font-body font-normal text-center w-full leading-relaxed"
+              style={{ fontSize: 'var(--xs)', color: 'var(--red)', fontVariationSettings: '"opsz" 14' }}
+            >
+              {error}
+            </p>
+          )}
+
+          <Button
+            type="button"
+            variant="filled"
+            loading={googleLoading}
+            disabled={googleLoading}
+            className="w-full"
+            onClick={handleInviteOAuth}
+          >
+            SIGN IN WITH GOOGLE
+          </Button>
+
+          <Button
+            type="button"
+            variant="outlined"
+            color="tertiary"
+            className="w-full"
+            onClick={goBack}
+          >
+            CANCEL CREATION
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Create Profile (Figma 547:2289) ──────────────────────────────────────
+  // Final step of the invite signup flow — modeled directly on
+  // ManageUserProfile.tsx (same hero/upload/field patterns) rather than a new
+  // layout. Reserved users with a class on file never see this screen (the
+  // effect above auto-completes and navigates to /home first); a reserved
+  // user without a class still lands here with Display Name locked.
+  if (step === 'invite-profile') {
+    const sessionSnapshot = reservedData && reservedData.hasSession ? reservedData : null
+    const heroName = username.trim() || 'Warrior'
+    const canSubmit = !loading && !loadingReserved && !!code
+      && !!username.trim() && !!firstName.trim() && !!lastName.trim()
+
+    return (
+      <div className="flex-1 w-full flex flex-col" style={{ position: 'fixed', inset: 0 }}>
+        <PageHeader title="Create Profile" onBack={goBack} />
+
+        <div className="flex-1 min-h-0 overflow-y-auto nexus-scroll flex flex-col">
+
+          {/* Hero */}
+          <div className="relative flex flex-col justify-end overflow-hidden flex-shrink-0 w-full" style={{ height: 240, padding: 16 }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={backgroundUrl ?? '/img/default_image.png'}
+              alt=""
+              aria-hidden
+              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }}
+            />
+            <div className="absolute inset-0 pointer-events-none" style={{ background: 'var(--gradient-image-overlay)' }} />
+
+            <div className="relative flex items-center w-full" style={{ gap: 16 }}>
+              <UserAvatar avatarUrl={avatarUrl} username={heroName} size={56} bg="primary" priority />
+
+              <div className="flex-1 min-w-0 flex flex-col justify-center leading-none" style={{ gap: 4 }}>
+                <p className="font-silkscreen" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>
+                  Lifetime msg. 0
+                </p>
+                <p className="font-body font-bold truncate" style={{ fontSize: 'var(--text-xl)', fontVariationSettings: '"opsz" 14', color: 'var(--color-primary)' }}>
+                  {heroName}
+                </p>
+
+                <div className="flex items-center" style={{ gap: 8 }}>
+                  <div className="flex items-center" style={{ gap: 4 }}>
+                    <DiamondGem style={{ width: 12, height: 12, color: 'var(--color-purple)' }} aria-hidden="true" />
+                    <span
+                      className="font-silkscreen leading-none"
+                      style={{
+                        fontSize:             'var(--text-xxs)',
+                        background:           'linear-gradient(to right, var(--color-purple), #d946ef)',
+                        WebkitBackgroundClip: 'text',
+                        WebkitTextFillColor:  'transparent',
+                        backgroundClip:       'text',
+                      }}
+                    >
+                      {sessionSnapshot?.gemBalance ?? 0}
+                    </span>
+                  </div>
+                  <div className="w-[2px] h-[2px] bg-border-hover flex-shrink-0" aria-hidden="true" />
+                  <div className="flex items-center" style={{ gap: 4 }}>
+                    <TokeCircle style={{ width: 12, height: 12, color: 'var(--color-coins)' }} aria-hidden="true" />
+                    <span className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-xxs)', color: 'var(--color-coins)' }}>
+                      {(sessionSnapshot?.coins ?? 0).toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Status ticker */}
+          <TickerBanner text={status.trim() || 'Whats the mood today...'} />
+
+          {/* Body */}
+          <div className="flex flex-col w-full" style={{ gap: 20, paddingLeft: 16, paddingRight: 16, paddingTop: 16, paddingBottom: 16 }}>
+
+            {error && <ErrorBox message={error} />}
+            {!code && !loadingReserved && <ErrorBox message="Session expired. Please start over." />}
+
+            {loadingReserved ? (
+              <div className="py-6 flex justify-center">
+                <span className="flex gap-1">
+                  <span className="inline-block w-1.5 h-1.5 bg-[#bf5fff] animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="inline-block w-1.5 h-1.5 bg-[#bf5fff] animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="inline-block w-1.5 h-1.5 bg-[#bf5fff] animate-bounce" style={{ animationDelay: '300ms' }} />
+                </span>
+              </div>
+            ) : (
+              <>
+                {/* Account (read-only) */}
+                <div className="flex flex-col w-full" style={{ gap: 8 }}>
+                  <p className="font-body font-medium text-primary leading-none" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}>
+                    Account
+                  </p>
+                  <div
+                    className="w-full border h-[50px] flex items-center overflow-hidden"
+                    style={{ borderColor: 'var(--color-border-hover)', paddingLeft: 16, paddingRight: 16 }}
+                  >
+                    <p className="font-body font-normal leading-normal truncate" style={{ fontSize: 'var(--text-sm)', color: 'var(--color-tertiary)', fontVariationSettings: '"opsz" 14' }}>
+                      {sessionSnapshot?.email ?? ''}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Profile Photo / Background Image upload buttons */}
+                <div className="flex w-full" style={{ gap: 16 }}>
+                  <div className="flex flex-col flex-1 min-w-0" style={{ gap: 8 }}>
+                    <p className="font-body font-medium text-primary leading-none" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}>
+                      Profile Photo
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => avatarFileInputRef.current?.click()}
+                      className="flex items-center justify-center w-full h-12 border border-[var(--color-purple)] active:opacity-70 transition-opacity"
+                      style={{ gap: 8 }}
+                    >
+                      <Upload style={{ width: 16, height: 16, color: 'var(--color-purple)' }} aria-hidden="true" />
+                      <span className="font-silkscreen leading-none pb-0.5" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-purple)' }}>
+                        Upload
+                      </span>
+                    </button>
+                  </div>
+
+                  <div className="flex flex-col flex-1 min-w-0" style={{ gap: 8 }}>
+                    <p className="font-body font-medium text-primary leading-none" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}>
+                      Background Image
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => bgFileInputRef.current?.click()}
+                      className="flex items-center justify-center w-full h-12 border border-[var(--color-purple)] active:opacity-70 transition-opacity"
+                      style={{ gap: 8 }}
+                    >
+                      <Upload style={{ width: 16, height: 16, color: 'var(--color-purple)' }} aria-hidden="true" />
+                      <span className="font-silkscreen leading-none pb-0.5" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-purple)' }}>
+                        Upload
+                      </span>
+                    </button>
+                  </div>
+                </div>
+
+                <InputField
+                  label="Display Name"
+                  required
+                  disabled={isReserved}
+                  value={username}
+                  onChange={(v) => setUsername(v.replace(/<[^>]*>/g, '').slice(0, 20))}
+                  placeholder="your display name"
+                  maxLength={20}
+                />
+
+                <div className="flex w-full" style={{ gap: 16 }}>
+                  <InputField
+                    label="First Name"
+                    required
+                    value={firstName}
+                    onChange={(v) => setFirstName(v.replace(/<[^>]*>/g, '').slice(0, 50))}
+                    placeholder="Alex"
+                    maxLength={50}
+                    autoComplete="given-name"
+                  />
+                  <InputField
+                    label="Last Name"
+                    required
+                    value={lastName}
+                    onChange={(v) => setLastName(v.replace(/<[^>]*>/g, '').slice(0, 50))}
+                    placeholder="Mercer"
+                    maxLength={50}
+                    autoComplete="family-name"
+                  />
+                </div>
+
+                <InputField
+                  label="Current Mood"
+                  value={status}
+                  onChange={(v) => setStatus(v.slice(0, 100))}
+                  placeholder="Pop up in your city like a banksy"
+                  helperText="Express yourself to your groups."
+                  maxLength={100}
+                />
+
+                <p className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-primary)' }}>
+                  Social Links
+                </p>
+
+                <InputField label="Instagram"    value={instagramUrl}  onChange={setInstagramUrl}  placeholder="instagram.com/yourname"    maxLength={200} autoComplete="off" />
+                <InputField label="X"            value={xUrl}          onChange={setXUrl}          placeholder="x.com/yourname"             maxLength={200} autoComplete="off" />
+                <InputField label="Reddit"       value={redditUrl}     onChange={setRedditUrl}     placeholder="reddit.com/u/yourname"      maxLength={200} autoComplete="off" />
+                <InputField label="Linkedin"     value={linkedinUrl}   onChange={setLinkedinUrl}   placeholder="linkedin.com/in/yourname"    maxLength={200} autoComplete="off" />
+                <InputField label="Custom Site"  value={customSiteUrl} onChange={setCustomSiteUrl} placeholder="yourwebsite.com"             maxLength={200} autoComplete="off" />
+              </>
+            )}
+          </div>
+
+        </div>
+
+        <PageFooter>
+          <Button
+            variant="filled"
+            loading={loading}
+            disabled={!canSubmit}
+            className="w-full"
+            onClick={handleCompleteInvite}
+          >
+            CREATE PROFILE
+          </Button>
+        </PageFooter>
+
+        {/* Hidden avatar file input */}
+        <input
+          ref={avatarFileInputRef}
+          type="file"
+          accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif"
+          style={{ position: 'fixed', top: -1, left: -1, width: 1, height: 1, opacity: 0, pointerEvents: 'none' }}
+          onChange={(e) => {
+            const f = e.target.files?.[0]
+            if (f) setPendingAvatarFile(f)
+            e.target.value = ''
+          }}
+        />
+        <AvatarUploadModal
+          file={pendingAvatarFile}
+          userId={sessionSnapshot?.userId ?? ''}
+          isDev={false}
+          onClose={() => setPendingAvatarFile(null)}
+          onSuccess={(url) => { setAvatarUrl(url); setPendingAvatarFile(null) }}
+        />
+
+        {/* Hidden background file input */}
+        <input
+          ref={bgFileInputRef}
+          type="file"
+          accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif"
+          style={{ position: 'fixed', top: -1, left: -1, width: 1, height: 1, opacity: 0, pointerEvents: 'none' }}
+          onChange={(e) => {
+            const f = e.target.files?.[0]
+            if (f) setPendingBgFile(f)
+            e.target.value = ''
+          }}
+        />
+        <BackgroundUploadModal
+          file={pendingBgFile}
+          userId={sessionSnapshot?.userId ?? ''}
+          isDev={false}
+          onClose={() => setPendingBgFile(null)}
+          onSuccess={(url) => { setBackgroundUrl(url); setPendingBgFile(null) }}
+        />
+      </div>
+    )
+  }
+
   return (
     <div className="flex-1 w-full flex flex-col items-center justify-center px-4 py-12">
       <div className="w-full max-w-[390px]">
@@ -462,198 +980,6 @@ export function LoginForm({
           }}
         >
           <AnimatePresence mode="wait">
-
-      {/* ── Invite — Code entry step ─────────────────────────────────────────── */}
-      {step === 'invite-code' && (
-        <motion.div
-          key="invite-code"
-          variants={variants}
-          initial="enter" animate="center" exit="exit"
-          transition={{ duration: 0.18 }}
-          className="flex flex-col gap-5"
-        >
-          <div className="text-center">
-            <h2 className="font-pixel text-[11px] text-white mb-2">ENTER YOUR CODE</h2>
-            <p className="font-pixel text-[8px] text-[#6b4f8f] leading-relaxed">
-              Got an invite? Enter it below to begin.
-            </p>
-          </div>
-
-          {error && <ErrorBox message={error} />}
-
-          <Input
-            name="inviteCode"
-            type="text"
-            label="INVITE CODE"
-            placeholder="ENTER CODE"
-            value={inviteCode}
-            onChange={e => setInviteCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10))}
-            autoComplete="off"
-            autoCapitalize="characters"
-          />
-
-          <Button
-            type="button"
-            variant="primary"
-            loading={loading}
-            disabled={loading || inviteCode.trim().length < 4}
-            className="w-full"
-            onClick={handleValidateCode}
-          >
-            VERIFY CODE
-          </Button>
-
-          <BackButton onClick={goBack} />
-        </motion.div>
-      )}
-
-      {/* ── Invite — OAuth step ──────────────────────────────────────────────── */}
-      {step === 'invite-oauth' && (
-        <motion.div
-          key="invite-oauth"
-          variants={variants}
-          initial="enter" animate="center" exit="exit"
-          transition={{ duration: 0.18 }}
-          className="flex flex-col gap-5"
-        >
-          <div className="text-center">
-            <h2 className="font-pixel text-[11px] text-white mb-2">CODE ACCEPTED</h2>
-            <p className="font-pixel text-[8px] text-[#6b4f8f] leading-relaxed">
-              Sign in with Google to create your warrior.
-            </p>
-          </div>
-
-          {inviteCode && (
-            <InfoBox message={`Code ${inviteCode} verified. Now connect your Google account.`} />
-          )}
-
-          {error && <ErrorBox message={error} />}
-
-          <GoogleButton onClick={handleInviteOAuth} loading={googleLoading} />
-          <BackButton onClick={goBack} />
-        </motion.div>
-      )}
-
-      {/* ── Invite — Profile + class step ───────────────────────────────────── */}
-      {step === 'invite-profile' && (
-        <motion.div
-          key="invite-profile"
-          variants={variants}
-          initial="enter" animate="center" exit="exit"
-          transition={{ duration: 0.18 }}
-          className="flex flex-col gap-4"
-        >
-          <div className="text-center">
-            <h2 className="font-pixel text-[11px] text-white mb-1">CREATE YOUR WARRIOR</h2>
-          </div>
-
-          {error && <ErrorBox message={error} />}
-
-          {!code && !loadingReserved && (
-            <ErrorBox message="Session expired. Please start over." />
-          )}
-
-          {loadingReserved ? (
-            <div className="py-6 flex justify-center">
-              <span className="flex gap-1">
-                <span className="inline-block w-1.5 h-1.5 bg-[#bf5fff] animate-bounce" style={{ animationDelay: '0ms' }} />
-                <span className="inline-block w-1.5 h-1.5 bg-[#bf5fff] animate-bounce" style={{ animationDelay: '150ms' }} />
-                <span className="inline-block w-1.5 h-1.5 bg-[#bf5fff] animate-bounce" style={{ animationDelay: '300ms' }} />
-              </span>
-            </div>
-          ) : isReserved ? (
-            /* Reserved user — read-only pre-filled fields */
-            <div className="flex flex-col gap-3">
-              <div className="flex flex-col gap-[6px]">
-                <span className="font-pixel text-[9px] text-[#bf5fff] tracking-widest uppercase">
-                  Warrior Name
-                </span>
-                <div className="bg-[#080514] border-2 border-[#2a1545] px-3 py-3">
-                  <span className="text-white text-sm font-sans">{username}</span>
-                </div>
-              </div>
-              {selectedClass && (
-                <div className="flex flex-col gap-[6px]">
-                  <span className="font-pixel text-[9px] text-[#bf5fff] tracking-widest uppercase">
-                    Your Class
-                  </span>
-                  <div
-                    className="border-2 px-3 py-2"
-                    style={{
-                      borderColor: CLASSES.find(c => c.id === selectedClass)?.color ?? '#2a1545',
-                      background: '#080514',
-                    }}
-                  >
-                    <span
-                      className="font-pixel text-[10px]"
-                      style={{ color: CLASSES.find(c => c.id === selectedClass)?.color }}
-                    >
-                      {CLASSES.find(c => c.id === selectedClass)?.name}
-                    </span>
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : (
-            /* Non-reserved user — username + real name; class defaults to mage */
-            <div className="flex flex-col gap-3">
-              <div className="flex gap-3">
-                <Input
-                  name="firstName"
-                  type="text"
-                  label="FIRST NAME"
-                  placeholder="Alex"
-                  value={firstName}
-                  onChange={e => setFirstName(e.target.value.replace(/<[^>]*>/g, '').slice(0, 50))}
-                  maxLength={50}
-                  autoComplete="given-name"
-                />
-                <Input
-                  name="lastName"
-                  type="text"
-                  label="LAST NAME"
-                  placeholder="Mercer"
-                  value={lastName}
-                  onChange={e => setLastName(e.target.value.replace(/<[^>]*>/g, '').slice(0, 50))}
-                  maxLength={50}
-                  autoComplete="family-name"
-                />
-              </div>
-              <Input
-                name="username"
-                type="text"
-                label="WARRIOR NAME"
-                placeholder="ShadowBlade99"
-                value={username}
-                onChange={e => setUsername(e.target.value.replace(/<[^>]*>/g, '').slice(0, 20))}
-                maxLength={20}
-                autoComplete="off"
-              />
-            </div>
-          )}
-
-          {!loadingReserved && code && (
-            <>
-              <Button
-                type="button"
-                variant="primary"
-                loading={loading}
-                disabled={loading || !username.trim() || (!isReserved && (!firstName.trim() || !lastName.trim()))}
-                className="w-full"
-                onClick={handleCompleteInvite}
-              >
-                ENTER THE NEXUS
-              </Button>
-
-              <BackButton onClick={goBack} />
-            </>
-          )}
-
-          {!loadingReserved && !code && (
-            <BackButton onClick={goBack} />
-          )}
-        </motion.div>
-      )}
 
       {/* ── Reserve — Email step ─────────────────────────────────────────────── */}
       {step === 'reserve-email' && (
