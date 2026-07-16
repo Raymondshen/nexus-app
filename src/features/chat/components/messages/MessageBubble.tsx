@@ -944,36 +944,46 @@ function MessageBubbleImpl({
             {showHeader && (
               <div className="flex items-center justify-between w-full">
                 <div className="flex items-center gap-[4px] flex-1 min-w-0 overflow-hidden">
-                  <span
-                    className={`font-body font-medium text-[12px] tracking-[0.1px] shrink-0 leading-[normal] whitespace-nowrap ${
-                      isOwn ? "text-primary" : "text-secondary"
-                    }`}
+                  <div
+                    className="flex items-center justify-center min-w-0"
                     style={{
-                      fontVariationSettings: '"opsz" 14',
-                      cursor: onAvatarTap ? "pointer" : undefined,
+                      background: "var(--color-surface-sheet)",
+                      borderRadius: "var(--x2)",
+                      padding: "var(--x2) var(--x3)",
+                      gap: "var(--x2)",
                     }}
-                    onClick={
-                      onAvatarTap
-                        ? () => onAvatarTap(message.user_id)
-                        : undefined
-                    }
-                    onTouchStart={
-                      onAvatarTap ? (e) => e.stopPropagation() : undefined
-                    }
                   >
-                    {message.profile.username}
-                  </span>
-
-                  {isCreator && (
-                    <Crown
+                    <span
+                      className={`font-body font-medium text-[12px] tracking-[0.1px] leading-[normal] whitespace-nowrap overflow-hidden text-ellipsis ${
+                        isOwn ? "text-primary" : "text-secondary"
+                      }`}
                       style={{
-                        width: 12,
-                        height: 12,
-                        color: "var(--color-coins)",
-                        flexShrink: 0,
+                        fontVariationSettings: '"opsz" 14',
+                        cursor: onAvatarTap ? "pointer" : undefined,
                       }}
-                    />
-                  )}
+                      onClick={
+                        onAvatarTap
+                          ? () => onAvatarTap(message.user_id)
+                          : undefined
+                      }
+                      onTouchStart={
+                        onAvatarTap ? (e) => e.stopPropagation() : undefined
+                      }
+                    >
+                      {message.profile.username}
+                    </span>
+
+                    {isCreator && (
+                      <Crown
+                        style={{
+                          width: 12,
+                          height: 12,
+                          color: "var(--color-coins)",
+                          flexShrink: 0,
+                        }}
+                      />
+                    )}
+                  </div>
 
                   {pinnedVinyl && (
                     <VinylPill
