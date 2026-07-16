@@ -184,11 +184,15 @@ export function AnnouncementsSheet({
 }: {
   announcements: AnnouncementItem[];
 }) {
-  const [visible, setVisible] = useState<AnnouncementItem[] | null>(null); // null = dismissed-state not checked yet
+  // null = dismissed-state not checked yet; [] = nothing new to show; otherwise the
+  // full announcements list, so a new announcement still surfaces the complete
+  // grouped-by-date history rather than only the undismissed delta.
+  const [visible, setVisible] = useState<AnnouncementItem[] | null>(null);
 
   useEffect(() => {
     const dismissed = getDismissed();
-    setVisible(announcements.filter((a) => !dismissed.has(a.id)));
+    const hasUnseen = announcements.some((a) => !dismissed.has(a.id));
+    setVisible(hasUnseen ? announcements : []);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function dismissAll() {
