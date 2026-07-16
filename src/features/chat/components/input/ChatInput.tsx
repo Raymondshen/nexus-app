@@ -572,12 +572,16 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
         // Presence channel used for typing indicators only — online status comes from timestamps.
         // Written into chatStore (not local state) — see ChatTypingIndicator; the store's own
         // equality check bails out when this sync didn't actually change who's typing.
+        // The presence key IS the user id (see acquireCrewMessageChannel call below), so a
+        // single user can still have >1 presence entry under that key (e.g. the same account
+        // open in two tabs/devices at once) — collapse to one entry per key ("any connection
+        // for this user is typing" instead of flatMap-ing every connection's own row) or a
+        // user with two open sessions renders as two duplicate "X and X are typing..." names.
         const state = ch.presenceState<{ username: string; typing: boolean }>()
         const others = Object.entries(state)
           .filter(([key]) => key !== userId)
-          .flatMap(([, presences]) => presences)
-          .filter((p) => p.typing)
-          .map((p) => p.username)
+          .filter(([, presences]) => presences.some((p) => p.typing))
+          .map(([, presences]) => presences[0].username)
         useChatStore.getState().setTypingUsernames(others)
       })
       .on('broadcast', { event: 'active' }, ({ payload }) => {
@@ -686,6 +690,16 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     if (isTypingRef.current === isTyping) return
     isTypingRef.current = isTyping
     msgChannelRef.current?.track({ username: userProfileRef.current.username, typing: isTyping })
+  }
+
+  // Every place that clears/replaces `text` outside of handleInput's own onChange
+  // (send, edit-save, slash-command execute, Escape-clear, cancel-edit) must call this
+  // too — broadcastTyping/the 3s debounce timer only fire from handleInput, so a
+  // programmatic setText('') alone leaves "X is typing..." stuck for stale viewers
+  // until the old debounce timer happens to fire.
+  function clearTypingState() {
+    broadcastTyping(false)
+    if (typingTimerRef.current) { clearTimeout(typingTimerRef.current); typingTimerRef.current = null }
   }
 
   const removePendingImage = useCallback((id: string) => {
@@ -881,8 +895,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
       setText('')
       textRef.current = ''
       setReplyTo(null)
-      broadcastTyping(false)
-      if (typingTimerRef.current) clearTimeout(typingTimerRef.current)
+      clearTypingState()
       const wasMultiline = isMultilineRef.current
       setIsMultiline(false)
       isMultilineRef.current = false
@@ -999,8 +1012,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     setText('')
     textRef.current = ''
     setReplyTo(null)
-    broadcastTyping(false)
-    if (typingTimerRef.current) clearTimeout(typingTimerRef.current)
+    clearTypingState()
     const wasMultiline = isMultilineRef.current
     setIsMultiline(false)
     isMultilineRef.current = false
@@ -1101,6 +1113,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     setEditTo(null)
     setText('')
     textRef.current = ''
+    clearTypingState()
     const wasMultiline = isMultilineRef.current
     setIsMultiline(false)
     isMultilineRef.current = false
@@ -1139,6 +1152,8 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     if (e.key === 'Escape' && text.startsWith('/') && !text.includes(' ')) {
       e.preventDefault()
       setText('')
+      textRef.current = ''
+      clearTypingState()
       return
     }
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -1167,7 +1182,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
       broadcastTyping(true)
       if (typingTimerRef.current) clearTimeout(typingTimerRef.current)
       typingTimerRef.current = setTimeout(() => broadcastTyping(false), 3000)
-    } else { broadcastTyping(false) }
+    } else { clearTypingState() }
     // Detect @mention query at cursor position
     const q = getMentionQuery(val, caretPos)
     setMentionQuery(q)
@@ -1175,14 +1190,14 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   }
 
   function handleBlur() {
-    broadcastTyping(false)
-    if (typingTimerRef.current) clearTimeout(typingTimerRef.current)
+    clearTypingState()
     setIsFocused(false)
   }
 
   async function executeCommand(name: SlashCommandName) {
     setText('')
     textRef.current = ''
+    clearTypingState()
     const wasMultiline = isMultilineRef.current
     setIsMultiline(false)
     isMultilineRef.current = false
@@ -1403,7 +1418,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
                 Editing message
               </p>
               <button
-                onClick={() => { setEditTo(null); setText(''); textRef.current = '' }}
+                onClick={() => { setEditTo(null); setText(''); textRef.current = ''; clearTypingState() }}
                 className="flex-shrink-0 flex items-center justify-center active:opacity-60"
                 style={{ width: 32, height: 32, marginTop: -8, marginRight: -8, marginBottom: -8 }}
                 aria-label="Cancel edit"
