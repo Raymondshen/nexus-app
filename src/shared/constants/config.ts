@@ -311,6 +311,13 @@ export const REACTION_LOTTIE_MAP: Record<string, string> = Object.fromEntries(
   REACTION_CATALOG.map((r) => [r.emoji, `/lottie/reactions/${r.file}.json`]),
 )
 
+// emoji → readable shortcode label (Figma 537:2202 "Friends Reacted" sheet, e.g.
+// "thumbs_up" -> ":thumbs-up:"). A missing key (legacy element reactions not in the
+// catalog) falls back to the raw glyph itself.
+export const REACTION_LABEL_MAP: Record<string, string> = Object.fromEntries(
+  REACTION_CATALOG.map((r) => [r.emoji, `:${r.file.replace(/_/g, '-')}:`]),
+)
+
 // Default quick-pick reaction set (Figma 490:5343 top row — 6 primary reactions).
 // Users can customize their own set via EmojiReactionPickerSheet; the choice persists
 // in localStorage (nexus_quick_reactions) — see src/shared/utils/quickReactions.ts.

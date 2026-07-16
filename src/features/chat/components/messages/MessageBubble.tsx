@@ -20,6 +20,7 @@ import { PollCard } from "@/features/chat/components/polls/PollCard";
 import { EventCardMessage } from "@/features/events/components/EventCardMessage";
 import { PinDurationSheet } from "@/features/chat/components/sheets/PinDurationSheet";
 import { ChatSheetReact } from "@/features/chat/components/sheets/ChatSheetReact";
+import { MessageReactionsSheet } from "@/features/chat/components/sheets/MessageReactionsSheet";
 import { useMessageReactions } from "@/features/chat/components/messages/useMessageReactions";
 import { LottieReactionIcon } from "@/shared/components/ui/LottieReactionIcon";
 import { REACTION_LOTTIE_MAP } from "@/shared/constants/config";
@@ -148,6 +149,8 @@ interface MessageBubbleProps {
   memberUsernames?: Set<string>;
   /** Old username (lowercased) → current username, for crew members who've renamed. */
   mentionAliases?: Map<string, string>;
+  /** userId → profile, for resolving reactor avatars/usernames in MessageReactionsSheet. */
+  memberProfiles?: Record<string, Pick<Profile, "id" | "username" | "avatar_url">>;
   replyProfile?: Pick<
     Profile,
     "id" | "username" | "avatar_class" | "avatar_url"
@@ -181,6 +184,7 @@ function areEqual(prev: MessageBubbleProps, next: MessageBubbleProps): boolean {
   if (prev.definitions !== next.definitions) return false;
   if (prev.memberUsernames !== next.memberUsernames) return false;
   if (prev.mentionAliases !== next.mentionAliases) return false;
+  if (prev.memberProfiles !== next.memberProfiles) return false;
   if (prev.replyProfile !== next.replyProfile) return false;
   if (prev.pinnedVinyl !== next.pinnedVinyl) return false;
   return true;
@@ -372,11 +376,40 @@ function MsgReactionPills({
   reactions,
   currentUserId,
   onReact,
+  onLongPress,
 }: {
   reactions: [string, string[]][];
   currentUserId: string;
   onReact: (emoji: string) => void;
+  onLongPress: () => void;
 }) {
+  // Own long-press timer, independent from the bubble's own (which opens ChatSheetReact) —
+  // onTouchStart/onTouchEnd stopPropagation below keeps the bubble's touch-based timer from
+  // ever starting, so long-pressing a pill only ever opens MessageReactionsSheet.
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressFiredRef = useRef(false);
+
+  function clearLongPressTimer() {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  }
+
+  function handlePointerDown(e: React.PointerEvent) {
+    e.stopPropagation();
+    longPressFiredRef.current = false;
+    longPressTimer.current = setTimeout(() => {
+      longPressFiredRef.current = true;
+      onLongPress();
+    }, 500);
+  }
+
+  function handlePointerUp(emoji: string) {
+    clearLongPressTimer();
+    if (!longPressFiredRef.current) onReact(emoji);
+  }
+
   return (
     <>
       {reactions.map(([emoji, users]) => {
@@ -388,8 +421,11 @@ function MsgReactionPills({
         return (
           <button
             key={emoji}
-            onPointerDown={(e) => e.stopPropagation()}
-            onPointerUp={() => onReact(emoji)}
+            onPointerDown={handlePointerDown}
+            onPointerUp={() => handlePointerUp(emoji)}
+            onPointerLeave={clearLongPressTimer}
+            onTouchStart={(e) => e.stopPropagation()}
+            onTouchEnd={(e) => e.stopPropagation()}
             className="bg-surface-elevated flex items-center overflow-hidden select-none active:opacity-70 transition-opacity"
             style={{
               gap: "var(--x2)",
@@ -434,6 +470,10 @@ function MsgReactionPills({
 const EMPTY_DEFINITIONS: SquadDefinitionWithCreator[] = [];
 const EMPTY_USERNAMES = new Set<string>();
 const EMPTY_ALIASES = new Map<string, string>();
+const EMPTY_PROFILES: Record<
+  string,
+  Pick<Profile, "id" | "username" | "avatar_url">
+> = {};
 
 function MessageBubbleImpl({
   message,
@@ -448,6 +488,7 @@ function MessageBubbleImpl({
   definitions = EMPTY_DEFINITIONS,
   memberUsernames = EMPTY_USERNAMES,
   mentionAliases = EMPTY_ALIASES,
+  memberProfiles = EMPTY_PROFILES,
   replyProfile = null,
   isCreator = false,
   pinnedVinyl = null,
@@ -464,6 +505,7 @@ function MessageBubbleImpl({
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewSrc, setPreviewSrc] = useState<string | null>(null);
   const [pinSheetOpen, setPinSheetOpen] = useState(false);
+  const [reactionsSheetOpen, setReactionsSheetOpen] = useState(false);
 
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasMoved = useRef(false);
@@ -483,6 +525,7 @@ function MessageBubbleImpl({
   const setReplyTo = useChatStore((s) => s.setReplyTo);
   const setEditTo = useChatStore((s) => s.setEditTo);
   const requestRetrySend = useChatStore((s) => s.requestRetrySend);
+  const onlineUserIds = useChatStore((s) => s.onlineUserIds);
 
   const { displayReactions, handleReaction } = useMessageReactions({
     messageId: message.id,
@@ -1214,6 +1257,7 @@ function MessageBubbleImpl({
                     reactions={sortedReactions}
                     currentUserId={currentUserId}
                     onReact={handleReactionTap}
+                    onLongPress={() => setReactionsSheetOpen(true)}
                   />
                 </motion.div>
               )}
@@ -1362,6 +1406,22 @@ function MessageBubbleImpl({
                   setSheetOpen(false);
                   setPinSheetOpen(true);
                 }}
+              />
+            )}
+          </AnimatePresence>,
+          document.body,
+        )}
+
+      {/* ── MessageReactionsSheet — Figma 537:2202 "Friends Reacted" ─────────── */}
+      {mounted &&
+        createPortal(
+          <AnimatePresence>
+            {reactionsSheetOpen && (
+              <MessageReactionsSheet
+                reactions={sortedReactions}
+                profiles={memberProfiles}
+                onlineUserIds={onlineUserIds}
+                onClose={() => setReactionsSheetOpen(false)}
               />
             )}
           </AnimatePresence>,

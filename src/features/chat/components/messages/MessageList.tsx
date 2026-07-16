@@ -971,6 +971,7 @@ export function MessageList({
           definitions={definitions}
           memberUsernames={memberUsernames}
           mentionAliases={mentionAliases}
+          memberProfiles={localProfiles}
           replyProfile={replyProfile}
           isCreator={creatorId != null && item.message.user_id === creatorId}
           pinnedVinyl={memberPinnedVinyls?.[item.message.user_id] ?? null}
