@@ -11,6 +11,7 @@ export interface AnnouncementImageOption {
 
 export const ANNOUNCEMENT_IMAGE_OPTIONS: AnnouncementImageOption[] = [
   { filename: "chatroom-update-v1.svg", path: "/img/announcements/chatroom-update-v1.svg" },
+  { filename: "messageBubble_react_bottomSheet.svg", path: "/img/announcements/messageBubble_react_bottomSheet.svg" },
   { filename: "messageBubble_react_doubletap.svg", path: "/img/announcements/messageBubble_react_doubletap.svg" },
   { filename: "text-effects-v1.svg", path: "/img/announcements/text-effects-v1.svg" },
 ]
