@@ -91,6 +91,36 @@ export function AnnouncementsSheetView({
             </button>
           </div>
 
+          {/* Fixed — does not scroll with the card list below it. */}
+          <div
+            className="relative z-10 flex-shrink-0 w-full flex flex-col items-center text-center"
+            style={{
+              gap: 8,
+              paddingLeft: "var(--md)",
+              paddingRight: "var(--md)",
+              paddingBottom: "var(--x6)",
+            }}
+          >
+            <p
+              className="w-full font-body font-bold leading-none text-primary"
+              style={{
+                fontSize: "var(--text-xxl)",
+                fontVariationSettings: '"opsz" 14',
+              }}
+            >
+              Squad Updates
+            </p>
+            <p
+              className="w-full font-body font-medium leading-none text-secondary"
+              style={{
+                fontSize: "var(--text-sm)",
+                fontVariationSettings: '"opsz" 14',
+              }}
+            >
+              New features and improvements, as they happen.
+            </p>
+          </div>
+
           <div
             className="relative z-10 flex-1 min-h-0 overflow-y-auto nexus-scroll w-full flex flex-col items-center"
             style={{
@@ -100,31 +130,9 @@ export function AnnouncementsSheetView({
               paddingBottom: "max(env(safe-area-inset-bottom), var(--x5))",
             }}
           >
-            <div
-              className="w-full flex flex-col items-center text-center"
-              style={{ gap: 8 }}
-            >
-              <p
-                className="w-full font-body font-bold leading-none text-primary"
-                style={{
-                  fontSize: "var(--text-xxl)",
-                  fontVariationSettings: '"opsz" 14',
-                }}
-              >
-                Squad Updates
-              </p>
-              <p
-                className="w-full font-body font-medium leading-none text-secondary"
-                style={{
-                  fontSize: "var(--text-sm)",
-                  fontVariationSettings: '"opsz" 14',
-                }}
-              >
-                New features and improvements, as they happen.
-              </p>
-            </div>
-
-            {groups.map(([label, items]) => (
+            {/* Each card fills the row's full width — horizontal scroll becomes a
+                one-card-at-a-time swipe once a day has more than 1 announcement. */}
+            {groups.map(([label, items], groupIndex) => (
               <div
                 key={label}
                 className="w-full flex flex-col items-start flex-shrink-0"
@@ -137,10 +145,13 @@ export function AnnouncementsSheetView({
                     fontVariationSettings: '"opsz" 14',
                   }}
                 >
+                  {groupIndex === 0 && (
+                    <span className="font-body font-semibold text-purple">
+                      Latest -{" "}
+                    </span>
+                  )}
                   {label}
                 </p>
-                {/* Each card fills the row's full width — horizontal scroll becomes
-                    a one-card-at-a-time swipe once a date has more than 1. */}
                 <div
                   className="w-full flex overflow-x-auto no-scrollbar"
                   style={{ gap: "var(--x5)" }}
@@ -154,7 +165,6 @@ export function AnnouncementsSheetView({
                         title={a.title}
                         text={a.text}
                         imageUrl={a.image_url}
-                        createdAt={a.created_at}
                       />
                     </div>
                   ))}

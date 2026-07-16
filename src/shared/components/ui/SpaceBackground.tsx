@@ -32,12 +32,18 @@ const SPACE_PARTICLES: Particle[] = [
   { left: '65%', top: '30%', delay: '2.2s', duration: '4.4s', size: 2, opacity: 0.35 },
   { left: '12%', top: '45%', delay: '1.6s', duration: '6.6s', size: 4, opacity: 0.20 },
   { left: '80%', top: '82%', delay: '0.5s', duration: '5.6s', size: 2, opacity: 0.30 },
+  { left: '45%', top: '55%', delay: '1.3s', duration: '5.2s', size: 3, opacity: 0.30 },
+  { left: '28%', top: '35%', delay: '0.9s', duration: '4.0s', size: 2, opacity: 0.35 },
+  { left: '95%', top: '70%', delay: '2.0s', duration: '6.0s', size: 3, opacity: 0.25 },
+  { left: '5%',  top: '92%', delay: '0.4s', duration: '5.6s', size: 2, opacity: 0.30 },
+  { left: '60%', top: '95%', delay: '1.7s', duration: '4.4s', size: 4, opacity: 0.20 },
+  { left: '48%', top: '25%', delay: '0.2s', duration: '6.4s', size: 2, opacity: 0.40 },
 ]
 
 // Denser, brighter field for full-bleed page backgrounds. The set above was
 // tuned to sit *behind* a solid onboarding card (small accent, not the main
 // event) — used edge-to-edge as a page's entire backdrop it reads as flat
-// black. Roughly 2.5x the particles, bigger, and notably more opaque.
+// black. Roughly 2x the particles, bigger, and notably more opaque.
 const DENSE_SPACE_PARTICLES: Particle[] = [
   { left: '5%',  top: '9%',  delay: '0s',    duration: '4.8s', size: 5, opacity: 0.65 },
   { left: '22%', top: '22%', delay: '0.5s',  duration: '5.6s', size: 3, opacity: 0.50 },
@@ -63,6 +69,16 @@ const DENSE_SPACE_PARTICLES: Particle[] = [
   { left: '95%', top: '65%', delay: '1.3s',  duration: '6.4s', size: 4, opacity: 0.55 },
   { left: '3%',  top: '55%', delay: '0.6s',  duration: '4.4s', size: 3, opacity: 0.50 },
   { left: '48%', top: '2%',  delay: '1.7s',  duration: '5.8s', size: 4, opacity: 0.55 },
+  { left: '15%', top: '15%', delay: '1.0s',  duration: '5.0s', size: 4, opacity: 0.50 },
+  { left: '65%', top: '58%', delay: '0.3s',  duration: '4.6s', size: 3, opacity: 0.55 },
+  { left: '38%', top: '82%', delay: '1.5s',  duration: '6.0s', size: 5, opacity: 0.60 },
+  { left: '8%',  top: '48%', delay: '2.2s',  duration: '3.9s', size: 3, opacity: 0.45 },
+  { left: '55%', top: '92%', delay: '0.6s',  duration: '5.4s', size: 4, opacity: 0.55 },
+  { left: '75%', top: '35%', delay: '1.8s',  duration: '4.2s', size: 3, opacity: 0.50 },
+  { left: '28%', top: '58%', delay: '0.1s',  duration: '6.2s', size: 5, opacity: 0.65 },
+  { left: '88%', top: '90%', delay: '1.1s',  duration: '4.8s', size: 3, opacity: 0.45 },
+  { left: '2%',  top: '72%', delay: '2.0s',  duration: '5.8s', size: 4, opacity: 0.55 },
+  { left: '42%', top: '12%', delay: '0.8s',  duration: '4.0s', size: 3, opacity: 0.50 },
 ]
 
 interface SpaceBackgroundProps {

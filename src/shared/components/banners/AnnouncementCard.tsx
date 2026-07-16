@@ -1,18 +1,16 @@
-import { formatShortDate } from '@/shared/utils/date'
-
 export interface AnnouncementCardProps {
   title:     string
   text:      string
   /** null renders the Figma 505:2011 gradient "Image here." placeholder — used by the add/edit editor's live preview before an image is chosen. */
   imageUrl:  string | null
-  /** null renders a "Date here" placeholder — used by the add/edit editor's live preview for a not-yet-created announcement. */
-  createdAt: string | null
 }
 
-// Figma 419:1955 / 426:6821 — image container + title/timestamp/body content area.
-// Reused by the announcements bottom sheet AND the add/edit announcement editor's
+// Figma 419:1955 / 426:6821 — image container + title/body content area.
+// Reused by the announcements page AND the add/edit announcement editor's
 // live preview (Figma 505:2010/505:2001) — keep this the sole place that renders one.
-export function AnnouncementCard({ title, text, imageUrl, createdAt }: AnnouncementCardProps) {
+// No date here — the Squad Updates page already groups cards under a date-label
+// row (see AnnouncementsSheet.tsx), so repeating it per-card was redundant.
+export function AnnouncementCard({ title, text, imageUrl }: AnnouncementCardProps) {
   return (
     <div className="w-full flex flex-col items-start overflow-hidden bg-surface-elevated rounded-[8px] flex-shrink-0">
       <div className="w-full h-[180px] flex-shrink-0 overflow-hidden">
@@ -41,20 +39,12 @@ export function AnnouncementCard({ title, text, imageUrl, createdAt }: Announcem
         )}
       </div>
       <div className="w-full flex flex-col p-[var(--space-5)]" style={{ gap: 8 }}>
-        <div className="w-full flex items-center leading-none" style={{ gap: 'var(--space-5)' }}>
-          <p
-            className="flex-1 min-w-0 font-body font-bold text-primary truncate"
-            style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}
-          >
-            {title || 'Sample title'}
-          </p>
-          <p
-            className="flex-shrink-0 font-body font-light text-tertiary whitespace-nowrap"
-            style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}
-          >
-            {createdAt ? formatShortDate(createdAt) : 'Date here'}
-          </p>
-        </div>
+        <p
+          className="w-full font-body font-bold text-primary truncate leading-none"
+          style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}
+        >
+          {title || 'Sample title'}
+        </p>
         <p
           className="w-full font-body font-normal text-secondary"
           style={{

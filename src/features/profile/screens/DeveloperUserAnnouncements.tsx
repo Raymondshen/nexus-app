@@ -287,7 +287,6 @@ function AnnouncementEditorPage({ mode, target, onClose, onSaved, onDeleted }: A
           title={title}
           text={text}
           imageUrl={imageUrl || null}
-          createdAt={target?.created_at ?? null}
         />
 
         <SelectField
