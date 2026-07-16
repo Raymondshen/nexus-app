@@ -5,47 +5,16 @@ import { motion, useReducedMotion } from 'framer-motion'
 import type { Transition } from 'framer-motion'
 import { clsx } from 'clsx'
 
-// Figma 541:2106 "home - screen" — stacked NEXUS wordmark converge effect.
-// Keyframe shape (times/ease) preserved verbatim from Figma's motion export;
-// `durationS` rescales the whole pass to fit real elapsed load time instead
-// of Figma's fixed 0.8s loop — see HomeLoadingGate, which measures actual
-// load time and never repeats the clip.
-//
-// The Figma source animates the frame's row-gap from 8px to -40px, but CSS
-// `gap` can't go negative — reproduced here as translateY on the outer two
-// rows instead (their motion is mathematically equivalent: the middle row's
-// center never moves, each outer row shifts by exactly |Δgap| toward it).
-const ROW_SHIFT_PX = 48 // |finalGap(-40) - initialGap(8)|
-
-// Module-level constants (not recreated per render) so Framer Motion always
-// sees the same `animate` target array reference across re-renders.
-const OUTER_DOWN_KEYFRAMES = [0, ROW_SHIFT_PX, ROW_SHIFT_PX]
-const OUTER_UP_KEYFRAMES = [0, -ROW_SHIFT_PX, -ROW_SHIFT_PX]
-const MIDDLE_COLOR_KEYFRAMES = [
-  'rgba(250, 250, 250, 0)',
-  'rgba(250, 250, 250, 0)',
-  'rgba(250, 250, 250, 0)',
-  '#FAFAFA',
-]
-const REST_Y = { y: 0 }
-const SOLID_COLOR = { color: '#FAFAFA' }
-
-function outerRowTransition(durationS: number): Transition {
-  return {
-    duration: durationS,
-    times: [0, 0.4999, 1],
-    ease: [[0.5, 0, 0.5, 1], 'linear'],
-  }
-}
-
-function middleRowTransition(durationS: number): Transition {
-  return {
-    duration: durationS,
-    times: [0, 0.4411, 0.4412, 0.4787],
-    ease: ['linear', 'linear', [0.5, 0, 0.5, 1]],
-  }
-}
-
+// Figma 544:2720 "home - screen" — stacked NEXUS wordmark flicker effect.
+// Three identical "NEXUS" rows sit stacked (flex-col, gap 8px) and never
+// move; only their opacity crossfades in a staggered sequence (top outline
+// → middle solid fill → bottom outline → settle on solid middle), giving a
+// scanning flicker instead of the previous version's converging slide.
+// Keyframe shape (times/ease) preserved verbatim from Figma's motion export,
+// which loops every 0.8s — but this component still plays it as a single
+// pass rescaled to `durationS` (never repeats), same contract as before, so
+// HomeLoadingGate's "scale to real load time, fire onComplete once" logic
+// needs no changes.
 const wordmarkTextStyle: React.CSSProperties = {
   margin: 0,
   fontFamily: 'var(--font-pixel)',
@@ -57,15 +26,47 @@ const wordmarkTextStyle: React.CSSProperties = {
   WebkitTextStroke: '1px var(--color-primary)',
 }
 
+// Module-level constants (not recreated per render) so Framer Motion always
+// sees the same `animate` target array reference across re-renders.
+const TOP_OPACITY_KEYFRAMES    = [0, 1, 0, 0]
+const MIDDLE_OPACITY_KEYFRAMES = [0, 0, 1, 1]
+const BOTTOM_OPACITY_KEYFRAMES = [0, 0, 1, 0, 0]
+const HIDDEN  = { opacity: 0 }
+const VISIBLE = { opacity: 1 }
+
+function topRowTransition(durationS: number): Transition {
+  return {
+    duration: durationS,
+    times: [0, 0.25, 0.4999, 1],
+    ease: [[0.5, 0, 0.5, 1], [0.5, 0, 0.5, 1], 'linear'],
+  }
+}
+
+function middleRowTransition(durationS: number): Transition {
+  return {
+    duration: durationS,
+    times: [0, 0.4999, 0.7499, 1],
+    ease: ['linear', [0.5, 0, 0.5, 1], 'linear'],
+  }
+}
+
+function bottomRowTransition(durationS: number): Transition {
+  return {
+    duration: durationS,
+    times: [0, 0.25, 0.4999, 0.7499, 1],
+    ease: ['linear', [0.5, 0, 0.5, 1], [0.5, 0, 0.5, 1], 'linear'],
+  }
+}
+
 export function NexusWordmark({
   className,
   durationS = 0.8,
   onComplete,
 }: {
   className?: string
-  /** Total length of the single convergence pass, in seconds. */
+  /** Total length of the single flicker pass, in seconds. */
   durationS?: number
-  /** Fires once the pass finishes and the wordmark is holding its converged/solid frame. */
+  /** Fires once the pass finishes and the wordmark is holding its solid resting frame. */
   onComplete?: () => void
 }) {
   const reduceMotion = useReducedMotion()
@@ -73,8 +74,9 @@ export function NexusWordmark({
   // Stable object references across re-renders (e.g. HomeClient re-rendering
   // for unrelated reasons while this is playing) so Framer Motion never sees
   // a new `transition` for the same in-progress animation.
-  const outerTransition = useMemo(() => outerRowTransition(durationS), [durationS])
+  const topTransition    = useMemo(() => topRowTransition(durationS), [durationS])
   const middleTransition = useMemo(() => middleRowTransition(durationS), [durationS])
+  const bottomTransition = useMemo(() => bottomRowTransition(durationS), [durationS])
 
   // Reduced motion renders the resting frame directly and never runs
   // framer-motion's onAnimationComplete — signal "done" immediately so a
@@ -91,16 +93,16 @@ export function NexusWordmark({
     >
       <motion.p
         style={{ ...wordmarkTextStyle, color: 'transparent' }}
-        initial={REST_Y}
-        animate={reduceMotion ? REST_Y : { y: OUTER_DOWN_KEYFRAMES }}
-        transition={reduceMotion ? undefined : outerTransition}
+        initial={HIDDEN}
+        animate={reduceMotion ? HIDDEN : { opacity: TOP_OPACITY_KEYFRAMES }}
+        transition={reduceMotion ? undefined : topTransition}
       >
         NEXUS
       </motion.p>
       <motion.p
-        style={wordmarkTextStyle}
-        initial={{ color: 'rgba(250, 250, 250, 0)' }}
-        animate={reduceMotion ? SOLID_COLOR : { color: MIDDLE_COLOR_KEYFRAMES }}
+        style={{ ...wordmarkTextStyle, color: 'var(--color-primary)' }}
+        initial={HIDDEN}
+        animate={reduceMotion ? VISIBLE : { opacity: MIDDLE_OPACITY_KEYFRAMES }}
         transition={reduceMotion ? undefined : middleTransition}
         onAnimationComplete={reduceMotion ? undefined : onComplete}
       >
@@ -108,9 +110,9 @@ export function NexusWordmark({
       </motion.p>
       <motion.p
         style={{ ...wordmarkTextStyle, color: 'transparent' }}
-        initial={REST_Y}
-        animate={reduceMotion ? REST_Y : { y: OUTER_UP_KEYFRAMES }}
-        transition={reduceMotion ? undefined : outerTransition}
+        initial={HIDDEN}
+        animate={reduceMotion ? HIDDEN : { opacity: BOTTOM_OPACITY_KEYFRAMES }}
+        transition={reduceMotion ? undefined : bottomTransition}
       >
         NEXUS
       </motion.p>

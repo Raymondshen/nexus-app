@@ -27,7 +27,7 @@ function computeDurationS(): number {
   return elapsedMs / 1000
 }
 
-// Wraps HomeClient's content with the NEXUS splash from Figma 541:2106.
+// Wraps HomeClient's content with the NEXUS splash from Figma 544:2720.
 // By the time HomeClient mounts, the server component (`home/page.tsx`) has
 // already awaited crews + message previews — `performance.now()` at that
 // point is how long that actually took since navigation start, so the
