@@ -3,6 +3,7 @@
 import { useActionState, useState } from 'react'
 import Link from 'next/link'
 import { Button } from '@/shared/components/ui/Button'
+import { SpaceBackground } from '@/shared/components/ui/SpaceBackground'
 import { joinCrewAction } from './actions'
 
 export default function JoinCrewPage() {
@@ -15,13 +16,7 @@ export default function JoinCrewPage() {
 
   return (
     <div className="min-h-screen bg-[#0a0612] flex flex-col items-center justify-center px-4 py-12 relative overflow-hidden">
-      <div
-        className="pointer-events-none fixed inset-0 z-0"
-        style={{
-          background:
-            'repeating-linear-gradient(to bottom, transparent 0px, transparent 2px, rgba(0,0,0,0.10) 2px, rgba(0,0,0,0.10) 4px)',
-        }}
-      />
+      <SpaceBackground />
 
       <div className="relative z-10 w-full max-w-[390px]">
         <div className="text-center mb-8">

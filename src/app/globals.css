@@ -230,6 +230,21 @@ body {
   }
 }
 
+/* SpaceBackground particles — gentle fade in/out synced with the float bob.
+   Eases all the way down to 0 opacity at both ends so the loop point never
+   pops. Peak opacity comes from the --space-particle-opacity custom property
+   set per-particle inline, since it varies per instance. */
+@keyframes space-pulse {
+  0%, 100% {
+    opacity: 0;
+    transform: translateY(0px);
+  }
+  50% {
+    opacity: var(--space-particle-opacity, 0.4);
+    transform: translateY(-8px);
+  }
+}
+
 @keyframes glow-pulse {
   0%, 100% {
     opacity: 0.5;

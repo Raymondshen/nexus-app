@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { AnimatePresence } from "framer-motion";
-import { BottomSheet } from "@/shared/components/ui/sheet/BottomSheet";
-import { SheetFooter } from "@/shared/components/ui/sheet/SheetFooter";
-import { Button } from "@/shared/components/ui/Button";
+import { AnimatePresence, motion } from "framer-motion";
+import { Close } from "pixelarticons/react/Close";
+import { SpaceBackground } from "@/shared/components/ui/SpaceBackground";
 import { AnnouncementCard } from "./AnnouncementCard";
+import { formatShortDate } from "@/shared/utils/date";
 
 export interface AnnouncementItem {
   id: string;
@@ -27,74 +27,148 @@ function getDismissed(): Set<string> {
   }
 }
 
+// Groups already created_at-DESC-ordered announcements into same-day rows,
+// preserving incoming order (Map insertion order) both across and within groups.
+function groupByDate(items: AnnouncementItem[]): [string, AnnouncementItem[]][] {
+  const groups = new Map<string, AnnouncementItem[]>();
+  for (const item of items) {
+    const label = formatShortDate(item.created_at);
+    const existing = groups.get(label);
+    if (existing) existing.push(item);
+    else groups.set(label, [item]);
+  }
+  return [...groups.entries()];
+}
+
 export interface AnnouncementsSheetViewProps {
   announcements: AnnouncementItem[];
   onClose: () => void;
 }
 
-// Presentational body for the production sheet (dismissed-state driven) —
-// keep this the sole place that lays out the sheet chrome + card list.
+// Presentational body for the production "Squad Updates" page (dismissed-state
+// driven) — keep this the sole place that lays out the page chrome + card rows.
+// Figma 419:1928 — was a bottom sheet, now a full-page overlay that slides up
+// from the bottom (still rounded-top like a sheet, per the Figma frame).
 export function AnnouncementsSheetView({
   announcements,
   onClose,
 }: AnnouncementsSheetViewProps) {
+  const groups = groupByDate(announcements);
+
   return (
     <AnimatePresence>
       {announcements.length > 0 && (
-        <BottomSheet
-          onClose={onClose}
-          zIndex={80}
-          maxHeight="85vh"
-          className="border-l border-r border-t border-purple"
+        <motion.div
+          className="fixed inset-0 z-[80] bg-black flex flex-col overflow-hidden rounded-tl-[16px] rounded-tr-[16px]"
+          style={{ maxWidth: 480, marginLeft: "auto", marginRight: "auto" }}
+          initial={{ y: "100%" }}
+          animate={{ y: 0 }}
+          exit={{ y: "100%" }}
+          transition={{ type: "spring", stiffness: 320, damping: 32 }}
         >
+          <SpaceBackground dense />
+
           <div
-            className="flex-1 min-h-0 overflow-y-auto nexus-scroll w-full flex flex-col items-center px-[var(--space-5)]"
-            style={{ gap: "var(--space-5)" }}
+            className="relative z-10 flex-shrink-0 flex items-center"
+            style={{
+              paddingLeft: "var(--md)",
+              paddingRight: "var(--md)",
+              paddingTop: "max(env(safe-area-inset-top), var(--x5))",
+              paddingBottom: "var(--x5)",
+            }}
+          >
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close"
+              className="flex-shrink-0 flex items-center justify-center"
+              style={{ width: 24, height: 24 }}
+            >
+              <Close
+                style={{ width: 24, height: 24, color: "var(--color-primary)" }}
+                aria-hidden="true"
+              />
+            </button>
+          </div>
+
+          <div
+            className="relative z-10 flex-1 min-h-0 overflow-y-auto nexus-scroll w-full flex flex-col items-center"
+            style={{
+              gap: "var(--x6)",
+              paddingLeft: "var(--md)",
+              paddingRight: "var(--md)",
+              paddingBottom: "max(env(safe-area-inset-bottom), var(--x5))",
+            }}
           >
             <div
-              className="w-full flex flex-col items-start"
-              style={{ gap: "var(--space-3)" }}
+              className="w-full flex flex-col items-center text-center"
+              style={{ gap: 8 }}
             >
-              <p
-                className="font-silkscreen leading-none text-tertiary"
-                style={{ fontSize: "var(--text-mini)" }}
-              >
-                Boom!
-              </p>
               <p
                 className="w-full font-body font-bold leading-none text-primary"
                 style={{
-                  fontSize: "var(--text-md)",
+                  fontSize: "var(--text-xxl)",
                   fontVariationSettings: '"opsz" 14',
                 }}
               >
-                Latest Updates...
+                Squad Updates
+              </p>
+              <p
+                className="w-full font-body font-medium leading-none text-secondary"
+                style={{
+                  fontSize: "var(--text-sm)",
+                  fontVariationSettings: '"opsz" 14',
+                }}
+              >
+                New features and improvements, as they happen.
               </p>
             </div>
 
-            {announcements.map((a) => (
-              <AnnouncementCard
-                key={a.id}
-                title={a.title}
-                text={a.text}
-                imageUrl={a.image_url}
-                createdAt={a.created_at}
-              />
+            {groups.map(([label, items]) => (
+              <div
+                key={label}
+                className="w-full flex flex-col items-start flex-shrink-0"
+                style={{ gap: "var(--x3)" }}
+              >
+                <p
+                  className="w-full font-body font-light leading-none text-tertiary"
+                  style={{
+                    fontSize: "var(--text-xs)",
+                    fontVariationSettings: '"opsz" 14',
+                  }}
+                >
+                  {label}
+                </p>
+                {/* Each card fills the row's full width — horizontal scroll becomes
+                    a one-card-at-a-time swipe once a date has more than 1. */}
+                <div
+                  className="w-full flex overflow-x-auto no-scrollbar"
+                  style={{ gap: "var(--x5)" }}
+                >
+                  {items.map((a) => (
+                    <div
+                      key={a.id}
+                      className="w-full flex-shrink-0"
+                    >
+                      <AnnouncementCard
+                        title={a.title}
+                        text={a.text}
+                        imageUrl={a.image_url}
+                        createdAt={a.created_at}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
-
-          <SheetFooter>
-            <Button onClick={onClose} shadow className="w-full">
-              Dismiss
-            </Button>
-          </SheetFooter>
-        </BottomSheet>
+        </motion.div>
       )}
     </AnimatePresence>
   );
 }
 
-// Figma 419:1930 — "what's new" sheet.
+// Figma 419:1928 — "Squad Updates" page.
 export function AnnouncementsSheet({
   announcements,
 }: {

@@ -430,8 +430,17 @@ export function DeveloperUserAnnouncements({ initialAnnouncements }: DeveloperUs
               className="flex flex-col w-full rounded-[8px]"
               style={{ background: 'var(--color-surface-sheet)', padding: 16, gap: 16 }}
             >
-              <button
+              <div
+                role="button"
+                tabIndex={0}
                 onClick={() => { setEditTarget(b); setError(null) }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    setEditTarget(b)
+                    setError(null)
+                  }
+                }}
                 className="flex flex-col w-full text-left"
                 style={{ gap: 16 }}
               >
@@ -474,7 +483,7 @@ export function DeveloperUserAnnouncements({ initialAnnouncements }: DeveloperUs
                     onChange={(e) => { e.stopPropagation(); handleToggle(b.id, b.active) }}
                   />
                 </div>
-              </button>
+              </div>
             </div>
           ))
         )}
