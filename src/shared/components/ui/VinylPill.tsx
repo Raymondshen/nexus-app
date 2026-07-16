@@ -8,11 +8,19 @@ import { avatarImageLoader } from '@/shared/supabase/imageLoader'
 interface VinylPillProps {
   imageUrl: string | null
   title:    string | null
+  /**
+   * Stretch to the row's full cross-axis height instead of hugging content height —
+   * Figma 377:5409's "vinyl track" is self-stretch so it matches the adjacent username
+   * pill's height exactly. MessageBubble's header row (a flex row) wants this; UserCard's
+   * column layout (Figma 356:3503) wants the default flex-start so the pill hugs left
+   * instead of stretching to the card's full width.
+   */
+  stretch?: boolean
 }
 
 // Shared by MessageBubble's header row and SquadDetailsSheet's member cards —
 // same pill exactly, just different call-site contexts.
-export function VinylPill({ imageUrl, title }: VinylPillProps) {
+export function VinylPill({ imageUrl, title, stretch = false }: VinylPillProps) {
   const measureRef = useRef<HTMLSpanElement>(null)
   const [textWidth, setTextWidth] = useState(0)
   const TITLE_W = 32
@@ -35,7 +43,7 @@ export function VinylPill({ imageUrl, title }: VinylPillProps) {
         borderRadius:  56,
         padding:       4,
         flexShrink:    0,
-        alignSelf:     'flex-start',
+        alignSelf:     stretch ? 'stretch' : 'flex-start',
         width:         'fit-content',
         position:      'relative',
       }}

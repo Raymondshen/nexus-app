@@ -986,7 +986,10 @@ function MessageBubbleImpl({
             {/* Header row: username · vinyl · admin crown · timestamp */}
             {showHeader && (
               <div className="flex items-center justify-between w-full">
-                <div className="flex items-center gap-[4px] flex-1 min-w-0 overflow-hidden">
+                <div
+                  className="flex items-center flex-1 min-w-0 overflow-hidden"
+                  style={{ gap: "var(--x2)" }}
+                >
                   <div
                     className="flex items-center justify-center min-w-0"
                     style={{
@@ -997,10 +1000,11 @@ function MessageBubbleImpl({
                     }}
                   >
                     <span
-                      className={`font-body font-medium text-[12px] tracking-[0.1px] leading-[normal] whitespace-nowrap overflow-hidden text-ellipsis ${
+                      className={`font-body font-medium tracking-[0.1px] leading-[normal] whitespace-nowrap overflow-hidden text-ellipsis ${
                         isOwn ? "text-primary" : "text-secondary"
                       }`}
                       style={{
+                        fontSize: "var(--xs)",
                         fontVariationSettings: '"opsz" 14',
                         cursor: onAvatarTap ? "pointer" : undefined,
                       }}
@@ -1032,6 +1036,7 @@ function MessageBubbleImpl({
                     <VinylPill
                       imageUrl={pinnedVinyl.imageUrl}
                       title={pinnedVinyl.title}
+                      stretch
                     />
                   )}
                 </div>
