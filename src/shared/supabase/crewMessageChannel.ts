@@ -48,6 +48,20 @@ export function isActiveCrewMessageChannel(crewId: string, channel: RealtimeChan
   return registry.get(crewId)?.channel === channel
 }
 
+// Drops a dead channel from the registry so the next acquire builds a fresh one.
+// Needed for server-side channel closes (CLOSED status): realtime-js removes a
+// closed channel from its socket and never rejoins it, and the same instance can't
+// be re-subscribed (phoenix's join() throws on a second call) — recovery is a brand
+// new channel. No-ops unless `channel` is still the registered instance, so a stale
+// CLOSED callback from an already-replaced channel can't evict its successor.
+// Consumers' later release() calls no-op harmlessly (the entry is already gone).
+export function evictCrewMessageChannel(crewId: string, channel: RealtimeChannel): void {
+  const entry = registry.get(crewId)
+  if (!entry || entry.channel !== channel) return
+  registry.delete(crewId)
+  void createClient().removeChannel(channel)
+}
+
 // Non-owning lookup — used by the outbox retry path to broadcast a successfully
 // (re)sent message without needing to be the channel's subscribe()-owning component.
 export function peekCrewMessageChannel(crewId: string): RealtimeChannel | null {

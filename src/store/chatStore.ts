@@ -67,6 +67,15 @@ interface ChatStore {
   // broadcast + Postgres Changes are live-only and never replay a missed window.
   requestResync:           (() => void) | null
   setRequestResync:        (fn: (() => void) | null) => void
+
+  // Incremented when the active crew's realtime channel must be rebuilt from
+  // scratch (a CLOSED status is terminal in realtime-js — the channel is removed
+  // from the socket and never rejoined, and phoenix's join() throws if called
+  // twice on the same instance). ChatInput's channel effect and MessageList's
+  // postgres_changes-listener effect both depend on this, so a bump makes both
+  // re-acquire a fresh channel and re-attach their listeners.
+  channelEpoch:            number
+  bumpChannelEpoch:        () => void
 }
 
 export const useChatStore = create<ChatStore>((set) => ({
@@ -87,6 +96,7 @@ export const useChatStore = create<ChatStore>((set) => ({
   squadDetailsOpen:       false,
   requestRetrySend:       null,
   requestResync:          null,
+  channelEpoch:           0,
 
   setMessages: (messages) => set({ messages }),
 
@@ -101,7 +111,18 @@ export const useChatStore = create<ChatStore>((set) => ({
   addMessage: (message) =>
     set((s) => {
       if (s.messages.some((m) => m.id === message.id)) return {}
-      return { messages: [...s.messages, message] }
+      const msgs = s.messages
+      const last = msgs[msgs.length - 1]
+      // Fast path: newest message appends (the overwhelmingly common case).
+      // Otherwise insert in created_at order — a resynced/backfilled row can be
+      // older than an optimistic send whose client clock sits ahead of the
+      // server, and the display order comes straight from array order.
+      if (!last || message.created_at >= last.created_at) {
+        return { messages: [...msgs, message] }
+      }
+      let i = msgs.length - 1
+      while (i >= 0 && msgs[i].created_at > message.created_at) i--
+      return { messages: [...msgs.slice(0, i + 1), message, ...msgs.slice(i + 1)] }
     }),
 
   removeMessage: (id) =>
@@ -208,6 +229,8 @@ export const useChatStore = create<ChatStore>((set) => ({
   setRequestRetrySend: (fn) => set({ requestRetrySend: fn }),
 
   setRequestResync: (fn) => set({ requestResync: fn }),
+
+  bumpChannelEpoch: () => set((s) => ({ channelEpoch: s.channelEpoch + 1 })),
 }))
 
 export function selectActivePins(messages: Message[]): Message[] {

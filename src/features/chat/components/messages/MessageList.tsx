@@ -138,6 +138,7 @@ export function MessageList({
   // references so their selectors always return the same value and never cause re-renders.
   const messages               = useChatStore((s) => s.messages)
   const pinnedScrollTargetId   = useChatStore((s) => s.pinnedScrollTargetId)
+  const channelEpoch           = useChatStore((s) => s.channelEpoch)
   const setMessages            = useChatStore((s) => s.setMessages)
   const prependMessages        = useChatStore((s) => s.prependMessages)
   const addMessage             = useChatStore((s) => s.addMessage)
@@ -669,7 +670,7 @@ export function MessageList({
   // our newest CONFIRMED message and merges via addMessage — which dedups by id, so
   // rows realtime already delivered are ignored and only the gap is filled.
   const isResyncingRef = useRef(false)
-  const resyncMessages = useCallback(async () => {
+  const resyncMessages = useCallback(async (attempt = 0): Promise<void> => {
     if (isResyncingRef.current) return
     const store = useChatStore.getState()
     // Anchor on the newest PERSISTED message (a tempId optimistic send has a
@@ -691,13 +692,18 @@ export function MessageList({
       // guarantees the tail (the message the user is missing) is always fetched —
       // a >50-message outage gap keeps the latest and leaves only a rare middle
       // hole that upward pagination can't fill.
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('messages')
         .select('*')
         .eq('crew_id', crewId)
         .gte('created_at', cursor)
         .order('created_at', { ascending: false })
         .limit(LOAD_OLDER_BATCH)
+      if (error) throw error
+      // Bail if this crew's dispatcher was replaced or cleared while the fetch
+      // was in flight (crew switch / unmount) — the store now belongs to a
+      // different chat, and these rows would bleed into it.
+      if (useChatStore.getState().requestResync !== resyncMessages) return
       const rows = ((data ?? []) as Message[]).reverse()
       const add = useChatStore.getState().addMessage
       for (const raw of rows) {
@@ -705,11 +711,20 @@ export function MessageList({
         add({ ...raw, profile: resolveProfile(raw.user_id) } as MessageWithProfile)
       }
     } catch {
-      // Best-effort — the next reconnect/foreground will try again.
+      // A failed catch-up isn't only "best-effort" — right after a foreground it
+      // may be the ONLY trigger before the next reconnect, so give it one delayed
+      // retry (guarded against crew switch/unmount) instead of silently dropping.
+      if (attempt === 0) {
+        setTimeout(() => {
+          if (useChatStore.getState().requestResync === resyncMessages) void resyncMessages(1)
+        }, 2000)
+      }
     } finally {
       isResyncingRef.current = false
     }
-  }, [crewId, resolveProfile])
+    // Self-reference is intentional: the closure compares itself against the store's
+    // registered dispatcher as a staleness guard — it must NOT be its own dep.
+  }, [crewId, resolveProfile]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Register the catch-up dispatcher for ChatInput's channel lifecycle to invoke.
   // Same store-callback pattern as requestRetrySend.
@@ -829,7 +844,11 @@ export function MessageList({
       )
 
     return () => { releaseCrewMessageChannel(crewId) }
-  }, [crewId, currentUserId, addMessage, updateMessage, resolveProfile])
+    // channelEpoch is deliberately a dep — when ChatInput evicts a CLOSED (dead)
+    // channel and bumps the epoch, this effect must re-run to attach its
+    // postgres_changes listeners to the replacement channel before ChatInput's
+    // deferred subscribe() fires on it.
+  }, [crewId, currentUserId, addMessage, updateMessage, resolveProfile, channelEpoch])
 
   // ─── Squad definitions ────────────────────────────────────────────────────────
 

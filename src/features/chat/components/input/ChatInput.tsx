@@ -19,7 +19,7 @@ import { notifyActiveCrew } from '@/shared/utils/notifications'
 import { sendWithRetry } from '@/shared/utils/sendWithRetry'
 import { postEdgeFn } from '@/shared/utils/edgeFetch'
 import { addToOutbox, readOutbox, type OutboxJob } from '@/shared/utils/outbox'
-import { acquireCrewMessageChannel, releaseCrewMessageChannel, isActiveCrewMessageChannel } from '@/shared/supabase/crewMessageChannel'
+import { acquireCrewMessageChannel, releaseCrewMessageChannel, isActiveCrewMessageChannel, evictCrewMessageChannel } from '@/shared/supabase/crewMessageChannel'
 import { IMAGE_CONFIG } from '@/shared/constants/config'
 import { ChatSquadDetailBar } from '@/features/chat/components/header/ChatSquadDetailBar'
 import { ChatTypingIndicator } from '@/features/chat/components/input/ChatTypingIndicator'
@@ -191,6 +191,12 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   const channelReadyRef       = useRef(false)
   const lastActiveWriteRef    = useRef(0)
   const isTypingRef           = useRef(false)
+  // CLOSED-channel rebuild state — see the CLOSED branch in the subscribe callback.
+  // attempts drives the backoff (reset on SUBSCRIBED); pendingRebuild defers a
+  // rebuild that hit while backgrounded until the next foreground.
+  const rebuildTimerRef       = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const rebuildAttemptsRef    = useRef(0)
+  const pendingRebuildRef     = useRef(false)
   // Individual selectors — a bare useChatStore() destructure subscribes to the whole
   // store, so every Realtime-driven update (incoming messages, reaction patches,
   // optimistic-send reconciliation — all of which replace the `messages` array this
@@ -214,6 +220,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   const setEditTo         = useChatStore((s) => s.setEditTo)
   const squadDetailsOpen  = useChatStore((s) => s.squadDetailsOpen)
   const setSquadDetailsOpen = useChatStore((s) => s.setSquadDetailsOpen)
+  const channelEpoch      = useChatStore((s) => s.channelEpoch)
 
   const liveCrewName = storeCrewName || crewName
 
@@ -608,6 +615,28 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
         else if (xp_earned > 0 && !isDM)        receiveXP(xp_earned, new_total_xp)
         else                                    setCrewXP(new_total_xp)
       })
+    // A CLOSED status is terminal: realtime-js removes the channel from its socket
+    // and never rejoins it (unlike CHANNEL_ERROR/TIMED_OUT, which phoenix's rejoin
+    // timer recovers), and the same channel instance can't be re-subscribed —
+    // phoenix's join() throws on a second call. The server sends this close on
+    // realtime tenant restarts, auth kicks, and rate-limit enforcement. Recovery
+    // is a brand-new channel: evict the dead one from the registry and bump the
+    // shared channelEpoch so this effect AND MessageList's listener effect re-run
+    // and re-acquire/re-attach against a fresh instance. Exponential backoff caps
+    // the loop if the server is mid-restart and keeps closing us.
+    const scheduleChannelRebuild = () => {
+      if (!isActiveCrewMessageChannel(crewId, ch)) return
+      if (rebuildTimerRef.current) return
+      const delay = Math.min(1000 * 2 ** rebuildAttemptsRef.current, 30_000)
+      rebuildAttemptsRef.current++
+      rebuildTimerRef.current = setTimeout(() => {
+        rebuildTimerRef.current = null
+        if (!isActiveCrewMessageChannel(crewId, ch)) return
+        evictCrewMessageChannel(crewId, ch)
+        useChatStore.getState().bumpChannelEpoch()
+      }, delay)
+    }
+
     // Defer the single subscribe() call to a microtask so it always runs after every
     // same-tick mount effect (MessageList's postgres_changes listeners included) has
     // attached its .on() bindings — regardless of which component's effect ran first.
@@ -619,6 +648,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
       ch.subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
           channelReadyRef.current = true
+          rebuildAttemptsRef.current = 0
           await ch.track({ username: userProfileRef.current.username, typing: false })
           heartbeat()
           startHeartbeat()
@@ -630,17 +660,34 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
           // Socket is not deliverable — stop broadcasting into the void (a send
           // while this is false skips the broadcast; peers get it via Postgres
           // Changes once we rejoin, and our own catch-up runs on the next
-          // SUBSCRIBED). realtime-js handles the actual rejoin/backoff.
+          // SUBSCRIBED). realtime-js auto-rejoins after CHANNEL_ERROR/TIMED_OUT;
+          // CLOSED needs the full rebuild above (deferred to foreground when
+          // hidden — a rebuild while backgrounded would just die again).
           channelReadyRef.current = false
           if (config.isDev) console.warn('[realtime] channel status', status, 'for crew', crewId)
+          if (status === 'CLOSED') {
+            if (document.visibilityState === 'visible') scheduleChannelRebuild()
+            else pendingRebuildRef.current = true
+          }
         }
       })
     })
 
     function handleVisibilityChange() {
       if (document.visibilityState === 'visible') {
-        // Treat socket as suspect after backgrounding — re-track typing + fire heartbeat
-        ch.track({ username: userProfileRef.current.username, typing: false }).catch(() => {})
+        // A CLOSED status that landed while backgrounded deferred its rebuild to
+        // now — run it first so the fresh channel (not the dead one) carries the
+        // presence/heartbeat below.
+        if (pendingRebuildRef.current) {
+          pendingRebuildRef.current = false
+          scheduleChannelRebuild()
+        }
+        // Treat socket as suspect after backgrounding — re-track typing + fire
+        // heartbeat. Skip the presence round-trip when the channel is known-dead
+        // (track() on a closed channel throws, and it's wasted rate-limit budget).
+        if (channelReadyRef.current) {
+          ch.track({ username: userProfileRef.current.username, typing: false }).catch(() => {})
+        }
         heartbeat()
         startHeartbeat()
         notifyActiveCrew(crewId)
@@ -673,6 +720,8 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
       window.removeEventListener('online', handleOnline)
       stopHeartbeat()
       clearInterval(sweepTimer)
+      if (rebuildTimerRef.current) { clearTimeout(rebuildTimerRef.current); rebuildTimerRef.current = null }
+      pendingRebuildRef.current = false
       releaseCrewMessageChannel(crewId)
       msgChannelRef.current     = null
       channelReadyRef.current   = false
@@ -682,14 +731,22 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
       useChatStore.getState().setTypingUsernames([])
       notifyActiveCrew(null)
     }
-  }, [crewId, userId]) // eslint-disable-line react-hooks/exhaustive-deps
+    // channelEpoch is deliberately a dep — a bump evicts the dead channel and
+    // forces this effect to rebuild against a fresh one (see scheduleChannelRebuild).
+  }, [crewId, userId, channelEpoch]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Presence .track() is a network round-trip — only send it on an actual state
   // transition instead of on every keystroke (handleInput calls this on every change).
+  // Skipped entirely while the channel isn't joined: track() on a closed channel
+  // throws (unhandled rejection noise), and every dropped call is wasted presence
+  // rate-limit budget (ClientPresenceRateLimitReached shows up in realtime logs).
+  // isTypingRef is left untouched on the skip so the next keystroke after the
+  // channel recovers re-sends the edge.
   function broadcastTyping(isTyping: boolean) {
+    if (!channelReadyRef.current) return
     if (isTypingRef.current === isTyping) return
     isTypingRef.current = isTyping
-    msgChannelRef.current?.track({ username: userProfileRef.current.username, typing: isTyping })
+    msgChannelRef.current?.track({ username: userProfileRef.current.username, typing: isTyping }).catch(() => {})
   }
 
   // Every place that clears/replaces `text` outside of handleInput's own onChange
