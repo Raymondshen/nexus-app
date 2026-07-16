@@ -16,6 +16,7 @@ import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
 import { UserAvatar } from '@/shared/components/ui/UserAvatar'
 import { GroupAvatar } from '@/shared/components/ui/GroupAvatar'
 import { InviteCodeCard } from '@/shared/components/ui/InviteCodeCard'
+import { HomeLoadingGate } from '@/shared/components/ui/HomeLoadingGate'
 import { UserCard, type MiniMember } from '@/shared/components/ui/UserCard'
 import { createClient } from '@/shared/supabase/client'
 import { leaveCrewAction, createCrewFromHomeAction, joinCrewFromHomeAction, joinSelectClassAction } from '@/app/(app)/home/actions'
@@ -1903,6 +1904,7 @@ export function HomeClient({
   }, [leaving])
 
   return (
+    <HomeLoadingGate>
     <motion.div
       className="h-screen bg-black flex flex-col overflow-hidden relative"
       initial={playParallaxReveal ? { x: '-30%' } : false}
@@ -2036,5 +2038,6 @@ export function HomeClient({
         )}
       </AnimatePresence>
     </motion.div>
+    </HomeLoadingGate>
   )
 }
