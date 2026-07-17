@@ -1992,12 +1992,15 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
         }}
       />
 
-      {/* Chat image picker — fixed position prevents .click() issues in transforms */}
+      {/* Chat image picker — fixed position prevents .click() issues in transforms.
+          accept="image/*" (not an enumerated MIME list) is what makes iOS Safari open
+          straight into the Photos library picker instead of the fuller Take Photo/Browse
+          action sheet — actual type/size validation still happens after selection. */}
       <input
         ref={chatImageInputRef}
         type="file"
         multiple
-        accept="image/jpeg,image/jpg,image/png,image/webp,image/gif,image/heic,image/heif"
+        accept="image/*"
         style={{ position: 'fixed', top: -1, left: -1, width: 1, height: 1, opacity: 0, pointerEvents: 'none' }}
         onChange={(e) => {
           const files     = Array.from(e.target.files ?? [])

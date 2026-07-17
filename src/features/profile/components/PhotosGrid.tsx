@@ -358,10 +358,13 @@ export const PhotosGrid = forwardRef<PhotosGridHandle, PhotosGridProps>(function
         </div>
       </div>
 
+      {/* accept="image/*" (not an enumerated MIME list) is what makes iOS Safari open
+          straight into the Photos library picker instead of the fuller Take Photo/Browse
+          action sheet — actual type/size validation still happens after selection. */}
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif"
+        accept="image/*"
         style={{
           position: "fixed",
           top: -1,
