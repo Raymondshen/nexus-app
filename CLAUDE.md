@@ -637,6 +637,7 @@ Complete the requested work before presenting recommendations. Recommendations s
 - **After any refactor touching optimistic updates or Realtime**, explain the data flow before and after in plain language — not just the diff.
 - **Prefer small, reviewable diffs over large rewrites.** If a fix requires touching >5 files, pause and describe the plan first.
 - **Run lint + typecheck + build after every change** before reporting it as done.
+- **Any commit/push must include every new file added under `public/img/announcements/`.** These are the static assets `scripts/generate-announcement-manifest.mjs` scans at build time (see Announcements Management Page) — an asset left untracked still renders locally (read straight off disk) but is invisible to any other clone/deploy, and a commit that references one (in code, or a since-generated manifest entry) without the file itself silently ships a broken image. Check `git status` for untracked files under that path before finishing any commit/push in this area, not just the files you touched directly.
 
 ## Development Rules
 - TypeScript strict · server components default · `'use client'` for interactivity only
