@@ -40,6 +40,60 @@ function groupByDate(items: AnnouncementItem[]): [string, AnnouncementItem[]][] 
   return [...groups.entries()];
 }
 
+// How many of the stack's cards render an actual peeking edge behind the
+// front one — capped so a day with many announcements doesn't pile up an
+// unbounded number of layers.
+const STACK_PEEK_LAYERS = 2;
+const STACK_PEEK_OFFSET_PX = 10;
+const STACK_PEEK_INSET_PX = 10;
+
+// Same-day announcements as an overlapping stack — newest in front (`items`
+// is already created_at-DESC per groupByDate), older ones peeking out behind
+// it. Tapping the stack rotates the front card to the back, cycling through
+// the rest without losing access to them. A single-item day skips all of
+// this and renders the plain card, unchanged from before.
+function AnnouncementCardStack({ items }: { items: AnnouncementItem[] }) {
+  const [frontIndex, setFrontIndex] = useState(0);
+
+  if (items.length === 1) {
+    const a = items[0];
+    return <AnnouncementCard title={a.title} text={a.text} imageUrl={a.image_url} />;
+  }
+
+  const ordered = [...items.slice(frontIndex), ...items.slice(0, frontIndex)];
+  const visibleLayers = Math.min(ordered.length, STACK_PEEK_LAYERS + 1);
+
+  return (
+    <button
+      type="button"
+      onClick={() => setFrontIndex((i) => (i + 1) % items.length)}
+      className="relative w-full text-left appearance-none"
+      style={{ paddingBottom: (visibleLayers - 1) * STACK_PEEK_OFFSET_PX }}
+      aria-label={`Showing 1 of ${items.length} updates for this date — tap to see the next one`}
+    >
+      {ordered.slice(0, visibleLayers).map((a, layer) => (
+        <div
+          key={a.id}
+          className={layer === 0 ? "relative w-full" : "absolute top-0"}
+          style={
+            layer === 0
+              ? { zIndex: visibleLayers }
+              : {
+                  left: layer * STACK_PEEK_INSET_PX,
+                  right: layer * STACK_PEEK_INSET_PX,
+                  zIndex: visibleLayers - layer,
+                  transform: `translateY(${layer * STACK_PEEK_OFFSET_PX}px)`,
+                  opacity: 1 - layer * 0.3,
+                }
+          }
+        >
+          <AnnouncementCard title={a.title} text={a.text} imageUrl={a.image_url} />
+        </div>
+      ))}
+    </button>
+  );
+}
+
 export interface AnnouncementsSheetViewProps {
   announcements: AnnouncementItem[];
   onClose: () => void;
@@ -130,8 +184,10 @@ export function AnnouncementsSheetView({
               paddingBottom: "max(env(safe-area-inset-bottom), var(--x5))",
             }}
           >
-            {/* Each card fills the row's full width — horizontal scroll becomes a
-                one-card-at-a-time swipe once a day has more than 1 announcement. */}
+            {/* A same-day group with more than one announcement renders as an
+                overlapping stack (AnnouncementCardStack) instead of a plain
+                full-width card — see its own comment for the ordering/tap
+                behavior. */}
             {groups.map(([label, items], groupIndex) => (
               <div
                 key={label}
@@ -152,23 +208,7 @@ export function AnnouncementsSheetView({
                   )}
                   {label}
                 </p>
-                <div
-                  className="w-full flex overflow-x-auto no-scrollbar"
-                  style={{ gap: "var(--x5)" }}
-                >
-                  {items.map((a) => (
-                    <div
-                      key={a.id}
-                      className="w-full flex-shrink-0"
-                    >
-                      <AnnouncementCard
-                        title={a.title}
-                        text={a.text}
-                        imageUrl={a.image_url}
-                      />
-                    </div>
-                  ))}
-                </div>
+                <AnnouncementCardStack items={items} />
               </div>
             ))}
           </div>
