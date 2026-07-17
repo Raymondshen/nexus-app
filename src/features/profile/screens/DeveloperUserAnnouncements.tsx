@@ -242,6 +242,15 @@ function AnnouncementEditorPage({ mode, target, onClose, onSaved, onDeleted }: A
     }
   }, [controls, handleBack])
 
+  // Edit mode's primary button is "Save Changes", not "Publish" — it must not
+  // flip a draft live or unpublish a live announcement; the list's toggle is
+  // the only thing that changes `active` now. So it saves with whatever
+  // `active` the announcement already has, and only requires an image when
+  // that preserved state is already live (an image-less save would otherwise
+  // leave a published card with no image, same rule `createAnnouncementAction`
+  // enforces for a fresh publish).
+  const primaryActiveState = mode === 'edit' ? (target?.active ?? false) : true
+
   async function handleSave(active: boolean) {
     if (!title.trim() || !text.trim() || savingDraft || savingPublish) return
     if (active && !imageUrl.trim()) return
@@ -333,12 +342,12 @@ function AnnouncementEditorPage({ mode, target, onClose, onSaved, onDeleted }: A
           </Button>
         )}
         <Button
-          onClick={() => handleSave(true)}
-          disabled={!title.trim() || !text.trim() || !imageUrl.trim() || savingDraft || savingPublish}
+          onClick={() => handleSave(mode === 'edit' ? (target?.active ?? false) : true)}
+          disabled={!title.trim() || !text.trim() || (primaryActiveState && !imageUrl.trim()) || savingDraft || savingPublish}
           loading={savingPublish}
           className="w-full"
         >
-          Publish
+          {mode === 'edit' ? 'Save Changes' : 'Publish'}
         </Button>
         {mode === 'edit' && (
           <Button
