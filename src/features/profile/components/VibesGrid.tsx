@@ -1,9 +1,8 @@
 'use client'
 
-import { useState, useTransition, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react'
+import { useState, useLayoutEffect, useRef, useMemo, useCallback, forwardRef, useImperativeHandle } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Close } from 'pixelarticons/react/Close'
-import { addNoteAction, deleteNoteAction } from '@/app/(app)/profile/notes/actions'
+import { deleteNoteAction } from '@/app/(app)/profile/notes/actions'
 import { updatePinnedVinylAction } from '@/app/(app)/profile/actions'
 import { MUSIC_DOMAINS as MUSIC_DOMAINS_LIST } from '@/shared/constants/config'
 import type { PublicNote } from '@/types'
@@ -16,7 +15,7 @@ function normHost(h: string) {
   return h.replace(/^(www|m)\./, '')
 }
 
-function isMusicUrl(url: string): boolean {
+export function isMusicUrl(url: string): boolean {
   try {
     return MUSIC_DOMAINS.has(normHost(new URL(url).hostname))
   } catch {
@@ -26,6 +25,29 @@ function isMusicUrl(url: string): boolean {
 
 function isMusicNote(n: PublicNote): boolean {
   return !!n.source_domain && MUSIC_DOMAINS.has(normHost(n.source_domain))
+}
+
+// ─── Source-platform badge (Figma 559:6341's "social_icons") ─────────────────
+// Only the 3 platforms with a Figma-supplied brand mark get a badge — Apple Music /
+// SoundCloud notes (still valid vibes, see MUSIC_DOMAINS) simply render without one.
+
+type MusicPlatform = 'youtube' | 'youtube_music' | 'spotify'
+
+const PLATFORM_ICON_SRC: Record<MusicPlatform, string> = {
+  youtube:       '/icons/social-youtube.svg',
+  youtube_music: '/icons/social-youtube-music.svg',
+  spotify:       '/icons/social-spotify.svg',
+}
+
+function resolveMusicPlatform(note: PublicNote): MusicPlatform | null {
+  let host = note.source_domain ? normHost(note.source_domain) : ''
+  if (!host) {
+    try { host = normHost(new URL(note.url).hostname) } catch { return null }
+  }
+  if (host === 'music.youtube.com') return 'youtube_music'
+  if (host === 'youtube.com' || host === 'youtu.be') return 'youtube'
+  if (host === 'spotify.com' || host === 'open.spotify.com') return 'spotify'
+  return null
 }
 
 // YouTube hqdefault thumbnails are 480×360 (4:3) with black bars baked in.
@@ -258,104 +280,121 @@ function VinylTrack({
   return (
     <div
       className="relative flex flex-col items-center min-w-0 flex-1"
-      style={{ height: 105 }}
       onPointerDown={isOwner ? onPointerDown : undefined}
       onPointerUp={isOwner ? cancelPress : undefined}
       onPointerLeave={isOwner ? cancelPress : undefined}
     >
-      {/* Disc + glow wrapper — explicit 105×105 block so the glow can position against it */}
-      <div className="relative flex-shrink-0" style={{ width: 105, height: 105 }}>
+      {/* Outer cell — same aspect-square footprint as AlbumCard's tile so pinned/unpinned rows line up */}
+      <div className="relative flex-shrink-0 w-full" style={{ aspectRatio: '1' }}>
 
-        {/* Ambient glow for pinned track — blurred album art behind the disc */}
-        {isPinned && imgSrc && (
-          <motion.div
-            className="absolute pointer-events-none"
-            style={{ inset: '-6px', borderRadius: '50%', overflow: 'hidden' }}
-            animate={{ opacity: [0.5, 0.8, 0.5], scale: [0.97, 1.0, 0.97] }}
-            transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
+        {/* Disc + label — inset from the cell so the circle reads visibly smaller than the
+            square cards around it, standing out instead of matching their footprint edge-to-edge */}
+        <div className="absolute" style={{ inset: '7%' }}>
+
+          {/* Ambient glow for pinned track — blurred album art behind the disc */}
+          {isPinned && imgSrc && (
+            <motion.div
+              className="absolute pointer-events-none"
+              style={{ inset: '-6px', borderRadius: '50%', overflow: 'hidden' }}
+              animate={{ opacity: [0.5, 0.8, 0.5], scale: [0.97, 1.0, 0.97] }}
+              transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={imgSrc}
+                alt=""
+                aria-hidden
+                style={{
+                  width:         '100%',
+                  height:        '100%',
+                  objectFit:     'cover',
+                  filter:        'blur(12px) saturate(1.8) brightness(1.1)',
+                  transform:     'scale(1.2)',
+                  pointerEvents: 'none',
+                }}
+              />
+            </motion.div>
+          )}
+
+          {/* Spinning disc */}
+          <a
+            href={note.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={handleLinkClick}
+            className={`${isPinned ? 'animate-vinyl' : ''} absolute inset-0 flex items-center justify-center overflow-hidden`}
+            style={{ borderRadius: 56 }}
+            aria-label={note.og_title ?? 'Open link'}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={imgSrc}
-              alt=""
+            {/* Album art — fills the circle */}
+            {imgSrc ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={imgSrc}
+                alt=""
+                onError={handleImgError}
+                style={{
+                  position:       'absolute',
+                  inset:          0,
+                  width:          '100%',
+                  height:         '100%',
+                  objectFit:      'cover',
+                  objectPosition: 'center',
+                  pointerEvents:  'none',
+                  borderRadius:   56,
+                  maxWidth:       'none',
+                }}
+              />
+            ) : (
+              <div style={{ position: 'absolute', inset: 0, background: 'var(--color-surface)', borderRadius: 56 }} />
+            )}
+
+            {/* Glossy reflection — diagonal light streak, rotates with the disc for a light-catching sweep */}
+            <div
               aria-hidden
               style={{
-                width:         '100%',
-                height:        '100%',
-                objectFit:     'cover',
-                filter:        'blur(12px) saturate(1.8) brightness(1.1)',
-                transform:     'scale(1.2)',
+                position:      'absolute',
+                inset:         0,
+                borderRadius:  56,
+                background:    'linear-gradient(115deg, transparent 22%, rgba(255,255,255,0.05) 34%, rgba(255,255,255,0.45) 46%, rgba(255,255,255,0.08) 56%, transparent 68%)',
+                mixBlendMode:  'overlay',
                 pointerEvents: 'none',
               }}
             />
-          </motion.div>
-        )}
 
-        {/* Spinning disc */}
-        <a
-          href={note.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={handleLinkClick}
-          className={`${isPinned ? 'animate-vinyl' : ''} absolute inset-0 flex items-center justify-center overflow-hidden`}
-          style={{ borderRadius: 56 }}
-          aria-label={note.og_title ?? 'Open link'}
-        >
-          {/* Album art — fills the circle */}
-          {imgSrc ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={imgSrc}
-              alt=""
-              onError={handleImgError}
+            {/* Glass gradient — darkens bottom so label text is legible */}
+            <div
+              aria-hidden
               style={{
-                position:       'absolute',
-                inset:          0,
-                width:          '100%',
-                height:         '100%',
-                objectFit:      'cover',
-                objectPosition: 'center',
-                pointerEvents:  'none',
-                borderRadius:   56,
-                maxWidth:       'none',
+                position:     'absolute',
+                inset:        0,
+                borderRadius: 56,
+                background:   'linear-gradient(to bottom, rgba(0,0,0,0) 40%, rgba(0,0,0,0.75) 100%)',
+                pointerEvents:'none',
               }}
             />
-          ) : (
-            <div style={{ position: 'absolute', inset: 0, background: 'var(--color-surface)', borderRadius: 56 }} />
-          )}
 
-          {/* Glass gradient — darkens bottom so label text is legible */}
+            {/* Center hole — in-flow, centered by parent flex */}
+            <div
+              className="relative flex-shrink-0"
+              style={{
+                width:        8,
+                height:       8,
+                borderRadius: 56,
+                background:   'var(--color-background)',
+                border:       '1px solid var(--color-border)',
+              }}
+            />
+          </a>
+
+          {/* Glass label — floats over the darkened bottom of the disc */}
           <div
-            aria-hidden
-            style={{
-              position:     'absolute',
-              inset:        0,
-              borderRadius: 56,
-              background:   'linear-gradient(to bottom, rgba(0,0,0,0) 40%, rgba(0,0,0,0.75) 100%)',
-              pointerEvents:'none',
-            }}
-          />
-
-          {/* Center hole — in-flow, centered by parent flex */}
-          <div
-            className="relative flex-shrink-0"
-            style={{
-              width:        8,
-              height:       8,
-              borderRadius: 56,
-              background:   'var(--color-background)',
-              border:       '1px solid var(--color-border)',
-            }}
-          />
-        </a>
-      </div>
-
-      {/* Glass label — floats over the darkened bottom of the disc */}
-      <div
-        className="absolute bottom-0 left-0 w-full flex flex-col items-center justify-center"
-        style={{ padding: 8 }}
-      >
-        <VinylTrackLabel text={note.og_title ?? note.url} />
+            className="absolute bottom-0 left-0 w-full flex flex-col items-center justify-center"
+            style={{ padding: 8 }}
+          >
+            <VinylTrackLabel text={note.og_title ?? note.url} />
+          </div>
+        </div>
       </div>
 
       <AnimatePresence>
@@ -374,201 +413,159 @@ function VinylTrack({
   )
 }
 
-// ─── AddSlot — empty dashed disc placeholder ─────────────────────────────────
+// ─── AlbumCard — square album-art tile (Figma 559:6341 "album image") ────────
+// Used for every non-pinned vinyl; the pinned track keeps the circular VinylTrack
+// treatment above. Static (no ticker) title label + a top-right source-platform badge.
 
-function AddSlot({ onClick }: { onClick: () => void }) {
+function AlbumCard({
+  note,
+  isOwner,
+  onTogglePin,
+  onRemove,
+}: {
+  note:        PublicNote
+  isOwner:     boolean
+  onTogglePin: () => void
+  onRemove:    () => void
+}) {
+  const [showActions, setShowActions] = useState(false)
+  const [imgSrc, setImgSrc] = useState<string | null>(() =>
+    note.og_image_url ? resolveYtThumbnail(note.og_image_url) : null
+  )
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const firedRef = useRef(false)
+  const platform = useMemo(() => resolveMusicPlatform(note), [note])
+
+  const handleImgError = useCallback(() => {
+    setImgSrc(prev => {
+      if (!prev) return prev
+      if (prev.includes('/maxresdefault.jpg')) return ytFallback(prev)
+      return prev
+    })
+  }, [])
+
+  function onPointerDown() {
+    firedRef.current = false
+    timerRef.current = setTimeout(() => {
+      firedRef.current = true
+      setShowActions(true)
+    }, 500)
+  }
+
+  function cancelPress() {
+    if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null }
+  }
+
+  function handleLinkClick(e: React.MouseEvent) {
+    if (firedRef.current) { e.preventDefault(); firedRef.current = false }
+  }
+
   return (
-    <div className="relative flex flex-col items-center min-w-0 flex-1">
-      <button
-        onClick={onClick}
-        className="relative flex items-center justify-center overflow-hidden flex-shrink-0"
-        style={{
-          width:        105,
-          height:       105,
-          borderRadius: 56,
-          background:   'var(--color-surface)',
-          border:       '1px dashed var(--color-border)',
-        }}
-        aria-label="Add music link"
+    <div
+      className="relative flex flex-col min-w-0 flex-1"
+      onPointerDown={isOwner ? onPointerDown : undefined}
+      onPointerUp={isOwner ? cancelPress : undefined}
+      onPointerLeave={isOwner ? cancelPress : undefined}
+    >
+      <a
+        href={note.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={handleLinkClick}
+        className="relative block w-full overflow-hidden flex-shrink-0"
+        style={{ aspectRatio: '1' }}
+        aria-label={note.og_title ?? 'Open link'}
       >
-        {/* Pixel + icon — 24×24 outer, icon at inset ~16.67% */}
-        <div className="relative overflow-hidden flex-shrink-0" style={{ width: 24, height: 24 }}>
-          <div className="absolute" style={{ inset: '16.67%' }}>
-            <svg
-              viewBox="0 0 14 14"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-              aria-hidden
-              style={{ width: '100%', height: '100%' }}
-            >
-              <rect x="6"  y="0"  width="2" height="14" fill="var(--color-tertiary)" />
-              <rect x="0"  y="6"  width="14" height="2" fill="var(--color-tertiary)" />
-            </svg>
+        {imgSrc ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={imgSrc}
+            alt=""
+            onError={handleImgError}
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center', pointerEvents: 'none' }}
+          />
+        ) : (
+          <div style={{ position: 'absolute', inset: 0, background: 'var(--color-surface)' }} />
+        )}
+
+        {/* Diagonal gradient — darkens the bottom-left corner for label legibility */}
+        <div
+          aria-hidden
+          className="absolute inset-0 pointer-events-none"
+          style={{ background: 'linear-gradient(45deg, rgba(17,17,17,0.4) 0%, rgba(17,17,17,0) 60%)' }}
+        />
+
+        {/* Source-platform badge */}
+        {platform && (
+          <div className="absolute pointer-events-none" style={{ top: 8, right: 8, width: 16, height: 16 }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={PLATFORM_ICON_SRC[platform]} alt="" aria-hidden style={{ width: '100%', height: '100%', display: 'block' }} />
           </div>
-        </div>
-      </button>
+        )}
+
+        {/* Track title */}
+        <p
+          className="absolute font-silkscreen leading-none text-primary overflow-hidden text-ellipsis whitespace-nowrap pointer-events-none"
+          style={{ left: 4, right: 8, bottom: 12, fontSize: 8 }}
+        >
+          {note.og_title ?? note.url}
+        </p>
+      </a>
+
+      <AnimatePresence>
+        {showActions && (
+          <VinylActionSheet
+            note={note}
+            isPinned={false}
+            isOwner={isOwner}
+            onTogglePin={onTogglePin}
+            onRemove={onRemove}
+            onClose={() => setShowActions(false)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   )
 }
 
-// ─── AddVibeSheet — bottom sheet for adding a music link ─────────────────────
-
-function AddVibeSheet({
-  isOpen,
-  onClose,
-  onAdd,
-  crews,
-}: {
-  isOpen:  boolean
-  onClose: () => void
-  onAdd:   (note: PublicNote) => void
-  crews:   Array<{ id: string; name: string }>
-}) {
-  const [url,   setUrl]   = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const [adding, startAdd] = useTransition()
-
-  useEffect(() => {
-    if (!isOpen) return
-    setUrl('')
-    setError(null)
-  }, [isOpen])
-
-  function handleAdd() {
-    const trimmed = url.trim()
-    if (!trimmed) { setError('Paste a link first'); return }
-    if (!isMusicUrl(trimmed)) {
-      setError('Only YouTube, Spotify, Apple Music, or SoundCloud')
-      return
-    }
-    const crewId = crews[0]?.id
-    if (!crewId) { setError('Join a squad first to save vibes'); return }
-
-    startAdd(async () => {
-      const result = await addNoteAction(crewId, trimmed)
-      if (result.error) { setError('Failed to add — try again'); return }
-      if (result.note) {
-        onAdd(result.note)
-        onClose()
-      }
-    })
-  }
-
-  return (
-    <AnimatePresence>
-      {isOpen && (
-        <>
-          {/* Backdrop */}
-          <motion.div
-            className="fixed inset-0 z-[60] bg-black/60"
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            onClick={onClose}
-          />
-
-          {/* Sheet */}
-          <motion.div
-            className="fixed bottom-0 left-0 right-0 z-[70] bg-[var(--color-surface-sheet)] rounded-tl-[16px] rounded-tr-[16px]"
-            initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
-            transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-            drag="y"
-            dragConstraints={{ top: 0, bottom: 0 }}
-            dragElastic={{ top: 0, bottom: 1 }}
-            onDragEnd={(_, info) => { if (info.offset.y > 80 || info.velocity.y > 400) onClose() }}
-            onClick={(e) => e.stopPropagation()}
-            style={{ paddingBottom: 'max(28px, env(safe-area-inset-bottom))' }}
-          >
-            <div className="flex flex-col" style={{ gap: 20, padding: 24 }}>
-
-              {/* Header */}
-              <div className="flex items-center justify-between">
-                <p
-                  className="font-body font-bold text-primary"
-                  style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}
-                >
-                  Add a Vibe
-                </p>
-                <button onClick={onClose} aria-label="Close">
-                  <Close style={{ width: 20, height: 20, color: 'var(--color-tertiary)' }} />
-                </button>
-              </div>
-
-              {/* Accepted platforms hint */}
-              <p
-                className="font-silkscreen leading-relaxed"
-                style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}
-              >
-                YouTube · Spotify · Apple Music · SoundCloud
-              </p>
-
-              {/* URL input */}
-              <div
-                className="bg-black border flex items-center overflow-hidden"
-                style={{ borderColor: 'var(--color-border-hover)', height: 48, paddingLeft: 12, paddingRight: 12 }}
-              >
-                <input
-                  value={url}
-                  onChange={(e) => { setUrl(e.target.value); setError(null) }}
-                  onKeyDown={(e) => { if (e.key === 'Enter') handleAdd() }}
-                  placeholder="Paste a music link..."
-                  autoFocus
-                  className="flex-1 bg-transparent font-body font-normal text-primary placeholder:text-tertiary focus:outline-none leading-normal"
-                  style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
-                />
-              </div>
-
-              {/* Error */}
-              {error && (
-                <p className="font-pixel" style={{ fontSize: 8, color: '#ef4444' }}>{error}</p>
-              )}
-
-              {/* Add button */}
-              <button
-                onClick={handleAdd}
-                disabled={adding || !url.trim()}
-                className="w-full flex items-center justify-center disabled:opacity-50"
-                style={{
-                  height:     48,
-                  background: 'var(--color-purple)',
-                  boxShadow:  '4px 4px 0 rgba(168,85,247,0.5)',
-                }}
-              >
-                <span
-                  className="font-silkscreen leading-none text-primary whitespace-nowrap"
-                  style={{ fontSize: 'var(--text-xs)' }}
-                >
-                  {adding ? '...' : 'ADD VIBE'}
-                </span>
-              </button>
-
-            </div>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
-  )
-}
-
 // ─── VibesGrid (main export) ──────────────────────────────────────────────────
+// Adding a vibe now happens exclusively through UploadOptionsSheet (opened from the
+// floating pill's "+" button) — see VibesGridHandle.addVibe below. There is no more
+// in-grid add tile or standalone add sheet.
+
+export interface VibesGridHandle {
+  /** Prepends an already-saved vibe to grid state — used by UploadOptionsSheet's inline "Add Vibes" section. */
+  addVibe: (note: PublicNote) => void
+}
 
 export interface VibesGridProps {
   initialVinyls:   PublicNote[]
-  crews:           Array<{ id: string; name: string }>
   isOwner:         boolean
   initialPinnedId?: string | null
+  /** Extra scroll bottom-padding so the last row isn't hidden under a floating overlay (e.g. ProfileClient's pill). */
+  bottomInset?:    number
 }
 
-export function VibesGrid({ initialVinyls, crews, isOwner, initialPinnedId = null }: VibesGridProps) {
+export const VibesGrid = forwardRef<VibesGridHandle, VibesGridProps>(function VibesGrid(
+  { initialVinyls, isOwner, initialPinnedId = null, bottomInset = 0 },
+  ref
+) {
   const [vinyls,  setVinyls]  = useState<PublicNote[]>(() => initialVinyls.filter(isMusicNote))
-  const [showAdd, setShowAdd] = useState(false)
+
+  useImperativeHandle(ref, () => ({
+    addVibe: (note) => setVinyls(prev => [note, ...prev]),
+  }), [])
   const [pinnedId, setPinnedId] = useState<string | null>(() => {
-    if (typeof window === 'undefined') return initialPinnedId
+    // VIBES_PINNED_KEY is a device-scoped cache of the signed-in user's OWN pinned
+    // vinyl — only relevant when viewing your own profile. Viewing another member's
+    // profile must use their DB-backed initialPinnedId only, or the viewer's own
+    // cached pin (almost never one of the target's note ids) silently overrides it,
+    // making the member's actual pinned vinyl render as a square card instead of
+    // the spinning disc.
+    if (!isOwner || typeof window === 'undefined') return initialPinnedId
     // localStorage takes precedence for same-session changes; fall back to DB value
     return localStorage.getItem(VIBES_PINNED_KEY) ?? initialPinnedId
   })
-
-  function handleAdd(vinyl: PublicNote) {
-    setVinyls(prev => [vinyl, ...prev])
-  }
 
   function handleTogglePin(vinylId: string) {
     setPinnedId(prev => {
@@ -590,8 +587,6 @@ export function VibesGrid({ initialVinyls, crews, isOwner, initialPinnedId = nul
     deleteNoteAction(vinylId)
   }
 
-  const canAdd = isOwner && crews.length > 0
-
   // Pinned vinyl always floats to the first slot
   const orderedVinyls = useMemo(() => {
     if (!pinnedId) return vinyls
@@ -602,12 +597,7 @@ export function VibesGrid({ initialVinyls, crews, isOwner, initialPinnedId = nul
     return arr
   }, [vinyls, pinnedId])
 
-  const items: Array<PublicNote | 'add'> = [
-    ...orderedVinyls,
-    ...(canAdd ? (['add'] as const) : []),
-  ]
-
-  if (items.length === 0) {
+  if (orderedVinyls.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full" style={{ gap: 8, padding: '48px 16px' }}>
         <p
@@ -620,59 +610,56 @@ export function VibesGrid({ initialVinyls, crews, isOwner, initialPinnedId = nul
     )
   }
 
-  // Chunk items into rows of 3
-  const rows: Array<typeof items> = []
-  for (let i = 0; i < items.length; i += 3) {
-    rows.push(items.slice(i, i + 3))
+  // Chunk into rows of 3
+  const rows: Array<typeof orderedVinyls> = []
+  for (let i = 0; i < orderedVinyls.length; i += 3) {
+    rows.push(orderedVinyls.slice(i, i + 3))
   }
 
   return (
-    <>
-      <div
-        className="h-full overflow-y-auto nexus-scroll"
-        style={{
-          paddingTop:    24,
-          paddingLeft:   16,
-          paddingRight:  16,
-          paddingBottom: 'max(env(safe-area-inset-bottom), 24px)',
-        }}
-      >
-        <div className="flex flex-col w-full" style={{ gap: 20 }}>
-          {rows.map((row, ri) => (
-            <div
-              key={ri}
-              className="flex items-start w-full flex-shrink-0"
-              style={{ gap: 8 }}
-            >
-              {row.map((item) =>
-                item === 'add' ? (
-                  <AddSlot key="__add" onClick={() => setShowAdd(true)} />
-                ) : (
-                  <VinylTrack
-                    key={item.id}
-                    note={item}
-                    isPinned={pinnedId === item.id}
-                    isOwner={isOwner}
-                    onTogglePin={() => handleTogglePin(item.id)}
-                    onRemove={() => handleRemove(item.id)}
-                  />
-                )
-              )}
-              {/* Pad incomplete last row so tracks stay left-aligned at consistent width */}
-              {row.length === 1 && <div className="flex-1 min-w-0" />}
-              {row.length === 1 && <div className="flex-1 min-w-0" />}
-              {row.length === 2 && <div className="flex-1 min-w-0" />}
-            </div>
-          ))}
-        </div>
+    <div
+      className="h-full overflow-y-auto nexus-scroll"
+      style={{
+        paddingTop:    24,
+        paddingLeft:   16,
+        paddingRight:  16,
+        paddingBottom: `max(calc(env(safe-area-inset-bottom) + ${bottomInset}px), ${24 + bottomInset}px)`,
+      }}
+    >
+      <div className="flex flex-col w-full" style={{ gap: 4 }}>
+        {rows.map((row, ri) => (
+          <div
+            key={ri}
+            className="flex items-start w-full flex-shrink-0"
+            style={{ gap: 4 }}
+          >
+            {row.map((item) =>
+              pinnedId === item.id ? (
+                <VinylTrack
+                  key={item.id}
+                  note={item}
+                  isPinned
+                  isOwner={isOwner}
+                  onTogglePin={() => handleTogglePin(item.id)}
+                  onRemove={() => handleRemove(item.id)}
+                />
+              ) : (
+                <AlbumCard
+                  key={item.id}
+                  note={item}
+                  isOwner={isOwner}
+                  onTogglePin={() => handleTogglePin(item.id)}
+                  onRemove={() => handleRemove(item.id)}
+                />
+              )
+            )}
+            {/* Pad incomplete last row so tracks stay left-aligned at consistent width */}
+            {row.length === 1 && <div className="flex-1 min-w-0" />}
+            {row.length === 1 && <div className="flex-1 min-w-0" />}
+            {row.length === 2 && <div className="flex-1 min-w-0" />}
+          </div>
+        ))}
       </div>
-
-      <AddVibeSheet
-        isOpen={showAdd}
-        onClose={() => setShowAdd(false)}
-        onAdd={handleAdd}
-        crews={crews}
-      />
-    </>
+    </div>
   )
-}
+})

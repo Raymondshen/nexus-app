@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, forwardRef, useImperativeHandle } from "react";
 import { createPortal } from "react-dom";
 import type { Area } from "react-easy-crop";
 import { AnimatePresence, motion } from "framer-motion";
@@ -186,93 +186,44 @@ function PhotoCell({
   );
 }
 
-// ─── AddPhotoCell — empty dashed tile ────────────────────────────────────────
-
-function AddPhotoCell({
-  onClick,
-  uploading,
-}: {
-  onClick: () => void;
-  uploading: boolean;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={uploading}
-      className="relative overflow-hidden flex-1 flex items-center justify-center disabled:opacity-50"
-      style={{
-        aspectRatio: "1",
-        minWidth: 0,
-        background: "var(--color-surface)",
-        border: "1px dashed var(--color-border)",
-      }}
-      aria-label="Add photo"
-    >
-      {uploading ? (
-        <div
-          className="animate-pulse"
-          style={{ width: 12, height: 12, background: "var(--color-tertiary)" }}
-        />
-      ) : (
-        <div
-          className="relative overflow-hidden flex-shrink-0"
-          style={{ width: 24, height: 24 }}
-        >
-          <div className="absolute" style={{ inset: "16.67%" }}>
-            <svg
-              viewBox="0 0 14 14"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-              aria-hidden
-              style={{ width: "100%", height: "100%" }}
-            >
-              <rect
-                x="6"
-                y="0"
-                width="2"
-                height="14"
-                fill="var(--color-tertiary)"
-              />
-              <rect
-                x="0"
-                y="6"
-                width="14"
-                height="2"
-                fill="var(--color-tertiary)"
-              />
-            </svg>
-          </div>
-        </div>
-      )}
-    </button>
-  );
-}
-
 // ─── PhotosGrid (main export) ─────────────────────────────────────────────────
+
+export interface PhotosGridHandle {
+  /** Opens the native gallery/file picker — used by ProfileClient's floating pill "+" button. */
+  openAdd: () => void;
+  /** Opens the native camera directly — used by ProfileClient's floating pill "+" button. */
+  openCamera: () => void;
+}
 
 export interface PhotosGridProps {
   initialPhotos: ProfilePhoto[];
   userId: string;
   isOwner: boolean;
+  /** Extra scroll bottom-padding so the last row isn't hidden under a floating overlay (e.g. ProfileClient's pill). */
+  bottomInset?: number;
 }
 
-export function PhotosGrid({
-  initialPhotos,
-  userId,
-  isOwner,
-}: PhotosGridProps) {
+export const PhotosGrid = forwardRef<PhotosGridHandle, PhotosGridProps>(function PhotosGrid(
+  { initialPhotos, userId, isOwner, bottomInset = 0 },
+  ref
+) {
   const [photos, setPhotos] = useState<ProfilePhoto[]>(initialPhotos);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [confirmPhoto, setConfirmPhoto] = useState<ProfilePhoto | null>(null);
   const [previewPhoto, setPreviewPhoto] = useState<ProfilePhoto | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- SSR-safe createPortal mount flag, same pattern as MessageBubble
     setMounted(true);
   }, []);
+
+  useImperativeHandle(ref, () => ({
+    openAdd: () => fileInputRef.current?.click(),
+    openCamera: () => cameraInputRef.current?.click(),
+  }), []);
 
   const handleRemove = useCallback((photoId: string) => {
     setPhotos((prev) => prev.filter((p) => p.id !== photoId));
@@ -300,7 +251,6 @@ export function PhotosGrid({
 
   async function handleCropConfirm(area: Area, img: HTMLImageElement) {
     setPendingFile(null);
-    setUploading(true);
     setUploadError(null);
 
     try {
@@ -333,18 +283,10 @@ export function PhotosGrid({
       setUploadError(
         err instanceof Error ? err.message : "Upload failed — try again",
       );
-    } finally {
-      setUploading(false);
     }
   }
 
-  const canAdd = isOwner && photos.length < MAX_PHOTOS;
-  const items: Array<ProfilePhoto | "add"> = [
-    ...photos,
-    ...(canAdd ? (["add"] as const) : []),
-  ];
-
-  if (items.length === 0) {
+  if (photos.length === 0) {
     return (
       <div
         className="flex flex-col items-center justify-center h-full"
@@ -364,9 +306,9 @@ export function PhotosGrid({
   }
 
   // Chunk into rows of 3
-  const rows: Array<typeof items> = [];
-  for (let i = 0; i < items.length; i += 3) {
-    rows.push(items.slice(i, i + 3));
+  const rows: Array<typeof photos> = [];
+  for (let i = 0; i < photos.length; i += 3) {
+    rows.push(photos.slice(i, i + 3));
   }
 
   return (
@@ -377,7 +319,7 @@ export function PhotosGrid({
           paddingTop: 16,
           paddingLeft: 16,
           paddingRight: 16,
-          paddingBottom: "max(env(safe-area-inset-bottom), 16px)",
+          paddingBottom: `max(calc(env(safe-area-inset-bottom) + ${bottomInset}px), ${16 + bottomInset}px)`,
         }}
       >
         {uploadError && (
@@ -392,23 +334,15 @@ export function PhotosGrid({
         <div className="flex flex-col w-full" style={{ gap: 4 }}>
           {rows.map((row, ri) => (
             <div key={ri} className="flex w-full" style={{ gap: 4 }}>
-              {row.map((item) =>
-                item === "add" ? (
-                  <AddPhotoCell
-                    key="__add"
-                    onClick={() => fileInputRef.current?.click()}
-                    uploading={uploading}
-                  />
-                ) : (
-                  <PhotoCell
-                    key={item.id}
-                    photo={item}
-                    isOwner={isOwner}
-                    onRemove={() => setConfirmPhoto(item)}
-                    onView={() => setPreviewPhoto(item)}
-                  />
-                ),
-              )}
+              {row.map((photo) => (
+                <PhotoCell
+                  key={photo.id}
+                  photo={photo}
+                  isOwner={isOwner}
+                  onRemove={() => setConfirmPhoto(photo)}
+                  onView={() => setPreviewPhoto(photo)}
+                />
+              ))}
               {/* Pad incomplete last rows so tiles stay consistent width */}
               {row.length === 1 && (
                 <div className="flex-1 min-w-0" style={{ aspectRatio: "1" }} />
@@ -428,6 +362,23 @@ export function PhotosGrid({
         ref={fileInputRef}
         type="file"
         accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif"
+        style={{
+          position: "fixed",
+          top: -1,
+          left: -1,
+          width: 1,
+          height: 1,
+          opacity: 0,
+          pointerEvents: "none",
+        }}
+        onChange={handleFileChange}
+      />
+
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
         style={{
           position: "fixed",
           top: -1,
@@ -534,4 +485,4 @@ export function PhotosGrid({
         )}
     </>
   );
-}
+});

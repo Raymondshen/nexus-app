@@ -38,7 +38,7 @@ export default async function MemberProfilePage({ params }: Props) {
       .maybeSingle(),
     supabase
       .from('profiles')
-      .select('username, avatar_url, background_url, status, created_at, instagram_url, x_url, reddit_url, linkedin_url, custom_site_url')
+      .select('username, avatar_url, background_url, status, created_at, pinned_vinyl_id, instagram_url, x_url, reddit_url, linkedin_url, custom_site_url')
       .eq('id', userId)
       .single(),
     supabase
@@ -94,6 +94,7 @@ export default async function MemberProfilePage({ params }: Props) {
 
   type ProfileRow = {
     username: string; avatar_url: string | null; background_url: string | null; status: string | null; created_at: string
+    pinned_vinyl_id: string | null
     instagram_url: string | null; x_url: string | null; reddit_url: string | null; linkedin_url: string | null; custom_site_url: string | null
   }
   const profile      = profileResult.data as ProfileRow
@@ -145,6 +146,7 @@ export default async function MemberProfilePage({ params }: Props) {
         initialNotes={(notesResult.data ?? []) as unknown as PublicNote[]}
         notesCrews={notesCrews}
         initialPhotos={initialPhotos}
+        initialPinnedId={profile.pinned_vinyl_id}
         instagramUrl={profile.instagram_url}
         xUrl={profile.x_url}
         redditUrl={profile.reddit_url}

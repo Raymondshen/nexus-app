@@ -9,8 +9,10 @@ import { TickerBanner } from '@/shared/components/banners/TickerBanner'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 import { PageFloatButton } from '@/shared/components/ui/PageFloatButton'
 import { SocialLinksRow } from '@/shared/components/ui/SocialLinksRow'
-import { VibesGrid } from '@/features/profile/components/VibesGrid'
-import { PhotosGrid } from '@/features/profile/components/PhotosGrid'
+import { VibesGrid, type VibesGridHandle } from '@/features/profile/components/VibesGrid'
+import { PhotosGrid, type PhotosGridHandle } from '@/features/profile/components/PhotosGrid'
+import { FloatingViewPill, PILL_BOTTOM_INSET } from '@/features/profile/components/FloatingViewPill'
+import { UploadOptionsSheet } from '@/features/profile/components/UploadOptionsSheet'
 import type { PublicNote, ProfilePhoto } from '@/types'
 
 interface Props {
@@ -27,6 +29,7 @@ interface Props {
   initialNotes:     PublicNote[]
   notesCrews:       Array<{ id: string; name: string }>
   initialPhotos:    ProfilePhoto[]
+  initialPinnedId?: string | null
   instagramUrl?:    string | null
   xUrl?:            string | null
   redditUrl?:       string | null
@@ -50,6 +53,7 @@ export function AccountPageMember({
   initialNotes,
   notesCrews,
   initialPhotos,
+  initialPinnedId = null,
   instagramUrl = null,
   xUrl = null,
   redditUrl = null,
@@ -61,13 +65,17 @@ export function AccountPageMember({
 
   type MemberTab = 'photos' | 'vibes'
   const TAB_ORDER: Record<MemberTab, number> = { photos: 0, vibes: 1 }
-  const [activeTab, setActiveTab] = useState<MemberTab>('photos')
+  const [activeTab, setActiveTab] = useState<MemberTab>('vibes')
   const tabDirRef   = useRef(1)
   function switchTab(tab: MemberTab) {
     if (tab === activeTab) return
     tabDirRef.current = TAB_ORDER[tab] > TAB_ORDER[activeTab] ? 1 : -1
     setActiveTab(tab)
   }
+
+  const photosGridRef = useRef<PhotosGridHandle>(null)
+  const vibesGridRef  = useRef<VibesGridHandle>(null)
+  const [showUploadOptions, setShowUploadOptions] = useState(false)
 
   const [fxpEnabled, setFxpEnabled] = useState(false)
   useEffect(() => {
@@ -175,57 +183,68 @@ export function AccountPageMember({
       {/* ── Status ticker ────────────────────────────────────────────────────── */}
       {status && <TickerBanner text={status} />}
 
-      {/* ── Tab bar ──────────────────────────────────────────────────────────── */}
-      <div className="flex flex-shrink-0" style={{ borderBottom: '1px solid var(--color-border)' }}>
-        {(['photos', 'vibes'] as const).map((tab) => (
-          <button
-            key={tab}
-            onClick={() => switchTab(tab)}
-            className="flex-1 flex items-center justify-center font-silkscreen"
-            style={{
-              height:    40,
-              fontSize:  'var(--text-mini)',
-              color:     activeTab === tab ? 'var(--color-primary)' : 'var(--color-tertiary)',
-              boxShadow: activeTab === tab ? 'inset 0 -2px 0 var(--color-purple)' : 'none',
-            }}
-          >
-            {tab === 'photos' ? 'PHOTOS' : 'VIBES'}
-          </button>
-        ))}
+      {/* ── Tab content — Photos/Vibes switched via the floating pill below, no top tab row ── */}
+      <div className="relative flex-1 min-h-0">
+        <AnimatePresence mode="wait" initial={false}>
+          {activeTab === 'photos' ? (
+            <motion.div
+              key="photos"
+              className="absolute inset-0"
+              initial={{ opacity: 0, x: tabDirRef.current * 16 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: tabDirRef.current * -16 }}
+              transition={{ duration: 0.15, ease: [0.4, 0, 0.2, 1] }}
+            >
+              <PhotosGrid
+                ref={photosGridRef}
+                initialPhotos={initialPhotos}
+                userId={userId}
+                isOwner={isOwner}
+                bottomInset={PILL_BOTTOM_INSET}
+              />
+            </motion.div>
+          ) : (
+            <motion.div
+              key="vibes"
+              className="absolute inset-0"
+              initial={{ opacity: 0, x: tabDirRef.current * 16 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: tabDirRef.current * -16 }}
+              transition={{ duration: 0.15, ease: [0.4, 0, 0.2, 1] }}
+            >
+              <VibesGrid
+                ref={vibesGridRef}
+                initialVinyls={initialNotes}
+                isOwner={isOwner}
+                initialPinnedId={initialPinnedId}
+                bottomInset={PILL_BOTTOM_INSET}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Floating Photos/Vibes/Add pill (Figma 559:6686) */}
+        <div
+          className="absolute left-0 right-0 z-10 flex justify-center pointer-events-none"
+          style={{ bottom: 'max(env(safe-area-inset-bottom), 16px)' }}
+        >
+          <div className="pointer-events-auto">
+            <FloatingViewPill activeTab={activeTab} onSwitch={switchTab} onAdd={() => setShowUploadOptions(true)} showAdd={isOwner} />
+          </div>
+        </div>
       </div>
 
-      {/* ── Tab content ─────────────────────────────────────────────────────── */}
-      <AnimatePresence mode="wait" initial={false}>
-        {activeTab === 'photos' ? (
-          <motion.div
-            key="photos"
-            className="flex-1 min-h-0"
-            initial={{ opacity: 0, x: tabDirRef.current * 16 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: tabDirRef.current * -16 }}
-            transition={{ duration: 0.15, ease: [0.4, 0, 0.2, 1] }}
-          >
-            <PhotosGrid
-              initialPhotos={initialPhotos}
-              userId={userId}
-              isOwner={isOwner}
-            />
-          </motion.div>
-        ) : (
-          <motion.div
-            key="vibes"
-            className="flex-1 min-h-0"
-            initial={{ opacity: 0, x: tabDirRef.current * 16 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: tabDirRef.current * -16 }}
-            transition={{ duration: 0.15, ease: [0.4, 0, 0.2, 1] }}
-          >
-            <VibesGrid
-              initialVinyls={initialNotes}
-              crews={notesCrews}
-              isOwner={isOwner}
-            />
-          </motion.div>
+      <AnimatePresence>
+        {showUploadOptions && (
+          <UploadOptionsSheet
+            onClose={() => setShowUploadOptions(false)}
+            activeSection={activeTab}
+            onSwitchSection={switchTab}
+            crews={notesCrews}
+            onVibeAdded={(note) => vibesGridRef.current?.addVibe(note)}
+            onUploadPhoto={() => photosGridRef.current?.openAdd()}
+            onOpenCamera={() => photosGridRef.current?.openCamera()}
+          />
         )}
       </AnimatePresence>
     </>
