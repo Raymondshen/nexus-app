@@ -78,7 +78,6 @@ export function ManageUserProfile({
   const bgFileInputRef     = useRef<HTMLInputElement>(null)
 
   const msgFormatted = totalMessages.toLocaleString()
-  const hasSocialLinks = [instagramUrl, xUrl, redditUrl, linkedinUrl, customSiteUrl].some((u) => u.trim())
 
   async function handleSave() {
     const trimmed = displayName.trim()
@@ -187,22 +186,17 @@ export function ManageUserProfile({
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Social links row — live preview of the fields below, not yet saved/normalized.
-            Sits below the hero (not overlaid on the background image), Figma 470:5491. */}
-        {hasSocialLinks && (
-          <div className="flex flex-shrink-0 items-center w-full" style={{ paddingLeft: 16, paddingRight: 16, paddingTop: 12, paddingBottom: 12 }}>
-            <SocialLinksRow
-              instagramUrl={instagramUrl}
-              xUrl={xUrl}
-              redditUrl={redditUrl}
-              linkedinUrl={linkedinUrl}
-              customSiteUrl={customSiteUrl}
-              interactive={false}
-            />
-          </div>
-        )}
+          {/* Social links — live preview of the fields below, not yet saved/normalized */}
+          <SocialLinksRow
+            instagramUrl={instagramUrl}
+            xUrl={xUrl}
+            redditUrl={redditUrl}
+            linkedinUrl={linkedinUrl}
+            customSiteUrl={customSiteUrl}
+            interactive={false}
+          />
+        </div>
 
         {/* Status ticker */}
         <TickerBanner text={status.trim() || 'Whats the mood today...'} />
