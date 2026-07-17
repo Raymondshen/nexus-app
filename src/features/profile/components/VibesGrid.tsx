@@ -155,7 +155,7 @@ function VinylActionSheet({
 }
 
 // ─── VinylTrackLabel — scrolling ticker so "Song · Artist" isn't clipped ─────
-// Same measure-then-scroll approach as VinylPill: static text if it fits the
+// Same measure-then-scroll approach as LinkPill's vinyl type: static text if it fits the
 // disc's label width, otherwise a two-copy horizontal ticker loop.
 
 function VinylTrackLabel({ text }: { text: string }) {

@@ -120,6 +120,15 @@ export function AccountPageMember({
             </div>
           </div>
 
+          {/* Social links */}
+          <SocialLinksRow
+            instagramUrl={instagramUrl}
+            xUrl={xUrl}
+            redditUrl={redditUrl}
+            linkedinUrl={linkedinUrl}
+            customSiteUrl={customSiteUrl}
+          />
+
           {/* Friendship XP bar — hidden on own profile; dev-gated: nexus_friendship_xp */}
           {!isOwner && fxpEnabled && (
             <div className="flex flex-col w-full" style={{ gap: 'var(--space-3)' }}>
@@ -162,15 +171,6 @@ export function AccountPageMember({
           </div>
         </div>
       </div>
-
-      {/* ── Social links ─────────────────────────────────────────────────────── */}
-      <SocialLinksRow
-        instagramUrl={instagramUrl}
-        xUrl={xUrl}
-        redditUrl={redditUrl}
-        linkedinUrl={linkedinUrl}
-        customSiteUrl={customSiteUrl}
-      />
 
       {/* ── Status ticker ────────────────────────────────────────────────────── */}
       {status && <TickerBanner text={status} />}

@@ -24,6 +24,7 @@ import {
   reserveAfterGoogleAction,
   type CheckReservedResult,
 } from '@/app/(auth)/login/actions'
+import { validateSocialLinkFormat } from '@/shared/utils/socialLinks'
 import type { AvatarClass } from '@/types'
 
 const CLASSES: { id: AvatarClass; name: string; flavor: string; color: string }[] = [
@@ -276,6 +277,12 @@ export function LoginForm({
     }
     if (!firstName.trim()) { setError('First name is required.'); return }
     if (!lastName.trim())  { setError('Last name is required.');  return }
+    const socialLinkError =
+      validateSocialLinkFormat('instagram', instagramUrl) ??
+      validateSocialLinkFormat('x',         xUrl) ??
+      validateSocialLinkFormat('reddit',    redditUrl) ??
+      validateSocialLinkFormat('linkedin',  linkedinUrl)
+    if (socialLinkError) { setError(socialLinkError); return }
     setError(null)
     setLoading(true)
     try {

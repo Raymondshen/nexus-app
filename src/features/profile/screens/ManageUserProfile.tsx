@@ -12,7 +12,9 @@ import { InputField } from '@/shared/components/ui/InputField'
 import { PageHeader } from '@/shared/components/ui/PageHeader'
 import { PageFooter } from '@/shared/components/ui/PageFooter'
 import { Button } from '@/shared/components/ui/Button'
+import { SocialLinksRow } from '@/shared/components/ui/SocialLinksRow'
 import { validateUsernameFormat } from '@/shared/utils/username'
+import { validateSocialLinkFormat } from '@/shared/utils/socialLinks'
 import { revalidateProfileAction, updateProfileDetailsAction } from '@/app/(app)/profile/actions'
 import { AvatarUploadModal } from '@/shared/components/overlays/AvatarUploadModal'
 import { BackgroundUploadModal } from '@/shared/components/overlays/BackgroundUploadModal'
@@ -81,6 +83,12 @@ export function ManageUserProfile({
     const trimmed = displayName.trim()
     const formatError = validateUsernameFormat(trimmed)
     if (formatError) { setSaveError(formatError); return }
+    const socialLinkError =
+      validateSocialLinkFormat('instagram', instagramUrl) ??
+      validateSocialLinkFormat('x',         xUrl) ??
+      validateSocialLinkFormat('reddit',    redditUrl) ??
+      validateSocialLinkFormat('linkedin',  linkedinUrl)
+    if (socialLinkError) { setSaveError(socialLinkError); return }
     if (saving) return
     setSaving(true)
     setSaveError(null)
@@ -126,7 +134,7 @@ export function ManageUserProfile({
         {/* Hero */}
         <div
           className="relative flex flex-col justify-end overflow-hidden flex-shrink-0 w-full"
-          style={{ height: 240, padding: 16 }}
+          style={{ height: 240, padding: 16, gap: 8 }}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -178,6 +186,16 @@ export function ManageUserProfile({
               </div>
             </div>
           </div>
+
+          {/* Social links — live preview of the fields below, not yet saved/normalized */}
+          <SocialLinksRow
+            instagramUrl={instagramUrl}
+            xUrl={xUrl}
+            redditUrl={redditUrl}
+            linkedinUrl={linkedinUrl}
+            customSiteUrl={customSiteUrl}
+            interactive={false}
+          />
         </div>
 
         {/* Status ticker */}

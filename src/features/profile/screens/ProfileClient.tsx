@@ -154,6 +154,15 @@ export function ProfileClient({
             </div>
           </div>
 
+          {/* Social links */}
+          <SocialLinksRow
+            instagramUrl={instagramUrl}
+            xUrl={xUrl}
+            redditUrl={redditUrl}
+            linkedinUrl={linkedinUrl}
+            customSiteUrl={customSiteUrl}
+          />
+
           {/* Friendship XP bar — dev-gated */}
           {fxpEnabled && (
             <div className="flex flex-col w-full" style={{ gap: 8 }}>
@@ -223,15 +232,6 @@ export function ProfileClient({
         </div>
 
       </div>
-
-      {/* ── Social links ───────────────────────────────────────────────────────── */}
-      <SocialLinksRow
-        instagramUrl={instagramUrl}
-        xUrl={xUrl}
-        redditUrl={redditUrl}
-        linkedinUrl={linkedinUrl}
-        customSiteUrl={customSiteUrl}
-      />
 
       {/* ── Status ticker ─────────────────────────────────────────────────────── */}
       {initialStatus && <TickerBanner text={initialStatus} />}

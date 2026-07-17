@@ -1,0 +1,11 @@
+<svg preserveAspectRatio="none" width="100%" height="100%" overflow="visible" style="display: block;" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="social_icons" clip-path="url(#clip0_0_97)">
+<path id="Vector" d="M9.29039 0H2.70961C1.21313 0 0 1.21875 0 2.72216V9.27784C0 10.7812 1.21313 12 2.70961 12H9.29039C10.7869 12 12 10.7812 12 9.27784V2.72216C12 1.21875 10.7869 0 9.29039 0Z" fill="var(--fill-0, black)"/>
+<path id="Vector_2" d="M7.58766 3.49305H8.43422L6.58477 5.61691L8.76047 8.50671H7.0568L5.7225 6.75418L4.19555 8.50671H3.34852L5.32664 6.23522L3.23953 3.49305H4.98633L6.19242 5.09513L7.58766 3.49305ZM7.29047 7.99765H7.75969L4.73156 3.97551H4.22812L7.29047 7.99765Z" fill="var(--fill-0, white)"/>
+</g>
+<defs>
+<clipPath id="clip0_0_97">
+<rect width="12" height="12" fill="white"/>
+</clipPath>
+</defs>
+</svg>

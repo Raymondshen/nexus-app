@@ -3,7 +3,7 @@
 import { revalidateTag } from 'next/cache'
 import { createClient, createServiceClient } from '@/shared/supabase/server'
 import { validateUsernameFormat } from '@/shared/utils/username'
-import { normalizeSocialUrl } from '@/shared/utils/socialLinks'
+import { normalizeSocialUrl, validateSocialLinkFormat } from '@/shared/utils/socialLinks'
 import type { ProfilePhoto } from '@/types'
 
 export interface SocialLinksInput {
@@ -204,6 +204,13 @@ export async function updateProfileDetailsAction(
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Not authenticated' }
+
+  const socialLinkError =
+    validateSocialLinkFormat('instagram', socialLinks.instagramUrl ?? '') ??
+    validateSocialLinkFormat('x',         socialLinks.xUrl ?? '') ??
+    validateSocialLinkFormat('reddit',    socialLinks.redditUrl ?? '') ??
+    validateSocialLinkFormat('linkedin',  socialLinks.linkedinUrl ?? '')
+  if (socialLinkError) return { error: socialLinkError }
 
   const trimmedStatus = status.trim().slice(0, 100)
   return updateUsername(supabase, user.id, displayName, {

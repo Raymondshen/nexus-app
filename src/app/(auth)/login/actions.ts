@@ -2,7 +2,7 @@
 
 import { createClient, createServiceClient } from '@/shared/supabase/server'
 import { validateUsernameFormat } from '@/shared/utils/username'
-import { normalizeSocialUrl } from '@/shared/utils/socialLinks'
+import { normalizeSocialUrl, validateSocialLinkFormat } from '@/shared/utils/socialLinks'
 import type { AvatarClass } from '@/types'
 
 export interface ReservedUserData {
@@ -172,6 +172,15 @@ export async function completeInviteFlowAction(
 
   if (!cls) {
     return { success: false, error: 'Select your class before entering.' }
+  }
+
+  const socialLinkError =
+    validateSocialLinkFormat('instagram', extra.instagramUrl ?? '') ??
+    validateSocialLinkFormat('x',         extra.xUrl ?? '') ??
+    validateSocialLinkFormat('reddit',    extra.redditUrl ?? '') ??
+    validateSocialLinkFormat('linkedin',  extra.linkedinUrl ?? '')
+  if (socialLinkError) {
+    return { success: false, error: socialLinkError }
   }
 
   const service = createServiceClient()

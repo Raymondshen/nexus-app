@@ -4,7 +4,7 @@ import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
 import { UserAvatar } from '@/shared/components/ui/UserAvatar'
 import { PixelSprite, spriteInfoFor } from '@/shared/components/game/PixelSprite'
 import { Crown } from 'pixelarticons/react/Crown'
-import { VinylPill } from '@/shared/components/ui/VinylPill'
+import { LinkPill } from '@/shared/components/ui/LinkPill'
 import { TickerBanner, TICKER_HEIGHT_SMALL } from '@/shared/components/banners/TickerBanner'
 
 const CLASS_LABELS: Record<string, string> = {
@@ -22,7 +22,7 @@ export type MiniMember = {
   status?:        string | null
 }
 
-// VinylPill's own natural height (12px disc + 4px padding × 2, Figma 438:8053) — used to
+// LinkPill's own natural height (12px disc + 4px padding × 2, Figma 438:8053) — used to
 // reserve its slot even when a member has no vinyl, so every card in a row is the same
 // height without depending on the row's align-items:stretch.
 const VINYL_PILL_HEIGHT = 20
@@ -123,7 +123,7 @@ export function UserCard({
         {/* Vinyl pill slot — always reserved (Figma 432:7827 vs 432:8008: every card in
             the row is the same total height regardless of which members have one). */}
         {vinyl && (vinyl.imageUrl || vinyl.title) ? (
-          <VinylPill imageUrl={vinyl.imageUrl} title={vinyl.title} />
+          <LinkPill type="vinyl" imageUrl={vinyl.imageUrl} title={vinyl.title} />
         ) : (
           <div aria-hidden="true" style={{ height: VINYL_PILL_HEIGHT }} />
         )}

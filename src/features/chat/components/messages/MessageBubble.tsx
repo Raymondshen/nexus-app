@@ -27,7 +27,7 @@ import { REACTION_LOTTIE_MAP } from "@/shared/constants/config";
 import { TextEffectText } from "@/features/chat/components/text-effects/TextEffectText";
 import { ImagePreviewOverlay } from "@/shared/components/overlays/ImagePreviewOverlay";
 import { BottomSheet } from "@/shared/components/ui/sheet/BottomSheet";
-import { VinylPill } from "@/shared/components/ui/VinylPill";
+import { LinkPill } from "@/shared/components/ui/LinkPill";
 import { CornerDownRight } from "pixelarticons/react/CornerDownRight";
 import { CornerUpLeft } from "pixelarticons/react/CornerUpLeft";
 import { Cake } from "pixelarticons/react/Cake";
@@ -1033,7 +1033,8 @@ function MessageBubbleImpl({
                   </div>
 
                   {pinnedVinyl && (
-                    <VinylPill
+                    <LinkPill
+                      type="vinyl"
                       imageUrl={pinnedVinyl.imageUrl}
                       title={pinnedVinyl.title}
                       stretch
