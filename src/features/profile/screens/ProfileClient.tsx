@@ -16,6 +16,7 @@ import { VibesGrid, type VibesGridHandle } from '@/features/profile/components/V
 import { PhotosGrid, type PhotosGridHandle } from '@/features/profile/components/PhotosGrid'
 import { FloatingViewPill, PILL_BOTTOM_INSET } from '@/features/profile/components/FloatingViewPill'
 import { UploadOptionsSheet } from '@/features/profile/components/UploadOptionsSheet'
+import { useSwipeTabs } from '@/features/profile/hooks/useSwipeTabs'
 import type { PublicNote, ProfilePhoto } from '@/types'
 
 interface ProfileClientProps {
@@ -94,6 +95,9 @@ export function ProfileClient({
     tabDirRef.current = TAB_ORDER[tab] > TAB_ORDER[activeTab] ? 1 : -1
     setActiveTab(tab)
   }
+
+  const tabContentRef = useRef<HTMLDivElement>(null)
+  useSwipeTabs(tabContentRef, TAB_ORDER, activeTab, switchTab)
 
   const photosGridRef = useRef<PhotosGridHandle>(null)
   const vibesGridRef  = useRef<VibesGridHandle>(null)
@@ -242,8 +246,8 @@ export function ProfileClient({
       {/* ── Status ticker ─────────────────────────────────────────────────────── */}
       {initialStatus && <TickerBanner text={initialStatus} />}
 
-      {/* ── Tab content — Photos/Vibes switched via the floating pill below, no top tab row ── */}
-      <div className="relative flex-1 min-h-0">
+      {/* ── Tab content — Photos/Vibes switched via the floating pill below or a left/right swipe ── */}
+      <div ref={tabContentRef} className="relative flex-1 min-h-0">
         <AnimatePresence mode="wait" initial={false}>
           {activeTab === 'photos' ? (
             <motion.div
