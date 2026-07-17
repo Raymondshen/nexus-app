@@ -78,6 +78,7 @@ export function ManageUserProfile({
   const bgFileInputRef     = useRef<HTMLInputElement>(null)
 
   const msgFormatted = totalMessages.toLocaleString()
+  const hasSocialLinks = [instagramUrl, xUrl, redditUrl, linkedinUrl, customSiteUrl].some((u) => u.trim())
 
   async function handleSave() {
     const trimmed = displayName.trim()
@@ -186,17 +187,22 @@ export function ManageUserProfile({
               </div>
             </div>
           </div>
-
-          {/* Social links — live preview of the fields below, not yet saved/normalized */}
-          <SocialLinksRow
-            instagramUrl={instagramUrl}
-            xUrl={xUrl}
-            redditUrl={redditUrl}
-            linkedinUrl={linkedinUrl}
-            customSiteUrl={customSiteUrl}
-            interactive={false}
-          />
         </div>
+
+        {/* Social links row — live preview of the fields below, not yet saved/normalized.
+            Sits below the hero (not overlaid on the background image), Figma 470:5491. */}
+        {hasSocialLinks && (
+          <div className="flex flex-shrink-0 items-center w-full" style={{ paddingLeft: 16, paddingRight: 16, paddingTop: 12, paddingBottom: 12 }}>
+            <SocialLinksRow
+              instagramUrl={instagramUrl}
+              xUrl={xUrl}
+              redditUrl={redditUrl}
+              linkedinUrl={linkedinUrl}
+              customSiteUrl={customSiteUrl}
+              interactive={false}
+            />
+          </div>
+        )}
 
         {/* Status ticker */}
         <TickerBanner text={status.trim() || 'Whats the mood today...'} />
@@ -206,9 +212,20 @@ export function ManageUserProfile({
 
           {/* Account (read-only) */}
           <div className="flex flex-col w-full" style={{ gap: 8 }}>
-            <p className="font-body font-medium text-primary leading-none" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}>
-              Account
-            </p>
+            <div className="flex items-center justify-between w-full">
+              <p className="font-body font-medium text-primary leading-none" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}>
+                Account
+              </p>
+              <button
+                type="button"
+                onClick={handleLogOut}
+                disabled={saving || loggingOut}
+                className="font-body font-medium leading-none disabled:opacity-40 active:opacity-70 transition-opacity"
+                style={{ fontSize: 'var(--text-sm)', color: 'var(--red)', fontVariationSettings: '"opsz" 14' }}
+              >
+                {loggingOut ? 'Logging out...' : 'Log out'}
+              </button>
+            </div>
             <div
               className="w-full border h-[50px] flex items-center overflow-hidden"
               style={{ borderColor: 'var(--color-border-hover)', paddingLeft: 16, paddingRight: 16 }}
@@ -297,16 +314,6 @@ export function ManageUserProfile({
           className="w-full"
         >
           Save Changes
-        </Button>
-        <Button
-          variant="outlined"
-          color="red"
-          onClick={handleLogOut}
-          disabled={saving}
-          loading={loggingOut}
-          className="w-full"
-        >
-          Log Out
         </Button>
       </PageFooter>
 
