@@ -14,7 +14,7 @@ import { PageFooter } from '@/shared/components/ui/PageFooter'
 import { Button } from '@/shared/components/ui/Button'
 import { SocialLinksRow } from '@/shared/components/ui/SocialLinksRow'
 import { validateUsernameFormat } from '@/shared/utils/username'
-import { validateSocialLinkFormat } from '@/shared/utils/socialLinks'
+import { validateSocialLinkFormat, extractSocialHandle, buildSocialLink, PLATFORM_URL_PREFIX } from '@/shared/utils/socialLinks'
 import { revalidateProfileAction, updateProfileDetailsAction } from '@/app/(app)/profile/actions'
 import { AvatarUploadModal } from '@/shared/components/overlays/AvatarUploadModal'
 import { BackgroundUploadModal } from '@/shared/components/overlays/BackgroundUploadModal'
@@ -63,10 +63,12 @@ export function ManageUserProfile({
   const [localBackgroundUrl, setLocalBackgroundUrl] = useState(backgroundUrl)
   const [displayName,        setDisplayName]        = useState(initialUsername)
   const [status,             setStatus]             = useState(initialStatus ?? '')
-  const [instagramUrl,       setInstagramUrl]       = useState(initialInstagramUrl ?? '')
-  const [xUrl,               setXUrl]               = useState(initialXUrl ?? '')
-  const [redditUrl,          setRedditUrl]          = useState(initialRedditUrl ?? '')
-  const [linkedinUrl,        setLinkedinUrl]        = useState(initialLinkedinUrl ?? '')
+  // Instagram/X/Reddit/LinkedIn store only the handle typed after the fixed URL
+  // prefix (Figma 470:5509) — derive it from the saved full URL, if any.
+  const [instagramHandle,    setInstagramHandle]    = useState(extractSocialHandle('instagram', initialInstagramUrl ?? '') ?? '')
+  const [xHandle,            setXHandle]            = useState(extractSocialHandle('x', initialXUrl ?? '') ?? '')
+  const [redditHandle,       setRedditHandle]       = useState(extractSocialHandle('reddit', initialRedditUrl ?? '') ?? '')
+  const [linkedinHandle,     setLinkedinHandle]     = useState(extractSocialHandle('linkedin', initialLinkedinUrl ?? '') ?? '')
   const [customSiteUrl,      setCustomSiteUrl]      = useState(initialCustomSiteUrl ?? '')
   const [saving,             setSaving]             = useState(false)
   const [saveError,          setSaveError]          = useState<string | null>(null)
@@ -78,6 +80,13 @@ export function ManageUserProfile({
   const bgFileInputRef     = useRef<HTMLInputElement>(null)
 
   const msgFormatted = totalMessages.toLocaleString()
+
+  // Full URLs, composed from the fixed platform prefix + the user-typed handle —
+  // this is what gets validated/saved and what the hero's live preview renders.
+  const instagramUrl = buildSocialLink('instagram', instagramHandle)
+  const xUrl         = buildSocialLink('x', xHandle)
+  const redditUrl    = buildSocialLink('reddit', redditHandle)
+  const linkedinUrl  = buildSocialLink('linkedin', linkedinHandle)
 
   async function handleSave() {
     const trimmed = displayName.trim()
@@ -94,10 +103,10 @@ export function ManageUserProfile({
     setSaveError(null)
     try {
       const result = await updateProfileDetailsAction(trimmed, status.trim(), {
-        instagramUrl: instagramUrl.trim(),
-        xUrl: xUrl.trim(),
-        redditUrl: redditUrl.trim(),
-        linkedinUrl: linkedinUrl.trim(),
+        instagramUrl,
+        xUrl,
+        redditUrl,
+        linkedinUrl,
         customSiteUrl: customSiteUrl.trim(),
       })
       if (result.error === 'taken') { setSaveError('Name already taken'); return }
@@ -287,11 +296,11 @@ export function ManageUserProfile({
             Social Links
           </p>
 
-          <InputField label="Instagram"   value={instagramUrl}  onChange={setInstagramUrl}  placeholder="instagram.com/yourname"   maxLength={200} />
-          <InputField label="X"           value={xUrl}          onChange={setXUrl}          placeholder="x.com/yourname"            maxLength={200} />
-          <InputField label="Reddit"      value={redditUrl}     onChange={setRedditUrl}     placeholder="reddit.com/u/yourname"     maxLength={200} />
-          <InputField label="Linkedin"    value={linkedinUrl}   onChange={setLinkedinUrl}   placeholder="linkedin.com/in/yourname"  maxLength={200} />
-          <InputField label="Custom Site" value={customSiteUrl} onChange={setCustomSiteUrl} placeholder="yourwebsite.com"           maxLength={200} />
+          <InputField label="Instagram"   value={instagramHandle} onChange={setInstagramHandle} prefix={PLATFORM_URL_PREFIX.instagram} placeholder="your_username" maxLength={30} />
+          <InputField label="X"           value={xHandle}         onChange={setXHandle}         prefix={PLATFORM_URL_PREFIX.x}          placeholder="your_username" maxLength={15} />
+          <InputField label="Reddit"      value={redditHandle}    onChange={setRedditHandle}    prefix={PLATFORM_URL_PREFIX.reddit}     placeholder="your_username" maxLength={20} />
+          <InputField label="Linkedin"    value={linkedinHandle}  onChange={setLinkedinHandle}  prefix={PLATFORM_URL_PREFIX.linkedin}   placeholder="your_username" maxLength={100} />
+          <InputField label="Custom Site" value={customSiteUrl}   onChange={setCustomSiteUrl}   placeholder="yourwebsite.com" maxLength={200} />
 
           {saveError && (
             <p className="font-pixel text-[8px] text-[#ef4444]">{saveError}</p>

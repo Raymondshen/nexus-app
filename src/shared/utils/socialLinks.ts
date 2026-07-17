@@ -36,6 +36,25 @@ const PLATFORM_HINTS: Record<SocialPlatform, string> = {
 }
 
 /**
+ * The fixed, non-editable URL prefix shown before each platform's handle input
+ * (Figma 470:5509 — Instagram/X/Reddit/LinkedIn are locked to their own domain
+ * shape; the user only ever types the handle after it). Custom Site has no
+ * prefix — it stays a free-form link via normalizeSocialUrl above.
+ */
+export const PLATFORM_URL_PREFIX: Record<SocialPlatform, string> = {
+  instagram: 'https://www.instagram.com/',
+  x:         'https://www.x.com/',
+  reddit:    'https://www.reddit.com/u/',
+  linkedin:  'https://www.linkedin.com/in/',
+}
+
+/** Combines a platform's fixed prefix with the user-typed handle for storage/validation. Empty handle → empty string (not yet set). */
+export function buildSocialLink(platform: SocialPlatform, handle: string): string {
+  const trimmed = handle.trim()
+  return trimmed ? `${PLATFORM_URL_PREFIX[platform]}${trimmed}` : ''
+}
+
+/**
  * Rejects anything that isn't that platform's own profile-URL shape. Empty input is
  * valid (the field is optional) — returns null. This is the sole enforcement point;
  * call it before normalizeSocialUrl on every write path (client AND server — the

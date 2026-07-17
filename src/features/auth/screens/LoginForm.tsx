@@ -24,7 +24,7 @@ import {
   reserveAfterGoogleAction,
   type CheckReservedResult,
 } from '@/app/(auth)/login/actions'
-import { validateSocialLinkFormat } from '@/shared/utils/socialLinks'
+import { validateSocialLinkFormat, buildSocialLink, PLATFORM_URL_PREFIX } from '@/shared/utils/socialLinks'
 import type { AvatarClass } from '@/types'
 
 const CLASSES: { id: AvatarClass; name: string; flavor: string; color: string }[] = [
@@ -178,10 +178,13 @@ export function LoginForm({
 
   // ── Create Profile step (Figma 547:2289) ──────────────────────────────────
   const [status,         setStatus]         = useState('')
-  const [instagramUrl,   setInstagramUrl]   = useState('')
-  const [xUrl,           setXUrl]           = useState('')
-  const [redditUrl,      setRedditUrl]      = useState('')
-  const [linkedinUrl,    setLinkedinUrl]    = useState('')
+  // Instagram/X/Reddit/LinkedIn store only the handle typed after the fixed URL
+  // prefix (Figma 470:5509) — there's no saved value to derive from here, unlike
+  // ManageUserProfile, since this is always a brand-new profile.
+  const [instagramHandle, setInstagramHandle] = useState('')
+  const [xHandle,          setXHandle]         = useState('')
+  const [redditHandle,     setRedditHandle]    = useState('')
+  const [linkedinHandle,   setLinkedinHandle]  = useState('')
   const [customSiteUrl,  setCustomSiteUrl]  = useState('')
   const [avatarUrl,      setAvatarUrl]      = useState<string | null>(null)
   const [backgroundUrl,  setBackgroundUrl]  = useState<string | null>(null)
@@ -277,6 +280,10 @@ export function LoginForm({
     }
     if (!firstName.trim()) { setError('First name is required.'); return }
     if (!lastName.trim())  { setError('Last name is required.');  return }
+    const instagramUrl = buildSocialLink('instagram', instagramHandle)
+    const xUrl         = buildSocialLink('x', xHandle)
+    const redditUrl    = buildSocialLink('reddit', redditHandle)
+    const linkedinUrl  = buildSocialLink('linkedin', linkedinHandle)
     const socialLinkError =
       validateSocialLinkFormat('instagram', instagramUrl) ??
       validateSocialLinkFormat('x',         xUrl) ??
@@ -893,11 +900,11 @@ export function LoginForm({
                   Social Links
                 </p>
 
-                <InputField label="Instagram"    value={instagramUrl}  onChange={setInstagramUrl}  placeholder="instagram.com/yourname"    maxLength={200} autoComplete="off" />
-                <InputField label="X"            value={xUrl}          onChange={setXUrl}          placeholder="x.com/yourname"             maxLength={200} autoComplete="off" />
-                <InputField label="Reddit"       value={redditUrl}     onChange={setRedditUrl}     placeholder="reddit.com/u/yourname"      maxLength={200} autoComplete="off" />
-                <InputField label="Linkedin"     value={linkedinUrl}   onChange={setLinkedinUrl}   placeholder="linkedin.com/in/yourname"    maxLength={200} autoComplete="off" />
-                <InputField label="Custom Site"  value={customSiteUrl} onChange={setCustomSiteUrl} placeholder="yourwebsite.com"             maxLength={200} autoComplete="off" />
+                <InputField label="Instagram"    value={instagramHandle} onChange={setInstagramHandle} prefix={PLATFORM_URL_PREFIX.instagram} placeholder="your_username" maxLength={30}  autoComplete="off" />
+                <InputField label="X"            value={xHandle}         onChange={setXHandle}         prefix={PLATFORM_URL_PREFIX.x}          placeholder="your_username" maxLength={15}  autoComplete="off" />
+                <InputField label="Reddit"       value={redditHandle}    onChange={setRedditHandle}    prefix={PLATFORM_URL_PREFIX.reddit}     placeholder="your_username" maxLength={20}  autoComplete="off" />
+                <InputField label="Linkedin"     value={linkedinHandle}  onChange={setLinkedinHandle}  prefix={PLATFORM_URL_PREFIX.linkedin}   placeholder="your_username" maxLength={100} autoComplete="off" />
+                <InputField label="Custom Site"  value={customSiteUrl}   onChange={setCustomSiteUrl}   placeholder="yourwebsite.com" maxLength={200} autoComplete="off" />
               </>
             )}
           </div>
