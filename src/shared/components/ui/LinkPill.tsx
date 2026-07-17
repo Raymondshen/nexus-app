@@ -154,7 +154,7 @@ export function LinkPill({ type, imageUrl = null, title = null, href = null, lab
     label && (
       <span
         className="font-silkscreen leading-none"
-        style={{ fontSize: 8, color: 'var(--color-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block', width: TITLE_W, letterSpacing: '0.1px' }}
+        style={{ fontSize: 8, color: 'var(--color-blue)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block', width: TITLE_W, letterSpacing: '0.1px' }}
       >
         {label}
       </span>
