@@ -88,7 +88,7 @@ export function ProfileClient({
   // ── Tab state — switched via the floating pill (Figma 559:6686), no top tab row ──
   type ProfileTab = 'photos' | 'vibes'
   const TAB_ORDER: Record<ProfileTab, number> = { photos: 0, vibes: 1 }
-  const [activeTab, setActiveTab] = useState<ProfileTab>('vibes')
+  const [activeTab, setActiveTab] = useState<ProfileTab>('photos')
   const tabDirRef = useRef(1)
   function switchTab(tab: ProfileTab) {
     if (tab === activeTab) return

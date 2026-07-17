@@ -66,7 +66,7 @@ export function AccountPageMember({
 
   type MemberTab = 'photos' | 'vibes'
   const TAB_ORDER: Record<MemberTab, number> = { photos: 0, vibes: 1 }
-  const [activeTab, setActiveTab] = useState<MemberTab>('vibes')
+  const [activeTab, setActiveTab] = useState<MemberTab>('photos')
   const tabDirRef   = useRef(1)
   function switchTab(tab: MemberTab) {
     if (tab === activeTab) return
