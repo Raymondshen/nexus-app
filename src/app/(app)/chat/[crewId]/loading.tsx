@@ -1,6 +1,32 @@
-import DelayedSkeleton from '@/shared/components/ui/DelayedSkeleton'
+'use client'
 
+import { useParams } from 'next/navigation'
+import DelayedSkeleton from '@/shared/components/ui/DelayedSkeleton'
+import { useChatRoomPeekStore } from '@/features/chat/store/chatRoomPeekStore'
+
+// Next.js's Suspense fallback for this route segment — shown while ChatPage's server
+// component is fetching its data (crew/members/notes/etc., several queries — see
+// chat/[crewId]/page.tsx), which commonly runs well past DelayedSkeleton's ~300ms
+// grace period. That's the right behavior for a normal navigation into this room
+// (tapping in from Home, a direct link, back-nav) where there's nothing else on
+// screen yet.
+//
+// But when this navigation is the destination of a committed chat-swipe-nav gesture,
+// ChatRoomPeekLayer (chat/[crewId]/layout.tsx, a persistent sibling of this route
+// tree) has ALREADY revealed a cached-snapshot preview of this exact room, frozen at
+// rest, specifically so there's no blank/loading flash while navigation completes —
+// see its own doc comment. Showing this generic skeleton on top of that would undo
+// the whole point of that preview: a jarring "peek preview → generic skeleton → real
+// page" three-stage flicker instead of "peek preview → real page". So this defers to
+// the peek layer's already-frozen preview in that case, by reading the same
+// chatRoomPeekStore state ChatInput/ChatRoomPeekLayer already coordinate through —
+// `peek.phase` only stays 'committing' for this exact target crew until the real
+// ChatInput below mounts and clears it (see ChatRoomPeekLayer's own effect).
 export default function ChatLoading() {
+  const { crewId } = useParams<{ crewId: string }>()
+  const peek = useChatRoomPeekStore((s) => s.peek)
+  if (peek && peek.phase === 'committing' && peek.targetCrewId === crewId) return null
+
   return (
     <DelayedSkeleton>
     <div

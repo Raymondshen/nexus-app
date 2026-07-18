@@ -648,6 +648,24 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     if (info.offset.y < -50 || info.velocity.y < -300) setIsExpanded(true)
   }
 
+  // Prefetch the immediately adjacent rooms in chatRoomOrder as soon as this room
+  // mounts (not lazily on drag) so a committed swipe's router.push() warms up faster —
+  // shortening how long the peek preview sits frozen before the real room takes over
+  // (see chat/[crewId]/loading.tsx's own doc comment for how that generic-skeleton
+  // flash is actually suppressed during a swipe-committed navigation; this prefetch is
+  // a complementary perf assist, not what prevents that flash by itself). Each
+  // landed-on room prefetches its own neighbors in turn, so paging outward stays
+  // progressively warm without eagerly fetching the whole list up front.
+  useEffect(() => {
+    if (!chatSwipeNavEnabled || chatRoomOrder.length <= 1) return
+    const currentIndex = chatRoomOrder.indexOf(crewId)
+    if (currentIndex === -1) return
+    const prevId = chatRoomOrder[currentIndex - 1]
+    const nextId = chatRoomOrder[currentIndex + 1]
+    if (prevId) router.prefetch(`/chat/${prevId}`)
+    if (nextId) router.prefetch(`/chat/${nextId}`)
+  }, [chatSwipeNavEnabled, chatRoomOrder, crewId, router])
+
   useEffect(() => {
     // Mark self online instantly, without discarding already-known peer presence
     // (so a member who's already known online in this crew keeps showing online
