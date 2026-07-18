@@ -75,9 +75,8 @@ export function ChatRoomPeekLayer() {
       {/* Messages — cached snapshot, bottom-anchored, read-only. Inset by
           chatInputHeight (ChatInput's live-measured squad-bar+input height) so this
           lines up with the real MessageList's own bounding box instead of running
-          underneath the real, static input area. Falls back to a loading skeleton
-          (no delay — this whole layer is only ever on screen for the span of a
-          drag/transition) when nothing's cached for this room yet. */}
+          underneath the real, static input area. Renders nothing (just the plain
+          black backdrop) when nothing's cached for this room yet — no skeleton. */}
       <motion.div
         className="flex flex-col justify-end h-full overflow-hidden"
         style={{ padding: 16, paddingBottom: chatInputHeight + 16 }}
@@ -101,21 +100,12 @@ export function ChatRoomPeekLayer() {
         }}
       >
         <div className="flex flex-col" style={{ gap: 12 }}>
-          {messages
-            ? messages.map((m) => <PeekMessageRow key={m.id} message={m} />)
-            : SKELETON_ROW_WIDTHS.map((w, i) => (
-                <div key={i} className="flex items-end" style={{ gap: 8 }}>
-                  <div className="w-8 h-8 flex-shrink-0 bg-border animate-pulse" />
-                  <div className="h-8 bg-border animate-pulse" style={{ width: `${w}%`, maxWidth: 260 }} />
-                </div>
-              ))}
+          {messages?.map((m) => <PeekMessageRow key={m.id} message={m} />)}
         </div>
       </motion.div>
     </div>
   )
 }
-
-const SKELETON_ROW_WIDTHS = [72, 48, 60]
 
 function PeekMessageRow({ message }: { message: MessageWithProfile }) {
   const body = message.message_type === 'image' ? '📷 Photo' : message.content
