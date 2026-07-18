@@ -5,6 +5,7 @@ import { motion } from 'framer-motion'
 import { useChatRoomPeekStore, SWIPE_NAV_ARRIVAL_FADE_MS, type RoomMeta } from '@/features/chat/store/chatRoomPeekStore'
 import { ChatSquadDetailBar } from '@/features/chat/components/header/ChatSquadDetailBar'
 import { Send } from 'pixelarticons/react/Send'
+import { ChevronRight } from 'pixelarticons/react/ChevronRight'
 import type { MemberProfile } from '@/features/chat/components/input/ChatInput'
 
 // Frozen fallbacks for ChatSquadDetailBar's member-only props — the peeked room's
@@ -53,7 +54,7 @@ function noop() {}
 //
 // So this layer renders two independent pieces: a floating ghost loading placeholder
 // (Figma 577:4627 — the walk-cycle sprite from public/sprites/ghost/walk/, a distinct
-// asset from MessageList's own EmptyState gif, plus a "Moving to {targetRoom}" label —
+// asset from MessageList's own EmptyState gif, plus a chevron + target-room-name row —
 // occluded the same way as the bar/input shell during an active drag, and only actually
 // revealed in the post-commit unmount→mount gap, same timing as the shell) and the
 // static, group-A-identity bar/input shell described above. This message-area
@@ -207,12 +208,14 @@ function PeekBarAndInput({ meta }: { meta: RoomMeta }) {
 }
 
 // Figma 577:4627 ("body") — a 6-frame walk-cycle sprite (public/sprites/ghost/walk/
-// frame_000.png…frame_005.png, 48×48 native) looped continuously, plus a "Moving to
-// {targetRoom}" label underneath. `label` is the target room's name from roomMeta —
-// already prefetched for the adjacent rooms in chatRoomOrder by the time a drag can
-// actually reach this far (see ChatInput's own prefetch effect), so this is null only
-// in the unlikely case that prefetch hasn't resolved yet; the label row just doesn't
-// render rather than show a blank/undefined name.
+// frame_000.png…frame_005.png, 48×48 native) looped continuously, plus a
+// chevron + room-name row underneath, in the Figma-named "heading" Silkscreen style
+// (Regular, md/16px — see the design-system skill's typography.md, `font-silkscreen`
+// section). `label` is the target room's name from roomMeta — already prefetched for
+// the adjacent rooms in chatRoomOrder by the time a drag can actually reach this far
+// (see ChatInput's own prefetch effect), so this is null only in the unlikely case
+// that prefetch hasn't resolved yet; the whole row just doesn't render rather than
+// show a chevron next to a blank/undefined name.
 const WALK_FRAME_COUNT = 6
 const WALK_FRAME_MS    = 130
 
@@ -243,12 +246,15 @@ function WalkingGhost({ label }: { label: string | null }) {
         />
       </div>
       {label && (
-        <p
-          className="font-body font-bold text-secondary text-center leading-none truncate w-full"
-          style={{ fontSize: 'var(--text-xl)', fontVariationSettings: '"opsz" 14' }}
-        >
-          Moving to {label}
-        </p>
+        <div className="flex items-center justify-center w-full" style={{ gap: 'var(--space-3)' }}>
+          <ChevronRight style={{ width: 16, height: 16, color: 'var(--color-primary)', flexShrink: 0 }} aria-hidden="true" />
+          <p
+            className="font-silkscreen text-primary text-center leading-none truncate"
+            style={{ fontSize: 'var(--text-md)' }}
+          >
+            {label}
+          </p>
+        </div>
       )}
     </div>
   )
