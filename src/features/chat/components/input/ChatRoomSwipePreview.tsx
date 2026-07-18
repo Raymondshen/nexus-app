@@ -50,8 +50,16 @@ import { useChatRoomPeekStore } from '@/features/chat/store/chatRoomPeekStore'
 // so the retreat preserves the same relative order/spacing the entrance arrived in:
 // `current` (fastest to arrive) is first to leave, `next` (slowest to arrive) is last.
 // The container's own fade-out is delayed until EXIT_TOTAL_S — every avatar has
-// finished sliding down before the strip actually disappears, rather than fading
-// while (or before) the slide is still visibly in progress.
+// finished sliding down before the strip actually disappears — but that fade itself is
+// deliberately quick (EXIT_FADE_S) rather than a slow crossfade, so the strip doesn't
+// visibly linger once the slide is done.
+//
+// `overflow-hidden` on the row (below) clips any avatar that slides past the row's own
+// bottom edge — which sits exactly at the top of the real input box (bottom-full) —
+// instead of letting it render on top of/through the input as it moves. Since the
+// initial/exit `y` values (28-32px) are taller than the row's own bottom padding, both
+// the entrance (rising in) and the exit (sliding out) visibly emerge from/retreat
+// behind the input box's edge rather than floating freely over it.
 // Sizes per the design-system spacing scale (.claude/skills/design-system/spacing.md
 // / globals.css): large = var(--x13) = 48px, small = var(--x11) = 40px. GroupAvatar's
 // `size` prop is typed as a plain number, so these are the resolved pixel values, not
@@ -70,7 +78,7 @@ const BOUNCE_TRACKS = [
 const EXIT_DURATION_S = 0.35
 const EXIT_MAX_SETTLE_FRACTION = Math.max(...BOUNCE_TRACKS.map((t) => t.times[t.times.length - 2]))
 const EXIT_TOTAL_S = EXIT_DURATION_S * (1 + EXIT_MAX_SETTLE_FRACTION)
-const EXIT_FADE_S  = 0.12
+const EXIT_FADE_S  = 0.06
 
 export interface SwipePreviewAvatar {
   id:       string
@@ -138,7 +146,7 @@ export function ChatRoomSwipePreview({ visible, slots, dragT }: ChatRoomSwipePre
           initial={{ opacity: 0, y: 4 }}
           animate={{ opacity: 1, y: 0, transition: { duration: 0.08 } }}
           exit={{ opacity: 0, transition: { duration: EXIT_FADE_S, delay: EXIT_TOTAL_S - EXIT_FADE_S } }}
-          className="absolute bottom-full left-0 right-0 flex items-center"
+          className="absolute bottom-full left-0 right-0 flex items-center overflow-hidden"
           style={{
             gap:           8,
             paddingLeft:   'var(--space-5)',
