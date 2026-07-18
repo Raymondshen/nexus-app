@@ -22,7 +22,9 @@ import { addToOutbox, readOutbox, type OutboxJob } from '@/shared/utils/outbox'
 import { acquireCrewMessageChannel, releaseCrewMessageChannel, isActiveCrewMessageChannel, evictCrewMessageChannel } from '@/shared/supabase/crewMessageChannel'
 import { IMAGE_CONFIG } from '@/shared/constants/config'
 import { ChatSquadDetailBar } from '@/features/chat/components/header/ChatSquadDetailBar'
-import { useSlidePageGesture, setNextSlideEnterFrom } from '@/app/layouts/SlidePage'
+import { useSlidePageGesture, skipNextSlideEnter } from '@/app/layouts/SlidePage'
+import { useChatRoomPeekStore } from '@/features/chat/store/chatRoomPeekStore'
+import { ensureRoomMeta } from '@/features/chat/utils/ensureRoomMeta'
 import { ChatTypingIndicator } from '@/features/chat/components/input/ChatTypingIndicator'
 import { isGemGateOpen, recordGemClaim } from '@/shared/utils/gems'
 import type { GemClaimResult } from '@/types'
@@ -229,6 +231,16 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   const channelEpoch      = useChatStore((s) => s.channelEpoch)
 
   const liveCrewName = storeCrewName || crewName
+
+  // Bookkeeping for the chat-swipe-nav peek layer (chat/[crewId]/layout.tsx's
+  // ChatRoomPeekLayer, which persists across room navigation unlike this component):
+  // tells it which room is *actually* mounted right now (so it can clear itself once a
+  // peeked room's real page takes over) and seeds this room's own name/image so it's
+  // available instantly if another room peeks back at this one later.
+  useEffect(() => {
+    useChatRoomPeekStore.getState().setCurrentRoom(crewId)
+    useChatRoomPeekStore.getState().setRoomMeta(crewId, { name: liveCrewName, imageUrl: crewImageUrl })
+  }, [crewId, liveCrewName, crewImageUrl])
 
   // Keep refs in sync on every render so closures and effects always see current values
   textRef.current = text
@@ -516,11 +528,17 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   // ordering, DMs excluded — see chat/[crewId]/page.tsx). Interactive drag-follow: the
   // whole page tracks the finger 1:1 via SlidePage's own gesture handle (same
   // controls/exiting the edge-swipe-to-close gesture uses — safe here only because this
-  // page passes nativeSwipe, leaving that gesture dormant). Past the commit threshold,
-  // the page finishes tweening off-screen in the swipe direction and the destination
-  // room is told which edge to enter from so the motion reads as one continuous slide
-  // rather than a pop; below threshold, or at the start/end of the room list, it springs
-  // back to x:0 — same rubber-band feel as everywhere else in the app.
+  // page passes nativeSwipe, leaving that gesture dormant). At the same time, a cached-
+  // snapshot preview of the room being swiped to is revealed underneath via
+  // chatRoomPeekStore + ChatRoomPeekLayer (chat/[crewId]/layout.tsx — see its doc
+  // comment) so the transition shows real content sliding in instead of a blank flash
+  // while the destination room's page.tsx loads. Past the commit threshold, both layers
+  // finish tweening into place together (the peek reaches x:0 first and stays frozen
+  // there — see ChatRoomPeekLayer — until the real room actually mounts and covers it;
+  // skipNextSlideEnter() tells that real SlidePage to mount silently already-at-rest
+  // instead of re-playing its own entrance on top of what the peek already revealed).
+  // Below threshold, or at the start/end of the room list, both spring back — same
+  // rubber-band feel as everywhere else in the app.
   //
   // panAxisRef locks the gesture to whichever axis (x = room swipe, y = existing
   // swipe-up-to-expand) crosses a small intent threshold first, so the two gestures
@@ -557,6 +575,19 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     const atHome = currentIndex <= 0
     const resisted = (dx < 0 && atEnd) || (dx > 0 && atHome) ? dx * 0.35 : dx
     setDragX(resisted)
+
+    // Mirror the drag onto the peek layer for whichever room is on the leading edge.
+    // No target in that direction (list boundary) — nothing to peek, just the rubber-band.
+    const direction: 'left' | 'right' | null = dx < 0 ? 'left' : dx > 0 ? 'right' : null
+    const targetId = direction && currentIndex !== -1
+      ? chatRoomOrder[currentIndex + (direction === 'left' ? 1 : -1)]
+      : undefined
+    if (targetId && direction) {
+      useChatRoomPeekStore.getState().setPeek({ targetCrewId: targetId, direction, x: resisted, phase: 'dragging' })
+      void ensureRoomMeta(targetId)
+    } else {
+      useChatRoomPeekStore.getState().setPeek(null)
+    }
   }
 
   function handleTopPanEnd(_: PointerEvent, info: PanInfo) {
@@ -569,14 +600,21 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
         : undefined
 
       if (targetId && commitSwipe(swipedLeft ? 'left' : 'right')) {
-        // Swiped right = paging to the *previous* room = current page exits to the
-        // right, so the destination should continue entering from the left.
-        if (swipedRight) setNextSlideEnterFrom('left')
+        const direction = swipedLeft ? 'left' : 'right'
+        useChatRoomPeekStore.getState().setPeek({ targetCrewId: targetId, direction, x: info.offset.x, phase: 'committing' })
+        // The peek layer above is what visually reveals the destination room (sliding
+        // its cached snapshot all the way to x:0) — the real SlidePage that mounts once
+        // navigation lands should pick up silently at that same rest position instead of
+        // re-playing its own entrance animation on top, which would look like a second,
+        // redundant slide-in.
+        skipNextSlideEnter()
         sessionStorage.setItem('nexus_chat_from', 'chat')
         router.push(`/chat/${targetId}`)
         return
       }
       cancelDrag()
+      const activePeek = useChatRoomPeekStore.getState().peek
+      if (activePeek) useChatRoomPeekStore.getState().setPeek({ ...activePeek, phase: 'cancelling' })
       return
     }
     if (info.offset.y < -50 || info.velocity.y < -300) setIsExpanded(true)

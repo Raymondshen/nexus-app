@@ -59,17 +59,13 @@ export function clearSkipNextSlideEnter() {
   _skipNextSlideEnter = false
 }
 
-// Which edge the next SlidePage to mount should enter from — 'right' (the default
-// enter-from-right animation) unless a custom swipe gesture just exited the current
-// page toward the right (e.g. ChatInput's swipe-to-*previous*-room, which continues
-// the exiting page off to the right and wants the destination to keep entering from
-// the left, not pop in from the opposite edge). Read synchronously at render time
-// (same pattern as _skipNextSlideEnter) and reset on every mount regardless of which
-// branch consumed it, so it can never leak into an unrelated later navigation.
-let _nextSlideEnterFrom: 'left' | 'right' = 'right'
-
-export function setNextSlideEnterFrom(direction: 'left' | 'right') {
-  _nextSlideEnterFrom = direction
+// Set by a custom swipe gesture that already visually revealed the destination page
+// before navigating to it (e.g. ChatInput's swipe-between-rooms, whose ChatRoomPeekLayer
+// slides a cached preview all the way to x:0 as part of the committed swipe) — the real
+// SlidePage should then mount silently already-at-rest instead of re-playing its own
+// entrance animation on top, which would look like a redundant second slide-in.
+export function skipNextSlideEnter() {
+  _skipNextSlideEnter = true
 }
 
 // Set by chat's ChatFloatingNav (src/shared/components/ui/PageFloatButton.tsx) right before
@@ -111,7 +107,6 @@ export function SlidePage({ children, className, style, backHref, nativeSwipe }:
   const containerRef = useRef<HTMLDivElement>(null)
   // Read synchronously at render time so initial= is correct on first paint.
   const skipEnter    = _skipNextSlideEnter
-  const enterFrom    = _nextSlideEnterFrom
 
   const goBack = useCallback(() => {
     if (exiting.current) return
@@ -137,9 +132,6 @@ export function SlidePage({ children, className, style, backHref, nativeSwipe }:
         transition: { type: 'spring', stiffness: 380, damping: 36, mass: 0.9 },
       })
     }
-    // Reset regardless of which branch ran above, so a stale direction can never leak
-    // into a later, unrelated mount.
-    _nextSlideEnterFrom = 'right'
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Gesture handle — lets a descendant (e.g. ChatInput's swipe-between-rooms) drive
@@ -260,7 +252,7 @@ export function SlidePage({ children, className, style, backHref, nativeSwipe }:
           ref={containerRef}
           className={className}
           style={style}
-          initial={{ x: skipEnter ? 0 : (enterFrom === 'left' ? '-100%' : '100%') }}
+          initial={{ x: skipEnter ? 0 : '100%' }}
           animate={controls}
         >
           {children}
