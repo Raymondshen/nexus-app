@@ -70,11 +70,15 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
   if (!session) redirect("/login");
   const user = session.user;
 
-  // Stage 2 — all 5 queries in parallel.
+  // Stage 2 — all 6 queries in parallel.
   // crew (total_xp) stays uncached — it changes with every message.
   // crew_members fetched fresh for membership check (RLS returns empty for non-members).
   // vibeNotesRes fetches most-recent music note per member for vinyl pills in message bubbles.
-  const [cachedProfiles, crewResult, lastSeenResult, gemResult, vibeNotesRes, memberPinRes] = await Promise.all([
+  // chatRoomOrderRes: this user's non-DM crews, most-recently-active first — feeds the
+  // dev-gated chat swipe-navigation feature (see ChatInput's chatRoomOrder prop). Fetched
+  // unconditionally (cheap, same join shape as lastSeenResult) rather than gating behind
+  // an extra is_dev round trip, since the toggle itself is a plain client-side dev flag.
+  const [cachedProfiles, crewResult, lastSeenResult, gemResult, vibeNotesRes, memberPinRes, chatRoomOrderRes] = await Promise.all([
     getCachedMemberProfiles(crewId),
     supabase.from("crews").select("id, name, invite_code, level, total_xp, image_url, background_image_url").eq("id", crewId).single(),
     supabase
@@ -95,10 +99,23 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
       .from('crew_members')
       .select('user_id, profile:profiles(pinned_vinyl_id)')
       .eq('crew_id', crewId),
+    supabase
+      .from('crew_members')
+      .select('crew_id, crews(id, is_dm, last_message_at)')
+      .eq('user_id', user.id),
   ]);
 
   const crew       = crewResult.data as Crew | null;
   const gemBalance = (gemResult.data as { gem_balance: number } | null)?.gem_balance ?? 0;
+
+  // Ordered list of this user's group-chat crew ids (DMs excluded), most-recently-active
+  // first — see Stage 2's chatRoomOrderRes query above. Feeds ChatInput's dev-gated
+  // chat swipe-navigation feature (paging to the next/previous room in this order).
+  type ChatRoomOrderRow = { crew_id: string; crews: { id: string; is_dm: boolean; last_message_at: string | null } | null }
+  const chatRoomOrder = ((chatRoomOrderRes.data ?? []) as unknown as ChatRoomOrderRow[])
+    .filter((r) => r.crews && !r.crews.is_dm)
+    .sort((a, b) => (b.crews!.last_message_at ?? '').localeCompare(a.crews!.last_message_at ?? ''))
+    .map((r) => r.crews!.id);
 
   // Membership check — fresh query (RLS returns empty for non-members)
   const lastSeenRows = (lastSeenResult.data ?? []) as MemberRow[]
@@ -244,6 +261,7 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
           crewBackgroundImageUrl={(crew as { background_image_url?: string | null }).background_image_url ?? null}
           initialXP={crew.total_xp}
           currentUserId={user.id}
+          chatRoomOrder={chatRoomOrder}
         />
       </ErrorBoundary>
 

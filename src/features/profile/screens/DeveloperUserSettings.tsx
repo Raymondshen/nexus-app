@@ -93,6 +93,7 @@ export function DeveloperUserSettings({ initialCoins }: DeveloperUserSettingsPro
   const [pollFeature,   setPollFeature]   = useState(false)
   const [eventsFeature, setEventsFeature] = useState(false)
   const [friendshipXP,  setFriendshipXP]  = useState(false)
+  const [chatSwipeNav,  setChatSwipeNav]  = useState(false)
 
   useEffect(() => {
     setShowPush(localStorage.getItem('nexus_push_diag') === '1')
@@ -100,6 +101,7 @@ export function DeveloperUserSettings({ initialCoins }: DeveloperUserSettingsPro
     setPollFeature(localStorage.getItem('nexus_poll_feature') === '1')
     setEventsFeature(localStorage.getItem('nexus_events_enabled') === '1')
     setFriendshipXP(localStorage.getItem('nexus_friendship_xp') === '1')
+    setChatSwipeNav(localStorage.getItem('nexus_chat_swipe_nav') === '1')
   }, [])
 
   function toggleShowPush() {
@@ -140,6 +142,14 @@ export function DeveloperUserSettings({ initialCoins }: DeveloperUserSettingsPro
     if (next) localStorage.setItem('nexus_friendship_xp', '1')
     else localStorage.removeItem('nexus_friendship_xp')
     window.dispatchEvent(new CustomEvent('nexus-friendship-xp-change', { detail: { on: next } }))
+  }
+
+  function toggleChatSwipeNav() {
+    const next = !chatSwipeNav
+    setChatSwipeNav(next)
+    if (next) localStorage.setItem('nexus_chat_swipe_nav', '1')
+    else localStorage.removeItem('nexus_chat_swipe_nav')
+    window.dispatchEvent(new CustomEvent('nexus-chat-swipe-nav-change', { detail: { on: next } }))
   }
 
   return (
@@ -192,6 +202,12 @@ export function DeveloperUserSettings({ initialCoins }: DeveloperUserSettingsPro
           description="DM and @mention XP, bond progress bar, and toast"
           enabled={friendshipXP}
           onChange={toggleFriendshipXP}
+        />
+        <DevToggleRow
+          title="Chat Swipe Navigation"
+          description="Swipe the squad bar left/right to page between chat rooms"
+          enabled={chatSwipeNav}
+          onChange={toggleChatSwipeNav}
         />
       </div>
 

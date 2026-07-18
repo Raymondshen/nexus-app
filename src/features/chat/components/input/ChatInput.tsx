@@ -102,6 +102,9 @@ interface ChatInputProps {
   currentUserId?:      string
   isDM?:               boolean
   dmPartnerId?:        string
+  /** This user's group-chat crew ids, most-recently-active first (DMs excluded) — feeds
+   * the dev-gated chat swipe-navigation feature. Omitted/empty on the DM screen. */
+  chatRoomOrder?:      string[]
 }
 
 function sanitizeMessage(raw: string): string {
@@ -136,13 +139,14 @@ async function tryClaimDailyGem(supabase: ReturnType<typeof createClient>, onCla
 
 // ─── ChatInput ────────────────────────────────────────────────────────────────
 
-export function ChatInput({ crewId, userId, userProfile, memberProfiles, memberPinnedVinyls, crewName, inviteCode, creatorId, crewImageUrl: initialCrewImageUrl, crewBackgroundImageUrl: initialCrewBgUrl, initialXP, isDM, dmPartnerId }: ChatInputProps) {
+export function ChatInput({ crewId, userId, userProfile, memberProfiles, memberPinnedVinyls, crewName, inviteCode, creatorId, crewImageUrl: initialCrewImageUrl, crewBackgroundImageUrl: initialCrewBgUrl, initialXP, isDM, dmPartnerId, chatRoomOrder = [] }: ChatInputProps) {
   const router = useRouter()
   const [text,           setText]          = useState('')
   const [sendError,      setSendError]      = useState<string | null>(null)
   const [pollEnabled,      setPollEnabled]       = useState(false)
   const [eventsEnabled,    setEventsEnabled]     = useState(false)
   const [fxpEnabled,       setFxpEnabled]        = useState(false)
+  const [chatSwipeNavEnabled, setChatSwipeNavEnabled] = useState(false)
   const [gemToastVisible,   setGemToastVisible]   = useState(false)
   const [isExpanded,     setIsExpanded]     = useState(false)
   const [showNotifSheet,  setShowNotifSheet]  = useState(false)
@@ -270,16 +274,20 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     setFxpEnabled(localStorage.getItem('nexus_friendship_xp') === '1')
     setPollEnabled(localStorage.getItem('nexus_poll_feature') === '1')
     setEventsEnabled(localStorage.getItem('nexus_events_enabled') === '1')
+    setChatSwipeNavEnabled(localStorage.getItem('nexus_chat_swipe_nav') === '1')
     function onFxpChange(e: Event)    { setFxpEnabled((e as CustomEvent<{ on: boolean }>).detail.on) }
     function onPollChange(e: Event)   { setPollEnabled((e as CustomEvent<{ on: boolean }>).detail.on) }
     function onEventsChange(e: Event) { setEventsEnabled((e as CustomEvent<{ on: boolean }>).detail.on) }
+    function onChatSwipeNavChange(e: Event) { setChatSwipeNavEnabled((e as CustomEvent<{ on: boolean }>).detail.on) }
     window.addEventListener('nexus-friendship-xp-change', onFxpChange)
     window.addEventListener('nexus-poll-feature-change', onPollChange)
     window.addEventListener('nexus-events-feature-change', onEventsChange)
+    window.addEventListener('nexus-chat-swipe-nav-change', onChatSwipeNavChange)
     return () => {
       window.removeEventListener('nexus-friendship-xp-change', onFxpChange)
       window.removeEventListener('nexus-poll-feature-change', onPollChange)
       window.removeEventListener('nexus-events-feature-change', onEventsChange)
+      window.removeEventListener('nexus-chat-swipe-nav-change', onChatSwipeNavChange)
     }
   }, [])
 
@@ -501,7 +509,26 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
 
   // ────────────────────────────────────────────────────────────────────────────
 
+  // Dev-gated (nexus_chat_swipe_nav): swipe the squad bar left/right to page to the
+  // next/previous group chat room in chatRoomOrder (Home's own most-recently-active
+  // ordering, DMs excluded — see chat/[crewId]/page.tsx). Scoped-down version: a plain
+  // navigation, not a directional slide-out/slide-in — the destination room just plays
+  // SlidePage's existing default enter-from-right animation on mount.
   function handleTopPanEnd(_: PointerEvent, info: PanInfo) {
+    const isHorizontal = Math.abs(info.offset.x) > Math.abs(info.offset.y)
+    if (chatSwipeNavEnabled && isHorizontal && chatRoomOrder.length > 1) {
+      const swipedLeft  = info.offset.x < -60 || info.velocity.x < -400
+      const swipedRight = info.offset.x > 60  || info.velocity.x > 400
+      if (swipedLeft || swipedRight) {
+        const currentIndex = chatRoomOrder.indexOf(crewId)
+        const targetId = currentIndex === -1 ? undefined : chatRoomOrder[currentIndex + (swipedLeft ? 1 : -1)]
+        if (targetId) {
+          sessionStorage.setItem('nexus_chat_from', 'chat')
+          router.push(`/chat/${targetId}`)
+        }
+        return
+      }
+    }
     if (info.offset.y < -50 || info.velocity.y < -300) setIsExpanded(true)
   }
 
