@@ -16,7 +16,7 @@ import { VibesGrid, type VibesGridHandle } from '@/features/profile/components/V
 import { PhotosGrid, type PhotosGridHandle } from '@/features/profile/components/PhotosGrid'
 import { FloatingViewPill, PILL_BOTTOM_INSET } from '@/features/profile/components/FloatingViewPill'
 import { UploadOptionsSheet } from '@/features/profile/components/UploadOptionsSheet'
-import { useSwipeTabs, TAB_SLIDE_VARIANTS, TAB_SLIDE_TRANSITION } from '@/features/profile/hooks/useSwipeTabs'
+import { useSwipeTabs, useTabPanelHeight, TAB_SLIDE_VARIANTS, TAB_SLIDE_TRANSITION } from '@/features/profile/hooks/useSwipeTabs'
 import type { PublicNote, ProfilePhoto } from '@/types'
 
 interface ProfileClientProps {
@@ -98,6 +98,7 @@ export function ProfileClient({
 
   const tabContentRef = useRef<HTMLDivElement>(null)
   useSwipeTabs(tabContentRef, TAB_ORDER, activeTab, switchTab)
+  const { panelRef, height: panelHeight } = useTabPanelHeight(activeTab)
 
   const photosGridRef = useRef<PhotosGridHandle>(null)
   const vibesGridRef  = useRef<VibesGridHandle>(null)
@@ -133,162 +134,169 @@ export function ProfileClient({
       className="bg-black flex flex-col"
       style={{ position: 'fixed', inset: 0, maxWidth: 480, marginLeft: 'auto', marginRight: 'auto', overflow: 'hidden' }}
     >
-      {/* ── Hero section ──────────────────────────────────────────────────────── */}
-      <div className="relative flex-shrink-0 w-full bg-black overflow-hidden" style={{ height: 'calc(280px + env(safe-area-inset-top, 0px))' }}>
+      {/* ── Scrollable page body — hero, status ticker, and the Photos/Vibes tab content
+          all flow together as one continuous scroll (previously only the grid itself
+          scrolled internally while the hero stayed fixed above it). The back/dev/edit
+          buttons and the floating pill are rendered as fixed siblings below, outside
+          this scrolling div, so they stay pinned on screen regardless of scroll position. ── */}
+      <div className="flex-1 min-h-0 overflow-y-auto nexus-scroll">
 
-        <ProfileHeroBackground url={backgroundUrl} />
+        {/* ── Hero section ──────────────────────────────────────────────────────── */}
+        <div className="relative w-full bg-black overflow-hidden" style={{ height: 'calc(280px + env(safe-area-inset-top, 0px))' }}>
 
-        <div
-          className="absolute inset-0 pointer-events-none"
-          style={{ background: 'var(--gradient-image-overlay)' }}
-        />
+          <ProfileHeroBackground url={backgroundUrl} />
 
-        {/* Content anchored to bottom */}
-        <div className="absolute inset-0 flex flex-col justify-end gap-[var(--space-5)] p-[var(--space-5)]">
-
-          {/* Details row */}
-          <div className="flex items-center gap-[var(--space-5)] w-full">
-            <UserAvatar avatarUrl={avatarUrl} username={initialUsername} size={56} bg="primary" priority />
-
-            <div className="flex-1 min-w-0 flex flex-col gap-[var(--space-2)] justify-center leading-none">
-              <p className="font-silkscreen" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>
-                Lifetime msg. {msgFormatted}
-              </p>
-              <p className="font-body font-bold truncate" style={{ fontSize: 'var(--text-xl)', fontVariationSettings: '"opsz" 14', color: 'var(--color-primary)' }}>
-                {initialUsername}
-              </p>
-              <p className="font-silkscreen" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>
-                {groupChats} group chat{groupChats !== 1 ? 's' : ''}
-                {inviterUsername ? ` · rec. by ${inviterUsername}` : ''}
-              </p>
-            </div>
-          </div>
-
-          {/* Social links */}
-          <SocialLinksRow
-            instagramUrl={instagramUrl}
-            xUrl={xUrl}
-            redditUrl={redditUrl}
-            linkedinUrl={linkedinUrl}
-            customSiteUrl={customSiteUrl}
+          <div
+            className="absolute inset-0 pointer-events-none"
+            style={{ background: 'var(--gradient-image-overlay)' }}
           />
 
-          {/* Friendship XP bar — dev-gated */}
-          {fxpEnabled && (
-            <div className="flex flex-col w-full" style={{ gap: 8 }}>
-              <p className="font-silkscreen leading-none w-full" style={{ fontSize: 'var(--text-mini)' }}>
-                <span style={{ color: 'var(--color-secondary)' }}>Friendship lv {fxpLevel}</span>
-                <span style={{ color: 'var(--color-tertiary)' }}>{` · ${fxpProgress} / 100xp`}</span>
-              </p>
-              <div className="w-full overflow-hidden" style={{ height: 4, background: 'var(--color-surface)' }}>
-                <div style={{ width: `${fxpPercent}%`, height: 4, background: 'linear-gradient(to right, #a855f7, #d946ef)' }} />
-              </div>
-            </div>
-          )}
+          {/* Content anchored to bottom */}
+          <div className="absolute inset-0 flex flex-col justify-end gap-[var(--space-5)] p-[var(--space-5)]">
 
-          {/* AFK EXP row — dev-only */}
-          {afkExp && (
-            <div className="flex items-center gap-2 w-full">
-              <div className="flex flex-1 flex-col gap-2 min-w-0">
-                <p className="font-silkscreen leading-none w-full" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-primary)' }}>
-                  AFK EXP accumulated · 100 / 100 XP
+            {/* Details row */}
+            <div className="flex items-center gap-[var(--space-5)] w-full">
+              <UserAvatar avatarUrl={avatarUrl} username={initialUsername} size={56} bg="primary" priority />
+
+              <div className="flex-1 min-w-0 flex flex-col gap-[var(--space-2)] justify-center leading-none">
+                <p className="font-silkscreen" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>
+                  Lifetime msg. {msgFormatted}
                 </p>
-                <div className="bg-purple w-full" style={{ height: 4 }} />
+                <p className="font-body font-bold truncate" style={{ fontSize: 'var(--text-xl)', fontVariationSettings: '"opsz" 14', color: 'var(--color-primary)' }}>
+                  {initialUsername}
+                </p>
+                <p className="font-silkscreen" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>
+                  {groupChats} group chat{groupChats !== 1 ? 's' : ''}
+                  {inviterUsername ? ` · rec. by ${inviterUsername}` : ''}
+                </p>
               </div>
-              <button
-                className="bg-purple flex-shrink-0 flex items-center justify-center"
-                style={{ paddingLeft: 'var(--space-5)', paddingRight: 'var(--space-5)', paddingTop: 'var(--space-3)', paddingBottom: 'var(--space-3)' }}
-              >
-                <span className="font-silkscreen leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-xxs)', color: 'var(--color-primary)' }}>CLAIM</span>
-              </button>
             </div>
-          )}
-        </div>
 
-        {/* Top gradient overlay */}
-        <div
-          className="absolute left-0 right-0 top-0 pointer-events-none"
-          style={{
-            height:     'calc(86px + env(safe-area-inset-top, 0px))',
-            background: 'var(--gradient-hero-top-scrim)',
-          }}
-        />
+            {/* Social links */}
+            <SocialLinksRow
+              instagramUrl={instagramUrl}
+              xUrl={xUrl}
+              redditUrl={redditUrl}
+              linkedinUrl={linkedinUrl}
+              customSiteUrl={customSiteUrl}
+            />
 
-        {/* Top bar: back button (left) + braces/edit buttons (right) */}
-        <div
-          className="absolute z-20 left-0 right-0 flex items-center justify-between pointer-events-none"
-          style={{ top: 'calc(env(safe-area-inset-top, 0px) + 18px)', paddingLeft: 16, paddingRight: 16 }}
-        >
-          <div className="pointer-events-auto">
-            <BackButton />
-          </div>
-
-          <div className="flex items-center pointer-events-auto" style={{ gap: 16 }}>
-            {isDev && (
-              <PageFloatButton
-                onClick={() => router.push('/profile/settings')}
-                ariaLabel="Developer settings"
-                icon={<Braces style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />}
-              />
+            {/* Friendship XP bar — dev-gated */}
+            {fxpEnabled && (
+              <div className="flex flex-col w-full" style={{ gap: 8 }}>
+                <p className="font-silkscreen leading-none w-full" style={{ fontSize: 'var(--text-mini)' }}>
+                  <span style={{ color: 'var(--color-secondary)' }}>Friendship lv {fxpLevel}</span>
+                  <span style={{ color: 'var(--color-tertiary)' }}>{` · ${fxpProgress} / 100xp`}</span>
+                </p>
+                <div className="w-full overflow-hidden" style={{ height: 4, background: 'var(--color-surface)' }}>
+                  <div style={{ width: `${fxpPercent}%`, height: 4, background: 'linear-gradient(to right, #a855f7, #d946ef)' }} />
+                </div>
+              </div>
             )}
 
-            <PageFloatButton
-              onClick={() => router.push('/profile/manage')}
-              ariaLabel="Edit profile"
-              disabled={isGuest}
-              icon={<MagicEdit style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />}
-            />
+            {/* AFK EXP row — dev-only */}
+            {afkExp && (
+              <div className="flex items-center gap-2 w-full">
+                <div className="flex flex-1 flex-col gap-2 min-w-0">
+                  <p className="font-silkscreen leading-none w-full" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-primary)' }}>
+                    AFK EXP accumulated · 100 / 100 XP
+                  </p>
+                  <div className="bg-purple w-full" style={{ height: 4 }} />
+                </div>
+                <button
+                  className="bg-purple flex-shrink-0 flex items-center justify-center"
+                  style={{ paddingLeft: 'var(--space-5)', paddingRight: 'var(--space-5)', paddingTop: 'var(--space-3)', paddingBottom: 'var(--space-3)' }}
+                >
+                  <span className="font-silkscreen leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-xxs)', color: 'var(--color-primary)' }}>CLAIM</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
+        {/* ── Status ticker ─────────────────────────────────────────────────────── */}
+        {initialStatus && <TickerBanner text={initialStatus} />}
+
+        {/* ── Tab content — Photos/Vibes switched via the floating pill below or a left/right swipe.
+            Slide transition (see TAB_SLIDE_VARIANTS): outgoing panel slides fully off-screen in the
+            direction of travel while the incoming panel slides in from the opposite edge. Panels are
+            top/left/right-anchored (not inset-0) so each sizes to its own natural content height;
+            useTabPanelHeight mirrors the active panel's height onto this container so the page's
+            scroll height stays correct through tab switches and content changes (add/remove photo). ── */}
+        <div ref={tabContentRef} className="relative w-full overflow-hidden" style={{ height: panelHeight }}>
+          <AnimatePresence initial={false} custom={tabDirRef.current}>
+            <motion.div
+              key={activeTab}
+              ref={panelRef}
+              custom={tabDirRef.current}
+              className="absolute top-0 left-0 right-0"
+              variants={TAB_SLIDE_VARIANTS}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={TAB_SLIDE_TRANSITION}
+            >
+              {activeTab === 'photos' ? (
+                <PhotosGrid
+                  ref={photosGridRef}
+                  initialPhotos={initialPhotos}
+                  userId={userId}
+                  isOwner={true}
+                  bottomInset={PILL_BOTTOM_INSET}
+                />
+              ) : (
+                <VibesGrid
+                  ref={vibesGridRef}
+                  initialVinyls={initialNotes}
+                  isOwner={true}
+                  initialPinnedId={initialPinnedId}
+                  bottomInset={PILL_BOTTOM_INSET}
+                />
+              )}
+            </motion.div>
+          </AnimatePresence>
+        </div>
       </div>
 
-      {/* ── Status ticker ─────────────────────────────────────────────────────── */}
-      {initialStatus && <TickerBanner text={initialStatus} />}
+      {/* ── Fixed top scrim + bar — back / dev / edit buttons float over whatever is
+          currently scrolled beneath them (hero photo, then eventually the grid). ── */}
+      <div
+        className="absolute left-0 right-0 top-0 pointer-events-none"
+        style={{ height: 'calc(86px + env(safe-area-inset-top, 0px))', background: 'var(--gradient-hero-top-scrim)' }}
+      />
+      <div
+        className="absolute z-20 left-0 right-0 flex items-center justify-between pointer-events-none"
+        style={{ top: 'calc(env(safe-area-inset-top, 0px) + 18px)', paddingLeft: 16, paddingRight: 16 }}
+      >
+        <div className="pointer-events-auto">
+          <BackButton />
+        </div>
 
-      {/* ── Tab content — Photos/Vibes switched via the floating pill below or a left/right swipe.
-          Slide transition (see TAB_SLIDE_VARIANTS): outgoing panel slides fully off-screen in the
-          direction of travel while the incoming panel slides in from the opposite edge. ── */}
-      <div ref={tabContentRef} className="relative flex-1 min-h-0 overflow-hidden">
-        <AnimatePresence initial={false} custom={tabDirRef.current}>
-          <motion.div
-            key={activeTab}
-            custom={tabDirRef.current}
-            className="absolute inset-0"
-            variants={TAB_SLIDE_VARIANTS}
-            initial="enter"
-            animate="center"
-            exit="exit"
-            transition={TAB_SLIDE_TRANSITION}
-          >
-            {activeTab === 'photos' ? (
-              <PhotosGrid
-                ref={photosGridRef}
-                initialPhotos={initialPhotos}
-                userId={userId}
-                isOwner={true}
-                bottomInset={PILL_BOTTOM_INSET}
-              />
-            ) : (
-              <VibesGrid
-                ref={vibesGridRef}
-                initialVinyls={initialNotes}
-                isOwner={true}
-                initialPinnedId={initialPinnedId}
-                bottomInset={PILL_BOTTOM_INSET}
-              />
-            )}
-          </motion.div>
-        </AnimatePresence>
+        <div className="flex items-center pointer-events-auto" style={{ gap: 16 }}>
+          {isDev && (
+            <PageFloatButton
+              onClick={() => router.push('/profile/settings')}
+              ariaLabel="Developer settings"
+              icon={<Braces style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />}
+            />
+          )}
 
-        {/* Floating Photos/Vibes/Add pill (Figma 559:6686) */}
-        <div
-          className="absolute left-0 right-0 z-10 flex justify-center pointer-events-none"
-          style={{ bottom: 'max(env(safe-area-inset-bottom), 16px)' }}
-        >
-          <div className="pointer-events-auto">
-            <FloatingViewPill activeTab={activeTab} onSwitch={switchTab} onAdd={() => setShowUploadOptions(true)} />
-          </div>
+          <PageFloatButton
+            onClick={() => router.push('/profile/manage')}
+            ariaLabel="Edit profile"
+            disabled={isGuest}
+            icon={<MagicEdit style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />}
+          />
+        </div>
+      </div>
+
+      {/* Floating Photos/Vibes/Add pill (Figma 559:6686) */}
+      <div
+        className="absolute left-0 right-0 z-10 flex justify-center pointer-events-none"
+        style={{ bottom: 'max(env(safe-area-inset-bottom), 16px)' }}
+      >
+        <div className="pointer-events-auto">
+          <FloatingViewPill activeTab={activeTab} onSwitch={switchTab} onAdd={() => setShowUploadOptions(true)} />
         </div>
       </div>
 

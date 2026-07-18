@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, type RefObject } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import type { Variants, Transition } from 'framer-motion'
 
 const SWIPE_DISTANCE_THRESHOLD = 60
@@ -110,4 +110,31 @@ export function useSwipeTabs<T extends string>(
       el.removeEventListener('touchend',   onTouchEnd)
     }
   }, [containerRef])
+}
+
+// ─── useTabPanelHeight ──────────────────────────────────────────────────────
+// ProfileClient / AccountPageMember embed the Photos/Vibes tab area inside one
+// continuous page scroll rather than their own fixed-size box, so the sliding
+// panels (position: absolute; top/left/right — NOT inset-0, so each sizes to its
+// own natural content height) no longer have a parent-supplied height to fill.
+// This measures the currently-mounted panel's content height and mirrors it onto
+// the container so the page's scrollable height stays correct across tab switches
+// and content changes (e.g. adding/removing a photo changes row count). Re-observes
+// on every tab switch since `panelRef` gets attached to a freshly-mounted element
+// (each panel is keyed by tab).
+export function useTabPanelHeight(activeTab: string) {
+  const panelRef = useRef<HTMLDivElement>(null)
+  const [height, setHeight] = useState<number>()
+
+  useLayoutEffect(() => {
+    const el = panelRef.current
+    if (!el) return
+    const update = () => setHeight(el.scrollHeight)
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [activeTab])
+
+  return { panelRef, height }
 }

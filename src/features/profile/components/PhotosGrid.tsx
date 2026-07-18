@@ -314,7 +314,7 @@ export const PhotosGrid = forwardRef<PhotosGridHandle, PhotosGridProps>(function
   return (
     <>
       <div
-        className="h-full overflow-y-auto nexus-scroll"
+        className="w-full"
         style={{
           paddingTop: 16,
           paddingLeft: 16,
