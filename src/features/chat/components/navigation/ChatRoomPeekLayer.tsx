@@ -52,7 +52,7 @@ function noop() {}
 // over it anyway).
 //
 // So this layer renders two independent pieces: a floating ghost loading placeholder
-// (Figma 577:3996 — the walk-cycle sprite from public/sprites/ghost/walk/, a distinct
+// (Figma 577:4627 — the walk-cycle sprite from public/sprites/ghost/walk/, a distinct
 // asset from MessageList's own EmptyState gif, plus a "Moving to {targetRoom}" label —
 // occluded the same way as the bar/input shell during an active drag, and only actually
 // revealed in the post-commit unmount→mount gap, same timing as the shell) and the
@@ -206,7 +206,7 @@ function PeekBarAndInput({ meta }: { meta: RoomMeta }) {
   )
 }
 
-// Figma 577:3996 ("body") — a 6-frame walk-cycle sprite (public/sprites/ghost/walk/
+// Figma 577:4627 ("body") — a 6-frame walk-cycle sprite (public/sprites/ghost/walk/
 // frame_000.png…frame_005.png, 48×48 native) looped continuously, plus a "Moving to
 // {targetRoom}" label underneath. `label` is the target room's name from roomMeta —
 // already prefetched for the adjacent rooms in chatRoomOrder by the time a drag can
@@ -234,7 +234,7 @@ function WalkingGhost({ label }: { label: string | null }) {
         paddingBottom: 'var(--space-5)',
       }}
     >
-      <div className="relative flex-shrink-0" style={{ width: 120, height: 120 }}>
+      <div className="relative flex-shrink-0" style={{ width: 80, height: 80 }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={`/sprites/ghost/walk/frame_${String(frame).padStart(3, '0')}.png`}
@@ -243,7 +243,10 @@ function WalkingGhost({ label }: { label: string | null }) {
         />
       </div>
       {label && (
-        <p className="font-silkscreen text-xs text-secondary text-center leading-none truncate w-full">
+        <p
+          className="font-body font-bold text-secondary text-center leading-none truncate w-full"
+          style={{ fontSize: 'var(--text-xl)', fontVariationSettings: '"opsz" 14' }}
+        >
           Moving to {label}
         </p>
       )}
