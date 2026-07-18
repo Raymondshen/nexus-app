@@ -147,6 +147,7 @@ async function tryClaimDailyGem(supabase: ReturnType<typeof createClient>, onCla
 // the outgoing room's online members as the destination's.
 const EMPTY_MEMBERS: MemberProfile[] = []
 const EMPTY_ONLINE_IDS = new Set<string>()
+const EMPTY_PENDING_IMAGES: PendingImage[] = []
 
 // ─── ChatInput ────────────────────────────────────────────────────────────────
 
@@ -206,6 +207,15 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   const [mentionQuery,    setMentionQuery]    = useState<string | null>(null)
   const [mentionIndex,    setMentionIndex]    = useState(0)
   const [isFocused,       setIsFocused]       = useState(false)
+  // True for the whole duration of an active x-axis room-swipe drag (set/cleared by
+  // handleTopPan/handleTopPanStart/handleTopPanEnd below) — while true, the input area
+  // renders its default idle look (plus/placeholder/send, no reply/edit banner or typed
+  // draft) instead of this room's real state, since the real bar/input stays static and
+  // fully visible through the whole drag (see handleTopPan's own doc comment) and a
+  // half-typed draft or an open reply/edit banner reads as "stuck" mid-gesture. The real
+  // text/replyTo/editTo/pendingImages state is left completely untouched, so cancelling
+  // the swipe (spring-back) restores exactly what was there beforehand.
+  const [isRoomSwiping,   setIsRoomSwiping]   = useState(false)
   const [showEventSheet,  setShowEventSheet]  = useState(false)
   const [isMultiline,     setIsMultiline]     = useState(false)
 
@@ -613,6 +623,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   function handleTopPanStart() {
     panAxisRef.current     = null
     dragStartedRef.current = false
+    setIsRoomSwiping(false)
   }
 
   function handleTopPan(_: PointerEvent, info: PanInfo) {
@@ -622,6 +633,9 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     }
     if (panAxisRef.current !== 'x' || !chatSwipeNavEnabled || chatRoomOrder.length <= 1) return
 
+    // Edge transition only (not every pan frame) — dragStartedRef doubles as the "have
+    // we already flipped isRoomSwiping on for this gesture" guard.
+    if (!dragStartedRef.current) setIsRoomSwiping(true)
     dragStartedRef.current = true
 
     // Rubber-band resistance at the ends of the room list — dragging "past" the first
@@ -678,6 +692,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
       }
       const activePeek = useChatRoomPeekStore.getState().peek
       if (activePeek) useChatRoomPeekStore.getState().setPeek({ ...activePeek, phase: 'cancelling' })
+      setIsRoomSwiping(false)
       return
     }
     if (info.offset.y < -50 || info.velocity.y < -300) setIsExpanded(true)
@@ -1590,6 +1605,13 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
 
   const totalMessages = [...memberMsgCounts.values()].reduce((s, n) => s + n, 0)
 
+  // Rendering-only stand-ins for the input's default idle look during a room-swipe drag
+  // (see isRoomSwiping's own doc comment above) — the real text/pendingImages/isFocused
+  // state underneath is untouched.
+  const displayText          = isRoomSwiping ? ''                     : text
+  const displayPendingImages = isRoomSwiping ? EMPTY_PENDING_IMAGES   : pendingImages
+  const displayFocused       = isRoomSwiping ? false                  : isFocused
+
   return (
     <div ref={chatInputBoxRef} className="bg-black flex flex-col flex-shrink-0 relative z-[65]">
       {/* ── Typing presence (Figma 507:2518) — own top section, no gap before the
@@ -1659,8 +1681,8 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
             </button>
           )}
 
-          {/* ── Edit mode bar ── */}
-          {editTo && (
+          {/* ── Edit mode bar — hidden mid room-swipe, see isRoomSwiping ── */}
+          {editTo && !isRoomSwiping && (
             <div
               className="flex items-center w-full"
               style={{ background: 'var(--color-surface)', padding: 16, gap: 8, marginBottom: 8 }}
@@ -1683,8 +1705,8 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
             </div>
           )}
 
-          {/* ── Reply preview bar ── */}
-          {replyTo && (
+          {/* ── Reply preview bar — hidden mid room-swipe, see isRoomSwiping ── */}
+          {replyTo && !isRoomSwiping && (
             <div
               className="flex items-center w-full"
               style={{ background: 'var(--color-surface)', padding: 16, gap: 8, marginBottom: 8 }}
@@ -1722,7 +1744,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
           <div className="relative">
             {/* @mention picker — absolute, grows upward over group details */}
             <AnimatePresence>
-              {mentionQuery !== null && mentionMatches.length > 0 && (
+              {!isRoomSwiping && mentionQuery !== null && mentionMatches.length > 0 && (
                 <motion.div
                   key="mention-menu"
                   initial={{ opacity: 0, y: 4 }}
@@ -1757,7 +1779,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
 
             {/* ── Slash command menu — absolute, grows upward over group details ── */}
             {(() => {
-              const isCmd = text.startsWith('/') && !text.includes(' ')
+              const isCmd = !isRoomSwiping && text.startsWith('/') && !text.includes(' ')
               const filter = isCmd ? text.slice(1).toLowerCase() : ''
               const matches = isCmd ? SLASH_COMMANDS.filter((c) => c.name.startsWith(filter) && (c.name !== 'event' || eventsEnabled)) : []
               if (!isCmd || matches.length === 0) return null
@@ -1796,20 +1818,20 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
               className="w-full flex flex-col"
                 style={{
                   outline:       '1px solid',
-                  outlineColor:  isFocused ? 'var(--color-border-hover)' : 'var(--color-border)',
+                  outlineColor:  displayFocused ? 'var(--color-border-hover)' : 'var(--color-border)',
                   outlineOffset: '-1px',
                   transition:    'outline-color 0.15s ease',
                   paddingLeft:   16,
                   paddingRight:  16,
-                  paddingTop:    pendingImages.length > 0 ? 16 : 0,
-                  paddingBottom: pendingImages.length > 0 ? 16 : 0,
-                  gap:           pendingImages.length > 0 ? 16 : 0,
+                  paddingTop:    displayPendingImages.length > 0 ? 16 : 0,
+                  paddingBottom: displayPendingImages.length > 0 ? 16 : 0,
+                  gap:           displayPendingImages.length > 0 ? 16 : 0,
                   minHeight:     48,
                 }}
               >
                 {/* ── Image tray (inside border, animates in/out) ── */}
                 <AnimatePresence>
-                  {pendingImages.length > 0 && (
+                  {displayPendingImages.length > 0 && (
                     <motion.div
                       key="image-tray"
                       initial={{ opacity: 0, height: 0 }}
@@ -1820,7 +1842,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
                     >
                       {/* 80×80 image slots — gap 8px, overflow clips 4th at narrow widths */}
                       <div className="flex items-start" style={{ gap: 8, overflow: 'hidden' }}>
-                        {pendingImages.map((img) => (
+                        {displayPendingImages.map((img) => (
                           <div
                             key={img.id}
                             className="relative flex-shrink-0"
@@ -1859,21 +1881,21 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
                 </AnimatePresence>
 
                 {/* ── Text input + send button row ── */}
-                <div className="flex items-center" style={{ gap: 16, minHeight: pendingImages.length > 0 ? 18 : 48 }}>
+                <div className="flex items-center" style={{ gap: 16, minHeight: displayPendingImages.length > 0 ? 18 : 48 }}>
                   {/* Plus button — slides left and fades out on focus */}
                   <motion.div
                     className="flex-shrink-0 overflow-hidden flex items-center justify-center"
                     animate={{
-                      width:       isFocused ? 0 : 16,
-                      opacity:     isFocused ? 0 : 1,
-                      marginRight: isFocused ? -16 : 0,
+                      width:       displayFocused ? 0 : 16,
+                      opacity:     displayFocused ? 0 : 1,
+                      marginRight: displayFocused ? -16 : 0,
                     }}
                     transition={{ type: 'spring', stiffness: 320, damping: 28 }}
-                    style={{ pointerEvents: isFocused ? 'none' : 'auto' }}
+                    style={{ pointerEvents: displayFocused ? 'none' : 'auto' }}
                   >
                     <button
                       onClick={() => setShowMediaPicker(true)}
-                      disabled={pendingImages.length >= 4}
+                      disabled={displayPendingImages.length >= 4}
                       className="flex-shrink-0 flex items-center justify-center text-muted active:text-purple disabled:opacity-30 disabled:cursor-not-allowed"
                       style={{ width: 16, height: 16 }}
                       aria-label="Add media"
@@ -1906,12 +1928,12 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
                       className="pointer-events-none absolute inset-0 font-body text-[14px] leading-normal overflow-hidden"
                       style={{ paddingTop: 12, paddingBottom: 12, fontVariationSettings: '"opsz" 14', whiteSpace: isMultiline ? 'pre-wrap' : 'nowrap', wordBreak: isMultiline ? 'break-word' : 'normal', color: 'var(--color-primary)' }}
                     >
-                      {renderHighlightedInput(text)}
+                      {renderHighlightedInput(displayText)}
                     </div>
                     {isMultiline ? (
                       <textarea
                         ref={textareaRef}
-                        value={text}
+                        value={displayText}
                         onChange={(e) => handleInput(e)}
                         onKeyDown={(e) => handleKeyDown(e)}
                         onBlur={handleBlur}
@@ -1925,7 +1947,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
                       <input
                         ref={inputRef}
                         type="text"
-                        value={text}
+                        value={displayText}
                         onChange={(e) => handleInput(e)}
                         onKeyDown={(e) => handleKeyDown(e)}
                         onBlur={handleBlur}
@@ -1937,16 +1959,16 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
                     )}
                   </div>
                   {(() => {
-                    const isCmd       = text.startsWith('/') && !text.includes(' ')
-                    const hasMatch    = isCmd && SLASH_COMMANDS.some((c) => c.name.startsWith(text.slice(1).toLowerCase()))
-                    const canSendImgs = pendingImages.some((img) => !!img.publicUrl) && !pendingImages.some((img) => img.uploading)
-                    const canSendText = !!text.trim() && !hasMatch
+                    const isCmd       = displayText.startsWith('/') && !displayText.includes(' ')
+                    const hasMatch    = isCmd && SLASH_COMMANDS.some((c) => c.name.startsWith(displayText.slice(1).toLowerCase()))
+                    const canSendImgs = displayPendingImages.some((img) => !!img.publicUrl) && !displayPendingImages.some((img) => img.uploading)
+                    const canSendText = !!displayText.trim() && !hasMatch
                     const canSend     = canSendImgs || canSendText
                     return (
                       <div className="flex items-center gap-3 flex-shrink-0">
                         <button
                           onClick={editTo ? () => void handleEditSend() : canSendImgs ? sendImages : send}
-                          disabled={editTo ? !text.trim() : !canSend}
+                          disabled={editTo ? !displayText.trim() : !canSend}
                           className={`flex items-center justify-center w-4 h-4 transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${canSend ? 'text-purple' : 'text-muted'}`}
                           aria-label="Send message"
                         >
