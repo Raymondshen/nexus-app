@@ -5,6 +5,7 @@ import { motion } from 'framer-motion'
 import { useChatRoomPeekStore, SWIPE_NAV_ARRIVAL_FADE_MS, type RoomMeta } from '@/features/chat/store/chatRoomPeekStore'
 import { ChatSquadDetailBar } from '@/features/chat/components/header/ChatSquadDetailBar'
 import { Send } from 'pixelarticons/react/Send'
+import { Plus } from 'pixelarticons/react/Plus'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
 import type { MemberProfile } from '@/features/chat/components/input/ChatInput'
 
@@ -200,6 +201,10 @@ function PeekBarAndInput({ meta }: { meta: RoomMeta }) {
           paddingLeft: 16, paddingRight: 16, minHeight: 48, gap: 16,
         }}
       >
+        {/* Matches ChatInput's own Plus button in its default (unfocused, no-messages)
+            state — this shell only ever stands in for that resting state, so it's
+            always shown here, never the focused/slid-away variant. */}
+        <Plus style={{ width: 16, height: 16, color: 'var(--color-muted)', flexShrink: 0 }} aria-hidden="true" />
         <p className="flex-1 min-w-0 font-body text-[14px] text-muted truncate">Message the squad...</p>
         <Send style={{ width: 16, height: 16, color: 'var(--color-muted)', flexShrink: 0 }} aria-hidden="true" />
       </div>

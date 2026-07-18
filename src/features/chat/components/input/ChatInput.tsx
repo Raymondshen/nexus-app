@@ -1813,9 +1813,15 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
               )
             })()}
 
-            {/* Input container — flex-col when images are staged; outline brightens on focus */}
-            <div
+            {/* Input container — flex-col when images are staged; outline brightens on focus.
+                whileTap nudges the whole box to 101% for as long as a finger is down on it
+                (a plain tap or a tap that turns into a drag both count — Framer drives this
+                off pointerdown/pointerup, not a completed click), springing back to 100% the
+                instant it's released, whatever ended the gesture. */}
+            <motion.div
               className="w-full flex flex-col"
+              whileTap={{ scale: 1.01 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 25 }}
                 style={{
                   outline:       '1px solid',
                   outlineColor:  displayFocused ? 'var(--color-border-hover)' : 'var(--color-border)',
@@ -1978,7 +1984,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
                     )
                   })()}
                 </div>{/* end text+send row */}
-            </div>{/* end input container */}
+            </motion.div>{/* end input container */}
           </div>{/* end relative wrapper */}
         </motion.div>
       </div>{/* end squad+input bordered box (Figma 507:2485) */}
