@@ -27,6 +27,7 @@ import { useChatRoomPeekStore } from '@/features/chat/store/chatRoomPeekStore'
 import type { RoomMeta } from '@/features/chat/store/chatRoomPeekStore'
 import { ensureRoomMeta } from '@/features/chat/utils/ensureRoomMeta'
 import { ChatTypingIndicator } from '@/features/chat/components/input/ChatTypingIndicator'
+import { ChatRoomSwipePreview, type SwipePreviewAvatar } from '@/features/chat/components/input/ChatRoomSwipePreview'
 import { isGemGateOpen, recordGemClaim } from '@/shared/utils/gems'
 import type { GemClaimResult } from '@/types'
 import { Send } from 'pixelarticons/react/Send'
@@ -216,6 +217,10 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   // text/replyTo/editTo/pendingImages state is left completely untouched, so cancelling
   // the swipe (spring-back) restores exactly what was there beforehand.
   const [isRoomSwiping,   setIsRoomSwiping]   = useState(false)
+  // Up to 3 room ids for ChatRoomSwipePreview (Figma 577:5113), current room first —
+  // built/cleared alongside isRoomSwiping in handleTopPan*, see that function's doc
+  // comment for how the look-ahead ids are chosen.
+  const [swipePreviewIds, setSwipePreviewIds] = useState<string[]>([])
   const [showEventSheet,  setShowEventSheet]  = useState(false)
   const [isMultiline,     setIsMultiline]     = useState(false)
 
@@ -624,6 +629,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     panAxisRef.current     = null
     dragStartedRef.current = false
     setIsRoomSwiping(false)
+    setSwipePreviewIds([])
   }
 
   function handleTopPan(_: PointerEvent, info: PanInfo) {
@@ -650,8 +656,9 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     // Mirror the drag onto the peek layer for whichever room is on the leading edge.
     // No target in that direction (list boundary) — nothing to peek, just the rubber-band.
     const direction: 'left' | 'right' | null = dx < 0 ? 'left' : dx > 0 ? 'right' : null
+    const dirStep  = direction === 'left' ? 1 : -1
     const targetId = direction && currentIndex !== -1
-      ? chatRoomOrder[currentIndex + (direction === 'left' ? 1 : -1)]
+      ? chatRoomOrder[currentIndex + dirStep]
       : undefined
     if (targetId && direction) {
       useChatRoomPeekStore.getState().setPeek({ targetCrewId: targetId, direction, x: resisted, phase: 'dragging' })
@@ -659,6 +666,22 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     } else {
       useChatRoomPeekStore.getState().setPeek(null)
     }
+
+    // ChatRoomSwipePreview's look-ahead strip — current room first (rendered large),
+    // then up to 2 more rooms further along in the drag direction (rendered small):
+    // one hop out is the same `targetId` the peek layer is already using, plus a
+    // second hop for a further-out preview. Either can be undefined at a list
+    // boundary — the strip just renders fewer avatars, never pads with a placeholder.
+    const hop2Id = direction && currentIndex !== -1
+      ? chatRoomOrder[currentIndex + dirStep * 2]
+      : undefined
+    if (hop2Id) void ensureRoomMeta(hop2Id)
+    const nextPreviewIds = [crewId, targetId, hop2Id].filter((id): id is string => !!id)
+    setSwipePreviewIds((prev) =>
+      prev.length === nextPreviewIds.length && prev.every((id, i) => id === nextPreviewIds[i])
+        ? prev
+        : nextPreviewIds
+    )
   }
 
   function handleTopPanEnd(_: PointerEvent, info: PanInfo) {
@@ -1612,6 +1635,18 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   const displayPendingImages = isRoomSwiping ? EMPTY_PENDING_IMAGES   : pendingImages
   const displayFocused       = isRoomSwiping ? false                  : isFocused
 
+  // ChatRoomSwipePreview's avatars — swipePreviewIds is already ordered current-room-
+  // first (see handleTopPan); this room's own roomMeta entry is kept in sync by the
+  // "publish this room's own meta" effect above, so a plain roomMeta lookup covers
+  // the current room too, not just the look-ahead ones.
+  const roomPeekMeta = useChatRoomPeekStore((s) => s.roomMeta)
+  const swipePreviewAvatars: SwipePreviewAvatar[] = swipePreviewIds.map((id) => ({
+    id,
+    imageUrl: roomPeekMeta[id]?.imageUrl ?? null,
+    name:     roomPeekMeta[id]?.name ?? '',
+    large:    id === crewId,
+  }))
+
   return (
     <div ref={chatInputBoxRef} className="bg-black flex flex-col flex-shrink-0 relative z-[65]">
       {/* ── Typing presence (Figma 507:2518) — own top section, no gap before the
@@ -1620,8 +1655,22 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
           presence sync doesn't re-render all of ChatInput — see ChatTypingIndicator. ── */}
       <ChatTypingIndicator />
 
-      <div
+      {/* Figma 577:5113 ("Frame 276") — room-swipe look-ahead strip. Absolutely
+          positioned against this outer relative wrapper (not the bordered box below)
+          so bottom-full lands it directly above the WHOLE input area, overlapping the
+          message history's own bottom edge, regardless of whether the typing
+          indicator above is currently rendering anything. */}
+      <ChatRoomSwipePreview visible={isRoomSwiping} avatars={swipePreviewAvatars} />
+
+      {/* Figma 577:4905 ("chatInputContainer") — squad bar + input field together, as one
+          unit. whileTap nudges the whole thing to 102% for as long as a finger is down
+          anywhere on it (tap, or a tap that turns into a drag — Framer drives this off
+          pointerdown/pointerup, not a completed click), springing back to 100% the
+          instant it's released, whatever ended the gesture. */}
+      <motion.div
         className="border-t border-border flex flex-col"
+        whileTap={{ scale: 1.02 }}
+        transition={{ type: 'spring', stiffness: 400, damping: 25 }}
         style={{
           paddingTop:    'var(--space-5)',
           paddingLeft:   'var(--space-5)',
@@ -1813,15 +1862,9 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
               )
             })()}
 
-            {/* Input container — flex-col when images are staged; outline brightens on focus.
-                whileTap nudges the whole box to 101% for as long as a finger is down on it
-                (a plain tap or a tap that turns into a drag both count — Framer drives this
-                off pointerdown/pointerup, not a completed click), springing back to 100% the
-                instant it's released, whatever ended the gesture. */}
-            <motion.div
+            {/* Input container — flex-col when images are staged; outline brightens on focus */}
+            <div
               className="w-full flex flex-col"
-              whileTap={{ scale: 1.01 }}
-              transition={{ type: 'spring', stiffness: 400, damping: 25 }}
                 style={{
                   outline:       '1px solid',
                   outlineColor:  displayFocused ? 'var(--color-border-hover)' : 'var(--color-border)',
@@ -1984,10 +2027,10 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
                     )
                   })()}
                 </div>{/* end text+send row */}
-            </motion.div>{/* end input container */}
+            </div>{/* end input container */}
           </div>{/* end relative wrapper */}
         </motion.div>
-      </div>{/* end squad+input bordered box (Figma 507:2485) */}
+      </motion.div>{/* end squad+input bordered box (Figma 577:4905) */}
 
       {/* ── Media picker sheet (Upload Photo / GIF) ── */}
       <AnimatePresence>
