@@ -2,10 +2,21 @@
 
 import { useEffect, useMemo } from 'react'
 import { motion } from 'framer-motion'
-import { useChatRoomPeekStore } from '@/features/chat/store/chatRoomPeekStore'
+import { useChatRoomPeekStore, type RoomMeta } from '@/features/chat/store/chatRoomPeekStore'
 import { readCachedRoomMessages } from '@/features/chat/utils/readCachedRoomMessages'
 import { UserAvatar } from '@/shared/components/ui/UserAvatar'
+import { ChatSquadDetailBar } from '@/features/chat/components/header/ChatSquadDetailBar'
+import { Send } from 'pixelarticons/react/Send'
 import type { MessageWithProfile } from '@/types'
+import type { MemberProfile } from '@/features/chat/components/input/ChatInput'
+
+// Frozen fallbacks for ChatSquadDetailBar's member-only props — the peeked room's
+// live member list/presence isn't available from here (this layer only ever has
+// the lightweight RoomMeta snapshot), same reasoning as ChatInput's own
+// EMPTY_MEMBERS/EMPTY_ONLINE_IDS for a barOverride.
+const EMPTY_MEMBERS: MemberProfile[] = []
+const EMPTY_ONLINE_IDS = new Set<string>()
+function noop() {}
 
 // ─── ChatRoomPeekLayer ──────────────────────────────────────────────────────
 // Rendered once by chat/[crewId]/layout.tsx, a sibling of {children} (the room's own
@@ -17,19 +28,34 @@ import type { MessageWithProfile } from '@/types'
 //
 // Only the message-history log container transitions during a room-swipe (see
 // ChatInput's handleTopPan* doc comment) — the squad bar, floating nav, and input box
-// all stay static, real elements of the CURRENT room's still-mounted page, and simply
-// paint on top of this layer wherever they sit (later in DOM = on top). So this layer
-// only ever needs to render a message-list-shaped preview: while ChatInput drags the
-// current room's own MessageList container away via the swipe-nav gesture, this reveals
-// a read-only "peek" of the neighboring room's messages, sourced from whatever's already
-// cached locally (chatRoomPeekStore's roomMeta + this room's sessionStorage message
-// snapshot) — deliberately not a live/interactive room, just enough to avoid a blank
-// flash while the real navigation completes. Renders nothing outside an active gesture.
+// stay static for as long as the CURRENT room's page.tsx is mounted, and simply paint
+// on top of this layer wherever they sit (later in DOM = on top). But a committed swipe
+// triggers a real router.push(), and Next.js unmounts the outgoing page.tsx (taking its
+// real ChatSquadDetailBar + input box with it) the instant navigation starts, well
+// before the destination room's page.tsx has mounted to replace them — chat/[crewId]/
+// loading.tsx bridges that gap for the message log by deferring to this layer's already-
+// frozen preview (see its own doc comment), but nothing did the same for the bar/input,
+// so they'd flash away to bare black and pop back in once the real page landed. This
+// layer's static (non-animated, always at rest) `PeekBarAndInput` below closes that gap:
+// a frozen, read-only replica of the destination room's squad bar + input shell, built
+// from whatever's already cached in chatRoomPeekStore's roomMeta. It renders for the
+// whole gesture, not just the post-commit gap — harmless during an active drag/cancel
+// since the real bar/input's opaque `bg-black` (ChatInput's chatInputBoxRef wrapper)
+// fully occludes it until the moment the real page actually unmounts.
+//
+// So this layer renders two independent pieces: a message-list-shaped preview (while
+// ChatInput drags the current room's own MessageList container away via the swipe-nav
+// gesture, this reveals a read-only "peek" of the neighboring room's messages, sourced
+// from whatever's already cached locally — chatRoomPeekStore's roomMeta + this room's
+// sessionStorage message snapshot, deliberately not a live/interactive room, just enough
+// to avoid a blank flash while the real navigation completes) and the static bar/input
+// shell described above. Renders nothing outside an active gesture.
 export function ChatRoomPeekLayer() {
   const peek            = useChatRoomPeekStore((s) => s.peek)
   const currentCrewId   = useChatRoomPeekStore((s) => s.currentCrewId)
   const setPeek         = useChatRoomPeekStore((s) => s.setPeek)
   const chatInputHeight = useChatRoomPeekStore((s) => s.chatInputHeight)
+  const roomMeta        = useChatRoomPeekStore((s) => s.roomMeta)
 
   // Real navigation landed on the room being peeked — the actual page has taken over.
   // It mounts silently already-at-rest (ChatInput calls SlidePage's skipNextSlideEnter()
@@ -103,6 +129,52 @@ export function ChatRoomPeekLayer() {
           {messages?.map((m) => <PeekMessageRow key={m.id} message={m} />)}
         </div>
       </motion.div>
+
+      {/* Static bar/input shell — never slides with `x`, matching the real bar/input's
+          own static behavior. Absent (falls back to plain black) if this room's
+          roomMeta hasn't been cached yet — same "no skeleton" call as the message
+          preview above. */}
+      {targetCrewId && roomMeta[targetCrewId] && (
+        <div className="absolute left-0 right-0 bottom-0">
+          <PeekBarAndInput meta={roomMeta[targetCrewId]} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+function PeekBarAndInput({ meta }: { meta: RoomMeta }) {
+  return (
+    <div
+      className="bg-black border-t border-border flex flex-col"
+      style={{
+        paddingTop:    'var(--space-5)',
+        paddingLeft:   'var(--space-5)',
+        paddingRight:  'var(--space-5)',
+        paddingBottom: 'max(env(safe-area-inset-bottom), 32px)',
+        gap:           'var(--space-5)',
+      }}
+    >
+      <ChatSquadDetailBar
+        crewImageUrl={meta.imageUrl}
+        crewName={meta.name}
+        crewLevel={meta.level}
+        memberCount={meta.memberCount}
+        members={EMPTY_MEMBERS}
+        onlineUserIds={EMPTY_ONLINE_IDS}
+        onExpand={noop}
+        onPanEnd={noop}
+      />
+      <div
+        className="w-full flex items-center"
+        style={{
+          outline: '1px solid', outlineColor: 'var(--color-border)', outlineOffset: '-1px',
+          paddingLeft: 16, paddingRight: 16, minHeight: 48, gap: 16,
+        }}
+      >
+        <p className="flex-1 min-w-0 font-body text-[14px] text-muted truncate">Message the squad...</p>
+        <Send style={{ width: 16, height: 16, color: 'var(--color-muted)', flexShrink: 0 }} aria-hidden="true" />
+      </div>
     </div>
   )
 }
