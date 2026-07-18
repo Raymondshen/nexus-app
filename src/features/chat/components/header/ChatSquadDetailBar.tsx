@@ -15,12 +15,14 @@ interface ChatSquadDetailBarProps {
   members:       MemberProfile[]
   onlineUserIds: Set<string>
   onExpand:      () => void
+  onPanStart?:   () => void
+  onPan?:        (_: PointerEvent, info: PanInfo) => void
   onPanEnd:      (_: PointerEvent, info: PanInfo) => void
 }
 
 export function ChatSquadDetailBar({
   crewImageUrl, crewName, crewLevel, memberCount, members, onlineUserIds,
-  onExpand, onPanEnd,
+  onExpand, onPanStart, onPan, onPanEnd,
 }: ChatSquadDetailBarProps) {
   const onlineMembers = members.filter((m) => onlineUserIds.has(m.id))
 
@@ -28,6 +30,8 @@ export function ChatSquadDetailBar({
     <motion.div
       className="flex relative cursor-pointer items-center justify-between w-full"
       style={{ touchAction: 'pan-x' }}
+      onPanStart={onPanStart}
+      onPan={onPan}
       onPanEnd={onPanEnd}
       onClick={onExpand}
     >

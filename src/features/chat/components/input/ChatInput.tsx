@@ -22,6 +22,7 @@ import { addToOutbox, readOutbox, type OutboxJob } from '@/shared/utils/outbox'
 import { acquireCrewMessageChannel, releaseCrewMessageChannel, isActiveCrewMessageChannel, evictCrewMessageChannel } from '@/shared/supabase/crewMessageChannel'
 import { IMAGE_CONFIG } from '@/shared/constants/config'
 import { ChatSquadDetailBar } from '@/features/chat/components/header/ChatSquadDetailBar'
+import { useSlidePageGesture, setNextSlideEnterFrom } from '@/app/layouts/SlidePage'
 import { ChatTypingIndicator } from '@/features/chat/components/input/ChatTypingIndicator'
 import { isGemGateOpen, recordGemClaim } from '@/shared/utils/gems'
 import type { GemClaimResult } from '@/types'
@@ -141,6 +142,7 @@ async function tryClaimDailyGem(supabase: ReturnType<typeof createClient>, onCla
 
 export function ChatInput({ crewId, userId, userProfile, memberProfiles, memberPinnedVinyls, crewName, inviteCode, creatorId, crewImageUrl: initialCrewImageUrl, crewBackgroundImageUrl: initialCrewBgUrl, initialXP, isDM, dmPartnerId, chatRoomOrder = [] }: ChatInputProps) {
   const router = useRouter()
+  const { startDrag, setDragX, cancelDrag, commitSwipe } = useSlidePageGesture()
   const [text,           setText]          = useState('')
   const [sendError,      setSendError]      = useState<string | null>(null)
   const [pollEnabled,      setPollEnabled]       = useState(false)
@@ -511,23 +513,71 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
 
   // Dev-gated (nexus_chat_swipe_nav): swipe the squad bar left/right to page to the
   // next/previous group chat room in chatRoomOrder (Home's own most-recently-active
-  // ordering, DMs excluded — see chat/[crewId]/page.tsx). Scoped-down version: a plain
-  // navigation, not a directional slide-out/slide-in — the destination room just plays
-  // SlidePage's existing default enter-from-right animation on mount.
+  // ordering, DMs excluded — see chat/[crewId]/page.tsx). Interactive drag-follow: the
+  // whole page tracks the finger 1:1 via SlidePage's own gesture handle (same
+  // controls/exiting the edge-swipe-to-close gesture uses — safe here only because this
+  // page passes nativeSwipe, leaving that gesture dormant). Past the commit threshold,
+  // the page finishes tweening off-screen in the swipe direction and the destination
+  // room is told which edge to enter from so the motion reads as one continuous slide
+  // rather than a pop; below threshold, or at the start/end of the room list, it springs
+  // back to x:0 — same rubber-band feel as everywhere else in the app.
+  //
+  // panAxisRef locks the gesture to whichever axis (x = room swipe, y = existing
+  // swipe-up-to-expand) crosses a small intent threshold first, so the two gestures
+  // sharing this same bar never fight each other mid-drag. dragStartedRef tracks
+  // whether we actually engaged the page drag (only true once axis=x AND the feature
+  // is on AND there's more than one room) so startDrag()'s controls.stop() never
+  // interrupts an in-flight entrance animation for a plain vertical expand-swipe.
+  const panAxisRef     = useRef<'x' | 'y' | null>(null)
+  const dragStartedRef = useRef(false)
+
+  function handleTopPanStart() {
+    panAxisRef.current     = null
+    dragStartedRef.current = false
+  }
+
+  function handleTopPan(_: PointerEvent, info: PanInfo) {
+    if (panAxisRef.current === null) {
+      if (Math.abs(info.offset.x) < 10 && Math.abs(info.offset.y) < 10) return
+      panAxisRef.current = Math.abs(info.offset.x) > Math.abs(info.offset.y) ? 'x' : 'y'
+    }
+    if (panAxisRef.current !== 'x' || !chatSwipeNavEnabled || chatRoomOrder.length <= 1) return
+
+    if (!dragStartedRef.current) {
+      dragStartedRef.current = true
+      startDrag()
+    }
+
+    // Rubber-band resistance at the ends of the room list — dragging "past" the first
+    // or last room still moves the page, just damped, instead of either a hard stop or
+    // an unbounded 1:1 drag toward a swipe that can't commit to anything.
+    const currentIndex = chatRoomOrder.indexOf(crewId)
+    const dx     = info.offset.x
+    const atEnd  = currentIndex === -1 || currentIndex >= chatRoomOrder.length - 1
+    const atHome = currentIndex <= 0
+    const resisted = (dx < 0 && atEnd) || (dx > 0 && atHome) ? dx * 0.35 : dx
+    setDragX(resisted)
+  }
+
   function handleTopPanEnd(_: PointerEvent, info: PanInfo) {
-    const isHorizontal = Math.abs(info.offset.x) > Math.abs(info.offset.y)
-    if (chatSwipeNavEnabled && isHorizontal && chatRoomOrder.length > 1) {
+    if (dragStartedRef.current) {
       const swipedLeft  = info.offset.x < -60 || info.velocity.x < -400
       const swipedRight = info.offset.x > 60  || info.velocity.x > 400
-      if (swipedLeft || swipedRight) {
-        const currentIndex = chatRoomOrder.indexOf(crewId)
-        const targetId = currentIndex === -1 ? undefined : chatRoomOrder[currentIndex + (swipedLeft ? 1 : -1)]
-        if (targetId) {
-          sessionStorage.setItem('nexus_chat_from', 'chat')
-          router.push(`/chat/${targetId}`)
-        }
+      const currentIndex = chatRoomOrder.indexOf(crewId)
+      const targetId = (swipedLeft || swipedRight) && currentIndex !== -1
+        ? chatRoomOrder[currentIndex + (swipedLeft ? 1 : -1)]
+        : undefined
+
+      if (targetId && commitSwipe(swipedLeft ? 'left' : 'right')) {
+        // Swiped right = paging to the *previous* room = current page exits to the
+        // right, so the destination should continue entering from the left.
+        if (swipedRight) setNextSlideEnterFrom('left')
+        sessionStorage.setItem('nexus_chat_from', 'chat')
+        router.push(`/chat/${targetId}`)
         return
       }
+      cancelDrag()
+      return
     }
     if (info.offset.y < -50 || info.velocity.y < -300) setIsExpanded(true)
   }
@@ -1472,6 +1522,8 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
             members={members}
             onlineUserIds={onlineUserIds}
             onExpand={() => setIsExpanded(true)}
+            onPanStart={handleTopPanStart}
+            onPan={handleTopPan}
             onPanEnd={handleTopPanEnd}
           />
         )}

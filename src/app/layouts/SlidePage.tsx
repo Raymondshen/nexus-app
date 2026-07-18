@@ -1,5 +1,5 @@
 'use client'
-import { createContext, useContext, useRef, useCallback, useEffect } from 'react'
+import { createContext, useContext, useRef, useCallback, useEffect, useMemo } from 'react'
 import { motion, useAnimation } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 
@@ -7,6 +7,43 @@ const SlideBackContext = createContext<() => void>(() => {})
 
 export function useSlideBack() {
   return useContext(SlideBackContext)
+}
+
+// ─── SlidePage gesture handle ──────────────────────────────────────────────
+// Lets a descendant drive SlidePage's own slide transform for a custom horizontal
+// swipe gesture living elsewhere on the page (e.g. ChatInput's swipe-between-rooms),
+// reusing the exact same `controls`/`exiting` SlidePage already uses for its edge-
+// swipe-to-close gesture, for a consistent feel. Only safe to combine with a page's
+// own gesture when that page passes `nativeSwipe` (chat rooms do) — that leaves
+// SlidePage's own JS touch handlers dormant, so there's no fight over `controls`.
+export interface SlidePageGestureHandle {
+  /** Call once, right before the first setDragX of a gesture — stops any in-flight animation (entrance/exit) so the drag isn't fighting it. */
+  startDrag:   () => void
+  /** Live 1:1 finger-follow — call on every pan move with the desired x offset. */
+  setDragX:    (x: number) => void
+  /** Gesture released below its commit threshold — springs back to x:0. */
+  cancelDrag:  () => void
+  /**
+   * Gesture released past its commit threshold — tweens the page fully off-screen in
+   * `direction` (same tween goBack() uses) and marks the page as exiting so no other
+   * exit gesture can also fire. Returns false (no-op) if already exiting. Caller fires
+   * the actual navigation immediately after — same "simultaneous nav + exit animation"
+   * technique goBack() uses.
+   */
+  commitSwipe: (direction: 'left' | 'right') => boolean
+}
+
+const noopGestureHandle: SlidePageGestureHandle = {
+  startDrag:   () => {},
+  setDragX:    () => {},
+  cancelDrag:  () => {},
+  commitSwipe: () => false,
+}
+
+const SlidePageGestureContext = createContext<SlidePageGestureHandle>(noopGestureHandle)
+
+export function useSlidePageGesture() {
+  return useContext(SlidePageGestureContext)
 }
 
 // Set by the exiting page before it calls router.back/replace.
@@ -20,6 +57,19 @@ let _skipNextSlideEnter = false
 // wasn't consumed (e.g. friends/vault/DM used router.back() to reach home).
 export function clearSkipNextSlideEnter() {
   _skipNextSlideEnter = false
+}
+
+// Which edge the next SlidePage to mount should enter from — 'right' (the default
+// enter-from-right animation) unless a custom swipe gesture just exited the current
+// page toward the right (e.g. ChatInput's swipe-to-*previous*-room, which continues
+// the exiting page off to the right and wants the destination to keep entering from
+// the left, not pop in from the opposite edge). Read synchronously at render time
+// (same pattern as _skipNextSlideEnter) and reset on every mount regardless of which
+// branch consumed it, so it can never leak into an unrelated later navigation.
+let _nextSlideEnterFrom: 'left' | 'right' = 'right'
+
+export function setNextSlideEnterFrom(direction: 'left' | 'right') {
+  _nextSlideEnterFrom = direction
 }
 
 // Set by chat's ChatFloatingNav (src/shared/components/ui/PageFloatButton.tsx) right before
@@ -61,6 +111,7 @@ export function SlidePage({ children, className, style, backHref, nativeSwipe }:
   const containerRef = useRef<HTMLDivElement>(null)
   // Read synchronously at render time so initial= is correct on first paint.
   const skipEnter    = _skipNextSlideEnter
+  const enterFrom    = _nextSlideEnterFrom
 
   const goBack = useCallback(() => {
     if (exiting.current) return
@@ -86,7 +137,41 @@ export function SlidePage({ children, className, style, backHref, nativeSwipe }:
         transition: { type: 'spring', stiffness: 380, damping: 36, mass: 0.9 },
       })
     }
+    // Reset regardless of which branch ran above, so a stale direction can never leak
+    // into a later, unrelated mount.
+    _nextSlideEnterFrom = 'right'
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Gesture handle — lets a descendant (e.g. ChatInput's swipe-between-rooms) drive
+  // this same `controls`/`exiting` for its own custom horizontal swipe. See
+  // SlidePageGestureHandle's doc comment for why this is only safe alongside a page's
+  // own edge-swipe when nativeSwipe is set.
+  const startDrag = useCallback(() => {
+    controls.stop()
+  }, [controls])
+
+  const setDragX = useCallback((x: number) => {
+    controls.set({ x })
+  }, [controls])
+
+  const cancelDrag = useCallback(() => {
+    controls.start({ x: 0, transition: { type: 'spring', stiffness: 500, damping: 40 } })
+  }, [controls])
+
+  const commitSwipe = useCallback((direction: 'left' | 'right') => {
+    if (exiting.current) return false
+    exiting.current = true
+    controls.start({
+      x: direction === 'left' ? -window.innerWidth : window.innerWidth,
+      transition: { type: 'tween', ease: [0.32, 0, 0.67, 0], duration: 0.15 },
+    })
+    return true
+  }, [controls])
+
+  const gestureHandle = useMemo<SlidePageGestureHandle>(
+    () => ({ startDrag, setDragX, cancelDrag, commitSwipe }),
+    [startDrag, setDragX, cancelDrag, commitSwipe]
+  )
 
   useEffect(() => {
     if (backHref) router.prefetch(backHref)
@@ -170,15 +255,17 @@ export function SlidePage({ children, className, style, backHref, nativeSwipe }:
 
   return (
     <SlideBackContext.Provider value={goBack}>
-      <motion.div
-        ref={containerRef}
-        className={className}
-        style={style}
-        initial={{ x: skipEnter ? 0 : '100%' }}
-        animate={controls}
-      >
-        {children}
-      </motion.div>
+      <SlidePageGestureContext.Provider value={gestureHandle}>
+        <motion.div
+          ref={containerRef}
+          className={className}
+          style={style}
+          initial={{ x: skipEnter ? 0 : (enterFrom === 'left' ? '-100%' : '100%') }}
+          animate={controls}
+        >
+          {children}
+        </motion.div>
+      </SlidePageGestureContext.Provider>
     </SlideBackContext.Provider>
   )
 }
