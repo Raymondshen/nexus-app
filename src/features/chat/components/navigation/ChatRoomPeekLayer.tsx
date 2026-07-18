@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { useChatRoomPeekStore, SWIPE_NAV_ARRIVAL_FADE_MS, type RoomMeta } from '@/features/chat/store/chatRoomPeekStore'
 import { ChatSquadDetailBar } from '@/features/chat/components/header/ChatSquadDetailBar'
@@ -52,7 +52,8 @@ function noop() {}
 // over it anyway).
 //
 // So this layer renders two independent pieces: a floating ghost loading placeholder
-// (the same ghost sprite MessageList's own EmptyState uses, gently bobbing in place —
+// (Figma 577:3996 — the walk-cycle sprite from public/sprites/ghost/walk/, a distinct
+// asset from MessageList's own EmptyState gif, plus a "Moving to {targetRoom}" label —
 // occluded the same way as the bar/input shell during an active drag, and only actually
 // revealed in the post-commit unmount→mount gap, same timing as the shell) and the
 // static, group-A-identity bar/input shell described above. This message-area
@@ -145,7 +146,7 @@ export function ChatRoomPeekLayer() {
           if (peek.phase === 'cancelling') setPeek(null)
         }}
       >
-        <PeekGhost />
+        <WalkingGhost label={roomMeta[peek.targetCrewId]?.name ?? null} />
       </motion.div>
 
       {/* Static bar/input shell — never slides with `x`, matching the real bar/input's
@@ -205,23 +206,47 @@ function PeekBarAndInput({ meta }: { meta: RoomMeta }) {
   )
 }
 
-// Same sprite as MessageList's own EmptyState (/sprites/ghost/south-flip.gif, 100×100,
-// pixelated). Fades in once on mount, then gently bobs in place for as long as this
-// gesture's message peek is showing — a continuous loop, not tied to drag progress.
-function PeekGhost() {
+// Figma 577:3996 ("body") — a 6-frame walk-cycle sprite (public/sprites/ghost/walk/
+// frame_000.png…frame_005.png, 48×48 native) looped continuously, plus a "Moving to
+// {targetRoom}" label underneath. `label` is the target room's name from roomMeta —
+// already prefetched for the adjacent rooms in chatRoomOrder by the time a drag can
+// actually reach this far (see ChatInput's own prefetch effect), so this is null only
+// in the unlikely case that prefetch hasn't resolved yet; the label row just doesn't
+// render rather than show a blank/undefined name.
+const WALK_FRAME_COUNT = 6
+const WALK_FRAME_MS    = 130
+
+function WalkingGhost({ label }: { label: string | null }) {
+  const [frame, setFrame] = useState(0)
+
+  useEffect(() => {
+    const id = setInterval(() => setFrame((f) => (f + 1) % WALK_FRAME_COUNT), WALK_FRAME_MS)
+    return () => clearInterval(id)
+  }, [])
+
   return (
-    <motion.img
-      src="/sprites/ghost/south-flip.gif"
-      alt=""
-      width={100}
-      height={100}
-      style={{ imageRendering: 'pixelated', width: 100, height: 100 }}
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1, y: [0, -10, 0] }}
-      transition={{
-        opacity: { duration: 0.2 },
-        y: { duration: 1.8, repeat: Infinity, ease: 'easeInOut' },
+    <div
+      className="flex flex-col items-center justify-center"
+      style={{
+        paddingLeft:   'var(--space-5)',
+        paddingRight:  'var(--space-5)',
+        paddingTop:    'var(--space-5)',
+        paddingBottom: 'var(--space-5)',
       }}
-    />
+    >
+      <div className="relative flex-shrink-0" style={{ width: 120, height: 120 }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={`/sprites/ghost/walk/frame_${String(frame).padStart(3, '0')}.png`}
+          alt=""
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', imageRendering: 'pixelated' }}
+        />
+      </div>
+      {label && (
+        <p className="font-silkscreen text-xs text-secondary text-center leading-none truncate w-full">
+          Moving to {label}
+        </p>
+      )}
+    </div>
   )
 }
