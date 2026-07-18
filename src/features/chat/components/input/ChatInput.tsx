@@ -2024,7 +2024,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
                         onChange={(e) => handleInput(e)}
                         onKeyDown={(e) => handleKeyDown(e)}
                         onBlur={handleBlur}
-                        placeholder={isDM ? 'Send a message...' : 'Message the squad...'}
+                        placeholder={isDM ? 'Send a message...' : `Message ${liveCrewName}...`}
                         rows={1}
                         onFocus={() => setIsFocused(true)}
                         className="relative w-full bg-transparent font-body text-[14px] placeholder:text-muted resize-none focus:outline-none leading-normal"
@@ -2038,7 +2038,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
                         onChange={(e) => handleInput(e)}
                         onKeyDown={(e) => handleKeyDown(e)}
                         onBlur={handleBlur}
-                        placeholder={isDM ? 'Send a message...' : 'Message the squad...'}
+                        placeholder={isDM ? 'Send a message...' : `Message ${liveCrewName}...`}
                         onFocus={() => setIsFocused(true)}
                         className="relative w-full bg-transparent font-body text-[14px] placeholder:text-muted focus:outline-none leading-normal"
                         style={{ paddingTop: 12, paddingBottom: 12, fontVariationSettings: '"opsz" 14', color: 'transparent', caretColor: 'var(--color-primary)' }}

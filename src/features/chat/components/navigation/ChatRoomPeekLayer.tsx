@@ -205,7 +205,7 @@ function PeekBarAndInput({ meta }: { meta: RoomMeta }) {
             state — this shell only ever stands in for that resting state, so it's
             always shown here, never the focused/slid-away variant. */}
         <Plus style={{ width: 16, height: 16, color: 'var(--color-muted)', flexShrink: 0 }} aria-hidden="true" />
-        <p className="flex-1 min-w-0 font-body text-[14px] text-muted truncate">Message the squad...</p>
+        <p className="flex-1 min-w-0 font-body text-[14px] text-muted truncate">Message {meta.name}...</p>
         <Send style={{ width: 16, height: 16, color: 'var(--color-muted)', flexShrink: 0 }} aria-hidden="true" />
       </div>
     </div>
