@@ -620,10 +620,10 @@ export const VibesGrid = forwardRef<VibesGridHandle, VibesGridProps>(function Vi
     <div
       className="h-full overflow-y-auto nexus-scroll"
       style={{
-        paddingTop:    24,
+        paddingTop:    16,
         paddingLeft:   16,
         paddingRight:  16,
-        paddingBottom: `max(calc(env(safe-area-inset-bottom) + ${bottomInset}px), ${24 + bottomInset}px)`,
+        paddingBottom: `max(calc(env(safe-area-inset-bottom) + ${bottomInset}px), ${16 + bottomInset}px)`,
       }}
     >
       <div className="flex flex-col w-full" style={{ gap: 4 }}>
