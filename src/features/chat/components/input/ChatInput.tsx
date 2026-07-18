@@ -27,7 +27,7 @@ import { useChatRoomPeekStore } from '@/features/chat/store/chatRoomPeekStore'
 import type { RoomMeta } from '@/features/chat/store/chatRoomPeekStore'
 import { ensureRoomMeta } from '@/features/chat/utils/ensureRoomMeta'
 import { ChatTypingIndicator } from '@/features/chat/components/input/ChatTypingIndicator'
-import { ChatRoomSwipePreview, type SwipePreviewAvatar } from '@/features/chat/components/input/ChatRoomSwipePreview'
+import { ChatRoomSwipePreview, type SwipePreviewRoom } from '@/features/chat/components/input/ChatRoomSwipePreview'
 import { isGemGateOpen, recordGemClaim } from '@/shared/utils/gems'
 import type { GemClaimResult } from '@/types'
 import { Send } from 'pixelarticons/react/Send'
@@ -318,18 +318,53 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   )
   const memberCount = members.length
 
+  // ChatRoomSwipePreview's rich card (Figma 577:4895) needs a last-message-preview
+  // snippet for every room it shows, including this one — unlike image/level/member
+  // count/online members, that's not otherwise tracked as live state here, so it's
+  // fetched once per crewId. `ensureRoomMeta` can't be reused for this: it short-
+  // circuits once `roomMeta[crewId]` exists, which the "publish own meta" effect below
+  // already guarantees for the room currently open.
+  const [ownLastMessagePreview, setOwnLastMessagePreview] = useState<string | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    createClient()
+      .from('crews')
+      .select('last_message_preview')
+      .eq('id', crewId)
+      .single()
+      .then(({ data }) => {
+        if (cancelled) return
+        setOwnLastMessagePreview((data as { last_message_preview: string | null } | null)?.last_message_preview ?? null)
+      })
+    return () => { cancelled = true }
+  }, [crewId])
+
   // Bookkeeping for the chat-swipe-nav peek layer (chat/[crewId]/layout.tsx's
   // ChatRoomPeekLayer, which persists across room navigation unlike this component):
   // tells it which room is *actually* mounted right now (so it can clear itself once a
   // peeked room's real page takes over, and so ChatRoomPeekLayer's frozen bar/input
   // preview knows which room's identity to keep showing through a swipe-nav's navigation
-  // gap) and seeds this room's own name/image/level/member-count so it's available
-  // instantly if another room's mount-seeding initializer (see barOverride above) or
-  // peek preview needs to borrow it.
+  // gap) and seeds this room's own name/image/level/member-count/online-members/last-
+  // message so it's available instantly if another room's mount-seeding initializer (see
+  // barOverride above) or ChatRoomSwipePreview needs to borrow it. unreadCount is always
+  // 0 here — you're actively viewing this room, unlike ensureRoomMeta's one-shot RPC
+  // fetch for a room that isn't open.
   useEffect(() => {
+    const onlineMembers = members
+      .filter((m) => onlineUserIds.has(m.id))
+      .map((m) => ({ id: m.id, username: m.username, avatarUrl: (m.avatar_url as string | null) ?? null }))
     useChatRoomPeekStore.getState().setCurrentRoom(crewId)
-    useChatRoomPeekStore.getState().setRoomMeta(crewId, { name: liveCrewName, imageUrl: crewImageUrl, level: crewLevel, memberCount })
-  }, [crewId, liveCrewName, crewImageUrl, crewLevel, memberCount])
+    useChatRoomPeekStore.getState().setRoomMeta(crewId, {
+      name:               liveCrewName,
+      imageUrl:           crewImageUrl,
+      backgroundImageUrl: crewBgUrl,
+      level:              crewLevel,
+      memberCount,
+      lastMessagePreview: ownLastMessagePreview,
+      unreadCount:        0,
+      onlineMembers,
+    })
+  }, [crewId, liveCrewName, crewImageUrl, crewBgUrl, crewLevel, memberCount, members, onlineUserIds, ownLastMessagePreview])
 
   // Clears a mount-seeded barOverride (see its lazy initializer above) one tick after
   // first paint. React commits the seeded state's paint before this effect runs, so the
@@ -679,7 +714,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
       : undefined
     if (targetId && direction) {
       useChatRoomPeekStore.getState().setPeek({ targetCrewId: targetId, direction, x: resisted, phase: 'dragging' })
-      void ensureRoomMeta(targetId)
+      void ensureRoomMeta(targetId, userId)
     } else {
       useChatRoomPeekStore.getState().setPeek(null)
     }
@@ -757,9 +792,9 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     // roomMeta (unlike the route prefetch above) need to already be cached by then,
     // not fetched lazily mid-gesture, or the strip would flash the ghost fallback
     // icon before the fetch resolves.
-    if (prevId) void ensureRoomMeta(prevId)
-    if (nextId) void ensureRoomMeta(nextId)
-  }, [chatSwipeNavEnabled, chatRoomOrder, crewId, router])
+    if (prevId) void ensureRoomMeta(prevId, userId)
+    if (nextId) void ensureRoomMeta(nextId, userId)
+  }, [chatSwipeNavEnabled, chatRoomOrder, crewId, router, userId])
 
   useEffect(() => {
     // Mark self online instantly, without discarding already-known peer presence
@@ -1657,28 +1692,30 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   const displayPendingImages = isRoomSwiping ? EMPTY_PENDING_IMAGES   : pendingImages
   const displayFocused       = isRoomSwiping ? false                  : isFocused
 
-  // ChatRoomSwipePreview's 3 slots — a fixed, direction-independent triple (previous
-  // room, this room, next room, always in that left-to-right chatRoomOrder position)
-  // rather than something recomputed per drag direction: which one is large is driven
-  // continuously by swipeDragT instead, so the SET of rooms shown never has to change
-  // mid-gesture, only their sizes. Either end can be absent at a chatRoomOrder
-  // boundary — the strip just renders fewer avatars, never pads with a placeholder.
-  // roomMeta lookups: this room's own entry is kept in sync by the "publish this
-  // room's own meta" effect above; prev/next are warmed by the prefetch effect above.
-  const roomPeekMeta        = useChatRoomPeekStore((s) => s.roomMeta)
-  const swipePreviewIndex   = chatRoomOrder.indexOf(crewId)
-  const swipePreviewPrevId  = swipePreviewIndex > 0 ? chatRoomOrder[swipePreviewIndex - 1] : undefined
-  const swipePreviewNextId  = swipePreviewIndex !== -1 && swipePreviewIndex < chatRoomOrder.length - 1
+  // ChatRoomSwipePreview's 3 room cards — a fixed, direction-independent triple
+  // (previous room, this room, next room, always in that left-to-right chatRoomOrder
+  // position) rather than something recomputed per drag direction: which one is
+  // "selected" is driven continuously by swipeDragT instead (inside the component
+  // itself), so the SET of rooms shown never has to change mid-gesture. Either end can
+  // be absent at a chatRoomOrder boundary, or (rarely) still mid-fetch — either way
+  // that slot is just omitted, never padded with a placeholder. roomMeta lookups: this
+  // room's own entry is kept fresh by the "publish this room's own meta" effect above;
+  // prev/next are warmed by the prefetch effect above (ensureRoomMeta).
+  const roomPeekMeta       = useChatRoomPeekStore((s) => s.roomMeta)
+  const swipePreviewIndex  = chatRoomOrder.indexOf(crewId)
+  const swipePreviewPrevId = swipePreviewIndex > 0 ? chatRoomOrder[swipePreviewIndex - 1] : undefined
+  const swipePreviewNextId = swipePreviewIndex !== -1 && swipePreviewIndex < chatRoomOrder.length - 1
     ? chatRoomOrder[swipePreviewIndex + 1]
     : undefined
-  const toSwipeSlot = (id: string, role: SwipePreviewAvatar['role']): SwipePreviewAvatar => ({
-    id, role, imageUrl: roomPeekMeta[id]?.imageUrl ?? null, name: roomPeekMeta[id]?.name ?? '',
-  })
-  const swipePreviewSlots: SwipePreviewAvatar[] = [
-    swipePreviewPrevId ? toSwipeSlot(swipePreviewPrevId, 'prev') : null,
-    toSwipeSlot(crewId, 'current'),
-    swipePreviewNextId ? toSwipeSlot(swipePreviewNextId, 'next') : null,
-  ].filter((slot): slot is SwipePreviewAvatar => slot !== null)
+  const toSwipeRoom = (id: string, role: SwipePreviewRoom['role']): SwipePreviewRoom | null => {
+    const meta = roomPeekMeta[id]
+    return meta ? { id, role, ...meta } : null
+  }
+  const swipePreviewRooms: SwipePreviewRoom[] = [
+    swipePreviewPrevId ? toSwipeRoom(swipePreviewPrevId, 'prev') : null,
+    toSwipeRoom(crewId, 'current'),
+    swipePreviewNextId ? toSwipeRoom(swipePreviewNextId, 'next') : null,
+  ].filter((room): room is SwipePreviewRoom => room !== null)
 
   return (
     <div ref={chatInputBoxRef} className="bg-black flex flex-col flex-shrink-0 relative z-[65]">
@@ -1688,12 +1725,12 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
           presence sync doesn't re-render all of ChatInput — see ChatTypingIndicator. ── */}
       <ChatTypingIndicator />
 
-      {/* Figma 577:5113 ("Frame 276") — room-swipe look-ahead strip. Absolutely
+      {/* Figma 577:4895 ("body") — room-swipe look-ahead preview. Absolutely
           positioned against this outer relative wrapper (not the bordered box below)
-          so bottom-full lands it directly above the WHOLE input area, overlapping the
-          message history's own bottom edge, regardless of whether the typing
-          indicator above is currently rendering anything. */}
-      <ChatRoomSwipePreview visible={isRoomSwiping} slots={swipePreviewSlots} dragT={swipeDragT} />
+          so it lands directly above the WHOLE input area, overlapping the message
+          history's own bottom edge, regardless of whether the typing indicator above
+          is currently rendering anything. */}
+      <ChatRoomSwipePreview visible={isRoomSwiping} rooms={swipePreviewRooms} dragT={swipeDragT} />
 
       {/* Figma 577:4905 ("chatInputContainer") — squad bar + input field together, as one
           unit. Nudges the whole thing to 102% for as long as the squad detail bar

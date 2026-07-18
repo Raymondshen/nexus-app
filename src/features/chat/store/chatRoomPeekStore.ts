@@ -16,11 +16,32 @@ import { create } from 'zustand'
 // mid-fade. Both sides read this one constant so they can't drift out of sync.
 export const SWIPE_NAV_ARRIVAL_FADE_MS = 250
 
+export interface RoomMetaOnlineMember {
+  id:        string
+  username:  string
+  avatarUrl: string | null
+}
+
 export interface RoomMeta {
-  name:        string
-  imageUrl:    string | null
-  level:       number
-  memberCount: number
+  name:               string
+  imageUrl:           string | null
+  // Crew cover photo (crews.background_image_url) — not fetched by ensureRoomMeta's
+  // original lightweight query, added for ChatRoomSwipePreview's rich card (Figma
+  // 577:4895). Nullable same as the column itself.
+  backgroundImageUrl: string | null
+  level:              number
+  memberCount:        number
+  // Denormalized crews.last_message_preview, same column Home's own crew list reads
+  // directly with no transform.
+  lastMessagePreview: string | null
+  // From get_unread_counts, cutoff = this user's crew_members.last_seen (falling back
+  // to joined_at) in that crew — same cutoff Home's own unread badge uses. Always 0 for
+  // the room currently open (ChatInput publishes that one directly, no RPC round trip).
+  unreadCount:        number
+  // One-shot user_presence snapshot at fetch time (not a live subscription — this room
+  // isn't mounted/subscribed to presence broadcasts unless it's the one currently open),
+  // via the same computeOnlineIds() helper ChatInput's own live presence uses.
+  onlineMembers:      RoomMetaOnlineMember[]
 }
 
 export interface PeekState {
