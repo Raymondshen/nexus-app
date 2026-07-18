@@ -81,8 +81,9 @@ export function ChatSquadDetailBar({
         </div>
       </div>
 
-      {/* Online member avatars only — up to 6 visible at once, scroll horizontally for
-          more. Slides in from the top the moment members show as online (e.g. shortly
+      {/* Online member avatars only — capped to ~6 visible at once, no overflow scroll;
+          extra members past the maxWidth are simply clipped. Slides in from the top the
+          moment members show as online (e.g. shortly
           after landing in a room, as presence heartbeats/broadcasts arrive) and slides
           out the same way if they drop to none (e.g. the outgoing side of a room-swipe,
           which has no presence data for the destination room to show). */}
@@ -94,7 +95,7 @@ export function ChatSquadDetailBar({
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 14, opacity: 0 }}
             transition={SLIDE_TRANSITION}
-            className="flex flex-1 min-w-0 items-center overflow-x-auto nexus-scroll no-scrollbar"
+            className="flex flex-1 min-w-0 items-center overflow-hidden"
             style={{ gap: 4, marginLeft: 16, marginRight: 16, maxWidth: 164 }}
             onClick={(e) => e.stopPropagation()}
           >
