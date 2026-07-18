@@ -22,8 +22,9 @@ import { addToOutbox, readOutbox, type OutboxJob } from '@/shared/utils/outbox'
 import { acquireCrewMessageChannel, releaseCrewMessageChannel, isActiveCrewMessageChannel, evictCrewMessageChannel } from '@/shared/supabase/crewMessageChannel'
 import { IMAGE_CONFIG } from '@/shared/constants/config'
 import { ChatSquadDetailBar } from '@/features/chat/components/header/ChatSquadDetailBar'
-import { useSlidePageGesture, skipNextSlideEnter } from '@/app/layouts/SlidePage'
+import { skipNextSlideEnter } from '@/app/layouts/SlidePage'
 import { useChatRoomPeekStore } from '@/features/chat/store/chatRoomPeekStore'
+import type { RoomMeta } from '@/features/chat/store/chatRoomPeekStore'
 import { ensureRoomMeta } from '@/features/chat/utils/ensureRoomMeta'
 import { ChatTypingIndicator } from '@/features/chat/components/input/ChatTypingIndicator'
 import { isGemGateOpen, recordGemClaim } from '@/shared/utils/gems'
@@ -140,11 +141,24 @@ async function tryClaimDailyGem(supabase: ReturnType<typeof createClient>, onCla
 }
 
 
+// Stable empty fallbacks for ChatSquadDetailBar while barOverride is active — the
+// swiped-to room's online members/avatars aren't tracked from here (presence only
+// runs for the mounted room), so the bar simply omits that row rather than mislabeling
+// the outgoing room's online members as the destination's.
+const EMPTY_MEMBERS: MemberProfile[] = []
+const EMPTY_ONLINE_IDS = new Set<string>()
+
 // ─── ChatInput ────────────────────────────────────────────────────────────────
 
 export function ChatInput({ crewId, userId, userProfile, memberProfiles, memberPinnedVinyls, crewName, inviteCode, creatorId, crewImageUrl: initialCrewImageUrl, crewBackgroundImageUrl: initialCrewBgUrl, initialXP, isDM, dmPartnerId, chatRoomOrder = [] }: ChatInputProps) {
   const router = useRouter()
-  const { startDrag, setDragX, cancelDrag, commitSwipe } = useSlidePageGesture()
+  // Squad-bar content shown in place of the current room's own image/name/level/member
+  // count once a room-swipe commits — see handleTopPanEnd. Only ever set on the
+  // committed path (never during a live drag or a cancelled one), so the bar shows the
+  // destination room's identity instantly instead of the outgoing room's stale data for
+  // however long navigation takes.
+  const [barOverride,    setBarOverride]    = useState<RoomMeta | null>(null)
+  const chatInputBoxRef = useRef<HTMLDivElement>(null)
   const [text,           setText]          = useState('')
   const [sendError,      setSendError]      = useState<string | null>(null)
   const [pollEnabled,      setPollEnabled]       = useState(false)
@@ -232,16 +246,6 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
 
   const liveCrewName = storeCrewName || crewName
 
-  // Bookkeeping for the chat-swipe-nav peek layer (chat/[crewId]/layout.tsx's
-  // ChatRoomPeekLayer, which persists across room navigation unlike this component):
-  // tells it which room is *actually* mounted right now (so it can clear itself once a
-  // peeked room's real page takes over) and seeds this room's own name/image so it's
-  // available instantly if another room peeks back at this one later.
-  useEffect(() => {
-    useChatRoomPeekStore.getState().setCurrentRoom(crewId)
-    useChatRoomPeekStore.getState().setRoomMeta(crewId, { name: liveCrewName, imageUrl: crewImageUrl })
-  }, [crewId, liveCrewName, crewImageUrl])
-
   // Keep refs in sync on every render so closures and effects always see current values
   textRef.current = text
   isMultilineRef.current = isMultiline
@@ -263,6 +267,19 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     [memberProfiles, kickedIds]
   )
   const memberCount = members.length
+
+  // Bookkeeping for the chat-swipe-nav peek layer (chat/[crewId]/layout.tsx's
+  // ChatRoomPeekLayer, which persists across room navigation unlike this component):
+  // tells it which room is *actually* mounted right now (so it can clear itself once a
+  // peeked room's real page takes over) and seeds this room's own name/image/level/
+  // member-count so it's available instantly if another room peeks back at this one
+  // later, and so this same data can be shown on ChatSquadDetailBar the moment a swipe
+  // *away* from this room commits (see handleTopPanEnd's barOverride).
+  useEffect(() => {
+    useChatRoomPeekStore.getState().setCurrentRoom(crewId)
+    useChatRoomPeekStore.getState().setRoomMeta(crewId, { name: liveCrewName, imageUrl: crewImageUrl, level: crewLevel, memberCount })
+  }, [crewId, liveCrewName, crewImageUrl, crewLevel, memberCount])
+
   // Only meaningful while the squad sheet is open, but hooks must run
   // unconditionally — cheap to recompute and now actually stable thanks to
   // the `members` memoization above, instead of a fresh array+objects per render.
@@ -521,31 +538,44 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     return () => ro.disconnect()
   }, [recheckOverflow])
 
+  // Publishes this room's rendered squad-bar+input height to chatRoomPeekStore so
+  // ChatRoomPeekLayer can inset its cached-message preview to match the real
+  // MessageList's own bounding box (see chatInputHeight's doc comment in that store).
+  useEffect(() => {
+    const el = chatInputBoxRef.current
+    if (!el) return
+    const ro = new ResizeObserver(([entry]) => {
+      useChatRoomPeekStore.getState().setChatInputHeight(entry.contentRect.height)
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
   // ────────────────────────────────────────────────────────────────────────────
 
   // Dev-gated (nexus_chat_swipe_nav): swipe the squad bar left/right to page to the
   // next/previous group chat room in chatRoomOrder (Home's own most-recently-active
-  // ordering, DMs excluded — see chat/[crewId]/page.tsx). Interactive drag-follow: the
-  // whole page tracks the finger 1:1 via SlidePage's own gesture handle (same
-  // controls/exiting the edge-swipe-to-close gesture uses — safe here only because this
-  // page passes nativeSwipe, leaving that gesture dormant). At the same time, a cached-
-  // snapshot preview of the room being swiped to is revealed underneath via
-  // chatRoomPeekStore + ChatRoomPeekLayer (chat/[crewId]/layout.tsx — see its doc
-  // comment) so the transition shows real content sliding in instead of a blank flash
-  // while the destination room's page.tsx loads. Past the commit threshold, both layers
-  // finish tweening into place together (the peek reaches x:0 first and stays frozen
-  // there — see ChatRoomPeekLayer — until the real room actually mounts and covers it;
-  // skipNextSlideEnter() tells that real SlidePage to mount silently already-at-rest
-  // instead of re-playing its own entrance on top of what the peek already revealed).
-  // Below threshold, or at the start/end of the room list, both spring back — same
-  // rubber-band feel as everywhere else in the app.
+  // ordering, DMs excluded — see chat/[crewId]/page.tsx). Only the message-history log
+  // container transitions — MessageList reads chatRoomPeekStore's `peek` itself and
+  // drives its own 1:1 finger-follow transform (see MessageList's drag section); the
+  // squad bar, floating nav, and input box all stay completely static the whole
+  // gesture. A cached-snapshot preview of the room being swiped to is revealed
+  // underneath via chatRoomPeekStore + ChatRoomPeekLayer (chat/[crewId]/layout.tsx —
+  // see its doc comment), inset to line up with MessageList's own bounding box. Past
+  // the commit threshold, the squad bar instantly swaps to the destination room's
+  // image/name/level/member-count (barOverride below) — a hard cut, not a slide, since
+  // it isn't part of what's transitioning — while the message container tweens the
+  // rest of the way off screen and the peek layer (already sitting at rest) is what's
+  // actually revealed. skipNextSlideEnter() tells the real destination SlidePage to
+  // mount silently already-at-rest instead of re-playing its own entrance on top of
+  // what the peek already revealed. Below threshold, or at the start/end of the room
+  // list, the drag springs back — same rubber-band feel as everywhere else in the app.
   //
   // panAxisRef locks the gesture to whichever axis (x = room swipe, y = existing
   // swipe-up-to-expand) crosses a small intent threshold first, so the two gestures
   // sharing this same bar never fight each other mid-drag. dragStartedRef tracks
-  // whether we actually engaged the page drag (only true once axis=x AND the feature
-  // is on AND there's more than one room) so startDrag()'s controls.stop() never
-  // interrupts an in-flight entrance animation for a plain vertical expand-swipe.
+  // whether we actually engaged the room-swipe drag (only true once axis=x AND the
+  // feature is on AND there's more than one room).
   const panAxisRef     = useRef<'x' | 'y' | null>(null)
   const dragStartedRef = useRef(false)
 
@@ -561,23 +591,20 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     }
     if (panAxisRef.current !== 'x' || !chatSwipeNavEnabled || chatRoomOrder.length <= 1) return
 
-    if (!dragStartedRef.current) {
-      dragStartedRef.current = true
-      startDrag()
-    }
+    dragStartedRef.current = true
 
     // Rubber-band resistance at the ends of the room list — dragging "past" the first
-    // or last room still moves the page, just damped, instead of either a hard stop or
-    // an unbounded 1:1 drag toward a swipe that can't commit to anything.
+    // or last room still moves the message container, just damped, instead of either a
+    // hard stop or an unbounded 1:1 drag toward a swipe that can't commit to anything.
     const currentIndex = chatRoomOrder.indexOf(crewId)
     const dx     = info.offset.x
     const atEnd  = currentIndex === -1 || currentIndex >= chatRoomOrder.length - 1
     const atHome = currentIndex <= 0
     const resisted = (dx < 0 && atEnd) || (dx > 0 && atHome) ? dx * 0.35 : dx
-    setDragX(resisted)
 
-    // Mirror the drag onto the peek layer for whichever room is on the leading edge.
-    // No target in that direction (list boundary) — nothing to peek, just the rubber-band.
+    // Mirror the drag onto the peek layer (and MessageList's own transform, which reads
+    // this same store) for whichever room is on the leading edge. No target in that
+    // direction (list boundary) — nothing to peek, just the rubber-band.
     const direction: 'left' | 'right' | null = dx < 0 ? 'left' : dx > 0 ? 'right' : null
     const targetId = direction && currentIndex !== -1
       ? chatRoomOrder[currentIndex + (direction === 'left' ? 1 : -1)]
@@ -599,8 +626,10 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
         ? chatRoomOrder[currentIndex + (swipedLeft ? 1 : -1)]
         : undefined
 
-      if (targetId && commitSwipe(swipedLeft ? 'left' : 'right')) {
+      if (targetId) {
         const direction = swipedLeft ? 'left' : 'right'
+        const targetMeta = useChatRoomPeekStore.getState().roomMeta[targetId]
+        if (targetMeta) setBarOverride(targetMeta)
         useChatRoomPeekStore.getState().setPeek({ targetCrewId: targetId, direction, x: info.offset.x, phase: 'committing' })
         // The peek layer above is what visually reveals the destination room (sliding
         // its cached snapshot all the way to x:0) — the real SlidePage that mounts once
@@ -612,7 +641,6 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
         router.push(`/chat/${targetId}`)
         return
       }
-      cancelDrag()
       const activePeek = useChatRoomPeekStore.getState().peek
       if (activePeek) useChatRoomPeekStore.getState().setPeek({ ...activePeek, phase: 'cancelling' })
       return
@@ -1510,7 +1538,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   const totalMessages = [...memberMsgCounts.values()].reduce((s, n) => s + n, 0)
 
   return (
-    <div className="bg-black flex flex-col flex-shrink-0 relative z-[65]">
+    <div ref={chatInputBoxRef} className="bg-black flex flex-col flex-shrink-0 relative z-[65]">
       {/* ── Typing presence (Figma 507:2518) — own top section, no gap before the
           bordered squad+input box below; the box's border-t is what divides them.
           Isolated into its own component reading straight from chatStore so a
@@ -1553,12 +1581,12 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
         {/* ── ChatSquadDetailBar — tap or swipe up to expand ── */}
         {!isDM && (
           <ChatSquadDetailBar
-            crewImageUrl={crewImageUrl}
-            crewName={liveCrewName}
-            crewLevel={crewLevel}
-            memberCount={memberCount}
-            members={members}
-            onlineUserIds={onlineUserIds}
+            crewImageUrl={barOverride ? barOverride.imageUrl : crewImageUrl}
+            crewName={barOverride ? barOverride.name : liveCrewName}
+            crewLevel={barOverride ? barOverride.level : crewLevel}
+            memberCount={barOverride ? barOverride.memberCount : memberCount}
+            members={barOverride ? EMPTY_MEMBERS : members}
+            onlineUserIds={barOverride ? EMPTY_ONLINE_IDS : onlineUserIds}
             onExpand={() => setIsExpanded(true)}
             onPanStart={handleTopPanStart}
             onPan={handleTopPan}

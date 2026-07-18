@@ -4,7 +4,6 @@ import { useEffect, useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { useChatRoomPeekStore } from '@/features/chat/store/chatRoomPeekStore'
 import { readCachedRoomMessages } from '@/features/chat/utils/readCachedRoomMessages'
-import { GroupAvatar } from '@/shared/components/ui/GroupAvatar'
 import { UserAvatar } from '@/shared/components/ui/UserAvatar'
 import type { MessageWithProfile } from '@/types'
 
@@ -16,23 +15,27 @@ import type { MessageWithProfile } from '@/types'
 // before {children} in the layout, and position:fixed siblings with no explicit
 // z-index stack in DOM order — same reasoning ProfileClient's fixed overlays rely on).
 //
-// While ChatInput drags the current room's SlidePage away via the swipe-nav gesture
-// (see ChatInput's handleTopPan/handleTopPanEnd), this reveals a read-only "peek" of
-// the neighboring room being swiped to, sourced from whatever's already cached locally
-// (chatRoomPeekStore's roomMeta + this room's sessionStorage message snapshot) —
-// deliberately not a live/interactive room, just enough to avoid a blank flash while
-// the real navigation completes. Renders nothing outside an active gesture.
+// Only the message-history log container transitions during a room-swipe (see
+// ChatInput's handleTopPan* doc comment) — the squad bar, floating nav, and input box
+// all stay static, real elements of the CURRENT room's still-mounted page, and simply
+// paint on top of this layer wherever they sit (later in DOM = on top). So this layer
+// only ever needs to render a message-list-shaped preview: while ChatInput drags the
+// current room's own MessageList container away via the swipe-nav gesture, this reveals
+// a read-only "peek" of the neighboring room's messages, sourced from whatever's already
+// cached locally (chatRoomPeekStore's roomMeta + this room's sessionStorage message
+// snapshot) — deliberately not a live/interactive room, just enough to avoid a blank
+// flash while the real navigation completes. Renders nothing outside an active gesture.
 export function ChatRoomPeekLayer() {
-  const peek          = useChatRoomPeekStore((s) => s.peek)
-  const currentCrewId = useChatRoomPeekStore((s) => s.currentCrewId)
-  const setPeek        = useChatRoomPeekStore((s) => s.setPeek)
-  const targetMeta     = useChatRoomPeekStore((s) => (peek ? s.roomMeta[peek.targetCrewId] : undefined))
+  const peek            = useChatRoomPeekStore((s) => s.peek)
+  const currentCrewId   = useChatRoomPeekStore((s) => s.currentCrewId)
+  const setPeek         = useChatRoomPeekStore((s) => s.setPeek)
+  const chatInputHeight = useChatRoomPeekStore((s) => s.chatInputHeight)
 
   // Real navigation landed on the room being peeked — the actual page has taken over.
-  // It mounts silently already-at-rest at x:0 (ChatInput calls SlidePage's
-  // skipNextSlideEnter() right before navigating, precisely so it doesn't re-play its
-  // own entrance on top of what this layer already revealed), fully covering this
-  // layer immediately, so the preview's job is done.
+  // It mounts silently already-at-rest (ChatInput calls SlidePage's skipNextSlideEnter()
+  // right before navigating, and its own MessageList ignores `peek` for the target
+  // room — see MessageList's doc comment), fully covering this layer immediately, so
+  // the preview's job is done.
   useEffect(() => {
     if (peek && currentCrewId === peek.targetCrewId) setPeek(null)
   }, [peek, currentCrewId, setPeek])
@@ -48,7 +51,7 @@ export function ChatRoomPeekLayer() {
 
   if (!peek) return null
 
-  // dragging: live 1:1 tracking of the real page's drag, mirrored onto this layer's
+  // dragging: live 1:1 tracking of MessageList's own drag, mirrored onto this layer's
   // own edge-relative offset. committing: the destination room's resting position —
   // fully revealed at x:0, matching where the real room will land on top of it.
   // cancelling: back to fully off-screen, matching where this layer started before
@@ -63,14 +66,21 @@ export function ChatRoomPeekLayer() {
 
   return (
     <div
-      className="flex flex-col bg-black"
+      className="bg-black"
       style={{
         position: 'fixed', top: 0, bottom: 0, left: 0, right: 0,
         maxWidth: 480, marginLeft: 'auto', marginRight: 'auto', overflow: 'hidden',
       }}
     >
+      {/* Messages — cached snapshot, bottom-anchored, read-only. Inset by
+          chatInputHeight (ChatInput's live-measured squad-bar+input height) so this
+          lines up with the real MessageList's own bounding box instead of running
+          underneath the real, static input area. Falls back to a loading skeleton
+          (no delay — this whole layer is only ever on screen for the span of a
+          drag/transition) when nothing's cached for this room yet. */}
       <motion.div
-        className="flex flex-col h-full"
+        className="flex flex-col justify-end h-full overflow-hidden"
+        style={{ padding: 16, paddingBottom: chatInputHeight + 16 }}
         animate={{ x }}
         transition={
           peek.phase === 'dragging'
@@ -90,24 +100,7 @@ export function ChatRoomPeekLayer() {
           if (peek.phase === 'cancelling') setPeek(null)
         }}
       >
-        {/* Header */}
-        <div className="flex items-center flex-shrink-0" style={{ gap: 8, padding: 16 }}>
-          <GroupAvatar imageUrl={targetMeta?.imageUrl ?? null} name={targetMeta?.name ?? ''} size={32} />
-          <p
-            className="font-body font-black text-secondary truncate"
-            style={{ fontSize: 16, fontVariationSettings: '"opsz" 14' }}
-          >
-            {(targetMeta?.name ?? '').toUpperCase()}
-          </p>
-        </div>
-
-        {/* Messages — cached snapshot, bottom-anchored, read-only. Falls back to a
-            loading skeleton (no delay — this whole layer is only ever on screen for the
-            span of a drag/transition) when nothing's cached for this room yet. */}
-        <div
-          className="flex-1 min-h-0 flex flex-col justify-end overflow-hidden"
-          style={{ padding: '0 16px 16px', gap: 12 }}
-        >
+        <div className="flex flex-col" style={{ gap: 12 }}>
           {messages
             ? messages.map((m) => <PeekMessageRow key={m.id} message={m} />)
             : SKELETON_ROW_WIDTHS.map((w, i) => (
@@ -116,15 +109,6 @@ export function ChatRoomPeekLayer() {
                   <div className="h-8 bg-border animate-pulse" style={{ width: `${w}%`, maxWidth: 260 }} />
                 </div>
               ))}
-        </div>
-
-        {/* Input area placeholder — static, matches ChatLoading's shape so the handoff
-            to the real input doesn't visibly jump once the real room mounts. */}
-        <div
-          className="bg-black border-t border-border flex-shrink-0"
-          style={{ padding: '16px 16px max(env(safe-area-inset-bottom), 32px)' }}
-        >
-          <div className="border border-border" style={{ height: 48 }} />
         </div>
       </motion.div>
     </div>

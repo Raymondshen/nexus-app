@@ -9,8 +9,10 @@ import { create } from 'zustand'
 // subtree: ChatRoomPeekLayer is a sibling of {children}, not an ancestor of it.
 
 export interface RoomMeta {
-  name:     string
-  imageUrl: string | null
+  name:        string
+  imageUrl:    string | null
+  level:       number
+  memberCount: number
 }
 
 export interface PeekState {
@@ -35,6 +37,17 @@ interface ChatRoomPeekStore {
 
   peek:    PeekState | null
   setPeek: (peek: PeekState | null) => void
+
+  // Live rendered height of the current room's ChatSquadDetailBar + input box
+  // (ChatInput's own outermost element, measured via ResizeObserver — see ChatInput's
+  // chatInputBoxRef effect). Since only the message-history log container now slides
+  // during a room-swipe (the bar/input stay put — see ChatInput's handleTopPan* doc
+  // comment), ChatRoomPeekLayer needs this to inset its cached-message preview by the
+  // same amount so it lines up with the real MessageList's own bounding box instead of
+  // extending underneath the real, static input area. Defaults to a reasonable estimate
+  // so the very first swipe (before ChatInput's observer has fired) isn't misaligned.
+  chatInputHeight:    number
+  setChatInputHeight: (h: number) => void
 }
 
 export const useChatRoomPeekStore = create<ChatRoomPeekStore>((set) => ({
@@ -46,4 +59,7 @@ export const useChatRoomPeekStore = create<ChatRoomPeekStore>((set) => ({
 
   peek: null,
   setPeek: (peek) => set({ peek }),
+
+  chatInputHeight: 140,
+  setChatInputHeight: (h) => set((s) => (s.chatInputHeight === h ? s : { chatInputHeight: h })),
 }))

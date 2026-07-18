@@ -14,10 +14,13 @@ export async function ensureRoomMeta(crewId: string): Promise<void> {
   inFlight.add(crewId)
   try {
     const supabase = createClient()
-    const { data } = await supabase.from('crews').select('name, image_url').eq('id', crewId).single()
+    const [{ data }, { count }] = await Promise.all([
+      supabase.from('crews').select('name, image_url, level').eq('id', crewId).single(),
+      supabase.from('crew_members').select('*', { count: 'exact', head: true }).eq('crew_id', crewId),
+    ])
     if (data) {
-      const row = data as { name: string; image_url: string | null }
-      setRoomMeta(crewId, { name: row.name, imageUrl: row.image_url })
+      const row = data as { name: string; image_url: string | null; level: number }
+      setRoomMeta(crewId, { name: row.name, imageUrl: row.image_url, level: row.level, memberCount: count ?? 0 })
     }
   } finally {
     inFlight.delete(crewId)

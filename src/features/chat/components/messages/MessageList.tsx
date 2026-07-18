@@ -13,6 +13,7 @@ import { format, isToday, isYesterday, isSameDay } from 'date-fns'
 import { createClient } from '@/shared/supabase/client'
 import { acquireCrewMessageChannel, releaseCrewMessageChannel } from '@/shared/supabase/crewMessageChannel'
 import { useChatStore } from '@/store/chatStore'
+import { useChatRoomPeekStore } from '@/features/chat/store/chatRoomPeekStore'
 import { MessageBubble } from './MessageBubble'
 import { ChatMessageStampDivider } from './ChatMessageStampDivider'
 import { ArrowBarDown } from 'pixelarticons/react/ArrowBarDown'
@@ -144,6 +145,14 @@ export function MessageList({
   const addMessage             = useChatStore((s) => s.addMessage)
   const updateMessage          = useChatStore((s) => s.updateMessage)
   const setPinnedScrollTargetId = useChatStore((s) => s.setPinnedScrollTargetId)
+  // Dev-gated chat swipe-nav (see ChatInput's handleTopPan* doc comment): only this
+  // component's own container transitions during a room-swipe. `peek` is written by
+  // the CURRENT room's ChatInput; a targetCrewId other than this room's own means
+  // *this* MessageList is the outgoing side of the gesture, so it drives its own 1:1
+  // finger-follow / commit-tween / cancel-spring off the same offset ChatRoomPeekLayer
+  // uses. The freshly-mounted destination room's MessageList (crewId === targetCrewId)
+  // deliberately ignores `peek` and renders at rest — it isn't part of what's dragging.
+  const peek = useChatRoomPeekStore((s) => s.peek)
   const [localProfiles, setLocalProfiles] = useState<Record<string, Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url' | 'status'>>>(memberProfiles)
   const [historyLoaded, setHistoryLoaded] = useState(false)
 
@@ -1003,8 +1012,24 @@ export function MessageList({
 
   const virtualItems = virtualizer.getVirtualItems()
 
+  // See the `peek` selector's doc comment above — only apply the drag transform when
+  // this room is the one being swiped away FROM, never the freshly-mounted target.
+  const isDragSource = !!peek && peek.targetCrewId !== crewId
+  const dragX = isDragSource
+    ? peek!.phase === 'committing'
+      ? (peek!.direction === 'left' ? -window.innerWidth : window.innerWidth)
+      : peek!.phase === 'cancelling'
+        ? 0
+        : peek!.x
+    : 0
+  const dragTransition = isDragSource && peek!.phase === 'committing'
+    ? { type: 'tween' as const, ease: [0.32, 0, 0.67, 0] as [number, number, number, number], duration: 0.15 }
+    : isDragSource && peek!.phase === 'cancelling'
+      ? { type: 'spring' as const, stiffness: 500, damping: 40 }
+      : { duration: 0 }
+
   return (
-    <div className="relative flex-1 min-h-0">
+    <motion.div className="relative flex-1 min-h-0" animate={{ x: dragX }} transition={dragTransition}>
       {/* Top fade overlay */}
       <div
         className="pointer-events-none absolute left-0 right-0 top-0 z-10 h-1/4"
@@ -1087,6 +1112,6 @@ export function MessageList({
           </div>
         )}
       </div>
-    </div>
+    </motion.div>
   )
 }
