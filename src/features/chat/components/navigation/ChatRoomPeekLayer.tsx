@@ -9,7 +9,8 @@ import type { MemberProfile } from '@/features/chat/components/input/ChatInput'
 
 // Frozen fallbacks for ChatSquadDetailBar's member-only props — the peeked room's
 // live member list/presence isn't available from here (this layer only ever has
-// the lightweight RoomMeta snapshot).
+// the lightweight RoomMeta snapshot), same reasoning as ChatInput's own
+// EMPTY_MEMBERS/EMPTY_ONLINE_IDS for a barOverride.
 const EMPTY_MEMBERS: MemberProfile[] = []
 const EMPTY_ONLINE_IDS = new Set<string>()
 function noop() {}
@@ -41,10 +42,13 @@ function noop() {}
 // chatInputBoxRef wrapper) fully occludes it until the moment the real page actually
 // unmounts.
 //
-// There's no group-A-to-group-B transition to reproduce here — the destination room's
-// own real ChatSquadDetailBar mounts already showing its real data, immediately, with
-// no arrival animation. This layer's job is only to cover the gap before that real bar
-// exists at all.
+// The actual group-A-to-group-B slide (A pushed down and fades, B slides in from the
+// top) is deliberately NOT played here — it plays once, on arrival, inside the
+// destination room's own real ChatSquadDetailBar, right as B's real data has loaded (see
+// ChatInput's barOverride mount-seeding effect). That's the only point at which both
+// identities are real (not a placeholder) and the transition is guaranteed visible (this
+// layer paints underneath the current room and would be invisible once a real bar takes
+// over it anyway).
 //
 // So this layer renders two independent pieces: a floating ghost loading placeholder
 // (while ChatInput drags the current room's own MessageList container away via the
@@ -143,14 +147,15 @@ export function ChatRoomPeekLayer() {
       {/* Static bar/input shell — never slides with `x`, matching the real bar/input's
           own static behavior. Deliberately keyed off `currentCrewId` (the room being
           DEPARTED), not `targetCrewId` — the outgoing room's own identity is what should
-          stay visible, unchanged, through the navigation gap. The destination room's own
-          real bar takes over already showing its own real data, no transition needed.
-          This one stays real content, not a skeleton, unlike the message area above —
-          group A's own name/avatar are already known with certainty (it's this device's
-          own current room), so there's nothing to fake. Absent (falls back to plain
-          black) if that room's roomMeta somehow hasn't been cached yet, though in
-          practice this is always populated by the departing room's own mount effect
-          before a swipe can even be dragged. */}
+          stay visible, unchanged, through the navigation gap; the group-A-to-group-B
+          transition itself plays on arrival, inside the destination room's own real bar
+          (see ChatInput's barOverride mount-seeding effect), once B's real data is
+          actually loaded. This one stays real content, not a skeleton, unlike the
+          message area above — group A's own name/avatar are already known with
+          certainty (it's this device's own current room), so there's nothing to fake.
+          Absent (falls back to plain black) if that room's roomMeta somehow hasn't been
+          cached yet, though in practice this is always populated by the departing
+          room's own mount effect before a swipe can even be dragged. */}
       {currentCrewId && roomMeta[currentCrewId] && (
         <div className="absolute left-0 right-0 bottom-0">
           <PeekBarAndInput meta={roomMeta[currentCrewId]} />

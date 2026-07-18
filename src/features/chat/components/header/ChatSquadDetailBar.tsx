@@ -20,10 +20,12 @@ interface ChatSquadDetailBarProps {
   onPanEnd:      (_: PointerEvent, info: PanInfo) => void
 }
 
-// Top-to-bottom slide used by the online-avatars row below — it enters from above when
-// members show as online (e.g. shortly after landing in a room, as presence
-// heartbeats/broadcasts arrive) and exits the same way if they drop to none.
-// `initial={false}` keeps this from also playing on the row's very first mount.
+// Shared top-to-bottom slide used by the crew image and name below — the incoming
+// value enters from above, the outgoing one continues past its resting spot and out
+// the bottom, so a swap reads as one continuous downward motion rather than a cut.
+// `initial={false}` on each AnimatePresence keeps this from also playing on the very
+// first mount of a plain room open — it only fires on an actual identity change (the
+// chat-swipe-nav arrival transition — see ChatInput's barOverride mount-seeding effect).
 const SLIDE_TRANSITION = { type: 'spring', stiffness: 170, damping: 21 } as const
 
 export function ChatSquadDetailBar({
@@ -44,15 +46,35 @@ export function ChatSquadDetailBar({
       {/* Crew image + name/level */}
       <div className="flex items-center flex-shrink-0 min-w-0" style={{ gap: 8 }}>
         <div className="relative flex-shrink-0" style={{ width: 24, height: 24 }}>
-          <GroupAvatar imageUrl={crewImageUrl} name={crewName} size={24} />
+          <AnimatePresence initial={false}>
+            <motion.div
+              key={crewName}
+              className="absolute inset-0"
+              initial={{ y: -14, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 14, opacity: 0 }}
+              transition={SLIDE_TRANSITION}
+            >
+              <GroupAvatar imageUrl={crewImageUrl} name={crewName} size={24} />
+            </motion.div>
+          </AnimatePresence>
         </div>
         <div className="flex flex-col min-w-0" style={{ gap: 2 }}>
-          <p
-            className="font-body font-black text-secondary leading-none truncate"
-            style={{ fontSize: 16, fontVariationSettings: '"opsz" 14', height: 16 }}
-          >
-            {crewName.toUpperCase()}
-          </p>
+          <div className="relative overflow-hidden" style={{ height: 16 }}>
+            <AnimatePresence initial={false}>
+              <motion.p
+                key={crewName}
+                className="absolute inset-0 font-body font-black text-secondary leading-none truncate"
+                style={{ fontSize: 16, fontVariationSettings: '"opsz" 14' }}
+                initial={{ y: -16, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: 16, opacity: 0 }}
+                transition={SLIDE_TRANSITION}
+              >
+                {crewName.toUpperCase()}
+              </motion.p>
+            </AnimatePresence>
+          </div>
           <p className="font-silkscreen text-tertiary leading-none" style={{ fontSize: 8 }}>
             Lv.{crewLevel} · {memberCount} member
           </p>
