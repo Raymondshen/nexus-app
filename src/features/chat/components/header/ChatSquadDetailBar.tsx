@@ -1,7 +1,6 @@
 'use client'
 
 import { motion, AnimatePresence } from 'framer-motion'
-import type { PanInfo } from 'framer-motion'
 import { UserAvatar } from '@/shared/components/ui/UserAvatar'
 import { GroupAvatar } from '@/shared/components/ui/GroupAvatar'
 import { ChevronUp } from 'pixelarticons/react/ChevronUp'
@@ -15,15 +14,12 @@ interface ChatSquadDetailBarProps {
   members:       MemberProfile[]
   onlineUserIds: Set<string>
   onExpand:      () => void
-  onPanStart?:   () => void
-  onPan?:        (_: PointerEvent, info: PanInfo) => void
-  onPanEnd:      (_: PointerEvent, info: PanInfo) => void
   // Fired on press-down/press-release of this bar specifically — lets ChatInput scale
   // its whole squad-bar+input container as tap/drag feedback without that trigger also
   // firing from taps on the input row below (see ChatInput's barPressed doc comment).
   // Wired to Framer's own tap gesture (not raw pointer events) so a finger sliding off
   // the bar mid-press correctly cancels back to "released" instead of staying stuck
-  // pressed, and coexists cleanly with this same element's onPan/onClick.
+  // pressed, and coexists cleanly with this element's onClick.
   onPressStart?: () => void
   onPressEnd?:   () => void
 }
@@ -38,17 +34,19 @@ const SLIDE_TRANSITION = { type: 'spring', stiffness: 170, damping: 21 } as cons
 
 export function ChatSquadDetailBar({
   crewImageUrl, crewName, crewLevel, memberCount, members, onlineUserIds,
-  onExpand, onPanStart, onPan, onPanEnd, onPressStart, onPressEnd,
+  onExpand, onPressStart, onPressEnd,
 }: ChatSquadDetailBarProps) {
   const onlineMembers = members.filter((m) => onlineUserIds.has(m.id))
 
   return (
     <motion.div
+      // Marks this element for ChatInput's own container-level pan gesture to detect
+      // whether a drag originated on the bar specifically (vs elsewhere in the
+      // chatInputContainer) — see that gesture's own doc comment for why this lives
+      // one level up now instead of on this component (avoiding two separate Framer
+      // pan recognizers both firing for the same touch).
+      data-squad-bar="true"
       className="flex relative cursor-pointer items-center justify-between w-full"
-      style={{ touchAction: 'pan-x' }}
-      onPanStart={onPanStart}
-      onPan={onPan}
-      onPanEnd={onPanEnd}
       onClick={onExpand}
       onTapStart={onPressStart}
       onTap={onPressEnd}

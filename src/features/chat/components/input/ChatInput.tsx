@@ -28,6 +28,7 @@ import type { RoomMeta } from '@/features/chat/store/chatRoomPeekStore'
 import { ensureRoomMeta } from '@/features/chat/utils/ensureRoomMeta'
 import { ChatTypingIndicator } from '@/features/chat/components/input/ChatTypingIndicator'
 import { ChatRoomSwipePreview, type SwipePreviewRoom } from '@/features/chat/components/input/ChatRoomSwipePreview'
+import { ChatRoomBrowseSheet } from '@/features/chat/components/input/ChatRoomBrowseSheet'
 import { isGemGateOpen, recordGemClaim } from '@/shared/utils/gems'
 import type { GemClaimResult } from '@/types'
 import { Send } from 'pixelarticons/react/Send'
@@ -238,6 +239,11 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   // smooth "reverse" instead of an instant snap back — see handleTopPan*'s .set(0) calls.
   const swipeDragTRaw = useMotionValue(0)
   const swipeDragT    = useSpring(swipeDragTRaw, { stiffness: 500, damping: 40 })
+  // Opened by the swipe-up gesture on chatInputContainer (see handleTopPanEnd) —
+  // ChatRoomBrowseSheet, a persistent "every room, scrollable, tap to navigate"
+  // overlay. Unlike isRoomSwiping/swipeDragT (which reset every gesture), this just
+  // stays true until the user taps a card or the backdrop.
+  const [showRoomBrowser, setShowRoomBrowser] = useState(false)
   const [showEventSheet,  setShowEventSheet]  = useState(false)
   const [isMultiline,     setIsMultiline]     = useState(false)
 
@@ -652,36 +658,75 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
 
   // ────────────────────────────────────────────────────────────────────────────
 
-  // Dev-gated (nexus_chat_swipe_nav): swipe the squad bar left/right to page to the
-  // next/previous group chat room in chatRoomOrder (Home's own most-recently-active
-  // ordering, DMs excluded — see chat/[crewId]/page.tsx). The message-history log no
-  // longer transitions with the drag — MessageList always renders at rest now,
-  // regardless of chatRoomPeekStore's `peek` state. The squad bar, floating nav, input
-  // box, and message log all stay completely static through the whole gesture, keeping
-  // THIS room's own identity and content on screen the entire time (no early hard-cut
-  // to the destination's — see the barOverride mount-seeding effect above for where
-  // that transition actually happens: on arrival, not on departure). `peek` is still
-  // written throughout the gesture (chatRoomPeekStore + ensureRoomMeta prefetch below),
-  // and past the commit threshold this still fires the actual navigation —
-  // skipNextSlideEnter(true) tells the real destination SlidePage to mount already in
-  // position and crossfade its opacity in, rather than popping straight to fully opaque
-  // real content — see that function's own doc comment. Below threshold, or at the
-  // start/end of the room list, the gesture just cancels — nothing to spring back
-  // visually now that nothing moved.
+  // Dev-gated (nexus_chat_swipe_nav), two gestures sharing one pan recognizer on the
+  // whole chatInputContainer (see that element's own doc comment for why they aren't
+  // two separate onPan* wirings):
   //
-  // panAxisRef locks the gesture to whichever axis (x = room swipe, y = existing
-  // swipe-up-to-expand) crosses a small intent threshold first, so the two gestures
-  // sharing this same bar never fight each other mid-drag. dragStartedRef tracks
-  // whether we actually engaged the room-swipe drag (only true once axis=x AND the
-  // feature is on AND there's more than one room).
-  const panAxisRef     = useRef<'x' | 'y' | null>(null)
-  const dragStartedRef = useRef(false)
+  // 1. Horizontal (left/right), bar-origin only — pages to the next/previous group
+  //    chat room in chatRoomOrder (Home's own most-recently-active ordering, DMs
+  //    excluded — see chat/[crewId]/page.tsx), live-linked to ChatRoomSwipePreview's
+  //    3-card glimpse. The message-history log no longer transitions with the drag —
+  //    MessageList always renders at rest now, regardless of chatRoomPeekStore's
+  //    `peek` state. The squad bar, floating nav, input box, and message log all stay
+  //    completely static through the whole gesture, keeping THIS room's own identity
+  //    and content on screen the entire time (no early hard-cut to the destination's —
+  //    see the barOverride mount-seeding effect above for where that transition
+  //    actually happens: on arrival, not on departure). `peek` is still written
+  //    throughout the gesture (chatRoomPeekStore + ensureRoomMeta prefetch below), and
+  //    past the commit threshold this still fires the actual navigation via
+  //    commitRoomSwitch below. Below threshold, or at the start/end of the room list,
+  //    the gesture just cancels — nothing to spring back visually now that nothing
+  //    moved.
+  // 2. Vertical (swipe up), any origin in the container — opens ChatRoomBrowseSheet,
+  //    a persistent "every room, scrollable, tap to navigate" overlay (see that
+  //    component's own doc comment). This replaced the swipe-up-to-expand-squad-
+  //    details gesture that used to live at this same threshold; SquadDetailsSheet is
+  //    still reachable via a tap on the bar or its chevron (ChatSquadDetailBar's own
+  //    onClick), just not this gesture anymore.
+  //
+  // panAxisRef locks the gesture to whichever axis crosses a small intent threshold
+  // first, so the two never fight mid-drag. dragStartedRef tracks whether we actually
+  // engaged the room-swipe drag specifically (only true once axis=x AND the drag
+  // started on the bar AND the feature is on AND there's more than one room) —
+  // panOriginIsBarRef is checked for that bar-origin requirement but, unlike
+  // dragStartedRef, is NOT gated on axis, since the vertical gesture must still work
+  // starting from the bar too (not just elsewhere in the container).
+  const panAxisRef        = useRef<'x' | 'y' | null>(null)
+  const dragStartedRef    = useRef(false)
+  const panOriginIsBarRef = useRef(false)
 
-  function handleTopPanStart() {
-    panAxisRef.current     = null
-    dragStartedRef.current = false
+  function handleTopPanStart(event: PointerEvent) {
+    panAxisRef.current        = null
+    dragStartedRef.current    = false
+    panOriginIsBarRef.current = !!(event.target as HTMLElement | null)?.closest?.('[data-squad-bar]')
     setIsRoomSwiping(false)
     swipeDragTRaw.set(0)
+  }
+
+  // Shared by the drag-commit path below and ChatRoomBrowseSheet's tap-to-navigate —
+  // any navigation away from this room via the swipe-nav system goes through here so
+  // both trigger paths get the identical peek-layer handoff/crossfade behavior.
+  // `direction` only affects which side ChatRoomPeekLayer's ghost enters from; a tap
+  // in the browse sheet has no real drag direction, so callers without one can pass
+  // whichever is closest to correct (see ChatRoomBrowseSheet's own call site).
+  function commitRoomSwitch(targetId: string, direction: 'left' | 'right') {
+    // No barOverride hard-cut here anymore — this room's own bar stays showing its
+    // own identity, unchanged, all the way to unmount. The destination room's own
+    // mount-seeded barOverride (see its lazy initializer above) is what now plays the
+    // group-A-to-group-B transition, on arrival, once B's real data is loaded.
+    useChatRoomPeekStore.getState().setPeek({ targetCrewId: targetId, direction, x: 0, phase: 'committing' })
+    // The peek layer above is what visually reveals the destination room (sliding its
+    // ghost placeholder all the way to x:0 — which 'committing' always does,
+    // regardless of the `x` passed here) — the real SlidePage that mounts once
+    // navigation lands should pick up silently at that same rest position instead of
+    // re-playing its own entrance (position) animation on top, which would look like a
+    // second, redundant slide-in. It still crossfades in (fadeIn=true) since, unlike a
+    // plain back-nav, there's no already-rendered real content underneath — only the
+    // peek layer's ghost — so popping straight to fully opaque would be an abrupt cut
+    // rather than a smooth handoff. See skipNextSlideEnter's own doc comment.
+    skipNextSlideEnter(true)
+    sessionStorage.setItem('nexus_chat_from', 'chat')
+    router.push(`/chat/${targetId}`)
   }
 
   function handleTopPan(_: PointerEvent, info: PanInfo) {
@@ -689,7 +734,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
       if (Math.abs(info.offset.x) < 10 && Math.abs(info.offset.y) < 10) return
       panAxisRef.current = Math.abs(info.offset.x) > Math.abs(info.offset.y) ? 'x' : 'y'
     }
-    if (panAxisRef.current !== 'x' || !chatSwipeNavEnabled || chatRoomOrder.length <= 1) return
+    if (panAxisRef.current !== 'x' || !panOriginIsBarRef.current || !chatSwipeNavEnabled || chatRoomOrder.length <= 1) return
 
     // Edge transition only (not every pan frame) — dragStartedRef doubles as the "have
     // we already flipped isRoomSwiping on for this gesture" guard.
@@ -744,23 +789,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
         : undefined
 
       if (targetId) {
-        const direction = swipedLeft ? 'left' : 'right'
-        // No barOverride hard-cut here anymore — this room's own bar stays showing its
-        // own identity, unchanged, all the way to unmount. The destination room's own
-        // mount-seeded barOverride (see its lazy initializer above) is what now plays the
-        // group-A-to-group-B transition, on arrival, once B's real data is loaded.
-        useChatRoomPeekStore.getState().setPeek({ targetCrewId: targetId, direction, x: info.offset.x, phase: 'committing' })
-        // The peek layer above is what visually reveals the destination room (sliding
-        // its ghost placeholder all the way to x:0) — the real SlidePage that mounts once
-        // navigation lands should pick up silently at that same rest position instead of
-        // re-playing its own entrance (position) animation on top, which would look like a
-        // second, redundant slide-in. It still crossfades in (fadeIn=true) since, unlike a
-        // plain back-nav, there's no already-rendered real content underneath — only the
-        // peek layer's ghost — so popping straight to fully opaque would be an abrupt cut
-        // rather than a smooth handoff. See skipNextSlideEnter's own doc comment.
-        skipNextSlideEnter(true)
-        sessionStorage.setItem('nexus_chat_from', 'chat')
-        router.push(`/chat/${targetId}`)
+        commitRoomSwitch(targetId, swipedLeft ? 'left' : 'right')
         return
       }
       const activePeek = useChatRoomPeekStore.getState().peek
@@ -768,7 +797,9 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
       setIsRoomSwiping(false)
       return
     }
-    if (info.offset.y < -50 || info.velocity.y < -300) setIsExpanded(true)
+    if ((info.offset.y < -50 || info.velocity.y < -300) && chatSwipeNavEnabled && chatRoomOrder.length > 1) {
+      setShowRoomBrowser(true)
+    }
   }
 
   // Prefetch the immediately adjacent rooms in chatRoomOrder as soon as this room
@@ -795,6 +826,18 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     if (prevId) void ensureRoomMeta(prevId, userId)
     if (nextId) void ensureRoomMeta(nextId, userId)
   }, [chatSwipeNavEnabled, chatRoomOrder, crewId, router, userId])
+
+  // ChatRoomBrowseSheet shows every room in chatRoomOrder, not just the 2 neighbors
+  // above — fetched only once the sheet actually opens (not eagerly on mount, unlike
+  // the neighbor prefetch above) since a user's full crew list could be much longer
+  // than 2 rooms. ensureRoomMeta already dedupes against whatever's cached, so this is
+  // cheap for rooms the neighbor-prefetch (or a prior browse-sheet open) already warmed.
+  useEffect(() => {
+    if (!showRoomBrowser) return
+    for (const id of chatRoomOrder) {
+      if (id !== crewId) void ensureRoomMeta(id, userId)
+    }
+  }, [showRoomBrowser, chatRoomOrder, crewId, userId])
 
   useEffect(() => {
     // Mark self online instantly, without discarding already-known peer presence
@@ -1717,6 +1760,23 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     swipePreviewNextId ? toSwipeRoom(swipePreviewNextId, 'next') : null,
   ].filter((room): room is SwipePreviewRoom => room !== null)
 
+  // ChatRoomBrowseSheet's full list — every chatRoomOrder id with roomMeta already
+  // loaded (warmed by the effect above the moment the sheet opens), in that same
+  // list order. A room still mid-fetch is simply omitted until it resolves, same
+  // graceful-degradation as swipePreviewRooms above.
+  const browseRooms = chatRoomOrder
+    .map((id) => (roomPeekMeta[id] ? { id, ...roomPeekMeta[id] } : null))
+    .filter((room): room is { id: string } & RoomMeta => room !== null)
+
+  function handleSelectRoomFromBrowse(targetId: string) {
+    setShowRoomBrowser(false)
+    if (targetId === crewId) return
+    const currentIndex = chatRoomOrder.indexOf(crewId)
+    const targetIndex  = chatRoomOrder.indexOf(targetId)
+    const direction: 'left' | 'right' = targetIndex > currentIndex ? 'left' : 'right'
+    commitRoomSwitch(targetId, direction)
+  }
+
   return (
     <div ref={chatInputBoxRef} className="bg-black flex flex-col flex-shrink-0 relative z-[65]">
       {/* ── Typing presence (Figma 507:2518) — own top section, no gap before the
@@ -1732,6 +1792,17 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
           is currently rendering anything. */}
       <ChatRoomSwipePreview visible={isRoomSwiping} rooms={swipePreviewRooms} dragT={swipeDragT} />
 
+      {/* Swipe-up-on-the-container overlay — every room, scrollable, tap to navigate.
+          See handleTopPanEnd's y-axis branch (opens this) and this component's own
+          doc comment for how it differs from the drag-linked preview above. */}
+      <ChatRoomBrowseSheet
+        visible={showRoomBrowser}
+        rooms={browseRooms}
+        currentRoomId={crewId}
+        onSelectRoom={handleSelectRoomFromBrowse}
+        onClose={() => setShowRoomBrowser(false)}
+      />
+
       {/* Figma 577:4905 ("chatInputContainer") — squad bar + input field together, as one
           unit. Nudges the whole thing to 102% for as long as the squad detail bar
           (only — not the text field/Plus/Send below) is pressed, springing back to
@@ -1739,11 +1810,25 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
           `barPressed` (set via ChatSquadDetailBar's onPressStart/onPressEnd) rather
           than this element's own whileTap, since whileTap would fire on a tap
           anywhere inside it, including the input row — this container is scaled from
-          outside the thing that should actually trigger it. */}
+          outside the thing that should actually trigger it.
+
+          onPanStart/onPan/onPanEnd live HERE (the whole container), not on
+          ChatSquadDetailBar, so a single Framer pan recognizer handles both gestures
+          instead of two separate ones both reacting to the same touch (a drag
+          starting on the bar bubbles its pointerdown up to this element too — two
+          independent onPan* wirings on nested elements would each start their own
+          pan session for that one gesture). handleTopPan* itself distinguishes them
+          by origin: horizontal (left/right) room-swipe-nav only proceeds if the drag
+          started on the bar (data-squad-bar, unchanged scope from before); vertical
+          (swipe up) opens ChatRoomBrowseSheet regardless of where in the container it
+          started, per that function's own doc comment. */}
       <motion.div
         className="border-t border-border flex flex-col"
         animate={{ scale: barPressed ? 1.02 : 1 }}
         transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+        onPanStart={handleTopPanStart}
+        onPan={handleTopPan}
+        onPanEnd={handleTopPanEnd}
         style={{
           paddingTop:    'var(--space-5)',
           paddingLeft:   'var(--space-5)',
@@ -1775,7 +1860,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
           </p>
         )}
 
-        {/* ── ChatSquadDetailBar — tap or swipe up to expand ── */}
+        {/* ── ChatSquadDetailBar — tap (or the chevron) to expand ── */}
         {!isDM && (
           <ChatSquadDetailBar
             crewImageUrl={barOverride ? barOverride.imageUrl : crewImageUrl}
@@ -1785,9 +1870,6 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
             members={barOverride ? EMPTY_MEMBERS : members}
             onlineUserIds={barOverride ? EMPTY_ONLINE_IDS : onlineUserIds}
             onExpand={() => setIsExpanded(true)}
-            onPanStart={handleTopPanStart}
-            onPan={handleTopPan}
-            onPanEnd={handleTopPanEnd}
             onPressStart={() => setBarPressed(true)}
             onPressEnd={() => setBarPressed(false)}
           />

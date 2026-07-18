@@ -178,7 +178,13 @@ function EqualizerBars() {
 // "180px crew-ish card with a cover header" in the app) rather than reinventing this
 // shape: same width/radius/border tokens, same supabaseImageLoader + `--gradient-
 // image-overlay` cover treatment, same online-dot styling.
-function SwipePreviewCard({ room, selected }: { room: SwipePreviewRoom; selected: boolean }) {
+//
+// Exported for ChatRoomBrowseSheet (the swipe-up "browse every room" overlay), which
+// reuses this exact card so both surfaces read as one family. That caller only has a
+// plain `RoomMeta` + id (no `role` — a full room list has no fixed prev/current/next
+// slots), hence the prop type here is the looser `RoomMeta & { id: string }` rather
+// than the stricter `SwipePreviewRoom` this file's own 3-card row happens to pass.
+export function SwipePreviewCard({ room, selected }: { room: RoomMeta & { id: string }; selected: boolean }) {
   const onlineMembers = room.onlineMembers.slice(0, 4)
   const hasUnread     = room.unreadCount > 0
 

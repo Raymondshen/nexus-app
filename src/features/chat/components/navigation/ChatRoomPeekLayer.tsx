@@ -192,7 +192,6 @@ function PeekBarAndInput({ meta }: { meta: RoomMeta }) {
         members={EMPTY_MEMBERS}
         onlineUserIds={EMPTY_ONLINE_IDS}
         onExpand={noop}
-        onPanEnd={noop}
       />
       <div
         className="w-full flex items-center"
