@@ -4,7 +4,6 @@ import { useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { useChatRoomPeekStore, type RoomMeta } from '@/features/chat/store/chatRoomPeekStore'
 import { ChatSquadDetailBar } from '@/features/chat/components/header/ChatSquadDetailBar'
-import { ChatMessageSkeletonRows } from '@/features/chat/components/messages/ChatMessageSkeletonRows'
 import { Send } from 'pixelarticons/react/Send'
 import type { MemberProfile } from '@/features/chat/components/input/ChatInput'
 
@@ -51,18 +50,24 @@ function noop() {}
 // layer paints underneath the current room and would be invisible once a real bar takes
 // over it anyway).
 //
-// So this layer renders two independent pieces: a generic message-log skeleton (while
-// ChatInput drags the current room's own MessageList container away via the swipe-nav
-// gesture, this reveals a read-only loading placeholder underneath — ChatMessageSkeletonRows,
-// the same rows chat/[crewId]/loading.tsx's own fallback uses, for a consistent "loading"
-// signature across the app). This used to show a real cached snapshot of the destination
-// room's last-known messages instead (sessionStorage-sourced), but that read as a glitch
-// more than a loading state: it's whatever that room happened to look like the last time
-// it was open, not necessarily anything close to what's about to actually load, so it
-// often didn't match once the real room landed. A skeleton makes no promise about content,
-// so there's nothing to mismatch — and it visually confirms *something* is loading, which
-// reads as faster than a flash of stale-but-plausible content that then has to "correct"
-// itself. Alongside it: the static, group-A-identity bar/input shell described above.
+// So this layer renders two independent pieces: a floating ghost loading placeholder
+// (while ChatInput drags the current room's own MessageList container away via the
+// swipe-nav gesture, this reveals a read-only loading placeholder underneath — the same
+// ghost sprite MessageList's own EmptyState uses, gently bobbing in place) and the
+// static, group-A-identity bar/input shell described above. This message-area
+// placeholder is swipe-nav-specific — chat/[crewId]/loading.tsx's own route-level
+// fallback (a normal navigation with nothing on screen yet: tap in from Home, deep
+// link, back-nav) keeps its own ChatMessageSkeletonRows skeleton, a deliberately
+// different treatment for a deliberately different context. This used to show a real
+// cached snapshot of the destination room's last-known messages (sessionStorage-
+// sourced), then a generic skeleton — both read as either a glitch (stale, mismatched
+// content) or over-literal (bubble-shaped skeleton implying specific rows are about to
+// appear) for what's ultimately just "something's loading." The ghost makes no promise
+// about content at all. Its disappearance is an instant occlusion cut, not an animated
+// exit: the moment the real destination room mounts (see the "currentCrewId landed"
+// effect below), its own opaque `bg-black` covers this entire layer in the same paint,
+// so there's nothing to gain from animating this layer's own fade-out — it would never
+// be visible.
 // Renders nothing outside an active gesture.
 export function ChatRoomPeekLayer() {
   const peek            = useChatRoomPeekStore((s) => s.peek)
@@ -103,14 +108,14 @@ export function ChatRoomPeekLayer() {
         maxWidth: 480, marginLeft: 'auto', marginRight: 'auto', overflow: 'hidden',
       }}
     >
-      {/* Messages — generic loading skeleton, bottom-anchored. Inset by chatInputHeight
-          (ChatInput's live-measured squad-bar+input height) so this lines up with the
-          real MessageList's own bounding box instead of running underneath the real,
-          static input area. See this component's doc comment for why this is a
-          skeleton and not a real cached preview. */}
+      {/* Messages — floating ghost loading placeholder, centered. Inset by
+          chatInputHeight (ChatInput's live-measured squad-bar+input height) so this
+          lines up with the real MessageList's own bounding box instead of running
+          underneath the real, static input area. See this component's doc comment for
+          why this is a ghost and not a real cached preview or a skeleton. */}
       <motion.div
-        className="flex flex-col justify-end h-full overflow-hidden"
-        style={{ padding: 16, paddingBottom: chatInputHeight + 16 }}
+        className="flex h-full items-center justify-center overflow-hidden"
+        style={{ paddingBottom: chatInputHeight }}
         animate={{ x }}
         transition={
           peek.phase === 'dragging'
@@ -122,7 +127,7 @@ export function ChatRoomPeekLayer() {
         onAnimationComplete={() => {
           // Cancelled gesture — the spring-back finished, nothing left to show.
           // A *committed* swipe deliberately does NOT clear here: this layer needs to
-          // stay frozen at x:0 (still showing the skeleton) for however long the real
+          // stay frozen at x:0 (still showing the ghost) for however long the real
           // navigation takes beyond this 150ms tween — the "currentCrewId landed" effect
           // above is what actually hands off to the real room. Clearing on this tween's
           // completion instead would drop back to a blank view for the rest of the load,
@@ -130,9 +135,7 @@ export function ChatRoomPeekLayer() {
           if (peek.phase === 'cancelling') setPeek(null)
         }}
       >
-        <div className="flex flex-col" style={{ gap: 12 }}>
-          <ChatMessageSkeletonRows />
-        </div>
+        <PeekGhost />
       </motion.div>
 
       {/* Static bar/input shell — never slides with `x`, matching the real bar/input's
@@ -189,5 +192,26 @@ function PeekBarAndInput({ meta }: { meta: RoomMeta }) {
         <Send style={{ width: 16, height: 16, color: 'var(--color-muted)', flexShrink: 0 }} aria-hidden="true" />
       </div>
     </div>
+  )
+}
+
+// Same sprite as MessageList's own EmptyState (/sprites/ghost/south-flip.gif, 100×100,
+// pixelated). Fades in once on mount, then gently bobs in place for as long as this
+// gesture's message peek is showing — a continuous loop, not tied to drag progress.
+function PeekGhost() {
+  return (
+    <motion.img
+      src="/sprites/ghost/south-flip.gif"
+      alt=""
+      width={100}
+      height={100}
+      style={{ imageRendering: 'pixelated', width: 100, height: 100 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1, y: [0, -10, 0] }}
+      transition={{
+        opacity: { duration: 0.2 },
+        y: { duration: 1.8, repeat: Infinity, ease: 'easeInOut' },
+      }}
+    />
   )
 }
