@@ -587,24 +587,20 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
 
   // Dev-gated (nexus_chat_swipe_nav): swipe the squad bar left/right to page to the
   // next/previous group chat room in chatRoomOrder (Home's own most-recently-active
-  // ordering, DMs excluded — see chat/[crewId]/page.tsx). Only the message-history log
-  // container transitions — MessageList reads chatRoomPeekStore's `peek` itself and
-  // drives its own 1:1 finger-follow transform (see MessageList's drag section); the
-  // squad bar, floating nav, and input box all stay completely static the whole
-  // gesture, keeping THIS room's own identity the entire time (no early hard-cut to the
-  // destination's — see the barOverride mount-seeding effect above for where that
-  // transition actually happens: on arrival, not on departure). A floating ghost
-  // placeholder for the room being swiped to is revealed underneath via chatRoomPeekStore +
-  // ChatRoomPeekLayer (chat/[crewId]/layout.tsx — see its doc comment for why this is a
-  // ghost, not a cached preview or a skeleton), inset to line up with MessageList's own
-  // bounding box. Past the commit threshold, the message container tweens the rest of
-  // the way off screen and the peek layer (already sitting at rest) is what's actually
-  // revealed. skipNextSlideEnter(true) tells the real destination SlidePage to mount
-  // already in position (no redundant slide-in on top of what the peek already
-  // revealed) but still crossfade its opacity in over the peek's ghost, rather than
-  // popping straight to fully opaque real content — see that function's own doc
-  // comment. Below threshold, or at the start/end of the room list, the drag springs
-  // back — same rubber-band feel as everywhere else in the app.
+  // ordering, DMs excluded — see chat/[crewId]/page.tsx). The message-history log no
+  // longer transitions with the drag — MessageList always renders at rest now,
+  // regardless of chatRoomPeekStore's `peek` state. The squad bar, floating nav, input
+  // box, and message log all stay completely static through the whole gesture, keeping
+  // THIS room's own identity and content on screen the entire time (no early hard-cut
+  // to the destination's — see the barOverride mount-seeding effect above for where
+  // that transition actually happens: on arrival, not on departure). `peek` is still
+  // written throughout the gesture (chatRoomPeekStore + ensureRoomMeta prefetch below),
+  // and past the commit threshold this still fires the actual navigation —
+  // skipNextSlideEnter(true) tells the real destination SlidePage to mount already in
+  // position and crossfade its opacity in, rather than popping straight to fully opaque
+  // real content — see that function's own doc comment. Below threshold, or at the
+  // start/end of the room list, the gesture just cancels — nothing to spring back
+  // visually now that nothing moved.
   //
   // panAxisRef locks the gesture to whichever axis (x = room swipe, y = existing
   // swipe-up-to-expand) crosses a small intent threshold first, so the two gestures
@@ -629,7 +625,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     dragStartedRef.current = true
 
     // Rubber-band resistance at the ends of the room list — dragging "past" the first
-    // or last room still moves the message container, just damped, instead of either a
+    // or last room still moves the peek layer's ghost, just damped, instead of either a
     // hard stop or an unbounded 1:1 drag toward a swipe that can't commit to anything.
     const currentIndex = chatRoomOrder.indexOf(crewId)
     const dx     = info.offset.x
@@ -637,9 +633,8 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     const atHome = currentIndex <= 0
     const resisted = (dx < 0 && atEnd) || (dx > 0 && atHome) ? dx * 0.35 : dx
 
-    // Mirror the drag onto the peek layer (and MessageList's own transform, which reads
-    // this same store) for whichever room is on the leading edge. No target in that
-    // direction (list boundary) — nothing to peek, just the rubber-band.
+    // Mirror the drag onto the peek layer for whichever room is on the leading edge.
+    // No target in that direction (list boundary) — nothing to peek, just the rubber-band.
     const direction: 'left' | 'right' | null = dx < 0 ? 'left' : dx > 0 ? 'right' : null
     const targetId = direction && currentIndex !== -1
       ? chatRoomOrder[currentIndex + (direction === 'left' ? 1 : -1)]

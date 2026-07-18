@@ -23,16 +23,17 @@ function noop() {}
 // before {children} in the layout, and position:fixed siblings with no explicit
 // z-index stack in DOM order — same reasoning ProfileClient's fixed overlays rely on).
 //
-// Only the message-history log container transitions during a room-swipe (see
-// ChatInput's handleTopPan* doc comment) — the squad bar, floating nav, and input box
-// stay static for as long as the CURRENT room's page.tsx is mounted, and simply paint
-// on top of this layer wherever they sit (later in DOM = on top). But a committed swipe
-// triggers a real router.push(), and Next.js unmounts the outgoing page.tsx (taking its
-// real ChatSquadDetailBar + input box with it) the instant navigation starts, well
-// before the destination room's page.tsx has mounted to replace them — chat/[crewId]/
-// loading.tsx bridges that gap for the message log by deferring to this layer's already-
-// frozen preview (see its own doc comment), but nothing did the same for the bar/input,
-// so they'd flash away to bare black and pop back in once the real page landed. This
+// Nothing in the CURRENT room's page.tsx transitions during a room-swipe anymore (see
+// ChatInput's handleTopPan* doc comment) — the message-history log, squad bar, floating
+// nav, and input box all stay completely static for as long as it's mounted, and simply
+// paint on top of this layer wherever they sit (later in DOM = on top), fully occluding
+// it. But a committed swipe triggers a real router.push(), and Next.js unmounts the
+// outgoing page.tsx (taking its real MessageList + ChatSquadDetailBar + input box with
+// it) the instant navigation starts, well before the destination room's page.tsx has
+// mounted to replace them — chat/[crewId]/loading.tsx bridges that gap for the message
+// log by deferring to this layer's already-frozen preview (see its own doc comment),
+// but nothing did the same for the bar/input, so they'd flash away to bare black and
+// pop back in once the real page landed. This
 // layer's static (non-animated, always at rest) `PeekBarAndInput` below closes that gap
 // by continuing to show the DEPARTING room's own squad bar + input shell (group A),
 // built from whatever's already cached in chatRoomPeekStore's roomMeta — i.e. group A's
@@ -51,9 +52,9 @@ function noop() {}
 // over it anyway).
 //
 // So this layer renders two independent pieces: a floating ghost loading placeholder
-// (while ChatInput drags the current room's own MessageList container away via the
-// swipe-nav gesture, this reveals a read-only loading placeholder underneath — the same
-// ghost sprite MessageList's own EmptyState uses, gently bobbing in place) and the
+// (the same ghost sprite MessageList's own EmptyState uses, gently bobbing in place —
+// occluded the same way as the bar/input shell during an active drag, and only actually
+// revealed in the post-commit unmount→mount gap, same timing as the shell) and the
 // static, group-A-identity bar/input shell described above. This message-area
 // placeholder is swipe-nav-specific — chat/[crewId]/loading.tsx's own route-level
 // fallback (a normal navigation with nothing on screen yet: tap in from Home, deep
@@ -93,11 +94,14 @@ export function ChatRoomPeekLayer() {
 
   if (!peek) return null
 
-  // dragging: live 1:1 tracking of MessageList's own drag, mirrored onto this layer's
-  // own edge-relative offset. committing: the destination room's resting position —
-  // fully revealed at x:0, matching where the real room will land on top of it.
-  // cancelling: back to fully off-screen, matching where this layer started before
-  // the gesture began (peek.x would have been 0 at that point).
+  // dragging: live 1:1 tracking of the raw gesture offset ChatInput's handleTopPan
+  // writes to chatRoomPeekStore, mapped onto this layer's own edge-relative offset —
+  // though occluded by the real, static current-room page the whole time (see this
+  // component's top doc comment), so not actually visible until the phase below.
+  // committing: the destination room's resting position — fully revealed at x:0,
+  // matching where the real room will land on top of it. cancelling: back to fully
+  // off-screen, matching where this layer started before the gesture began (peek.x
+  // would have been 0 at that point).
   const vw = typeof window === 'undefined' ? 0 : window.innerWidth
   const offscreenX = peek.direction === 'left' ? vw : -vw
   const x = peek.phase === 'committing'
