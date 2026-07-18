@@ -8,6 +8,14 @@ import { create } from 'zustand'
 // store (not React context) because these two components aren't in the same
 // subtree: ChatRoomPeekLayer is a sibling of {children}, not an ancestor of it.
 
+// Shared duration for the swipe-nav arrival crossfade: the real destination SlidePage
+// fades its own opacity in over this long (see SlidePage's skipNextSlideEnter(fadeIn)
+// param), and ChatRoomPeekLayer keeps itself mounted underneath — still showing the
+// ghost/backdrop — for this same duration after the real room lands, so there's
+// something underneath to actually fade FROM instead of the peek's ghost popping away
+// mid-fade. Both sides read this one constant so they can't drift out of sync.
+export const SWIPE_NAV_ARRIVAL_FADE_MS = 250
+
 export interface RoomMeta {
   name:        string
   imageUrl:    string | null
@@ -42,7 +50,7 @@ interface ChatRoomPeekStore {
   // (ChatInput's own outermost element, measured via ResizeObserver — see ChatInput's
   // chatInputBoxRef effect). Since only the message-history log container now slides
   // during a room-swipe (the bar/input stay put — see ChatInput's handleTopPan* doc
-  // comment), ChatRoomPeekLayer needs this to inset its message-log skeleton preview by the
+  // comment), ChatRoomPeekLayer needs this to inset its message-log ghost preview by the
   // same amount so it lines up with the real MessageList's own bounding box instead of
   // extending underneath the real, static input area. Defaults to a reasonable estimate
   // so the very first swipe (before ChatInput's observer has fired) isn't misaligned.

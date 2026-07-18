@@ -593,16 +593,18 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   // squad bar, floating nav, and input box all stay completely static the whole
   // gesture, keeping THIS room's own identity the entire time (no early hard-cut to the
   // destination's — see the barOverride mount-seeding effect above for where that
-  // transition actually happens: on arrival, not on departure). A generic message-log
-  // skeleton for the room being swiped to is revealed underneath via chatRoomPeekStore +
+  // transition actually happens: on arrival, not on departure). A floating ghost
+  // placeholder for the room being swiped to is revealed underneath via chatRoomPeekStore +
   // ChatRoomPeekLayer (chat/[crewId]/layout.tsx — see its doc comment for why this is a
-  // skeleton, not a cached preview), inset to line up with MessageList's own bounding
-  // box. Past the commit threshold, the message container tweens the rest of the way
-  // off screen and the peek layer (already sitting at rest) is what's actually revealed.
-  // skipNextSlideEnter() tells the real destination SlidePage to mount silently
-  // already-at-rest instead of re-playing its own entrance on top of what the peek
-  // already revealed. Below threshold, or at the start/end of the room list, the drag
-  // springs back — same rubber-band feel as everywhere else in the app.
+  // ghost, not a cached preview or a skeleton), inset to line up with MessageList's own
+  // bounding box. Past the commit threshold, the message container tweens the rest of
+  // the way off screen and the peek layer (already sitting at rest) is what's actually
+  // revealed. skipNextSlideEnter(true) tells the real destination SlidePage to mount
+  // already in position (no redundant slide-in on top of what the peek already
+  // revealed) but still crossfade its opacity in over the peek's ghost, rather than
+  // popping straight to fully opaque real content — see that function's own doc
+  // comment. Below threshold, or at the start/end of the room list, the drag springs
+  // back — same rubber-band feel as everywhere else in the app.
   //
   // panAxisRef locks the gesture to whichever axis (x = room swipe, y = existing
   // swipe-up-to-expand) crosses a small intent threshold first, so the two gestures
@@ -667,11 +669,14 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
         // group-A-to-group-B transition, on arrival, once B's real data is loaded.
         useChatRoomPeekStore.getState().setPeek({ targetCrewId: targetId, direction, x: info.offset.x, phase: 'committing' })
         // The peek layer above is what visually reveals the destination room (sliding
-        // its message-log skeleton all the way to x:0) — the real SlidePage that mounts once
+        // its ghost placeholder all the way to x:0) — the real SlidePage that mounts once
         // navigation lands should pick up silently at that same rest position instead of
-        // re-playing its own entrance animation on top, which would look like a second,
-        // redundant slide-in.
-        skipNextSlideEnter()
+        // re-playing its own entrance (position) animation on top, which would look like a
+        // second, redundant slide-in. It still crossfades in (fadeIn=true) since, unlike a
+        // plain back-nav, there's no already-rendered real content underneath — only the
+        // peek layer's ghost — so popping straight to fully opaque would be an abrupt cut
+        // rather than a smooth handoff. See skipNextSlideEnter's own doc comment.
+        skipNextSlideEnter(true)
         sessionStorage.setItem('nexus_chat_from', 'chat')
         router.push(`/chat/${targetId}`)
         return

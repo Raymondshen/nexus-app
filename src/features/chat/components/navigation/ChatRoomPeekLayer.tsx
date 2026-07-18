@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { useChatRoomPeekStore, type RoomMeta } from '@/features/chat/store/chatRoomPeekStore'
+import { useChatRoomPeekStore, SWIPE_NAV_ARRIVAL_FADE_MS, type RoomMeta } from '@/features/chat/store/chatRoomPeekStore'
 import { ChatSquadDetailBar } from '@/features/chat/components/header/ChatSquadDetailBar'
 import { Send } from 'pixelarticons/react/Send'
 import type { MemberProfile } from '@/features/chat/components/input/ChatInput'
@@ -63,11 +63,13 @@ function noop() {}
 // sourced), then a generic skeleton — both read as either a glitch (stale, mismatched
 // content) or over-literal (bubble-shaped skeleton implying specific rows are about to
 // appear) for what's ultimately just "something's loading." The ghost makes no promise
-// about content at all. Its disappearance is an instant occlusion cut, not an animated
-// exit: the moment the real destination room mounts (see the "currentCrewId landed"
-// effect below), its own opaque `bg-black` covers this entire layer in the same paint,
-// so there's nothing to gain from animating this layer's own fade-out — it would never
-// be visible.
+// about content at all. Its disappearance is a crossfade, not a hard cut: the real
+// destination SlidePage mounts at opacity 0 and fades to 1 over SWIPE_NAV_ARRIVAL_FADE_MS
+// (see skipNextSlideEnter's `fadeIn` param), so this layer deliberately keeps itself
+// mounted — same ghost, same backdrop, completely unchanged — for that same duration
+// after the real room lands (see the "currentCrewId landed" effect below) instead of
+// clearing `peek` the instant it's no longer strictly needed. Without that hold, the
+// real page's fade-in would have nothing underneath to blend from partway through.
 // Renders nothing outside an active gesture.
 export function ChatRoomPeekLayer() {
   const peek            = useChatRoomPeekStore((s) => s.peek)
@@ -77,12 +79,16 @@ export function ChatRoomPeekLayer() {
   const roomMeta        = useChatRoomPeekStore((s) => s.roomMeta)
 
   // Real navigation landed on the room being peeked — the actual page has taken over.
-  // It mounts silently already-at-rest (ChatInput calls SlidePage's skipNextSlideEnter()
+  // It mounts already in position (ChatInput calls SlidePage's skipNextSlideEnter(true)
   // right before navigating, and its own MessageList ignores `peek` for the target
-  // room — see MessageList's doc comment), fully covering this layer immediately, so
-  // the preview's job is done.
+  // room — see MessageList's doc comment) but crossfades its opacity in over
+  // SWIPE_NAV_ARRIVAL_FADE_MS rather than popping straight to fully opaque — so this
+  // layer holds itself mounted for that same duration before actually clearing `peek`,
+  // giving the real page something to fade in over instead of an already-blank layer.
   useEffect(() => {
-    if (peek && currentCrewId === peek.targetCrewId) setPeek(null)
+    if (!peek || currentCrewId !== peek.targetCrewId) return
+    const t = setTimeout(() => setPeek(null), SWIPE_NAV_ARRIVAL_FADE_MS)
+    return () => clearTimeout(t)
   }, [peek, currentCrewId, setPeek])
 
   if (!peek) return null

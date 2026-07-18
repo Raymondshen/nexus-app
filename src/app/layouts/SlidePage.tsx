@@ -2,6 +2,7 @@
 import { createContext, useContext, useRef, useCallback, useEffect } from 'react'
 import { motion, useAnimation } from 'framer-motion'
 import { useRouter } from 'next/navigation'
+import { SWIPE_NAV_ARRIVAL_FADE_MS } from '@/features/chat/store/chatRoomPeekStore'
 
 const SlideBackContext = createContext<() => void>(() => {})
 
@@ -22,13 +23,26 @@ export function clearSkipNextSlideEnter() {
   _skipNextSlideEnter = false
 }
 
+// Companion flag to _skipNextSlideEnter — see skipNextSlideEnter's `fadeIn` param below.
+let _fadeInOnNextSkip = false
+
 // Set by a custom swipe gesture that already visually revealed the destination page
 // before navigating to it (e.g. ChatInput's swipe-between-rooms, whose ChatRoomPeekLayer
-// slides a loading-skeleton preview all the way to x:0 as part of the committed swipe) —
+// slides a loading-ghost preview all the way to x:0 as part of the committed swipe) —
 // the real SlidePage should then mount silently already-at-rest instead of re-playing its
 // own entrance animation on top, which would look like a redundant second slide-in.
-export function skipNextSlideEnter() {
-  _skipNextSlideEnter = true
+//
+// `fadeIn`: opt-in opacity crossfade for the case where "already at rest" would
+// otherwise be a hard visual pop — the destination's real content wasn't on screen at
+// all before this navigation (unlike a plain back-nav, where the previous page was
+// already rendered underneath and popping straight to visible is correct). Chat's
+// swipe-nav is the only current caller that passes this: SlidePage mounts at opacity 0
+// and fades to 1 over SWIPE_NAV_ARRIVAL_FADE_MS, blending from whatever's still
+// showing underneath (ChatRoomPeekLayer keeps itself mounted for that same duration —
+// see its own doc comment) instead of instantly occluding it.
+export function skipNextSlideEnter(fadeIn = false) {
+  _skipNextSlideEnter  = true
+  _fadeInOnNextSkip    = fadeIn
 }
 
 // Set by chat's ChatFloatingNav (src/shared/components/ui/PageFloatButton.tsx) right before
@@ -70,6 +84,7 @@ export function SlidePage({ children, className, style, backHref, nativeSwipe }:
   const containerRef = useRef<HTMLDivElement>(null)
   // Read synchronously at render time so initial= is correct on first paint.
   const skipEnter    = _skipNextSlideEnter
+  const fadeInOnSkip = _fadeInOnNextSkip
 
   const goBack = useCallback(() => {
     if (exiting.current) return
@@ -89,6 +104,13 @@ export function SlidePage({ children, className, style, backHref, nativeSwipe }:
   useEffect(() => {
     if (skipEnter) {
       _skipNextSlideEnter = false
+      _fadeInOnNextSkip   = false
+      if (fadeInOnSkip) {
+        controls.start({
+          opacity: 1,
+          transition: { duration: SWIPE_NAV_ARRIVAL_FADE_MS / 1000, ease: 'easeOut' },
+        })
+      }
     } else {
       controls.start({
         x: 0,
@@ -183,7 +205,7 @@ export function SlidePage({ children, className, style, backHref, nativeSwipe }:
         ref={containerRef}
         className={className}
         style={style}
-        initial={{ x: skipEnter ? 0 : '100%' }}
+        initial={{ x: skipEnter ? 0 : '100%', opacity: skipEnter && fadeInOnSkip ? 0 : 1 }}
         animate={controls}
       >
         {children}
