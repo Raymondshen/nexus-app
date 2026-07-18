@@ -25,8 +25,8 @@ interface ChatSquadDetailBarProps {
 // the bottom, so a swap reads as one continuous downward motion rather than a cut.
 // `initial={false}` on each AnimatePresence keeps this from also playing on the very
 // first mount of a plain room open — it only fires on an actual identity change (the
-// chat-swipe-nav bar override committing — see ChatInput's handleTopPanEnd).
-const SLIDE_TRANSITION = { type: 'spring', stiffness: 380, damping: 32 } as const
+// chat-swipe-nav arrival transition — see ChatInput's barOverride mount-seeding effect).
+const SLIDE_TRANSITION = { type: 'spring', stiffness: 170, damping: 21 } as const
 
 export function ChatSquadDetailBar({
   crewImageUrl, crewName, crewLevel, memberCount, members, onlineUserIds,
