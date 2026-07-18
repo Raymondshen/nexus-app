@@ -24,7 +24,6 @@ import { IMAGE_CONFIG } from '@/shared/constants/config'
 import { ChatSquadDetailBar } from '@/features/chat/components/header/ChatSquadDetailBar'
 import { skipNextSlideEnter } from '@/app/layouts/SlidePage'
 import { useChatRoomPeekStore } from '@/features/chat/store/chatRoomPeekStore'
-import type { RoomMeta } from '@/features/chat/store/chatRoomPeekStore'
 import { ensureRoomMeta } from '@/features/chat/utils/ensureRoomMeta'
 import { ChatTypingIndicator } from '@/features/chat/components/input/ChatTypingIndicator'
 import { isGemGateOpen, recordGemClaim } from '@/shared/utils/gems'
@@ -141,41 +140,10 @@ async function tryClaimDailyGem(supabase: ReturnType<typeof createClient>, onCla
 }
 
 
-// Stable empty fallbacks for ChatSquadDetailBar while barOverride is active — the
-// swiped-to room's online members/avatars aren't tracked from here (presence only
-// runs for the mounted room), so the bar simply omits that row rather than mislabeling
-// the outgoing room's online members as the destination's.
-const EMPTY_MEMBERS: MemberProfile[] = []
-const EMPTY_ONLINE_IDS = new Set<string>()
-
 // ─── ChatInput ────────────────────────────────────────────────────────────────
 
 export function ChatInput({ crewId, userId, userProfile, memberProfiles, memberPinnedVinyls, crewName, inviteCode, creatorId, crewImageUrl: initialCrewImageUrl, crewBackgroundImageUrl: initialCrewBgUrl, initialXP, isDM, dmPartnerId, chatRoomOrder = [] }: ChatInputProps) {
   const router = useRouter()
-  // Squad-bar content shown in place of THIS room's own image/name/level/member count,
-  // used only on the arrival side of a committed room-swipe (see the mount-seeding
-  // effect below) — never on the departing side anymore. The outgoing room's real bar
-  // now stays showing its own identity, unchanged, all the way to unmount (chatRoomPeekStore
-  // + ChatRoomPeekLayer's PeekBarAndInput keep that same frozen identity visible through
-  // the navigation gap — see that component's doc comment). So the ONLY place group A's
-  // name should ever be shown on THIS (group B's) bar is right at mount, seeded from the
-  // lazy initializer below, then cleared a tick later to reveal group B's real identity —
-  // that clear is what drives ChatSquadDetailBar's AnimatePresence to slide A down/out
-  // while B slides in from the top, exactly once, with real (not placeholder) content on
-  // both ends of the transition.
-  const [barOverride,    setBarOverride]    = useState<RoomMeta | null>(() => {
-    const { peek, currentCrewId, roomMeta } = useChatRoomPeekStore.getState()
-    // This mount is the landing target of an in-flight swipe-nav commit, and the room
-    // being departed (still `currentCrewId` at this exact synchronous point — the
-    // departing room's own "I'm mounted" effect hasn't been superseded by this one yet,
-    // since effects haven't run for either component this commit) has a cached identity
-    // to borrow. Any other mount path (tap in from Home, deep link, back-nav, refresh)
-    // leaves this null, so the bar just shows its own real identity immediately as usual.
-    if (peek && peek.targetCrewId === crewId && currentCrewId && roomMeta[currentCrewId]) {
-      return roomMeta[currentCrewId]
-    }
-    return null
-  })
   const chatInputBoxRef = useRef<HTMLDivElement>(null)
   const [text,           setText]          = useState('')
   const [sendError,      setSendError]      = useState<string | null>(null)
@@ -292,25 +260,11 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   // peeked room's real page takes over, and so ChatRoomPeekLayer's frozen bar/input
   // preview knows which room's identity to keep showing through a swipe-nav's navigation
   // gap) and seeds this room's own name/image/level/member-count so it's available
-  // instantly if another room's mount-seeding initializer (see barOverride above) or
-  // peek preview needs to borrow it.
+  // instantly if the peek preview needs to borrow it.
   useEffect(() => {
     useChatRoomPeekStore.getState().setCurrentRoom(crewId)
     useChatRoomPeekStore.getState().setRoomMeta(crewId, { name: liveCrewName, imageUrl: crewImageUrl, level: crewLevel, memberCount })
   }, [crewId, liveCrewName, crewImageUrl, crewLevel, memberCount])
-
-  // Clears a mount-seeded barOverride (see its lazy initializer above) one tick after
-  // first paint. React commits the seeded state's paint before this effect runs, so the
-  // browser genuinely shows group A's borrowed identity first — this then flips the bar
-  // prop to group B's real identity, which is what makes ChatSquadDetailBar's
-  // AnimatePresence see a key change and play the slide-down-and-fade/slide-in-from-top
-  // transition, now with the real destination room's own data already loaded. A no-op
-  // (and no transition) on any mount that wasn't seeded.
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (barOverride) setBarOverride(null)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   // Only meaningful while the squad sheet is open, but hooks must run
   // unconditionally — cheap to recompute and now actually stable thanks to
@@ -591,10 +545,10 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   // container transitions — MessageList reads chatRoomPeekStore's `peek` itself and
   // drives its own 1:1 finger-follow transform (see MessageList's drag section); the
   // squad bar, floating nav, and input box all stay completely static the whole
-  // gesture, keeping THIS room's own identity the entire time (no early hard-cut to the
-  // destination's — see the barOverride mount-seeding effect above for where that
-  // transition actually happens: on arrival, not on departure). A floating ghost
-  // placeholder for the room being swiped to is revealed underneath via chatRoomPeekStore +
+  // gesture, keeping THIS room's own identity the entire time. The destination room's
+  // own bar mounts already showing its real identity — no borrowed frame, no arrival
+  // transition. A floating ghost placeholder for the room being swiped to is revealed
+  // underneath via chatRoomPeekStore +
   // ChatRoomPeekLayer (chat/[crewId]/layout.tsx — see its doc comment for why this is a
   // ghost, not a cached preview or a skeleton), inset to line up with MessageList's own
   // bounding box. Past the commit threshold, the message container tweens the rest of
@@ -663,10 +617,9 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
 
       if (targetId) {
         const direction = swipedLeft ? 'left' : 'right'
-        // No barOverride hard-cut here anymore — this room's own bar stays showing its
-        // own identity, unchanged, all the way to unmount. The destination room's own
-        // mount-seeded barOverride (see its lazy initializer above) is what now plays the
-        // group-A-to-group-B transition, on arrival, once B's real data is loaded.
+        // This room's own bar stays showing its own identity, unchanged, all the way to
+        // unmount. The destination room's own bar mounts showing its real data
+        // immediately — no borrowed identity, no arrival transition to play.
         useChatRoomPeekStore.getState().setPeek({ targetCrewId: targetId, direction, x: info.offset.x, phase: 'committing' })
         // The peek layer above is what visually reveals the destination room (sliding
         // its ghost placeholder all the way to x:0) — the real SlidePage that mounts once
@@ -1639,12 +1592,12 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
         {/* ── ChatSquadDetailBar — tap or swipe up to expand ── */}
         {!isDM && (
           <ChatSquadDetailBar
-            crewImageUrl={barOverride ? barOverride.imageUrl : crewImageUrl}
-            crewName={barOverride ? barOverride.name : liveCrewName}
-            crewLevel={barOverride ? barOverride.level : crewLevel}
-            memberCount={barOverride ? barOverride.memberCount : memberCount}
-            members={barOverride ? EMPTY_MEMBERS : members}
-            onlineUserIds={barOverride ? EMPTY_ONLINE_IDS : onlineUserIds}
+            crewImageUrl={crewImageUrl}
+            crewName={liveCrewName}
+            crewLevel={crewLevel}
+            memberCount={memberCount}
+            members={members}
+            onlineUserIds={onlineUserIds}
             onExpand={() => setIsExpanded(true)}
             onPanStart={handleTopPanStart}
             onPan={handleTopPan}
