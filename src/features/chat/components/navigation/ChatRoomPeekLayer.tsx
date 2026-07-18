@@ -36,20 +36,30 @@ function noop() {}
 // loading.tsx bridges that gap for the message log by deferring to this layer's already-
 // frozen preview (see its own doc comment), but nothing did the same for the bar/input,
 // so they'd flash away to bare black and pop back in once the real page landed. This
-// layer's static (non-animated, always at rest) `PeekBarAndInput` below closes that gap:
-// a frozen, read-only replica of the destination room's squad bar + input shell, built
-// from whatever's already cached in chatRoomPeekStore's roomMeta. It renders for the
-// whole gesture, not just the post-commit gap — harmless during an active drag/cancel
-// since the real bar/input's opaque `bg-black` (ChatInput's chatInputBoxRef wrapper)
-// fully occludes it until the moment the real page actually unmounts.
+// layer's static (non-animated, always at rest) `PeekBarAndInput` below closes that gap
+// by continuing to show the DEPARTING room's own squad bar + input shell (group A),
+// built from whatever's already cached in chatRoomPeekStore's roomMeta — i.e. group A's
+// name/avatar are *preserved*, not swapped early, for as long as this layer needs to
+// stand in. It renders for the whole gesture, not just the post-commit gap — harmless
+// during an active drag/cancel since the real bar/input's opaque `bg-black` (ChatInput's
+// chatInputBoxRef wrapper) fully occludes it until the moment the real page actually
+// unmounts.
+//
+// The actual group-A-to-group-B slide (A pushed down and fades, B slides in from the
+// top) is deliberately NOT played here — it plays once, on arrival, inside the
+// destination room's own real ChatSquadDetailBar, right as B's real data has loaded (see
+// ChatInput's barOverride mount-seeding effect). That's the only point at which both
+// identities are real (not a placeholder) and the transition is guaranteed visible (this
+// layer paints underneath the current room and would be invisible once a real bar takes
+// over it anyway).
 //
 // So this layer renders two independent pieces: a message-list-shaped preview (while
 // ChatInput drags the current room's own MessageList container away via the swipe-nav
 // gesture, this reveals a read-only "peek" of the neighboring room's messages, sourced
 // from whatever's already cached locally — chatRoomPeekStore's roomMeta + this room's
 // sessionStorage message snapshot, deliberately not a live/interactive room, just enough
-// to avoid a blank flash while the real navigation completes) and the static bar/input
-// shell described above. Renders nothing outside an active gesture.
+// to avoid a blank flash while the real navigation completes) and the static, group-A-
+// identity bar/input shell described above. Renders nothing outside an active gesture.
 export function ChatRoomPeekLayer() {
   const peek            = useChatRoomPeekStore((s) => s.peek)
   const currentCrewId   = useChatRoomPeekStore((s) => s.currentCrewId)
@@ -131,12 +141,18 @@ export function ChatRoomPeekLayer() {
       </motion.div>
 
       {/* Static bar/input shell — never slides with `x`, matching the real bar/input's
-          own static behavior. Absent (falls back to plain black) if this room's
-          roomMeta hasn't been cached yet — same "no skeleton" call as the message
-          preview above. */}
-      {targetCrewId && roomMeta[targetCrewId] && (
+          own static behavior. Deliberately keyed off `currentCrewId` (the room being
+          DEPARTED), not `targetCrewId` — the outgoing room's own identity is what should
+          stay visible, unchanged, through the navigation gap; the group-A-to-group-B
+          transition itself plays on arrival, inside the destination room's own real bar
+          (see ChatInput's barOverride mount-seeding effect), once B's real data is
+          actually loaded. Absent (falls back to plain black) if that room's roomMeta
+          hasn't been cached yet — same "no skeleton" call as the message preview above,
+          though in practice this is always populated by the departing room's own mount
+          effect before a swipe can even be dragged. */}
+      {currentCrewId && roomMeta[currentCrewId] && (
         <div className="absolute left-0 right-0 bottom-0">
-          <PeekBarAndInput meta={roomMeta[targetCrewId]} />
+          <PeekBarAndInput meta={roomMeta[currentCrewId]} />
         </div>
       )}
     </div>
