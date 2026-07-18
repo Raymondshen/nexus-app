@@ -42,7 +42,7 @@ interface ChatRoomPeekStore {
   // (ChatInput's own outermost element, measured via ResizeObserver — see ChatInput's
   // chatInputBoxRef effect). Since only the message-history log container now slides
   // during a room-swipe (the bar/input stay put — see ChatInput's handleTopPan* doc
-  // comment), ChatRoomPeekLayer needs this to inset its cached-message preview by the
+  // comment), ChatRoomPeekLayer needs this to inset its message-log skeleton preview by the
   // same amount so it lines up with the real MessageList's own bounding box instead of
   // extending underneath the real, static input area. Defaults to a reasonable estimate
   // so the very first swipe (before ChatInput's observer has fired) isn't misaligned.

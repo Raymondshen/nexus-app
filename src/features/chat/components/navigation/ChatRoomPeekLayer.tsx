@@ -1,13 +1,11 @@
 'use client'
 
-import { useEffect, useMemo } from 'react'
+import { useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { useChatRoomPeekStore, type RoomMeta } from '@/features/chat/store/chatRoomPeekStore'
-import { readCachedRoomMessages } from '@/features/chat/utils/readCachedRoomMessages'
-import { UserAvatar } from '@/shared/components/ui/UserAvatar'
 import { ChatSquadDetailBar } from '@/features/chat/components/header/ChatSquadDetailBar'
+import { ChatMessageSkeletonRows } from '@/features/chat/components/messages/ChatMessageSkeletonRows'
 import { Send } from 'pixelarticons/react/Send'
-import type { MessageWithProfile } from '@/types'
 import type { MemberProfile } from '@/features/chat/components/input/ChatInput'
 
 // Frozen fallbacks for ChatSquadDetailBar's member-only props — the peeked room's
@@ -53,13 +51,19 @@ function noop() {}
 // layer paints underneath the current room and would be invisible once a real bar takes
 // over it anyway).
 //
-// So this layer renders two independent pieces: a message-list-shaped preview (while
+// So this layer renders two independent pieces: a generic message-log skeleton (while
 // ChatInput drags the current room's own MessageList container away via the swipe-nav
-// gesture, this reveals a read-only "peek" of the neighboring room's messages, sourced
-// from whatever's already cached locally — chatRoomPeekStore's roomMeta + this room's
-// sessionStorage message snapshot, deliberately not a live/interactive room, just enough
-// to avoid a blank flash while the real navigation completes) and the static, group-A-
-// identity bar/input shell described above. Renders nothing outside an active gesture.
+// gesture, this reveals a read-only loading placeholder underneath — ChatMessageSkeletonRows,
+// the same rows chat/[crewId]/loading.tsx's own fallback uses, for a consistent "loading"
+// signature across the app). This used to show a real cached snapshot of the destination
+// room's last-known messages instead (sessionStorage-sourced), but that read as a glitch
+// more than a loading state: it's whatever that room happened to look like the last time
+// it was open, not necessarily anything close to what's about to actually load, so it
+// often didn't match once the real room landed. A skeleton makes no promise about content,
+// so there's nothing to mismatch — and it visually confirms *something* is loading, which
+// reads as faster than a flash of stale-but-plausible content that then has to "correct"
+// itself. Alongside it: the static, group-A-identity bar/input shell described above.
+// Renders nothing outside an active gesture.
 export function ChatRoomPeekLayer() {
   const peek            = useChatRoomPeekStore((s) => s.peek)
   const currentCrewId   = useChatRoomPeekStore((s) => s.currentCrewId)
@@ -75,15 +79,6 @@ export function ChatRoomPeekLayer() {
   useEffect(() => {
     if (peek && currentCrewId === peek.targetCrewId) setPeek(null)
   }, [peek, currentCrewId, setPeek])
-
-  // Re-read the cached snapshot only when the peeked room changes (e.g. the user
-  // reverses drag direction mid-swipe), not on every drag tick. A synchronous
-  // sessionStorage read, so this is derived directly rather than synced via an effect.
-  const targetCrewId = peek?.targetCrewId
-  const messages = useMemo<MessageWithProfile[] | null>(
-    () => (targetCrewId ? readCachedRoomMessages(targetCrewId) : null),
-    [targetCrewId]
-  )
 
   if (!peek) return null
 
@@ -108,11 +103,11 @@ export function ChatRoomPeekLayer() {
         maxWidth: 480, marginLeft: 'auto', marginRight: 'auto', overflow: 'hidden',
       }}
     >
-      {/* Messages — cached snapshot, bottom-anchored, read-only. Inset by
-          chatInputHeight (ChatInput's live-measured squad-bar+input height) so this
-          lines up with the real MessageList's own bounding box instead of running
-          underneath the real, static input area. Renders nothing (just the plain
-          black backdrop) when nothing's cached for this room yet — no skeleton. */}
+      {/* Messages — generic loading skeleton, bottom-anchored. Inset by chatInputHeight
+          (ChatInput's live-measured squad-bar+input height) so this lines up with the
+          real MessageList's own bounding box instead of running underneath the real,
+          static input area. See this component's doc comment for why this is a
+          skeleton and not a real cached preview. */}
       <motion.div
         className="flex flex-col justify-end h-full overflow-hidden"
         style={{ padding: 16, paddingBottom: chatInputHeight + 16 }}
@@ -127,16 +122,16 @@ export function ChatRoomPeekLayer() {
         onAnimationComplete={() => {
           // Cancelled gesture — the spring-back finished, nothing left to show.
           // A *committed* swipe deliberately does NOT clear here: this layer needs to
-          // stay frozen at x:0 (still showing the cached snapshot) for however long the
-          // real navigation takes beyond this 150ms tween — the "currentCrewId landed"
-          // effect above is what actually hands off to the real room. Clearing on this
-          // tween's completion instead would drop back to a blank view for the rest of
-          // the load, reintroducing the exact flash this layer exists to prevent.
+          // stay frozen at x:0 (still showing the skeleton) for however long the real
+          // navigation takes beyond this 150ms tween — the "currentCrewId landed" effect
+          // above is what actually hands off to the real room. Clearing on this tween's
+          // completion instead would drop back to a blank view for the rest of the load,
+          // reintroducing the exact flash this layer exists to prevent.
           if (peek.phase === 'cancelling') setPeek(null)
         }}
       >
         <div className="flex flex-col" style={{ gap: 12 }}>
-          {messages?.map((m) => <PeekMessageRow key={m.id} message={m} />)}
+          <ChatMessageSkeletonRows />
         </div>
       </motion.div>
 
@@ -146,10 +141,12 @@ export function ChatRoomPeekLayer() {
           stay visible, unchanged, through the navigation gap; the group-A-to-group-B
           transition itself plays on arrival, inside the destination room's own real bar
           (see ChatInput's barOverride mount-seeding effect), once B's real data is
-          actually loaded. Absent (falls back to plain black) if that room's roomMeta
-          hasn't been cached yet — same "no skeleton" call as the message preview above,
-          though in practice this is always populated by the departing room's own mount
-          effect before a swipe can even be dragged. */}
+          actually loaded. This one stays real content, not a skeleton, unlike the
+          message area above — group A's own name/avatar are already known with
+          certainty (it's this device's own current room), so there's nothing to fake.
+          Absent (falls back to plain black) if that room's roomMeta somehow hasn't been
+          cached yet, though in practice this is always populated by the departing
+          room's own mount effect before a swipe can even be dragged. */}
       {currentCrewId && roomMeta[currentCrewId] && (
         <div className="absolute left-0 right-0 bottom-0">
           <PeekBarAndInput meta={roomMeta[currentCrewId]} />
@@ -190,23 +187,6 @@ function PeekBarAndInput({ meta }: { meta: RoomMeta }) {
       >
         <p className="flex-1 min-w-0 font-body text-[14px] text-muted truncate">Message the squad...</p>
         <Send style={{ width: 16, height: 16, color: 'var(--color-muted)', flexShrink: 0 }} aria-hidden="true" />
-      </div>
-    </div>
-  )
-}
-
-function PeekMessageRow({ message }: { message: MessageWithProfile }) {
-  const body = message.message_type === 'image' ? '📷 Photo' : message.content
-  return (
-    <div className="flex items-start" style={{ gap: 8 }}>
-      <UserAvatar avatarUrl={message.profile.avatar_url} username={message.profile.username} size={28} />
-      <div className="flex flex-col min-w-0" style={{ gap: 2 }}>
-        <p className="font-body font-black text-secondary" style={{ fontSize: 12 }}>
-          {message.profile.username}
-        </p>
-        <p className="font-body text-primary truncate" style={{ fontSize: 14 }}>
-          {body}
-        </p>
       </div>
     </div>
   )

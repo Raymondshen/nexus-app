@@ -24,9 +24,9 @@ export function clearSkipNextSlideEnter() {
 
 // Set by a custom swipe gesture that already visually revealed the destination page
 // before navigating to it (e.g. ChatInput's swipe-between-rooms, whose ChatRoomPeekLayer
-// slides a cached preview all the way to x:0 as part of the committed swipe) — the real
-// SlidePage should then mount silently already-at-rest instead of re-playing its own
-// entrance animation on top, which would look like a redundant second slide-in.
+// slides a loading-skeleton preview all the way to x:0 as part of the committed swipe) —
+// the real SlidePage should then mount silently already-at-rest instead of re-playing its
+// own entrance animation on top, which would look like a redundant second slide-in.
 export function skipNextSlideEnter() {
   _skipNextSlideEnter = true
 }

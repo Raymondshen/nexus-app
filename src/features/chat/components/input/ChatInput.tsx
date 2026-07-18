@@ -571,7 +571,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   }, [recheckOverflow])
 
   // Publishes this room's rendered squad-bar+input height to chatRoomPeekStore so
-  // ChatRoomPeekLayer can inset its cached-message preview to match the real
+  // ChatRoomPeekLayer can inset its message-log skeleton preview to match the real
   // MessageList's own bounding box (see chatInputHeight's doc comment in that store).
   useEffect(() => {
     const el = chatInputBoxRef.current
@@ -591,17 +591,18 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   // container transitions — MessageList reads chatRoomPeekStore's `peek` itself and
   // drives its own 1:1 finger-follow transform (see MessageList's drag section); the
   // squad bar, floating nav, and input box all stay completely static the whole
-  // gesture. A cached-snapshot preview of the room being swiped to is revealed
-  // underneath via chatRoomPeekStore + ChatRoomPeekLayer (chat/[crewId]/layout.tsx —
-  // see its doc comment), inset to line up with MessageList's own bounding box. Past
-  // the commit threshold, the squad bar instantly swaps to the destination room's
-  // image/name/level/member-count (barOverride below) — a hard cut, not a slide, since
-  // it isn't part of what's transitioning — while the message container tweens the
-  // rest of the way off screen and the peek layer (already sitting at rest) is what's
-  // actually revealed. skipNextSlideEnter() tells the real destination SlidePage to
-  // mount silently already-at-rest instead of re-playing its own entrance on top of
-  // what the peek already revealed. Below threshold, or at the start/end of the room
-  // list, the drag springs back — same rubber-band feel as everywhere else in the app.
+  // gesture, keeping THIS room's own identity the entire time (no early hard-cut to the
+  // destination's — see the barOverride mount-seeding effect above for where that
+  // transition actually happens: on arrival, not on departure). A generic message-log
+  // skeleton for the room being swiped to is revealed underneath via chatRoomPeekStore +
+  // ChatRoomPeekLayer (chat/[crewId]/layout.tsx — see its doc comment for why this is a
+  // skeleton, not a cached preview), inset to line up with MessageList's own bounding
+  // box. Past the commit threshold, the message container tweens the rest of the way
+  // off screen and the peek layer (already sitting at rest) is what's actually revealed.
+  // skipNextSlideEnter() tells the real destination SlidePage to mount silently
+  // already-at-rest instead of re-playing its own entrance on top of what the peek
+  // already revealed. Below threshold, or at the start/end of the room list, the drag
+  // springs back — same rubber-band feel as everywhere else in the app.
   //
   // panAxisRef locks the gesture to whichever axis (x = room swipe, y = existing
   // swipe-up-to-expand) crosses a small intent threshold first, so the two gestures
@@ -666,7 +667,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
         // group-A-to-group-B transition, on arrival, once B's real data is loaded.
         useChatRoomPeekStore.getState().setPeek({ targetCrewId: targetId, direction, x: info.offset.x, phase: 'committing' })
         // The peek layer above is what visually reveals the destination room (sliding
-        // its cached snapshot all the way to x:0) — the real SlidePage that mounts once
+        // its message-log skeleton all the way to x:0) — the real SlidePage that mounts once
         // navigation lands should pick up silently at that same rest position instead of
         // re-playing its own entrance animation on top, which would look like a second,
         // redundant slide-in.

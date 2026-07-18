@@ -3,6 +3,7 @@
 import { useParams } from 'next/navigation'
 import DelayedSkeleton from '@/shared/components/ui/DelayedSkeleton'
 import { useChatRoomPeekStore } from '@/features/chat/store/chatRoomPeekStore'
+import { ChatMessageSkeletonRows } from '@/features/chat/components/messages/ChatMessageSkeletonRows'
 
 // Next.js's Suspense fallback for this route segment — shown while ChatPage's server
 // component is fetching its data (crew/members/notes/etc., several queries — see
@@ -13,13 +14,14 @@ import { useChatRoomPeekStore } from '@/features/chat/store/chatRoomPeekStore'
 //
 // But when this navigation is the destination of a committed chat-swipe-nav gesture,
 // ChatRoomPeekLayer (chat/[crewId]/layout.tsx, a persistent sibling of this route
-// tree) has ALREADY revealed a cached-snapshot preview of this exact room, frozen at
-// rest, specifically so there's no blank/loading flash while navigation completes —
-// see its own doc comment. Showing this generic skeleton on top of that would undo
-// the whole point of that preview: a jarring "peek preview → generic skeleton → real
-// page" three-stage flicker instead of "peek preview → real page". So this defers to
-// the peek layer's already-frozen preview in that case, by reading the same
-// chatRoomPeekStore state ChatInput/ChatRoomPeekLayer already coordinate through —
+// tree) has ALREADY revealed its own message-log skeleton for this exact room, frozen
+// at rest, specifically so there's no blank/loading flash while navigation completes —
+// see its own doc comment. Mounting a second, independent skeleton on top of that would
+// undo the whole point of that preview: a jarring "peek skeleton → this skeleton → real
+// page" three-stage flicker (each one's pulse animation runs on its own clock, so the
+// two would visibly desync) instead of a single continuous "peek skeleton → real page".
+// So this defers to the peek layer's already-frozen skeleton in that case, by reading
+// the same chatRoomPeekStore state ChatInput/ChatRoomPeekLayer already coordinate through —
 // `peek.phase` only stays 'committing' for this exact target crew until the real
 // ChatInput below mounts and clears it (see ChatRoomPeekLayer's own effect).
 export default function ChatLoading() {
@@ -35,20 +37,7 @@ export default function ChatLoading() {
     >
       {/* Messages */}
       <div className="flex-1 overflow-hidden px-4 py-3 flex flex-col gap-3">
-        {[72, 48, 90, 60, 80, 44, 66].map((w, i) => (
-          <div
-            key={i}
-            className={`flex items-end gap-2 ${i % 4 === 0 ? 'pl-10' : ''}`}
-          >
-            {i % 4 !== 0 && (
-              <div className="w-8 h-8 flex-shrink-0 bg-border animate-pulse" />
-            )}
-            <div
-              className="h-8 bg-border animate-pulse"
-              style={{ width: `${w}%`, maxWidth: 260, animationDelay: `${i * 70}ms` }}
-            />
-          </div>
-        ))}
+        <ChatMessageSkeletonRows />
       </div>
 
       {/* Input */}
