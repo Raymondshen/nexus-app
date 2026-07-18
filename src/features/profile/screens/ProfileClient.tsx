@@ -16,7 +16,7 @@ import { VibesGrid, type VibesGridHandle } from '@/features/profile/components/V
 import { PhotosGrid, type PhotosGridHandle } from '@/features/profile/components/PhotosGrid'
 import { FloatingViewPill, PILL_BOTTOM_INSET } from '@/features/profile/components/FloatingViewPill'
 import { UploadOptionsSheet } from '@/features/profile/components/UploadOptionsSheet'
-import { useSwipeTabs } from '@/features/profile/hooks/useSwipeTabs'
+import { useSwipeTabs, TAB_SLIDE_VARIANTS, TAB_SLIDE_TRANSITION } from '@/features/profile/hooks/useSwipeTabs'
 import type { PublicNote, ProfilePhoto } from '@/types'
 
 interface ProfileClientProps {
@@ -246,18 +246,22 @@ export function ProfileClient({
       {/* ── Status ticker ─────────────────────────────────────────────────────── */}
       {initialStatus && <TickerBanner text={initialStatus} />}
 
-      {/* ── Tab content — Photos/Vibes switched via the floating pill below or a left/right swipe ── */}
-      <div ref={tabContentRef} className="relative flex-1 min-h-0">
-        <AnimatePresence mode="wait" initial={false}>
-          {activeTab === 'photos' ? (
-            <motion.div
-              key="photos"
-              className="absolute inset-0"
-              initial={{ opacity: 0, x: tabDirRef.current * 16 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: tabDirRef.current * -16 }}
-              transition={{ duration: 0.15, ease: [0.4, 0, 0.2, 1] }}
-            >
+      {/* ── Tab content — Photos/Vibes switched via the floating pill below or a left/right swipe.
+          Slide transition (see TAB_SLIDE_VARIANTS): outgoing panel slides fully off-screen in the
+          direction of travel while the incoming panel slides in from the opposite edge. ── */}
+      <div ref={tabContentRef} className="relative flex-1 min-h-0 overflow-hidden">
+        <AnimatePresence initial={false} custom={tabDirRef.current}>
+          <motion.div
+            key={activeTab}
+            custom={tabDirRef.current}
+            className="absolute inset-0"
+            variants={TAB_SLIDE_VARIANTS}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={TAB_SLIDE_TRANSITION}
+          >
+            {activeTab === 'photos' ? (
               <PhotosGrid
                 ref={photosGridRef}
                 initialPhotos={initialPhotos}
@@ -265,16 +269,7 @@ export function ProfileClient({
                 isOwner={true}
                 bottomInset={PILL_BOTTOM_INSET}
               />
-            </motion.div>
-          ) : (
-            <motion.div
-              key="vibes"
-              className="absolute inset-0"
-              initial={{ opacity: 0, x: tabDirRef.current * 16 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: tabDirRef.current * -16 }}
-              transition={{ duration: 0.15, ease: [0.4, 0, 0.2, 1] }}
-            >
+            ) : (
               <VibesGrid
                 ref={vibesGridRef}
                 initialVinyls={initialNotes}
@@ -282,8 +277,8 @@ export function ProfileClient({
                 initialPinnedId={initialPinnedId}
                 bottomInset={PILL_BOTTOM_INSET}
               />
-            </motion.div>
-          )}
+            )}
+          </motion.div>
         </AnimatePresence>
 
         {/* Floating Photos/Vibes/Add pill (Figma 559:6686) */}

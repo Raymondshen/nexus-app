@@ -1,10 +1,30 @@
 'use client'
 
 import { useEffect, useRef, type RefObject } from 'react'
+import type { Variants, Transition } from 'framer-motion'
 
 const SWIPE_DISTANCE_THRESHOLD = 60
 const SWIPE_VELOCITY_THRESHOLD = 400
 const SWIPE_INTENT_THRESHOLD   = 10
+
+// ─── Tab slide transition (ProfileClient, AccountPageMember) ─────────────────
+// Carousel-style slide: the outgoing panel travels fully off in the direction of
+// travel while the incoming panel slides in from the opposite edge, at the same
+// time (not sequential — AnimatePresence's default "sync" mode, not "wait").
+// `custom` (the tabDirRef direction, 1 = forward/next, -1 = backward/previous)
+// must be passed to BOTH <AnimatePresence custom={...}> and the panel's own
+// `custom` prop — the exiting panel is a clone of its last render, so only
+// AnimatePresence's own `custom` lets its `exit` variant re-read the *current*
+// direction instead of the stale one captured when it was still the active tab.
+export const TAB_SLIDE_VARIANTS: Variants = {
+  enter:  (direction: number) => ({ x: direction > 0 ? '100%' : '-100%' }),
+  center: { x: 0 },
+  exit:   (direction: number) => ({ x: direction > 0 ? '-100%' : '100%' }),
+}
+
+// Same spring as BottomSheet/sheet drag-dismiss (CLAUDE.md's Bottom Sheet
+// Patterns) — reused here rather than tuned from scratch, for a consistent feel.
+export const TAB_SLIDE_TRANSITION: Transition = { type: 'spring', stiffness: 320, damping: 32 }
 
 // ─── useSwipeTabs ───────────────────────────────────────────────────────────
 // Horizontal swipe-to-switch for the profile screens' Photos/Vibes tab content
