@@ -40,12 +40,6 @@ export function ChatSquadDetailBar({
 
   return (
     <motion.div
-      // Marks this element for ChatInput's own container-level pan gesture to detect
-      // whether a drag originated on the bar specifically (vs elsewhere in the
-      // chatInputContainer) — see that gesture's own doc comment for why this lives
-      // one level up now instead of on this component (avoiding two separate Framer
-      // pan recognizers both firing for the same touch).
-      data-squad-bar="true"
       className="flex relative cursor-pointer items-center justify-between w-full"
       onClick={onExpand}
       onTapStart={onPressStart}

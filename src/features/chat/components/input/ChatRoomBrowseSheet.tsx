@@ -2,45 +2,40 @@
 
 import { useLayoutEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { SwipePreviewCard } from '@/features/chat/components/input/ChatRoomSwipePreview'
+import { SwipePreviewCard } from '@/features/chat/components/input/SwipePreviewCard'
 import { useChatRoomPeekStore, type RoomMeta } from '@/features/chat/store/chatRoomPeekStore'
 
-// ─── ChatRoomBrowseSheet ────────────────────────────────────────────────────────
+// ─── ChatRoomBrowseSheet (Figma 577:4895 "body") ───────────────────────────────
 // Opened by swiping up anywhere on the chatInputContainer — see ChatInput's
-// handleTopPan* for why that gesture now lives on the whole container (a single pan
-// recognizer, not a second one layered on top of ChatSquadDetailBar's own) and why the
-// swipe-up-to-expand-squad-details gesture that used to live at this same threshold
-// was retired in favor of this (SquadDetailsSheet is still reachable via tap/chevron).
+// handleTopPanEnd for the gesture itself (a single pan recognizer on the whole
+// container). This is the sole way to quick-switch rooms from inside a chat room
+// now — SquadDetailsSheet stays reachable via tap on the bar / its chevron, unrelated
+// to this gesture.
 //
-// Unlike ChatRoomSwipePreview (a live, drag-linked 3-card glimpse — releasing that
-// drag either commits to the adjacent room or cancels the whole thing), this is a
-// persistent overlay showing EVERY room in chatRoomOrder as a native horizontally-
-// scrollable row. It stays open — independent of any drag — until the user taps a
-// card (navigates there immediately) or taps the backdrop (dismisses, no navigation).
+// A persistent overlay showing EVERY room in chatRoomOrder as a native horizontally-
+// scrollable row: a dark scrim bottom-aligned above the input (`--space-5`
+// padding/gap), reusing the shared `SwipePreviewCard`. It stays open — independent of
+// any drag — until the user taps a card (navigates there immediately) or taps the
+// backdrop (dismisses, no navigation). The header's name is the room currently open
+// (static — it doesn't track scrolling, unlike the equalizer below); every card is a
+// real, tappable `<button>`; the room currently open is simply always border-
+// highlighted, same as any other static list.
 //
-// Same Figma frame (577:4895) as ChatRoomSwipePreview, same container shell (dark
-// scrim bottom-aligned above the input, `--space-5` padding/gap) and reuses the same
-// `SwipePreviewCard`. The header's name is the room currently open (static — it
-// doesn't track scrolling, unlike the equalizer below); every card is interactive (a
-// real `<button>`, not `pointerEvents: none`) with no dragT-driven sizing — the room
-// currently open is simply always border-highlighted, same as any other static list.
-//
-// Unlike ChatRoomSwipePreview's own equalizer (still the static Figma 582:3452
-// decoration — that component has no scrollable list to track), THIS sheet's
-// equalizer is live: it tracks native scroll position via a sliding window of up to
-// EQUALIZER_WINDOW rooms centered on whichever card is currently scrolled into view
-// (`focusedIndex`, updated on `onScroll`). Within that window: the focused room's own
-// bar is purple + tall ("current page" — which card you're actively viewing, distinct
-// from `currentRoomId`, the room you're actually chatting in, which only drives the
-// header name + the one card's border highlight); any OTHER room in the window with
-// unread messages gets a red bar (same height as an ordinary muted bar — only color
-// differs, matching the original Figma spot state where purple and red never coincide
-// on one bar); everything else stays muted. Each bar is a `layout`-animated
-// motion.div inside an `AnimatePresence mode="popLayout"`, so when the window shifts
-// by one room (scrolling past a card boundary), the remaining bars smoothly slide to
-// their new slot instead of snapping — that slide is what reads as the equalizer
-// "shifting left/right" with scroll direction; there's no separate direction state to
-// track, Framer's layout diff already reflects it from the DOM reordering.
+// The header's equalizer bars ARE live, though: they track native scroll position via
+// a sliding window of up to EQUALIZER_WINDOW rooms centered on whichever card is
+// currently scrolled into view (`focusedIndex`, updated on `onScroll`). Within that
+// window: the focused room's own bar is purple + tall ("current page" — which card
+// you're actively viewing, distinct from `currentRoomId`, the room you're actually
+// chatting in, which only drives the header name + the one card's border highlight);
+// any OTHER room in the window with unread messages gets a red bar (same height as an
+// ordinary muted bar — only color differs, matching the original Figma 582:3452 spot
+// state where purple and red never coincide on one bar); everything else stays muted.
+// Each bar is a `layout`-animated motion.div inside an `AnimatePresence
+// mode="popLayout"`, so when the window shifts by one room (scrolling past a card
+// boundary), the remaining bars smoothly slide to their new slot instead of snapping —
+// that slide is what reads as the equalizer "shifting left/right" with scroll
+// direction; there's no separate direction state to track, Framer's layout diff
+// already reflects it from the DOM reordering.
 //
 // Rooms not yet peeked/visited need their `RoomMeta` fetched before they can render a
 // real card — ChatInput's own effect fires `ensureRoomMeta` for the whole list the
@@ -75,8 +70,8 @@ export function ChatRoomBrowseSheet({
   const [focusedIndex, setFocusedIndex] = useState(indexOfCurrentRoom)
 
   // Re-center on the current room every time the sheet freshly opens — adjusted
-  // during render (the "you might not need an effect" pattern, matching
-  // ChatRoomSwipePreview's own selectedRole reset) rather than in a useEffect.
+  // during render (the "you might not need an effect" pattern) rather than in a
+  // useEffect.
   const [prevVisible, setPrevVisible] = useState(visible)
   if (visible !== prevVisible) {
     setPrevVisible(visible)

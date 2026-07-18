@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { motion, AnimatePresence, useMotionValue, useSpring } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
 import { UserAvatar } from '@/shared/components/ui/UserAvatar'
 import type { RealtimeChannel } from '@supabase/supabase-js'
@@ -27,7 +27,6 @@ import { useChatRoomPeekStore } from '@/features/chat/store/chatRoomPeekStore'
 import type { RoomMeta } from '@/features/chat/store/chatRoomPeekStore'
 import { ensureRoomMeta } from '@/features/chat/utils/ensureRoomMeta'
 import { ChatTypingIndicator } from '@/features/chat/components/input/ChatTypingIndicator'
-import { ChatRoomSwipePreview, type SwipePreviewRoom } from '@/features/chat/components/input/ChatRoomSwipePreview'
 import { ChatRoomBrowseSheet } from '@/features/chat/components/input/ChatRoomBrowseSheet'
 import { isGemGateOpen, recordGemClaim } from '@/shared/utils/gems'
 import type { GemClaimResult } from '@/types'
@@ -149,13 +148,6 @@ async function tryClaimDailyGem(supabase: ReturnType<typeof createClient>, onCla
 // the outgoing room's online members as the destination's.
 const EMPTY_MEMBERS: MemberProfile[] = []
 const EMPTY_ONLINE_IDS = new Set<string>()
-const EMPTY_PENDING_IMAGES: PendingImage[] = []
-// Room-swipe commit threshold, in px of raw (pre-rubber-band) drag offset — shared by
-// handleTopPan's live drag-progress feedback (ChatRoomSwipePreview's avatar grow/shrink)
-// and handleTopPanEnd's actual commit check, so the point at which the preview finishes
-// growing to full size and the point at which the swipe actually navigates can't drift
-// apart from each other.
-const SWIPE_COMMIT_PX = 60
 
 // ─── ChatInput ────────────────────────────────────────────────────────────────
 
@@ -215,34 +207,15 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   const [mentionQuery,    setMentionQuery]    = useState<string | null>(null)
   const [mentionIndex,    setMentionIndex]    = useState(0)
   const [isFocused,       setIsFocused]       = useState(false)
-  // True for the whole duration of an active x-axis room-swipe drag (set/cleared by
-  // handleTopPan/handleTopPanStart/handleTopPanEnd below) — while true, the input area
-  // renders its default idle look (plus/placeholder/send, no reply/edit banner or typed
-  // draft) instead of this room's real state, since the real bar/input stays static and
-  // fully visible through the whole drag (see handleTopPan's own doc comment) and a
-  // half-typed draft or an open reply/edit banner reads as "stuck" mid-gesture. The real
-  // text/replyTo/editTo/pendingImages state is left completely untouched, so cancelling
-  // the swipe (spring-back) restores exactly what was there beforehand.
-  const [isRoomSwiping,   setIsRoomSwiping]   = useState(false)
   // Whether the squad detail bar itself is currently pressed — the ONLY thing that
   // should trigger the input container's tap-scale feedback below (tapping the text
   // field/Plus/Send must not scale it). Set via ChatSquadDetailBar's onPressStart/
   // onPressEnd props (Framer tap-gesture callbacks on that component, which already
   // correctly cancels on a finger sliding off the bar mid-press).
   const [barPressed,      setBarPressed]      = useState(false)
-  // Signed room-swipe drag progress driving ChatRoomSwipePreview's live avatar
-  // grow/shrink (Figma 577:5113) — a MotionValue, not React state, so handleTopPan's
-  // per-pan-frame update (60fps while dragging) never re-renders this whole component;
-  // only the small preview subcomponent's own transform updates, via Framer's own
-  // render loop. `swipeDragTRaw` is set imperatively (instant, 1:1 with the finger);
-  // `swipeDragT` spring-follows it, which is what gives the reset-to-0 on release its
-  // smooth "reverse" instead of an instant snap back — see handleTopPan*'s .set(0) calls.
-  const swipeDragTRaw = useMotionValue(0)
-  const swipeDragT    = useSpring(swipeDragTRaw, { stiffness: 500, damping: 40 })
   // Opened by the swipe-up gesture on chatInputContainer (see handleTopPanEnd) —
   // ChatRoomBrowseSheet, a persistent "every room, scrollable, tap to navigate"
-  // overlay. Unlike isRoomSwiping/swipeDragT (which reset every gesture), this just
-  // stays true until the user taps a card or the backdrop.
+  // overlay. Stays true until the user taps a card or the backdrop.
   const [showRoomBrowser, setShowRoomBrowser] = useState(false)
   const [showEventSheet,  setShowEventSheet]  = useState(false)
   const [isMultiline,     setIsMultiline]     = useState(false)
@@ -324,12 +297,12 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   )
   const memberCount = members.length
 
-  // ChatRoomSwipePreview's rich card (Figma 577:4895) needs a last-message-preview
-  // snippet for every room it shows, including this one — unlike image/level/member
-  // count/online members, that's not otherwise tracked as live state here, so it's
-  // fetched once per crewId. `ensureRoomMeta` can't be reused for this: it short-
-  // circuits once `roomMeta[crewId]` exists, which the "publish own meta" effect below
-  // already guarantees for the room currently open.
+  // ChatRoomBrowseSheet's rich card (Figma 577:4895, via SwipePreviewCard) needs a
+  // last-message-preview snippet for every room it shows, including this one — unlike
+  // image/level/member count/online members, that's not otherwise tracked as live
+  // state here, so it's fetched once per crewId. `ensureRoomMeta` can't be reused for
+  // this: it short-circuits once `roomMeta[crewId]` exists, which the "publish own
+  // meta" effect below already guarantees for the room currently open.
   const [ownLastMessagePreview, setOwnLastMessagePreview] = useState<string | null>(null)
   useEffect(() => {
     let cancelled = false
@@ -349,12 +322,12 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   // ChatRoomPeekLayer, which persists across room navigation unlike this component):
   // tells it which room is *actually* mounted right now (so it can clear itself once a
   // peeked room's real page takes over, and so ChatRoomPeekLayer's frozen bar/input
-  // preview knows which room's identity to keep showing through a swipe-nav's navigation
-  // gap) and seeds this room's own name/image/level/member-count/online-members/last-
-  // message so it's available instantly if another room's mount-seeding initializer (see
-  // barOverride above) or ChatRoomSwipePreview needs to borrow it. unreadCount is always
-  // 0 here — you're actively viewing this room, unlike ensureRoomMeta's one-shot RPC
-  // fetch for a room that isn't open.
+  // preview knows which room's identity to keep showing through a room-switch's
+  // navigation gap) and seeds this room's own name/image/level/member-count/online-
+  // members/last-message so it's available instantly if another room's mount-seeding
+  // initializer (see barOverride above) or ChatRoomBrowseSheet needs to borrow it.
+  // unreadCount is always 0 here — you're actively viewing this room, unlike
+  // ensureRoomMeta's one-shot RPC fetch for a room that isn't open.
   useEffect(() => {
     const onlineMembers = members
       .filter((m) => onlineUserIds.has(m.id))
@@ -658,57 +631,20 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
 
   // ────────────────────────────────────────────────────────────────────────────
 
-  // Dev-gated (nexus_chat_swipe_nav), two gestures sharing one pan recognizer on the
-  // whole chatInputContainer (see that element's own doc comment for why they aren't
-  // two separate onPan* wirings):
-  //
-  // 1. Horizontal (left/right), bar-origin only — pages to the next/previous group
-  //    chat room in chatRoomOrder (Home's own most-recently-active ordering, DMs
-  //    excluded — see chat/[crewId]/page.tsx), live-linked to ChatRoomSwipePreview's
-  //    3-card glimpse. The message-history log no longer transitions with the drag —
-  //    MessageList always renders at rest now, regardless of chatRoomPeekStore's
-  //    `peek` state. The squad bar, floating nav, input box, and message log all stay
-  //    completely static through the whole gesture, keeping THIS room's own identity
-  //    and content on screen the entire time (no early hard-cut to the destination's —
-  //    see the barOverride mount-seeding effect above for where that transition
-  //    actually happens: on arrival, not on departure). `peek` is still written
-  //    throughout the gesture (chatRoomPeekStore + ensureRoomMeta prefetch below), and
-  //    past the commit threshold this still fires the actual navigation via
-  //    commitRoomSwitch below. Below threshold, or at the start/end of the room list,
-  //    the gesture just cancels — nothing to spring back visually now that nothing
-  //    moved.
-  // 2. Vertical (swipe up), any origin in the container — opens ChatRoomBrowseSheet,
-  //    a persistent "every room, scrollable, tap to navigate" overlay (see that
-  //    component's own doc comment). This replaced the swipe-up-to-expand-squad-
-  //    details gesture that used to live at this same threshold; SquadDetailsSheet is
-  //    still reachable via a tap on the bar or its chevron (ChatSquadDetailBar's own
-  //    onClick), just not this gesture anymore.
-  //
-  // panAxisRef locks the gesture to whichever axis crosses a small intent threshold
-  // first, so the two never fight mid-drag. dragStartedRef tracks whether we actually
-  // engaged the room-swipe drag specifically (only true once axis=x AND the drag
-  // started on the bar AND the feature is on AND there's more than one room) —
-  // panOriginIsBarRef is checked for that bar-origin requirement but, unlike
-  // dragStartedRef, is NOT gated on axis, since the vertical gesture must still work
-  // starting from the bar too (not just elsewhere in the container).
-  const panAxisRef        = useRef<'x' | 'y' | null>(null)
-  const dragStartedRef    = useRef(false)
-  const panOriginIsBarRef = useRef(false)
+  // Dev-gated (nexus_chat_swipe_nav): swiping up anywhere on the chatInputContainer
+  // opens ChatRoomBrowseSheet, a persistent "every room, scrollable, tap to navigate"
+  // overlay (see that component's own doc comment). This replaced the swipe-up-to-
+  // expand-squad-details gesture that used to live at this same threshold;
+  // SquadDetailsSheet is still reachable via a tap on the bar or its chevron
+  // (ChatSquadDetailBar's own onClick), just not this gesture anymore. Only a
+  // predominantly-vertical drag counts, so an otherwise-unrelated horizontal gesture
+  // on the container (e.g. text selection in the input) can't cross the same
+  // y-offset threshold by coincidence.
 
-  function handleTopPanStart(event: PointerEvent) {
-    panAxisRef.current        = null
-    dragStartedRef.current    = false
-    panOriginIsBarRef.current = !!(event.target as HTMLElement | null)?.closest?.('[data-squad-bar]')
-    setIsRoomSwiping(false)
-    swipeDragTRaw.set(0)
-  }
-
-  // Shared by the drag-commit path below and ChatRoomBrowseSheet's tap-to-navigate —
-  // any navigation away from this room via the swipe-nav system goes through here so
-  // both trigger paths get the identical peek-layer handoff/crossfade behavior.
-  // `direction` only affects which side ChatRoomPeekLayer's ghost enters from; a tap
-  // in the browse sheet has no real drag direction, so callers without one can pass
-  // whichever is closest to correct (see ChatRoomBrowseSheet's own call site).
+  // Used by ChatRoomBrowseSheet's tap-to-navigate (see its onSelectRoom call site
+  // below) — `direction` only affects which side ChatRoomPeekLayer's ghost enters
+  // from; a tap has no real drag direction, so the caller passes whichever is
+  // closest to correct based on list position.
   function commitRoomSwitch(targetId: string, direction: 'left' | 'right') {
     // No barOverride hard-cut here anymore — this room's own bar stays showing its
     // own identity, unchanged, all the way to unmount. The destination room's own
@@ -729,109 +665,22 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     router.push(`/chat/${targetId}`)
   }
 
-  function handleTopPan(_: PointerEvent, info: PanInfo) {
-    if (panAxisRef.current === null) {
-      if (Math.abs(info.offset.x) < 10 && Math.abs(info.offset.y) < 10) return
-      panAxisRef.current = Math.abs(info.offset.x) > Math.abs(info.offset.y) ? 'x' : 'y'
-    }
-    if (panAxisRef.current !== 'x' || !panOriginIsBarRef.current || !chatSwipeNavEnabled || chatRoomOrder.length <= 1) return
-
-    // Edge transition only (not every pan frame) — dragStartedRef doubles as the "have
-    // we already flipped isRoomSwiping on for this gesture" guard.
-    if (!dragStartedRef.current) setIsRoomSwiping(true)
-    dragStartedRef.current = true
-
-    // Rubber-band resistance at the ends of the room list — dragging "past" the first
-    // or last room still moves the peek layer's ghost, just damped, instead of either a
-    // hard stop or an unbounded 1:1 drag toward a swipe that can't commit to anything.
-    const currentIndex = chatRoomOrder.indexOf(crewId)
-    const dx     = info.offset.x
-    const atEnd  = currentIndex === -1 || currentIndex >= chatRoomOrder.length - 1
-    const atHome = currentIndex <= 0
-    const resisted = (dx < 0 && atEnd) || (dx > 0 && atHome) ? dx * 0.35 : dx
-
-    // Mirror the drag onto the peek layer for whichever room is on the leading edge.
-    // No target in that direction (list boundary) — nothing to peek, just the rubber-band.
-    const direction: 'left' | 'right' | null = dx < 0 ? 'left' : dx > 0 ? 'right' : null
-    const dirStep  = direction === 'left' ? 1 : -1
-    const targetId = direction && currentIndex !== -1
-      ? chatRoomOrder[currentIndex + dirStep]
-      : undefined
-    if (targetId && direction) {
-      useChatRoomPeekStore.getState().setPeek({ targetCrewId: targetId, direction, x: resisted, phase: 'dragging' })
-      void ensureRoomMeta(targetId, userId)
-    } else {
-      useChatRoomPeekStore.getState().setPeek(null)
-    }
-
-    // ChatRoomSwipePreview's live grow/shrink — a signed progress value, negative
-    // while dragging toward the next room, positive toward the previous one, clamped
-    // to ±1 at the same offset that actually commits the swipe (SWIPE_COMMIT_PX) so
-    // the avatar being dragged toward finishes growing to full size exactly as the
-    // gesture crosses into "this will commit" territory. Set on a raw MotionValue
-    // (not React state) so this per-pan-frame update never re-renders ChatInput
-    // itself — see swipeDragTRaw's own declaration for why.
-    swipeDragTRaw.set(Math.max(-1, Math.min(1, resisted / SWIPE_COMMIT_PX)))
-  }
-
   function handleTopPanEnd(_: PointerEvent, info: PanInfo) {
-    if (dragStartedRef.current) {
-      // Spring back to rest regardless of outcome (commit or cancel) — on commit this
-      // room unmounts shortly after anyway (router.push below), but this still avoids
-      // leaving the last live drag-progress value stuck mid-grow for the brief window
-      // before that happens.
-      swipeDragTRaw.set(0)
-      const swipedLeft  = info.offset.x < -SWIPE_COMMIT_PX || info.velocity.x < -400
-      const swipedRight = info.offset.x > SWIPE_COMMIT_PX  || info.velocity.x > 400
-      const currentIndex = chatRoomOrder.indexOf(crewId)
-      const targetId = (swipedLeft || swipedRight) && currentIndex !== -1
-        ? chatRoomOrder[currentIndex + (swipedLeft ? 1 : -1)]
-        : undefined
-
-      if (targetId) {
-        commitRoomSwitch(targetId, swipedLeft ? 'left' : 'right')
-        return
-      }
-      const activePeek = useChatRoomPeekStore.getState().peek
-      if (activePeek) useChatRoomPeekStore.getState().setPeek({ ...activePeek, phase: 'cancelling' })
-      setIsRoomSwiping(false)
-      return
-    }
-    if ((info.offset.y < -50 || info.velocity.y < -300) && chatSwipeNavEnabled && chatRoomOrder.length > 1) {
+    const isMostlyVertical = Math.abs(info.offset.y) > Math.abs(info.offset.x)
+    if (
+      isMostlyVertical &&
+      (info.offset.y < -50 || info.velocity.y < -300) &&
+      chatSwipeNavEnabled &&
+      chatRoomOrder.length > 1
+    ) {
       setShowRoomBrowser(true)
     }
   }
 
-  // Prefetch the immediately adjacent rooms in chatRoomOrder as soon as this room
-  // mounts (not lazily on drag) so a committed swipe's router.push() warms up faster —
-  // shortening how long the peek preview sits frozen before the real room takes over
-  // (see chat/[crewId]/loading.tsx's own doc comment for how that generic-skeleton
-  // flash is actually suppressed during a swipe-committed navigation; this prefetch is
-  // a complementary perf assist, not what prevents that flash by itself). Each
-  // landed-on room prefetches its own neighbors in turn, so paging outward stays
-  // progressively warm without eagerly fetching the whole list up front.
-  useEffect(() => {
-    if (!chatSwipeNavEnabled || chatRoomOrder.length <= 1) return
-    const currentIndex = chatRoomOrder.indexOf(crewId)
-    if (currentIndex === -1) return
-    const prevId = chatRoomOrder[currentIndex - 1]
-    const nextId = chatRoomOrder[currentIndex + 1]
-    if (prevId) router.prefetch(`/chat/${prevId}`)
-    if (nextId) router.prefetch(`/chat/${nextId}`)
-    // Also warm ChatRoomSwipePreview's own avatars — it shows prev/current/next
-    // together the moment any drag starts, in either direction, so both neighbors'
-    // roomMeta (unlike the route prefetch above) need to already be cached by then,
-    // not fetched lazily mid-gesture, or the strip would flash the ghost fallback
-    // icon before the fetch resolves.
-    if (prevId) void ensureRoomMeta(prevId, userId)
-    if (nextId) void ensureRoomMeta(nextId, userId)
-  }, [chatSwipeNavEnabled, chatRoomOrder, crewId, router, userId])
-
-  // ChatRoomBrowseSheet shows every room in chatRoomOrder, not just the 2 neighbors
-  // above — fetched only once the sheet actually opens (not eagerly on mount, unlike
-  // the neighbor prefetch above) since a user's full crew list could be much longer
-  // than 2 rooms. ensureRoomMeta already dedupes against whatever's cached, so this is
-  // cheap for rooms the neighbor-prefetch (or a prior browse-sheet open) already warmed.
+  // ChatRoomBrowseSheet shows every room in chatRoomOrder — fetched only once the
+  // sheet actually opens, not eagerly on mount, since a user's full crew list could be
+  // arbitrarily long. ensureRoomMeta already dedupes against whatever's cached, so
+  // this is cheap on a room a prior browse-sheet open already warmed.
   useEffect(() => {
     if (!showRoomBrowser) return
     for (const id of chatRoomOrder) {
@@ -1728,42 +1577,11 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
 
   const totalMessages = [...memberMsgCounts.values()].reduce((s, n) => s + n, 0)
 
-  // Rendering-only stand-ins for the input's default idle look during a room-swipe drag
-  // (see isRoomSwiping's own doc comment above) — the real text/pendingImages/isFocused
-  // state underneath is untouched.
-  const displayText          = isRoomSwiping ? ''                     : text
-  const displayPendingImages = isRoomSwiping ? EMPTY_PENDING_IMAGES   : pendingImages
-  const displayFocused       = isRoomSwiping ? false                  : isFocused
-
-  // ChatRoomSwipePreview's 3 room cards — a fixed, direction-independent triple
-  // (previous room, this room, next room, always in that left-to-right chatRoomOrder
-  // position) rather than something recomputed per drag direction: which one is
-  // "selected" is driven continuously by swipeDragT instead (inside the component
-  // itself), so the SET of rooms shown never has to change mid-gesture. Either end can
-  // be absent at a chatRoomOrder boundary, or (rarely) still mid-fetch — either way
-  // that slot is just omitted, never padded with a placeholder. roomMeta lookups: this
-  // room's own entry is kept fresh by the "publish this room's own meta" effect above;
-  // prev/next are warmed by the prefetch effect above (ensureRoomMeta).
-  const roomPeekMeta       = useChatRoomPeekStore((s) => s.roomMeta)
-  const swipePreviewIndex  = chatRoomOrder.indexOf(crewId)
-  const swipePreviewPrevId = swipePreviewIndex > 0 ? chatRoomOrder[swipePreviewIndex - 1] : undefined
-  const swipePreviewNextId = swipePreviewIndex !== -1 && swipePreviewIndex < chatRoomOrder.length - 1
-    ? chatRoomOrder[swipePreviewIndex + 1]
-    : undefined
-  const toSwipeRoom = (id: string, role: SwipePreviewRoom['role']): SwipePreviewRoom | null => {
-    const meta = roomPeekMeta[id]
-    return meta ? { id, role, ...meta } : null
-  }
-  const swipePreviewRooms: SwipePreviewRoom[] = [
-    swipePreviewPrevId ? toSwipeRoom(swipePreviewPrevId, 'prev') : null,
-    toSwipeRoom(crewId, 'current'),
-    swipePreviewNextId ? toSwipeRoom(swipePreviewNextId, 'next') : null,
-  ].filter((room): room is SwipePreviewRoom => room !== null)
-
   // ChatRoomBrowseSheet's full list — every chatRoomOrder id with roomMeta already
   // loaded (warmed by the effect above the moment the sheet opens), in that same
-  // list order. A room still mid-fetch is simply omitted until it resolves, same
-  // graceful-degradation as swipePreviewRooms above.
+  // list order. A room still mid-fetch is simply omitted until it resolves rather
+  // than padded with a placeholder.
+  const roomPeekMeta = useChatRoomPeekStore((s) => s.roomMeta)
   const browseRooms = chatRoomOrder
     .map((id) => (roomPeekMeta[id] ? { id, ...roomPeekMeta[id] } : null))
     .filter((room): room is { id: string } & RoomMeta => room !== null)
@@ -1785,16 +1603,8 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
           presence sync doesn't re-render all of ChatInput — see ChatTypingIndicator. ── */}
       <ChatTypingIndicator />
 
-      {/* Figma 577:4895 ("body") — room-swipe look-ahead preview. Absolutely
-          positioned against this outer relative wrapper (not the bordered box below)
-          so it lands directly above the WHOLE input area, overlapping the message
-          history's own bottom edge, regardless of whether the typing indicator above
-          is currently rendering anything. */}
-      <ChatRoomSwipePreview visible={isRoomSwiping} rooms={swipePreviewRooms} dragT={swipeDragT} />
-
       {/* Swipe-up-on-the-container overlay — every room, scrollable, tap to navigate.
-          See handleTopPanEnd's y-axis branch (opens this) and this component's own
-          doc comment for how it differs from the drag-linked preview above. */}
+          See handleTopPanEnd (opens this) and this component's own doc comment. */}
       <ChatRoomBrowseSheet
         visible={showRoomBrowser}
         rooms={browseRooms}
@@ -1812,22 +1622,13 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
           anywhere inside it, including the input row — this container is scaled from
           outside the thing that should actually trigger it.
 
-          onPanStart/onPan/onPanEnd live HERE (the whole container), not on
-          ChatSquadDetailBar, so a single Framer pan recognizer handles both gestures
-          instead of two separate ones both reacting to the same touch (a drag
-          starting on the bar bubbles its pointerdown up to this element too — two
-          independent onPan* wirings on nested elements would each start their own
-          pan session for that one gesture). handleTopPan* itself distinguishes them
-          by origin: horizontal (left/right) room-swipe-nav only proceeds if the drag
-          started on the bar (data-squad-bar, unchanged scope from before); vertical
-          (swipe up) opens ChatRoomBrowseSheet regardless of where in the container it
-          started, per that function's own doc comment. */}
+          onPanEnd lives HERE (the whole container), not on ChatSquadDetailBar — a
+          swipe-up anywhere in the container (bar or input row) should open
+          ChatRoomBrowseSheet, per that function's own doc comment. */}
       <motion.div
         className="border-t border-border flex flex-col"
         animate={{ scale: barPressed ? 1.02 : 1 }}
         transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-        onPanStart={handleTopPanStart}
-        onPan={handleTopPan}
         onPanEnd={handleTopPanEnd}
         style={{
           paddingTop:    'var(--space-5)',
@@ -1887,8 +1688,8 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
             </button>
           )}
 
-          {/* ── Edit mode bar — hidden mid room-swipe, see isRoomSwiping ── */}
-          {editTo && !isRoomSwiping && (
+          {/* ── Edit mode bar ── */}
+          {editTo && (
             <div
               className="flex items-center w-full"
               style={{ background: 'var(--color-surface)', padding: 16, gap: 8, marginBottom: 8 }}
@@ -1911,8 +1712,8 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
             </div>
           )}
 
-          {/* ── Reply preview bar — hidden mid room-swipe, see isRoomSwiping ── */}
-          {replyTo && !isRoomSwiping && (
+          {/* ── Reply preview bar ── */}
+          {replyTo && (
             <div
               className="flex items-center w-full"
               style={{ background: 'var(--color-surface)', padding: 16, gap: 8, marginBottom: 8 }}
@@ -1950,7 +1751,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
           <div className="relative">
             {/* @mention picker — absolute, grows upward over group details */}
             <AnimatePresence>
-              {!isRoomSwiping && mentionQuery !== null && mentionMatches.length > 0 && (
+              {mentionQuery !== null && mentionMatches.length > 0 && (
                 <motion.div
                   key="mention-menu"
                   initial={{ opacity: 0, y: 4 }}
@@ -1985,7 +1786,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
 
             {/* ── Slash command menu — absolute, grows upward over group details ── */}
             {(() => {
-              const isCmd = !isRoomSwiping && text.startsWith('/') && !text.includes(' ')
+              const isCmd = text.startsWith('/') && !text.includes(' ')
               const filter = isCmd ? text.slice(1).toLowerCase() : ''
               const matches = isCmd ? SLASH_COMMANDS.filter((c) => c.name.startsWith(filter) && (c.name !== 'event' || eventsEnabled)) : []
               if (!isCmd || matches.length === 0) return null
@@ -2024,20 +1825,20 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
               className="w-full flex flex-col"
                 style={{
                   outline:       '1px solid',
-                  outlineColor:  displayFocused ? 'var(--color-border-hover)' : 'var(--color-border)',
+                  outlineColor:  isFocused ? 'var(--color-border-hover)' : 'var(--color-border)',
                   outlineOffset: '-1px',
                   transition:    'outline-color 0.15s ease',
                   paddingLeft:   16,
                   paddingRight:  16,
-                  paddingTop:    displayPendingImages.length > 0 ? 16 : 0,
-                  paddingBottom: displayPendingImages.length > 0 ? 16 : 0,
-                  gap:           displayPendingImages.length > 0 ? 16 : 0,
+                  paddingTop:    pendingImages.length > 0 ? 16 : 0,
+                  paddingBottom: pendingImages.length > 0 ? 16 : 0,
+                  gap:           pendingImages.length > 0 ? 16 : 0,
                   minHeight:     48,
                 }}
               >
                 {/* ── Image tray (inside border, animates in/out) ── */}
                 <AnimatePresence>
-                  {displayPendingImages.length > 0 && (
+                  {pendingImages.length > 0 && (
                     <motion.div
                       key="image-tray"
                       initial={{ opacity: 0, height: 0 }}
@@ -2048,7 +1849,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
                     >
                       {/* 80×80 image slots — gap 8px, overflow clips 4th at narrow widths */}
                       <div className="flex items-start" style={{ gap: 8, overflow: 'hidden' }}>
-                        {displayPendingImages.map((img) => (
+                        {pendingImages.map((img) => (
                           <div
                             key={img.id}
                             className="relative flex-shrink-0"
@@ -2087,21 +1888,21 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
                 </AnimatePresence>
 
                 {/* ── Text input + send button row ── */}
-                <div className="flex items-center" style={{ gap: 16, minHeight: displayPendingImages.length > 0 ? 18 : 48 }}>
+                <div className="flex items-center" style={{ gap: 16, minHeight: pendingImages.length > 0 ? 18 : 48 }}>
                   {/* Plus button — slides left and fades out on focus */}
                   <motion.div
                     className="flex-shrink-0 overflow-hidden flex items-center justify-center"
                     animate={{
-                      width:       displayFocused ? 0 : 16,
-                      opacity:     displayFocused ? 0 : 1,
-                      marginRight: displayFocused ? -16 : 0,
+                      width:       isFocused ? 0 : 16,
+                      opacity:     isFocused ? 0 : 1,
+                      marginRight: isFocused ? -16 : 0,
                     }}
                     transition={{ type: 'spring', stiffness: 320, damping: 28 }}
-                    style={{ pointerEvents: displayFocused ? 'none' : 'auto' }}
+                    style={{ pointerEvents: isFocused ? 'none' : 'auto' }}
                   >
                     <button
                       onClick={() => setShowMediaPicker(true)}
-                      disabled={displayPendingImages.length >= 4}
+                      disabled={pendingImages.length >= 4}
                       className="flex-shrink-0 flex items-center justify-center text-muted active:text-purple disabled:opacity-30 disabled:cursor-not-allowed"
                       style={{ width: 16, height: 16 }}
                       aria-label="Add media"
@@ -2134,12 +1935,12 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
                       className="pointer-events-none absolute inset-0 font-body text-[14px] leading-normal overflow-hidden"
                       style={{ paddingTop: 12, paddingBottom: 12, fontVariationSettings: '"opsz" 14', whiteSpace: isMultiline ? 'pre-wrap' : 'nowrap', wordBreak: isMultiline ? 'break-word' : 'normal', color: 'var(--color-primary)' }}
                     >
-                      {renderHighlightedInput(displayText)}
+                      {renderHighlightedInput(text)}
                     </div>
                     {isMultiline ? (
                       <textarea
                         ref={textareaRef}
-                        value={displayText}
+                        value={text}
                         onChange={(e) => handleInput(e)}
                         onKeyDown={(e) => handleKeyDown(e)}
                         onBlur={handleBlur}
@@ -2153,7 +1954,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
                       <input
                         ref={inputRef}
                         type="text"
-                        value={displayText}
+                        value={text}
                         onChange={(e) => handleInput(e)}
                         onKeyDown={(e) => handleKeyDown(e)}
                         onBlur={handleBlur}
@@ -2165,16 +1966,16 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
                     )}
                   </div>
                   {(() => {
-                    const isCmd       = displayText.startsWith('/') && !displayText.includes(' ')
-                    const hasMatch    = isCmd && SLASH_COMMANDS.some((c) => c.name.startsWith(displayText.slice(1).toLowerCase()))
-                    const canSendImgs = displayPendingImages.some((img) => !!img.publicUrl) && !displayPendingImages.some((img) => img.uploading)
-                    const canSendText = !!displayText.trim() && !hasMatch
+                    const isCmd       = text.startsWith('/') && !text.includes(' ')
+                    const hasMatch    = isCmd && SLASH_COMMANDS.some((c) => c.name.startsWith(text.slice(1).toLowerCase()))
+                    const canSendImgs = pendingImages.some((img) => !!img.publicUrl) && !pendingImages.some((img) => img.uploading)
+                    const canSendText = !!text.trim() && !hasMatch
                     const canSend     = canSendImgs || canSendText
                     return (
                       <div className="flex items-center gap-3 flex-shrink-0">
                         <button
                           onClick={editTo ? () => void handleEditSend() : canSendImgs ? sendImages : send}
-                          disabled={editTo ? !displayText.trim() : !canSend}
+                          disabled={editTo ? !text.trim() : !canSend}
                           className={`flex items-center justify-center w-4 h-4 transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${canSend ? 'text-purple' : 'text-muted'}`}
                           aria-label="Send message"
                         >
