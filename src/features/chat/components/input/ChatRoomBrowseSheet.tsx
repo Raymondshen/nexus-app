@@ -1,7 +1,7 @@
 'use client'
 
 import { motion, AnimatePresence } from 'framer-motion'
-import { SwipePreviewCard } from '@/features/chat/components/input/ChatRoomSwipePreview'
+import { SwipePreviewCard, EqualizerBars } from '@/features/chat/components/input/ChatRoomSwipePreview'
 import { useChatRoomPeekStore, type RoomMeta } from '@/features/chat/store/chatRoomPeekStore'
 
 // ─── ChatRoomBrowseSheet ────────────────────────────────────────────────────────
@@ -16,10 +16,16 @@ import { useChatRoomPeekStore, type RoomMeta } from '@/features/chat/store/chatR
 // persistent overlay showing EVERY room in chatRoomOrder as a native horizontally-
 // scrollable row. It stays open — independent of any drag — until the user taps a
 // card (navigates there immediately) or taps the backdrop (dismisses, no navigation).
-// Reuses the exact same `SwipePreviewCard` the drag preview uses so both read as one
-// family, but every card here is interactive (a real `<button>`, not `pointerEvents:
-// none`), and there's no dragT-driven sizing/selection — the room currently open is
-// simply always border-highlighted for orientation, same as any other static list.
+//
+// Same Figma frame (577:4895) as ChatRoomSwipePreview, same container shell (dark
+// scrim bottom-aligned above the input, `--space-5` padding/gap) and same header row
+// (name + equalizer bars) — reusing `SwipePreviewCard`/`EqualizerBars` from that file
+// rather than a second copy, so the two surfaces read as one UI, not two similar-but-
+// different ones. The header name here is just the room currently open (static — there's
+// no drag-driven "selection" to crossfade between while freely scrolling a list), and
+// every card is interactive (a real `<button>`, not `pointerEvents: none`) with no
+// dragT-driven sizing — the room currently open is simply always border-highlighted,
+// same as any other static list.
 //
 // Rooms not yet peeked/visited need their `RoomMeta` fetched before they can render a
 // real card — ChatInput's own effect fires `ensureRoomMeta` for the whole list the
@@ -40,6 +46,7 @@ export function ChatRoomBrowseSheet({
   onClose:       () => void
 }) {
   const chatInputHeight = useChatRoomPeekStore((s) => s.chatInputHeight)
+  const currentRoom     = rooms.find((r) => r.id === currentRoomId)
 
   return (
     <AnimatePresence>
@@ -52,6 +59,10 @@ export function ChatRoomBrowseSheet({
             maxWidth:      480,
             marginLeft:    'auto',
             marginRight:   'auto',
+            gap:           'var(--space-5)',
+            paddingLeft:   'var(--space-5)',
+            paddingRight:  'var(--space-5)',
+            paddingTop:    'var(--space-5)',
             paddingBottom: 'var(--space-5)',
           }}
           initial={{ opacity: 0 }}
@@ -59,11 +70,23 @@ export function ChatRoomBrowseSheet({
           exit={{ opacity: 0, transition: { duration: 0.08 } }}
           onClick={onClose}
         >
+          <div className="flex items-center justify-between w-full">
+            {currentRoom && (
+              <p
+                className="font-silkscreen text-primary leading-none truncate min-w-0"
+                style={{ fontSize: 'var(--text-md)' }}
+              >
+                {currentRoom.name}
+              </p>
+            )}
+            <EqualizerBars />
+          </div>
+
           {/* Same horizontally-scrollable-row pattern SquadDetailsSheet's member card
               row already uses (overflow-x-auto no-scrollbar) — not a new one-off. */}
           <div
-            className="flex items-end overflow-x-auto no-scrollbar nexus-scroll"
-            style={{ gap: 16, paddingLeft: 'var(--space-5)', paddingRight: 'var(--space-5)' }}
+            className="flex items-end overflow-x-auto no-scrollbar nexus-scroll w-full"
+            style={{ gap: 16 }}
             onClick={(e) => e.stopPropagation()}
           >
             {rooms.map((room) => (

@@ -149,7 +149,10 @@ export function ChatRoomSwipePreview({ visible, rooms, dragT }: ChatRoomSwipePre
 }
 
 // Static decorative bar-graph icon (Figma 582:3452) — 7 fixed-height/color bars, no
-// data binding (see this file's top doc comment).
+// data binding (see this file's top doc comment). Exported so ChatRoomBrowseSheet's
+// own header row (Figma 577:4895's "body" applies to both the drag preview and the
+// swipe-up browse sheet — see that component's doc comment) can reuse the identical
+// icon rather than a second copy.
 const EQUALIZER_BARS = [
   { height: 8,  color: 'var(--color-muted)' },
   { height: 8,  color: 'var(--color-muted)' },
@@ -160,7 +163,7 @@ const EQUALIZER_BARS = [
   { height: 8,  color: 'var(--color-muted)' },
 ] as const
 
-function EqualizerBars() {
+export function EqualizerBars() {
   return (
     <div className="flex items-end flex-shrink-0" style={{ gap: 8 }}>
       {EQUALIZER_BARS.map((bar, i) => (
