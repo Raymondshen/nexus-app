@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence, useMotionValue, useSpring } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
 import { UserAvatar } from '@/shared/components/ui/UserAvatar'
 import type { RealtimeChannel } from '@supabase/supabase-js'
@@ -149,6 +149,12 @@ async function tryClaimDailyGem(supabase: ReturnType<typeof createClient>, onCla
 const EMPTY_MEMBERS: MemberProfile[] = []
 const EMPTY_ONLINE_IDS = new Set<string>()
 const EMPTY_PENDING_IMAGES: PendingImage[] = []
+// Room-swipe commit threshold, in px of raw (pre-rubber-band) drag offset — shared by
+// handleTopPan's live drag-progress feedback (ChatRoomSwipePreview's avatar grow/shrink)
+// and handleTopPanEnd's actual commit check, so the point at which the preview finishes
+// growing to full size and the point at which the swipe actually navigates can't drift
+// apart from each other.
+const SWIPE_COMMIT_PX = 60
 
 // ─── ChatInput ────────────────────────────────────────────────────────────────
 
@@ -217,10 +223,21 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   // text/replyTo/editTo/pendingImages state is left completely untouched, so cancelling
   // the swipe (spring-back) restores exactly what was there beforehand.
   const [isRoomSwiping,   setIsRoomSwiping]   = useState(false)
-  // Up to 3 room ids for ChatRoomSwipePreview (Figma 577:5113), current room first —
-  // built/cleared alongside isRoomSwiping in handleTopPan*, see that function's doc
-  // comment for how the look-ahead ids are chosen.
-  const [swipePreviewIds, setSwipePreviewIds] = useState<string[]>([])
+  // Whether the squad detail bar itself is currently pressed — the ONLY thing that
+  // should trigger the input container's tap-scale feedback below (tapping the text
+  // field/Plus/Send must not scale it). Set via ChatSquadDetailBar's onPressStart/
+  // onPressEnd props (Framer tap-gesture callbacks on that component, which already
+  // correctly cancels on a finger sliding off the bar mid-press).
+  const [barPressed,      setBarPressed]      = useState(false)
+  // Signed room-swipe drag progress driving ChatRoomSwipePreview's live avatar
+  // grow/shrink (Figma 577:5113) — a MotionValue, not React state, so handleTopPan's
+  // per-pan-frame update (60fps while dragging) never re-renders this whole component;
+  // only the small preview subcomponent's own transform updates, via Framer's own
+  // render loop. `swipeDragTRaw` is set imperatively (instant, 1:1 with the finger);
+  // `swipeDragT` spring-follows it, which is what gives the reset-to-0 on release its
+  // smooth "reverse" instead of an instant snap back — see handleTopPan*'s .set(0) calls.
+  const swipeDragTRaw = useMotionValue(0)
+  const swipeDragT    = useSpring(swipeDragTRaw, { stiffness: 500, damping: 40 })
   const [showEventSheet,  setShowEventSheet]  = useState(false)
   const [isMultiline,     setIsMultiline]     = useState(false)
 
@@ -629,7 +646,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     panAxisRef.current     = null
     dragStartedRef.current = false
     setIsRoomSwiping(false)
-    setSwipePreviewIds([])
+    swipeDragTRaw.set(0)
   }
 
   function handleTopPan(_: PointerEvent, info: PanInfo) {
@@ -667,27 +684,25 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
       useChatRoomPeekStore.getState().setPeek(null)
     }
 
-    // ChatRoomSwipePreview's look-ahead strip — current room first (rendered large),
-    // then up to 2 more rooms further along in the drag direction (rendered small):
-    // one hop out is the same `targetId` the peek layer is already using, plus a
-    // second hop for a further-out preview. Either can be undefined at a list
-    // boundary — the strip just renders fewer avatars, never pads with a placeholder.
-    const hop2Id = direction && currentIndex !== -1
-      ? chatRoomOrder[currentIndex + dirStep * 2]
-      : undefined
-    if (hop2Id) void ensureRoomMeta(hop2Id)
-    const nextPreviewIds = [crewId, targetId, hop2Id].filter((id): id is string => !!id)
-    setSwipePreviewIds((prev) =>
-      prev.length === nextPreviewIds.length && prev.every((id, i) => id === nextPreviewIds[i])
-        ? prev
-        : nextPreviewIds
-    )
+    // ChatRoomSwipePreview's live grow/shrink — a signed progress value, negative
+    // while dragging toward the next room, positive toward the previous one, clamped
+    // to ±1 at the same offset that actually commits the swipe (SWIPE_COMMIT_PX) so
+    // the avatar being dragged toward finishes growing to full size exactly as the
+    // gesture crosses into "this will commit" territory. Set on a raw MotionValue
+    // (not React state) so this per-pan-frame update never re-renders ChatInput
+    // itself — see swipeDragTRaw's own declaration for why.
+    swipeDragTRaw.set(Math.max(-1, Math.min(1, resisted / SWIPE_COMMIT_PX)))
   }
 
   function handleTopPanEnd(_: PointerEvent, info: PanInfo) {
     if (dragStartedRef.current) {
-      const swipedLeft  = info.offset.x < -60 || info.velocity.x < -400
-      const swipedRight = info.offset.x > 60  || info.velocity.x > 400
+      // Spring back to rest regardless of outcome (commit or cancel) — on commit this
+      // room unmounts shortly after anyway (router.push below), but this still avoids
+      // leaving the last live drag-progress value stuck mid-grow for the brief window
+      // before that happens.
+      swipeDragTRaw.set(0)
+      const swipedLeft  = info.offset.x < -SWIPE_COMMIT_PX || info.velocity.x < -400
+      const swipedRight = info.offset.x > SWIPE_COMMIT_PX  || info.velocity.x > 400
       const currentIndex = chatRoomOrder.indexOf(crewId)
       const targetId = (swipedLeft || swipedRight) && currentIndex !== -1
         ? chatRoomOrder[currentIndex + (swipedLeft ? 1 : -1)]
@@ -737,6 +752,13 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     const nextId = chatRoomOrder[currentIndex + 1]
     if (prevId) router.prefetch(`/chat/${prevId}`)
     if (nextId) router.prefetch(`/chat/${nextId}`)
+    // Also warm ChatRoomSwipePreview's own avatars — it shows prev/current/next
+    // together the moment any drag starts, in either direction, so both neighbors'
+    // roomMeta (unlike the route prefetch above) need to already be cached by then,
+    // not fetched lazily mid-gesture, or the strip would flash the ghost fallback
+    // icon before the fetch resolves.
+    if (prevId) void ensureRoomMeta(prevId)
+    if (nextId) void ensureRoomMeta(nextId)
   }, [chatSwipeNavEnabled, chatRoomOrder, crewId, router])
 
   useEffect(() => {
@@ -1635,17 +1657,28 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   const displayPendingImages = isRoomSwiping ? EMPTY_PENDING_IMAGES   : pendingImages
   const displayFocused       = isRoomSwiping ? false                  : isFocused
 
-  // ChatRoomSwipePreview's avatars — swipePreviewIds is already ordered current-room-
-  // first (see handleTopPan); this room's own roomMeta entry is kept in sync by the
-  // "publish this room's own meta" effect above, so a plain roomMeta lookup covers
-  // the current room too, not just the look-ahead ones.
-  const roomPeekMeta = useChatRoomPeekStore((s) => s.roomMeta)
-  const swipePreviewAvatars: SwipePreviewAvatar[] = swipePreviewIds.map((id) => ({
-    id,
-    imageUrl: roomPeekMeta[id]?.imageUrl ?? null,
-    name:     roomPeekMeta[id]?.name ?? '',
-    large:    id === crewId,
-  }))
+  // ChatRoomSwipePreview's 3 slots — a fixed, direction-independent triple (previous
+  // room, this room, next room, always in that left-to-right chatRoomOrder position)
+  // rather than something recomputed per drag direction: which one is large is driven
+  // continuously by swipeDragT instead, so the SET of rooms shown never has to change
+  // mid-gesture, only their sizes. Either end can be absent at a chatRoomOrder
+  // boundary — the strip just renders fewer avatars, never pads with a placeholder.
+  // roomMeta lookups: this room's own entry is kept in sync by the "publish this
+  // room's own meta" effect above; prev/next are warmed by the prefetch effect above.
+  const roomPeekMeta        = useChatRoomPeekStore((s) => s.roomMeta)
+  const swipePreviewIndex   = chatRoomOrder.indexOf(crewId)
+  const swipePreviewPrevId  = swipePreviewIndex > 0 ? chatRoomOrder[swipePreviewIndex - 1] : undefined
+  const swipePreviewNextId  = swipePreviewIndex !== -1 && swipePreviewIndex < chatRoomOrder.length - 1
+    ? chatRoomOrder[swipePreviewIndex + 1]
+    : undefined
+  const toSwipeSlot = (id: string, role: SwipePreviewAvatar['role']): SwipePreviewAvatar => ({
+    id, role, imageUrl: roomPeekMeta[id]?.imageUrl ?? null, name: roomPeekMeta[id]?.name ?? '',
+  })
+  const swipePreviewSlots: SwipePreviewAvatar[] = [
+    swipePreviewPrevId ? toSwipeSlot(swipePreviewPrevId, 'prev') : null,
+    toSwipeSlot(crewId, 'current'),
+    swipePreviewNextId ? toSwipeSlot(swipePreviewNextId, 'next') : null,
+  ].filter((slot): slot is SwipePreviewAvatar => slot !== null)
 
   return (
     <div ref={chatInputBoxRef} className="bg-black flex flex-col flex-shrink-0 relative z-[65]">
@@ -1660,16 +1693,19 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
           so bottom-full lands it directly above the WHOLE input area, overlapping the
           message history's own bottom edge, regardless of whether the typing
           indicator above is currently rendering anything. */}
-      <ChatRoomSwipePreview visible={isRoomSwiping} avatars={swipePreviewAvatars} />
+      <ChatRoomSwipePreview visible={isRoomSwiping} slots={swipePreviewSlots} dragT={swipeDragT} />
 
       {/* Figma 577:4905 ("chatInputContainer") — squad bar + input field together, as one
-          unit. whileTap nudges the whole thing to 102% for as long as a finger is down
-          anywhere on it (tap, or a tap that turns into a drag — Framer drives this off
-          pointerdown/pointerup, not a completed click), springing back to 100% the
-          instant it's released, whatever ended the gesture. */}
+          unit. Nudges the whole thing to 102% for as long as the squad detail bar
+          (only — not the text field/Plus/Send below) is pressed, springing back to
+          100% the instant it's released, whatever ended the gesture. Driven by
+          `barPressed` (set via ChatSquadDetailBar's onPressStart/onPressEnd) rather
+          than this element's own whileTap, since whileTap would fire on a tap
+          anywhere inside it, including the input row — this container is scaled from
+          outside the thing that should actually trigger it. */}
       <motion.div
         className="border-t border-border flex flex-col"
-        whileTap={{ scale: 1.02 }}
+        animate={{ scale: barPressed ? 1.02 : 1 }}
         transition={{ type: 'spring', stiffness: 400, damping: 25 }}
         style={{
           paddingTop:    'var(--space-5)',
@@ -1715,6 +1751,8 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
             onPanStart={handleTopPanStart}
             onPan={handleTopPan}
             onPanEnd={handleTopPanEnd}
+            onPressStart={() => setBarPressed(true)}
+            onPressEnd={() => setBarPressed(false)}
           />
         )}
 

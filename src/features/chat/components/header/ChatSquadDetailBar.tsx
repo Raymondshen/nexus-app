@@ -18,6 +18,14 @@ interface ChatSquadDetailBarProps {
   onPanStart?:   () => void
   onPan?:        (_: PointerEvent, info: PanInfo) => void
   onPanEnd:      (_: PointerEvent, info: PanInfo) => void
+  // Fired on press-down/press-release of this bar specifically — lets ChatInput scale
+  // its whole squad-bar+input container as tap/drag feedback without that trigger also
+  // firing from taps on the input row below (see ChatInput's barPressed doc comment).
+  // Wired to Framer's own tap gesture (not raw pointer events) so a finger sliding off
+  // the bar mid-press correctly cancels back to "released" instead of staying stuck
+  // pressed, and coexists cleanly with this same element's onPan/onClick.
+  onPressStart?: () => void
+  onPressEnd?:   () => void
 }
 
 // Shared top-to-bottom slide used by the crew image and name below — the incoming
@@ -30,7 +38,7 @@ const SLIDE_TRANSITION = { type: 'spring', stiffness: 170, damping: 21 } as cons
 
 export function ChatSquadDetailBar({
   crewImageUrl, crewName, crewLevel, memberCount, members, onlineUserIds,
-  onExpand, onPanStart, onPan, onPanEnd,
+  onExpand, onPanStart, onPan, onPanEnd, onPressStart, onPressEnd,
 }: ChatSquadDetailBarProps) {
   const onlineMembers = members.filter((m) => onlineUserIds.has(m.id))
 
@@ -42,6 +50,9 @@ export function ChatSquadDetailBar({
       onPan={onPan}
       onPanEnd={onPanEnd}
       onClick={onExpand}
+      onTapStart={onPressStart}
+      onTap={onPressEnd}
+      onTapCancel={onPressEnd}
     >
       {/* Crew image + name/level */}
       <div className="flex items-center flex-shrink-0 min-w-0" style={{ gap: 8 }}>
