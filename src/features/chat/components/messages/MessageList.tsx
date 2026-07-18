@@ -149,7 +149,6 @@ export function MessageList({
 
   // Pagination state
   const [hasMore, setHasMore]     = useState(true)
-  const [loadingOlder, setLoadingOlder] = useState(false)
   const isFetchingOlderRef  = useRef(false)
   const oldestCursorRef     = useRef<string | null>(null)
   // Scroll-position restoration after prepend
@@ -568,7 +567,6 @@ export function MessageList({
   const fetchOlderMessages = useCallback(async () => {
     if (isFetchingOlderRef.current || !hasMore || !oldestCursorRef.current) return
     isFetchingOlderRef.current = true
-    setLoadingOlder(true)
 
     try {
       const supabase = createClient()
@@ -610,7 +608,6 @@ export function MessageList({
       skipAutoScrollRef.current = false
     } finally {
       isFetchingOlderRef.current = false
-      setLoadingOlder(false)
     }
   }, [crewId, hasMore, prependMessages]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1012,13 +1009,6 @@ export function MessageList({
           background: 'linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.25) 46.158%, rgba(0,0,0,0) 100%)',
         }}
       />
-
-      {/* Load-older indicator */}
-      {loadingOlder && (
-        <div className="absolute top-[134px] left-0 right-0 z-20 flex justify-center pointer-events-none">
-          <span className="font-pixel text-[7px] text-[#2a1545] bg-black/80 px-2 py-1">LOADING...</span>
-        </div>
-      )}
 
       {/* Scroll-to-bottom button */}
       <AnimatePresence>
