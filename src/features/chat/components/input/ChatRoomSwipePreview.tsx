@@ -23,14 +23,25 @@ import { GroupAvatar } from '@/shared/components/ui/GroupAvatar'
 // mid-drag (isRoomSwiping flips back to false) plays that same transition in
 // reverse via `exit`, leaving the strip fully hidden again.
 //
-// Per-avatar bounce loop below is verbatim from get_motion_context's `times`
-// fractions (nodes 577:5117/577:5121/577:5125, one shared timeline cohort rooted at
-// 577:4893) — a staggered "hop up from below" that repeats for as long as the strip
-// stays mounted. Only the absolute loop duration was compressed (Figma's literal 2s
-// down to 1s, also per explicit request to speed it up) — the shape (relative
-// stagger/hold timing) is untouched.
-const BASE_SIZE    = 24
-const SMALL_SCALE  = 16 / 24
+// Per-avatar entrance below is verbatim from get_motion_context's `times` fractions
+// (nodes 577:5117/577:5121/577:5125, one shared timeline cohort rooted at 577:4893)
+// — a staggered "hop up from below" that settles at y:0 and stays there. Plays ONCE
+// per mount, not on a `repeat: Infinity` loop — looping it read as the avatars
+// flickering up and down for as long as the strip was on screen, which is wrong: the
+// hop is meant as a one-time "arriving" entrance, and the strip should otherwise sit
+// still until it fades out on release (the AnimatePresence `exit` below already
+// handles that fade — nothing about it needs its own bounce). Only the absolute
+// duration was compressed (Figma's literal 2s down to 1s, per explicit request to
+// speed it up) — the shape (relative stagger/hold timing) is untouched.
+// Sizes per the design-system spacing scale (.claude/skills/design-system/spacing.md
+// / globals.css): large = var(--x11) = 40px, small = var(--x9) = 32px. GroupAvatar's
+// `size` prop is typed as a plain number, so these are the resolved pixel values, not
+// the CSS var strings — kept as named constants (rather than bare 40/32 below) so the
+// x11/x9 intent stays visible at the call site.
+const LARGE_SIZE   = 40
+const SMALL_SIZE   = 32
+const BASE_SIZE    = LARGE_SIZE
+const SMALL_SCALE  = SMALL_SIZE / LARGE_SIZE
 const BOUNCE_DURATION_S = 1
 const BOUNCE_TRACKS = [
   { initialY: 32, values: [32, 0, 0],     times: [0, 0.051, 1] },
@@ -108,7 +119,7 @@ export function ChatRoomSwipePreview({ visible, slots, dragT }: ChatRoomSwipePre
                 <motion.div
                   initial={{ y: track.initialY }}
                   animate={{ y: [...track.values] }}
-                  transition={{ y: { duration: BOUNCE_DURATION_S, times: [...track.times], ease: 'linear', repeat: Infinity } }}
+                  transition={{ y: { duration: BOUNCE_DURATION_S, times: [...track.times], ease: 'linear' } }}
                 >
                   <GroupAvatar imageUrl={slot.imageUrl} name={slot.name} size={BASE_SIZE} />
                 </motion.div>
