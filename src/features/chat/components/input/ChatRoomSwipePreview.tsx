@@ -53,12 +53,12 @@ import { useChatRoomPeekStore } from '@/features/chat/store/chatRoomPeekStore'
 // finished sliding down before the strip actually disappears, rather than fading
 // while (or before) the slide is still visibly in progress.
 // Sizes per the design-system spacing scale (.claude/skills/design-system/spacing.md
-// / globals.css): large = var(--x11) = 40px, small = var(--x9) = 32px. GroupAvatar's
+// / globals.css): large = var(--x13) = 48px, small = var(--x11) = 40px. GroupAvatar's
 // `size` prop is typed as a plain number, so these are the resolved pixel values, not
-// the CSS var strings — kept as named constants (rather than bare 40/32 below) so the
-// x11/x9 intent stays visible at the call site.
-const LARGE_SIZE   = 40
-const SMALL_SIZE   = 32
+// the CSS var strings — kept as named constants (rather than bare 48/40 below) so the
+// x13/x11 intent stays visible at the call site.
+const LARGE_SIZE   = 48
+const SMALL_SIZE   = 40
 const BASE_SIZE    = LARGE_SIZE
 const SMALL_SCALE  = SMALL_SIZE / LARGE_SIZE
 const BOUNCE_DURATION_S = 1
