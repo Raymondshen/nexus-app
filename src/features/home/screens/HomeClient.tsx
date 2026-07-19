@@ -1594,6 +1594,11 @@ function HomeCrewDetailsSheet({
 
 // ─── HomeClient ───────────────────────────────────────────────────────────────
 
+// Session-scoped (one-shot per tab, same pattern as HomeLoadingGate's splash flag) —
+// gates the launch-redirect effect below so it only fires the very first time Home
+// mounts in this session, not on every return trip to /home.
+const LAUNCH_REDIRECT_KEY = 'nexus_launch_redirected'
+
 export function HomeClient({
   initialCrews,
   userId,
@@ -1638,6 +1643,25 @@ export function HomeClient({
   useEffect(() => {
     if (handledOpenCreate) router.replace('/home')
   }, [handledOpenCreate, router])
+
+  // Launch redirect: skip Home and land directly in the user's most recently opened
+  // chatroom (or their only one), matching the request that opening the app should go
+  // straight into chat. Only fires once per session (see LAUNCH_REDIRECT_KEY) — later
+  // visits to /home in the same session (e.g. the swipe-back-inserted /home entry
+  // beneath a chat room, or tapping back from a squad) render Home normally instead of
+  // re-redirecting. Squads only (initialCrews already excludes DMs, see home/page.tsx) —
+  // "chatroom" here means Squad chat, not a DM.
+  useEffect(() => {
+    if (sessionStorage.getItem(LAUNCH_REDIRECT_KEY)) return
+    sessionStorage.setItem(LAUNCH_REDIRECT_KEY, '1')
+    if (searchParams.get('openCreate') === '1') return
+    if (initialCrews.length === 0) return
+    const target = initialCrews.length === 1
+      ? initialCrews[0]
+      : [...initialCrews].sort((a, b) => (b.lastSeen ?? '').localeCompare(a.lastSeen ?? ''))[0]
+    router.replace(`/chat/${target.crew.id}`)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   const [detailsTarget,     setDetailsTarget]     = useState<CrewSummary | null>(null)
   const [leaveTarget,       setLeaveTarget]       = useState<CrewSummary | null>(null)
   const [leaving,           setLeaving]           = useState(false)
