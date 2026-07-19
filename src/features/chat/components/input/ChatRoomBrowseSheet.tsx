@@ -205,6 +205,14 @@ export function ChatRoomBrowseSheet({
           animate={{ opacity: 1, transition: { duration: 0.12 } }}
           exit={{ opacity: 0, transition: { duration: 0.2, ease: 'easeInOut' } }}
           {...dragProps}
+          // Override useSheetDrag's own bottom elasticity (1 = follows the finger 1:1,
+          // what BottomSheet/SquadDetailsSheet's panel both want) down to 0 — this sheet
+          // shouldn't visually translate while being pulled at all, just stay put and let
+          // the release-triggered `exit` fade (above) be the only close animation. The
+          // gesture's own offset/velocity close-thresholds (onDragEnd, inside dragProps)
+          // are untouched, since PanInfo.offset/velocity track the pointer directly and
+          // aren't affected by dragElastic.
+          dragElastic={{ top: 0, bottom: 0 }}
           onClick={onClose}
         >
           <div className="flex items-center justify-between w-full">

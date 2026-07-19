@@ -1,5 +1,5 @@
 import { createClient } from '@/shared/supabase/client'
-import { useChatRoomPeekStore } from '@/features/chat/store/chatRoomPeekStore'
+import { useChatRoomPeekStore, type RoomMeta } from '@/features/chat/store/chatRoomPeekStore'
 import { computeOnlineIds } from '@/shared/utils/presence'
 import { PRESENCE_ONLINE_THRESHOLD_MS } from '@/shared/constants/config'
 
@@ -20,7 +20,12 @@ interface CrewMemberRow {
 
 export async function ensureRoomMeta(crewId: string, userId: string): Promise<void> {
   const { roomMeta, setRoomMeta } = useChatRoomPeekStore.getState()
-  if (roomMeta[crewId] || inFlight.has(crewId)) return
+  if (inFlight.has(crewId)) return
+  const cached = roomMeta[crewId]
+  if (cached) {
+    await refreshUnreadCount(crewId, userId, cached)
+    return
+  }
   inFlight.add(crewId)
   try {
     const supabase = createClient()
@@ -66,6 +71,41 @@ export async function ensureRoomMeta(crewId: string, userId: string): Promise<vo
       unreadCount:        unreadResult.data?.[0]?.unread_count ?? 0,
       onlineMembers,
     })
+  } finally {
+    inFlight.delete(crewId)
+  }
+}
+
+// A room's full RoomMeta (name/image/level/member count/online members) is cheap to
+// leave as a one-shot snapshot from whenever it was first peeked — that stuff rarely
+// changes mid-session. unreadCount is different: it's exactly what ChatRoomBrowseSheet
+// exists to surface accurately (the red equalizer bar + "N unread messages" footer), so
+// a room peeked early in the session can't keep showing a permanently-stale count after
+// new messages arrive while you're chatting elsewhere. This refetches just that field —
+// same cutoff/RPC ensureRoomMeta's full fetch uses — and patches it into the existing
+// cached RoomMeta, every time ensureRoomMeta is called for an already-cached room (i.e.
+// every time ChatRoomBrowseSheet opens).
+async function refreshUnreadCount(crewId: string, userId: string, cached: RoomMeta): Promise<void> {
+  inFlight.add(crewId)
+  try {
+    const supabase = createClient()
+    const { data: memberRow } = await supabase
+      .from('crew_members')
+      .select('last_seen, joined_at')
+      .eq('crew_id', crewId)
+      .eq('user_id', userId)
+      .maybeSingle()
+    const row    = memberRow as { last_seen: string | null; joined_at: string } | null
+    const cutoff = row?.last_seen ?? row?.joined_at ?? new Date(0).toISOString()
+
+    const { data: unreadData } = await supabase.rpc('get_unread_counts', { p_crew_ids: [crewId], p_cutoffs: [cutoff] })
+    const unreadCount = unreadData?.[0]?.unread_count ?? 0
+
+    // Re-read current cached meta rather than closing over the stale `cached` param —
+    // ChatInput's own "publish own meta" effect (see its doc comment) could have
+    // overwritten this room's entry while this request was in flight.
+    const latest = useChatRoomPeekStore.getState().roomMeta[crewId] ?? cached
+    useChatRoomPeekStore.getState().setRoomMeta(crewId, { ...latest, unreadCount })
   } finally {
     inFlight.delete(crewId)
   }
