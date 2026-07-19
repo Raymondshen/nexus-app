@@ -1610,6 +1610,13 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
         rooms={browseRooms}
         currentRoomId={crewId}
         onSelectRoom={handleSelectRoomFromBrowse}
+        onCreateSquad={() => {
+          setShowRoomBrowser(false)
+          // Reuses Home's existing create-squad sheet/flow (createCrewFromHomeAction)
+          // rather than duplicating it here — HomeClient auto-opens it when it sees
+          // this query param (see its own effect for that).
+          router.push('/home?openCreate=1')
+        }}
         onClose={() => setShowRoomBrowser(false)}
       />
 

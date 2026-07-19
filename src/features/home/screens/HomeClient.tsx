@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
@@ -1635,6 +1635,20 @@ export function HomeClient({
     })
   )
   const [showCreate,        setShowCreate]        = useState(false)
+  // ChatRoomBrowseSheet's "Create Squad" card (Figma 589:3631) routes here with this
+  // param instead of duplicating a second create-squad flow — reuses this exact sheet.
+  // Handled during render (guarded by `handledOpenCreate` so it only ever fires once,
+  // the "you might not need an effect" pattern) rather than in a useEffect; the actual
+  // URL cleanup (router.replace, a real side effect) still belongs in one below.
+  const searchParams = useSearchParams()
+  const [handledOpenCreate, setHandledOpenCreate] = useState(false)
+  if (!handledOpenCreate && searchParams.get('openCreate') === '1') {
+    setHandledOpenCreate(true)
+    setShowCreate(true)
+  }
+  useEffect(() => {
+    if (handledOpenCreate) router.replace('/home')
+  }, [handledOpenCreate, router])
   const [detailsTarget,     setDetailsTarget]     = useState<CrewSummary | null>(null)
   const [leaveTarget,       setLeaveTarget]       = useState<CrewSummary | null>(null)
   const [leaving,           setLeaving]           = useState(false)

@@ -2,34 +2,51 @@
 
 import { useLayoutEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { Plus } from 'pixelarticons/react/Plus'
 import { SwipePreviewCard } from '@/features/chat/components/input/SwipePreviewCard'
 import { useChatRoomPeekStore, type RoomMeta } from '@/features/chat/store/chatRoomPeekStore'
 
-// ─── ChatRoomBrowseSheet (Figma 577:4895 "body") ───────────────────────────────
+// ─── ChatRoomBrowseSheet (Figma 589:3619 "body") ───────────────────────────────
 // Opened by swiping up anywhere on the chatInputContainer — see ChatInput's
 // handleTopPanEnd for the gesture itself (a single pan recognizer on the whole
 // container). This is the sole way to quick-switch rooms from inside a chat room
 // now — SquadDetailsSheet stays reachable via tap on the bar / its chevron, unrelated
 // to this gesture.
 //
-// A persistent overlay showing EVERY room in chatRoomOrder as a native horizontally-
-// scrollable row: a dark scrim bottom-aligned above the input (`--space-5`
-// padding/gap), reusing the shared `SwipePreviewCard`. It stays open — independent of
-// any drag — until the user taps a card (navigates there immediately) or taps the
-// backdrop (dismisses, no navigation). The header's name is the room currently open
-// (static — it doesn't track scrolling, unlike the equalizer below); every card is a
-// real, tappable `<button>`; the room currently open is simply always border-
-// highlighted, same as any other static list.
+// A persistent overlay showing a "Create Squad" card (always first, Figma 589:3631 —
+// dashed border, matches the height of the room cards next to it via `alignSelf:
+// stretch` since it has no photo/text content of its own to size it) followed by
+// EVERY room in chatRoomOrder, all in one native horizontally-scrollable row: a dark
+// scrim bottom-aligned above the input (`--space-5` padding/gap), reusing the shared
+// `SwipePreviewCard`. It stays open — independent of any drag — until the user taps a
+// room card (navigates there immediately), taps Create Squad (routes to Home with its
+// existing create-squad sheet auto-opened — see `onCreateSquad`'s call site in
+// ChatInput, no new create flow duplicated here), or taps the backdrop (dismisses, no
+// navigation). The header's name is the room currently open (static — it doesn't
+// track scrolling, unlike the equalizer below); every room card is a real, tappable
+// `<button>`; the room currently open is simply always border-highlighted, same as
+// any other static list.
 //
-// The header's equalizer bars ARE live, though: they track native scroll position via
-// a sliding window of up to EQUALIZER_WINDOW rooms centered on whichever card is
-// currently scrolled into view (`focusedIndex`, updated on `onScroll`). Within that
-// window: the focused room's own bar is purple + tall ("current page" — which card
-// you're actively viewing, distinct from `currentRoomId`, the room you're actually
-// chatting in, which only drives the header name + the one card's border highlight);
-// any OTHER room in the window with unread messages gets a red bar (same height as an
-// ordinary muted bar — only color differs, matching the original Figma 582:3452 spot
-// state where purple and red never coincide on one bar); everything else stays muted.
+// Because Create Squad occupies scroll slot 0, every scroll-position calculation
+// below is offset by CREATE_SQUAD_SLOTS so `focusedIndex` still indexes straight into
+// `rooms` (not the visual row) — see LEADING slots comment below.
+//
+// The header's equalizer bars ARE live: they track native scroll position via a
+// sliding window of up to EQUALIZER_WINDOW rooms centered on whichever card is
+// currently scrolled into view (`focusedIndex`, updated on `onScroll`). Per-bar rules
+// (Figma 589:3622, and the explicit color/growth spec this implements):
+//   - color: purple if that bar's room is `currentRoomId` (the room you're actually
+//     chatting in — this is fixed to that room's own position and never changes with
+//     scroll); else red if that room has unread messages; else muted. Purple always
+//     wins over red/muted for the current room's own bar, wherever it sits in the
+//     window.
+//   - height: tall (16) only for whichever bar is currently FOCUSED (scrolled into
+//     view) — a bar can be tall AND purple at once (you've scrolled back to your own
+//     room), tall and red (scrolled onto an unread room), or tall and muted (scrolled
+//     onto a read one). This is what makes "the bar size growth would be different
+//     colors dependent on the group being viewed" — the growing bar always reflects
+//     whichever room it currently represents' own color, purple/red/muted are not
+//     mutually exclusive with the grow state.
 // Each bar is a `layout`-animated motion.div inside an `AnimatePresence
 // mode="popLayout"`, so when the window shifts by one room (scrolling past a card
 // boundary), the remaining bars smoothly slide to their new slot instead of snapping —
@@ -46,6 +63,9 @@ const CARD_WIDTH  = 180
 const CARD_GAP    = 16
 const CARD_STEP   = CARD_WIDTH + CARD_GAP
 const EQUALIZER_WINDOW = 7
+// Create Squad is the only thing ahead of room index 0 in the scrollable row — every
+// scrollLeft <-> room-index conversion below shifts by this many slots.
+const LEADING_SLOTS = 1
 
 type BrowseRoom = RoomMeta & { id: string }
 
@@ -54,12 +74,14 @@ export function ChatRoomBrowseSheet({
   rooms,
   currentRoomId,
   onSelectRoom,
+  onCreateSquad,
   onClose,
 }: {
   visible:       boolean
   rooms:         BrowseRoom[]
   currentRoomId: string
   onSelectRoom:  (id: string) => void
+  onCreateSquad: () => void
   onClose:       () => void
 }) {
   const chatInputHeight = useChatRoomPeekStore((s) => s.chatInputHeight)
@@ -80,8 +102,9 @@ export function ChatRoomBrowseSheet({
 
   // Scroll the row to match that same reset — a real DOM mutation, so this one does
   // need an effect (there's no way to set an element's scrollLeft during render).
+  // +LEADING_SLOTS accounts for the Create Squad card occupying scroll slot 0.
   useLayoutEffect(() => {
-    if (visible && rowRef.current) rowRef.current.scrollLeft = indexOfCurrentRoom() * CARD_STEP
+    if (visible && rowRef.current) rowRef.current.scrollLeft = (indexOfCurrentRoom() + LEADING_SLOTS) * CARD_STEP
     // Only re-run when the sheet opens, not on every rooms/currentRoomId identity
     // change — this is a one-time "snap to start" on open, not a continuous sync.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -90,7 +113,8 @@ export function ChatRoomBrowseSheet({
   function handleScroll() {
     const el = rowRef.current
     if (!el || rooms.length === 0) return
-    const idx = Math.max(0, Math.min(rooms.length - 1, Math.round(el.scrollLeft / CARD_STEP)))
+    const rawIdx = Math.round(el.scrollLeft / CARD_STEP) - LEADING_SLOTS
+    const idx = Math.max(0, Math.min(rooms.length - 1, rawIdx))
     setFocusedIndex((prev) => (prev === idx ? prev : idx))
   }
 
@@ -130,7 +154,7 @@ export function ChatRoomBrowseSheet({
                 {currentRoom.name}
               </p>
             )}
-            <ScrollEqualizerBars rooms={equalizerRooms} focusedRoomId={focusedRoomId} />
+            <ScrollEqualizerBars rooms={equalizerRooms} currentRoomId={currentRoomId} focusedRoomId={focusedRoomId} />
           </div>
 
           {/* Same horizontally-scrollable-row pattern SquadDetailsSheet's member card
@@ -138,10 +162,26 @@ export function ChatRoomBrowseSheet({
           <div
             ref={rowRef}
             onScroll={handleScroll}
-            className="flex items-end overflow-x-auto no-scrollbar nexus-scroll w-full"
+            className="flex items-stretch overflow-x-auto no-scrollbar nexus-scroll w-full"
             style={{ gap: CARD_GAP }}
             onClick={(e) => e.stopPropagation()}
           >
+            <button
+              type="button"
+              onClick={onCreateSquad}
+              className="flex-shrink-0 appearance-none flex flex-col items-center justify-center rounded-[var(--x3,8px)]"
+              style={{ width: CARD_WIDTH, gap: 8, border: '1px dashed', borderColor: 'var(--color-border-hover)' }}
+              aria-label="Create Squad"
+            >
+              <Plus style={{ width: 24, height: 24, color: 'var(--color-tertiary)', flexShrink: 0 }} aria-hidden="true" />
+              <p
+                className="font-body font-medium text-tertiary text-center truncate w-full"
+                style={{ fontSize: 14, fontVariationSettings: '"opsz" 14', paddingLeft: 12, paddingRight: 12 }}
+              >
+                Create Squad
+              </p>
+            </button>
+
             {rooms.map((room) => (
               <button
                 key={room.id}
@@ -161,17 +201,24 @@ export function ChatRoomBrowseSheet({
 }
 
 // Live scroll-position indicator — see this file's top doc comment for the full
-// purple/red/muted rules. `layout` + `AnimatePresence mode="popLayout"` is what makes
-// the window shifting by one room (a scroll past a card boundary) read as the bars
-// sliding over rather than snapping to a new set.
-function ScrollEqualizerBars({ rooms, focusedRoomId }: { rooms: BrowseRoom[]; focusedRoomId: string | undefined }) {
+// purple/red/muted + grow rules. `layout` + `AnimatePresence mode="popLayout"` is what
+// makes the window shifting by one room (a scroll past a card boundary) read as the
+// bars sliding over rather than snapping to a new set.
+function ScrollEqualizerBars({
+  rooms, currentRoomId, focusedRoomId,
+}: {
+  rooms:         BrowseRoom[]
+  currentRoomId: string
+  focusedRoomId: string | undefined
+}) {
   return (
     <div className="flex items-end flex-shrink-0" style={{ gap: 8 }}>
       <AnimatePresence mode="popLayout" initial={false}>
         {rooms.map((room) => {
+          const isCurrent = room.id === currentRoomId
           const isFocused = room.id === focusedRoomId
           const hasUnread = room.unreadCount > 0
-          const color = isFocused ? 'var(--color-purple)' : hasUnread ? 'var(--red)' : 'var(--color-muted)'
+          const color = isCurrent ? 'var(--color-purple)' : hasUnread ? 'var(--red)' : 'var(--color-muted)'
           return (
             <motion.div
               key={room.id}
