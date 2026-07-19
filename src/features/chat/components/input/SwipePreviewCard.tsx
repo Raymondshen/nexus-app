@@ -48,7 +48,11 @@ export function SwipePreviewCard({ room, selected }: { room: RoomMeta & { id: st
             Lv.{room.level} · {room.memberCount} member
           </p>
         </div>
-        {onlineMembers.length > 0 && (
+        {/* `selected` doubles as "is the currently-open room" here (see ChatRoomBrowseSheet's
+            call site) — only that room's onlineMembers is live (ChatInput's onlineUserIds);
+            every other card's is a one-shot user_presence snapshot from ensureRoomMeta that
+            never updates again, so showing it would read as live when it's actually stale. */}
+        {selected && onlineMembers.length > 0 && (
           <div className="flex items-center" style={{ gap: 8 }}>
             {onlineMembers.map((m) => (
               <div key={m.id} className="relative flex-shrink-0">

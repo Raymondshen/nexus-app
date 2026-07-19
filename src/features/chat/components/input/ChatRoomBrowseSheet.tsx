@@ -33,7 +33,9 @@ import { useChatRoomPeekStore, type RoomMeta } from '@/features/chat/store/chatR
 // native horizontal scroll instead of one stealing the other). Releasing past its
 // threshold calls `onClose`; short of that, Framer's own drag-constraint spring-back
 // returns it to rest. Either way — a drag-release close, or any of the tap-based
-// closes above — the exit below always slides the sheet down and fades it out.
+// closes above — the exit below is a plain opacity fade (100% → 0%, eased), not a
+// slide — the live drag already provides the "following" motion while the user's
+// finger is down, so the programmatic exit only needs to dissolve the sheet.
 //
 // The header's equalizer bars are live: they track native scroll position via a
 // sliding window of up to EQUALIZER_WINDOW items centered on whichever card is
@@ -201,19 +203,15 @@ export function ChatRoomBrowseSheet({
           }}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1, transition: { duration: 0.12 } }}
-          exit={{
-            y: '100%',
-            opacity: 0,
-            transition: { y: { type: 'spring', stiffness: 300, damping: 30 }, opacity: { duration: 0.15 } },
-          }}
+          exit={{ opacity: 0, transition: { duration: 0.2, ease: 'easeInOut' } }}
           {...dragProps}
           onClick={onClose}
         >
           <div className="flex items-center justify-between w-full">
             {currentRoom && (
               <p
-                className="font-silkscreen text-primary leading-none truncate min-w-0"
-                style={{ fontSize: 'var(--text-md)' }}
+                className="font-body font-bold text-primary leading-none truncate min-w-0"
+                style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}
               >
                 {currentRoom.name}
               </p>
