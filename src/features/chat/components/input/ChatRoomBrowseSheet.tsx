@@ -220,7 +220,7 @@ export function ChatRoomBrowseSheet({
             gap:           'var(--space-5)',
             paddingLeft:   'var(--space-5)',
             paddingRight:  'var(--space-5)',
-            paddingTop:    'var(--space-5)',
+            paddingTop:    'max(env(safe-area-inset-top), var(--space-5))',
             paddingBottom: 'var(--space-5)',
           }}
           initial={{ opacity: 0 }}

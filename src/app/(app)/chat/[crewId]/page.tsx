@@ -228,7 +228,13 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
     >
       {welcome === "1" && <WelcomeDetector crewId={crewId} />}
 
-      <ChatFloatingNav crewId={crewId} currentUserId={user.id} initialGemBalance={gemBalance} />
+      <ChatFloatingNav
+        crewId={crewId}
+        currentUserId={user.id}
+        avatarUrl={memberProfiles[user.id]?.avatar_url ?? null}
+        username={memberProfiles[user.id]?.username ?? null}
+        initialGemBalance={gemBalance}
+      />
 
       <ErrorBoundary>
         <MessageList

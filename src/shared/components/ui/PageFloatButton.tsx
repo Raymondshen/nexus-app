@@ -1,12 +1,12 @@
 'use client'
 
-import { type ReactNode, useCallback, useEffect, useState } from 'react'
+import { type ReactNode, useEffect, useState } from 'react'
 import { AnimatePresence } from 'framer-motion'
-import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
+import { useRouter } from 'next/navigation'
 import { Calendar2 } from 'pixelarticons/react/Calendar2'
-import { useSlideBack, markHomeParallaxReveal } from '@/app/layouts/SlidePage'
 import { useChatStore } from '@/store/chatStore'
 import { EventSheetBottomPreview } from '@/features/events/components/EventSheetBottomPreview'
+import { UserAvatar } from '@/shared/components/ui/UserAvatar'
 
 interface PageFloatButtonProps {
   icon:       ReactNode
@@ -50,24 +50,30 @@ export function PageFloatButton({ icon, onClick, ariaLabel, disabled, className 
 interface ChatFloatingNavProps {
   crewId:             string
   currentUserId:      string
+  avatarUrl:          string | null
+  username:           string | null
   initialGemBalance?: number
 }
 
-// The chat room's floating top nav — composed of two PageFloatButtons plus the chat-specific
-// wiring that used to live in its own FloatingBackButton component/file (navigation/). Merged
-// here by explicit instruction so there's a single source of button-related code instead of
-// two, at the cost of this shared/ui module now importing chat-only dependencies
-// (useChatStore, EventSheetBottomPreview) that PageFloatButton's other consumers
-// (ProfileClient, AccountPageMember) never touch — those two are unaffected since they only
-// import PageFloatButton itself, not this export.
-export function ChatFloatingNav({ crewId, currentUserId, initialGemBalance }: ChatFloatingNavProps) {
-  const goBack         = useSlideBack()
-  const setGemBalance  = useChatStore((s) => s.setGemBalance)
-
-  const handleBack = useCallback(() => {
-    markHomeParallaxReveal()
-    goBack()
-  }, [goBack])
+// The chat room's floating top nav — composed of the profile-avatar button (Figma 577:5781
+// "squad-nav") plus a dev-gated PageFloatButton, and the chat-specific wiring that used to
+// live in its own FloatingBackButton component/file (navigation/). Merged here by explicit
+// instruction so there's a single source of button-related code instead of two, at the cost
+// of this shared/ui module now importing chat-only dependencies (useChatStore,
+// EventSheetBottomPreview) that PageFloatButton's other consumers (ProfileClient,
+// AccountPageMember) never touch — those two are unaffected since they only import
+// PageFloatButton itself, not this export.
+//
+// The avatar button replaced a ChevronLeft back button per Figma — there is no in-app back
+// control here anymore. Backward navigation out of chat relies on the native swipe-back
+// gesture (the chat SlidePage already renders with nativeSwipe, so a JS swipe handler was
+// never involved). Home's parallax-reveal animation (markHomeParallaxReveal /
+// consumeHomeParallaxReveal in SlidePage.tsx) only ever fired from this now-removed tap-back
+// path, so it's currently unreachable — left in place rather than deleted, same "kept but
+// orphaned" treatment as other dead-but-valid code noted in CLAUDE.md.
+export function ChatFloatingNav({ crewId, currentUserId, avatarUrl, username, initialGemBalance }: ChatFloatingNavProps) {
+  const router          = useRouter()
+  const setGemBalance   = useChatStore((s) => s.setGemBalance)
 
   const [showEventPreview, setShowEventPreview] = useState(false)
   const [devMode,          setDevMode]          = useState(false)
@@ -114,13 +120,23 @@ export function ChatFloatingNav({ crewId, currentUserId, initialGemBalance }: Ch
           className="flex items-center justify-between w-full pointer-events-none"
           style={{ padding: 16 }}
         >
-          {/* Back button */}
+          {/* Profile avatar button — opens the current user's own profile */}
           <div className="pointer-events-auto">
-            <PageFloatButton
-              onClick={handleBack}
-              ariaLabel="Go back"
-              icon={<ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />}
-            />
+            <button
+              onClick={() => router.push('/profile')}
+              aria-label="View your profile"
+              className="appearance-none active:opacity-70"
+              style={{ borderRadius: '50%' }}
+            >
+              <UserAvatar
+                avatarUrl={avatarUrl}
+                username={username}
+                size={40}
+                bg="primary"
+                initialColor="black"
+                priority
+              />
+            </button>
           </div>
 
           {/* Right actions */}
