@@ -16,6 +16,16 @@ import { Message } from 'pixelarticons/react/Message'
 // cover header" in the app) rather than reinventing this shape: same width/radius/
 // border tokens, same supabaseImageLoader + `--gradient-image-overlay` cover
 // treatment, same online-dot styling.
+
+// Matches UserAvatar's size=24 below — reserves the online-avatars row's height
+// whether or not it actually has avatars to show, so every card in the horizontally-
+// scrollable row renders at the same total height instead of the ones with no (or
+// hidden) online members collapsing shorter. Same "reserved slot beats letting
+// content collapse the row" pattern as SquadDetailsSheet's VINYL_PILL_HEIGHT/
+// BlankTickerSlot (see that file's Figma 432:7827/432:8021 comment for the bug it
+// fixed there).
+const ONLINE_AVATARS_ROW_HEIGHT = 24
+
 export function SwipePreviewCard({ room, selected }: { room: RoomMeta & { id: string }; selected: boolean }) {
   const onlineMembers = room.onlineMembers.slice(0, 4)
   const hasUnread     = room.unreadCount > 0
@@ -51,17 +61,18 @@ export function SwipePreviewCard({ room, selected }: { room: RoomMeta & { id: st
         {/* `selected` doubles as "is the currently-open room" here (see ChatRoomBrowseSheet's
             call site) — only that room's onlineMembers is live (ChatInput's onlineUserIds);
             every other card's is a one-shot user_presence snapshot from ensureRoomMeta that
-            never updates again, so showing it would read as live when it's actually stale. */}
-        {selected && onlineMembers.length > 0 && (
-          <div className="flex items-center" style={{ gap: 8 }}>
-            {onlineMembers.map((m) => (
-              <div key={m.id} className="relative flex-shrink-0">
-                <UserAvatar avatarUrl={m.avatarUrl} username={m.username} size={24} />
-                <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#66bb6a] border-[1.5px] border-black" />
-              </div>
-            ))}
-          </div>
-        )}
+            never updates again, so showing it would read as live when it's actually stale.
+            The row itself always renders at ONLINE_AVATARS_ROW_HEIGHT — a blank reserved
+            slot when there's nothing to show, so cards without avatars don't collapse
+            shorter than their neighbors. */}
+        <div className="flex items-center flex-shrink-0" style={{ gap: 8, height: ONLINE_AVATARS_ROW_HEIGHT }}>
+          {selected && onlineMembers.map((m) => (
+            <div key={m.id} className="relative flex-shrink-0">
+              <UserAvatar avatarUrl={m.avatarUrl} username={m.username} size={24} />
+              <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#66bb6a] border-[1.5px] border-black" />
+            </div>
+          ))}
+        </div>
       </div>
 
       <div
