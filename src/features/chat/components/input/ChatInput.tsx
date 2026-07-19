@@ -152,6 +152,13 @@ const EMPTY_ONLINE_IDS = new Set<string>()
 // 500ms threshold MessageBubble's long-press-to-react uses (see its handleTouchStart).
 const CHAT_BROWSE_LONG_PRESS_MS = 500
 
+// Set once the user has actually triggered the tap-hold-to-browse gesture — permanently
+// hides the "Switch groups by tap-hold..." hint (Figma 589:5938) for this device from then
+// on, same one-shot-hint convention as nexus_first_message/nexus_crew_created (see
+// CLAUDE.md's Storage Keys). Scoped to nexus_chat_swipe_nav — the feature itself is
+// dev-gated, so the hint only ever renders for a session that already has it enabled.
+const CHAT_SWIPE_HINT_SEEN_KEY = 'nexus_chat_swipe_nav_hint_seen'
+
 // ─── ChatInput ────────────────────────────────────────────────────────────────
 
 export function ChatInput({ crewId, userId, userProfile, memberProfiles, memberPinnedVinyls, crewName, inviteCode, creatorId, crewImageUrl: initialCrewImageUrl, crewBackgroundImageUrl: initialCrewBgUrl, initialXP, isDM, dmPartnerId, chatRoomOrder = [] }: ChatInputProps) {
@@ -187,6 +194,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, memberP
   const [eventsEnabled,    setEventsEnabled]     = useState(false)
   const [fxpEnabled,       setFxpEnabled]        = useState(false)
   const [chatSwipeNavEnabled, setChatSwipeNavEnabled] = useState(false)
+  const [showSwipeHint,   setShowSwipeHint]   = useState(false)
   const [gemToastVisible,   setGemToastVisible]   = useState(false)
   const [isExpanded,     setIsExpanded]     = useState(false)
   const [showNotifSheet,  setShowNotifSheet]  = useState(false)
@@ -391,6 +399,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     setPollEnabled(localStorage.getItem('nexus_poll_feature') === '1')
     setEventsEnabled(localStorage.getItem('nexus_events_enabled') === '1')
     setChatSwipeNavEnabled(localStorage.getItem('nexus_chat_swipe_nav') === '1')
+    setShowSwipeHint(localStorage.getItem(CHAT_SWIPE_HINT_SEEN_KEY) !== '1')
     function onFxpChange(e: Event)    { setFxpEnabled((e as CustomEvent<{ on: boolean }>).detail.on) }
     function onPollChange(e: Event)   { setPollEnabled((e as CustomEvent<{ on: boolean }>).detail.on) }
     function onEventsChange(e: Event) { setEventsEnabled((e as CustomEvent<{ on: boolean }>).detail.on) }
@@ -662,6 +671,13 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     longPressTimerRef.current = setTimeout(() => {
       longPressTimerRef.current = null
       setShowRoomBrowser(true)
+      // One-shot hint dismissal — see CHAT_SWIPE_HINT_SEEN_KEY's own doc comment.
+      // Only written once the gesture actually completes (not on every pointerdown),
+      // so an aborted/short tap doesn't prematurely hide the hint.
+      if (showSwipeHint) {
+        localStorage.setItem(CHAT_SWIPE_HINT_SEEN_KEY, '1')
+        setShowSwipeHint(false)
+      }
     }, CHAT_BROWSE_LONG_PRESS_MS)
   }
 
@@ -1614,6 +1630,24 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
           Isolated into its own component reading straight from chatStore so a
           presence sync doesn't re-render all of ChatInput — see ChatTypingIndicator. ── */}
       <ChatTypingIndicator />
+
+      {/* Figma 589:5938 ("Frame 292") — one-shot hint for the tap-hold-to-browse-rooms
+          gesture, dev-gated the same as the gesture itself (nexus_chat_swipe_nav) and
+          hidden when there's nothing to switch to. Permanently dismissed the first time
+          the gesture actually fires — see CHAT_SWIPE_HINT_SEEN_KEY / handleContainerPointerDown. */}
+      {chatSwipeNavEnabled && showSwipeHint && chatRoomOrder.length > 1 && (
+        <p
+          className="w-full text-center font-body font-light text-tertiary"
+          style={{
+            fontSize:              'var(--text-xs)',
+            fontVariationSettings: '"opsz" 14',
+            lineHeight:            1.4,
+            padding:               'var(--x3) var(--x5)',
+          }}
+        >
+          Switch groups by tap-hold chat input area.
+        </p>
+      )}
 
       {/* Swipe-up-on-the-container overlay — every room, scrollable, tap to navigate.
           See handleTopPanEnd (opens this) and this component's own doc comment. */}
