@@ -3,6 +3,7 @@
 import React, { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
+import type { PanInfo } from 'framer-motion'
 import { UserAvatar } from '@/shared/components/ui/UserAvatar'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { createClient } from '@/shared/supabase/client'
@@ -148,15 +149,12 @@ async function tryClaimDailyGem(supabase: ReturnType<typeof createClient>, onCla
 const EMPTY_MEMBERS: MemberProfile[] = []
 const EMPTY_ONLINE_IDS = new Set<string>()
 
-// Tap-and-hold duration to open ChatRoomBrowseSheet from chatInputContainer — same
-// 500ms threshold MessageBubble's long-press-to-react uses (see its handleTouchStart).
-const CHAT_BROWSE_LONG_PRESS_MS = 500
-
-// Set once the user has actually triggered the tap-hold-to-browse gesture — permanently
-// hides the "Switch groups by tap-hold..." hint (Figma 589:5938) for this device from then
-// on, same one-shot-hint convention as nexus_first_message/nexus_crew_created (see
-// CLAUDE.md's Storage Keys). Scoped to nexus_chat_swipe_nav — the feature itself is
-// dev-gated, so the hint only ever renders for a session that already has it enabled.
+// Set once the user has actually triggered the swipe-up-to-browse gesture — permanently
+// hides the "Switch groups by swiping up..." hint (Figma 589:5938, copy adapted for the
+// swipe-up gesture) for this device from then on, same one-shot-hint convention as
+// nexus_first_message/nexus_crew_created (see CLAUDE.md's Storage Keys). Scoped to
+// nexus_chat_swipe_nav — the feature itself is dev-gated, so the hint only ever renders
+// for a session that already has it enabled.
 const CHAT_SWIPE_HINT_SEEN_KEY = 'nexus_chat_swipe_nav_hint_seen'
 
 // ─── ChatInput ────────────────────────────────────────────────────────────────
@@ -224,7 +222,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   // onPressEnd props (Framer tap-gesture callbacks on that component, which already
   // correctly cancels on a finger sliding off the bar mid-press).
   const [barPressed,      setBarPressed]      = useState(false)
-  // Opened by a tap-and-hold on chatInputContainer (see handleContainerPressStart) —
+  // Opened by a swipe-up on chatInputContainer (see handleTopPanEnd) —
   // ChatRoomBrowseSheet, a persistent "every room, scrollable, tap to navigate"
   // overlay. Stays true until the user taps a card or the backdrop.
   const [showRoomBrowser, setShowRoomBrowser] = useState(false)
@@ -647,38 +645,28 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
 
   // ────────────────────────────────────────────────────────────────────────────
 
-  // Dev-gated (nexus_chat_swipe_nav): tap-and-hold anywhere on the chatInputContainer
+  // Dev-gated (nexus_chat_swipe_nav): swiping up anywhere on the chatInputContainer
   // opens ChatRoomBrowseSheet, a persistent "every room, scrollable, tap to navigate"
-  // overlay (see that component's own doc comment). This replaced an earlier swipe-up
-  // gesture at the same trigger point; SquadDetailsSheet is still reachable via a tap
-  // on the bar or its chevron (ChatSquadDetailBar's own onClick), unrelated to this
-  // gesture. Same 500ms "hold, don't just tap" threshold and "any movement cancels"
-  // pattern as MessageBubble's long-press-to-react (see its handleTouchStart/Move/End)
-  // — a finger that starts sliding (e.g. into native text selection in the input, or a
-  // button tap) backs out cleanly instead of firing late.
-  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  function cancelChatBrowseLongPress() {
-    if (longPressTimerRef.current) {
-      clearTimeout(longPressTimerRef.current)
-      longPressTimerRef.current = null
-    }
-  }
-
-  function handleContainerPointerDown() {
-    if (!chatSwipeNavEnabled || chatRoomOrder.length <= 1) return
-    cancelChatBrowseLongPress()
-    longPressTimerRef.current = setTimeout(() => {
-      longPressTimerRef.current = null
+  // overlay (see that component's own doc comment). SquadDetailsSheet is still
+  // reachable via a tap on the bar or its chevron (ChatSquadDetailBar's own onClick),
+  // unrelated to this gesture. Only a predominantly-vertical drag counts, so an
+  // otherwise-unrelated horizontal gesture on the container (e.g. text selection in
+  // the input) can't cross the same y-offset threshold by coincidence.
+  function handleTopPanEnd(_: PointerEvent, info: PanInfo) {
+    const isMostlyVertical = Math.abs(info.offset.y) > Math.abs(info.offset.x)
+    if (
+      isMostlyVertical &&
+      (info.offset.y < -50 || info.velocity.y < -300) &&
+      chatSwipeNavEnabled &&
+      chatRoomOrder.length > 1
+    ) {
       setShowRoomBrowser(true)
       // One-shot hint dismissal — see CHAT_SWIPE_HINT_SEEN_KEY's own doc comment.
-      // Only written once the gesture actually completes (not on every pointerdown),
-      // so an aborted/short tap doesn't prematurely hide the hint.
       if (showSwipeHint) {
         localStorage.setItem(CHAT_SWIPE_HINT_SEEN_KEY, '1')
         setShowSwipeHint(false)
       }
-    }, CHAT_BROWSE_LONG_PRESS_MS)
+    }
   }
 
   // Used by ChatRoomBrowseSheet's tap-to-navigate (see its onSelectRoom call site
@@ -1631,10 +1619,10 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
           presence sync doesn't re-render all of ChatInput — see ChatTypingIndicator. ── */}
       <ChatTypingIndicator />
 
-      {/* Figma 589:5938 ("Frame 292") — one-shot hint for the tap-hold-to-browse-rooms
+      {/* Figma 589:5938 ("Frame 292") — one-shot hint for the swipe-up-to-browse-rooms
           gesture, dev-gated the same as the gesture itself (nexus_chat_swipe_nav) and
           hidden when there's nothing to switch to. Permanently dismissed the first time
-          the gesture actually fires — see CHAT_SWIPE_HINT_SEEN_KEY / handleContainerPointerDown. */}
+          the gesture actually fires — see CHAT_SWIPE_HINT_SEEN_KEY / handleTopPanEnd. */}
       {chatSwipeNavEnabled && showSwipeHint && chatRoomOrder.length > 1 && (
         <p
           className="w-full text-center font-body font-light text-tertiary"
@@ -1645,7 +1633,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
             padding:               'var(--x3) var(--x5)',
           }}
         >
-          Switch groups by tap-hold chat input area.
+          Switch groups by swiping up on the chat input area.
         </p>
       )}
 
@@ -1675,18 +1663,14 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
           anywhere inside it, including the input row — this container is scaled from
           outside the thing that should actually trigger it.
 
-          The tap-and-hold-to-browse pointer handlers live HERE (the whole
-          container), not on ChatSquadDetailBar — a hold anywhere in the container
-          (bar or input row) should open ChatRoomBrowseSheet, per
-          handleContainerPointerDown's own doc comment. */}
+          onPanEnd lives HERE (the whole container), not on ChatSquadDetailBar — a
+          swipe-up anywhere in the container (bar or input row) should open
+          ChatRoomBrowseSheet, per handleTopPanEnd's own doc comment. */}
       <motion.div
         className="border-t border-border flex flex-col"
         animate={{ scale: barPressed ? 1.02 : 1 }}
         transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-        onPointerDown={handleContainerPointerDown}
-        onPointerMove={cancelChatBrowseLongPress}
-        onPointerUp={cancelChatBrowseLongPress}
-        onPointerCancel={cancelChatBrowseLongPress}
+        onPanEnd={handleTopPanEnd}
         style={{
           paddingTop:    'var(--space-5)',
           paddingLeft:   'var(--space-5)',
