@@ -167,6 +167,16 @@ const PAN_DIRECTION_LOCK_PX = 12
 // ChatRoomBrowseSheet's own row snaps to) advances the scrub by exactly one item —
 // dragging further keeps advancing/retreating through the rest of the list.
 const DRAG_SCRUB_STEP_PX = ROOM_BROWSE_CARD_STEP
+// Past this much horizontal offset, handleTopPan switches from following the finger
+// 1:1 to "held" continuous rotation (see its own doc comment) — a sustained swipe
+// past most of a card's width reads as "the user wants to keep going", not "the user
+// wants exactly this many cards". Short of it, small deliberate swipes still map
+// precisely to a card count via DRAG_SCRUB_STEP_PX, same as before.
+const DRAG_HOLD_TRIGGER_PX = DRAG_SCRUB_STEP_PX * 0.75
+// Pace of the held-rotation timer — "slowly" per the gesture's own intent, one card
+// per tick, so holding at the edge visibly walks the whole list rather than either
+// freezing (too slow) or blowing past every room in a blink (too fast to read).
+const HOLD_ROTATE_INTERVAL_MS = 260
 
 // ─── ChatInput ────────────────────────────────────────────────────────────────
 
@@ -252,6 +262,17 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   // card-widths the finger has traveled from a stable origin rather than drifting
   // off a per-event delta.
   const dragScrubStartIndexRef = useRef(0)
+  // Held-rotation timer state (see handleTopPan's DRAG_HOLD_TRIGGER_PX branch and
+  // stopHoldRotate) — holdDirectionRef doubles as "is a hold currently armed" (0 means
+  // no), so handleTopPan only tears down/re-arms the interval when the direction
+  // actually changes rather than on every pan event past the threshold.
+  const holdIntervalRef  = useRef<ReturnType<typeof setInterval> | null>(null)
+  const holdDirectionRef = useRef<1 | -1 | 0>(0)
+  // Latest browseRooms.length, kept in sync every render (see the assignment beside
+  // browseRooms itself, further down) — the hold-rotation timer reads this instead of
+  // closing over the array it was armed with, so a room whose meta finishes loading
+  // mid-hold immediately extends how far the rotation can reach.
+  const browseRoomsLengthRef = useRef(0)
   const [showEventSheet,  setShowEventSheet]  = useState(false)
   const [isMultiline,     setIsMultiline]     = useState(false)
 
@@ -671,6 +692,16 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
 
   // ────────────────────────────────────────────────────────────────────────────
 
+  // Safety net only — every normal path (release, re-arm on direction flip, drift
+  // back below DRAG_HOLD_TRIGGER_PX) already clears this via stopHoldRotate. This
+  // just guards the case where the component unmounts mid-hold (e.g. the room-switch
+  // itself navigates away) without a panEnd ever firing to run that cleanup.
+  useEffect(() => {
+    return () => {
+      if (holdIntervalRef.current !== null) clearInterval(holdIntervalRef.current)
+    }
+  }, [])
+
   // Dev-gated (nexus_chat_swipe_nav): a pan gesture anywhere on chatInputContainer
   // opens ChatRoomBrowseSheet two different ways depending on its axis, decided once
   // per gesture by handleTopPan the first time it crosses PAN_DIRECTION_LOCK_PX (an
@@ -687,6 +718,18 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   //     instead of a single release-time check like the vertical gesture.
   function handleTopPanStart() {
     panDirectionRef.current = null
+    stopHoldRotate()
+  }
+
+  // Tears down the held-rotation timer (see DRAG_HOLD_TRIGGER_PX's own doc comment) —
+  // called whenever a hold is disarmed: the gesture ends, drifts back below the
+  // trigger distance, or reverses direction (which re-arms a fresh timer right after).
+  function stopHoldRotate() {
+    if (holdIntervalRef.current !== null) {
+      clearInterval(holdIntervalRef.current)
+      holdIntervalRef.current = null
+    }
+    holdDirectionRef.current = 0
   }
 
   // Continuous half of the horizontal drag-scrub gesture — see handleTopPanStart's
@@ -695,6 +738,16 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   // crosses PAN_DIRECTION_LOCK_PX; every following call for the same gesture just
   // re-checks that lock instead of re-deciding, so a gesture that starts leaning one
   // way can't flip axis mid-drag from a later wobble.
+  //
+  // Once horizontal, index tracking has two regimes past that same lock point:
+  //   - Short of DRAG_HOLD_TRIGGER_PX: index follows offset 1:1 (one DRAG_SCRUB_STEP_PX
+  //     of travel = one card) — precise for a quick, deliberate swipe of a card or two.
+  //   - Past DRAG_HOLD_TRIGGER_PX: offset stops mattering. Instead this arms a steady
+  //     HOLD_ROTATE_INTERVAL_MS timer that keeps stepping the index by one in that
+  //     direction on its own, so a finger that stops moving (a genuine hold) still
+  //     keeps walking through the whole list instead of freezing wherever the initial
+  //     travel happened to land — the interval runs independently of further onPan
+  //     calls, driven purely by holdDirectionRef until stopHoldRotate tears it down.
   function handleTopPan(_: PointerEvent, info: PanInfo) {
     if (!chatSwipeNavEnabled || chatRoomOrder.length <= 1) return
     if (panDirectionRef.current === null) {
@@ -715,6 +768,28 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
       }
     }
     if (panDirectionRef.current !== 'horizontal') return
+
+    if (Math.abs(info.offset.x) >= DRAG_HOLD_TRIGGER_PX) {
+      // Dragging left (negative offset.x) advances forward through the list — same
+      // convention as the proportional branch below.
+      const dir: 1 | -1 = info.offset.x < 0 ? 1 : -1
+      if (holdDirectionRef.current !== dir) {
+        stopHoldRotate()
+        holdDirectionRef.current = dir
+        holdIntervalRef.current = setInterval(() => {
+          setDragScrubIndex((prev) => {
+            if (prev === null) return prev
+            const totalItems = browseRoomsLengthRef.current + 1
+            return Math.max(0, Math.min(totalItems - 1, prev + dir))
+          })
+        }, HOLD_ROTATE_INTERVAL_MS)
+      }
+      return
+    }
+    // Short of the hold threshold — plain proportional follow. Also disarms any hold
+    // timer from a moment ago, in case the finger drifted back toward center without
+    // fully releasing (a hold that's no longer held).
+    stopHoldRotate()
     const totalItems = browseRooms.length + 1
     // Dragging left (negative offset.x) advances forward through the list — the same
     // "drag left to reveal what's further right" direction the row's own native
@@ -729,6 +804,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     if (panDirectionRef.current === 'horizontal') {
       const finalIndex = dragScrubIndex
       panDirectionRef.current = null
+      stopHoldRotate()
       setDragScrubIndex(null)
       if (finalIndex === null) return
       if (finalIndex === 0) {
@@ -1701,6 +1777,9 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   const browseRooms = chatRoomOrder
     .map((id) => (roomPeekMeta[id] ? { id, ...roomPeekMeta[id] } : null))
     .filter((room): room is { id: string } & RoomMeta => room !== null)
+  // See browseRoomsLengthRef's own doc comment — kept fresh every render, not just
+  // while a hold is active, so the ref is already correct the moment one arms.
+  browseRoomsLengthRef.current = browseRooms.length
 
   function handleSelectRoomFromBrowse(targetId: string) {
     setShowRoomBrowser(false)
