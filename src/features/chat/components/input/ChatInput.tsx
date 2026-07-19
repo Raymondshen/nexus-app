@@ -770,9 +770,10 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     if (panDirectionRef.current !== 'horizontal') return
 
     if (Math.abs(info.offset.x) >= DRAG_HOLD_TRIGGER_PX) {
-      // Dragging left (negative offset.x) advances forward through the list — same
-      // convention as the proportional branch below.
-      const dir: 1 | -1 = info.offset.x < 0 ? 1 : -1
+      // Dragging left steps to the card on the left (lower index); dragging right
+      // steps to the card on the right (higher index) — same convention as the
+      // proportional branch below.
+      const dir: 1 | -1 = info.offset.x < 0 ? -1 : 1
       if (holdDirectionRef.current !== dir) {
         stopHoldRotate()
         holdDirectionRef.current = dir
@@ -791,11 +792,10 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     // fully releasing (a hold that's no longer held).
     stopHoldRotate()
     const totalItems = browseRooms.length + 1
-    // Dragging left (negative offset.x) advances forward through the list — the same
-    // "drag left to reveal what's further right" direction the row's own native
-    // scroll already uses, so this reads as literally shoving the row with a finger
-    // rather than a separately-invented convention.
-    const steps = Math.round(-info.offset.x / DRAG_SCRUB_STEP_PX)
+    // Dragging left steps to the card on the left (lower index); dragging right steps
+    // to the card on the right (higher index) — the selection moves the same
+    // direction as the finger, like dragging a cursor rather than dragging content.
+    const steps = Math.round(info.offset.x / DRAG_SCRUB_STEP_PX)
     const nextIndex = Math.max(0, Math.min(totalItems - 1, dragScrubStartIndexRef.current + steps))
     setDragScrubIndex((prev) => (prev === nextIndex ? prev : nextIndex))
   }
