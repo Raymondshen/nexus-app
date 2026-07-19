@@ -27,7 +27,7 @@ import { useChatRoomPeekStore } from '@/features/chat/store/chatRoomPeekStore'
 import type { RoomMeta } from '@/features/chat/store/chatRoomPeekStore'
 import { ensureRoomMeta } from '@/features/chat/utils/ensureRoomMeta'
 import { ChatTypingIndicator } from '@/features/chat/components/input/ChatTypingIndicator'
-import { ChatRoomBrowseSheet } from '@/features/chat/components/input/ChatRoomBrowseSheet'
+import { ChatRoomBrowseSheet, CARD_STEP as ROOM_BROWSE_CARD_STEP } from '@/features/chat/components/input/ChatRoomBrowseSheet'
 import { isGemGateOpen, recordGemClaim } from '@/shared/utils/gems'
 import type { GemClaimResult } from '@/types'
 import { Send } from 'pixelarticons/react/Send'
@@ -157,6 +157,17 @@ const EMPTY_ONLINE_IDS = new Set<string>()
 // for a session that already has it enabled.
 const CHAT_SWIPE_HINT_SEEN_KEY = 'nexus_chat_swipe_nav_hint_seen'
 
+// Horizontal drag-scrub (see handleTopPan): how far, in either axis, a pan gesture on
+// chatInputContainer must travel before it's classified as horizontal (open the room
+// browser and start scrubbing through it) or vertical (the existing swipe-up-to-open
+// gesture, decided at release — see handleTopPanEnd) — small enough to feel immediate,
+// large enough that an incidental jitter or a tap doesn't get misread as a direction.
+const PAN_DIRECTION_LOCK_PX = 12
+// One card-width of horizontal finger travel (ROOM_BROWSE_CARD_STEP, the exact unit
+// ChatRoomBrowseSheet's own row snaps to) advances the scrub by exactly one item —
+// dragging further keeps advancing/retreating through the rest of the list.
+const DRAG_SCRUB_STEP_PX = ROOM_BROWSE_CARD_STEP
+
 // ─── ChatInput ────────────────────────────────────────────────────────────────
 
 export function ChatInput({ crewId, userId, userProfile, memberProfiles, memberPinnedVinyls, crewName, inviteCode, creatorId, crewImageUrl: initialCrewImageUrl, crewBackgroundImageUrl: initialCrewBgUrl, initialXP, isDM, dmPartnerId, chatRoomOrder = [] }: ChatInputProps) {
@@ -226,6 +237,21 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   // ChatRoomBrowseSheet, a persistent "every room, scrollable, tap to navigate"
   // overlay. Stays true until the user taps a card or the backdrop.
   const [showRoomBrowser, setShowRoomBrowser] = useState(false)
+  // Live index (into ChatRoomBrowseSheet's [Create Squad, ...rooms] list) the
+  // horizontal drag-scrub gesture is currently over — see handleTopPan. Null
+  // whenever a drag isn't actively scrubbing (including every other way the sheet
+  // gets opened/closed), which is also what ChatRoomBrowseSheet's dragFocusIndex
+  // prop treats as "ignore me, behave normally".
+  const [dragScrubIndex, setDragScrubIndex] = useState<number | null>(null)
+  // Locks which axis the current pan gesture on chatInputContainer means, decided
+  // once per gesture the first time it crosses PAN_DIRECTION_LOCK_PX in either
+  // axis — see handleTopPan. Null between gestures and while still undecided.
+  const panDirectionRef = useRef<'horizontal' | 'vertical' | null>(null)
+  // The browse-list index the drag-scrub gesture started from (the current room's
+  // own slot) — captured once per gesture so handleTopPan can compute how many
+  // card-widths the finger has traveled from a stable origin rather than drifting
+  // off a per-event delta.
+  const dragScrubStartIndexRef = useRef(0)
   const [showEventSheet,  setShowEventSheet]  = useState(false)
   const [isMultiline,     setIsMultiline]     = useState(false)
 
@@ -645,14 +671,76 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
 
   // ────────────────────────────────────────────────────────────────────────────
 
-  // Dev-gated (nexus_chat_swipe_nav): swiping up anywhere on the chatInputContainer
-  // opens ChatRoomBrowseSheet, a persistent "every room, scrollable, tap to navigate"
-  // overlay (see that component's own doc comment). SquadDetailsSheet is still
-  // reachable via a tap on the bar or its chevron (ChatSquadDetailBar's own onClick),
-  // unrelated to this gesture. Only a predominantly-vertical drag counts, so an
-  // otherwise-unrelated horizontal gesture on the container (e.g. text selection in
-  // the input) can't cross the same y-offset threshold by coincidence.
+  // Dev-gated (nexus_chat_swipe_nav): a pan gesture anywhere on chatInputContainer
+  // opens ChatRoomBrowseSheet two different ways depending on its axis, decided once
+  // per gesture by handleTopPan the first time it crosses PAN_DIRECTION_LOCK_PX (an
+  // otherwise-unrelated small jitter, or a tap, can't cross that threshold by
+  // coincidence). SquadDetailsSheet is still reachable via a tap on the bar or its
+  // chevron (ChatSquadDetailBar's own onClick), unrelated to either of these:
+  //   - Vertical (the original gesture): only decided at release, in handleTopPanEnd
+  //     below — a plain swipe-up just opens the sheet at the current room, same as
+  //     tapping into it any other way (tap a card / backdrop to act).
+  //   - Horizontal (new): decided live, in handleTopPan — opens the sheet immediately
+  //     and then drag-scrubs it, card by card, as the finger keeps moving; releasing
+  //     commits straight to whichever card is under the finger (or Create Squad) —
+  //     see handleTopPan's own doc comment for why this needs continuous tracking
+  //     instead of a single release-time check like the vertical gesture.
+  function handleTopPanStart() {
+    panDirectionRef.current = null
+  }
+
+  // Continuous half of the horizontal drag-scrub gesture — see handleTopPanStart's
+  // doc comment for how this and the vertical swipe-up divide the gesture space.
+  // Direction is decided once (via panDirectionRef) the first time either axis
+  // crosses PAN_DIRECTION_LOCK_PX; every following call for the same gesture just
+  // re-checks that lock instead of re-deciding, so a gesture that starts leaning one
+  // way can't flip axis mid-drag from a later wobble.
+  function handleTopPan(_: PointerEvent, info: PanInfo) {
+    if (!chatSwipeNavEnabled || chatRoomOrder.length <= 1) return
+    if (panDirectionRef.current === null) {
+      if (Math.abs(info.offset.x) < PAN_DIRECTION_LOCK_PX && Math.abs(info.offset.y) < PAN_DIRECTION_LOCK_PX) return
+      panDirectionRef.current = Math.abs(info.offset.x) > Math.abs(info.offset.y) ? 'horizontal' : 'vertical'
+      if (panDirectionRef.current === 'horizontal') {
+        const currentIndex = browseRooms.findIndex((r) => r.id === crewId)
+        // +1 to account for Create Squad occupying slot 0 in the sheet's own combined
+        // list — mirrors ChatRoomBrowseSheet's own indexOfCurrentItem fallback.
+        dragScrubStartIndexRef.current = currentIndex === -1 ? Math.min(1, browseRooms.length) : currentIndex + 1
+        setDragScrubIndex(dragScrubStartIndexRef.current)
+        setShowRoomBrowser(true)
+        // One-shot hint dismissal — see CHAT_SWIPE_HINT_SEEN_KEY's own doc comment.
+        if (showSwipeHint) {
+          localStorage.setItem(CHAT_SWIPE_HINT_SEEN_KEY, '1')
+          setShowSwipeHint(false)
+        }
+      }
+    }
+    if (panDirectionRef.current !== 'horizontal') return
+    const totalItems = browseRooms.length + 1
+    // Dragging left (negative offset.x) advances forward through the list — the same
+    // "drag left to reveal what's further right" direction the row's own native
+    // scroll already uses, so this reads as literally shoving the row with a finger
+    // rather than a separately-invented convention.
+    const steps = Math.round(-info.offset.x / DRAG_SCRUB_STEP_PX)
+    const nextIndex = Math.max(0, Math.min(totalItems - 1, dragScrubStartIndexRef.current + steps))
+    setDragScrubIndex((prev) => (prev === nextIndex ? prev : nextIndex))
+  }
+
   function handleTopPanEnd(_: PointerEvent, info: PanInfo) {
+    if (panDirectionRef.current === 'horizontal') {
+      const finalIndex = dragScrubIndex
+      panDirectionRef.current = null
+      setDragScrubIndex(null)
+      if (finalIndex === null) return
+      if (finalIndex === 0) {
+        openCreateSquadFromBrowse()
+      } else {
+        const room = browseRooms[finalIndex - 1]
+        if (room) handleSelectRoomFromBrowse(room.id)
+        else setShowRoomBrowser(false)
+      }
+      return
+    }
+    panDirectionRef.current = null
     const isMostlyVertical = Math.abs(info.offset.y) > Math.abs(info.offset.x)
     if (
       isMostlyVertical &&
@@ -667,6 +755,18 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
         setShowSwipeHint(false)
       }
     }
+  }
+
+  // Shared by ChatRoomBrowseSheet's own Create Squad card tap and the horizontal
+  // drag-scrub gesture landing on that same slot (index 0) at release — see
+  // handleTopPanEnd and the sheet's onCreateSquad prop below, both call this instead
+  // of duplicating the close+navigate.
+  function openCreateSquadFromBrowse() {
+    setShowRoomBrowser(false)
+    // Reuses Home's existing create-squad sheet/flow (createCrewFromHomeAction)
+    // rather than duplicating it here — HomeClient auto-opens it when it sees this
+    // query param (see its own effect for that).
+    router.push('/home?openCreate=1')
   }
 
   // Used by ChatRoomBrowseSheet's tap-to-navigate (see its onSelectRoom call site
@@ -1619,10 +1719,11 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
           presence sync doesn't re-render all of ChatInput — see ChatTypingIndicator. ── */}
       <ChatTypingIndicator />
 
-      {/* Figma 589:5938 ("Frame 292") — one-shot hint for the swipe-up-to-browse-rooms
-          gesture, dev-gated the same as the gesture itself (nexus_chat_swipe_nav) and
-          hidden when there's nothing to switch to. Permanently dismissed the first time
-          the gesture actually fires — see CHAT_SWIPE_HINT_SEEN_KEY / handleTopPanEnd. */}
+      {/* Figma 589:5938 ("Frame 292") — one-shot hint for the swipe-to-browse-rooms
+          gestures, dev-gated the same as the gestures themselves (nexus_chat_swipe_nav)
+          and hidden when there's nothing to switch to. Permanently dismissed the first
+          time either gesture actually fires — see CHAT_SWIPE_HINT_SEEN_KEY /
+          handleTopPan / handleTopPanEnd. */}
       {chatSwipeNavEnabled && showSwipeHint && chatRoomOrder.length > 1 && (
         <p
           className="w-full text-center font-body font-light text-tertiary"
@@ -1633,24 +1734,20 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
             padding:               'var(--x3) var(--x5)',
           }}
         >
-          Switch groups by swiping up on the chat input area.
+          Switch groups by swiping up or side to side on the chat input area.
         </p>
       )}
 
-      {/* Swipe-up-on-the-container overlay — every room, scrollable, tap to navigate.
-          See handleTopPanEnd (opens this) and this component's own doc comment. */}
+      {/* Swipe-on-the-container overlay — every room, scrollable, tap to navigate, or
+          drag-scrub left/right to jump straight to one. See handleTopPan/handleTopPanEnd
+          (open + drive this) and this component's own doc comment. */}
       <ChatRoomBrowseSheet
         visible={showRoomBrowser}
         rooms={browseRooms}
         currentRoomId={crewId}
         onSelectRoom={handleSelectRoomFromBrowse}
-        onCreateSquad={() => {
-          setShowRoomBrowser(false)
-          // Reuses Home's existing create-squad sheet/flow (createCrewFromHomeAction)
-          // rather than duplicating it here — HomeClient auto-opens it when it sees
-          // this query param (see its own effect for that).
-          router.push('/home?openCreate=1')
-        }}
+        onCreateSquad={openCreateSquadFromBrowse}
+        dragFocusIndex={dragScrubIndex}
         onClose={() => setShowRoomBrowser(false)}
       />
 
@@ -1663,13 +1760,15 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
           anywhere inside it, including the input row — this container is scaled from
           outside the thing that should actually trigger it.
 
-          onPanEnd lives HERE (the whole container), not on ChatSquadDetailBar — a
-          swipe-up anywhere in the container (bar or input row) should open
-          ChatRoomBrowseSheet, per handleTopPanEnd's own doc comment. */}
+          onPan/onPanEnd live HERE (the whole container), not on ChatSquadDetailBar — a
+          swipe up, left, or right anywhere in the container (bar or input row) should
+          drive ChatRoomBrowseSheet, per handleTopPanStart's own doc comment. */}
       <motion.div
         className="border-t border-border flex flex-col"
         animate={{ scale: barPressed ? 1.02 : 1 }}
         transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+        onPanStart={handleTopPanStart}
+        onPan={handleTopPan}
         onPanEnd={handleTopPanEnd}
         style={{
           paddingTop:    'var(--space-5)',
