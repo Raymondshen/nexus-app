@@ -2,9 +2,9 @@
 
 import { useLayoutEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import type { PanInfo } from 'framer-motion'
 import { Plus } from 'pixelarticons/react/Plus'
 import { SwipePreviewCard } from '@/features/chat/components/input/SwipePreviewCard'
+import { useSheetDrag } from '@/shared/components/ui/sheet/useSheetDrag'
 import { useChatRoomPeekStore, type RoomMeta } from '@/features/chat/store/chatRoomPeekStore'
 
 // ─── ChatRoomBrowseSheet (Figma 589:3619 "body") ───────────────────────────────
@@ -26,7 +26,14 @@ import { useChatRoomPeekStore, type RoomMeta } from '@/features/chat/store/chatR
 // auto-opened — see `onCreateSquad`'s call site in ChatInput, no new create flow
 // duplicated here), tap anywhere in the sheet OTHER than the scrollable row (the
 // row's own onClick stops propagation so a card tap doesn't also bubble into this),
-// or swipe down anywhere in the sheet past a small threshold (handlePanEnd below).
+// or drag down anywhere in the sheet — a real, live-following pull via the same
+// `useSheetDrag` hook BottomSheet/SquadDetailsSheet's panel already share (see that
+// hook's own doc comment for why it's a manual dragControls-driven gesture rather
+// than plain `drag="y"`: it's what lets a downward pull coexist with the row's
+// native horizontal scroll instead of one stealing the other). Releasing past its
+// threshold calls `onClose`; short of that, Framer's own drag-constraint spring-back
+// returns it to rest. Either way — a drag-release close, or any of the tap-based
+// closes above — the exit below always slides the sheet down and fades it out.
 //
 // The header's equalizer bars are live: they track native scroll position via a
 // sliding window of up to EQUALIZER_WINDOW items centered on whichever card is
@@ -62,13 +69,6 @@ const CARD_GAP    = 16
 const CARD_STEP   = CARD_WIDTH + CARD_GAP
 const EQUALIZER_WINDOW = 7
 const CREATE_SQUAD_ID  = 'create-squad'
-
-// Downward swipe anywhere in the sheet closes it — same style of threshold check as
-// ChatInput's own swipe-up-to-open (a discrete check at pan end, not a live drag-
-// linked visual), for consistency between the gesture that opens this and the one
-// that closes it.
-const SWIPE_CLOSE_OFFSET_PX = 50
-const SWIPE_CLOSE_VELOCITY  = 300
 
 // Per-card "rise up from below" entrance (Figma 589:3630, nodes 589:3631/589:3826) —
 // plays once per card, every time this sheet freshly opens (each open is a fresh mount
@@ -172,9 +172,9 @@ export function ChatRoomBrowseSheet({
     setFocusedIndex((prev) => (prev === idx ? prev : idx))
   }
 
-  function handlePanEnd(_: PointerEvent, info: PanInfo) {
-    if (info.offset.y > SWIPE_CLOSE_OFFSET_PX || info.velocity.y > SWIPE_CLOSE_VELOCITY) onClose()
-  }
+  // Pull-to-close that coexists with the row's native horizontal scroll — see
+  // useSheetDrag's own doc comment.
+  const { sheetRef, dragProps } = useSheetDrag(onClose)
 
   const half = Math.floor(EQUALIZER_WINDOW / 2)
   const windowStart = Math.max(0, Math.min(focusedIndex - half, Math.max(0, items.length - EQUALIZER_WINDOW)))
@@ -186,6 +186,7 @@ export function ChatRoomBrowseSheet({
       {visible && (
         <motion.div
           key="room-browse-sheet"
+          ref={sheetRef}
           className="fixed left-0 right-0 top-0 bg-black/80 flex flex-col justify-end"
           style={{
             bottom:        chatInputHeight,
@@ -197,17 +198,16 @@ export function ChatRoomBrowseSheet({
             paddingRight:  'var(--space-5)',
             paddingTop:    'var(--space-5)',
             paddingBottom: 'var(--space-5)',
-            // Lets the browser keep handling the row's native horizontal scroll
-            // directly instead of Framer's pan gesture racing it — onPanEnd below
-            // only needs to see vertical drags, and a small y-offset from an
-            // otherwise-horizontal scroll gesture never crosses SWIPE_CLOSE_OFFSET_PX.
-            touchAction:   'pan-x',
           }}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1, transition: { duration: 0.12 } }}
-          exit={{ opacity: 0, transition: { duration: 0.08 } }}
+          exit={{
+            y: '100%',
+            opacity: 0,
+            transition: { y: { type: 'spring', stiffness: 300, damping: 30 }, opacity: { duration: 0.15 } },
+          }}
+          {...dragProps}
           onClick={onClose}
-          onPanEnd={handlePanEnd}
         >
           <div className="flex items-center justify-between w-full">
             {currentRoom && (
