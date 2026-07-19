@@ -6,13 +6,24 @@ import { Plus } from 'pixelarticons/react/Plus'
 import { SwipePreviewCard } from '@/features/chat/components/input/SwipePreviewCard'
 import { useSheetDrag } from '@/shared/components/ui/sheet/useSheetDrag'
 import { useChatRoomPeekStore, type RoomMeta } from '@/features/chat/store/chatRoomPeekStore'
+import { GroupAvatar } from '@/shared/components/ui/GroupAvatar'
+import { relativeTime } from '@/shared/utils/date'
 
 // ─── ChatRoomBrowseSheet (Figma 589:3619 "body") ───────────────────────────────
-// Opened by swiping up anywhere on the chatInputContainer — see ChatInput's
-// handleTopPanEnd for the gesture itself (a single pan recognizer on the whole
-// container). This is the sole way to quick-switch rooms from inside a chat room
-// now — SquadDetailsSheet stays reachable via tap on the bar / its chevron, unrelated
-// to this gesture.
+// Opened by a tap-and-hold anywhere on the chatInputContainer — see ChatInput's
+// handleContainerPointerDown for the gesture itself. This is the sole way to
+// quick-switch rooms from inside a chat room now — SquadDetailsSheet stays
+// reachable via tap on the bar / its chevron, unrelated to this gesture.
+//
+// Notifications section (Figma 589:4570) — a single card surfacing whichever room
+// has unread messages and received one most recently (`notifRoom` below), shown
+// above the "My Squads" row. Tapping it navigates there, same as tapping its card
+// in the row. Hidden entirely when no room has unread messages, same
+// hide-when-empty convention as Home's own DmNotificationPreviewCard. Its wrapper
+// carries `flex: 1 0 0` (Figma's own layout) so it fills whatever vertical space
+// isn't used by "My Squads", keeping that section pinned to the sheet's bottom
+// edge — when there's no notification, the outer container's own `justify-end`
+// does that job instead.
 //
 // A persistent overlay showing every room in chatRoomOrder as a native horizontally-
 // scrollable row, reusing the shared `SwipePreviewCard`, plus a "Create Squad" card
@@ -122,7 +133,18 @@ export function ChatRoomBrowseSheet({
 }) {
   const chatInputHeight = useChatRoomPeekStore((s) => s.chatInputHeight)
   const rowRef = useRef<HTMLDivElement>(null)
-  const currentRoom = rooms.find((r) => r.id === currentRoomId)
+
+  // Whichever room has unread messages and received one most recently — see this
+  // file's top doc comment for the Notifications section this feeds. The current
+  // room is never a candidate here since ChatInput always publishes its own
+  // unreadCount as 0 (see RoomMeta.unreadCount's doc comment).
+  const notifRoom = rooms
+    .filter((r) => r.unreadCount > 0)
+    .sort((a, b) => {
+      const at = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0
+      const bt = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0
+      return bt - at
+    })[0]
 
   const items: BrowseItem[] = [{ kind: 'create' }, ...rooms.map((room): BrowseItem => ({ kind: 'room', room }))]
 
@@ -215,81 +237,140 @@ export function ChatRoomBrowseSheet({
           dragElastic={{ top: 0, bottom: 0 }}
           onClick={onClose}
         >
-          <div className="flex items-center justify-between w-full">
-            {currentRoom && (
+          {notifRoom && (
+            <div className="flex flex-col w-full" style={{ gap: 'var(--space-5)', flex: '1 0 0' }}>
+              <p
+                className="font-body font-bold text-primary leading-none truncate w-full"
+                style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}
+              >
+                Notifications
+              </p>
+              <NotificationPreviewCard room={notifRoom} onTap={() => onSelectRoom(notifRoom.id)} />
+            </div>
+          )}
+
+          <div className="flex flex-col w-full flex-shrink-0" style={{ gap: 'var(--space-5)' }}>
+            <div className="flex items-center justify-between w-full">
               <p
                 className="font-body font-bold text-primary leading-none truncate min-w-0"
                 style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}
               >
-                {currentRoom.name}
+                My Squads
               </p>
-            )}
-            <ScrollEqualizerBars items={equalizerItems} currentRoomId={currentRoomId} focusedItemId={focusedItemId} />
-          </div>
+              <ScrollEqualizerBars items={equalizerItems} currentRoomId={currentRoomId} focusedItemId={focusedItemId} />
+            </div>
 
-          {/* Same horizontally-scrollable-row pattern SquadDetailsSheet's member card
-              row already uses (overflow-x-auto no-scrollbar) — not a new one-off. */}
-          <div
-            ref={rowRef}
-            onScroll={handleScroll}
-            className="flex items-stretch overflow-x-auto no-scrollbar nexus-scroll w-full"
-            style={{ gap: CARD_GAP }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {items.map((item, i) => {
-              const slideTransition = { delay: i * CARD_SLIDE_STAGGER_S, duration: CARD_SLIDE_DURATION_S, ease: 'linear' as const }
-              if (item.kind === 'create') {
+            {/* Same horizontally-scrollable-row pattern SquadDetailsSheet's member card
+                row already uses (overflow-x-auto no-scrollbar) — not a new one-off. */}
+            <div
+              ref={rowRef}
+              onScroll={handleScroll}
+              className="flex items-stretch overflow-x-auto no-scrollbar nexus-scroll w-full"
+              style={{ gap: CARD_GAP }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {items.map((item, i) => {
+                const slideTransition = { delay: i * CARD_SLIDE_STAGGER_S, duration: CARD_SLIDE_DURATION_S, ease: 'linear' as const }
+                if (item.kind === 'create') {
+                  return (
+                    <button
+                      key={CREATE_SQUAD_ID}
+                      type="button"
+                      onClick={onCreateSquad}
+                      className="flex-shrink-0 appearance-none overflow-hidden"
+                      style={{ width: CARD_WIDTH }}
+                      aria-label="Create Squad"
+                    >
+                      <motion.div
+                        className="flex flex-col items-center justify-center h-full rounded-[var(--x3,8px)]"
+                        style={{
+                          gap:             8,
+                          border:          '1px dashed',
+                          borderColor:     'var(--color-border-hover)',
+                          backgroundColor: 'var(--color-background)',
+                        }}
+                        initial={{ y: CARD_SLIDE_Y }}
+                        animate={{ y: 0 }}
+                        transition={slideTransition}
+                      >
+                        <Plus style={{ width: 24, height: 24, color: 'var(--color-tertiary)', flexShrink: 0 }} aria-hidden="true" />
+                        <p
+                          className="font-body font-medium text-tertiary text-center truncate w-full"
+                          style={{ fontSize: 14, fontVariationSettings: '"opsz" 14', paddingLeft: 12, paddingRight: 12 }}
+                        >
+                          Create Squad
+                        </p>
+                      </motion.div>
+                    </button>
+                  )
+                }
+                const room = item.room
                 return (
                   <button
-                    key={CREATE_SQUAD_ID}
+                    key={room.id}
                     type="button"
-                    onClick={onCreateSquad}
-                    className="flex-shrink-0 appearance-none overflow-hidden"
-                    style={{ width: CARD_WIDTH }}
-                    aria-label="Create Squad"
+                    onClick={() => onSelectRoom(room.id)}
+                    className="flex-shrink-0 appearance-none text-left active:opacity-80 overflow-hidden"
+                    aria-label={`Go to ${room.name}`}
                   >
-                    <motion.div
-                      className="flex flex-col items-center justify-center h-full rounded-[var(--x3,8px)]"
-                      style={{
-                        gap:             8,
-                        border:          '1px dashed',
-                        borderColor:     'var(--color-border-hover)',
-                        backgroundColor: 'var(--color-background)',
-                      }}
-                      initial={{ y: CARD_SLIDE_Y }}
-                      animate={{ y: 0 }}
-                      transition={slideTransition}
-                    >
-                      <Plus style={{ width: 24, height: 24, color: 'var(--color-tertiary)', flexShrink: 0 }} aria-hidden="true" />
-                      <p
-                        className="font-body font-medium text-tertiary text-center truncate w-full"
-                        style={{ fontSize: 14, fontVariationSettings: '"opsz" 14', paddingLeft: 12, paddingRight: 12 }}
-                      >
-                        Create Squad
-                      </p>
+                    <motion.div initial={{ y: CARD_SLIDE_Y }} animate={{ y: 0 }} transition={slideTransition}>
+                      <SwipePreviewCard room={room} selected={room.id === currentRoomId} />
                     </motion.div>
                   </button>
                 )
-              }
-              const room = item.room
-              return (
-                <button
-                  key={room.id}
-                  type="button"
-                  onClick={() => onSelectRoom(room.id)}
-                  className="flex-shrink-0 appearance-none text-left active:opacity-80 overflow-hidden"
-                  aria-label={`Go to ${room.name}`}
-                >
-                  <motion.div initial={{ y: CARD_SLIDE_Y }} animate={{ y: 0 }} transition={slideTransition}>
-                    <SwipePreviewCard room={room} selected={room.id === currentRoomId} />
-                  </motion.div>
-                </button>
-              )
-            })}
+              })}
+            </div>
           </div>
         </motion.div>
       )}
     </AnimatePresence>
+  )
+}
+
+// Notifications card (Figma 589:5145 "home - chatCardPreview") — see this file's top
+// doc comment for how `room` is picked. Reuses GroupAvatar rather than the raw image
+// Figma exports, same as every other crew-image surface in the app.
+function NotificationPreviewCard({ room, onTap }: { room: BrowseRoom; onTap: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => { e.stopPropagation(); onTap() }}
+      className="w-full flex items-center text-left appearance-none rounded-[var(--x3,8px)] overflow-hidden"
+      style={{ gap: 'var(--space-3)', padding: 'var(--space-5)', backgroundColor: 'var(--color-surface-sheet)' }}
+      aria-label={`Go to ${room.name}`}
+    >
+      <GroupAvatar imageUrl={room.imageUrl} name={room.name} size={48} />
+      <div className="flex-1 min-w-0 flex flex-col" style={{ gap: 'var(--space-2)' }}>
+        <p
+          className="font-silkscreen leading-none truncate w-full"
+          style={{ fontSize: 'var(--text-mini)', color: 'var(--red)' }}
+        >
+          {room.unreadCount} unread message{room.unreadCount === 1 ? '' : 's'}
+        </p>
+        <div className="flex items-center w-full" style={{ gap: 'var(--space-3)' }}>
+          <p
+            className="flex-1 min-w-0 font-body font-bold text-primary leading-none truncate"
+            style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}
+          >
+            {room.name}
+          </p>
+          {room.lastMessageAt && (
+            <p
+              className="flex-shrink-0 font-body font-light text-muted leading-none whitespace-nowrap"
+              style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}
+            >
+              {relativeTime(room.lastMessageAt)}
+            </p>
+          )}
+        </div>
+        <p
+          className="font-body font-normal text-secondary truncate w-full"
+          style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
+        >
+          {room.lastMessagePreview || 'Nothing new'}
+        </p>
+      </div>
+    </button>
   )
 }
 
@@ -318,7 +399,7 @@ function ScrollEqualizerBars({
               key={id}
               layout
               initial={{ opacity: 0, height: 8 }}
-              animate={{ opacity: 1, height: isFocused ? 16 : 8 }}
+              animate={{ opacity: isCurrent || isFocused ? 1 : 0.5, height: isFocused ? 16 : 8 }}
               exit={{ opacity: 0 }}
               transition={{ type: 'spring', stiffness: 400, damping: 32 }}
               style={{ width: 2, background: color }}

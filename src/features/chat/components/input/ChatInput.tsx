@@ -3,7 +3,6 @@
 import React, { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import type { PanInfo } from 'framer-motion'
 import { UserAvatar } from '@/shared/components/ui/UserAvatar'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { createClient } from '@/shared/supabase/client'
@@ -149,6 +148,10 @@ async function tryClaimDailyGem(supabase: ReturnType<typeof createClient>, onCla
 const EMPTY_MEMBERS: MemberProfile[] = []
 const EMPTY_ONLINE_IDS = new Set<string>()
 
+// Tap-and-hold duration to open ChatRoomBrowseSheet from chatInputContainer — same
+// 500ms threshold MessageBubble's long-press-to-react uses (see its handleTouchStart).
+const CHAT_BROWSE_LONG_PRESS_MS = 500
+
 // ─── ChatInput ────────────────────────────────────────────────────────────────
 
 export function ChatInput({ crewId, userId, userProfile, memberProfiles, memberPinnedVinyls, crewName, inviteCode, creatorId, crewImageUrl: initialCrewImageUrl, crewBackgroundImageUrl: initialCrewBgUrl, initialXP, isDM, dmPartnerId, chatRoomOrder = [] }: ChatInputProps) {
@@ -213,7 +216,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   // onPressEnd props (Framer tap-gesture callbacks on that component, which already
   // correctly cancels on a finger sliding off the bar mid-press).
   const [barPressed,      setBarPressed]      = useState(false)
-  // Opened by the swipe-up gesture on chatInputContainer (see handleTopPanEnd) —
+  // Opened by a tap-and-hold on chatInputContainer (see handleContainerPressStart) —
   // ChatRoomBrowseSheet, a persistent "every room, scrollable, tap to navigate"
   // overlay. Stays true until the user taps a card or the backdrop.
   const [showRoomBrowser, setShowRoomBrowser] = useState(false)
@@ -304,16 +307,19 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   // this: it short-circuits once `roomMeta[crewId]` exists, which the "publish own
   // meta" effect below already guarantees for the room currently open.
   const [ownLastMessagePreview, setOwnLastMessagePreview] = useState<string | null>(null)
+  const [ownLastMessageAt,      setOwnLastMessageAt]       = useState<string | null>(null)
   useEffect(() => {
     let cancelled = false
     createClient()
       .from('crews')
-      .select('last_message_preview')
+      .select('last_message_preview, last_message_at')
       .eq('id', crewId)
       .single()
       .then(({ data }) => {
         if (cancelled) return
-        setOwnLastMessagePreview((data as { last_message_preview: string | null } | null)?.last_message_preview ?? null)
+        const row = data as { last_message_preview: string | null; last_message_at: string | null } | null
+        setOwnLastMessagePreview(row?.last_message_preview ?? null)
+        setOwnLastMessageAt(row?.last_message_at ?? null)
       })
     return () => { cancelled = true }
   }, [crewId])
@@ -340,10 +346,11 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
       level:              crewLevel,
       memberCount,
       lastMessagePreview: ownLastMessagePreview,
+      lastMessageAt:      ownLastMessageAt,
       unreadCount:        0,
       onlineMembers,
     })
-  }, [crewId, liveCrewName, crewImageUrl, crewBgUrl, crewLevel, memberCount, members, onlineUserIds, ownLastMessagePreview])
+  }, [crewId, liveCrewName, crewImageUrl, crewBgUrl, crewLevel, memberCount, members, onlineUserIds, ownLastMessagePreview, ownLastMessageAt])
 
   // Clears a mount-seeded barOverride (see its lazy initializer above) one tick after
   // first paint. React commits the seeded state's paint before this effect runs, so the
@@ -631,15 +638,32 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
 
   // ────────────────────────────────────────────────────────────────────────────
 
-  // Dev-gated (nexus_chat_swipe_nav): swiping up anywhere on the chatInputContainer
+  // Dev-gated (nexus_chat_swipe_nav): tap-and-hold anywhere on the chatInputContainer
   // opens ChatRoomBrowseSheet, a persistent "every room, scrollable, tap to navigate"
-  // overlay (see that component's own doc comment). This replaced the swipe-up-to-
-  // expand-squad-details gesture that used to live at this same threshold;
-  // SquadDetailsSheet is still reachable via a tap on the bar or its chevron
-  // (ChatSquadDetailBar's own onClick), just not this gesture anymore. Only a
-  // predominantly-vertical drag counts, so an otherwise-unrelated horizontal gesture
-  // on the container (e.g. text selection in the input) can't cross the same
-  // y-offset threshold by coincidence.
+  // overlay (see that component's own doc comment). This replaced an earlier swipe-up
+  // gesture at the same trigger point; SquadDetailsSheet is still reachable via a tap
+  // on the bar or its chevron (ChatSquadDetailBar's own onClick), unrelated to this
+  // gesture. Same 500ms "hold, don't just tap" threshold and "any movement cancels"
+  // pattern as MessageBubble's long-press-to-react (see its handleTouchStart/Move/End)
+  // — a finger that starts sliding (e.g. into native text selection in the input, or a
+  // button tap) backs out cleanly instead of firing late.
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  function cancelChatBrowseLongPress() {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current)
+      longPressTimerRef.current = null
+    }
+  }
+
+  function handleContainerPointerDown() {
+    if (!chatSwipeNavEnabled || chatRoomOrder.length <= 1) return
+    cancelChatBrowseLongPress()
+    longPressTimerRef.current = setTimeout(() => {
+      longPressTimerRef.current = null
+      setShowRoomBrowser(true)
+    }, CHAT_BROWSE_LONG_PRESS_MS)
+  }
 
   // Used by ChatRoomBrowseSheet's tap-to-navigate (see its onSelectRoom call site
   // below) — `direction` only affects which side ChatRoomPeekLayer's ghost enters
@@ -663,18 +687,6 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     skipNextSlideEnter(true)
     sessionStorage.setItem('nexus_chat_from', 'chat')
     router.push(`/chat/${targetId}`)
-  }
-
-  function handleTopPanEnd(_: PointerEvent, info: PanInfo) {
-    const isMostlyVertical = Math.abs(info.offset.y) > Math.abs(info.offset.x)
-    if (
-      isMostlyVertical &&
-      (info.offset.y < -50 || info.velocity.y < -300) &&
-      chatSwipeNavEnabled &&
-      chatRoomOrder.length > 1
-    ) {
-      setShowRoomBrowser(true)
-    }
   }
 
   // ChatRoomBrowseSheet shows every room in chatRoomOrder — fetched only once the
@@ -1629,14 +1641,18 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
           anywhere inside it, including the input row — this container is scaled from
           outside the thing that should actually trigger it.
 
-          onPanEnd lives HERE (the whole container), not on ChatSquadDetailBar — a
-          swipe-up anywhere in the container (bar or input row) should open
-          ChatRoomBrowseSheet, per that function's own doc comment. */}
+          The tap-and-hold-to-browse pointer handlers live HERE (the whole
+          container), not on ChatSquadDetailBar — a hold anywhere in the container
+          (bar or input row) should open ChatRoomBrowseSheet, per
+          handleContainerPointerDown's own doc comment. */}
       <motion.div
         className="border-t border-border flex flex-col"
         animate={{ scale: barPressed ? 1.02 : 1 }}
         transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-        onPanEnd={handleTopPanEnd}
+        onPointerDown={handleContainerPointerDown}
+        onPointerMove={cancelChatBrowseLongPress}
+        onPointerUp={cancelChatBrowseLongPress}
+        onPointerCancel={cancelChatBrowseLongPress}
         style={{
           paddingTop:    'var(--space-5)',
           paddingLeft:   'var(--space-5)',

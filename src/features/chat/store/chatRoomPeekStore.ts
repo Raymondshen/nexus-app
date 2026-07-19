@@ -34,6 +34,9 @@ export interface RoomMeta {
   // Denormalized crews.last_message_preview, same column Home's own crew list reads
   // directly with no transform.
   lastMessagePreview: string | null
+  // Denormalized crews.last_message_at — feeds ChatRoomBrowseSheet's Notifications
+  // card (which room to surface + its "N ago" timestamp), alongside lastMessagePreview.
+  lastMessageAt:      string | null
   // From get_unread_counts, cutoff = this user's crew_members.last_seen (falling back
   // to joined_at) in that crew — same cutoff Home's own unread badge uses. Always 0 for
   // the room currently open (ChatInput publishes that one directly, no RPC round trip).

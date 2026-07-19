@@ -23,18 +23,18 @@ export async function ensureRoomMeta(crewId: string, userId: string): Promise<vo
   if (inFlight.has(crewId)) return
   const cached = roomMeta[crewId]
   if (cached) {
-    await refreshUnreadCount(crewId, userId, cached)
+    await refreshLiveRoomState(crewId, userId, cached)
     return
   }
   inFlight.add(crewId)
   try {
     const supabase = createClient()
     const [{ data: crewData }, { data: memberData, count: memberCount }] = await Promise.all([
-      supabase.from('crews').select('name, image_url, background_image_url, level, last_message_preview').eq('id', crewId).single(),
+      supabase.from('crews').select('name, image_url, background_image_url, level, last_message_preview, last_message_at').eq('id', crewId).single(),
       supabase.from('crew_members').select('user_id, last_seen, joined_at, profiles(username, avatar_url)', { count: 'exact' }).eq('crew_id', crewId),
     ])
     if (!crewData) return
-    const crewRow    = crewData as { name: string; image_url: string | null; background_image_url: string | null; level: number; last_message_preview: string | null }
+    const crewRow    = crewData as { name: string; image_url: string | null; background_image_url: string | null; level: number; last_message_preview: string | null; last_message_at: string | null }
     const memberRows = (memberData ?? []) as unknown as CrewMemberRow[]
 
     // Same cutoff Home's own unread badge uses: this user's own last_seen in the crew,
@@ -68,6 +68,7 @@ export async function ensureRoomMeta(crewId: string, userId: string): Promise<vo
       level:              crewRow.level,
       memberCount:        memberCount ?? 0,
       lastMessagePreview: crewRow.last_message_preview,
+      lastMessageAt:      crewRow.last_message_at,
       unreadCount:        unreadResult.data?.[0]?.unread_count ?? 0,
       onlineMembers,
     })
@@ -78,25 +79,26 @@ export async function ensureRoomMeta(crewId: string, userId: string): Promise<vo
 
 // A room's full RoomMeta (name/image/level/member count/online members) is cheap to
 // leave as a one-shot snapshot from whenever it was first peeked — that stuff rarely
-// changes mid-session. unreadCount is different: it's exactly what ChatRoomBrowseSheet
-// exists to surface accurately (the red equalizer bar + "N unread messages" footer), so
-// a room peeked early in the session can't keep showing a permanently-stale count after
-// new messages arrive while you're chatting elsewhere. This refetches just that field —
-// same cutoff/RPC ensureRoomMeta's full fetch uses — and patches it into the existing
-// cached RoomMeta, every time ensureRoomMeta is called for an already-cached room (i.e.
-// every time ChatRoomBrowseSheet opens).
-async function refreshUnreadCount(crewId: string, userId: string, cached: RoomMeta): Promise<void> {
+// changes mid-session. unreadCount/lastMessagePreview/lastMessageAt are different:
+// they're exactly what ChatRoomBrowseSheet exists to surface accurately (the red
+// equalizer bar + "N unread messages" footer, and the Notifications card's preview
+// text/timestamp), so a room peeked early in the session can't keep showing
+// permanently-stale values after new messages arrive while you're chatting elsewhere.
+// This refetches just those fields — same cutoff/RPC ensureRoomMeta's full fetch
+// uses, plus the same crews columns — and patches them into the existing cached
+// RoomMeta, every time ensureRoomMeta is called for an already-cached room (i.e. every
+// time ChatRoomBrowseSheet opens).
+async function refreshLiveRoomState(crewId: string, userId: string, cached: RoomMeta): Promise<void> {
   inFlight.add(crewId)
   try {
     const supabase = createClient()
-    const { data: memberRow } = await supabase
-      .from('crew_members')
-      .select('last_seen, joined_at')
-      .eq('crew_id', crewId)
-      .eq('user_id', userId)
-      .maybeSingle()
-    const row    = memberRow as { last_seen: string | null; joined_at: string } | null
-    const cutoff = row?.last_seen ?? row?.joined_at ?? new Date(0).toISOString()
+    const [{ data: memberRow }, { data: crewRow }] = await Promise.all([
+      supabase.from('crew_members').select('last_seen, joined_at').eq('crew_id', crewId).eq('user_id', userId).maybeSingle(),
+      supabase.from('crews').select('last_message_preview, last_message_at').eq('id', crewId).single(),
+    ])
+    const member = memberRow as { last_seen: string | null; joined_at: string } | null
+    const crew   = crewRow as { last_message_preview: string | null; last_message_at: string | null } | null
+    const cutoff = member?.last_seen ?? member?.joined_at ?? new Date(0).toISOString()
 
     const { data: unreadData } = await supabase.rpc('get_unread_counts', { p_crew_ids: [crewId], p_cutoffs: [cutoff] })
     const unreadCount = unreadData?.[0]?.unread_count ?? 0
@@ -105,7 +107,12 @@ async function refreshUnreadCount(crewId: string, userId: string, cached: RoomMe
     // ChatInput's own "publish own meta" effect (see its doc comment) could have
     // overwritten this room's entry while this request was in flight.
     const latest = useChatRoomPeekStore.getState().roomMeta[crewId] ?? cached
-    useChatRoomPeekStore.getState().setRoomMeta(crewId, { ...latest, unreadCount })
+    useChatRoomPeekStore.getState().setRoomMeta(crewId, {
+      ...latest,
+      unreadCount,
+      lastMessagePreview: crew?.last_message_preview ?? latest.lastMessagePreview,
+      lastMessageAt:      crew?.last_message_at ?? latest.lastMessageAt,
+    })
   } finally {
     inFlight.delete(crewId)
   }

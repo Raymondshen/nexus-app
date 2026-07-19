@@ -40,6 +40,7 @@ import { compressCanvas, extForBlob, validateImageFile } from '@/shared/utils/im
 import { drawCroppedCanvas } from '@/shared/utils/cropImage'
 import { PhotoCropModal } from '@/shared/components/ui/PhotoCropModal'
 import { getXPInCurrentLevel, getXPForCurrentLevel, getXPProgress } from '@/shared/utils/xp'
+import { relativeTime } from '@/shared/utils/date'
 import { MUSIC_DOMAINS } from '@/shared/constants/config'
 
 export interface FriendSummary {
@@ -71,18 +72,6 @@ interface HomeClientProps {
 
 function truncate(str: string, max: number): string {
   return str.length <= max ? str : str.slice(0, max - 1) + '…'
-}
-
-function relativeTime(iso: string): string {
-  try {
-    const seconds = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
-    if (seconds < 60)    return 'just now'
-    if (seconds < 3600)  return `${Math.floor(seconds / 60)}m ago`
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`
-    return `${Math.floor(seconds / 86400)}d ago`
-  } catch {
-    return ''
-  }
 }
 
 // ─── Account preview ─────────────────────────────────────────────────────────
