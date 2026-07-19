@@ -50,11 +50,14 @@ export function ManageSquadProfile({
   const trimmedName = nameValue.trim()
 
   // Keep the OS/browser back gesture on the chat instead of exiting to home. The
-  // chat page uses SlidePage `nativeSwipe`, and it keeps /home as the history entry
-  // beneath /chat, so a back gesture would otherwise pop straight to home while this
-  // overlay is up. Push a history entry when the page opens; a back gesture pops
-  // THAT entry, which we intercept (popstate) to close the page and stay on the chat.
-  // The back button and a successful save go through the same pop so it never lingers.
+  // chat page's own left-edge swipe is fully blocked (`disableSwipe`, see
+  // chat/[crewId]/page.tsx), but a popstate-driven back — the browser/OS back
+  // button/gesture, not a touch-drag swipe — isn't touched by that and would still
+  // pop straight through to /home (the history entry ChatFloatingNav stacks beneath
+  // /chat) while this overlay is up. Push a history entry when the page opens; that
+  // back pops THAT entry, which we intercept (popstate) to close the page and stay
+  // on the chat. The back button and a successful save go through the same pop so
+  // it never lingers.
   const onCloseRef = useRef(onClose)
   useEffect(() => { onCloseRef.current = onClose }, [onClose])
   const closingRef  = useRef(false)

@@ -65,10 +65,13 @@ interface ChatFloatingNavProps {
 // PageFloatButton itself, not this export.
 //
 // The avatar button replaced a ChevronLeft back button per Figma — there is no in-app back
-// control here anymore. Backward navigation out of chat relies on the native swipe-back
-// gesture (the chat SlidePage already renders with nativeSwipe, so a JS swipe handler was
-// never involved). Home's parallax-reveal animation (markHomeParallaxReveal /
-// consumeHomeParallaxReveal in SlidePage.tsx) only ever fired from this now-removed tap-back
+// control here anymore, and left-edge swipe (custom and native OS gesture alike) is
+// deliberately blocked on the chat SlidePage (`disableSwipe`, see chat/[crewId]/page.tsx) —
+// by request, a stray edge swipe should be a no-op rather than exiting the room. On iOS PWA
+// (no hardware back) there is currently no way to leave a chat room; Android/desktop still
+// have the system/browser back button, which pops through the /home history entry stacked
+// below by the effect further down. Home's parallax-reveal animation (markHomeParallaxReveal
+// / consumeHomeParallaxReveal in SlidePage.tsx) only ever fired from a since-removed tap-back
 // path, so it's currently unreachable — left in place rather than deleted, same "kept but
 // orphaned" treatment as other dead-but-valid code noted in CLAUDE.md.
 export function ChatFloatingNav({ crewId, currentUserId, avatarUrl, username, initialGemBalance }: ChatFloatingNavProps) {

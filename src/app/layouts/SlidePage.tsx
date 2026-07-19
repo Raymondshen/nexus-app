@@ -48,10 +48,10 @@ export function skipNextSlideEnter(fadeIn = false) {
 // Set by chat's ChatFloatingNav (src/shared/components/ui/PageFloatButton.tsx) right before
 // it calls goBack(), so HomeClient knows to play a slide-in + dim "reveal" animation on mount
 // instead of a static mount — matching the parallax WebKit's native
-// edge-swipe gesture already gives for free. Only the tap path needs this:
-// chat's SlidePage uses nativeSwipe, so its own swipe-to-close handler
-// (which also calls goBack()) never runs, and the native gesture doesn't
-// need any app-level animation to reveal the previous page.
+// edge-swipe gesture already gives for free. Only the tap path needs this: chat's
+// SlidePage used nativeSwipe (now disableSwipe — left-edge swipe is blocked
+// entirely, see chat/[crewId]/page.tsx), so its own swipe-to-close handler (which
+// also calls goBack()) never ran here either way.
 let _homeParallaxPending = false
 
 export function markHomeParallaxReveal() {
@@ -75,9 +75,15 @@ interface SlidePageProps {
   // but custom touch handlers are NOT registered — native iOS swipe handles the
   // gesture and shows the real previous page in the background.
   nativeSwipe?: boolean
+  // When true: no swipe-to-close at all, custom or native — a left-edge touch is
+  // consumed (preventDefault) but never triggers navigation or a drag animation.
+  // Takes priority over nativeSwipe. Used by pages with no other way back (e.g.
+  // group chat, which has no back button) where a stray edge swipe should be a
+  // no-op rather than exiting the page.
+  disableSwipe?: boolean
 }
 
-export function SlidePage({ children, className, style, backHref, nativeSwipe }: SlidePageProps) {
+export function SlidePage({ children, className, style, backHref, nativeSwipe, disableSwipe }: SlidePageProps) {
   const router       = useRouter()
   const controls     = useAnimation()
   const exiting      = useRef(false)
@@ -123,11 +129,55 @@ export function SlidePage({ children, className, style, backHref, nativeSwipe }:
     if (backHref) router.prefetch(backHref)
   }, [backHref, router])
 
-  // Custom swipe-to-close: page follows finger from the left edge.
-  // Skipped when nativeSwipe=true so the iOS native gesture handles it instead,
-  // which renders the real previous page (home) in the background during the drag.
+  // Left-edge swipe is fully disabled: consume the touch (preventDefault, so the
+  // native OS/browser edge-swipe-back never fires either) but never navigate or
+  // animate. No custom handler below runs in this mode.
   useEffect(() => {
-    if (nativeSwipe) return
+    if (!disableSwipe) return
+    const el = containerRef.current
+    if (!el) return
+
+    let startX  = 0
+    let startY  = 0
+    let blocking = false
+
+    function onTouchStart(e: TouchEvent) {
+      startX = e.touches[0].clientX
+      startY = e.touches[0].clientY
+      if (startX < 40) {
+        blocking = true
+        e.preventDefault()
+      }
+    }
+
+    function onTouchMove(e: TouchEvent) {
+      if (!blocking) return
+      const dx = e.touches[0].clientX - startX
+      const dy = Math.abs(e.touches[0].clientY - startY)
+      if (dy > dx || dx < 0) { blocking = false; return }
+      e.preventDefault()
+    }
+
+    function onTouchEnd() {
+      blocking = false
+    }
+
+    el.addEventListener('touchstart', onTouchStart, { passive: false })
+    el.addEventListener('touchmove',  onTouchMove,  { passive: false })
+    el.addEventListener('touchend',   onTouchEnd)
+    return () => {
+      el.removeEventListener('touchstart', onTouchStart)
+      el.removeEventListener('touchmove',  onTouchMove)
+      el.removeEventListener('touchend',   onTouchEnd)
+    }
+  }, [disableSwipe])
+
+  // Custom swipe-to-close: page follows finger from the left edge.
+  // Skipped when nativeSwipe=true (native gesture handles it instead, rendering the
+  // real previous page in the background during the drag) or when disableSwipe=true
+  // (handled by the effect above instead).
+  useEffect(() => {
+    if (nativeSwipe || disableSwipe) return
     const el = containerRef.current
     if (!el) return
 
@@ -197,7 +247,7 @@ export function SlidePage({ children, className, style, backHref, nativeSwipe }:
       el.removeEventListener('touchmove',  onTouchMove)
       el.removeEventListener('touchend',   onTouchEnd)
     }
-  }, [backHref, nativeSwipe, controls, router])
+  }, [backHref, nativeSwipe, disableSwipe, controls, router])
 
   return (
     <SlideBackContext.Provider value={goBack}>

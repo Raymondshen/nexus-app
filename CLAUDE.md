@@ -324,6 +324,7 @@ Invite is surfaced only via the inline `<InviteCodeCard>` in the Members section
 - Enter: spring 380/36; skipped on back-nav via `_skipNextSlideEnter` flag
 - Exit: ease-in 150ms; `goBack()` fires router simultaneously with animation
 - Always use `useSlideBack()` instead of `router.back()`
+- `SlidePage`'s `disableSwipe` prop blocks left-edge swipe entirely — custom AND native OS gesture — by consuming (`preventDefault`) an edge touch without navigating or animating. Distinct from `nativeSwipe` (defers to the OS gesture) and the default (custom JS swipe-to-close). Group chat (`chat/[crewId]/page.tsx`) uses it: chat has no back button, so a stray edge swipe is a no-op rather than exiting the room — currently the only way out of a chat room on iOS PWA (no hardware back) is gone by design; Android/desktop still exit via the system/browser back button, which pops through the `/home` entry `ChatFloatingNav` stacks beneath `/chat` (see its Gotchas entry).
 
 ## Caching
 
