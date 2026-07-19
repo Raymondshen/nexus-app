@@ -1677,7 +1677,14 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
             memberCount={barOverride ? barOverride.memberCount : memberCount}
             members={barOverride ? EMPTY_MEMBERS : members}
             onlineUserIds={barOverride ? EMPTY_ONLINE_IDS : onlineUserIds}
-            onExpand={() => setIsExpanded(true)}
+            onExpand={() => {
+              // While ChatRoomBrowseSheet is open, a tap on the bar dismisses it
+              // instead of also opening SquadDetailsSheet — matching every other
+              // "tap outside the row" dismissal (see that component's own doc
+              // comment), not stacking two overlay transitions on one tap.
+              if (showRoomBrowser) { setShowRoomBrowser(false); return }
+              setIsExpanded(true)
+            }}
             onPressStart={() => setBarPressed(true)}
             onPressEnd={() => setBarPressed(false)}
           />
@@ -1827,9 +1834,14 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
               )
             })()}
 
-            {/* Input container — flex-col when images are staged; outline brightens on focus */}
+            {/* Input container — flex-col when images are staged; outline brightens on focus.
+                onClick just dismisses ChatRoomBrowseSheet when it's open (a tap on the
+                text field/Plus/Send bubbles up to this same handler) — unlike the squad
+                bar above, this doesn't suppress the tap's own normal effect (typing/
+                opening the media picker still happens), it's a side effect alongside it. */}
             <div
               className="w-full flex flex-col"
+              onClick={() => { if (showRoomBrowser) setShowRoomBrowser(false) }}
                 style={{
                   outline:       '1px solid',
                   outlineColor:  isFocused ? 'var(--color-border-hover)' : 'var(--color-border)',
