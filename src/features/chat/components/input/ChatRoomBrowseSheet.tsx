@@ -46,11 +46,12 @@ const PIN_LONG_PRESS_MS = 500
 // scrolls/snaps to Group Details, since those actions only make sense once squad
 // context (the crew name in the title, the invite card, etc.) is actually on
 // screen. Close is excluded from the fade — it stays reachable on both pages.
-// `viewingGroupDetails` is derived from the body scroll container's own
-// `scrollTop` (see `handleBodyScroll`), not a separate IntersectionObserver, since
-// page one is already sized to exactly the container's height (see the body's own
-// doc comment below) — a simple halfway threshold is enough to tell which page is
-// in view. Falls back to a plain "Updates" title + Close-only `right` when
+// `viewingGroupDetails` is a real `IntersectionObserver` (`root` = the scroll
+// container, `target` = the Group Details wrapper, `threshold: 0.5`) rather than a
+// scrollTop-percentage heuristic — a genuine "in view / not in view" toggle that's
+// correct regardless of exact section heights or content reflow, and fires for
+// every way the container can scroll (touch drag, snap settle, wheel, or a future
+// programmatic scroll). Falls back to a plain "Updates" title + Close-only `right` when
 // `squadDetail` is null (DM screen — no squad to edit/mute/browse definitions
 // for, so nothing to fade either). The header row is wrapped in its own
 // `stopPropagation` div
@@ -224,23 +225,37 @@ export function ChatRoomBrowseSheet({
   const chatInputHeight = useChatRoomPeekStore((s) => s.chatInputHeight)
   const rowRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const groupDetailsRef = useRef<HTMLDivElement>(null)
 
-  // Tracks which scroll-snap "page" (see the body's own doc comment below) is
-  // currently in view, to fade the header's MagicEdit/Bell/Library icons out while
-  // on Notifications+Squads and back in on Group Details — those actions only make
-  // sense once the user has actually scrolled to the squad-context section, per
-  // this file's own request. Close is unaffected; it stays visible/tappable on
-  // both pages.
+  // Whether the Group Details page (see the body's own doc comment below) is
+  // actually on screen — drives the header's MagicEdit/Bell/Library fade (Close is
+  // unaffected, stays visible/tappable on both pages): those actions only make
+  // sense once the user has scrolled/snapped to squad context, per this file's own
+  // request. A real IntersectionObserver on the Group Details wrapper itself
+  // (rather than a scrollTop-percentage heuristic) is what makes this a genuine
+  // "in view / not in view" toggle — correct regardless of exact section heights,
+  // container padding, or content reflow, and it fires for any way the container
+  // scrolls (native touch scroll, snap settle, or a future programmatic scroll),
+  // not just the ones a manual scrollTop calculation happens to anticipate.
   const [viewingGroupDetails, setViewingGroupDetails] = useState(false)
+  const hasSquadDetail = !!squadDetail
 
-  function handleBodyScroll() {
-    const el = scrollContainerRef.current
-    if (!el) return
-    // Page one is sized to exactly `el.clientHeight` (see below), so once scrollTop
-    // passes the halfway point the Group Details page is what's actually on screen.
-    const isPastPage1 = el.scrollTop > el.clientHeight * 0.5
-    setViewingGroupDetails((prev) => (prev === isPastPage1 ? prev : isPastPage1))
-  }
+  useEffect(() => {
+    if (!visible || !hasSquadDetail) return
+    const root = scrollContainerRef.current
+    const target = groupDetailsRef.current
+    if (!root || !target) return
+    const observer = new IntersectionObserver(
+      ([entry]) => setViewingGroupDetails(entry.isIntersecting),
+      { root, threshold: 0.5 },
+    )
+    observer.observe(target)
+    return () => observer.disconnect()
+    // Re-attaches whenever the sheet opens fresh (AnimatePresence unmounts the
+    // target node on close) — depends on `hasSquadDetail` rather than `squadDetail`
+    // itself, since ChatInput rebuilds that object every render and this effect
+    // only cares whether it flips between null/non-null, not its field values.
+  }, [visible, hasSquadDetail])
 
   // Long-press (hold) a room card to open a one-action Pin/Unpin Squad sheet
   // (Figma has no spec for this yet — minimal single-row sheet, same shell as
@@ -474,7 +489,6 @@ export function ChatRoomBrowseSheet({
 
           <div
             ref={scrollContainerRef}
-            onScroll={handleBodyScroll}
             className="flex flex-col w-full min-h-0 overflow-y-auto nexus-scroll"
             style={{
               gap:            'var(--space-5)',
@@ -593,6 +607,7 @@ export function ChatRoomBrowseSheet({
                 "Squads" section labels above. */}
             {squadDetail && (
               <div
+                ref={groupDetailsRef}
                 className="flex flex-col w-full flex-shrink-0"
                 style={{ gap: 'var(--space-5)', scrollSnapAlign: 'start' }}
               >
