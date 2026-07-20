@@ -559,10 +559,15 @@ export function ChatRoomBrowseSheet({
                     padding is always honored, end padding after the last child often isn't),
                     which is exactly why the right side stayed clipped after only adding
                     `paddingRight` here. A real spacer element is unambiguously part of
-                    `scrollWidth`. The trailing spacer's width is `--space-5` minus `CARD_GAP`
-                    because the flex `gap` between it and the last card already contributes
-                    `CARD_GAP` of that space — the leading spacer needs no such subtraction
-                    since nothing precedes it for `gap` to apply to. `CARD_STEP`'s snap math
+                    `scrollWidth`. BOTH spacers are `--space-5` minus `CARD_GAP`, not just the
+                    trailing one — flex `gap` applies on either side of a spacer (between
+                    leading-spacer↔first-card, and between last-card↔trailing-spacer), so
+                    each spacer only needs to make up the *remainder* of `--space-5` after its
+                    own adjacent `gap` already contributes `CARD_GAP` of it. Giving the
+                    leading spacer the full `--space-5` (no subtraction) double-counted that
+                    gap and made the left gutter visibly bigger than the right — which is what
+                    made the right side look clipped by comparison, even though 16px alone
+                    was already the intended `--space-5` value. `CARD_STEP`'s snap math still
                     doesn't need to change: the leading spacer is part of `scrollWidth`/
                     `scrollLeft` itself, so `index * CARD_STEP` still lands each card
                     `--space-5` in from the visible edge rather than flush against it. */}
@@ -577,7 +582,7 @@ export function ChatRoomBrowseSheet({
                   }}
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <div aria-hidden="true" className="flex-shrink-0" style={{ width: 'var(--space-5)' }} />
+                  <div aria-hidden="true" className="flex-shrink-0" style={{ width: `calc(var(--space-5) - ${CARD_GAP}px)` }} />
                   {items.map((item) => {
                     if (item.kind === 'create') {
                       return (

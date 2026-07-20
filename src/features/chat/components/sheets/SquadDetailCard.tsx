@@ -133,11 +133,14 @@ export function SquadMemberRow({
     // spacers, NOT `paddingLeft`/`paddingRight` on the scrolling element — trailing
     // (end-side) padding on an `overflow-x` container is unreliably included in
     // `scrollWidth` across browsers, so a `paddingRight`-only version of this fix left
-    // the right side still clipped. The trailing spacer's width is `--space-5` minus
-    // `MEMBER_ROW_GAP` since the flex `gap` between it and the last card already
-    // contributes `MEMBER_ROW_GAP` of that space; the leading spacer needs no such
-    // subtraction since nothing precedes it for `gap` to apply to. Same fix as the
-    // Squads row in ChatRoomBrowseSheet — see that component's own comment.
+    // the right side still clipped. BOTH spacers are `--space-5` minus `MEMBER_ROW_GAP`,
+    // not just the trailing one — flex `gap` applies on either side of a spacer (between
+    // leading-spacer↔first-card, and between last-card↔trailing-spacer), so each spacer
+    // only needs to make up the *remainder* of `--space-5` after its own adjacent `gap`
+    // already contributes `MEMBER_ROW_GAP` of it. Giving the leading spacer the full
+    // `--space-5` (no subtraction) double-counted that gap and made the left gutter
+    // visibly bigger than the right. Same fix as the Squads row in ChatRoomBrowseSheet —
+    // see that component's own comment.
     <div
       className="flex overflow-x-auto no-scrollbar nexus-scroll w-full flex-shrink-0"
       style={{
@@ -147,7 +150,7 @@ export function SquadMemberRow({
       }}
       onClick={(e) => e.stopPropagation()}
     >
-      <div aria-hidden="true" className="flex-shrink-0" style={{ width: 'var(--space-5)' }} />
+      <div aria-hidden="true" className="flex-shrink-0" style={{ width: `calc(var(--space-5) - ${MEMBER_ROW_GAP}px)` }} />
       {sortedMembers.map((m) => (
         <UserCard
           key={m.id}
