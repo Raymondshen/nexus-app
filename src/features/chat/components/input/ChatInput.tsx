@@ -226,6 +226,17 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, memberP
   const [removeError,    setRemoveError]    = useState<string | null>(null)
   const [showLastMemberWarning, setShowLastMemberWarning] = useState(false)
   const [leavingSquad,   setLeavingSquad]   = useState(false)
+  // Which room the last-member warning above (and the eventual leave call) actually
+  // targets — null defaults to the room this ChatInput is mounted for (`crewId`,
+  // `liveCrewName`). Set when Leave Squad is tapped for a DIFFERENT room via
+  // ChatRoomBrowseSheet's per-card long-press sheet (Figma 605:3830) — see
+  // requestLeaveSquad below.
+  const [leaveTarget,    setLeaveTarget]    = useState<{ id: string; name: string } | null>(null)
+  // Rooms successfully left via that same per-card Leave Squad while NOT navigating
+  // away (i.e. some room other than `crewId`) — filtered out of browseRooms below so
+  // a left room stops appearing in the Squads row without needing a full reload of
+  // `chatRoomOrder` (a server-provided prop this component never otherwise mutates).
+  const [locallyLeftRoomIds, setLocallyLeftRoomIds] = useState<Set<string>>(new Set())
   const [kickedIds,      setKickedIds]      = useState<Set<string>>(new Set())
   const [crewImageUrl,   setCrewImageUrl]   = useState<string | null>(initialCrewImageUrl ?? null)
   const [crewImageFile,  setCrewImageFile]  = useState<File | null>(null)
@@ -1569,13 +1580,27 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
 
   // Leaving as the last member permanently deletes the crew (CASCADE wipes its
   // messages and vibes) — gate that path behind an explicit warning instead of
-  // letting it fire silently from a single tap.
-  function handleLeaveSquadTapped() {
-    if (memberCount <= 1) { setShowLastMemberWarning(true); return }
-    void handleLeaveSquad()
+  // letting it fire silently from a single tap. Generalized to accept any target
+  // room (not just `crewId`) so ChatRoomBrowseSheet's per-card long-press sheet
+  // (Figma 605:3830) can offer Leave Squad for ANY room in the browse list —
+  // `leave_crew`/`leaveCrewAction` already take an arbitrary crew id, this gating
+  // was just hardcoded to the current room by every call site until now.
+  function requestLeaveSquad(target: { id: string; name: string; memberCount: number }) {
+    if (target.memberCount <= 1) {
+      setLeaveTarget(target)
+      setShowLastMemberWarning(true)
+      return
+    }
+    void performLeaveSquad(target)
   }
 
-  async function handleLeaveSquad() {
+  // The current room's own Leave Squad (SquadDetailsSheet, ChatRoomBrowseSheet's
+  // Group Details section) — unchanged call shape for those existing call sites.
+  function handleLeaveSquadTapped() {
+    requestLeaveSquad({ id: crewId, name: liveCrewName, memberCount })
+  }
+
+  async function performLeaveSquad(target: { id: string; name: string }) {
     setLeavingSquad(true)
     setSendError(null)
     const supabase = createClient()
@@ -1583,16 +1608,29 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     if (!session) { setLeavingSquad(false); return }
     // Navigate only on success — a failed leave (network/RLS) used to still push
     // to /home, leaving the user believing they'd left a crew they hadn't.
-    const result = await leaveCrewAction(crewId, session.access_token)
+    const result = await leaveCrewAction(target.id, session.access_token)
     if (result?.error) {
       setLeavingSquad(false)
       setShowLastMemberWarning(false)
       setSendError(result.error)
       return
     }
-    setIsExpanded(false)
+    setLeavingSquad(false)
     setShowLastMemberWarning(false)
-    router.push('/home')
+    setLeaveTarget(null)
+    if (target.id === crewId) {
+      // The room this ChatInput is actually mounted for — nothing left to show here.
+      setIsExpanded(false)
+      setShowRoomBrowser(false)
+      router.push('/home')
+    } else {
+      // Some OTHER room, left from the browse sheet's long-press menu without ever
+      // navigating into it — just drop it from the visible room list. A `pinnedCrewId`
+      // now pointing at a room the user has left is harmless, same as any other stale
+      // pin (see CLAUDE.md's Pin Squad section) — every consumer already no-ops when
+      // the pinned id isn't in the user's current room list.
+      setLocallyLeftRoomIds((prev) => new Set(prev).add(target.id))
+    }
   }
 
   // ─── @mention helpers ───────────────────────────────────────────────────────
@@ -1663,6 +1701,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   // than padded with a placeholder.
   const roomPeekMeta = useChatRoomPeekStore((s) => s.roomMeta)
   const browseRooms = chatRoomOrder
+    .filter((id) => !locallyLeftRoomIds.has(id))
     .map((id) => (roomPeekMeta[id] ? { id, ...roomPeekMeta[id] } : null))
     .filter((room): room is { id: string } & RoomMeta => room !== null)
 
@@ -1745,6 +1784,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
         onSelectRoom={handleSelectRoomFromBrowse}
         onCreateSquad={openCreateSquadFromBrowse}
         onTogglePin={handleTogglePin}
+        onLeaveRoom={(room) => requestLeaveSquad({ id: room.id, name: room.name, memberCount: room.memberCount })}
         onEditSquad={() => { setShowRoomBrowser(false); setShowManageSquad(true) }}
         onNotif={() => setShowNotifSheet(true)}
         onLibrary={() => {
@@ -2285,7 +2325,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={() => { if (!leavingSquad) setShowLastMemberWarning(false) }}
+            onClick={() => { if (!leavingSquad) { setShowLastMemberWarning(false); setLeaveTarget(null) } }}
           >
             <div className="absolute inset-0 bg-black/60" />
             <motion.div
@@ -2305,7 +2345,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
                     className="font-body font-bold text-[18px] text-primary leading-none"
                     style={{ fontVariationSettings: '"opsz" 14' }}
                   >
-                    {liveCrewName}
+                    {leaveTarget?.name ?? liveCrewName}
                   </h2>
                   <p className="font-body text-[12px] text-secondary leading-normal">
                     Leaving will permanently delete this squad — its messages and vibes cannot be recovered.
@@ -2316,7 +2356,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
               {/* Buttons */}
               <div className="flex flex-col gap-2">
                 <button
-                  onClick={() => void handleLeaveSquad()}
+                  onClick={() => void performLeaveSquad(leaveTarget ?? { id: crewId, name: liveCrewName })}
                   disabled={leavingSquad}
                   className="w-full h-12 flex items-center justify-center bg-[#ef4444] disabled:opacity-50 transition-opacity active:opacity-70"
                 >
@@ -2325,7 +2365,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
                   </span>
                 </button>
                 <button
-                  onClick={() => setShowLastMemberWarning(false)}
+                  onClick={() => { setShowLastMemberWarning(false); setLeaveTarget(null) }}
                   disabled={leavingSquad}
                   className="w-full h-12 flex items-center justify-center transition-opacity active:opacity-70"
                 >

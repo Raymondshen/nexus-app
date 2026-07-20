@@ -6,7 +6,6 @@ import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
 import type { RoomMeta } from '@/features/chat/store/chatRoomPeekStore'
 import { Check } from 'pixelarticons/react/Check'
 import { Message } from 'pixelarticons/react/Message'
-import { Power } from 'pixelarticons/react/Power'
 
 // One 180px squad card (Figma 582:2892 default / 582:3150 selected) — cover photo +
 // gradient + small avatar, name/level/member-count, up to 4 online-member avatars, and
@@ -26,8 +25,12 @@ import { Power } from 'pixelarticons/react/Power'
 // CSS `border-color` can't take a gradient. A small glass badge (same
 // `rgba(0,0,0,0.25)` + `blur(7px)` treatment as `PageFloatButton` — Figma's export
 // doesn't round-trip background-blur effects either, see that component's own doc
-// comment) sits top-right over the cover photo with a `Power` icon, mirroring the
-// avatar's bottom-left placement.
+// comment) sits top-right over the cover photo, mirroring the avatar's bottom-left
+// placement. The badge icon is a pixel-art heart filled with the exact
+// `--gradient-nexus` stops (#a855f7 → #d946ef) — not a pixelarticons glyph (none
+// match this shape) and not renderable via `currentColor` (the fill is a two-stop
+// gradient, not flat) — so it's a downloaded, committed static asset
+// (`public/icons/pin-heart.svg`), same pattern as `SocialLinksRow`'s brand-mark SVGs.
 
 // Matches UserAvatar's size=24 below — reserves the online-avatars row's height
 // whether or not it actually has avatars to show, so every card in the horizontally-
@@ -43,7 +46,7 @@ export function SwipePreviewCard({
 }: {
   room:     RoomMeta & { id: string }
   selected: boolean
-  /** Figma 602:4170 — gradient border + top-right power badge. Defaults false for
+  /** Figma 602:4170 — gradient border + top-right heart badge. Defaults false for
    *  callers that don't track a pin (e.g. any future reuse outside ChatRoomBrowseSheet). */
   pinned?:  boolean
 }) {
@@ -82,7 +85,7 @@ export function SwipePreviewCard({
             className="absolute flex items-center justify-center flex-shrink-0"
             style={{
               top:                  12,
-              right:                12,
+              right:                4,
               padding:              'var(--x2)',
               borderRadius:         'var(--x2)',
               background:           'rgba(0,0,0,0.25)',
@@ -91,7 +94,8 @@ export function SwipePreviewCard({
             }}
             aria-hidden="true"
           >
-            <Power style={{ width: 16, height: 16, color: 'var(--color-purple)' }} />
+            {/* eslint-disable-next-line @next/next/no-img-element -- static gradient-fill asset, next/image adds no value here */}
+            <img src="/icons/pin-heart.svg" alt="" style={{ width: 16, height: 'auto', display: 'block' }} />
           </div>
         )}
       </div>

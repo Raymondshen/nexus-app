@@ -4,7 +4,6 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Plus } from 'pixelarticons/react/Plus'
 import { Close } from 'pixelarticons/react/Close'
-import { Note } from 'pixelarticons/react/Note'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
 import { MagicEdit } from 'pixelarticons/react/MagicEdit'
 import { Bell } from 'pixelarticons/react/Bell'
@@ -194,6 +193,7 @@ export function ChatRoomBrowseSheet({
   onSelectRoom,
   onCreateSquad,
   onTogglePin,
+  onLeaveRoom,
   onEditSquad,
   onNotif,
   onLibrary,
@@ -214,6 +214,9 @@ export function ChatRoomBrowseSheet({
   onSelectRoom:  (id: string) => void
   onCreateSquad: () => void
   onTogglePin:   (id: string) => void
+  /** Long-press sheet's Leave Squad tap (Figma 605:3830) — works for ANY room card
+   *  in the list, not just `currentRoomId`. See RoomPinSheet's own doc comment. */
+  onLeaveRoom:   (room: BrowseRoom) => void
   /** Header MagicEdit tap (creator only) — opens Manage Squad Profile. */
   onEditSquad:   () => void
   /** Header Bell/BellOff tap — opens NotifSheet on top, this sheet stays open. */
@@ -660,9 +663,9 @@ export function ChatRoomBrowseSheet({
 
     {pinSheetRoom && (
       <RoomPinSheet
-        room={pinSheetRoom}
         pinned={pinSheetRoom.id === pinnedRoomId}
         onTogglePin={() => onTogglePin(pinSheetRoom.id)}
+        onLeave={() => onLeaveRoom(pinSheetRoom)}
         onClose={() => setPinSheetRoomId(null)}
       />
     )}
@@ -670,29 +673,79 @@ export function ChatRoomBrowseSheet({
   )
 }
 
-// Pin/Unpin Squad — the sheet a room card's long-press opens (see PIN_LONG_PRESS_MS
-// above). No Figma spec for this yet: a single-row sheet, same minimal shell as
-// ChatSheetReact's own long-press-opened sheet (BottomSheet + dismissOnPointerDown,
-// since the opening gesture is itself a long-press/touch-hold).
+// Pin/Leave Squad — the sheet a room card's long-press opens (see PIN_LONG_PRESS_MS
+// above), Figma 605:3830 "chat - sheetAddMedia". Same minimal shell as ChatSheetReact's
+// own long-press-opened sheet (BottomSheet + dismissOnPointerDown, since the opening
+// gesture is itself a long-press/touch-hold), now with a real Figma spec: a bold
+// "What would you like to do?" header, a Pin/Unpin `SheetActionButton` with an
+// explanatory caption underneath, and a Leave Squad `SheetActionButton` below that.
+// Leave Squad works for ANY room card in the browse list — not just `currentRoomId` —
+// via `onLeaveRoom` (see ChatInput's `requestLeaveSquad`, which generalizes the
+// existing current-room-only leave flow to accept an arbitrary target room).
+//
+// Both action icons are pixel-art assets exported straight from this Figma node
+// (`public/icons/pin-heart.svg`, `pin-door.svg`) rather than pixelarticons glyphs —
+// the heart's fill is the two-stop `--gradient-nexus` gradient (not flat, so
+// `currentColor` can't reproduce it) and neither shape has a pixelarticons match.
 function RoomPinSheet({
-  room, pinned, onTogglePin, onClose,
+  pinned, onTogglePin, onLeave, onClose,
 }: {
-  room:        BrowseRoom
   pinned:      boolean
   onTogglePin: () => void
+  onLeave:     () => void
   onClose:     () => void
 }) {
   return (
     <BottomSheet onClose={onClose} zIndex={90} dismissOnPointerDown>
       <div
-        className="flex flex-col"
-        style={{ gap: 16, paddingLeft: 16, paddingRight: 16, paddingBottom: 'max(env(safe-area-inset-bottom), 28px)' }}
+        className="flex flex-col w-full"
+        style={{
+          gap:           'var(--x5)',
+          paddingLeft:   'var(--md)',
+          paddingRight:  'var(--md)',
+          paddingBottom: 'max(env(safe-area-inset-bottom), var(--x8))',
+        }}
       >
-        <SheetActionButton
-          icon={<Note style={{ width: 20, height: 20 }} />}
-          label={pinned ? `Unpin ${room.name}` : `Pin ${room.name}`}
-          onClick={() => { onTogglePin(); onClose() }}
-        />
+        <p
+          className="font-body font-bold leading-none w-full"
+          style={{ fontSize: 'var(--md)', color: 'var(--color-primary)', fontVariationSettings: '"opsz" 14' }}
+        >
+          What would you like to do?
+        </p>
+
+        <div className="flex flex-col w-full" style={{ gap: 'var(--x5)' }}>
+          <div className="flex flex-col w-full" style={{ gap: 'var(--x2)' }}>
+            <SheetActionButton
+              icon={
+                // eslint-disable-next-line @next/next/no-img-element -- static gradient-fill asset, next/image adds no value here
+                <img src="/icons/pin-heart.svg" alt="" style={{ width: 20, height: 'auto', display: 'block' }} />
+              }
+              label={pinned ? 'Unpin Squad' : 'Pin Squad'}
+              onClick={() => { onTogglePin(); onClose() }}
+            />
+            <p
+              className="font-body font-normal w-full"
+              style={{
+                fontSize:      'var(--xxs)',
+                color:         'var(--color-tertiary)',
+                letterSpacing: '0.2px',
+                lineHeight:    'normal',
+                fontVariationSettings: '"opsz" 14',
+              }}
+            >
+              One squad is always pinned. Pinned squads will be the room you land on every time you open the Nexus.
+            </p>
+          </div>
+
+          <SheetActionButton
+            icon={
+              // eslint-disable-next-line @next/next/no-img-element -- static asset, next/image adds no value here
+              <img src="/icons/pin-door.svg" alt="" style={{ width: 20, height: 20, display: 'block' }} />
+            }
+            label="Leave Squad"
+            onClick={() => { onClose(); onLeave() }}
+          />
+        </div>
       </div>
     </BottomSheet>
   )
