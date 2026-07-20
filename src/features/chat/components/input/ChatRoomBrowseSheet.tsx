@@ -422,12 +422,20 @@ export function ChatRoomBrowseSheet({
               </div>
             </div>
 
-            {/* Group card details + member row (Figma 599:3931 — 601:3901/601:3919) for
+            {/* Group card details + member row (Figma 599:3931 — 601:4007/601:3901/601:3919) for
                 whichever room this sheet was opened from — see this file's top doc
                 comment for why `squadDetail` is threaded down rather than derived from
-                RoomMeta, and why it's null (nothing rendered) on the DM screen. */}
+                RoomMeta, and why it's null (nothing rendered) on the DM screen. The
+                "Group Details" label (Figma 601:4009) precedes the card, same pattern
+                as the "Notifications"/"Squads" section labels above. */}
             {squadDetail && (
               <div className="flex flex-col w-full flex-shrink-0" style={{ gap: 'var(--space-5)' }}>
+                <p
+                  className="font-body font-medium text-primary leading-none truncate w-full"
+                  style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
+                >
+                  Group Details
+                </p>
                 <SquadDetailCard
                   crewName={squadDetail.crewName}
                   crewImageUrl={squadDetail.crewImageUrl}
