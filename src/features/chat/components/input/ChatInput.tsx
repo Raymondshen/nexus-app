@@ -1739,9 +1739,17 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
         currentRoomId={crewId}
         pinnedRoomId={pinnedCrewId}
         squadDetail={squadDetail}
+        currentUserId={userId}
+        allMuted={allMuted}
         onSelectRoom={handleSelectRoomFromBrowse}
         onCreateSquad={openCreateSquadFromBrowse}
         onTogglePin={handleTogglePin}
+        onEditSquad={() => { setShowRoomBrowser(false); setShowManageSquad(true) }}
+        onNotif={() => setShowNotifSheet(true)}
+        onLibrary={() => {
+          sessionStorage.setItem('nexus_chat_from', 'chat')
+          router.push(`/chat/${crewId}/definitions`)
+        }}
         onClose={() => setShowRoomBrowser(false)}
       />
 

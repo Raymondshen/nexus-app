@@ -5,6 +5,11 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Plus } from 'pixelarticons/react/Plus'
 import { Close } from 'pixelarticons/react/Close'
 import { Note } from 'pixelarticons/react/Note'
+import { ChevronRight } from 'pixelarticons/react/ChevronRight'
+import { MagicEdit } from 'pixelarticons/react/MagicEdit'
+import { Bell } from 'pixelarticons/react/Bell'
+import { BellOff } from 'pixelarticons/react/BellOff'
+import { Library } from 'pixelarticons/react/Library'
 import { PageHeader } from '@/shared/components/ui/PageHeader'
 import { BottomSheet } from '@/shared/components/ui/sheet/BottomSheet'
 import { SheetActionButton } from '@/shared/components/ui/SheetActionButton'
@@ -25,14 +30,24 @@ const PIN_LONG_PRESS_MS = 500
 // reachable via tap on the bar, or via the swipe-up gesture, unrelated to this
 // sheet.
 //
-// Header: the shared `PageHeader` (title "Updates"), `variant="sheet"` (Figma
-// 599:7818 — bold non-uppercase DM Sans title, no back chevron) rather than the
-// default subpage variant, since this overlay isn't nested under a `SlidePage` of
-// its own and has no "back" concept — it's mounted directly by ChatInput, same as
-// SquadDetailsSheet, and dismisses via the header's own close-X `right` action
-// (plus tap-outside/tap-a-card/drag-down, documented below). PageHeader owns the
-// sheet's top/left/right padding now; the body wrapper below only carries the
-// remaining bottom padding + inter-section gap.
+// Header: the shared `PageHeader`, `variant="sheet"` (Figma 599:7818 — bold
+// non-uppercase DM Sans title, no back chevron) rather than the default subpage
+// variant, since this overlay isn't nested under a `SlidePage` of its own and has
+// no "back" concept — it's mounted directly by ChatInput, same as
+// SquadDetailsSheet. When `squadDetail` is present (non-DM), title = the current
+// room's crew name with a decorative leading `ChevronRight` (`icon` prop, Figma
+// 599:7818's small chevron before "SQUAD SH*T") and `right` = the exact same
+// action-icon row as SquadDetailsSheet's own header — `MagicEdit` (creator-only),
+// `Bell`/`BellOff`, `Library`, then `Close` — so squad actions stay reachable
+// without leaving this sheet. Falls back to a plain "Updates" title + Close-only
+// `right` when `squadDetail` is null (DM screen — no squad to edit/mute/browse
+// definitions for). The header row is wrapped in its own `stopPropagation` div
+// (mirroring SquadDetailsSheet's) since the sheet root's own `onClick={onClose}`
+// would otherwise also fire on every header button tap — harmless for Close
+// (already idempotent) but wrong for Notif, which should open `NotifSheet` on top
+// without dismissing this sheet underneath. PageHeader owns the sheet's
+// top/left/right padding now; the body wrapper below only carries the remaining
+// bottom padding + inter-section gap.
 //
 // Notifications section (Figma 589:4570) — a single card surfacing whichever room
 // has unread messages and received one most recently (`notifRoom` below), shown
@@ -158,9 +173,14 @@ export function ChatRoomBrowseSheet({
   currentRoomId,
   pinnedRoomId,
   squadDetail,
+  currentUserId,
+  allMuted,
   onSelectRoom,
   onCreateSquad,
   onTogglePin,
+  onEditSquad,
+  onNotif,
+  onLibrary,
   onClose,
 }: {
   visible:       boolean
@@ -170,9 +190,20 @@ export function ChatRoomBrowseSheet({
   pinnedRoomId:  string | null
   /** Detail card + member row for `currentRoomId` — null on the DM screen. */
   squadDetail:   SquadDetailInfo | null
+  /** Compared against `squadDetail.creatorId` to gate the header's MagicEdit icon. */
+  currentUserId: string
+  /** Drives the header's Bell/BellOff icon — same `allMuted` ChatInput already
+   *  computes for SquadDetailsSheet's identical action row. */
+  allMuted:      boolean
   onSelectRoom:  (id: string) => void
   onCreateSquad: () => void
   onTogglePin:   (id: string) => void
+  /** Header MagicEdit tap (creator only) — opens Manage Squad Profile. */
+  onEditSquad:   () => void
+  /** Header Bell/BellOff tap — opens NotifSheet on top, this sheet stays open. */
+  onNotif:       () => void
+  /** Header Library tap — navigates to the squad's definitions page. */
+  onLibrary:     () => void
   onClose:       () => void
 }) {
   const chatInputHeight = useChatRoomPeekStore((s) => s.chatInputHeight)
@@ -311,21 +342,75 @@ export function ChatRoomBrowseSheet({
           dragElastic={{ top: 0, bottom: 0 }}
           onClick={onClose}
         >
-          <PageHeader
-            title="Updates"
-            variant="sheet"
-            right={
-              <button
-                type="button"
-                onClick={onClose}
-                className="flex-shrink-0 appearance-none flex items-center justify-center"
-                style={{ width: 24, height: 24 }}
-                aria-label="Close"
-              >
-                <Close style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
-              </button>
-            }
-          />
+          {/* Fixed above the scrollable body — see this file's top doc comment for why
+              this needs its own `stopPropagation` wrapper (the sheet root's own
+              onClick={onClose} would otherwise also fire on every header tap). */}
+          <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+            {squadDetail ? (
+              <PageHeader
+                title={squadDetail.crewName}
+                variant="sheet"
+                icon={<ChevronRight style={{ width: 16, height: 16, color: 'var(--color-secondary)' }} aria-hidden="true" />}
+                right={
+                  <div className="flex items-center flex-shrink-0" style={{ gap: 16 }}>
+                    {currentUserId === squadDetail.creatorId && (
+                      <button
+                        onClick={onEditSquad}
+                        className="flex items-center justify-center"
+                        style={{ width: 24, height: 24 }}
+                        aria-label="Edit squad details"
+                      >
+                        <MagicEdit style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+                      </button>
+                    )}
+                    <button
+                      onClick={onNotif}
+                      className="flex items-center justify-center"
+                      style={{ width: 24, height: 24, color: allMuted ? 'var(--color-muted)' : 'var(--color-primary)' }}
+                      aria-label={allMuted ? 'Notifications muted' : 'Notification settings'}
+                    >
+                      {allMuted
+                        ? <BellOff style={{ width: 24, height: 24 }} aria-hidden="true" />
+                        : <Bell style={{ width: 24, height: 24 }} aria-hidden="true" />}
+                    </button>
+                    <button
+                      onClick={onLibrary}
+                      className="flex items-center justify-center"
+                      style={{ width: 24, height: 24 }}
+                      aria-label="Squad glossary"
+                    >
+                      <Library style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={onClose}
+                      className="flex-shrink-0 appearance-none flex items-center justify-center"
+                      style={{ width: 24, height: 24 }}
+                      aria-label="Close"
+                    >
+                      <Close style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+                    </button>
+                  </div>
+                }
+              />
+            ) : (
+              <PageHeader
+                title="Updates"
+                variant="sheet"
+                right={
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="flex-shrink-0 appearance-none flex items-center justify-center"
+                    style={{ width: 24, height: 24 }}
+                    aria-label="Close"
+                  >
+                    <Close style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+                  </button>
+                }
+              />
+            )}
+          </div>
 
           <div
             className="flex flex-col w-full min-h-0 overflow-y-auto nexus-scroll"

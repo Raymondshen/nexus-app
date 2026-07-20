@@ -16,6 +16,13 @@ interface PageHeaderProps {
   // `variant="sheet"` — that variant has no back button at all.
   onBack?: () => void
   right?:  ReactNode
+  // Optional decorative leading glyph before the title — 'sheet' variant only
+  // (Figma 599:7818's small ChevronRight before the crew name). Not a button;
+  // purely visual, so callers that don't pass one (SquadDetailsSheet) keep
+  // rendering exactly as before. ChatRoomBrowseSheet passes it only when the
+  // header is showing squad context (title = crew name), not for its DM-screen
+  // "Updates" fallback title.
+  icon?:   ReactNode
   // 'default' (Figma 340:3665) — ChevronLeft back button + uppercase Silkscreen
   // title, used by every standard subpage.
   // 'sheet' (Figma 599:7818) — no back button; bold (non-uppercase) DM Sans
@@ -30,7 +37,7 @@ interface PageHeaderProps {
 // 'default' variant: ChevronLeft back button + uppercase Silkscreen title, used by
 // the Definitions list page, CreateDefinitionPage overlay, ManageSquadProfile,
 // ManageUserProfile, and DeveloperUserSettings. 'sheet' variant: see above.
-export function PageHeader({ title, onBack, right, variant = 'default' }: PageHeaderProps) {
+export function PageHeader({ title, onBack, right, icon, variant = 'default' }: PageHeaderProps) {
   const slideBack = useSlideBack()
   const handleBack = onBack ?? slideBack
   return (
@@ -45,12 +52,15 @@ export function PageHeader({ title, onBack, right, variant = 'default' }: PageHe
     >
       <div className="flex items-center justify-between h-10">
         {variant === 'sheet' ? (
-          <p
-            className="font-body font-bold leading-none text-secondary truncate min-w-0 flex-1"
-            style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}
-          >
-            {title}
-          </p>
+          <div className="flex items-center min-w-0 flex-1" style={{ gap: 'var(--x2)' }}>
+            {icon}
+            <p
+              className="font-body font-bold leading-none text-secondary truncate min-w-0"
+              style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}
+            >
+              {title}
+            </p>
+          </div>
         ) : (
           <div className="flex items-center h-full" style={{ gap: 'var(--x5)' }}>
             <button
