@@ -1740,7 +1740,9 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
           paddingTop:    'var(--space-5)',
           paddingLeft:   'var(--space-5)',
           paddingRight:  'var(--space-5)',
-          paddingBottom: 'max(env(safe-area-inset-bottom), 32px)',
+          // Figma 596:8403 ("chatInputContainer") specs pb: var(--x8, 28px) — was a
+          // hardcoded 32px, drifted from the design token.
+          paddingBottom: 'max(env(safe-area-inset-bottom), var(--space-8))',
           gap:           'var(--space-5)',
         }}
       >
