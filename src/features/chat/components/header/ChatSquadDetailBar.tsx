@@ -17,9 +17,10 @@ interface ChatSquadDetailBarProps {
   // never animated) replays that icon's swipe-hint pulse below. Only ever increments
   // while the dev-gated swipe gesture is enabled (see ChatInput's chatSwipeNavEnabled)
   // — for everyone else these stay 0 and the icons just sit at rest. verticalSwipeTick
-  // hints the swipe-up-opens-SquadDetailsSheet gesture; horizontalSwipeTick hints
-  // swipe-right-opens-ChatRoomBrowseSheet specifically (it only bumps for an actually
-  // rightward drag with somewhere to browse — see handleTopPan).
+  // hints the swipe-up-opens-ChatRoomBrowseSheet gesture (it only bumps for an
+  // actually-upward drag with somewhere to browse — see handleTopPan);
+  // horizontalSwipeTick hints the swipe-left-or-right-opens-SquadDetailsSheet gesture
+  // (bumps for either direction, unlike the vertical one).
   verticalSwipeTick?:   number
   horizontalSwipeTick?: number
 }
@@ -32,10 +33,15 @@ interface ChatSquadDetailBarProps {
 // chat-swipe-nav arrival transition — see ChatInput's barOverride mount-seeding effect).
 const SLIDE_TRANSITION = { type: 'spring', stiffness: 170, damping: 21 } as const
 
-// Figma 596:3356's "action btns" swipe-gesture hint icons (596:6986/596:7003) — a
-// pixel-art arrow-in-a-frame glyph, not a pixelarticons icon (checked; none of the
-// library's icons match this box+arrowhead mark), so the path data is reproduced
-// here directly rather than as a static asset, since the fill needs to animate.
+// Figma 596:8403's "action btns" swipe-gesture hint icons (chevron_up 599:3910 /
+// Frame 305 599:3911) — pixel-art arrow-in-a-frame glyphs, not pixelarticons icons
+// (checked; none of the library's icons match this box+arrowhead mark), so the path
+// data is reproduced here directly rather than as a static asset, since the fill
+// needs to animate. The horizontal glyph is a genuine custom vector (fetched as raw
+// SVG straight off Figma's asset export, not hand-drawn) — a left/right double
+// arrowhead inside the same box outline the vertical glyph uses, replacing the old
+// single rightward-only arrow now that the horizontal gesture opens SquadDetailsSheet
+// in either direction (see ChatInput's handleTopPan/handleTopPanEnd).
 // Literal hex, not var(--color-muted)/var(--color-purple): Framer Motion needs real
 // parseable colors to interpolate a `color` keyframe list — a raw CSS var() string
 // can't be blended between keyframes.
@@ -57,7 +63,7 @@ const HORIZONTAL_PULSE = { x: [0, 4, 0, 0],  color: [HINT_MUTED, HINT_PURPLE, HI
 export function SwipeHintIcon({ axis, controls }: { axis: 'vertical' | 'horizontal'; controls?: PulseControls }) {
   const d = axis === 'vertical'
     ? 'M1.33333 0H12V1.33333H1.33333V0ZM1.33333 12H12V13.3333H1.33333V12ZM0 1.33333H1.33333V12H0V1.33333ZM12 1.33333H13.3333V12H12V1.33333ZM6.04467 4.006H7.378V2.67267H6.04467V4.006ZM6.04467 10.6727H7.378V6.67267H6.04467V10.6727ZM4.71133 5.33933H8.71133V4.006H4.71133V5.33933ZM3.378 6.67267H10.0447V5.33933H3.378V6.67267Z'
-    : 'M1.33333 0H12V1.33333H1.33333V0ZM1.33333 12H12V13.3333H1.33333V12ZM0 1.33333H1.33333V12H0V1.33333ZM12 1.33333H13.3333V12H12V1.33333ZM9.378 6.006V7.33933H10.7113V6.006H9.378ZM2.71133 6.006V7.33933H6.71133V6.006H2.71133ZM8.04467 4.67267V8.67267H9.378V4.67267H8.04467ZM6.71133 3.33933V10.006H8.04467V3.33933H6.71133Z'
+    : 'M1.33333 0H12V1.33333H1.33333V0ZM1.33333 12H12V13.3333H1.33333V12ZM0 1.33333H1.33333V12H0V1.33333ZM12 1.33333H13.3333V12H12V1.33333ZM4.84847 8.45486H4.12119V7.73958H3.39392V7.02431H2.66665V6.30903H3.39392V5.59375H4.12119V4.87847H4.84847V6.30903H6.30301V7.02431H4.84847V8.45486ZM9.2121 5.59375H9.93938V6.30903H10.6666V7.02431H9.93938V7.73958H9.2121V8.45486H8.48483V7.02431H7.03029V6.30903H8.48483V4.87847H9.2121V5.59375Z'
   return (
     <motion.svg
       width={16}

@@ -9,12 +9,12 @@ import { useSheetDrag } from '@/shared/components/ui/sheet/useSheetDrag'
 import { useChatRoomPeekStore, type RoomMeta } from '@/features/chat/store/chatRoomPeekStore'
 
 // ─── ChatRoomBrowseSheet (Figma 589:3619 "body") ───────────────────────────────
-// Opened by a swipe right (only — left does nothing, and up opens
+// Opened by a swipe up (only — down does nothing, and left/right opens
 // SquadDetailsSheet instead) anywhere on chatInputContainer, decided at release —
 // see ChatInput's handleTopPan/handleTopPanEnd for the gesture itself. This is the
 // sole way to quick-switch rooms from inside a chat room now — SquadDetailsSheet
-// stays reachable via tap on the bar, or via the swipe-up gesture, unrelated to
-// this sheet.
+// stays reachable via tap on the bar, or via the swipe-left/right gesture, unrelated
+// to this sheet.
 //
 // Notifications section (Figma 589:4570) — a single card surfacing whichever room
 // has unread messages and received one most recently (`notifRoom` below), shown
