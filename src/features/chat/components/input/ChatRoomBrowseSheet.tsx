@@ -18,13 +18,13 @@ import { useChatRoomPeekStore, type RoomMeta } from '@/features/chat/store/chatR
 //
 // Notifications section (Figma 589:4570) — a single card surfacing whichever room
 // has unread messages and received one most recently (`notifRoom` below), shown
-// above the "My Squads" row (deliberately reordered from Figma 589:3619's own
-// top-to-bottom layout, which has "My Squads" first — Notifications leads here by
+// above the "Squads" row (deliberately reordered from Figma 589:3619's own
+// top-to-bottom layout, which has "Squads" first — Notifications leads here by
 // explicit request). Tapping it navigates there, same as tapping its card in the
 // row. Unlike Home's own DmNotificationPreviewCard, this section is never hidden —
 // with no unread room it renders a plain "you're all caught up" message instead, so
 // the sheet always shows both sections. Its wrapper carries `flex: 1 0 0` so it
-// fills whatever vertical space isn't used by "My Squads". The section's title row
+// fills whatever vertical space isn't used by "Squads". The section's title row
 // (Figma 599:3855) also carries a trailing `ChevronDown` (Figma 599:3861) — the
 // same explicit-close affordance SquadDetailsSheet's header row uses — so there's a
 // dedicated dismiss control alongside the existing tap-outside/tap-a-card/drag-down
@@ -224,8 +224,8 @@ export function ChatRoomBrowseSheet({
           <div className="flex flex-col w-full" style={{ gap: 'var(--space-5)', flex: '1 0 0' }}>
             <div className="flex items-center justify-between w-full" style={{ gap: 16 }}>
               <p
-                className="font-body font-bold text-primary leading-none truncate min-w-0"
-                style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}
+                className="font-body font-medium text-primary leading-none truncate min-w-0"
+                style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
               >
                 Notifications
               </p>
@@ -251,10 +251,10 @@ export function ChatRoomBrowseSheet({
           <div className="flex flex-col w-full flex-shrink-0" style={{ gap: 'var(--space-5)' }}>
             <div className="flex items-center justify-between w-full">
               <p
-                className="font-body font-bold text-primary leading-none truncate min-w-0"
-                style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}
+                className="font-body font-medium text-primary leading-none truncate min-w-0"
+                style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
               >
-                My Squads
+                Squads
               </p>
               <ScrollEqualizerBars items={equalizerItems} currentRoomId={currentRoomId} focusedItemId={focusedItemId} />
             </div>
@@ -367,7 +367,7 @@ function NoNotificationsCard() {
     <div className="w-full flex-1 min-h-0 flex flex-col items-center justify-center text-center" style={{ gap: 'var(--space-2)' }}>
       <SleepingGhost />
       <p
-        className="font-body font-normal text-muted"
+        className="font-body font-normal text-tertiary"
         style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14', lineHeight: 1.5 }}
       >
         You&apos;re all up to date. I will alert you when you have new messages. I&apos;ll be resting for now.
@@ -397,7 +397,7 @@ function SleepingGhost() {
     <img
       src={`/sprites/ghost/sleep/ghost-sleeping_${String(frame + 1).padStart(4, '0')}.webp`}
       alt=""
-      style={{ width: 56, height: 56, flexShrink: 0, imageRendering: 'pixelated' }}
+      style={{ width: 80, height: 80, flexShrink: 0, imageRendering: 'pixelated' }}
       aria-hidden="true"
     />
   )
