@@ -13,17 +13,13 @@ interface ChatSquadDetailBarProps {
   onlineUserIds: Set<string>
   onExpand:      () => void
   // Bumped by ChatInput's handleTopPan the instant a pan gesture on chatInputContainer
-  // locks to that axis — each increment (0 is the "never fired" starting value,
-  // never animated) replays that icon's swipe-hint pulse below. Only ever increments
-  // while the dev-gated swipe gesture is enabled (see ChatInput's chatSwipeNavEnabled)
-  // — for everyone else these stay 0 and the icons just sit at rest. verticalSwipeTick
-  // hints the swipe-up-opens-SquadDetailsSheet gesture (bumps regardless of up/down,
-  // since down is a no-op at release but still worth the pulse feedback — see
-  // handleTopPan); horizontalSwipeTick hints the swipe-left-or-right-opens-
-  // ChatRoomBrowseSheet gesture (bumps for either direction, gated only on having
-  // somewhere to browse).
-  verticalSwipeTick?:   number
-  horizontalSwipeTick?: number
+  // locks to the vertical axis — each increment (0 is the "never fired" starting
+  // value, never animated) replays the swipe-hint icon's pulse below. Only ever
+  // increments while the dev-gated swipe gesture is enabled (see ChatInput's
+  // chatSwipeNavEnabled) — for everyone else it stays 0 and the icon just sits at
+  // rest. Bumps regardless of up/down, since down is a no-op at release but still
+  // worth the pulse feedback (see handleTopPan).
+  verticalSwipeTick?: number
 }
 
 // Shared top-to-bottom slide used by the crew image and name below — the incoming
@@ -34,15 +30,13 @@ interface ChatSquadDetailBarProps {
 // chat-swipe-nav arrival transition — see ChatInput's barOverride mount-seeding effect).
 const SLIDE_TRANSITION = { type: 'spring', stiffness: 170, damping: 21 } as const
 
-// Figma 596:8403's "action btns" swipe-gesture hint icons (chevron_up 599:3910 /
-// Frame 305 599:3911) — pixel-art arrow-in-a-frame glyphs, not pixelarticons icons
-// (checked; none of the library's icons match this box+arrowhead mark), so the path
-// data is reproduced here directly rather than as a static asset, since the fill
-// needs to animate. The horizontal glyph is a genuine custom vector (fetched as raw
-// SVG straight off Figma's asset export, not hand-drawn) — a left/right double
-// arrowhead inside the same box outline the vertical glyph uses, replacing the old
-// single rightward-only arrow now that the horizontal gesture opens ChatRoomBrowseSheet
-// in either direction (see ChatInput's handleTopPan/handleTopPanEnd).
+// Figma 596:8403's "action btns" swipe-gesture hint icon (chevron_up 599:3910) — a
+// pixel-art arrow-in-a-frame glyph, not a pixelarticons icon (checked; none of the
+// library's icons match this box+arrowhead mark), so the path data is reproduced
+// here directly rather than as a static asset, since the fill needs to animate. A
+// horizontal counterpart used to sit next to this one, hinting a swipe-left-or-right
+// gesture that also opened ChatRoomBrowseSheet — removed once swipe-up itself took
+// over opening that sheet, leaving only this vertical glyph.
 // Literal hex, not var(--color-muted)/var(--color-purple): Framer Motion needs real
 // parseable colors to interpolate a `color` keyframe list — a raw CSS var() string
 // can't be blended between keyframes.
@@ -50,21 +44,17 @@ const HINT_MUTED  = '#71717a' // --color-muted
 const HINT_PURPLE = '#a855f7' // --color-purple
 type PulseControls = ReturnType<typeof useAnimationControls>
 
-// Figma's own keyframe timeline for these nodes (get_motion_context): y/x go
-// 0 → ±4 → 0 → 0 over 300ms, linear, at times [0, .3331, .6763, 1]. Figma shows it
+// Figma's own keyframe timeline for this node (get_motion_context): y goes
+// 0 → -4 → 0 → 0 over 300ms, linear, at times [0, .3331, .6763, 1]. Figma shows it
 // looping forever as a preview; here it's replayed once per actual swipe (see
-// verticalSwipeTick/horizontalSwipeTick) via controls.start, not left looping.
+// verticalSwipeTick) via controls.start, not left looping.
 const HINT_TRANSITION = { duration: 0.3, times: [0, 0.3331, 0.6763, 1], ease: 'linear' as const }
-const VERTICAL_PULSE   = { y: [0, -4, 0, 0], color: [HINT_MUTED, HINT_PURPLE, HINT_MUTED, HINT_MUTED], transition: HINT_TRANSITION }
-const HORIZONTAL_PULSE = { x: [0, 4, 0, 0],  color: [HINT_MUTED, HINT_PURPLE, HINT_MUTED, HINT_MUTED], transition: HINT_TRANSITION }
+const SWIPE_HINT_PULSE = { y: [0, -4, 0, 0], color: [HINT_MUTED, HINT_PURPLE, HINT_MUTED, HINT_MUTED], transition: HINT_TRANSITION }
 
 // controls is optional so the same icon can render statically (Figma 596:7443's
 // one-time banner in ChatInput — see that component) without needing a dummy
 // AnimationControls that never starts.
-export function SwipeHintIcon({ axis, controls }: { axis: 'vertical' | 'horizontal'; controls?: PulseControls }) {
-  const d = axis === 'vertical'
-    ? 'M1.33333 0H12V1.33333H1.33333V0ZM1.33333 12H12V13.3333H1.33333V12ZM0 1.33333H1.33333V12H0V1.33333ZM12 1.33333H13.3333V12H12V1.33333ZM6.04467 4.006H7.378V2.67267H6.04467V4.006ZM6.04467 10.6727H7.378V6.67267H6.04467V10.6727ZM4.71133 5.33933H8.71133V4.006H4.71133V5.33933ZM3.378 6.67267H10.0447V5.33933H3.378V6.67267Z'
-    : 'M1.33333 0H12V1.33333H1.33333V0ZM1.33333 12H12V13.3333H1.33333V12ZM0 1.33333H1.33333V12H0V1.33333ZM12 1.33333H13.3333V12H12V1.33333ZM4.84847 8.45486H4.12119V7.73958H3.39392V7.02431H2.66665V6.30903H3.39392V5.59375H4.12119V4.87847H4.84847V6.30903H6.30301V7.02431H4.84847V8.45486ZM9.2121 5.59375H9.93938V6.30903H10.6666V7.02431H9.93938V7.73958H9.2121V8.45486H8.48483V7.02431H7.03029V6.30903H8.48483V4.87847H9.2121V5.59375Z'
+export function SwipeHintIcon({ controls }: { controls?: PulseControls }) {
   return (
     <motion.svg
       width={16}
@@ -72,31 +62,27 @@ export function SwipeHintIcon({ axis, controls }: { axis: 'vertical' | 'horizont
       viewBox="0 0 13.3333 13.3333"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
-      initial={{ y: 0, x: 0, color: HINT_MUTED }}
+      initial={{ y: 0, color: HINT_MUTED }}
       animate={controls}
       aria-hidden="true"
     >
-      <path d={d} fill="currentColor" />
+      <path d="M1.33333 0H12V1.33333H1.33333V0ZM1.33333 12H12V13.3333H1.33333V12ZM0 1.33333H1.33333V12H0V1.33333ZM12 1.33333H13.3333V12H12V1.33333ZM6.04467 4.006H7.378V2.67267H6.04467V4.006ZM6.04467 10.6727H7.378V6.67267H6.04467V10.6727ZM4.71133 5.33933H8.71133V4.006H4.71133V5.33933ZM3.378 6.67267H10.0447V5.33933H3.378V6.67267Z" fill="currentColor" />
     </motion.svg>
   )
 }
 
 export function ChatSquadDetailBar({
   crewImageUrl, crewName, members, onlineUserIds,
-  onExpand, verticalSwipeTick = 0, horizontalSwipeTick = 0,
+  onExpand, verticalSwipeTick = 0,
 }: ChatSquadDetailBarProps) {
   const onlineMembers = members.filter((m) => onlineUserIds.has(m.id))
-  const verticalControls   = useAnimationControls()
-  const horizontalControls = useAnimationControls()
+  const swipeHintControls = useAnimationControls()
 
   // 0 is the untouched starting value (no gesture has happened yet on this mount) —
   // only replay the pulse on an actual increment, never on mount itself.
   useEffect(() => {
-    if (verticalSwipeTick > 0) verticalControls.start(VERTICAL_PULSE)
+    if (verticalSwipeTick > 0) swipeHintControls.start(SWIPE_HINT_PULSE)
   }, [verticalSwipeTick]) // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    if (horizontalSwipeTick > 0) horizontalControls.start(HORIZONTAL_PULSE)
-  }, [horizontalSwipeTick]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <motion.div
@@ -169,12 +155,15 @@ export function ChatSquadDetailBar({
         )}
       </AnimatePresence>
 
-      {/* "Swipe" label + swipe-gesture hint icons (Figma 596:7302 "action btns") —
+      {/* "Swipe" label + swipe-gesture hint icon (Figma 596:7302 "action btns") —
           purely decorative and NOT a tap-to-expand target: stops propagation so a
           tap here doesn't also open SquadDetailsSheet via the row's own onClick
-          (same pattern as the online-avatars row above). Icons pulse (translate +
+          (same pattern as the online-avatars row above). Icon pulses (translate +
           mute→purple→mute) in place when ChatInput's handleTopPan detects the
-          matching swipe direction; the label itself is static. */}
+          swipe-up gesture; the label itself is static. A horizontal icon used to
+          sit alongside this one hinting a swipe-left-or-right gesture — removed
+          once swipe-up took over opening ChatRoomBrowseSheet (see ChatInput's
+          handleTopPanEnd), leaving this the only swipe gesture on the bar. */}
       <div
         className="flex items-center flex-shrink-0"
         style={{ gap: 4 }}
@@ -184,8 +173,7 @@ export function ChatSquadDetailBar({
         <p className="font-silkscreen text-muted text-right leading-none whitespace-nowrap" style={{ fontSize: 8 }}>
           Swipe
         </p>
-        <SwipeHintIcon axis="vertical" controls={verticalControls} />
-        <SwipeHintIcon axis="horizontal" controls={horizontalControls} />
+        <SwipeHintIcon controls={swipeHintControls} />
       </div>
     </motion.div>
   )

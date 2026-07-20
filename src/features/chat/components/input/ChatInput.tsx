@@ -152,12 +152,12 @@ async function tryClaimDailyGem(supabase: ReturnType<typeof createClient>, onCla
 const EMPTY_MEMBERS: MemberProfile[] = []
 const EMPTY_ONLINE_IDS = new Set<string>()
 
-// Set once the user has actually triggered either swipe gesture — permanently
-// hides the "Swipe to : View Group Details / Switch Groups" banner (Figma 589:5938,
-// updated to Figma 596:7443's two-hint layout) for this device from then on, same
-// one-shot-hint convention as nexus_first_message/nexus_crew_created (see
-// CLAUDE.md's Storage Keys). Scoped to nexus_chat_swipe_nav — the feature itself is
-// dev-gated, so the banner only ever renders for a session that already has it
+// Set once the user has actually triggered the swipe-up gesture — permanently hides
+// the "Swipe to : Switch Groups" banner (Figma 589:5938, originally a two-hint layout
+// per Figma 596:7443 before the horizontal gesture was removed) for this device from
+// then on, same one-shot-hint convention as nexus_first_message/nexus_crew_created
+// (see CLAUDE.md's Storage Keys). Scoped to nexus_chat_swipe_nav — the feature itself
+// is dev-gated, so the banner only ever renders for a session that already has it
 // enabled, and only for first-time/not-yet-triggered users (see dismissSwipeHint).
 const CHAT_SWIPE_HINT_SEEN_KEY = 'nexus_chat_swipe_nav_hint_seen'
 
@@ -237,21 +237,23 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   const [mentionQuery,    setMentionQuery]    = useState<string | null>(null)
   const [mentionIndex,    setMentionIndex]    = useState(0)
   const [isFocused,       setIsFocused]       = useState(false)
-  // Opened by a swipe-left/right on chatInputContainer (see handleTopPanEnd) —
+  // Opened by a swipe-up on chatInputContainer (see handleTopPanEnd) —
   // ChatRoomBrowseSheet, a persistent "every room, scrollable, tap to navigate"
   // overlay. Stays true until the user taps a card or the backdrop.
   const [showRoomBrowser, setShowRoomBrowser] = useState(false)
   // Locks which axis the current pan gesture on chatInputContainer means, decided
   // once per gesture the first time it crosses PAN_DIRECTION_LOCK_PX in either
-  // axis — see handleTopPan. Null between gestures and while still undecided.
+  // axis — see handleTopPan. Null between gestures and while still undecided. Still
+  // tracks 'horizontal' even though a horizontal drag no longer opens anything (see
+  // handleTopPanEnd) — that's what lets handleTopPan tell a horizontal drag apart
+  // from a vertical one so it doesn't pulse the swipe-up hint for the wrong gesture.
   const panDirectionRef = useRef<'horizontal' | 'vertical' | null>(null)
-  // Bumped once per gesture, the instant handleTopPan locks that axis — drives
-  // ChatSquadDetailBar's per-icon swipe-hint pulse. Fires on axis-lock (mid-drag),
-  // not on a qualifying release, so the vertical icon still pulses even if the
-  // swipe-up doesn't end up crossing handleTopPanEnd's open threshold — the pulse is
-  // feedback for "you're swiping", not for "that swipe opened something".
-  const [verticalSwipeTick,   setVerticalSwipeTick]   = useState(0)
-  const [horizontalSwipeTick, setHorizontalSwipeTick] = useState(0)
+  // Bumped once per gesture, the instant handleTopPan locks the axis to 'vertical' —
+  // drives ChatSquadDetailBar's swipe-hint icon pulse. Fires on axis-lock (mid-drag),
+  // not on a qualifying release, so the icon still pulses even if the swipe-up
+  // doesn't end up crossing handleTopPanEnd's open threshold — the pulse is feedback
+  // for "you're swiping", not for "that swipe opened something".
+  const [verticalSwipeTick, setVerticalSwipeTick] = useState(0)
   const [showEventSheet,  setShowEventSheet]  = useState(false)
   const [isMultiline,     setIsMultiline]     = useState(false)
 
@@ -672,21 +674,20 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
 
   // ────────────────────────────────────────────────────────────────────────────
 
-  // Dev-gated (nexus_chat_swipe_nav): a pan gesture anywhere on chatInputContainer
-  // opens one of two different things depending on its axis, both decided at
-  // release (see handleTopPanEnd) rather than live:
-  //   - Vertical, up only (down does nothing): opens SquadDetailsSheet — the same
-  //     sheet a plain tap on the bar already opens (ChatSquadDetailBar's own
-  //     onClick), just reachable this second way too. Not gated on having more
-  //     than one room — meaningful even with a single crew.
-  //   - Horizontal, either direction (left or right): opens ChatRoomBrowseSheet at
-  //     the current room. Gated on chatRoomOrder.length > 1 — nothing to browse
-  //     otherwise.
+  // Dev-gated (nexus_chat_swipe_nav): a vertical, up-only pan gesture anywhere on
+  // chatInputContainer opens ChatRoomBrowseSheet — decided at release (see
+  // handleTopPanEnd), same target the swipe hint's `verticalSwipeTick`-driven icon
+  // pulse on ChatSquadDetailBar advertises. (Down does nothing at release, same as
+  // before.) A horizontal drag no longer opens anything — ChatRoomBrowseSheet used
+  // to be reachable that way too, but that gesture was removed once swipe-up started
+  // opening the same sheet; SquadDetailsSheet stays reachable only via a plain tap on
+  // ChatSquadDetailBar (its own `onClick`), no longer via any swipe.
   // handleTopPan itself only locks which axis the gesture is, once per gesture the
   // first time it crosses PAN_DIRECTION_LOCK_PX (an otherwise-unrelated small
-  // jitter, or a tap, can't cross that threshold by coincidence), so it can bump
-  // the matching icon's swipe-hint pulse on ChatSquadDetailBar (see
-  // verticalSwipeTick/horizontalSwipeTick above).
+  // jitter, or a tap, can't cross that threshold by coincidence) — this is still
+  // needed even with one gesture left, so a dominantly-horizontal drag doesn't
+  // mistakenly pulse the vertical hint icon just because its y-offset also ticks
+  // past the lock threshold.
   function handleTopPanStart() {
     panDirectionRef.current = null
   }
@@ -696,22 +697,15 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     if (panDirectionRef.current !== null) return
     if (Math.abs(info.offset.x) < PAN_DIRECTION_LOCK_PX && Math.abs(info.offset.y) < PAN_DIRECTION_LOCK_PX) return
     panDirectionRef.current = Math.abs(info.offset.x) > Math.abs(info.offset.y) ? 'horizontal' : 'vertical'
-    if (panDirectionRef.current === 'horizontal') {
-      // Only pulse the hint icon for a horizontal drag with somewhere to browse —
-      // a lone crew can't open anything, so it shouldn't hint that it will.
-      if (chatRoomOrder.length > 1) setHorizontalSwipeTick((t) => t + 1)
-    } else {
-      // Vertical (up) always opens SquadDetailsSheet regardless of room count, so
-      // pulse regardless of direction — down does nothing at release, but the
-      // hint pulse itself isn't a promise the release will actually open something
-      // (see this ref's own doc comment).
+    if (panDirectionRef.current === 'vertical') {
+      // Pulse regardless of up/down — down does nothing at release, but the hint
+      // pulse itself isn't a promise the release will actually open something (see
+      // this ref's own doc comment).
       setVerticalSwipeTick((t) => t + 1)
     }
   }
 
-  // One-shot hint dismissal — see CHAT_SWIPE_HINT_SEEN_KEY's own doc comment. The
-  // banner teaches both gestures (swipe up → SquadDetailsSheet, swipe left/right →
-  // ChatRoomBrowseSheet), so either one succeeding clears it — not just one axis.
+  // One-shot hint dismissal — see CHAT_SWIPE_HINT_SEEN_KEY's own doc comment.
   function dismissSwipeHint() {
     if (!showSwipeHint) return
     localStorage.setItem(CHAT_SWIPE_HINT_SEEN_KEY, '1')
@@ -722,15 +716,8 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     panDirectionRef.current = null
     if (!chatSwipeNavEnabled) return
     const isVertical = Math.abs(info.offset.y) > Math.abs(info.offset.x)
-    if (isVertical) {
-      if (info.offset.y < -50 || info.velocity.y < -300) {
-        setIsExpanded(true)
-        dismissSwipeHint()
-      }
-      return
-    }
-    if (chatRoomOrder.length <= 1) return
-    if (Math.abs(info.offset.x) > 50 || Math.abs(info.velocity.x) > 300) {
+    if (!isVertical) return
+    if (info.offset.y < -50 || info.velocity.y < -300) {
       setShowRoomBrowser(true)
       dismissSwipeHint()
     }
@@ -1720,13 +1707,14 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
           presence sync doesn't re-render all of ChatInput — see ChatTypingIndicator. ── */}
       <ChatTypingIndicator />
 
-      {/* Figma 596:7443 — one-shot banner teaching both swipe gestures (swipe up →
-          View Group Details/SquadDetailsSheet, swipe left/right → Switch Groups/
-          ChatRoomBrowseSheet), dev-gated the same as the gestures themselves
-          (nexus_chat_swipe_nav) and hidden when there's nothing to switch to.
-          Permanently dismissed the first time either gesture actually fires — see
-          CHAT_SWIPE_HINT_SEEN_KEY / dismissSwipeHint. Reuses SwipeHintIcon (no
-          `controls` passed — static, doesn't need to pulse). */}
+      {/* Figma 596:7443 — one-shot banner teaching the swipe-up gesture (originally a
+          two-hint layout for swipe-up/SquadDetailsSheet + swipe-left-or-right/
+          ChatRoomBrowseSheet; the horizontal gesture was removed once swipe-up itself
+          started opening ChatRoomBrowseSheet, so only one hint remains), dev-gated
+          the same as the gesture itself (nexus_chat_swipe_nav) and hidden when
+          there's nothing to switch to. Permanently dismissed the first time the
+          gesture actually fires — see CHAT_SWIPE_HINT_SEEN_KEY / dismissSwipeHint.
+          Reuses SwipeHintIcon (no `controls` passed — static, doesn't need to pulse). */}
       {chatSwipeNavEnabled && showSwipeHint && chatRoomOrder.length > 1 && (
         <div className="flex items-center justify-center w-full" style={{ gap: 8, padding: 'var(--x3) var(--x5)' }}>
           <div className="flex items-center" style={{ gap: 8 }}>
@@ -1734,24 +1722,15 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
               className="font-body font-light text-tertiary whitespace-nowrap"
               style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14', lineHeight: 1.4 }}
             >
-              Swipe to : View Group Details
+              Swipe to : Switch Groups
             </p>
-            <SwipeHintIcon axis="vertical" />
-          </div>
-          <div className="flex items-center" style={{ gap: 8 }}>
-            <p
-              className="font-body font-light text-tertiary whitespace-nowrap"
-              style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14', lineHeight: 1.4 }}
-            >
-              Switch Groups
-            </p>
-            <SwipeHintIcon axis="horizontal" />
+            <SwipeHintIcon />
           </div>
         </div>
       )}
 
       {/* Swipe-on-the-container overlay — every room, scrollable, tap to navigate.
-          Opened at the current room by handleTopPanEnd (swipe left/right — see this
+          Opened at the current room by handleTopPanEnd (swipe up — see this
           component's own doc comment) or by tap-scrolling within the sheet itself
           once open. */}
       <ChatRoomBrowseSheet
@@ -1769,10 +1748,9 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
       {/* Figma 577:4905 ("chatInputContainer") — squad bar + input field together, as one
           unit.
 
-          onPan/onPanEnd live HERE (the whole container), not on ChatSquadDetailBar — a
-          swipe up, or left/right, anywhere in the container (bar or input row) should
-          drive SquadDetailsSheet/ChatRoomBrowseSheet respectively, per
-          handleTopPanStart's own doc comment. */}
+          onPan/onPanEnd live HERE (the whole container), not on ChatSquadDetailBar —
+          a swipe up anywhere in the container (bar or input row) should drive
+          ChatRoomBrowseSheet, per handleTopPanStart's own doc comment. */}
       <motion.div
         className="border-t border-border flex flex-col"
         onPanStart={handleTopPanStart}
@@ -1827,7 +1805,6 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
               setIsExpanded(true)
             }}
             verticalSwipeTick={verticalSwipeTick}
-            horizontalSwipeTick={horizontalSwipeTick}
           />
         )}
 
