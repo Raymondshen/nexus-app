@@ -39,9 +39,20 @@ const PIN_LONG_PRESS_MS = 500
 // 599:7818's small chevron before "SQUAD SH*T") and `right` = the exact same
 // action-icon row as SquadDetailsSheet's own header — `MagicEdit` (creator-only),
 // `Bell`/`BellOff`, `Library`, then `Close` — so squad actions stay reachable
-// without leaving this sheet. Falls back to a plain "Updates" title + Close-only
-// `right` when `squadDetail` is null (DM screen — no squad to edit/mute/browse
-// definitions for). The header row is wrapped in its own `stopPropagation` div
+// without leaving this sheet. MagicEdit/Bell/Library fade out (opacity 0,
+// `pointerEvents: none`) while `viewingGroupDetails` is false — i.e. while still on
+// the Notifications+Squads page below — and fade smoothly back in once the user
+// scrolls/snaps to Group Details, since those actions only make sense once squad
+// context (the crew name in the title, the invite card, etc.) is actually on
+// screen. Close is excluded from the fade — it stays reachable on both pages.
+// `viewingGroupDetails` is derived from the body scroll container's own
+// `scrollTop` (see `handleBodyScroll`), not a separate IntersectionObserver, since
+// page one is already sized to exactly the container's height (see the body's own
+// doc comment below) — a simple halfway threshold is enough to tell which page is
+// in view. Falls back to a plain "Updates" title + Close-only `right` when
+// `squadDetail` is null (DM screen — no squad to edit/mute/browse definitions
+// for, so nothing to fade either). The header row is wrapped in its own
+// `stopPropagation` div
 // (mirroring SquadDetailsSheet's) since the sheet root's own `onClick={onClose}`
 // would otherwise also fire on every header button tap — harmless for Close
 // (already idempotent) but wrong for Notif, which should open `NotifSheet` on top
@@ -208,6 +219,24 @@ export function ChatRoomBrowseSheet({
 }) {
   const chatInputHeight = useChatRoomPeekStore((s) => s.chatInputHeight)
   const rowRef = useRef<HTMLDivElement>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+
+  // Tracks which scroll-snap "page" (see the body's own doc comment below) is
+  // currently in view, to fade the header's MagicEdit/Bell/Library icons out while
+  // on Notifications+Squads and back in on Group Details — those actions only make
+  // sense once the user has actually scrolled to the squad-context section, per
+  // this file's own request. Close is unaffected; it stays visible/tappable on
+  // both pages.
+  const [viewingGroupDetails, setViewingGroupDetails] = useState(false)
+
+  function handleBodyScroll() {
+    const el = scrollContainerRef.current
+    if (!el) return
+    // Page one is sized to exactly `el.clientHeight` (see below), so once scrollTop
+    // passes the halfway point the Group Details page is what's actually on screen.
+    const isPastPage1 = el.scrollTop > el.clientHeight * 0.5
+    setViewingGroupDetails((prev) => (prev === isPastPage1 ? prev : isPastPage1))
+  }
 
   // Long-press (hold) a room card to open a one-action Pin/Unpin Squad sheet
   // (Figma has no spec for this yet — minimal single-row sheet, same shell as
@@ -266,7 +295,7 @@ export function ChatRoomBrowseSheet({
   const [prevVisible, setPrevVisible] = useState(visible)
   if (visible !== prevVisible) {
     setPrevVisible(visible)
-    if (visible) setFocusedIndex(indexOfCurrentItem())
+    if (visible) { setFocusedIndex(indexOfCurrentItem()); setViewingGroupDetails(false) }
     else setPinSheetRoomId(null)
   }
 
@@ -353,12 +382,24 @@ export function ChatRoomBrowseSheet({
                 icon={<ChevronRight style={{ width: 16, height: 16, color: 'var(--color-secondary)' }} aria-hidden="true" />}
                 right={
                   <div className="flex items-center flex-shrink-0" style={{ gap: 16 }}>
+                    {/* MagicEdit/Bell/Library only make sense once the user has actually
+                        scrolled to the Group Details page — faded out (and untappable,
+                        `pointerEvents: 'none'`) while still on Notifications/Squads,
+                        fading in smoothly as `viewingGroupDetails` flips. Close is
+                        excluded — it stays visible/tappable on both pages. */}
                     {currentUserId === squadDetail.creatorId && (
                       <button
                         onClick={onEditSquad}
                         className="flex items-center justify-center"
-                        style={{ width: 24, height: 24 }}
+                        style={{
+                          width:         24,
+                          height:        24,
+                          opacity:       viewingGroupDetails ? 1 : 0,
+                          pointerEvents: viewingGroupDetails ? 'auto' : 'none',
+                          transition:    'opacity 200ms ease',
+                        }}
                         aria-label="Edit squad details"
+                        aria-hidden={!viewingGroupDetails}
                       >
                         <MagicEdit style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
                       </button>
@@ -366,8 +407,16 @@ export function ChatRoomBrowseSheet({
                     <button
                       onClick={onNotif}
                       className="flex items-center justify-center"
-                      style={{ width: 24, height: 24, color: allMuted ? 'var(--color-muted)' : 'var(--color-primary)' }}
+                      style={{
+                        width:         24,
+                        height:        24,
+                        color:         allMuted ? 'var(--color-muted)' : 'var(--color-primary)',
+                        opacity:       viewingGroupDetails ? 1 : 0,
+                        pointerEvents: viewingGroupDetails ? 'auto' : 'none',
+                        transition:    'opacity 200ms ease',
+                      }}
                       aria-label={allMuted ? 'Notifications muted' : 'Notification settings'}
+                      aria-hidden={!viewingGroupDetails}
                     >
                       {allMuted
                         ? <BellOff style={{ width: 24, height: 24 }} aria-hidden="true" />
@@ -376,8 +425,15 @@ export function ChatRoomBrowseSheet({
                     <button
                       onClick={onLibrary}
                       className="flex items-center justify-center"
-                      style={{ width: 24, height: 24 }}
+                      style={{
+                        width:         24,
+                        height:        24,
+                        opacity:       viewingGroupDetails ? 1 : 0,
+                        pointerEvents: viewingGroupDetails ? 'auto' : 'none',
+                        transition:    'opacity 200ms ease',
+                      }}
                       aria-label="Squad glossary"
+                      aria-hidden={!viewingGroupDetails}
                     >
                       <Library style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
                     </button>
@@ -413,6 +469,8 @@ export function ChatRoomBrowseSheet({
           </div>
 
           <div
+            ref={scrollContainerRef}
+            onScroll={handleBodyScroll}
             className="flex flex-col w-full min-h-0 overflow-y-auto nexus-scroll"
             style={{
               gap:            'var(--space-5)',
