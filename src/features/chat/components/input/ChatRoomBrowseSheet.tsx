@@ -505,17 +505,7 @@ export function ChatRoomBrowseSheet({
               paddingLeft:    'var(--space-5)',
               paddingRight:   'var(--space-5)',
               paddingBottom:  'var(--space-5)',
-              // `proximity`, not `mandatory` — Group Details (below) is the last and
-              // only OTHER snap point in this container, so with `mandatory` the
-              // browser tries to resolve every scroll gesture back to its top edge
-              // even once you're already scrolled deep into its own tall content
-              // (past the member row, toward Leave Squad), fighting normal scrolling
-              // instead of just snapping at the boundary between it and the
-              // Squads page above. `proximity` still catches that boundary snap for
-              // an ordinary swipe between the two pages (the same behavior today),
-              // it just stops re-asserting itself once you're no longer near either
-              // snap point.
-              scrollSnapType: 'y proximity',
+              scrollSnapType: 'y mandatory',
             }}
           >
             {/* Notifications + Squads combined into a single scroll-snap "page" that
@@ -669,6 +659,17 @@ export function ChatRoomBrowseSheet({
                 )}
               </div>
             )}
+            {/* `scroll-snap-type: y mandatory` above only has two valid resting
+                positions without this — the top of the Squads page and the top of
+                Group Details — so releasing a scroll anywhere INSIDE Group Details'
+                own content (past the member row, toward Leave Squad) would always
+                spring back up to its top, permanently hiding the button no matter
+                how far down you dragged. This zero-height `end`-aligned marker,
+                sitting after everything else, adds a third legitimate mandatory
+                rest position at the true scroll limit — so scrolling all the way
+                down through Group Details now stays put there instead of snapping
+                away, while the Squads↔Group-Details boundary snap is untouched. */}
+            {squadDetail && <div aria-hidden className="w-full flex-shrink-0" style={{ height: 1, scrollSnapAlign: 'end' }} />}
           </div>
         </motion.div>
       )}
