@@ -4,6 +4,7 @@ import { useMemo } from 'react'
 import { motion } from 'framer-motion'
 import Image from 'next/image'
 import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
+import { PageHeader } from '@/shared/components/ui/PageHeader'
 import { GroupAvatar } from '@/shared/components/ui/GroupAvatar'
 import { MagicEdit } from 'pixelarticons/react/MagicEdit'
 import { Bell } from 'pixelarticons/react/Bell'
@@ -57,14 +58,18 @@ interface SquadDetailsSheetProps {
 // outside to dismiss" behavior; all three of those content blocks stop click
 // propagation so taps inside them don't also bubble into the backdrop's onClose.
 //
-// Header row (Figma 599:3842, new in this revision) — crew name (plain title
-// text, not inside the hero) + the action icon row: `MagicEdit` (creator-only),
-// `Bell`/`BellOff`, `Library`, and a trailing `ChevronDown` that's an explicit
-// close button (the icon row used to live inside the hero's top-right corner —
-// moved out to this fixed header so it stays reachable regardless of scroll
-// position, see the scrollable body below). `flex-shrink-0`, sits above the
-// scrollable body and never scrolls with it — same "header never scrolls away"
-// treatment as the Squad Updates page (`AnnouncementsSheet.tsx`).
+// Header row (Figma 599:3842, new in this revision) — the shared `PageHeader`,
+// `variant="sheet"` (Figma 599:7818 — bold non-uppercase DM Sans title, no back
+// chevron), title = crew name, `right` = the action icon row: `MagicEdit`
+// (creator-only), `Bell`/`BellOff`, `Library`, and a trailing `ChevronDown` that's
+// an explicit close button (the icon row used to live inside the hero's top-right
+// corner — moved out to this fixed header so it stays reachable regardless of
+// scroll position, see the scrollable body below). Wrapped in its own
+// `stopPropagation` div since PageHeader itself doesn't own that — without it, a
+// tap on Bell/Library/MagicEdit would bubble up into the backdrop's own
+// `onClick={onClose}` and close the sheet out from under the action. `flex-shrink-0`,
+// sits above the scrollable body and never scrolls with it — same "header never
+// scrolls away" treatment as the Squad Updates page (`AnnouncementsSheet.tsx`).
 //
 // Body (hero+invite card, member row, Leave Squad) is wrapped in its own
 // `flex-1 min-h-0 overflow-y-auto` region below the header — required both to
@@ -133,63 +138,53 @@ export function SquadDetailsSheet({
       dragElastic={{ top: 0, bottom: 0 }}
       onClick={onClose}
     >
-      {/* Header row (Figma 599:3842) — crew name + action icons. Fixed above the
-          scrollable body; see this component's top doc comment. */}
-      <div
-        className="flex items-center justify-between w-full flex-shrink-0"
-        style={{
-          gap:           16,
-          paddingLeft:   'var(--space-5)',
-          paddingRight:  'var(--space-5)',
-          paddingTop:    'max(env(safe-area-inset-top), var(--space-5))',
-          paddingBottom: 'var(--space-5)',
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <p
-          className="font-body font-bold leading-none truncate uppercase min-w-0"
-          style={{ fontSize: 'var(--text-md)', color: 'var(--color-secondary)', fontVariationSettings: '"opsz" 14' }}
-        >
-          {crewName}
-        </p>
-        <div className="flex items-center flex-shrink-0" style={{ gap: 16 }}>
-          {currentUserId === creatorId && (
-            <button
-              onClick={onEditSquad}
-              className="flex items-center justify-center"
-              style={{ width: 24, height: 24 }}
-              aria-label="Edit squad details"
-            >
-              <MagicEdit style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
-            </button>
-          )}
-          <button
-            onClick={onNotif}
-            className="flex items-center justify-center"
-            style={{ width: 24, height: 24, color: allMuted ? 'var(--color-muted)' : 'var(--color-primary)' }}
-            aria-label={allMuted ? 'Notifications muted' : 'Notification settings'}
-          >
-            {allMuted
-              ? <BellOff style={{ width: 24, height: 24 }} aria-hidden="true" />
-              : <Bell style={{ width: 24, height: 24 }} aria-hidden="true" />}
-          </button>
-          <button
-            onClick={onLibrary}
-            className="flex items-center justify-center"
-            style={{ width: 24, height: 24 }}
-            aria-label="Squad glossary"
-          >
-            <Library style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
-          </button>
-          <button
-            onClick={onClose}
-            className="flex items-center justify-center"
-            style={{ width: 24, height: 24 }}
-            aria-label="Close squad details"
-          >
-            <ChevronDown style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
-          </button>
-        </div>
+      {/* Header row (Figma 599:3842) — shared PageHeader, crew name + action icons.
+          Fixed above the scrollable body; see this component's top doc comment. */}
+      <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+        <PageHeader
+          title={crewName}
+          variant="sheet"
+          right={
+            <div className="flex items-center flex-shrink-0" style={{ gap: 16 }}>
+              {currentUserId === creatorId && (
+                <button
+                  onClick={onEditSquad}
+                  className="flex items-center justify-center"
+                  style={{ width: 24, height: 24 }}
+                  aria-label="Edit squad details"
+                >
+                  <MagicEdit style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+                </button>
+              )}
+              <button
+                onClick={onNotif}
+                className="flex items-center justify-center"
+                style={{ width: 24, height: 24, color: allMuted ? 'var(--color-muted)' : 'var(--color-primary)' }}
+                aria-label={allMuted ? 'Notifications muted' : 'Notification settings'}
+              >
+                {allMuted
+                  ? <BellOff style={{ width: 24, height: 24 }} aria-hidden="true" />
+                  : <Bell style={{ width: 24, height: 24 }} aria-hidden="true" />}
+              </button>
+              <button
+                onClick={onLibrary}
+                className="flex items-center justify-center"
+                style={{ width: 24, height: 24 }}
+                aria-label="Squad glossary"
+              >
+                <Library style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+              </button>
+              <button
+                onClick={onClose}
+                className="flex items-center justify-center"
+                style={{ width: 24, height: 24 }}
+                aria-label="Close squad details"
+              >
+                <ChevronDown style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+              </button>
+            </div>
+          }
+        />
       </div>
 
       {/* Scrollable body — see this component's top doc comment for why this needs

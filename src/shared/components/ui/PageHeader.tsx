@@ -12,16 +12,25 @@ interface PageHeaderProps {
   // directly — DON'T pass a goBack resolved in the page's *own* component body,
   // which sits ABOVE SlidePage's provider and resolves to a no-op. Only pass
   // onBack when the page closes some other way (an overlay slide-out, a sheet
-  // dismiss) rather than navigating back through SlidePage.
+  // dismiss) rather than navigating back through SlidePage. Unused when
+  // `variant="sheet"` — that variant has no back button at all.
   onBack?: () => void
   right?:  ReactNode
+  // 'default' (Figma 340:3665) — ChevronLeft back button + uppercase Silkscreen
+  // title, used by every standard subpage.
+  // 'sheet' (Figma 599:7818) — no back button; bold (non-uppercase) DM Sans
+  // title in --color-secondary instead of Silkscreen/--color-primary. For
+  // overlay-style sheets that dismiss via their own `right`-slot action (a
+  // close X, or a row of icons) rather than a back chevron — ChatRoomBrowseSheet,
+  // SquadDetailsSheet.
+  variant?: 'default' | 'sheet'
 }
 
-// Shared header for every subpage — ChevronLeft back button + uppercase
-// Silkscreen title, with an optional right-side action. Used by the
-// Definitions list page, CreateDefinitionPage overlay, ManageSquadProfile,
-// ManageUserProfile, and DeveloperUserSettings. See CLAUDE.md → Page Structure.
-export function PageHeader({ title, onBack, right }: PageHeaderProps) {
+// Shared header for every subpage/sheet overlay — see CLAUDE.md → Page Structure.
+// 'default' variant: ChevronLeft back button + uppercase Silkscreen title, used by
+// the Definitions list page, CreateDefinitionPage overlay, ManageSquadProfile,
+// ManageUserProfile, and DeveloperUserSettings. 'sheet' variant: see above.
+export function PageHeader({ title, onBack, right, variant = 'default' }: PageHeaderProps) {
   const slideBack = useSlideBack()
   const handleBack = onBack ?? slideBack
   return (
@@ -35,25 +44,34 @@ export function PageHeader({ title, onBack, right }: PageHeaderProps) {
       }}
     >
       <div className="flex items-center justify-between h-10">
-        <div className="flex items-center h-full" style={{ gap: 'var(--x5)' }}>
-          <button
-            onClick={handleBack}
-            aria-label="Back"
-            className="flex-shrink-0 flex items-center justify-center"
-            style={{ width: 24, height: 40 }}
-          >
-            <ChevronLeft
-              style={{ width: 24, height: 24, color: 'var(--color-primary)' }}
-              aria-hidden="true"
-            />
-          </button>
-          <h1
-            className="font-silkscreen uppercase leading-none text-primary"
-            style={{ fontSize: 'var(--xl)' }}
+        {variant === 'sheet' ? (
+          <p
+            className="font-body font-bold leading-none text-secondary truncate min-w-0 flex-1"
+            style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}
           >
             {title}
-          </h1>
-        </div>
+          </p>
+        ) : (
+          <div className="flex items-center h-full" style={{ gap: 'var(--x5)' }}>
+            <button
+              onClick={handleBack}
+              aria-label="Back"
+              className="flex-shrink-0 flex items-center justify-center"
+              style={{ width: 24, height: 40 }}
+            >
+              <ChevronLeft
+                style={{ width: 24, height: 24, color: 'var(--color-primary)' }}
+                aria-hidden="true"
+              />
+            </button>
+            <h1
+              className="font-silkscreen uppercase leading-none text-primary"
+              style={{ fontSize: 'var(--xl)' }}
+            >
+              {title}
+            </h1>
+          </div>
+        )}
         {right}
       </div>
     </div>

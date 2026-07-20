@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Plus } from 'pixelarticons/react/Plus'
+import { Close } from 'pixelarticons/react/Close'
 import { PageHeader } from '@/shared/components/ui/PageHeader'
 import { SwipePreviewCard } from '@/features/chat/components/input/SwipePreviewCard'
 import { useSheetDrag } from '@/shared/components/ui/sheet/useSheetDrag'
@@ -16,14 +17,14 @@ import { useChatRoomPeekStore, type RoomMeta } from '@/features/chat/store/chatR
 // reachable via tap on the bar, or via the swipe-up gesture, unrelated to this
 // sheet.
 //
-// Header: the shared `PageHeader` (title "Float Page"), same component every
-// subpage uses (see CLAUDE.md → Page Structure). This overlay isn't nested under
-// a `SlidePage` of its own — it's mounted directly by ChatInput, same as
-// SquadDetailsSheet/ManageSquadProfile — so `onBack` is passed explicitly as
-// `onClose` rather than left for PageHeader's useSlideBack() fallback to resolve
-// (which would no-op here; see the "useSlideBack context trap" gotcha in
-// CLAUDE.md). PageHeader owns the sheet's top/left/right padding now; the body
-// wrapper below only carries the remaining bottom padding + inter-section gap.
+// Header: the shared `PageHeader` (title "Float Page"), `variant="sheet"` (Figma
+// 599:7818 — bold non-uppercase DM Sans title, no back chevron) rather than the
+// default subpage variant, since this overlay isn't nested under a `SlidePage` of
+// its own and has no "back" concept — it's mounted directly by ChatInput, same as
+// SquadDetailsSheet, and dismisses via the header's own close-X `right` action
+// (plus tap-outside/tap-a-card/drag-down, documented below). PageHeader owns the
+// sheet's top/left/right padding now; the body wrapper below only carries the
+// remaining bottom padding + inter-section gap.
 //
 // Notifications section (Figma 589:4570) — a single card surfacing whichever room
 // has unread messages and received one most recently (`notifRoom` below), shown
@@ -223,7 +224,21 @@ export function ChatRoomBrowseSheet({
           dragElastic={{ top: 0, bottom: 0 }}
           onClick={onClose}
         >
-          <PageHeader title="Float Page" onBack={onClose} />
+          <PageHeader
+            title="Float Page"
+            variant="sheet"
+            right={
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-shrink-0 appearance-none flex items-center justify-center"
+                style={{ width: 24, height: 24 }}
+                aria-label="Close"
+              >
+                <Close style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+              </button>
+            }
+          />
 
           <div
             className="flex flex-col w-full min-h-0"
