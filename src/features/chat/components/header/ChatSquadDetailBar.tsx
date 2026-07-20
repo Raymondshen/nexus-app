@@ -17,10 +17,11 @@ interface ChatSquadDetailBarProps {
   // never animated) replays that icon's swipe-hint pulse below. Only ever increments
   // while the dev-gated swipe gesture is enabled (see ChatInput's chatSwipeNavEnabled)
   // — for everyone else these stay 0 and the icons just sit at rest. verticalSwipeTick
-  // hints the swipe-up-opens-ChatRoomBrowseSheet gesture (it only bumps for an
-  // actually-upward drag with somewhere to browse — see handleTopPan);
-  // horizontalSwipeTick hints the swipe-left-or-right-opens-SquadDetailsSheet gesture
-  // (bumps for either direction, unlike the vertical one).
+  // hints the swipe-up-opens-SquadDetailsSheet gesture (bumps regardless of up/down,
+  // since down is a no-op at release but still worth the pulse feedback — see
+  // handleTopPan); horizontalSwipeTick hints the swipe-left-or-right-opens-
+  // ChatRoomBrowseSheet gesture (bumps for either direction, gated only on having
+  // somewhere to browse).
   verticalSwipeTick?:   number
   horizontalSwipeTick?: number
 }
@@ -40,7 +41,7 @@ const SLIDE_TRANSITION = { type: 'spring', stiffness: 170, damping: 21 } as cons
 // needs to animate. The horizontal glyph is a genuine custom vector (fetched as raw
 // SVG straight off Figma's asset export, not hand-drawn) — a left/right double
 // arrowhead inside the same box outline the vertical glyph uses, replacing the old
-// single rightward-only arrow now that the horizontal gesture opens SquadDetailsSheet
+// single rightward-only arrow now that the horizontal gesture opens ChatRoomBrowseSheet
 // in either direction (see ChatInput's handleTopPan/handleTopPanEnd).
 // Literal hex, not var(--color-muted)/var(--color-purple): Framer Motion needs real
 // parseable colors to interpolate a `color` keyframe list — a raw CSS var() string

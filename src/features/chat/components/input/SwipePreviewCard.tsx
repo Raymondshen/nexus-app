@@ -9,8 +9,8 @@ import { Message } from 'pixelarticons/react/Message'
 
 // One 180px squad card (Figma 582:2892 default / 582:3150 selected) — cover photo +
 // gradient + small avatar, name/level/member-count, up to 4 online-member avatars, and
-// a status footer. Used by ChatRoomBrowseSheet (the swipe-up "browse every room"
-// overlay) — extracted to its own file rather than living inside that component so
+// a status footer. Used by ChatRoomBrowseSheet (the swipe-left/right "browse every
+// room" overlay) — extracted to its own file rather than living inside that component so
 // the card's own Figma provenance/markup notes stay with the card, not the sheet.
 // Markup/tokens mirror `UserCard.tsx` (the sole other "180px crew-ish card with a
 // cover header" in the app) rather than reinventing this shape: same width/radius/

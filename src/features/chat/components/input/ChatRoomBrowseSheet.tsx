@@ -1,6 +1,6 @@
 'use client'
 
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Plus } from 'pixelarticons/react/Plus'
 import { ChevronDown } from 'pixelarticons/react/ChevronDown'
@@ -9,12 +9,12 @@ import { useSheetDrag } from '@/shared/components/ui/sheet/useSheetDrag'
 import { useChatRoomPeekStore, type RoomMeta } from '@/features/chat/store/chatRoomPeekStore'
 
 // ─── ChatRoomBrowseSheet (Figma 589:3619 "body") ───────────────────────────────
-// Opened by a swipe up (only — down does nothing, and left/right opens
-// SquadDetailsSheet instead) anywhere on chatInputContainer, decided at release —
-// see ChatInput's handleTopPan/handleTopPanEnd for the gesture itself. This is the
-// sole way to quick-switch rooms from inside a chat room now — SquadDetailsSheet
-// stays reachable via tap on the bar, or via the swipe-left/right gesture, unrelated
-// to this sheet.
+// Opened by a swipe left or right (either direction — up opens SquadDetailsSheet
+// instead) anywhere on chatInputContainer, decided at release — see ChatInput's
+// handleTopPan/handleTopPanEnd for the gesture itself. This is the sole way to
+// quick-switch rooms from inside a chat room now — SquadDetailsSheet stays
+// reachable via tap on the bar, or via the swipe-up gesture, unrelated to this
+// sheet.
 //
 // Notifications section (Figma 589:4570) — a single card surfacing whichever room
 // has unread messages and received one most recently (`notifRoom` below), shown
@@ -358,20 +358,48 @@ function NotificationPreviewCard({ room, onTap }: { room: BrowseRoom; onTap: () 
 
 // Shown in place of NotificationPreviewCard when no room has unread messages — the
 // Notifications section always renders (see this file's top doc comment), it just
-// swaps between the card and this empty state rather than disappearing.
+// swaps between the card and this empty state rather than disappearing. Figma
+// 599:3932 — no card chrome here (unlike the unread NotificationPreviewCard's
+// `--color-surface-sheet` box): just the sleeping-ghost sprite + muted copy,
+// centered in the section's own flex-1 space.
 function NoNotificationsCard() {
   return (
-    <div
-      className="w-full flex-1 min-h-0 flex items-center justify-center text-center rounded-[var(--x3,8px)]"
-      style={{ padding: 'var(--space-5)', backgroundColor: 'var(--color-surface-sheet)' }}
-    >
+    <div className="w-full flex-1 min-h-0 flex flex-col items-center justify-center text-center" style={{ gap: 'var(--space-2)' }}>
+      <SleepingGhost />
       <p
-        className="font-body font-normal text-tertiary"
-        style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
+        className="font-body font-normal text-muted"
+        style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14', lineHeight: 1.5 }}
       >
-        You&apos;re all caught up — no new notifications.
+        You&apos;re all up to date. I will alert you when you have new messages. I&apos;ll be resting for now.
       </p>
     </div>
+  )
+}
+
+// Figma 599:7813 ("A_small_round_ghost_with_front-flip_south") — a 9-frame sleep-loop
+// sprite (public/sprites/ghost/sleep/ghost-sleeping_0001.webp…0009.webp, 1-indexed),
+// looped continuously via setInterval — same simple frame-cycling approach as
+// ChatRoomPeekLayer's WalkingGhost (a different ghost animation, different frame
+// set/count, not worth sharing a generic sprite-loop abstraction over just these two).
+const SLEEP_FRAME_COUNT = 9
+const SLEEP_FRAME_MS    = 200
+
+function SleepingGhost() {
+  const [frame, setFrame] = useState(0)
+
+  useEffect(() => {
+    const id = setInterval(() => setFrame((f) => (f + 1) % SLEEP_FRAME_COUNT), SLEEP_FRAME_MS)
+    return () => clearInterval(id)
+  }, [])
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={`/sprites/ghost/sleep/ghost-sleeping_${String(frame + 1).padStart(4, '0')}.webp`}
+      alt=""
+      style={{ width: 56, height: 56, flexShrink: 0, imageRendering: 'pixelated' }}
+      aria-hidden="true"
+    />
   )
 }
 
