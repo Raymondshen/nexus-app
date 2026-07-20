@@ -4,10 +4,17 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Plus } from 'pixelarticons/react/Plus'
 import { Close } from 'pixelarticons/react/Close'
+import { Note } from 'pixelarticons/react/Note'
 import { PageHeader } from '@/shared/components/ui/PageHeader'
+import { BottomSheet } from '@/shared/components/ui/sheet/BottomSheet'
+import { SheetActionButton } from '@/shared/components/ui/SheetActionButton'
 import { SwipePreviewCard } from '@/features/chat/components/input/SwipePreviewCard'
 import { useSheetDrag } from '@/shared/components/ui/sheet/useSheetDrag'
 import { useChatRoomPeekStore, type RoomMeta } from '@/features/chat/store/chatRoomPeekStore'
+
+// Long-press timing for the room card's Pin Squad sheet — same 500ms threshold
+// ChatSheetReact/MessageBubble already use for their own long-press-opened sheets.
+const PIN_LONG_PRESS_MS = 500
 
 // ─── ChatRoomBrowseSheet a.k.a. "Updates" (Figma 589:3619 "body") ─────────────
 // Opened by a swipe left or right (either direction — up opens SquadDetailsSheet
@@ -112,19 +119,48 @@ export function ChatRoomBrowseSheet({
   visible,
   rooms,
   currentRoomId,
+  pinnedRoomId,
   onSelectRoom,
   onCreateSquad,
+  onTogglePin,
   onClose,
 }: {
   visible:       boolean
   rooms:         BrowseRoom[]
   currentRoomId: string
+  /** This user's pinned squad, if any — see the Pin Squad sheet below. */
+  pinnedRoomId:  string | null
   onSelectRoom:  (id: string) => void
   onCreateSquad: () => void
+  onTogglePin:   (id: string) => void
   onClose:       () => void
 }) {
   const chatInputHeight = useChatRoomPeekStore((s) => s.chatInputHeight)
   const rowRef = useRef<HTMLDivElement>(null)
+
+  // Long-press (hold) a room card to open a one-action Pin/Unpin Squad sheet
+  // (Figma has no spec for this yet — minimal single-row sheet, same shell as
+  // ChatSheetReact's own long-press-opened sheet). The pinned room always sorts to
+  // the front of `rooms` below (right after the ever-first Create Squad card) —
+  // pinning a different room simply overwrites profiles.pinned_crew_id server-side
+  // (see togglePinCrewAction), so only one room can ever be pinned at a time.
+  const [pinSheetRoomId, setPinSheetRoomId] = useState<string | null>(null)
+  const pinLongPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pinLongPressFiredRef = useRef(false)
+
+  function handleCardPressStart(roomId: string) {
+    pinLongPressFiredRef.current = false
+    pinLongPressTimer.current = setTimeout(() => {
+      pinLongPressFiredRef.current = true
+      setPinSheetRoomId(roomId)
+    }, PIN_LONG_PRESS_MS)
+  }
+  function clearCardPressTimer() {
+    if (pinLongPressTimer.current) {
+      clearTimeout(pinLongPressTimer.current)
+      pinLongPressTimer.current = null
+    }
+  }
 
   // Whichever room has unread messages and received one most recently — see this
   // file's top doc comment for the Notifications section this feeds. The current
@@ -138,7 +174,14 @@ export function ChatRoomBrowseSheet({
       return bt - at
     })[0]
 
-  const items: BrowseItem[] = [{ kind: 'create' }, ...rooms.map((room): BrowseItem => ({ kind: 'room', room }))]
+  // Pinned room always sorts to the front of the room list (index 1 overall, right
+  // after the Create Squad card at index 0) — a no-op sort if nothing's pinned or
+  // the pinned id isn't in this list (e.g. a stale pin left over from leaving that
+  // crew; see the migration's own doc comment for why that's harmless).
+  const sortedRooms = pinnedRoomId
+    ? [...rooms].sort((a, b) => (a.id === pinnedRoomId ? -1 : b.id === pinnedRoomId ? 1 : 0))
+    : rooms
+  const items: BrowseItem[] = [{ kind: 'create' }, ...sortedRooms.map((room): BrowseItem => ({ kind: 'room', room }))]
 
   const indexOfCurrentItem = () => {
     const idx = items.findIndex((it) => it.kind === 'room' && it.room.id === currentRoomId)
@@ -153,6 +196,7 @@ export function ChatRoomBrowseSheet({
   if (visible !== prevVisible) {
     setPrevVisible(visible)
     if (visible) setFocusedIndex(indexOfCurrentItem())
+    else setPinSheetRoomId(null)
   }
 
   // Scroll the row to match that same reset — a real DOM mutation, so this one does
@@ -197,9 +241,12 @@ export function ChatRoomBrowseSheet({
   const equalizerItems = items.slice(windowStart, windowStart + EQUALIZER_WINDOW)
   const focusedItemId  = items[focusedIndex] ? itemId(items[focusedIndex]) : undefined
 
+  const pinSheetRoom = pinSheetRoomId ? sortedRooms.find((r) => r.id === pinSheetRoomId) ?? null : null
+
   return (
-    <AnimatePresence>
-      {visible && (
+    <>
+      <AnimatePresence>
+        {visible && (
         <motion.div
           key="room-browse-sheet"
           ref={sheetRef}
@@ -317,7 +364,14 @@ export function ChatRoomBrowseSheet({
                     <button
                       key={room.id}
                       type="button"
-                      onClick={() => onSelectRoom(room.id)}
+                      onClick={() => { if (!pinLongPressFiredRef.current) onSelectRoom(room.id) }}
+                      onTouchStart={() => handleCardPressStart(room.id)}
+                      onTouchEnd={clearCardPressTimer}
+                      onTouchMove={clearCardPressTimer}
+                      onTouchCancel={clearCardPressTimer}
+                      onMouseDown={() => handleCardPressStart(room.id)}
+                      onMouseUp={clearCardPressTimer}
+                      onMouseLeave={clearCardPressTimer}
                       className="flex-shrink-0 appearance-none text-left active:opacity-80 overflow-hidden"
                       aria-label={`Go to ${room.name}`}
                     >
@@ -331,6 +385,44 @@ export function ChatRoomBrowseSheet({
         </motion.div>
       )}
     </AnimatePresence>
+
+    {pinSheetRoom && (
+      <RoomPinSheet
+        room={pinSheetRoom}
+        pinned={pinSheetRoom.id === pinnedRoomId}
+        onTogglePin={() => onTogglePin(pinSheetRoom.id)}
+        onClose={() => setPinSheetRoomId(null)}
+      />
+    )}
+    </>
+  )
+}
+
+// Pin/Unpin Squad — the sheet a room card's long-press opens (see PIN_LONG_PRESS_MS
+// above). No Figma spec for this yet: a single-row sheet, same minimal shell as
+// ChatSheetReact's own long-press-opened sheet (BottomSheet + dismissOnPointerDown,
+// since the opening gesture is itself a long-press/touch-hold).
+function RoomPinSheet({
+  room, pinned, onTogglePin, onClose,
+}: {
+  room:        BrowseRoom
+  pinned:      boolean
+  onTogglePin: () => void
+  onClose:     () => void
+}) {
+  return (
+    <BottomSheet onClose={onClose} zIndex={90} dismissOnPointerDown>
+      <div
+        className="flex flex-col"
+        style={{ gap: 16, paddingLeft: 16, paddingRight: 16, paddingBottom: 'max(env(safe-area-inset-bottom), 28px)' }}
+      >
+        <SheetActionButton
+          icon={<Note style={{ width: 20, height: 20 }} />}
+          label={pinned ? `Unpin ${room.name}` : `Pin ${room.name}`}
+          onClick={() => { onTogglePin(); onClose() }}
+        />
+      </div>
+    </BottomSheet>
   )
 }
 

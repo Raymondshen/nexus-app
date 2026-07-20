@@ -66,6 +66,8 @@ interface HomeClientProps {
   initialGemBalance:  number
   announcements:      AnnouncementItem[]
   totalFriendshipXP:  number
+  /** profiles.pinned_crew_id — preferred by the launch-redirect effect below when set. */
+  pinnedCrewId?:      string | null
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -1613,6 +1615,7 @@ export function HomeClient({
   initialGemBalance,
   announcements,
   totalFriendshipXP,
+  pinnedCrewId = null,
 }: HomeClientProps) {
   const router = useRouter()
 
@@ -1644,21 +1647,25 @@ export function HomeClient({
     if (handledOpenCreate) router.replace('/home')
   }, [handledOpenCreate, router])
 
-  // Launch redirect: skip Home and land directly in the user's most recently opened
-  // chatroom (or their only one), matching the request that opening the app should go
-  // straight into chat. Only fires once per session (see LAUNCH_REDIRECT_KEY) — later
-  // visits to /home in the same session (e.g. the swipe-back-inserted /home entry
-  // beneath a chat room, or tapping back from a squad) render Home normally instead of
-  // re-redirecting. Squads only (initialCrews already excludes DMs, see home/page.tsx) —
-  // "chatroom" here means Squad chat, not a DM.
+  // Launch redirect: skip Home and land directly in the user's pinned squad (Pin
+  // Squad, see ChatRoomBrowseSheet), or failing that their most recently opened
+  // chatroom (or their only one) — matching the request that opening the app should
+  // go straight into chat. Only fires once per session (see LAUNCH_REDIRECT_KEY) —
+  // later visits to /home in the same session (e.g. the swipe-back-inserted /home
+  // entry beneath a chat room, or tapping back from a squad) render Home normally
+  // instead of re-redirecting. Squads only (initialCrews already excludes DMs, see
+  // home/page.tsx) — "chatroom" here means Squad chat, not a DM. A stale pin (the
+  // pinned crew no longer among initialCrews — e.g. the user left it) just falls
+  // through to the same most-recent/only-crew fallback as having no pin at all.
   useEffect(() => {
     if (sessionStorage.getItem(LAUNCH_REDIRECT_KEY)) return
     sessionStorage.setItem(LAUNCH_REDIRECT_KEY, '1')
     if (searchParams.get('openCreate') === '1') return
     if (initialCrews.length === 0) return
-    const target = initialCrews.length === 1
+    const pinned = pinnedCrewId ? initialCrews.find((cs) => cs.crew.id === pinnedCrewId) : undefined
+    const target = pinned ?? (initialCrews.length === 1
       ? initialCrews[0]
-      : [...initialCrews].sort((a, b) => (b.lastSeen ?? '').localeCompare(a.lastSeen ?? ''))[0]
+      : [...initialCrews].sort((a, b) => (b.lastSeen ?? '').localeCompare(a.lastSeen ?? ''))[0])
     router.replace(`/chat/${target.crew.id}`)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 

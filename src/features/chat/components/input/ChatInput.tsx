@@ -35,7 +35,7 @@ import { Plus } from 'pixelarticons/react/Plus'
 import { CornerUpLeft } from 'pixelarticons/react/CornerUpLeft'
 import { Close } from 'pixelarticons/react/Close'
 import { MagicEdit } from 'pixelarticons/react/MagicEdit'
-import { kickMemberAction, renameCrewAction, birthdaysCommandAction } from '@/app/(app)/chat/actions'
+import { kickMemberAction, renameCrewAction, birthdaysCommandAction, togglePinCrewAction } from '@/app/(app)/chat/actions'
 import { leaveCrewAction } from '@/app/(app)/home/actions'
 import dynamic from 'next/dynamic'
 import { CrewImageUploadModal } from '@/features/chat/components/sheets/CrewImageUploadModal'
@@ -110,6 +110,9 @@ interface ChatInputProps {
   /** This user's group-chat crew ids, most-recently-active first (DMs excluded) — feeds
    * the dev-gated chat swipe-navigation feature. Omitted/empty on the DM screen. */
   chatRoomOrder?:      string[]
+  /** This user's profiles.pinned_crew_id at page load — seeds ChatRoomBrowseSheet's
+   * Pin Squad state (see handleTogglePin below). Omitted/null on the DM screen. */
+  initialPinnedCrewId?: string | null
 }
 
 function sanitizeMessage(raw: string): string {
@@ -167,8 +170,18 @@ const PAN_DIRECTION_LOCK_PX = 12
 
 // ─── ChatInput ────────────────────────────────────────────────────────────────
 
-export function ChatInput({ crewId, userId, userProfile, memberProfiles, memberPinnedVinyls, crewName, inviteCode, creatorId, crewImageUrl: initialCrewImageUrl, crewBackgroundImageUrl: initialCrewBgUrl, initialXP, isDM, dmPartnerId, chatRoomOrder = [] }: ChatInputProps) {
+export function ChatInput({ crewId, userId, userProfile, memberProfiles, memberPinnedVinyls, crewName, inviteCode, creatorId, crewImageUrl: initialCrewImageUrl, crewBackgroundImageUrl: initialCrewBgUrl, initialXP, isDM, dmPartnerId, chatRoomOrder = [], initialPinnedCrewId = null }: ChatInputProps) {
   const router = useRouter()
+  // Pin Squad state (see ChatRoomBrowseSheet's own doc comment) — optimistic, rolled
+  // back on server error. null = nothing pinned.
+  const [pinnedCrewId, setPinnedCrewId] = useState<string | null>(initialPinnedCrewId)
+  async function handleTogglePin(targetCrewId: string) {
+    const previous  = pinnedCrewId
+    const wasPinned = previous === targetCrewId
+    setPinnedCrewId(wasPinned ? null : targetCrewId)
+    const result = await togglePinCrewAction(targetCrewId)
+    if (result.error) setPinnedCrewId(previous)
+  }
   // Squad-bar content shown in place of THIS room's own image/name/level/member count,
   // used only on the arrival side of a committed room-swipe (see the mount-seeding
   // effect below) — never on the departing side anymore. The outgoing room's real bar
@@ -1720,8 +1733,10 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
         visible={showRoomBrowser}
         rooms={browseRooms}
         currentRoomId={crewId}
+        pinnedRoomId={pinnedCrewId}
         onSelectRoom={handleSelectRoomFromBrowse}
         onCreateSquad={openCreateSquadFromBrowse}
+        onTogglePin={handleTogglePin}
         onClose={() => setShowRoomBrowser(false)}
       />
 

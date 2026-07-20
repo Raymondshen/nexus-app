@@ -14,6 +14,7 @@ export interface Profile extends Record<string, unknown> {
   coins: number
   custom_avatar: boolean
   status: string | null
+  pinned_crew_id: string | null
   friendship_xp_enabled: boolean
   is_dev: boolean
   gem_balance: number

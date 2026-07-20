@@ -85,7 +85,7 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
       .from("crew_members")
       .select("user_id, last_seen, class, joined_at")
       .eq("crew_id", crewId),
-    supabase.from("profiles").select("gem_balance, coins").eq("id", user.id).single(),
+    supabase.from("profiles").select("gem_balance, coins, pinned_crew_id").eq("id", user.id).single(),
     // Most-recent music notes per member within this crew (fallback source)
     supabase
       .from('notes')
@@ -105,10 +105,11 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
       .eq('user_id', user.id),
   ]);
 
-  const crew       = crewResult.data as Crew | null;
-  const profileRow = gemResult.data as { gem_balance: number; coins: number } | null;
-  const gemBalance = profileRow?.gem_balance ?? 0;
-  const userCoins  = profileRow?.coins ?? 0;
+  const crew         = crewResult.data as Crew | null;
+  const profileRow   = gemResult.data as { gem_balance: number; coins: number; pinned_crew_id: string | null } | null;
+  const gemBalance   = profileRow?.gem_balance ?? 0;
+  const userCoins    = profileRow?.coins ?? 0;
+  const pinnedCrewId = profileRow?.pinned_crew_id ?? null;
 
   // Ordered list of this user's group-chat crew ids (DMs excluded), most-recently-active
   // first — see Stage 2's chatRoomOrderRes query above. Feeds ChatInput's dev-gated
@@ -271,6 +272,7 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
           initialXP={crew.total_xp}
           currentUserId={user.id}
           chatRoomOrder={chatRoomOrder}
+          initialPinnedCrewId={pinnedCrewId}
         />
       </ErrorBoundary>
 

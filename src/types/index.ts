@@ -24,7 +24,7 @@ export type Database = {
     Tables: {
       profiles: {
         Row: Profile
-        Insert: Omit<Profile, 'created_at' | 'avatar_url' | 'coins' | 'custom_avatar' | 'gem_balance' | 'last_gem_claim' | 'is_dev' | 'needs_username_reset' | 'instagram_url' | 'x_url' | 'reddit_url' | 'linkedin_url' | 'custom_site_url'> & { created_at?: string; avatar_url?: string | null; coins?: number; custom_avatar?: boolean; gem_balance?: number; last_gem_claim?: string | null; is_dev?: boolean; needs_username_reset?: boolean; instagram_url?: string | null; x_url?: string | null; reddit_url?: string | null; linkedin_url?: string | null; custom_site_url?: string | null }
+        Insert: Omit<Profile, 'created_at' | 'avatar_url' | 'coins' | 'custom_avatar' | 'gem_balance' | 'last_gem_claim' | 'is_dev' | 'needs_username_reset' | 'instagram_url' | 'x_url' | 'reddit_url' | 'linkedin_url' | 'custom_site_url' | 'pinned_crew_id'> & { created_at?: string; avatar_url?: string | null; coins?: number; custom_avatar?: boolean; gem_balance?: number; last_gem_claim?: string | null; is_dev?: boolean; needs_username_reset?: boolean; instagram_url?: string | null; x_url?: string | null; reddit_url?: string | null; linkedin_url?: string | null; custom_site_url?: string | null; pinned_crew_id?: string | null }
         Update: Partial<Omit<Profile, 'id'>>
         Relationships: []
       }
@@ -276,6 +276,10 @@ export type Database = {
       update_active: {
         Args: Record<string, never>
         Returns: void
+      }
+      is_crew_member: {
+        Args: { p_crew_id: string }
+        Returns: boolean
       }
     }
     Enums: Record<string, never>

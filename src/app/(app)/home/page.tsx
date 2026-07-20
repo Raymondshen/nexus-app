@@ -45,14 +45,14 @@ type MemberRow = { crew_id: string; user_id: string; profiles: { username: strin
 type HomeProfile = {
   username: string; avatar_url: string | null; birthday: string | null
   coins: number; gem_balance: number; created_at: string; totalMessages: number; status: string | null
-  totalFriendshipXP: number
+  totalFriendshipXP: number; pinned_crew_id: string | null
 }
 function getCachedHomeProfile(userId: string) {
   return unstable_cache(
     async () => {
       const supabase = createServiceClient()
       const [{ data: profile }, { count: msgCount }, { data: fxpRows }] = await Promise.all([
-        supabase.from('profiles').select('username, avatar_url, birthday, coins, gem_balance, created_at, status').eq('id', userId).single(),
+        supabase.from('profiles').select('username, avatar_url, birthday, coins, gem_balance, created_at, status, pinned_crew_id').eq('id', userId).single(),
         supabase.from('messages').select('id', { count: 'exact', head: true }).eq('user_id', userId).neq('message_type', 'system'),
         supabase.from('friendship_xp').select('total_xp').or(`user_a.eq.${userId},user_b.eq.${userId}`),
       ])
@@ -181,6 +181,7 @@ export default async function HomePage() {
         initialGemBalance={profile?.gem_balance ?? 0}
         announcements={announcements}
         totalFriendshipXP={profile?.totalFriendshipXP ?? 0}
+        pinnedCrewId={profile?.pinned_crew_id ?? null}
       />
     )
   }
@@ -282,6 +283,7 @@ export default async function HomePage() {
       initialGemBalance={profile?.gem_balance ?? 0}
       announcements={announcements}
       totalFriendshipXP={profile?.totalFriendshipXP ?? 0}
+      pinnedCrewId={profile?.pinned_crew_id ?? null}
     />
   )
 }

@@ -271,6 +271,33 @@ export async function birthdaysCommandAction(crewId: string): Promise<{
   }
 }
 
+// Pin Squad: lets a user pin one of their own squads (surfaced first in
+// ChatRoomBrowseSheet, preferred by HomeClient's launch-redirect). A single
+// `profiles.pinned_crew_id` column gives "only one pin" and "pinning a new one
+// unpins the old" for free — this just overwrites it. Toggling the already-pinned
+// crew clears it.
+export async function togglePinCrewAction(crewId: string): Promise<{ pinned: boolean; error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { pinned: false, error: 'Not authenticated' }
+
+  const { data: isMember } = await supabase.rpc('is_crew_member', { p_crew_id: crewId })
+  if (!isMember) return { pinned: false, error: 'Not a crew member' }
+
+  const { data: profile } = await supabase.from('profiles').select('pinned_crew_id').eq('id', user.id).single()
+  const currentlyPinned = (profile as { pinned_crew_id: string | null } | null)?.pinned_crew_id === crewId
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({ pinned_crew_id: currentlyPinned ? null : crewId })
+    .eq('id', user.id)
+
+  if (error) return { pinned: currentlyPinned, error: error.message }
+
+  revalidateTag(`profile:${user.id}`, 'max')
+  return { pinned: !currentlyPinned }
+}
+
 export async function createEventAction(data: {
   crewId: string
   title: string
