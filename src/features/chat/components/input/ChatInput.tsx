@@ -21,7 +21,7 @@ import { postEdgeFn } from '@/shared/utils/edgeFetch'
 import { addToOutbox, readOutbox, type OutboxJob } from '@/shared/utils/outbox'
 import { acquireCrewMessageChannel, releaseCrewMessageChannel, isActiveCrewMessageChannel, evictCrewMessageChannel } from '@/shared/supabase/crewMessageChannel'
 import { IMAGE_CONFIG } from '@/shared/constants/config'
-import { ChatSquadDetailBar } from '@/features/chat/components/header/ChatSquadDetailBar'
+import { ChatSquadDetailBar, SwipeHintIcon } from '@/features/chat/components/header/ChatSquadDetailBar'
 import { skipNextSlideEnter } from '@/app/layouts/SlidePage'
 import { useChatRoomPeekStore } from '@/features/chat/store/chatRoomPeekStore'
 import type { RoomMeta } from '@/features/chat/store/chatRoomPeekStore'
@@ -149,13 +149,13 @@ async function tryClaimDailyGem(supabase: ReturnType<typeof createClient>, onCla
 const EMPTY_MEMBERS: MemberProfile[] = []
 const EMPTY_ONLINE_IDS = new Set<string>()
 
-// Set once the user has actually triggered the swipe-right-to-browse gesture —
-// permanently hides the "Switch groups by swiping right..." hint (Figma 589:5938,
-// copy adapted for the swipe-right gesture — swipe-up opens SquadDetailsSheet
-// instead and isn't what this hint is teaching) for this device from then on, same
+// Set once the user has actually triggered either swipe gesture — permanently
+// hides the "Swipe to : View Group Details / Switch Groups" banner (Figma 589:5938,
+// updated to Figma 596:7443's two-hint layout) for this device from then on, same
 // one-shot-hint convention as nexus_first_message/nexus_crew_created (see
 // CLAUDE.md's Storage Keys). Scoped to nexus_chat_swipe_nav — the feature itself is
-// dev-gated, so the hint only ever renders for a session that already has it enabled.
+// dev-gated, so the banner only ever renders for a session that already has it
+// enabled, and only for first-time/not-yet-triggered users (see dismissSwipeHint).
 const CHAT_SWIPE_HINT_SEEN_KEY = 'nexus_chat_swipe_nav_hint_seen'
 
 // How far, in either axis, a pan gesture on chatInputContainer must travel before
@@ -692,22 +692,30 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     }
   }
 
+  // One-shot hint dismissal — see CHAT_SWIPE_HINT_SEEN_KEY's own doc comment. The
+  // banner teaches both gestures (swipe up → SquadDetailsSheet, swipe right →
+  // ChatRoomBrowseSheet), so either one succeeding clears it — not just right.
+  function dismissSwipeHint() {
+    if (!showSwipeHint) return
+    localStorage.setItem(CHAT_SWIPE_HINT_SEEN_KEY, '1')
+    setShowSwipeHint(false)
+  }
+
   function handleTopPanEnd(_: PointerEvent, info: PanInfo) {
     panDirectionRef.current = null
     if (!chatSwipeNavEnabled) return
     const isVertical = Math.abs(info.offset.y) > Math.abs(info.offset.x)
     if (isVertical) {
-      if (info.offset.y < -50 || info.velocity.y < -300) setIsExpanded(true)
+      if (info.offset.y < -50 || info.velocity.y < -300) {
+        setIsExpanded(true)
+        dismissSwipeHint()
+      }
       return
     }
     if (chatRoomOrder.length <= 1) return
     if (info.offset.x > 50 || info.velocity.x > 300) {
       setShowRoomBrowser(true)
-      // One-shot hint dismissal — see CHAT_SWIPE_HINT_SEEN_KEY's own doc comment.
-      if (showSwipeHint) {
-        localStorage.setItem(CHAT_SWIPE_HINT_SEEN_KEY, '1')
-        setShowSwipeHint(false)
-      }
+      dismissSwipeHint()
     }
   }
 
@@ -1671,24 +1679,34 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
           presence sync doesn't re-render all of ChatInput — see ChatTypingIndicator. ── */}
       <ChatTypingIndicator />
 
-      {/* Figma 589:5938 ("Frame 292") — one-shot hint for the swipe-right-to-browse-
-          rooms gesture, dev-gated the same as the gesture itself (nexus_chat_swipe_nav)
-          and hidden when there's nothing to switch to. Permanently dismissed the first
-          time the gesture actually fires — see CHAT_SWIPE_HINT_SEEN_KEY /
-          handleTopPanEnd. Swipe-up isn't mentioned here — it opens SquadDetailsSheet,
-          not the room browser this hint is teaching. */}
+      {/* Figma 596:7443 — one-shot banner teaching both swipe gestures (swipe up →
+          View Group Details/SquadDetailsSheet, swipe right → Switch Groups/
+          ChatRoomBrowseSheet), dev-gated the same as the gestures themselves
+          (nexus_chat_swipe_nav) and hidden when there's nothing to switch to.
+          Permanently dismissed the first time either gesture actually fires — see
+          CHAT_SWIPE_HINT_SEEN_KEY / dismissSwipeHint. Reuses SwipeHintIcon (no
+          `controls` passed — static, doesn't need to pulse). */}
       {chatSwipeNavEnabled && showSwipeHint && chatRoomOrder.length > 1 && (
-        <p
-          className="w-full text-center font-body font-light text-tertiary"
-          style={{
-            fontSize:              'var(--text-xs)',
-            fontVariationSettings: '"opsz" 14',
-            lineHeight:            1.4,
-            padding:               'var(--x3) var(--x5)',
-          }}
-        >
-          Switch groups by swiping right on the chat input area.
-        </p>
+        <div className="flex items-center justify-center w-full" style={{ gap: 8, padding: 'var(--x3) var(--x5)' }}>
+          <div className="flex items-center" style={{ gap: 8 }}>
+            <p
+              className="font-body font-light text-tertiary whitespace-nowrap"
+              style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14', lineHeight: 1.4 }}
+            >
+              Swipe to : View Group Details
+            </p>
+            <SwipeHintIcon axis="vertical" />
+          </div>
+          <div className="flex items-center" style={{ gap: 8 }}>
+            <p
+              className="font-body font-light text-tertiary whitespace-nowrap"
+              style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14', lineHeight: 1.4 }}
+            >
+              Switch Groups
+            </p>
+            <SwipeHintIcon axis="horizontal" />
+          </div>
+        </div>
       )}
 
       {/* Swipe-on-the-container overlay — every room, scrollable, tap to navigate.
@@ -1752,8 +1770,6 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
           <ChatSquadDetailBar
             crewImageUrl={barOverride ? barOverride.imageUrl : crewImageUrl}
             crewName={barOverride ? barOverride.name : liveCrewName}
-            crewLevel={barOverride ? barOverride.level : crewLevel}
-            memberCount={barOverride ? barOverride.memberCount : memberCount}
             members={barOverride ? EMPTY_MEMBERS : members}
             onlineUserIds={barOverride ? EMPTY_ONLINE_IDS : onlineUserIds}
             onExpand={() => {

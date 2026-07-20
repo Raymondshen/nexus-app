@@ -9,8 +9,6 @@ import type { MemberProfile } from '@/features/chat/components/input/ChatInput'
 interface ChatSquadDetailBarProps {
   crewImageUrl:  string | null | undefined
   crewName:      string
-  crewLevel:     number
-  memberCount:   number
   members:       MemberProfile[]
   onlineUserIds: Set<string>
   onExpand:      () => void
@@ -53,7 +51,10 @@ const HINT_TRANSITION = { duration: 0.3, times: [0, 0.3331, 0.6763, 1], ease: 'l
 const VERTICAL_PULSE   = { y: [0, -4, 0, 0], color: [HINT_MUTED, HINT_PURPLE, HINT_MUTED, HINT_MUTED], transition: HINT_TRANSITION }
 const HORIZONTAL_PULSE = { x: [0, 4, 0, 0],  color: [HINT_MUTED, HINT_PURPLE, HINT_MUTED, HINT_MUTED], transition: HINT_TRANSITION }
 
-function SwipeHintIcon({ axis, controls }: { axis: 'vertical' | 'horizontal'; controls: PulseControls }) {
+// controls is optional so the same icon can render statically (Figma 596:7443's
+// one-time banner in ChatInput — see that component) without needing a dummy
+// AnimationControls that never starts.
+export function SwipeHintIcon({ axis, controls }: { axis: 'vertical' | 'horizontal'; controls?: PulseControls }) {
   const d = axis === 'vertical'
     ? 'M1.33333 0H12V1.33333H1.33333V0ZM1.33333 12H12V13.3333H1.33333V12ZM0 1.33333H1.33333V12H0V1.33333ZM12 1.33333H13.3333V12H12V1.33333ZM6.04467 4.006H7.378V2.67267H6.04467V4.006ZM6.04467 10.6727H7.378V6.67267H6.04467V10.6727ZM4.71133 5.33933H8.71133V4.006H4.71133V5.33933ZM3.378 6.67267H10.0447V5.33933H3.378V6.67267Z'
     : 'M1.33333 0H12V1.33333H1.33333V0ZM1.33333 12H12V13.3333H1.33333V12ZM0 1.33333H1.33333V12H0V1.33333ZM12 1.33333H13.3333V12H12V1.33333ZM9.378 6.006V7.33933H10.7113V6.006H9.378ZM2.71133 6.006V7.33933H6.71133V6.006H2.71133ZM8.04467 4.67267V8.67267H9.378V4.67267H8.04467ZM6.71133 3.33933V10.006H8.04467V3.33933H6.71133Z'
@@ -74,7 +75,7 @@ function SwipeHintIcon({ axis, controls }: { axis: 'vertical' | 'horizontal'; co
 }
 
 export function ChatSquadDetailBar({
-  crewImageUrl, crewName, crewLevel, memberCount, members, onlineUserIds,
+  crewImageUrl, crewName, members, onlineUserIds,
   onExpand, verticalSwipeTick = 0, horizontalSwipeTick = 0,
 }: ChatSquadDetailBarProps) {
   const onlineMembers = members.filter((m) => onlineUserIds.has(m.id))
@@ -128,7 +129,7 @@ export function ChatSquadDetailBar({
             </AnimatePresence>
           </div>
           <p className="font-silkscreen text-tertiary leading-none" style={{ fontSize: 8 }}>
-            Lv.{crewLevel} · {memberCount} member
+            {onlineMembers.length} Member online
           </p>
         </div>
       </div>
@@ -161,12 +162,16 @@ export function ChatSquadDetailBar({
         )}
       </AnimatePresence>
 
-      {/* Swipe-gesture hint icons (Figma 596:6985 "action btns") — purely decorative;
-          the whole row above already handles tap-to-expand via its own onClick, so
-          this doesn't need its own click handler/stopPropagation like the single
-          chevron it replaced. Pulses (translate + mute→purple→mute) in place when
-          ChatInput's handleTopPan detects the matching swipe direction. */}
+      {/* "Swipe" label + swipe-gesture hint icons (Figma 596:7302 "action btns") —
+          purely decorative; the whole row above already handles tap-to-expand via
+          its own onClick, so this doesn't need its own click handler/stopPropagation
+          like the single chevron it originally replaced. Icons pulse (translate +
+          mute→purple→mute) in place when ChatInput's handleTopPan detects the
+          matching swipe direction; the label itself is static. */}
       <div className="flex items-center flex-shrink-0" style={{ gap: 4 }} aria-hidden="true">
+        <p className="font-silkscreen text-muted text-right leading-none whitespace-nowrap" style={{ fontSize: 8 }}>
+          Swipe
+        </p>
         <SwipeHintIcon axis="vertical" controls={verticalControls} />
         <SwipeHintIcon axis="horizontal" controls={horizontalControls} />
       </div>

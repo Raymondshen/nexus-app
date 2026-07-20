@@ -187,8 +187,6 @@ function PeekBarAndInput({ meta }: { meta: RoomMeta }) {
       <ChatSquadDetailBar
         crewImageUrl={meta.imageUrl}
         crewName={meta.name}
-        crewLevel={meta.level}
-        memberCount={meta.memberCount}
         members={EMPTY_MEMBERS}
         onlineUserIds={EMPTY_ONLINE_IDS}
         onExpand={noop}
