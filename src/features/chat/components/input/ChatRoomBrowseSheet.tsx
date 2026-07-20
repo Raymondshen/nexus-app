@@ -11,6 +11,7 @@ import { Bell } from 'pixelarticons/react/Bell'
 import { BellOff } from 'pixelarticons/react/BellOff'
 import { Library } from 'pixelarticons/react/Library'
 import { PageHeader } from '@/shared/components/ui/PageHeader'
+import { Button } from '@/shared/components/ui/Button'
 import { BottomSheet } from '@/shared/components/ui/sheet/BottomSheet'
 import { SheetActionButton } from '@/shared/components/ui/SheetActionButton'
 import { SwipePreviewCard } from '@/features/chat/components/input/SwipePreviewCard'
@@ -176,6 +177,9 @@ export interface SquadDetailInfo {
   loadingCounts:           boolean
   memberPinnedVinyls?:     Record<string, { imageUrl: string | null; title: string | null }>
   onTapMember:             (memberId: string) => void
+  /** Figma 603:3511 "leave squad" — omitted (button hidden) if the caller has no
+   *  leave flow to offer, same optionality as SquadDetailsSheet's own `onLeave`. */
+  onLeave?:                () => void
 }
 
 export function ChatRoomBrowseSheet({
@@ -580,12 +584,13 @@ export function ChatRoomBrowseSheet({
               </div>
             </div>
 
-            {/* Group card details + member row (Figma 599:3931 — 601:4007/601:3901/601:3919) for
-                whichever room this sheet was opened from — see this file's top doc
-                comment for why `squadDetail` is threaded down rather than derived from
-                RoomMeta, and why it's null (nothing rendered) on the DM screen. The
-                "Group Details" label (Figma 601:4009) precedes the card, same pattern
-                as the "Notifications"/"Squads" section labels above. */}
+            {/* Group card details + member row + Leave Squad (Figma 599:3931/601:4007 —
+                601:4009/601:3901/601:3919/603:3511) for whichever room this sheet was
+                opened from — see this file's top doc comment for why `squadDetail` is
+                threaded down rather than derived from RoomMeta, and why it's null
+                (nothing rendered) on the DM screen. The "Group Details" label (Figma
+                601:4009) precedes the card, same pattern as the "Notifications"/
+                "Squads" section labels above. */}
             {squadDetail && (
               <div
                 className="flex flex-col w-full flex-shrink-0"
@@ -614,6 +619,20 @@ export function ChatRoomBrowseSheet({
                   memberPinnedVinyls={squadDetail.memberPinnedVinyls}
                   onTapMember={squadDetail.onTapMember}
                 />
+
+                {/* Figma 603:3511 "leave squad" — same outlined-red Button + stopPropagation
+                    wrapper as SquadDetailsSheet's own Leave Squad (see that component's
+                    doc comment); not part of the earlier 599:3931 crop this section's
+                    other pieces came from, but needed here for the same reason it's
+                    needed there — this sheet is a way into squad context with no other
+                    exit for it. */}
+                {squadDetail.onLeave && (
+                  <div className="w-full flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                    <Button variant="outlined" color="red" onClick={squadDetail.onLeave} className="w-full">
+                      Leave Squad
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </div>

@@ -1688,6 +1688,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
       sessionStorage.setItem('nexus_chat_from', 'chat')
       router.push(`/chat/${crewId}/member/${memberId}`)
     },
+    onLeave: handleLeaveSquadTapped,
   }
 
   function handleSelectRoomFromBrowse(targetId: string) {
