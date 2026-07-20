@@ -545,12 +545,28 @@ export function ChatRoomBrowseSheet({
                 </div>
 
                 {/* Same horizontally-scrollable-row pattern SquadDetailsSheet's member card
-                    row already uses (overflow-x-auto no-scrollbar) — not a new one-off. */}
+                    row already uses (overflow-x-auto no-scrollbar) — not a new one-off.
+                    The row bleeds full-bleed past the scroll container's own `--space-5`
+                    padding (negative margin) and re-adds that same amount as its OWN
+                    padding, so the gutter is part of the scrollable content instead of
+                    static ancestor padding. Without this, the auto-snap-to-current-room
+                    effect below (`scrollLeft = index * CARD_STEP`) — and any manual scroll
+                    to either end — leaves the edge card flush against the screen edge with
+                    zero breathing room, looking clipped. `CARD_STEP`'s snap math doesn't
+                    need to change: the leading padding is part of `scrollWidth`/`scrollLeft`
+                    itself, so `index * CARD_STEP` still lands each card `--space-5` in from
+                    the visible edge rather than flush against it. */}
                 <div
                   ref={rowRef}
                   onScroll={handleScroll}
                   className="flex items-stretch overflow-x-auto no-scrollbar nexus-scroll w-full"
-                  style={{ gap: CARD_GAP }}
+                  style={{
+                    gap:         CARD_GAP,
+                    marginLeft:  'calc(var(--space-5) * -1)',
+                    marginRight: 'calc(var(--space-5) * -1)',
+                    paddingLeft:  'var(--space-5)',
+                    paddingRight: 'var(--space-5)',
+                  }}
                   onClick={(e) => e.stopPropagation()}
                 >
                   {items.map((item) => {

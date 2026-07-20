@@ -123,9 +123,21 @@ export function SquadMemberRow({
   }), [members, onlineUserIds, memberMsgCounts])
 
   return (
+    // Bleeds past the scroll container's own `--space-5` padding (negative margin)
+    // and re-adds that same amount as this row's own padding, so the gutter scrolls
+    // with the content instead of being static ancestor padding — otherwise dragging
+    // to either end leaves the first/last member card flush against the screen edge
+    // with no breathing room. Same fix as the Squads row in ChatRoomBrowseSheet — see
+    // that component's own comment for the full reasoning.
     <div
       className="flex overflow-x-auto no-scrollbar nexus-scroll w-full flex-shrink-0"
-      style={{ gap: 8 }}
+      style={{
+        gap:          8,
+        marginLeft:   'calc(var(--space-5) * -1)',
+        marginRight:  'calc(var(--space-5) * -1)',
+        paddingLeft:  'var(--space-5)',
+        paddingRight: 'var(--space-5)',
+      }}
       onClick={(e) => e.stopPropagation()}
     >
       {sortedMembers.map((m) => (
