@@ -23,11 +23,13 @@ interface ChatSquadDetailBarProps {
   onPressStart?: () => void
   onPressEnd?:   () => void
   // Bumped by ChatInput's handleTopPan the instant a pan gesture on chatInputContainer
-  // locks to that axis (vertical/horizontal) — each increment (0 is the "never fired"
-  // starting value, never animated) replays that icon's swipe-hint pulse below. Only
-  // ever increments while the dev-gated swipe-to-browse-rooms gesture is both enabled
-  // and has somewhere to go (see ChatInput's chatSwipeNavEnabled/chatRoomOrder guard in
-  // handleTopPan) — for everyone else these stay 0 and the icons just sit at rest.
+  // locks to that axis — each increment (0 is the "never fired" starting value,
+  // never animated) replays that icon's swipe-hint pulse below. Only ever increments
+  // while the dev-gated swipe gesture is enabled (see ChatInput's chatSwipeNavEnabled)
+  // — for everyone else these stay 0 and the icons just sit at rest. verticalSwipeTick
+  // hints the swipe-up-opens-SquadDetailsSheet gesture; horizontalSwipeTick hints
+  // swipe-right-opens-ChatRoomBrowseSheet specifically (it only bumps for an actually
+  // rightward drag with somewhere to browse — see handleTopPan).
   verticalSwipeTick?:   number
   horizontalSwipeTick?: number
 }

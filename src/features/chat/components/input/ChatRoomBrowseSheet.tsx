@@ -10,11 +10,12 @@ import { GroupAvatar } from '@/shared/components/ui/GroupAvatar'
 import { relativeTime } from '@/shared/utils/date'
 
 // ─── ChatRoomBrowseSheet (Figma 589:3619 "body") ───────────────────────────────
-// Opened by a swipe up, left, or right anywhere on chatInputContainer — all three
-// are the same interaction/threshold, decided at release — see ChatInput's
-// handleTopPan/handleTopPanEnd for the gesture itself. This is the sole way to
-// quick-switch rooms from inside a chat room now — SquadDetailsSheet stays
-// reachable via tap on the bar, unrelated to this gesture.
+// Opened by a swipe right (only — left does nothing, and up opens
+// SquadDetailsSheet instead) anywhere on chatInputContainer, decided at release —
+// see ChatInput's handleTopPan/handleTopPanEnd for the gesture itself. This is the
+// sole way to quick-switch rooms from inside a chat room now — SquadDetailsSheet
+// stays reachable via tap on the bar, or via the swipe-up gesture, unrelated to
+// this sheet.
 //
 // Notifications section (Figma 589:4570) — a single card surfacing whichever room
 // has unread messages and received one most recently (`notifRoom` below), shown
