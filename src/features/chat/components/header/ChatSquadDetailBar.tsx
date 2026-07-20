@@ -163,12 +163,17 @@ export function ChatSquadDetailBar({
       </AnimatePresence>
 
       {/* "Swipe" label + swipe-gesture hint icons (Figma 596:7302 "action btns") —
-          purely decorative; the whole row above already handles tap-to-expand via
-          its own onClick, so this doesn't need its own click handler/stopPropagation
-          like the single chevron it originally replaced. Icons pulse (translate +
+          purely decorative and NOT a tap-to-expand target: stops propagation so a
+          tap here doesn't also open SquadDetailsSheet via the row's own onClick
+          (same pattern as the online-avatars row above). Icons pulse (translate +
           mute→purple→mute) in place when ChatInput's handleTopPan detects the
           matching swipe direction; the label itself is static. */}
-      <div className="flex items-center flex-shrink-0" style={{ gap: 4 }} aria-hidden="true">
+      <div
+        className="flex items-center flex-shrink-0"
+        style={{ gap: 4 }}
+        aria-hidden="true"
+        onClick={(e) => e.stopPropagation()}
+      >
         <p className="font-silkscreen text-muted text-right leading-none whitespace-nowrap" style={{ fontSize: 8 }}>
           Swipe
         </p>

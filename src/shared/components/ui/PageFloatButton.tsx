@@ -4,6 +4,8 @@ import { type ReactNode, useEffect, useState } from 'react'
 import { AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { Calendar2 } from 'pixelarticons/react/Calendar2'
+import { DiamondGem } from 'pixelarticons/react/DiamondGem'
+import { TokeCircle } from 'pixelarticons/react/TokeCircle'
 import { useChatStore } from '@/store/chatStore'
 import { EventSheetBottomPreview } from '@/features/events/components/EventSheetBottomPreview'
 import { UserAvatar } from '@/shared/components/ui/UserAvatar'
@@ -53,19 +55,20 @@ interface ChatFloatingNavProps {
   avatarUrl:          string | null
   username:           string | null
   initialGemBalance?: number
+  initialCoins?:      number
 }
 
-// The chat room's floating top nav — composed of the profile-avatar button (Figma 577:5781
-// "squad-nav") plus a dev-gated PageFloatButton, and the chat-specific wiring that used to
-// live in its own FloatingBackButton component/file (navigation/). Merged here by explicit
-// instruction so there's a single source of button-related code instead of two, at the cost
-// of this shared/ui module now importing chat-only dependencies (useChatStore,
+// The chat room's floating top nav — composed of the profile-avatar+name+currency button
+// (Figma 577:5781 "squad-nav") plus a dev-gated PageFloatButton, and the chat-specific wiring
+// that used to live in its own FloatingBackButton component/file (navigation/). Merged here
+// by explicit instruction so there's a single source of button-related code instead of two,
+// at the cost of this shared/ui module now importing chat-only dependencies (useChatStore,
 // EventSheetBottomPreview) that PageFloatButton's other consumers (ProfileClient,
 // AccountPageMember) never touch — those two are unaffected since they only import
 // PageFloatButton itself, not this export.
 //
-// The avatar button replaced a ChevronLeft back button per Figma — there is no in-app back
-// control here anymore, and left-edge swipe (custom and native OS gesture alike) is
+// The avatar+name+currency block replaced a ChevronLeft back button per Figma — there is no
+// in-app back control here anymore, and left-edge swipe (custom and native OS gesture alike) is
 // deliberately blocked on the chat SlidePage (`disableSwipe`, see chat/[crewId]/page.tsx) —
 // by request, a stray edge swipe should be a no-op rather than exiting the room. On iOS PWA
 // (no hardware back) there is currently no way to leave a chat room; Android/desktop still
@@ -74,9 +77,12 @@ interface ChatFloatingNavProps {
 // / consumeHomeParallaxReveal in SlidePage.tsx) only ever fired from a since-removed tap-back
 // path, so it's currently unreachable — left in place rather than deleted, same "kept but
 // orphaned" treatment as other dead-but-valid code noted in CLAUDE.md.
-export function ChatFloatingNav({ crewId, currentUserId, avatarUrl, username, initialGemBalance }: ChatFloatingNavProps) {
+export function ChatFloatingNav({ crewId, currentUserId, avatarUrl, username, initialGemBalance, initialCoins }: ChatFloatingNavProps) {
   const router          = useRouter()
-  const setGemBalance   = useChatStore((s) => s.setGemBalance)
+  const gemBalance       = useChatStore((s) => s.gemBalance)
+  const userCoins        = useChatStore((s) => s.userCoins)
+  const setGemBalance    = useChatStore((s) => s.setGemBalance)
+  const setUserCoins     = useChatStore((s) => s.setUserCoins)
 
   const [showEventPreview, setShowEventPreview] = useState(false)
   const [devMode,          setDevMode]          = useState(false)
@@ -106,6 +112,7 @@ export function ChatFloatingNav({ crewId, currentUserId, avatarUrl, username, in
 
   useEffect(() => {
     if (initialGemBalance !== undefined) setGemBalance(initialGemBalance)
+    if (initialCoins !== undefined) setUserCoins(initialCoins)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
@@ -123,24 +130,59 @@ export function ChatFloatingNav({ crewId, currentUserId, avatarUrl, username, in
           className="flex items-center justify-between w-full pointer-events-none"
           style={{ padding: 16 }}
         >
-          {/* Profile avatar button — opens the current user's own profile */}
-          <div className="pointer-events-auto">
-            <button
-              onClick={() => router.push('/profile')}
-              aria-label="View your profile"
-              className="appearance-none active:opacity-70"
-              style={{ borderRadius: '50%' }}
-            >
-              <UserAvatar
-                avatarUrl={avatarUrl}
-                username={username}
-                size={40}
-                bg="primary"
-                initialColor="black"
-                priority
-              />
-            </button>
-          </div>
+          {/* Profile avatar + name + currency (Figma 577:5781 "squad-nav" navbar) — one
+              combined tap target opening the current user's own profile. flex-1/min-w-0
+              so a long username truncates instead of overflowing under the right actions. */}
+          <button
+            onClick={() => router.push('/profile')}
+            aria-label="View your profile"
+            className="flex items-center min-w-0 flex-1 appearance-none active:opacity-70 pointer-events-auto"
+            style={{ gap: 'var(--x5)' }}
+          >
+            <UserAvatar
+              avatarUrl={avatarUrl}
+              username={username}
+              size={40}
+              bg="primary"
+              initialColor="black"
+              priority
+            />
+            <div className="flex flex-col min-w-0 items-start" style={{ gap: 'var(--x2)' }}>
+              <span
+                className="font-body font-bold text-primary leading-none truncate w-full text-left"
+                style={{ fontSize: 'var(--md)', fontVariationSettings: '"opsz" 14' }}
+              >
+                {username}
+              </span>
+              {/* Currency pills — same gem gradient-text/coin styling as HomeClient's
+                  profile-preview card (see that component); no tap-to-claim tooltip here,
+                  this is a display-only readout. */}
+              <div className="flex items-center" style={{ gap: 'var(--x3)' }}>
+                <div className="flex items-center" style={{ gap: 'var(--x2)' }}>
+                  <DiamondGem style={{ width: 12, height: 12, color: 'var(--color-purple)' }} aria-hidden="true" />
+                  <span
+                    className="font-silkscreen leading-none"
+                    style={{
+                      fontSize:              'var(--text-xxs)',
+                      background:            'linear-gradient(to right, var(--color-purple), #d946ef)',
+                      WebkitBackgroundClip:  'text',
+                      WebkitTextFillColor:   'transparent',
+                      backgroundClip:        'text',
+                    }}
+                  >
+                    {gemBalance}
+                  </span>
+                </div>
+                <div className="w-[2px] h-[2px] bg-border-hover flex-shrink-0" aria-hidden="true" />
+                <div className="flex items-center" style={{ gap: 'var(--x2)' }}>
+                  <TokeCircle style={{ width: 12, height: 12, color: 'var(--color-coins)' }} aria-hidden="true" />
+                  <span className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-xxs)', color: 'var(--color-coins)' }}>
+                    {userCoins.toLocaleString()}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </button>
 
           {/* Right actions */}
           <div className="flex items-center pointer-events-auto" style={{ gap: 'var(--x5)' }}>
