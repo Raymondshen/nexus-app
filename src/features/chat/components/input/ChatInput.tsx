@@ -224,12 +224,6 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   const [mentionQuery,    setMentionQuery]    = useState<string | null>(null)
   const [mentionIndex,    setMentionIndex]    = useState(0)
   const [isFocused,       setIsFocused]       = useState(false)
-  // Whether the squad detail bar itself is currently pressed — the ONLY thing that
-  // should trigger the input container's tap-scale feedback below (tapping the text
-  // field/Plus/Send must not scale it). Set via ChatSquadDetailBar's onPressStart/
-  // onPressEnd props (Framer tap-gesture callbacks on that component, which already
-  // correctly cancels on a finger sliding off the bar mid-press).
-  const [barPressed,      setBarPressed]      = useState(false)
   // Opened by a swipe-right on chatInputContainer (see handleTopPanEnd) —
   // ChatRoomBrowseSheet, a persistent "every room, scrollable, tap to navigate"
   // overlay. Stays true until the user taps a card or the backdrop.
@@ -1711,13 +1705,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
       />
 
       {/* Figma 577:4905 ("chatInputContainer") — squad bar + input field together, as one
-          unit. Nudges the whole thing to 102% for as long as the squad detail bar
-          (only — not the text field/Plus/Send below) is pressed, springing back to
-          100% the instant it's released, whatever ended the gesture. Driven by
-          `barPressed` (set via ChatSquadDetailBar's onPressStart/onPressEnd) rather
-          than this element's own whileTap, since whileTap would fire on a tap
-          anywhere inside it, including the input row — this container is scaled from
-          outside the thing that should actually trigger it.
+          unit.
 
           onPan/onPanEnd live HERE (the whole container), not on ChatSquadDetailBar — a
           swipe up, or right, anywhere in the container (bar or input row) should drive
@@ -1725,8 +1713,6 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
           own doc comment. */}
       <motion.div
         className="border-t border-border flex flex-col"
-        animate={{ scale: barPressed ? 1.02 : 1 }}
-        transition={{ type: 'spring', stiffness: 400, damping: 25 }}
         onPanStart={handleTopPanStart}
         onPan={handleTopPan}
         onPanEnd={handleTopPanEnd}
@@ -1778,8 +1764,6 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
               if (showRoomBrowser) { setShowRoomBrowser(false); return }
               setIsExpanded(true)
             }}
-            onPressStart={() => setBarPressed(true)}
-            onPressEnd={() => setBarPressed(false)}
             verticalSwipeTick={verticalSwipeTick}
             horizontalSwipeTick={horizontalSwipeTick}
           />

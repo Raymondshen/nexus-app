@@ -85,27 +85,6 @@ const CARD_STEP   = CARD_WIDTH + CARD_GAP
 const EQUALIZER_WINDOW = 7
 const CREATE_SQUAD_ID  = 'create-squad'
 
-// Per-card "rise up from below" entrance (Figma 589:3630, nodes 589:3631/589:3826) —
-// plays once per card, every time this sheet freshly opens (each open is a fresh mount
-// inside the AnimatePresence below, so `initial`/`animate` replay naturally with no
-// manual reset needed — unlike focusedIndex above, which persists across renders and
-// does need one). CARD_SLIDE_Y (236) is verbatim from Figma's `initialY` and matches
-// this card shape's own natural rendered height, so a card slides up from fully
-// hidden below its resting spot rather than an arbitrary offset. Figma only animated
-// the first two visual slots (Create Squad, then the first room card) with a growing
-// stagger between them (0.1005 vs 0.1505 of a 2s clip = a +0.05 fraction / 100ms hold
-// added per slot) — generalized here to every card via `index * CARD_SLIDE_STAGGER_S`
-// rather than hand-coding two special cases, so any list length gets the same
-// cascading reveal. Deliberately NOT looped (Figma's own `repeat: Infinity` is
-// dropped) — a repeating "rise up" here would read the same way the avatar-bounce's
-// looping once did before that was fixed to a one-shot entrance: a card that keeps
-// re-sliding while the sheet sits open reads as flicker, not entrance.
-// `overflow-hidden` on each button wrapper below clips the transient slide-through
-// instead of letting it spill past the row/sheet edges.
-const CARD_SLIDE_Y          = 236
-const CARD_SLIDE_STAGGER_S  = 0.1
-const CARD_SLIDE_DURATION_S = 0.2
-
 type BrowseRoom = RoomMeta & { id: string }
 
 // One unified list item — Create Squad or a room — see this file's top doc comment
@@ -271,8 +250,7 @@ export function ChatRoomBrowseSheet({
               style={{ gap: CARD_GAP }}
               onClick={(e) => e.stopPropagation()}
             >
-              {items.map((item, i) => {
-                const slideTransition = { delay: i * CARD_SLIDE_STAGGER_S, duration: CARD_SLIDE_DURATION_S, ease: 'linear' as const }
+              {items.map((item) => {
                 if (item.kind === 'create') {
                   return (
                     <button
@@ -283,7 +261,7 @@ export function ChatRoomBrowseSheet({
                       style={{ width: CARD_WIDTH }}
                       aria-label="Create Squad"
                     >
-                      <motion.div
+                      <div
                         className="flex flex-col items-center justify-center h-full rounded-[var(--x3,8px)]"
                         style={{
                           gap:             8,
@@ -291,9 +269,6 @@ export function ChatRoomBrowseSheet({
                           borderColor:     'var(--color-border-hover)',
                           backgroundColor: 'var(--color-background)',
                         }}
-                        initial={{ y: CARD_SLIDE_Y }}
-                        animate={{ y: 0 }}
-                        transition={slideTransition}
                       >
                         <Plus style={{ width: 24, height: 24, color: 'var(--color-tertiary)', flexShrink: 0 }} aria-hidden="true" />
                         <p
@@ -302,7 +277,7 @@ export function ChatRoomBrowseSheet({
                         >
                           Create Squad
                         </p>
-                      </motion.div>
+                      </div>
                     </button>
                   )
                 }
@@ -315,9 +290,7 @@ export function ChatRoomBrowseSheet({
                     className="flex-shrink-0 appearance-none text-left active:opacity-80 overflow-hidden"
                     aria-label={`Go to ${room.name}`}
                   >
-                    <motion.div initial={{ y: CARD_SLIDE_Y }} animate={{ y: 0 }} transition={slideTransition}>
-                      <SwipePreviewCard room={room} selected={room.id === currentRoomId} />
-                    </motion.div>
+                    <SwipePreviewCard room={room} selected={room.id === currentRoomId} />
                   </button>
                 )
               })}

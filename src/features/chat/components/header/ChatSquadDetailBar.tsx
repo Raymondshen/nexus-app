@@ -14,14 +14,6 @@ interface ChatSquadDetailBarProps {
   members:       MemberProfile[]
   onlineUserIds: Set<string>
   onExpand:      () => void
-  // Fired on press-down/press-release of this bar specifically — lets ChatInput scale
-  // its whole squad-bar+input container as tap/drag feedback without that trigger also
-  // firing from taps on the input row below (see ChatInput's barPressed doc comment).
-  // Wired to Framer's own tap gesture (not raw pointer events) so a finger sliding off
-  // the bar mid-press correctly cancels back to "released" instead of staying stuck
-  // pressed, and coexists cleanly with this element's onClick.
-  onPressStart?: () => void
-  onPressEnd?:   () => void
   // Bumped by ChatInput's handleTopPan the instant a pan gesture on chatInputContainer
   // locks to that axis — each increment (0 is the "never fired" starting value,
   // never animated) replays that icon's swipe-hint pulse below. Only ever increments
@@ -83,7 +75,7 @@ function SwipeHintIcon({ axis, controls }: { axis: 'vertical' | 'horizontal'; co
 
 export function ChatSquadDetailBar({
   crewImageUrl, crewName, crewLevel, memberCount, members, onlineUserIds,
-  onExpand, onPressStart, onPressEnd, verticalSwipeTick = 0, horizontalSwipeTick = 0,
+  onExpand, verticalSwipeTick = 0, horizontalSwipeTick = 0,
 }: ChatSquadDetailBarProps) {
   const onlineMembers = members.filter((m) => onlineUserIds.has(m.id))
   const verticalControls   = useAnimationControls()
@@ -102,9 +94,6 @@ export function ChatSquadDetailBar({
     <motion.div
       className="flex relative cursor-pointer items-center justify-between w-full"
       onClick={onExpand}
-      onTapStart={onPressStart}
-      onTap={onPressEnd}
-      onTapCancel={onPressEnd}
     >
       {/* Crew image + name/level */}
       <div className="flex items-center flex-shrink-0 min-w-0" style={{ gap: 8 }}>
