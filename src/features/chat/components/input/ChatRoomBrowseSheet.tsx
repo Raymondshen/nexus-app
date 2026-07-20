@@ -416,6 +416,7 @@ export function ChatRoomBrowseSheet({
                           opacity:       viewingGroupDetails ? 1 : 0,
                           pointerEvents: viewingGroupDetails ? 'auto' : 'none',
                           transition:    'opacity 200ms ease',
+                          willChange:    'opacity',
                         }}
                         aria-label="Edit squad details"
                         aria-hidden={!viewingGroupDetails}
@@ -433,6 +434,7 @@ export function ChatRoomBrowseSheet({
                         opacity:       viewingGroupDetails ? 1 : 0,
                         pointerEvents: viewingGroupDetails ? 'auto' : 'none',
                         transition:    'opacity 200ms ease',
+                        willChange:    'opacity',
                       }}
                       aria-label={allMuted ? 'Notifications muted' : 'Notification settings'}
                       aria-hidden={!viewingGroupDetails}
@@ -450,6 +452,7 @@ export function ChatRoomBrowseSheet({
                         opacity:       viewingGroupDetails ? 1 : 0,
                         pointerEvents: viewingGroupDetails ? 'auto' : 'none',
                         transition:    'opacity 200ms ease',
+                        willChange:    'opacity',
                       }}
                       aria-label="Squad glossary"
                       aria-hidden={!viewingGroupDetails}
