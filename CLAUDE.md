@@ -129,7 +129,7 @@ Letters, digits, underscore only (`^[A-Za-z0-9_]+$`), 3–20 chars — enforced 
 ## Dev Mode
 `profiles.is_dev = true` — grant: `UPDATE profiles SET is_dev = true WHERE id IN (SELECT id FROM auth.users WHERE email = '...')`
 
-Dev flags (`localStorage`): `nexus_dev_mode` · `nexus_push_diag` · `nexus_infinite_coins` · `nexus_afk_exp` · `nexus_chat_camera` · `nexus_friendship_xp` · `nexus_poll_feature` · `nexus_events_enabled`
+Dev flags (`localStorage`): `nexus_dev_mode` · `nexus_push_diag` · `nexus_infinite_coins` · `nexus_afk_exp` · `nexus_chat_camera` · `nexus_friendship_xp` · `nexus_poll_feature` · `nexus_events_enabled` · `nexus_chat_swipe_nav` (chat room swipe-nav + its one-shot hint banner, `ChatInput`)
 
 `nexus_dev_mode`, `nexus_push_diag`, and `nexus_chat_camera` have **no in-app toggle UI** — set them directly via browser devtools `localStorage.setItem(...)`. The Settings page's Developer section (see below) only exposes toggles for `nexus_infinite_coins`, `nexus_poll_feature`, `nexus_events_enabled`, and `nexus_friendship_xp`.
 
@@ -173,7 +173,7 @@ Body: a live preview using the **same shared `AnnouncementCard`** (`src/shared/c
 sessionStorage: `nexus-msgs-{crewId}` (envelope `{ messages, savedAt }`, 50 msg cap) · `nexus_chat_from`
 IndexedDB (idb-keyval): `nexus-msgs-{crewId}` — same envelope; survives iOS PWA kill
 
-localStorage: `nexus_first_message` · `nexus_install_prompted` · `nexus_crew_created` · `nexus_notif_prompted` · `nexus_notif_state` · `nexus_dismissed_banners` · `nexus_quick_reactions` (custom quick-pick reaction set) · dev flags above
+localStorage: `nexus_first_message` · `nexus_install_prompted` · `nexus_crew_created` · `nexus_notif_prompted` · `nexus_notif_state` · `nexus_dismissed_banners` · `nexus_quick_reactions` (custom quick-pick reaction set) · `nexus_chat_swipe_nav_hint_seen_v2` (one-shot swipe-up hint banner in `ChatInput` — versioned suffix, bump it again if the banner is ever redesigned and needs to reappear for everyone, since a client-only flag has no server-side record to reset remotely) · dev flags above
 
 ## Architecture
 
@@ -315,7 +315,7 @@ Invite is surfaced only via the inline `<InviteCodeCard>` in the group card deta
 
 There is **no unpin** — pinning always means (re)assigning the pin to a specific squad. `pinCrewAction` (`chat/actions.ts`, verifies membership via `is_crew_member` first) just overwrites `pinned_crew_id`; `RoomPinSheet` (below) disables its own Pin Squad button entirely when the long-pressed card is already the pin.
 
-Surfaced two places: sorted first (right after the ever-first Create Squad card) in `ChatRoomBrowseSheet`'s Squads row — with its own gradient-heart badge (Figma 602:4170, `SwipePreviewCard`'s `pinned` prop) — and preferred by `HomeClient`'s session-scoped launch-redirect effect (`LAUNCH_REDIRECT_KEY`) over that effect's most-recent/only-crew fallback (now mostly a safety net given the invariant above), so relaunching the app (a fresh session, e.g. after an iOS PWA kill clears sessionStorage) lands straight in the pinned squad instead of Home.
+Surfaced two places: sorted first (right after the ever-first Create Squad card) in `ChatRoomBrowseSheet`'s Squads row — with its own gradient-heart badge (Figma 602:4170/606:3894, `SwipePreviewCard`'s `pinned` prop) — and preferred by `HomeClient`'s session-scoped launch-redirect effect (`LAUNCH_REDIRECT_KEY`) over that effect's most-recent/only-crew fallback (now mostly a safety net given the invariant above), so relaunching the app (a fresh session, e.g. after an iOS PWA kill clears sessionStorage) lands straight in the pinned squad instead of Home. `pinned` only drives that badge now, not the card's border — a pinned-but-not-open card gets the same plain `--color-border-hover` border as any other card; only `selected` (the room you actually have open) drives the border, in `--color-primary`, matching `ChatRoomBrowseSheet`'s `ScrollEqualizerBars` current-room bar color.
 
 Opened by a 500ms long-press on a room card in `ChatRoomBrowseSheet` (same threshold as `ChatSheetReact`'s own long-press sheets) — `RoomPinSheet` (same file, Figma 605:3830): a "What would you like to do?" header, a Pin Squad `SheetActionButton` (disabled + tertiary-colored icon/label when the card is already pinned) with an explanatory caption, and a Leave Squad `SheetActionButton` below it that works for ANY room card in the list via `ChatInput`'s `requestLeaveSquad` (generalized beyond just the currently-open room).
 
@@ -485,7 +485,7 @@ Action rows inside sheets use `<SheetActionButton>` (`src/shared/components/ui/S
 />
 ```
 
-Pass icon without a `color` style — it inherits `currentColor` from the button.
+Pass icon without a `color` style — it inherits `currentColor` from the button. `disabled` also switches the label/icon `currentColor` from `--color-primary` to `--color-tertiary` (on top of the existing `disabled:opacity-30`) — but `currentColor` only reaches an inline/pixelarticons icon; a static `<img src="…svg">` icon with its own baked-in fill (e.g. `RoomPinSheet`'s pin-heart badge) needs a separate tertiary-filled asset swapped in by the caller when `disabled` is set, since an externally-referenced SVG file can't inherit the button's CSS color.
 
 ### Overlay (ChatRoomBrowseSheet + SquadDetailsSheet)
 Not a docked bottom sheet — a persistent full-bleed overlay (`fixed left-0 right-0 top-0` down to `bottom: chatInputHeight`, leaving the composer visible below) with an opacity-only fade transition (no y-slide) and a `bg-black/85` backdrop. Both `ChatRoomBrowseSheet` and `SquadDetailsSheet` share this exact treatment — see either component's own doc comment before changing one without the other. Dismisses via backdrop tap (`onClick={onClose}` on the outer `motion.div`, with inner interactive/scrollable regions calling `e.stopPropagation()`) or drag-down. Shares the standard sheet's pull-to-close gesture via `useSheetDrag` (`src/shared/components/ui/sheet/useSheetDrag.ts`) — the same hook `BottomSheet` uses (`dragListener={false}` + `useDragControls`, downward-pull-at-scroll-top, close past offset 80 / velocity 400, coexists with any inner horizontal/vertical scroll) — but with `dragElastic={{ top: 0, bottom: 0 }}` overriding the hook's own bottom elasticity, since this pattern shouldn't visually translate while being pulled; only the release-triggered exit fade closes it. Do not replicate this markup a third time — reuse `useSheetDrag` plus this same outer-container shape for any new persistent overlay.
