@@ -330,95 +330,110 @@ export function ChatRoomBrowseSheet({
           <div
             className="flex flex-col w-full min-h-0 overflow-y-auto nexus-scroll"
             style={{
-              gap:           'var(--space-5)',
-              flex:          '1 1 auto',
-              paddingLeft:   'var(--space-5)',
-              paddingRight:  'var(--space-5)',
-              paddingBottom: 'var(--space-5)',
+              gap:            'var(--space-5)',
+              flex:           '1 1 auto',
+              paddingLeft:    'var(--space-5)',
+              paddingRight:   'var(--space-5)',
+              paddingBottom:  'var(--space-5)',
+              scrollSnapType: 'y mandatory',
             }}
           >
-            <div className="flex flex-col w-full" style={{ gap: 'var(--space-5)', flex: '1 0 0' }}>
-              <p
-                className="font-body font-medium text-primary leading-none truncate w-full"
-                style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
-              >
-                Notifications
-              </p>
-              {notifRoom
-                ? <NotificationPreviewCard room={notifRoom} onTap={() => onSelectRoom(notifRoom.id)} />
-                : <NoNotificationsCard />}
-            </div>
-
-            <div className="flex flex-col w-full flex-shrink-0" style={{ gap: 'var(--space-5)' }}>
-              <div className="flex items-center justify-between w-full">
+            {/* Notifications + Squads combined into a single scroll-snap "page" that
+                fills the full height below the header (`height: 100%` of this scroll
+                container, not just its own content height) — swiping/scrolling down
+                slides past it and settles (native scroll-snap, no JS) on Group Details
+                below, rather than a continuous scroll through all three sections. This
+                is also what lets Notifications' own `flex: 1 0 0` genuinely fill the
+                remaining space next to Squads (centering NoNotificationsCard's ghost),
+                since this wrapper's height is now the real viewport height rather than
+                whatever the unclamped sum of all three sections happened to be. */}
+            <div
+              className="flex flex-col w-full flex-shrink-0"
+              style={{ gap: 'var(--space-5)', height: '100%', scrollSnapAlign: 'start' }}
+            >
+              <div className="flex flex-col w-full" style={{ gap: 'var(--space-5)', flex: '1 0 0' }}>
                 <p
-                  className="font-body font-medium text-primary leading-none truncate min-w-0"
+                  className="font-body font-medium text-primary leading-none truncate w-full"
                   style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
                 >
-                  Squads
+                  Notifications
                 </p>
-                <ScrollEqualizerBars items={equalizerItems} currentRoomId={currentRoomId} focusedItemId={focusedItemId} />
+                {notifRoom
+                  ? <NotificationPreviewCard room={notifRoom} onTap={() => onSelectRoom(notifRoom.id)} />
+                  : <NoNotificationsCard />}
               </div>
 
-              {/* Same horizontally-scrollable-row pattern SquadDetailsSheet's member card
-                  row already uses (overflow-x-auto no-scrollbar) — not a new one-off. */}
-              <div
-                ref={rowRef}
-                onScroll={handleScroll}
-                className="flex items-stretch overflow-x-auto no-scrollbar nexus-scroll w-full"
-                style={{ gap: CARD_GAP }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                {items.map((item) => {
-                  if (item.kind === 'create') {
+              <div className="flex flex-col w-full flex-shrink-0" style={{ gap: 'var(--space-5)' }}>
+                <div className="flex items-center justify-between w-full">
+                  <p
+                    className="font-body font-medium text-primary leading-none truncate min-w-0"
+                    style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
+                  >
+                    Squads
+                  </p>
+                  <ScrollEqualizerBars items={equalizerItems} currentRoomId={currentRoomId} focusedItemId={focusedItemId} />
+                </div>
+
+                {/* Same horizontally-scrollable-row pattern SquadDetailsSheet's member card
+                    row already uses (overflow-x-auto no-scrollbar) — not a new one-off. */}
+                <div
+                  ref={rowRef}
+                  onScroll={handleScroll}
+                  className="flex items-stretch overflow-x-auto no-scrollbar nexus-scroll w-full"
+                  style={{ gap: CARD_GAP }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {items.map((item) => {
+                    if (item.kind === 'create') {
+                      return (
+                        <button
+                          key={CREATE_SQUAD_ID}
+                          type="button"
+                          onClick={onCreateSquad}
+                          className="flex-shrink-0 appearance-none overflow-hidden"
+                          style={{ width: CARD_WIDTH }}
+                          aria-label="Create Squad"
+                        >
+                          <div
+                            className="flex flex-col items-center justify-center h-full rounded-[var(--x3,8px)]"
+                            style={{
+                              gap:         8,
+                              border:      '1px dashed',
+                              borderColor: 'var(--color-border-hover)',
+                            }}
+                          >
+                            <Plus style={{ width: 24, height: 24, color: 'var(--color-tertiary)', flexShrink: 0 }} aria-hidden="true" />
+                            <p
+                              className="font-body font-medium text-tertiary text-center truncate w-full"
+                              style={{ fontSize: 14, fontVariationSettings: '"opsz" 14', paddingLeft: 12, paddingRight: 12 }}
+                            >
+                              Create Squad
+                            </p>
+                          </div>
+                        </button>
+                      )
+                    }
+                    const room = item.room
                     return (
                       <button
-                        key={CREATE_SQUAD_ID}
+                        key={room.id}
                         type="button"
-                        onClick={onCreateSquad}
-                        className="flex-shrink-0 appearance-none overflow-hidden"
-                        style={{ width: CARD_WIDTH }}
-                        aria-label="Create Squad"
+                        onClick={() => { if (!pinLongPressFiredRef.current) onSelectRoom(room.id) }}
+                        onTouchStart={() => handleCardPressStart(room.id)}
+                        onTouchEnd={clearCardPressTimer}
+                        onTouchMove={clearCardPressTimer}
+                        onTouchCancel={clearCardPressTimer}
+                        onMouseDown={() => handleCardPressStart(room.id)}
+                        onMouseUp={clearCardPressTimer}
+                        onMouseLeave={clearCardPressTimer}
+                        className="flex-shrink-0 appearance-none text-left active:opacity-80 overflow-hidden"
+                        aria-label={`Go to ${room.name}`}
                       >
-                        <div
-                          className="flex flex-col items-center justify-center h-full rounded-[var(--x3,8px)]"
-                          style={{
-                            gap:         8,
-                            border:      '1px dashed',
-                            borderColor: 'var(--color-border-hover)',
-                          }}
-                        >
-                          <Plus style={{ width: 24, height: 24, color: 'var(--color-tertiary)', flexShrink: 0 }} aria-hidden="true" />
-                          <p
-                            className="font-body font-medium text-tertiary text-center truncate w-full"
-                            style={{ fontSize: 14, fontVariationSettings: '"opsz" 14', paddingLeft: 12, paddingRight: 12 }}
-                          >
-                            Create Squad
-                          </p>
-                        </div>
+                        <SwipePreviewCard room={room} selected={room.id === currentRoomId} />
                       </button>
                     )
-                  }
-                  const room = item.room
-                  return (
-                    <button
-                      key={room.id}
-                      type="button"
-                      onClick={() => { if (!pinLongPressFiredRef.current) onSelectRoom(room.id) }}
-                      onTouchStart={() => handleCardPressStart(room.id)}
-                      onTouchEnd={clearCardPressTimer}
-                      onTouchMove={clearCardPressTimer}
-                      onTouchCancel={clearCardPressTimer}
-                      onMouseDown={() => handleCardPressStart(room.id)}
-                      onMouseUp={clearCardPressTimer}
-                      onMouseLeave={clearCardPressTimer}
-                      className="flex-shrink-0 appearance-none text-left active:opacity-80 overflow-hidden"
-                      aria-label={`Go to ${room.name}`}
-                    >
-                      <SwipePreviewCard room={room} selected={room.id === currentRoomId} />
-                    </button>
-                  )
-                })}
+                  })}
+                </div>
               </div>
             </div>
 
@@ -429,7 +444,10 @@ export function ChatRoomBrowseSheet({
                 "Group Details" label (Figma 601:4009) precedes the card, same pattern
                 as the "Notifications"/"Squads" section labels above. */}
             {squadDetail && (
-              <div className="flex flex-col w-full flex-shrink-0" style={{ gap: 'var(--space-5)' }}>
+              <div
+                className="flex flex-col w-full flex-shrink-0"
+                style={{ gap: 'var(--space-5)', scrollSnapAlign: 'start' }}
+              >
                 <p
                   className="font-body font-medium text-primary leading-none truncate w-full"
                   style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
