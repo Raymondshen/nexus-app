@@ -9,7 +9,7 @@ import { SwipePreviewCard } from '@/features/chat/components/input/SwipePreviewC
 import { useSheetDrag } from '@/shared/components/ui/sheet/useSheetDrag'
 import { useChatRoomPeekStore, type RoomMeta } from '@/features/chat/store/chatRoomPeekStore'
 
-// ─── ChatRoomBrowseSheet a.k.a. "Float Page" (Figma 589:3619 "body") ───────────
+// ─── ChatRoomBrowseSheet a.k.a. "Updates" (Figma 589:3619 "body") ─────────────
 // Opened by a swipe left or right (either direction — up opens SquadDetailsSheet
 // instead) anywhere on chatInputContainer, decided at release — see ChatInput's
 // handleTopPan/handleTopPanEnd for the gesture itself. This is the sole way to
@@ -17,7 +17,7 @@ import { useChatRoomPeekStore, type RoomMeta } from '@/features/chat/store/chatR
 // reachable via tap on the bar, or via the swipe-up gesture, unrelated to this
 // sheet.
 //
-// Header: the shared `PageHeader` (title "Float Page"), `variant="sheet"` (Figma
+// Header: the shared `PageHeader` (title "Updates"), `variant="sheet"` (Figma
 // 599:7818 — bold non-uppercase DM Sans title, no back chevron) rather than the
 // default subpage variant, since this overlay isn't nested under a `SlidePage` of
 // its own and has no "back" concept — it's mounted directly by ChatInput, same as
@@ -225,7 +225,7 @@ export function ChatRoomBrowseSheet({
           onClick={onClose}
         >
           <PageHeader
-            title="Float Page"
+            title="Updates"
             variant="sheet"
             right={
               <button
