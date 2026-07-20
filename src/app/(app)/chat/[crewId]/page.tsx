@@ -101,7 +101,7 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
       .eq('crew_id', crewId),
     supabase
       .from('crew_members')
-      .select('crew_id, crews(id, is_dm, last_message_at)')
+      .select('crew_id, last_seen, joined_at, crews(id, is_dm, last_message_at)')
       .eq('user_id', user.id),
   ]);
 
@@ -111,12 +111,18 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
   const userCoins    = profileRow?.coins ?? 0;
   const pinnedCrewId = profileRow?.pinned_crew_id ?? null;
 
-  // Ordered list of this user's group-chat crew ids (DMs excluded), most-recently-active
-  // first — see Stage 2's chatRoomOrderRes query above. Feeds ChatInput's dev-gated
-  // chat swipe-navigation feature (paging to the next/previous room in this order).
-  type ChatRoomOrderRow = { crew_id: string; crews: { id: string; is_dm: boolean; last_message_at: string | null } | null }
-  const chatRoomOrder = ((chatRoomOrderRes.data ?? []) as unknown as ChatRoomOrderRow[])
+  // This user's group-chat (non-DM) memberships — see Stage 2's chatRoomOrderRes query
+  // above. Feeds both `chatRoomOrder` (ChatInput's dev-gated chat swipe-navigation feature)
+  // and, below, the total-unread-messages count ChatFloatingNav's header shows.
+  type ChatRoomOrderRow = {
+    crew_id:    string
+    last_seen:  string | null
+    joined_at:  string | null
+    crews:      { id: string; is_dm: boolean; last_message_at: string | null } | null
+  }
+  const chatRoomOrderRows = ((chatRoomOrderRes.data ?? []) as unknown as ChatRoomOrderRow[])
     .filter((r) => r.crews && !r.crews.is_dm)
+  const chatRoomOrder = [...chatRoomOrderRows]
     .sort((a, b) => (b.crews!.last_message_at ?? '').localeCompare(a.crews!.last_message_at ?? ''))
     .map((r) => r.crews!.id);
 
@@ -136,6 +142,20 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
   if (!currentMemberRow?.class) {
     redirect(`/onboarding/class?crew=${crewId}`)
   }
+
+  // Stage 3 — total unread "group messages" (non-DM only, matching chatRoomOrderRows above)
+  // across every crew this user belongs to, for ChatFloatingNav's header (Figma 603:3526).
+  // Depends on Stage 2's crew ids/cutoffs, so it can't join that parallel batch; run after
+  // the membership/class redirects above so a page that's about to redirect away doesn't
+  // pay for this extra round trip first. Same last_seen-falls-back-to-joined_at cutoff
+  // convention home/page.tsx's own unread query uses.
+  const totalUnreadResult = chatRoomOrderRows.length > 0
+    ? await supabase.rpc('get_unread_counts', {
+        p_crew_ids: chatRoomOrderRows.map((r) => r.crew_id),
+        p_cutoffs:  chatRoomOrderRows.map((r) => (r.last_seen ?? r.joined_at) as string),
+      })
+    : { data: [] as { crew_id: string; unread_count: number }[] };
+  const totalUnreadMessages = (totalUnreadResult.data ?? []).reduce((sum, r) => sum + (r.unread_count ?? 0), 0);
 
   // Creator = member with the earliest joined_at
   const creatorId = lastSeenRows.length > 0
@@ -238,6 +258,8 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
         username={memberProfiles[user.id]?.username ?? null}
         initialGemBalance={gemBalance}
         initialCoins={userCoins}
+        avatarClass={memberProfiles[user.id]?.avatar_class ?? null}
+        initialTotalUnreadMessages={totalUnreadMessages}
       />
 
       <ErrorBoundary>

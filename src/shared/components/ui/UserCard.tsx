@@ -7,7 +7,9 @@ import { Crown } from 'pixelarticons/react/Crown'
 import { LinkPill } from '@/shared/components/ui/LinkPill'
 import { TickerBanner, TICKER_HEIGHT_SMALL } from '@/shared/components/banners/TickerBanner'
 
-const CLASS_LABELS: Record<string, string> = {
+// Exported for reuse anywhere else a class enum value needs a display label —
+// currently also used by ChatFloatingNav's own class readout (PageFloatButton.tsx).
+export const CLASS_LABELS: Record<string, string> = {
   berserker: 'Berserker', sage: 'Sage', ghost: 'Ghost', hype_man: 'Hype Man',
   the_voice: 'The Voice', meme_lord: 'Meme Lord', mage: 'Mage', warrior: 'Warrior',
   rogue: 'Rogue', healer: 'Healer', archer: 'Archer',

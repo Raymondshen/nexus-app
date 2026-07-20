@@ -9,6 +9,14 @@ import { TokeCircle } from 'pixelarticons/react/TokeCircle'
 import { useChatStore } from '@/store/chatStore'
 import { EventSheetBottomPreview } from '@/features/events/components/EventSheetBottomPreview'
 import { UserAvatar } from '@/shared/components/ui/UserAvatar'
+import { CLASS_LABELS } from '@/shared/components/ui/UserCard'
+import { PixelSprite, spriteInfoFor } from '@/shared/components/game/PixelSprite'
+import type { AvatarClass } from '@/types'
+
+// Fixed uppercase 3-letter abbreviations (Figma 605:3619, "JUN 20") — a manual table
+// rather than toLocaleDateString('en-US', { month: 'short' }) so the label stays the
+// same stylized format regardless of the device's own locale settings.
+const MONTH_ABBR = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
 
 interface PageFloatButtonProps {
   icon:       ReactNode
@@ -56,6 +64,15 @@ interface ChatFloatingNavProps {
   username:           string | null
   initialGemBalance?: number
   initialCoins?:      number
+  /** This user's class for THIS crew (crew_members.class, not profiles.avatar_class —
+   *  class is per-membership) — drives the right-side sprite + label (Figma 603:3526). */
+  avatarClass?:                 AvatarClass | null
+  /** Total unread message count across every non-DM crew this user belongs to (server-
+   *  computed once at page load, same "initial snapshot" treatment as
+   *  initialGemBalance/initialCoins — it doesn't live-update as messages arrive in
+   *  OTHER rooms while this one stays open, since that would need a cross-crew realtime
+   *  subscription this component doesn't otherwise need). Omitted/0 hides the row. */
+  initialTotalUnreadMessages?: number
 }
 
 // The chat room's floating top nav — composed of the profile-avatar+name+currency button
@@ -77,16 +94,45 @@ interface ChatFloatingNavProps {
 // / consumeHomeParallaxReveal in SlidePage.tsx) only ever fired from a since-removed tap-back
 // path, so it's currently unreachable — left in place rather than deleted, same "kept but
 // orphaned" treatment as other dead-but-valid code noted in CLAUDE.md.
-export function ChatFloatingNav({ crewId, currentUserId, avatarUrl, username, initialGemBalance, initialCoins }: ChatFloatingNavProps) {
+//
+// Right side (Figma 603:3526, new revision) — the dev-gated Calendar2 button now shares its
+// flex-1/justify-end wrapper with a right-aligned "N New Messages" + class-sprite readout for
+// the CURRENT user: a red "{n} New Message(s)" row (hidden entirely when the total is 0 — this
+// is meant to draw attention, not read as a permanent "0 New Messages" fixture) above a 12×12
+// PixelSprite + class label, reusing the exact same sprite/scale/CLASS_LABELS pattern
+// UserCard's own member-class row already established rather than inventing a second one.
+// `avatarClass` is this user's crew_members.class for THIS crew (per-membership, not
+// profiles.avatar_class), and `initialTotalUnreadMessages` is a server-computed snapshot at
+// page load (same "initial" treatment as initialGemBalance/initialCoins) summed across every
+// non-DM crew this user belongs to — it doesn't live-update as messages land in OTHER rooms
+// while this one stays open, since that would need a cross-crew realtime subscription this
+// component doesn't otherwise carry. The profile block on the left is no longer flex-1 (Figma's
+// own layout gives the growth to the right side instead) — its text column still truncates via
+// its own min-w-0, just without consuming the row's remaining space anymore.
+export function ChatFloatingNav({
+  crewId, currentUserId, avatarUrl, username, initialGemBalance, initialCoins,
+  avatarClass, initialTotalUnreadMessages,
+}: ChatFloatingNavProps) {
   const router          = useRouter()
   const gemBalance       = useChatStore((s) => s.gemBalance)
   const userCoins        = useChatStore((s) => s.userCoins)
   const setGemBalance    = useChatStore((s) => s.setGemBalance)
   const setUserCoins     = useChatStore((s) => s.setUserCoins)
+  const totalUnreadMessages = initialTotalUnreadMessages ?? 0
+  const spriteInfo          = spriteInfoFor(avatarClass ?? null)
+  const classLabel          = avatarClass ? (CLASS_LABELS[avatarClass] ?? avatarClass) : null
 
   const [showEventPreview, setShowEventPreview] = useState(false)
   const [devMode,          setDevMode]          = useState(false)
   const [eventsEnabled,    setEventsEnabled]    = useState(false)
+  // Today's date in the viewer's own local timezone, "OCT 20" (Figma 605:3619 — abbreviated
+  // month + day) — shown in place of the unread count when there's nothing new. Computed
+  // client-side in an effect (not during render) since the server's own clock/timezone can
+  // differ from the device's, which would otherwise make the SSR'd markup mismatch what the
+  // client hydrates to; null until the effect runs just means this line renders nothing for
+  // one frame rather than a wrong date. (Figma also shows a "· 80° F" temperature alongside
+  // this — intentionally left out for now, no weather API/geolocation exists in this project yet.)
+  const [localDateLabel, setLocalDateLabel] = useState<string | null>(null)
 
   // History-stacking guard: without this, returning to /chat/[crewId] from a sub-page (or a
   // fresh deep link) leaves no /home entry beneath it, so the OS/browser back gesture exits
@@ -115,6 +161,13 @@ export function ChatFloatingNav({ crewId, currentUserId, avatarUrl, username, in
     if (initialCoins !== undefined) setUserCoins(initialCoins)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    const now = new Date()
+    const month = MONTH_ABBR[now.getMonth()]
+    const dd    = String(now.getDate()).padStart(2, '0')
+    setLocalDateLabel(`${month} ${dd}`)
+  }, [])
+
   return (
     <>
       {/* Floating gradient top nav */}
@@ -122,7 +175,10 @@ export function ChatFloatingNav({ crewId, currentUserId, avatarUrl, username, in
         className="absolute top-0 left-0 right-0 z-[60] flex flex-col pointer-events-none overflow-hidden"
         style={{
           paddingTop: 'env(safe-area-inset-top, 0px)',
-          background: 'linear-gradient(180deg, #000000 0%, rgba(0,0,0,0.25) 46.158%, rgba(0,0,0,0) 100%)',
+          // Figma 603:3526's own multi-stop gradient (matches the native top app bar
+          // scrim more closely than the old 3-stop version) — replaces the earlier
+          // simpler gradient outright rather than layering a second one.
+          background: 'linear-gradient(180deg, rgba(0,0,0,1) 0%, rgba(0,0,0,0.947) 61.54%, rgba(0,0,0,0.8) 77.886%, rgba(0,0,0,0.5) 88.463%, rgba(0,0,0,0) 100%)',
         }}
       >
         {/* Nav row */}
@@ -131,12 +187,13 @@ export function ChatFloatingNav({ crewId, currentUserId, avatarUrl, username, in
           style={{ padding: 16 }}
         >
           {/* Profile avatar + name + currency (Figma 577:5781 "squad-nav" navbar) — one
-              combined tap target opening the current user's own profile. flex-1/min-w-0
-              so a long username truncates instead of overflowing under the right actions. */}
+              combined tap target opening the current user's own profile. min-w-0 so a long
+              username still truncates instead of overflowing; no longer flex-1 (Figma 603:3526
+              gives the row's remaining space to the right-side unread+class block instead). */}
           <button
             onClick={() => router.push('/profile')}
             aria-label="View your profile"
-            className="flex items-center min-w-0 flex-1 appearance-none active:opacity-70 pointer-events-auto"
+            className="flex items-center min-w-0 appearance-none active:opacity-70 pointer-events-auto"
             style={{ gap: 'var(--x5)' }}
           >
             <UserAvatar
@@ -184,8 +241,43 @@ export function ChatFloatingNav({ crewId, currentUserId, avatarUrl, username, in
             </div>
           </button>
 
-          {/* Right actions */}
-          <div className="flex items-center pointer-events-auto" style={{ gap: 'var(--x5)' }}>
+          {/* Right side — unread-message count (or, when there's nothing new, today's
+              local date) + this user's own class readout (Figma 603:3526), plus the
+              pre-existing dev-gated events button. flex-1/justify-end so this whole block
+              (not the profile button) absorbs the row's remaining space and right-aligns
+              its content. */}
+          <div className="flex flex-1 items-center justify-end pointer-events-auto" style={{ gap: 'var(--x5)' }}>
+            {(totalUnreadMessages > 0 || localDateLabel || spriteInfo) && (
+              <div className="flex flex-col items-end flex-shrink-0" style={{ gap: 'var(--x2)' }}>
+                {/* Red "N New Message(s)" when there's something new; otherwise today's
+                    device-local date ("OCT 20", tertiary) in the same slot — never both. */}
+                {totalUnreadMessages > 0 ? (
+                  <p
+                    className="font-body font-medium leading-none text-right whitespace-nowrap"
+                    style={{ fontSize: 'var(--text-xs)', color: 'var(--red)', fontVariationSettings: '"opsz" 14' }}
+                  >
+                    {totalUnreadMessages} New Message{totalUnreadMessages === 1 ? '' : 's'}
+                  </p>
+                ) : localDateLabel && (
+                  <p
+                    className="font-body font-medium text-tertiary leading-none text-right whitespace-nowrap"
+                    style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}
+                  >
+                    {localDateLabel}
+                  </p>
+                )}
+                {spriteInfo && (
+                  <div className="flex items-center justify-end" style={{ gap: 8 }}>
+                    <div className="flex items-center justify-center overflow-hidden flex-shrink-0" style={{ width: 12, height: 12 }}>
+                      <PixelSprite spriteId={spriteInfo.id} nativePx={spriteInfo.nativePx} scale={0.5625} animate />
+                    </div>
+                    <span className="font-silkscreen leading-none text-tertiary whitespace-nowrap" style={{ fontSize: 'var(--text-mini)' }}>
+                      {classLabel}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
             {devMode && eventsEnabled && (
               <PageFloatButton
                 onClick={() => setShowEventPreview(true)}
