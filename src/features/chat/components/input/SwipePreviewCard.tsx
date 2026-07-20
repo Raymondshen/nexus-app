@@ -17,20 +17,17 @@ import { Message } from 'pixelarticons/react/Message'
 // border tokens, same supabaseImageLoader + `--gradient-image-overlay` cover
 // treatment, same online-dot styling.
 //
-// Pinned styling (Figma 602:4170) — takes priority over `selected`'s plain purple
-// border: the card gets the shared `--gradient-nexus` (purple→pink) ring instead of
-// a flat color, via the standard two-layer background-image trick (an opaque
-// `--color-background` layer clipped to padding-box sits over the gradient layer
-// clipped to border-box, so only the border ring shows the gradient) since a plain
-// CSS `border-color` can't take a gradient. A small glass badge (same
-// `rgba(0,0,0,0.25)` + `blur(7px)` treatment as `PageFloatButton` — Figma's export
-// doesn't round-trip background-blur effects either, see that component's own doc
-// comment) sits top-right over the cover photo, mirroring the avatar's bottom-left
-// placement. The badge icon is a pixel-art heart filled with the exact
-// `--gradient-nexus` stops (#a855f7 → #d946ef) — not a pixelarticons glyph (none
-// match this shape) and not renderable via `currentColor` (the fill is a two-stop
-// gradient, not flat) — so it's a downloaded, committed static asset
-// (`public/icons/pin-heart.svg`), same pattern as `SocialLinksRow`'s brand-mark SVGs.
+// Pinned styling (Figma 602:4170) — same flat `--color-purple` border `selected`
+// already uses (Figma's own export is `border border-[#a855f7] border-solid`, a
+// solid color, not a gradient ring — despite the file defining a "nexus gradient"
+// style, that gradient is only used by the badge icon below, not the border). A
+// small `--color-surface-sheet` badge (Figma's own `bg-[var(--surface-sheet)]`) sits
+// top-right over the cover photo, mirroring the avatar's bottom-left placement. The
+// badge icon is a pixel-art heart filled with the exact `--gradient-nexus` stops
+// (#a855f7 → #d946ef) — not a pixelarticons glyph (none match this shape) and not
+// renderable via `currentColor` (the fill is a two-stop gradient, not flat) — so
+// it's a downloaded, committed static asset (`public/icons/pin-heart.svg`), same
+// pattern as `SocialLinksRow`'s brand-mark SVGs.
 
 // Matches UserAvatar's size=24 below — reserves the online-avatars row's height
 // whether or not it actually has avatars to show, so every card in the horizontally-
@@ -46,7 +43,7 @@ export function SwipePreviewCard({
 }: {
   room:     RoomMeta & { id: string }
   selected: boolean
-  /** Figma 602:4170 — gradient border + top-right heart badge. Defaults false for
+  /** Figma 602:4170 — purple border + top-right heart badge. Defaults false for
    *  callers that don't track a pin (e.g. any future reuse outside ChatRoomBrowseSheet). */
   pinned?:  boolean
 }) {
@@ -56,17 +53,11 @@ export function SwipePreviewCard({
   return (
     <div
       className="bg-black flex flex-col flex-shrink-0 overflow-hidden rounded-[var(--x3,8px)]"
-      style={
-        pinned
-          ? {
-              width:            180,
-              border:           '1px solid transparent',
-              backgroundImage:  'linear-gradient(var(--color-background), var(--color-background)), var(--gradient-nexus)',
-              backgroundOrigin: 'border-box',
-              backgroundClip:   'padding-box, border-box',
-            }
-          : { width: 180, border: '1px solid', borderColor: selected ? 'var(--color-purple)' : 'var(--color-border-hover)' }
-      }
+      style={{
+        width:       180,
+        border:      '1px solid',
+        borderColor: pinned || selected ? 'var(--color-purple)' : 'var(--color-border-hover)',
+      }}
     >
       <div className="relative flex-shrink-0 w-full overflow-hidden" style={{ height: 120 }}>
         {/* eslint-disable-next-line @next/next/no-img-element -- full-bleed cover fill, same pattern as UserCard/ProfileHeroBackground */}
@@ -84,13 +75,12 @@ export function SwipePreviewCard({
           <div
             className="absolute flex items-center justify-center flex-shrink-0"
             style={{
-              top:                  12,
-              right:                4,
-              padding:              'var(--x2)',
-              borderRadius:         'var(--x2)',
-              background:           'rgba(0,0,0,0.25)',
-              backdropFilter:       'blur(7px)',
-              WebkitBackdropFilter: 'blur(7px)',
+              top:           12,
+              right:         4,
+              padding:       'var(--x2)',
+              borderRadius:  'var(--x2)',
+              background:    'var(--color-surface-sheet)',
+              boxShadow:     '0px 0px 10px rgba(0,0,0,0.1)',
             }}
             aria-hidden="true"
           >

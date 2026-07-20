@@ -677,11 +677,20 @@ export function ChatRoomBrowseSheet({
 // above), Figma 605:3830 "chat - sheetAddMedia". Same minimal shell as ChatSheetReact's
 // own long-press-opened sheet (BottomSheet + dismissOnPointerDown, since the opening
 // gesture is itself a long-press/touch-hold), now with a real Figma spec: a bold
-// "What would you like to do?" header, a Pin/Unpin `SheetActionButton` with an
+// "What would you like to do?" header, a Pin Squad `SheetActionButton` with an
 // explanatory caption underneath, and a Leave Squad `SheetActionButton` below that.
 // Leave Squad works for ANY room card in the browse list — not just `currentRoomId` —
 // via `onLeaveRoom` (see ChatInput's `requestLeaveSquad`, which generalizes the
 // existing current-room-only leave flow to accept an arbitrary target room).
+//
+// Pin Squad has no "unpin" path from here — matches the caption's own "one squad is
+// always pinned" (unpinning entirely isn't offered, only switching the pin to a
+// DIFFERENT squad). So when the long-pressed card is already the pinned one, the
+// button is disabled outright (`SheetActionButton`'s `disabled` prop, which also
+// renders its label/icon in `--color-tertiary`) — the heart icon swaps to a flat
+// tertiary-filled variant (`pin-heart-tertiary.svg`) for the same reason `pin-heart.svg`
+// itself is a static asset rather than a pixelarticons glyph: it's a raster/vector file
+// with its own baked-in fill, not driven by `currentColor`.
 //
 // Both action icons are pixel-art assets exported straight from this Figma node
 // (`public/icons/pin-heart.svg`, `pin-door.svg`) rather than pixelarticons glyphs —
@@ -717,11 +726,16 @@ function RoomPinSheet({
           <div className="flex flex-col w-full" style={{ gap: 'var(--x2)' }}>
             <SheetActionButton
               icon={
-                // eslint-disable-next-line @next/next/no-img-element -- static gradient-fill asset, next/image adds no value here
-                <img src="/icons/pin-heart.svg" alt="" style={{ width: 20, height: 'auto', display: 'block' }} />
+                // eslint-disable-next-line @next/next/no-img-element -- static gradient/tertiary-fill asset, next/image adds no value here
+                <img
+                  src={pinned ? '/icons/pin-heart-tertiary.svg' : '/icons/pin-heart.svg'}
+                  alt=""
+                  style={{ width: 20, height: 'auto', display: 'block' }}
+                />
               }
-              label={pinned ? 'Unpin Squad' : 'Pin Squad'}
+              label="Pin Squad"
               onClick={() => { onTogglePin(); onClose() }}
+              disabled={pinned}
             />
             <p
               className="font-body font-normal w-full"
