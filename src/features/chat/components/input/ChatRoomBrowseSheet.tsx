@@ -3,17 +3,27 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Plus } from 'pixelarticons/react/Plus'
+import { PageHeader } from '@/shared/components/ui/PageHeader'
 import { SwipePreviewCard } from '@/features/chat/components/input/SwipePreviewCard'
 import { useSheetDrag } from '@/shared/components/ui/sheet/useSheetDrag'
 import { useChatRoomPeekStore, type RoomMeta } from '@/features/chat/store/chatRoomPeekStore'
 
-// ─── ChatRoomBrowseSheet (Figma 589:3619 "body") ───────────────────────────────
+// ─── ChatRoomBrowseSheet a.k.a. "Float Page" (Figma 589:3619 "body") ───────────
 // Opened by a swipe left or right (either direction — up opens SquadDetailsSheet
 // instead) anywhere on chatInputContainer, decided at release — see ChatInput's
 // handleTopPan/handleTopPanEnd for the gesture itself. This is the sole way to
 // quick-switch rooms from inside a chat room now — SquadDetailsSheet stays
 // reachable via tap on the bar, or via the swipe-up gesture, unrelated to this
 // sheet.
+//
+// Header: the shared `PageHeader` (title "Float Page"), same component every
+// subpage uses (see CLAUDE.md → Page Structure). This overlay isn't nested under
+// a `SlidePage` of its own — it's mounted directly by ChatInput, same as
+// SquadDetailsSheet/ManageSquadProfile — so `onBack` is passed explicitly as
+// `onClose` rather than left for PageHeader's useSlideBack() fallback to resolve
+// (which would no-op here; see the "useSlideBack context trap" gotcha in
+// CLAUDE.md). PageHeader owns the sheet's top/left/right padding now; the body
+// wrapper below only carries the remaining bottom padding + inter-section gap.
 //
 // Notifications section (Figma 589:4570) — a single card surfacing whichever room
 // has unread messages and received one most recently (`notifRoom` below), shown
@@ -194,15 +204,10 @@ export function ChatRoomBrowseSheet({
           ref={sheetRef}
           className="fixed left-0 right-0 top-0 bg-black/85 flex flex-col"
           style={{
-            bottom:        chatInputHeight,
-            maxWidth:      480,
-            marginLeft:    'auto',
-            marginRight:   'auto',
-            gap:           'var(--space-5)',
-            paddingLeft:   'var(--space-5)',
-            paddingRight:  'var(--space-5)',
-            paddingTop:    'max(env(safe-area-inset-top), var(--space-5))',
-            paddingBottom: 'var(--space-5)',
+            bottom:     chatInputHeight,
+            maxWidth:   480,
+            marginLeft:  'auto',
+            marginRight: 'auto',
           }}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1, transition: { duration: 0.12 } }}
@@ -218,81 +223,94 @@ export function ChatRoomBrowseSheet({
           dragElastic={{ top: 0, bottom: 0 }}
           onClick={onClose}
         >
-          <div className="flex flex-col w-full" style={{ gap: 'var(--space-5)', flex: '1 0 0' }}>
-            <p
-              className="font-body font-medium text-primary leading-none truncate w-full"
-              style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
-            >
-              Notifications
-            </p>
-            {notifRoom
-              ? <NotificationPreviewCard room={notifRoom} onTap={() => onSelectRoom(notifRoom.id)} />
-              : <NoNotificationsCard />}
-          </div>
+          <PageHeader title="Float Page" onBack={onClose} />
 
-          <div className="flex flex-col w-full flex-shrink-0" style={{ gap: 'var(--space-5)' }}>
-            <div className="flex items-center justify-between w-full">
+          <div
+            className="flex flex-col w-full min-h-0"
+            style={{
+              gap:           'var(--space-5)',
+              flex:          '1 1 auto',
+              paddingLeft:   'var(--space-5)',
+              paddingRight:  'var(--space-5)',
+              paddingBottom: 'var(--space-5)',
+            }}
+          >
+            <div className="flex flex-col w-full" style={{ gap: 'var(--space-5)', flex: '1 0 0' }}>
               <p
-                className="font-body font-medium text-primary leading-none truncate min-w-0"
+                className="font-body font-medium text-primary leading-none truncate w-full"
                 style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
               >
-                Squads
+                Notifications
               </p>
-              <ScrollEqualizerBars items={equalizerItems} currentRoomId={currentRoomId} focusedItemId={focusedItemId} />
+              {notifRoom
+                ? <NotificationPreviewCard room={notifRoom} onTap={() => onSelectRoom(notifRoom.id)} />
+                : <NoNotificationsCard />}
             </div>
 
-            {/* Same horizontally-scrollable-row pattern SquadDetailsSheet's member card
-                row already uses (overflow-x-auto no-scrollbar) — not a new one-off. */}
-            <div
-              ref={rowRef}
-              onScroll={handleScroll}
-              className="flex items-stretch overflow-x-auto no-scrollbar nexus-scroll w-full"
-              style={{ gap: CARD_GAP }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              {items.map((item) => {
-                if (item.kind === 'create') {
+            <div className="flex flex-col w-full flex-shrink-0" style={{ gap: 'var(--space-5)' }}>
+              <div className="flex items-center justify-between w-full">
+                <p
+                  className="font-body font-medium text-primary leading-none truncate min-w-0"
+                  style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
+                >
+                  Squads
+                </p>
+                <ScrollEqualizerBars items={equalizerItems} currentRoomId={currentRoomId} focusedItemId={focusedItemId} />
+              </div>
+
+              {/* Same horizontally-scrollable-row pattern SquadDetailsSheet's member card
+                  row already uses (overflow-x-auto no-scrollbar) — not a new one-off. */}
+              <div
+                ref={rowRef}
+                onScroll={handleScroll}
+                className="flex items-stretch overflow-x-auto no-scrollbar nexus-scroll w-full"
+                style={{ gap: CARD_GAP }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {items.map((item) => {
+                  if (item.kind === 'create') {
+                    return (
+                      <button
+                        key={CREATE_SQUAD_ID}
+                        type="button"
+                        onClick={onCreateSquad}
+                        className="flex-shrink-0 appearance-none overflow-hidden"
+                        style={{ width: CARD_WIDTH }}
+                        aria-label="Create Squad"
+                      >
+                        <div
+                          className="flex flex-col items-center justify-center h-full rounded-[var(--x3,8px)]"
+                          style={{
+                            gap:         8,
+                            border:      '1px dashed',
+                            borderColor: 'var(--color-border-hover)',
+                          }}
+                        >
+                          <Plus style={{ width: 24, height: 24, color: 'var(--color-tertiary)', flexShrink: 0 }} aria-hidden="true" />
+                          <p
+                            className="font-body font-medium text-tertiary text-center truncate w-full"
+                            style={{ fontSize: 14, fontVariationSettings: '"opsz" 14', paddingLeft: 12, paddingRight: 12 }}
+                          >
+                            Create Squad
+                          </p>
+                        </div>
+                      </button>
+                    )
+                  }
+                  const room = item.room
                   return (
                     <button
-                      key={CREATE_SQUAD_ID}
+                      key={room.id}
                       type="button"
-                      onClick={onCreateSquad}
-                      className="flex-shrink-0 appearance-none overflow-hidden"
-                      style={{ width: CARD_WIDTH }}
-                      aria-label="Create Squad"
+                      onClick={() => onSelectRoom(room.id)}
+                      className="flex-shrink-0 appearance-none text-left active:opacity-80 overflow-hidden"
+                      aria-label={`Go to ${room.name}`}
                     >
-                      <div
-                        className="flex flex-col items-center justify-center h-full rounded-[var(--x3,8px)]"
-                        style={{
-                          gap:         8,
-                          border:      '1px dashed',
-                          borderColor: 'var(--color-border-hover)',
-                        }}
-                      >
-                        <Plus style={{ width: 24, height: 24, color: 'var(--color-tertiary)', flexShrink: 0 }} aria-hidden="true" />
-                        <p
-                          className="font-body font-medium text-tertiary text-center truncate w-full"
-                          style={{ fontSize: 14, fontVariationSettings: '"opsz" 14', paddingLeft: 12, paddingRight: 12 }}
-                        >
-                          Create Squad
-                        </p>
-                      </div>
+                      <SwipePreviewCard room={room} selected={room.id === currentRoomId} />
                     </button>
                   )
-                }
-                const room = item.room
-                return (
-                  <button
-                    key={room.id}
-                    type="button"
-                    onClick={() => onSelectRoom(room.id)}
-                    className="flex-shrink-0 appearance-none text-left active:opacity-80 overflow-hidden"
-                    aria-label={`Go to ${room.name}`}
-                  >
-                    <SwipePreviewCard room={room} selected={room.id === currentRoomId} />
-                  </button>
-                )
-              })}
+                })}
+              </div>
             </div>
           </div>
         </motion.div>
