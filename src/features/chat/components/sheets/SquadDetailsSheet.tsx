@@ -1,19 +1,14 @@
 'use client'
 
-import { useMemo } from 'react'
 import { motion } from 'framer-motion'
-import Image from 'next/image'
-import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
 import { PageHeader } from '@/shared/components/ui/PageHeader'
-import { GroupAvatar } from '@/shared/components/ui/GroupAvatar'
 import { MagicEdit } from 'pixelarticons/react/MagicEdit'
 import { Bell } from 'pixelarticons/react/Bell'
 import { BellOff } from 'pixelarticons/react/BellOff'
 import { Library } from 'pixelarticons/react/Library'
 import { ChevronDown } from 'pixelarticons/react/ChevronDown'
 import { Button } from '@/shared/components/ui/Button'
-import { InviteCodeCard } from '@/shared/components/ui/InviteCodeCard'
-import { UserCard, type MiniMember } from '@/shared/components/ui/UserCard'
+import { SquadDetailCard, SquadMemberRow, type MiniMember } from '@/features/chat/components/sheets/SquadDetailCard'
 import { useSheetDrag } from '@/shared/components/ui/sheet/useSheetDrag'
 import { useChatRoomPeekStore } from '@/features/chat/store/chatRoomPeekStore'
 
@@ -90,6 +85,12 @@ interface SquadDetailsSheetProps {
 // specified `border-[#a855f7]`; the shared component had drifted to a plain
 // `border-border` gray) — see InviteCodeCard.tsx.
 //
+// The hero+invite card and the member row are both extracted into
+// `SquadDetailCard`/`SquadMemberRow` (`SquadDetailCard.tsx`, same folder) —
+// `ChatRoomBrowseSheet` (Figma 599:3931) reuses the exact same two components
+// below its own Squads section, so don't re-inline this markup here again if it
+// ever needs touching; edit the shared file instead.
+//
 // Leave Squad isn't part of this Figma crop, but the app still needs a way out
 // of a squad — kept as a plain flex child below the member row rather than a
 // docked `SheetFooter`, since this overlay no longer has sheet chrome to dock a
@@ -107,16 +108,6 @@ export function SquadDetailsSheet({
   // Pull-to-close drag that coexists with the member row's inner horizontal
   // scroll — the same gesture the standard BottomSheet/ChatRoomBrowseSheet use.
   const { sheetRef, dragProps } = useSheetDrag(onClose)
-
-  // Re-sorting on every render (e.g. toggling the edit sheet) is wasted work
-  // for a list that only actually needs re-ordering when membership, presence,
-  // or message counts change.
-  const sortedMembers = useMemo(() => [...members].sort((a, b) => {
-    const aOnline = onlineUserIds.has(a.id) ? 1 : 0
-    const bOnline = onlineUserIds.has(b.id) ? 1 : 0
-    if (bOnline !== aOnline) return bOnline - aOnline
-    return (memberMsgCounts.get(b.id) ?? 0) - (memberMsgCounts.get(a.id) ?? 0)
-  }), [members, onlineUserIds, memberMsgCounts])
 
   return (
     <motion.div
@@ -198,91 +189,24 @@ export function SquadDetailsSheet({
           paddingBottom: 'var(--space-5)',
         }}
       >
-        {/* Group card details (Figma 596:8296) — hero + invite, one rounded card */}
-        <div
-          className="flex flex-col w-full flex-shrink-0 rounded-[var(--x3,8px)] overflow-hidden"
-          style={{ backgroundColor: 'var(--color-surface-sheet)' }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Hero */}
-          <div
-            className="relative flex flex-col justify-end overflow-hidden flex-shrink-0"
-            style={{ aspectRatio: '393 / 240', padding: 16 }}
-          >
-            {/* Background */}
-            {crewBackgroundImageUrl ? (
-              <div className="absolute inset-0 pointer-events-none">
-                <Image
-                  src={crewBackgroundImageUrl}
-                  alt=""
-                  fill
-                  sizes="(max-width: 480px) 100vw, 480px"
-                  className="object-cover"
-                  loader={supabaseImageLoader}
-                />
-              </div>
-            ) : (
-              <div className="absolute inset-0 bg-[var(--color-surface)]" />
-            )}
-            {/* Gradient overlay */}
-            <div
-              className="absolute inset-0 pointer-events-none"
-              style={{ background: 'var(--gradient-image-overlay)' }}
-            />
+        <SquadDetailCard
+          crewName={crewName}
+          crewImageUrl={crewImageUrl}
+          crewBackgroundImageUrl={crewBackgroundImageUrl}
+          totalMessages={totalMessages}
+          xpProgress={xpProgress}
+          inviteCode={inviteCode}
+        />
 
-            {/* Heading: avatar + name + total msg + XP bar */}
-            <div className="relative flex items-end w-full" style={{ gap: 8 }}>
-              <GroupAvatar imageUrl={crewImageUrl} name={crewName} size={40} />
-              <div className="flex flex-col flex-1 min-w-0" style={{ gap: 4 }}>
-                <p
-                  className="font-body font-black leading-none truncate uppercase"
-                  style={{ fontSize: 'var(--text-md)', color: 'var(--color-secondary)', fontVariationSettings: '"opsz" 14' }}
-                >
-                  {crewName}
-                </p>
-                <div className="flex flex-col w-full" style={{ gap: 8 }}>
-                  <p className="font-silkscreen leading-none w-full" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>
-                    {totalMessages.toLocaleString()} total Squad msg.
-                  </p>
-                  <div className="bg-[var(--color-surface)] overflow-hidden w-full" style={{ height: 4 }}>
-                    <motion.div
-                      className="h-full bg-purple"
-                      animate={{ width: `${xpProgress}%` }}
-                      transition={{ type: 'spring', stiffness: 300, damping: 28 }}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Invite section */}
-          {inviteCode && (
-            <div className="w-full flex-shrink-0" style={{ padding: 16 }}>
-              <InviteCodeCard inviteCode={inviteCode} />
-            </div>
-          )}
-        </div>
-
-        {/* Member card row (Figma 596:8481) */}
-        <div
-          className="flex overflow-x-auto no-scrollbar nexus-scroll w-full flex-shrink-0"
-          style={{ gap: 8 }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {sortedMembers.map((m) => (
-            <UserCard
-              key={m.id}
-              profile={m}
-              msgCount={memberMsgCounts.get(m.id) ?? 0}
-              loading={loadingCounts}
-              isOnline={onlineUserIds.has(m.id)}
-              isCreator={m.id === creatorId}
-              vinyl={memberPinnedVinyls?.[m.id] ?? null}
-              onTap={() => onTapMember(m.id)}
-            />
-          ))}
-        </div>
+        <SquadMemberRow
+          members={members}
+          onlineUserIds={onlineUserIds}
+          memberMsgCounts={memberMsgCounts}
+          loadingCounts={loadingCounts}
+          creatorId={creatorId}
+          memberPinnedVinyls={memberPinnedVinyls}
+          onTapMember={onTapMember}
+        />
 
         {onLeave && (
           <div className="w-full flex-shrink-0" onClick={(e) => e.stopPropagation()}>

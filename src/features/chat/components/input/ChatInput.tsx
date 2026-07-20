@@ -27,7 +27,7 @@ import { useChatRoomPeekStore } from '@/features/chat/store/chatRoomPeekStore'
 import type { RoomMeta } from '@/features/chat/store/chatRoomPeekStore'
 import { ensureRoomMeta } from '@/features/chat/utils/ensureRoomMeta'
 import { ChatTypingIndicator } from '@/features/chat/components/input/ChatTypingIndicator'
-import { ChatRoomBrowseSheet } from '@/features/chat/components/input/ChatRoomBrowseSheet'
+import { ChatRoomBrowseSheet, type SquadDetailInfo } from '@/features/chat/components/input/ChatRoomBrowseSheet'
 import { isGemGateOpen, recordGemClaim } from '@/shared/utils/gems'
 import type { GemClaimResult } from '@/types'
 import { Send } from 'pixelarticons/react/Send'
@@ -493,13 +493,14 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     setSquadDetailsOpen(false)
   }, [squadDetailsOpen]) // eslint-disable-line
 
-  // Member message counts are only ever displayed inside SquadDetailsSheet, so defer
-  // the RPC until the sheet is actually opened rather than fetching on every chat
-  // mount. Refetches on every open (not cached per crew) so the total stays active —
-  // messages sent since the sheet was last open must be reflected, matching
-  // HomeCrewDetailsSheet's fetch-on-mount behavior.
+  // Member message counts are only ever displayed inside SquadDetailsSheet and
+  // ChatRoomBrowseSheet's own squad-detail section, so defer the RPC until one of
+  // those is actually opened rather than fetching on every chat mount. Refetches on
+  // every open (not cached per crew) so the total stays active — messages sent since
+  // last open must be reflected, matching HomeCrewDetailsSheet's fetch-on-mount
+  // behavior.
   useEffect(() => {
-    if (!isExpanded) return
+    if (!isExpanded && !showRoomBrowser) return
     let cancelled = false
     setLoadingCounts(true)
     createClient()
@@ -510,7 +511,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
         setLoadingCounts(false)
       })
     return () => { cancelled = true }
-  }, [isExpanded, crewId]) // eslint-disable-line
+  }, [isExpanded, showRoomBrowser, crewId]) // eslint-disable-line
 
   // Per-crew notification preferences — powers the Bell/BellOff icon in SquadDetailsSheet
   useEffect(() => {
@@ -1678,6 +1679,30 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     .map((id) => (roomPeekMeta[id] ? { id, ...roomPeekMeta[id] } : null))
     .filter((room): room is { id: string } & RoomMeta => room !== null)
 
+  // Feeds ChatRoomBrowseSheet's own squad-detail section (Figma 599:3931) — the exact
+  // same data already computed here for SquadDetailsSheet below, just reused. null for
+  // DMs, which don't have an invite/member-row concept (SquadDetailsSheet itself is
+  // skipped entirely for DMs too, see its own call site).
+  const squadDetail: SquadDetailInfo | null = isDM ? null : {
+    crewName:               liveCrewName,
+    crewImageUrl,
+    crewBackgroundImageUrl: crewBgUrl,
+    totalMessages,
+    xpProgress,
+    inviteCode,
+    creatorId,
+    members:                squadSheetMembers,
+    onlineUserIds,
+    memberMsgCounts,
+    loadingCounts,
+    memberPinnedVinyls,
+    onTapMember: (memberId: string) => {
+      setShowRoomBrowser(false)
+      sessionStorage.setItem('nexus_chat_from', 'chat')
+      router.push(`/chat/${crewId}/member/${memberId}`)
+    },
+  }
+
   function handleSelectRoomFromBrowse(targetId: string) {
     setShowRoomBrowser(false)
     if (targetId === crewId) return
@@ -1734,6 +1759,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
         rooms={browseRooms}
         currentRoomId={crewId}
         pinnedRoomId={pinnedCrewId}
+        squadDetail={squadDetail}
         onSelectRoom={handleSelectRoomFromBrowse}
         onCreateSquad={openCreateSquadFromBrowse}
         onTogglePin={handleTogglePin}

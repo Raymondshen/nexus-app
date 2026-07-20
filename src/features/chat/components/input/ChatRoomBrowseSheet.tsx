@@ -9,6 +9,7 @@ import { PageHeader } from '@/shared/components/ui/PageHeader'
 import { BottomSheet } from '@/shared/components/ui/sheet/BottomSheet'
 import { SheetActionButton } from '@/shared/components/ui/SheetActionButton'
 import { SwipePreviewCard } from '@/features/chat/components/input/SwipePreviewCard'
+import { SquadDetailCard, SquadMemberRow, type MiniMember } from '@/features/chat/components/sheets/SquadDetailCard'
 import { useSheetDrag } from '@/shared/components/ui/sheet/useSheetDrag'
 import { useChatRoomPeekStore, type RoomMeta } from '@/features/chat/store/chatRoomPeekStore'
 
@@ -97,6 +98,23 @@ const PIN_LONG_PRESS_MS = 500
 // moment this opens (deduped against whatever's already cached, same as everywhere
 // else `ensureRoomMeta` is used), so a room is simply omitted from this list until
 // that resolves rather than rendering a placeholder/skeleton card.
+//
+// Below the Squads row (Figma 599:3931's `601:3901` "group card details" + `601:3919`
+// member row): the full detail card + member row for whichever room this sheet was
+// opened FROM (`currentRoomId`) — the exact same `SquadDetailCard`/`SquadMemberRow`
+// components `SquadDetailsSheet` renders (see that file's own doc comment; extracted
+// there rather than re-inlined here a third time). This only covers the current room
+// — `RoomMeta` (what every OTHER room card in the Squads row above is built from)
+// doesn't carry invite codes, per-member class/msg-count/vinyl, or a real XP fraction,
+// and fetching all of that for every room in the list just to render one static card
+// would be wasteful; ChatInput already computes it all for its own current room to
+// feed `SquadDetailsSheet`, so it's threaded down as the `squadDetail` prop instead of
+// refetched here. `null` on the DM screen, which has no invite/member-row concept.
+// Because this section makes the body reliably taller than the available viewport
+// (unlike before, when Notifications' own `flex: 1 0 0` grow made everything fit), the
+// body wrapper below is now `overflow-y-auto` — still one level below the sheet root,
+// same shape `SquadDetailsSheet`'s own scrollable body uses, so `useSheetDrag`'s
+// ancestor walk still finds it and gates the pull-to-close drag on `scrollTop <= 0`.
 const CARD_WIDTH  = 180
 const CARD_GAP    = 16
 const CARD_STEP   = CARD_WIDTH + CARD_GAP
@@ -115,11 +133,31 @@ function itemId(item: BrowseItem): string {
   return item.kind === 'create' ? CREATE_SQUAD_ID : item.room.id
 }
 
+// The current room's own detail card + member row data — see this file's top doc
+// comment for why this is threaded down rather than derived from RoomMeta. Mirrors
+// the fields SquadDetailsSheet's own props already carry for the same room.
+export interface SquadDetailInfo {
+  crewName:                string
+  crewImageUrl:            string | null
+  crewBackgroundImageUrl?: string | null
+  totalMessages:           number
+  xpProgress:              number
+  inviteCode?:             string
+  creatorId?:              string
+  members:                 MiniMember[]
+  onlineUserIds:           Set<string>
+  memberMsgCounts:         Map<string, number>
+  loadingCounts:           boolean
+  memberPinnedVinyls?:     Record<string, { imageUrl: string | null; title: string | null }>
+  onTapMember:             (memberId: string) => void
+}
+
 export function ChatRoomBrowseSheet({
   visible,
   rooms,
   currentRoomId,
   pinnedRoomId,
+  squadDetail,
   onSelectRoom,
   onCreateSquad,
   onTogglePin,
@@ -130,6 +168,8 @@ export function ChatRoomBrowseSheet({
   currentRoomId: string
   /** This user's pinned squad, if any — see the Pin Squad sheet below. */
   pinnedRoomId:  string | null
+  /** Detail card + member row for `currentRoomId` — null on the DM screen. */
+  squadDetail:   SquadDetailInfo | null
   onSelectRoom:  (id: string) => void
   onCreateSquad: () => void
   onTogglePin:   (id: string) => void
@@ -288,7 +328,7 @@ export function ChatRoomBrowseSheet({
           />
 
           <div
-            className="flex flex-col w-full min-h-0"
+            className="flex flex-col w-full min-h-0 overflow-y-auto nexus-scroll"
             style={{
               gap:           'var(--space-5)',
               flex:          '1 1 auto',
@@ -381,6 +421,32 @@ export function ChatRoomBrowseSheet({
                 })}
               </div>
             </div>
+
+            {/* Group card details + member row (Figma 599:3931 — 601:3901/601:3919) for
+                whichever room this sheet was opened from — see this file's top doc
+                comment for why `squadDetail` is threaded down rather than derived from
+                RoomMeta, and why it's null (nothing rendered) on the DM screen. */}
+            {squadDetail && (
+              <div className="flex flex-col w-full flex-shrink-0" style={{ gap: 'var(--space-5)' }}>
+                <SquadDetailCard
+                  crewName={squadDetail.crewName}
+                  crewImageUrl={squadDetail.crewImageUrl}
+                  crewBackgroundImageUrl={squadDetail.crewBackgroundImageUrl}
+                  totalMessages={squadDetail.totalMessages}
+                  xpProgress={squadDetail.xpProgress}
+                  inviteCode={squadDetail.inviteCode}
+                />
+                <SquadMemberRow
+                  members={squadDetail.members}
+                  onlineUserIds={squadDetail.onlineUserIds}
+                  memberMsgCounts={squadDetail.memberMsgCounts}
+                  loadingCounts={squadDetail.loadingCounts}
+                  creatorId={squadDetail.creatorId}
+                  memberPinnedVinyls={squadDetail.memberPinnedVinyls}
+                  onTapMember={squadDetail.onTapMember}
+                />
+              </div>
+            )}
           </div>
         </motion.div>
       )}
