@@ -1785,12 +1785,10 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
           />
         )}
 
-        {/* ── Status indicators + input — fade out when expanded ── */}
-        <motion.div
-          animate={{ opacity: isExpanded ? 0 : 1, y: isExpanded ? 16 : 0 }}
-          transition={{ duration: 0.18 }}
-          style={{ pointerEvents: isExpanded ? 'none' : 'auto' }}
-        >
+        {/* ── Status indicators + input — stays visible under SquadDetailsSheet,
+            same as it already does under ChatRoomBrowseSheet (both overlays stop
+            at `bottom: chatInputHeight`, leaving this box on-screen below them). ── */}
+        <div>
           {sendError && (
             <button className="w-full font-pixel text-[7px] text-[#ff4444] mb-2 text-left" onClick={send}>
               ↺ {sendError}
@@ -2101,7 +2099,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
                 </div>{/* end text+send row */}
             </div>{/* end input container */}
           </div>{/* end relative wrapper */}
-        </motion.div>
+        </div>
       </motion.div>{/* end squad+input bordered box (Figma 577:4905) */}
 
       {/* ── Media picker sheet (Upload Photo / GIF) ── */}

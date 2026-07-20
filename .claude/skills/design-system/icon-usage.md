@@ -8,6 +8,7 @@ Icons (`pixelarticons`) — key usages:
 | Floating nav — notifs | `Bell` / `BellOff` | 24×24 |
 | Floating nav — glossary | `Library` | 24×24 |
 | SquadDetailsSheet — edit | `MagicEdit` | 24×24 |
+| SquadDetailsSheet — close | `ChevronDown` | 24×24, `--color-primary` |
 | Own Profile page — dev settings | `Braces` | 24×24, `--color-primary` |
 | Own Profile page — edit profile | `MagicEdit` | 24×24, `--color-primary` |
 | Manage Profile page — back | `ChevronLeft` | 24×24, `--color-tertiary` (bare, no button box — not the usual back-button treatment) |
