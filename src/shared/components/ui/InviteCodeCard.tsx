@@ -24,7 +24,7 @@ export function InviteCodeCard({ inviteCode, style }: InviteCodeCardProps) {
 
   return (
     <div
-      className="flex items-center justify-between w-full bg-[var(--color-surface)] border border-border"
+      className="flex items-center justify-between w-full bg-[var(--color-surface)] border border-purple"
       style={{ height: 68, padding: 'var(--x5)', ...style }}
     >
       <div className="flex flex-col items-center justify-center font-silkscreen" style={{ gap: 'var(--x2)' }}>

@@ -17,13 +17,13 @@ import { useChatRoomPeekStore, type RoomMeta } from '@/features/chat/store/chatR
 //
 // Notifications section (Figma 589:4570) — a single card surfacing whichever room
 // has unread messages and received one most recently (`notifRoom` below), shown
-// below the "My Squads" row (Figma has "My Squads" pinned to the top and
-// "Notifications" filling the rest of the sheet beneath it). Tapping it navigates
-// there, same as tapping its card in the row. Unlike Home's own
-// DmNotificationPreviewCard, this section is never hidden — with no unread room it
-// renders a plain "you're all caught up" message instead, so the sheet always shows
-// both sections. Its wrapper carries `flex: 1 0 0` (Figma's own layout) so it fills
-// whatever vertical space isn't used by "My Squads".
+// above the "My Squads" row (deliberately reordered from Figma 589:3619's own
+// top-to-bottom layout, which has "My Squads" first — Notifications leads here by
+// explicit request). Tapping it navigates there, same as tapping its card in the
+// row. Unlike Home's own DmNotificationPreviewCard, this section is never hidden —
+// with no unread room it renders a plain "you're all caught up" message instead, so
+// the sheet always shows both sections. Its wrapper carries `flex: 1 0 0` so it
+// fills whatever vertical space isn't used by "My Squads".
 //
 // A persistent overlay showing every room in chatRoomOrder as a native horizontally-
 // scrollable row, reusing the shared `SwipePreviewCard`, plus a "Create Squad" card
@@ -216,6 +216,18 @@ export function ChatRoomBrowseSheet({
           dragElastic={{ top: 0, bottom: 0 }}
           onClick={onClose}
         >
+          <div className="flex flex-col w-full" style={{ gap: 'var(--space-5)', flex: '1 0 0' }}>
+            <p
+              className="font-body font-bold text-primary leading-none truncate w-full"
+              style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}
+            >
+              Notifications
+            </p>
+            {notifRoom
+              ? <NotificationPreviewCard room={notifRoom} onTap={() => onSelectRoom(notifRoom.id)} />
+              : <NoNotificationsCard />}
+          </div>
+
           <div className="flex flex-col w-full flex-shrink-0" style={{ gap: 'var(--space-5)' }}>
             <div className="flex items-center justify-between w-full">
               <p
@@ -281,18 +293,6 @@ export function ChatRoomBrowseSheet({
                 )
               })}
             </div>
-          </div>
-
-          <div className="flex flex-col w-full" style={{ gap: 'var(--space-5)', flex: '1 0 0' }}>
-            <p
-              className="font-body font-bold text-primary leading-none truncate w-full"
-              style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}
-            >
-              Notifications
-            </p>
-            {notifRoom
-              ? <NotificationPreviewCard room={notifRoom} onTap={() => onSelectRoom(notifRoom.id)} />
-              : <NoNotificationsCard />}
           </div>
         </motion.div>
       )}
