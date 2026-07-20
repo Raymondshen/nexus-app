@@ -6,6 +6,7 @@ import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
 import type { RoomMeta } from '@/features/chat/store/chatRoomPeekStore'
 import { Check } from 'pixelarticons/react/Check'
 import { Message } from 'pixelarticons/react/Message'
+import { Power } from 'pixelarticons/react/Power'
 
 // One 180px squad card (Figma 582:2892 default / 582:3150 selected) — cover photo +
 // gradient + small avatar, name/level/member-count, up to 4 online-member avatars, and
@@ -16,6 +17,17 @@ import { Message } from 'pixelarticons/react/Message'
 // cover header" in the app) rather than reinventing this shape: same width/radius/
 // border tokens, same supabaseImageLoader + `--gradient-image-overlay` cover
 // treatment, same online-dot styling.
+//
+// Pinned styling (Figma 602:4170) — takes priority over `selected`'s plain purple
+// border: the card gets the shared `--gradient-nexus` (purple→pink) ring instead of
+// a flat color, via the standard two-layer background-image trick (an opaque
+// `--color-background` layer clipped to padding-box sits over the gradient layer
+// clipped to border-box, so only the border ring shows the gradient) since a plain
+// CSS `border-color` can't take a gradient. A small glass badge (same
+// `rgba(0,0,0,0.25)` + `blur(7px)` treatment as `PageFloatButton` — Figma's export
+// doesn't round-trip background-blur effects either, see that component's own doc
+// comment) sits top-right over the cover photo with a `Power` icon, mirroring the
+// avatar's bottom-left placement.
 
 // Matches UserAvatar's size=24 below — reserves the online-avatars row's height
 // whether or not it actually has avatars to show, so every card in the horizontally-
@@ -26,14 +38,32 @@ import { Message } from 'pixelarticons/react/Message'
 // fixed there).
 const ONLINE_AVATARS_ROW_HEIGHT = 24
 
-export function SwipePreviewCard({ room, selected }: { room: RoomMeta & { id: string }; selected: boolean }) {
+export function SwipePreviewCard({
+  room, selected, pinned = false,
+}: {
+  room:     RoomMeta & { id: string }
+  selected: boolean
+  /** Figma 602:4170 — gradient border + top-right power badge. Defaults false for
+   *  callers that don't track a pin (e.g. any future reuse outside ChatRoomBrowseSheet). */
+  pinned?:  boolean
+}) {
   const onlineMembers = room.onlineMembers.slice(0, 4)
   const hasUnread     = room.unreadCount > 0
 
   return (
     <div
       className="bg-black flex flex-col flex-shrink-0 overflow-hidden rounded-[var(--x3,8px)]"
-      style={{ width: 180, border: '1px solid', borderColor: selected ? 'var(--color-purple)' : 'var(--color-border-hover)' }}
+      style={
+        pinned
+          ? {
+              width:            180,
+              border:           '1px solid transparent',
+              backgroundImage:  'linear-gradient(var(--color-background), var(--color-background)), var(--gradient-nexus)',
+              backgroundOrigin: 'border-box',
+              backgroundClip:   'padding-box, border-box',
+            }
+          : { width: 180, border: '1px solid', borderColor: selected ? 'var(--color-purple)' : 'var(--color-border-hover)' }
+      }
     >
       <div className="relative flex-shrink-0 w-full overflow-hidden" style={{ height: 120 }}>
         {/* eslint-disable-next-line @next/next/no-img-element -- full-bleed cover fill, same pattern as UserCard/ProfileHeroBackground */}
@@ -47,6 +77,23 @@ export function SwipePreviewCard({ room, selected }: { room: RoomMeta & { id: st
         <div className="absolute" style={{ left: 12, bottom: 12 }}>
           <GroupAvatar imageUrl={room.imageUrl} name={room.name} size={32} />
         </div>
+        {pinned && (
+          <div
+            className="absolute flex items-center justify-center flex-shrink-0"
+            style={{
+              top:                  12,
+              right:                12,
+              padding:              'var(--x2)',
+              borderRadius:         'var(--x2)',
+              background:           'rgba(0,0,0,0.25)',
+              backdropFilter:       'blur(7px)',
+              WebkitBackdropFilter: 'blur(7px)',
+            }}
+            aria-hidden="true"
+          >
+            <Power style={{ width: 16, height: 16, color: 'var(--color-purple)' }} />
+          </div>
+        )}
       </div>
 
       <div className="flex flex-col w-full flex-shrink-0" style={{ padding: 12, gap: 8 }}>

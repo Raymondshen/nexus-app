@@ -514,7 +514,7 @@ export function ChatRoomBrowseSheet({
                         className="flex-shrink-0 appearance-none text-left active:opacity-80 overflow-hidden"
                         aria-label={`Go to ${room.name}`}
                       >
-                        <SwipePreviewCard room={room} selected={room.id === currentRoomId} />
+                        <SwipePreviewCard room={room} selected={room.id === currentRoomId} pinned={room.id === pinnedRoomId} />
                       </button>
                     )
                   })}
