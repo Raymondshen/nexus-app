@@ -6,8 +6,6 @@ import { Plus } from 'pixelarticons/react/Plus'
 import { SwipePreviewCard } from '@/features/chat/components/input/SwipePreviewCard'
 import { useSheetDrag } from '@/shared/components/ui/sheet/useSheetDrag'
 import { useChatRoomPeekStore, type RoomMeta } from '@/features/chat/store/chatRoomPeekStore'
-import { GroupAvatar } from '@/shared/components/ui/GroupAvatar'
-import { relativeTime } from '@/shared/utils/date'
 
 // ─── ChatRoomBrowseSheet (Figma 589:3619 "body") ───────────────────────────────
 // Opened by a swipe right (only — left does nothing, and up opens
@@ -19,13 +17,13 @@ import { relativeTime } from '@/shared/utils/date'
 //
 // Notifications section (Figma 589:4570) — a single card surfacing whichever room
 // has unread messages and received one most recently (`notifRoom` below), shown
-// above the "My Squads" row. Tapping it navigates there, same as tapping its card
-// in the row. Hidden entirely when no room has unread messages, same
-// hide-when-empty convention as Home's own DmNotificationPreviewCard. Its wrapper
-// carries `flex: 1 0 0` (Figma's own layout) so it fills whatever vertical space
-// isn't used by "My Squads", keeping that section pinned to the sheet's bottom
-// edge — when there's no notification, the outer container's own `justify-end`
-// does that job instead.
+// below the "My Squads" row (Figma has "My Squads" pinned to the top and
+// "Notifications" filling the rest of the sheet beneath it). Tapping it navigates
+// there, same as tapping its card in the row. Unlike Home's own
+// DmNotificationPreviewCard, this section is never hidden — with no unread room it
+// renders a plain "you're all caught up" message instead, so the sheet always shows
+// both sections. Its wrapper carries `flex: 1 0 0` (Figma's own layout) so it fills
+// whatever vertical space isn't used by "My Squads".
 //
 // A persistent overlay showing every room in chatRoomOrder as a native horizontally-
 // scrollable row, reusing the shared `SwipePreviewCard`, plus a "Create Squad" card
@@ -82,7 +80,7 @@ import { relativeTime } from '@/shared/utils/date'
 const CARD_WIDTH  = 180
 const CARD_GAP    = 16
 const CARD_STEP   = CARD_WIDTH + CARD_GAP
-const EQUALIZER_WINDOW = 7
+const EQUALIZER_WINDOW = 10
 const CREATE_SQUAD_ID  = 'create-squad'
 
 type BrowseRoom = RoomMeta & { id: string }
@@ -192,7 +190,7 @@ export function ChatRoomBrowseSheet({
         <motion.div
           key="room-browse-sheet"
           ref={sheetRef}
-          className="fixed left-0 right-0 top-0 bg-black/80 flex flex-col justify-end"
+          className="fixed left-0 right-0 top-0 bg-black/85 flex flex-col"
           style={{
             bottom:        chatInputHeight,
             maxWidth:      480,
@@ -218,18 +216,6 @@ export function ChatRoomBrowseSheet({
           dragElastic={{ top: 0, bottom: 0 }}
           onClick={onClose}
         >
-          {notifRoom && (
-            <div className="flex flex-col w-full" style={{ gap: 'var(--space-5)', flex: '1 0 0' }}>
-              <p
-                className="font-body font-bold text-primary leading-none truncate w-full"
-                style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}
-              >
-                Notifications
-              </p>
-              <NotificationPreviewCard room={notifRoom} onTap={() => onSelectRoom(notifRoom.id)} />
-            </div>
-          )}
-
           <div className="flex flex-col w-full flex-shrink-0" style={{ gap: 'var(--space-5)' }}>
             <div className="flex items-center justify-between w-full">
               <p
@@ -296,6 +282,18 @@ export function ChatRoomBrowseSheet({
               })}
             </div>
           </div>
+
+          <div className="flex flex-col w-full" style={{ gap: 'var(--space-5)', flex: '1 0 0' }}>
+            <p
+              className="font-body font-bold text-primary leading-none truncate w-full"
+              style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}
+            >
+              Notifications
+            </p>
+            {notifRoom
+              ? <NotificationPreviewCard room={notifRoom} onTap={() => onSelectRoom(notifRoom.id)} />
+              : <NoNotificationsCard />}
+          </div>
         </motion.div>
       )}
     </AnimatePresence>
@@ -303,49 +301,57 @@ export function ChatRoomBrowseSheet({
 }
 
 // Notifications card (Figma 589:5145 "home - chatCardPreview") — see this file's top
-// doc comment for how `room` is picked. Reuses GroupAvatar rather than the raw image
-// Figma exports, same as every other crew-image surface in the app.
+// doc comment for how `room` is picked. Figma's card has no avatar — just the room
+// name + unread count on one row, and the latest message preview below.
 function NotificationPreviewCard({ room, onTap }: { room: BrowseRoom; onTap: () => void }) {
   return (
     <button
       type="button"
       onClick={(e) => { e.stopPropagation(); onTap() }}
-      className="w-full flex items-center text-left appearance-none rounded-[var(--x3,8px)] overflow-hidden"
-      style={{ gap: 'var(--space-3)', padding: 'var(--space-5)', backgroundColor: 'var(--color-surface-sheet)' }}
+      className="w-full flex flex-col text-left appearance-none rounded-[var(--x3,8px)] overflow-hidden"
+      style={{ gap: 'var(--space-2)', padding: 'var(--space-5)', backgroundColor: 'var(--color-surface-sheet)' }}
       aria-label={`Go to ${room.name}`}
     >
-      <GroupAvatar imageUrl={room.imageUrl} name={room.name} size={48} />
-      <div className="flex-1 min-w-0 flex flex-col" style={{ gap: 'var(--space-2)' }}>
+      <div className="flex items-center w-full" style={{ gap: 'var(--space-3)' }}>
         <p
-          className="font-silkscreen leading-none truncate w-full"
-          style={{ fontSize: 'var(--text-mini)', color: 'var(--red)' }}
+          className="flex-1 min-w-0 font-body font-semibold text-primary leading-none truncate"
+          style={{ fontSize: 'var(--text-sm)', letterSpacing: '0.2px', fontVariationSettings: '"opsz" 14' }}
+        >
+          {room.name}
+        </p>
+        <p
+          className="flex-shrink-0 font-body font-light text-muted leading-normal whitespace-nowrap"
+          style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}
         >
           {room.unreadCount} unread message{room.unreadCount === 1 ? '' : 's'}
         </p>
-        <div className="flex items-center w-full" style={{ gap: 'var(--space-3)' }}>
-          <p
-            className="flex-1 min-w-0 font-body font-bold text-primary leading-none truncate"
-            style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}
-          >
-            {room.name}
-          </p>
-          {room.lastMessageAt && (
-            <p
-              className="flex-shrink-0 font-body font-light text-muted leading-none whitespace-nowrap"
-              style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}
-            >
-              {relativeTime(room.lastMessageAt)}
-            </p>
-          )}
-        </div>
-        <p
-          className="font-body font-normal text-secondary truncate w-full"
-          style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
-        >
-          {room.lastMessagePreview || 'Nothing new'}
-        </p>
       </div>
+      <p
+        className="font-body font-normal text-secondary leading-none truncate w-full"
+        style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
+      >
+        {room.lastMessagePreview || 'Nothing new'}
+      </p>
     </button>
+  )
+}
+
+// Shown in place of NotificationPreviewCard when no room has unread messages — the
+// Notifications section always renders (see this file's top doc comment), it just
+// swaps between the card and this empty state rather than disappearing.
+function NoNotificationsCard() {
+  return (
+    <div
+      className="w-full flex-1 min-h-0 flex items-center justify-center text-center rounded-[var(--x3,8px)]"
+      style={{ padding: 'var(--space-5)', backgroundColor: 'var(--color-surface-sheet)' }}
+    >
+      <p
+        className="font-body font-normal text-tertiary"
+        style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
+      >
+        You&apos;re all caught up — no new notifications.
+      </p>
+    </div>
   )
 }
 
