@@ -10,10 +10,11 @@ import { GroupAvatar } from '@/shared/components/ui/GroupAvatar'
 import { relativeTime } from '@/shared/utils/date'
 
 // ─── ChatRoomBrowseSheet (Figma 589:3619 "body") ───────────────────────────────
-// Opened by a tap-and-hold anywhere on the chatInputContainer — see ChatInput's
-// handleContainerPointerDown for the gesture itself. This is the sole way to
+// Opened by a swipe up, left, or right anywhere on chatInputContainer — all three
+// are the same interaction/threshold, decided at release — see ChatInput's
+// handleTopPan/handleTopPanEnd for the gesture itself. This is the sole way to
 // quick-switch rooms from inside a chat room now — SquadDetailsSheet stays
-// reachable via tap on the bar / its chevron, unrelated to this gesture.
+// reachable via tap on the bar, unrelated to this gesture.
 //
 // Notifications section (Figma 589:4570) — a single card surfacing whichever room
 // has unread messages and received one most recently (`notifRoom` below), shown
@@ -123,7 +124,6 @@ export function ChatRoomBrowseSheet({
   onSelectRoom,
   onCreateSquad,
   onClose,
-  dragFocusIndex = null,
 }: {
   visible:       boolean
   rooms:         BrowseRoom[]
@@ -131,15 +131,6 @@ export function ChatRoomBrowseSheet({
   onSelectRoom:  (id: string) => void
   onCreateSquad: () => void
   onClose:       () => void
-  /** Live index into the combined [Create Squad, ...rooms] list, driven by ChatInput's
-   * horizontal drag-scrub gesture on the chat input (see its handleTopPan) — a second,
-   * additive way to open/drive this same sheet alongside the tap-to-select/scroll-to-
-   * browse and swipe-up-to-open paths above. While non-null, the row's scroll position
-   * and the highlighted/focused card follow this index directly instead of native
-   * onScroll or `currentRoomId`, so the card under the finger is always exactly what a
-   * release will navigate to. Left null (default) for every other open path, which
-   * restores the original tap/scroll/currentRoomId-driven behavior unchanged. */
-  dragFocusIndex?: number | null
 }) {
   const chatInputHeight = useChatRoomPeekStore((s) => s.chatInputHeight)
   const rowRef = useRef<HTMLDivElement>(null)
@@ -182,27 +173,6 @@ export function ChatRoomBrowseSheet({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible])
 
-  // Drag-scrub sync — see dragFocusIndex's own doc comment above. While ChatInput's
-  // horizontal drag gesture is live, drive the focused/highlighted card directly off
-  // this index instead of waiting on native onScroll, so a fast drag that jumps
-  // several cards in one update still lands the highlight exactly under the finger
-  // rather than lagging a scroll-event tick behind. Same "adjust state during render"
-  // pattern as prevVisible above, not a useEffect, since this is just mirroring a prop
-  // into state, not a DOM mutation.
-  const [prevDragFocusIndex, setPrevDragFocusIndex] = useState(dragFocusIndex)
-  if (dragFocusIndex !== prevDragFocusIndex) {
-    setPrevDragFocusIndex(dragFocusIndex)
-    if (dragFocusIndex !== null) setFocusedIndex(dragFocusIndex)
-  }
-
-  // The scrollLeft mutation is a real DOM mutation, so that half does need an effect
-  // (there's no way to set an element's scrollLeft during render) — kept as a plain
-  // dependency-driven effect rather than folded into the render-time branch above.
-  useLayoutEffect(() => {
-    if (dragFocusIndex === null) return
-    if (rowRef.current) rowRef.current.scrollLeft = dragFocusIndex * CARD_STEP
-  }, [dragFocusIndex])
-
   // Snapping to a CARD_STEP-multiple scrollLeft only works for interior items — the
   // row's real max scrollLeft is `scrollWidth - clientWidth`, which is always LESS
   // than "the last item's left edge at the container's own left edge" (the viewport
@@ -235,11 +205,6 @@ export function ChatRoomBrowseSheet({
   const windowStart = Math.max(0, Math.min(focusedIndex - half, Math.max(0, items.length - EQUALIZER_WINDOW)))
   const equalizerItems = items.slice(windowStart, windowStart + EQUALIZER_WINDOW)
   const focusedItemId  = items[focusedIndex] ? itemId(items[focusedIndex]) : undefined
-
-  // Whichever card is under the finger during a drag-scrub — see dragFocusIndex's own
-  // doc comment. Null (the normal case) leaves each card's own `currentRoomId` check
-  // as the sole source of its highlight, unchanged from before this gesture existed.
-  const dragTargetId = dragFocusIndex !== null && items[dragFocusIndex] ? itemId(items[dragFocusIndex]) : null
 
   return (
     <AnimatePresence>
@@ -322,7 +287,7 @@ export function ChatRoomBrowseSheet({
                         style={{
                           gap:             8,
                           border:          '1px dashed',
-                          borderColor:     dragTargetId === CREATE_SQUAD_ID ? 'var(--color-purple)' : 'var(--color-border-hover)',
+                          borderColor:     'var(--color-border-hover)',
                           backgroundColor: 'var(--color-background)',
                         }}
                         initial={{ y: CARD_SLIDE_Y }}
@@ -350,7 +315,7 @@ export function ChatRoomBrowseSheet({
                     aria-label={`Go to ${room.name}`}
                   >
                     <motion.div initial={{ y: CARD_SLIDE_Y }} animate={{ y: 0 }} transition={slideTransition}>
-                      <SwipePreviewCard room={room} selected={dragTargetId ? room.id === dragTargetId : room.id === currentRoomId} />
+                      <SwipePreviewCard room={room} selected={room.id === currentRoomId} />
                     </motion.div>
                   </button>
                 )

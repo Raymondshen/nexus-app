@@ -1,9 +1,9 @@
 'use client'
 
-import { motion, AnimatePresence } from 'framer-motion'
+import { useEffect } from 'react'
+import { motion, AnimatePresence, useAnimationControls } from 'framer-motion'
 import { UserAvatar } from '@/shared/components/ui/UserAvatar'
 import { GroupAvatar } from '@/shared/components/ui/GroupAvatar'
-import { ChevronUp } from 'pixelarticons/react/ChevronUp'
 import type { MemberProfile } from '@/features/chat/components/input/ChatInput'
 
 interface ChatSquadDetailBarProps {
@@ -22,6 +22,14 @@ interface ChatSquadDetailBarProps {
   // pressed, and coexists cleanly with this element's onClick.
   onPressStart?: () => void
   onPressEnd?:   () => void
+  // Bumped by ChatInput's handleTopPan the instant a pan gesture on chatInputContainer
+  // locks to that axis (vertical/horizontal) — each increment (0 is the "never fired"
+  // starting value, never animated) replays that icon's swipe-hint pulse below. Only
+  // ever increments while the dev-gated swipe-to-browse-rooms gesture is both enabled
+  // and has somewhere to go (see ChatInput's chatSwipeNavEnabled/chatRoomOrder guard in
+  // handleTopPan) — for everyone else these stay 0 and the icons just sit at rest.
+  verticalSwipeTick?:   number
+  horizontalSwipeTick?: number
 }
 
 // Shared top-to-bottom slide used by the crew image and name below — the incoming
@@ -32,11 +40,61 @@ interface ChatSquadDetailBarProps {
 // chat-swipe-nav arrival transition — see ChatInput's barOverride mount-seeding effect).
 const SLIDE_TRANSITION = { type: 'spring', stiffness: 170, damping: 21 } as const
 
+// Figma 596:3356's "action btns" swipe-gesture hint icons (596:6986/596:7003) — a
+// pixel-art arrow-in-a-frame glyph, not a pixelarticons icon (checked; none of the
+// library's icons match this box+arrowhead mark), so the path data is reproduced
+// here directly rather than as a static asset, since the fill needs to animate.
+// Literal hex, not var(--color-muted)/var(--color-purple): Framer Motion needs real
+// parseable colors to interpolate a `color` keyframe list — a raw CSS var() string
+// can't be blended between keyframes.
+const HINT_MUTED  = '#71717a' // --color-muted
+const HINT_PURPLE = '#a855f7' // --color-purple
+type PulseControls = ReturnType<typeof useAnimationControls>
+
+// Figma's own keyframe timeline for these nodes (get_motion_context): y/x go
+// 0 → ±4 → 0 → 0 over 300ms, linear, at times [0, .3331, .6763, 1]. Figma shows it
+// looping forever as a preview; here it's replayed once per actual swipe (see
+// verticalSwipeTick/horizontalSwipeTick) via controls.start, not left looping.
+const HINT_TRANSITION = { duration: 0.3, times: [0, 0.3331, 0.6763, 1], ease: 'linear' as const }
+const VERTICAL_PULSE   = { y: [0, -4, 0, 0], color: [HINT_MUTED, HINT_PURPLE, HINT_MUTED, HINT_MUTED], transition: HINT_TRANSITION }
+const HORIZONTAL_PULSE = { x: [0, 4, 0, 0],  color: [HINT_MUTED, HINT_PURPLE, HINT_MUTED, HINT_MUTED], transition: HINT_TRANSITION }
+
+function SwipeHintIcon({ axis, controls }: { axis: 'vertical' | 'horizontal'; controls: PulseControls }) {
+  const d = axis === 'vertical'
+    ? 'M1.33333 0H12V1.33333H1.33333V0ZM1.33333 12H12V13.3333H1.33333V12ZM0 1.33333H1.33333V12H0V1.33333ZM12 1.33333H13.3333V12H12V1.33333ZM6.04467 4.006H7.378V2.67267H6.04467V4.006ZM6.04467 10.6727H7.378V6.67267H6.04467V10.6727ZM4.71133 5.33933H8.71133V4.006H4.71133V5.33933ZM3.378 6.67267H10.0447V5.33933H3.378V6.67267Z'
+    : 'M1.33333 0H12V1.33333H1.33333V0ZM1.33333 12H12V13.3333H1.33333V12ZM0 1.33333H1.33333V12H0V1.33333ZM12 1.33333H13.3333V12H12V1.33333ZM9.378 6.006V7.33933H10.7113V6.006H9.378ZM2.71133 6.006V7.33933H6.71133V6.006H2.71133ZM8.04467 4.67267V8.67267H9.378V4.67267H8.04467ZM6.71133 3.33933V10.006H8.04467V3.33933H6.71133Z'
+  return (
+    <motion.svg
+      width={16}
+      height={16}
+      viewBox="0 0 13.3333 13.3333"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      initial={{ y: 0, x: 0, color: HINT_MUTED }}
+      animate={controls}
+      aria-hidden="true"
+    >
+      <path d={d} fill="currentColor" />
+    </motion.svg>
+  )
+}
+
 export function ChatSquadDetailBar({
   crewImageUrl, crewName, crewLevel, memberCount, members, onlineUserIds,
-  onExpand, onPressStart, onPressEnd,
+  onExpand, onPressStart, onPressEnd, verticalSwipeTick = 0, horizontalSwipeTick = 0,
 }: ChatSquadDetailBarProps) {
   const onlineMembers = members.filter((m) => onlineUserIds.has(m.id))
+  const verticalControls   = useAnimationControls()
+  const horizontalControls = useAnimationControls()
+
+  // 0 is the untouched starting value (no gesture has happened yet on this mount) —
+  // only replay the pulse on an actual increment, never on mount itself.
+  useEffect(() => {
+    if (verticalSwipeTick > 0) verticalControls.start(VERTICAL_PULSE)
+  }, [verticalSwipeTick]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (horizontalSwipeTick > 0) horizontalControls.start(HORIZONTAL_PULSE)
+  }, [horizontalSwipeTick]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <motion.div
@@ -112,15 +170,15 @@ export function ChatSquadDetailBar({
         )}
       </AnimatePresence>
 
-      {/* Expand chevron */}
-      <button
-        onClick={(e) => { e.stopPropagation(); onExpand() }}
-        className="flex items-center justify-center flex-shrink-0"
-        style={{ width: 24, height: 24 }}
-        aria-label="Show squad details"
-      >
-        <ChevronUp style={{ width: 24, height: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
-      </button>
+      {/* Swipe-gesture hint icons (Figma 596:6985 "action btns") — purely decorative;
+          the whole row above already handles tap-to-expand via its own onClick, so
+          this doesn't need its own click handler/stopPropagation like the single
+          chevron it replaced. Pulses (translate + mute→purple→mute) in place when
+          ChatInput's handleTopPan detects the matching swipe direction. */}
+      <div className="flex items-center flex-shrink-0" style={{ gap: 4 }} aria-hidden="true">
+        <SwipeHintIcon axis="vertical" controls={verticalControls} />
+        <SwipeHintIcon axis="horizontal" controls={horizontalControls} />
+      </div>
     </motion.div>
   )
 }
