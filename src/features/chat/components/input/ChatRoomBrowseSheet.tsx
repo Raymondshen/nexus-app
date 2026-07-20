@@ -100,19 +100,20 @@ const PIN_LONG_PRESS_MS = 500
 // sliding window of up to EQUALIZER_WINDOW items centered on whichever card is
 // currently scrolled into view (`focusedIndex`, updated on `onScroll`). Per-bar rules
 // (Figma 589:3622, and the explicit color/growth spec this implements):
-//   - color: purple if that bar's room is `currentRoomId` (the room you're actually
-//     chatting in — this is fixed to that room's own position and never changes with
-//     scroll); else red if that room has unread messages; else muted (Create Squad's
-//     own bar is always muted — it isn't a room, so it can never be "current" or
-//     "unread"). Purple always wins over red/muted for the current room's own bar,
-//     wherever it sits in the window.
+//   - color: `--color-primary` if that bar's room is `currentRoomId` (the room
+//     you're actually chatting in — this is fixed to that room's own position and
+//     never changes with scroll — matches SwipePreviewCard's own selected-card
+//     border, same token); else red if that room has unread messages; else muted
+//     (Create Squad's own bar is always muted — it isn't a room, so it can never be
+//     "current" or "unread"). Primary always wins over red/muted for the current
+//     room's own bar, wherever it sits in the window.
 //   - height: tall (16) only for whichever bar is currently FOCUSED (scrolled into
-//     view) — a bar can be tall AND purple at once (you've scrolled back to your own
-//     room), tall and red (scrolled onto an unread room), or tall and muted (scrolled
-//     onto a read one, or onto Create Squad). This is what makes "the bar size growth
-//     would be different colors dependent on the group being viewed" — the growing
-//     bar always reflects whichever item it currently represents' own color,
-//     purple/red/muted are not mutually exclusive with the grow state.
+//     view) — a bar can be tall AND primary at once (you've scrolled back to your
+//     own room), tall and red (scrolled onto an unread room), or tall and muted
+//     (scrolled onto a read one, or onto Create Squad). This is what makes "the bar
+//     size growth would be different colors dependent on the group being viewed" —
+//     the growing bar always reflects whichever item it currently represents' own
+//     color, primary/red/muted are not mutually exclusive with the grow state.
 // Each bar is a `layout`-animated motion.div inside an `AnimatePresence
 // mode="popLayout"`, so when the window shifts by one item (scrolling past a card
 // boundary), the remaining bars smoothly slide to their new slot instead of snapping —
@@ -504,7 +505,17 @@ export function ChatRoomBrowseSheet({
               paddingLeft:    'var(--space-5)',
               paddingRight:   'var(--space-5)',
               paddingBottom:  'var(--space-5)',
-              scrollSnapType: 'y mandatory',
+              // `proximity`, not `mandatory` — Group Details (below) is the last and
+              // only OTHER snap point in this container, so with `mandatory` the
+              // browser tries to resolve every scroll gesture back to its top edge
+              // even once you're already scrolled deep into its own tall content
+              // (past the member row, toward Leave Squad), fighting normal scrolling
+              // instead of just snapping at the boundary between it and the
+              // Squads page above. `proximity` still catches that boundary snap for
+              // an ordinary swipe between the two pages (the same behavior today),
+              // it just stops re-asserting itself once you're no longer near either
+              // snap point.
+              scrollSnapType: 'y proximity',
             }}
           >
             {/* Notifications + Squads combined into a single scroll-snap "page" that
@@ -873,7 +884,7 @@ function ScrollEqualizerBars({
           const isFocused  = id === focusedItemId
           const isCurrent  = item.kind === 'room' && item.room.id === currentRoomId
           const hasUnread  = item.kind === 'room' && item.room.unreadCount > 0
-          const color = isCurrent ? 'var(--color-purple)' : hasUnread ? 'var(--red)' : 'var(--color-muted)'
+          const color = isCurrent ? 'var(--color-primary)' : hasUnread ? 'var(--red)' : 'var(--color-muted)'
           return (
             <motion.div
               key={id}

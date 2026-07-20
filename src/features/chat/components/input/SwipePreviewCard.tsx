@@ -17,12 +17,14 @@ import { Message } from 'pixelarticons/react/Message'
 // border tokens, same supabaseImageLoader + `--gradient-image-overlay` cover
 // treatment, same online-dot styling.
 //
-// Pinned styling (Figma 602:4170, header refined further at 606:3894) — same flat
-// `--color-purple` border `selected` already uses (Figma's own export is `border
-// border-[#a855f7] border-solid`, a solid color, not a gradient ring — despite the
-// file defining a "nexus gradient" style, that gradient is only used by the badge
-// icon below, not the border). A small `--color-surface-sheet` badge (Figma's own
-// `bg-[var(--surface-sheet)]`) sits top-right over the cover photo — per 606:3894's
+// Pinned styling (Figma 602:4170, header refined further at 606:3894) — the pin no
+// longer affects the border at all: a pinned-but-not-selected card gets the same
+// plain `--color-border-hover` border as any other unselected card, so the badge is
+// the only visual pin indicator. `selected` (the currently-open room) drives the
+// border on its own, in `--color-primary` — see `ScrollEqualizerBars` in
+// ChatRoomBrowseSheet for the matching current-room bar color. A small
+// `--color-surface-sheet` badge (Figma's own `bg-[var(--surface-sheet)]`) sits
+// top-right over the cover photo — per 606:3894's
 // auto-layout (badge row `justify-end` + avatar row, both inside the header's own
 // 12px padding), its right edge is flush with that same 12px inset, mirroring the
 // avatar's bottom-LEFT 12px placement exactly, not sitting closer to the corner. The
@@ -48,7 +50,8 @@ export function SwipePreviewCard({
 }: {
   room:     RoomMeta & { id: string }
   selected: boolean
-  /** Figma 602:4170 — purple border + top-right heart badge. Defaults false for
+  /** Figma 602:4170/606:3894 — top-right heart badge only, no border effect of its
+   *  own (see the border color comment above `selected`). Defaults false for
    *  callers that don't track a pin (e.g. any future reuse outside ChatRoomBrowseSheet). */
   pinned?:  boolean
 }) {
@@ -61,7 +64,7 @@ export function SwipePreviewCard({
       style={{
         width:       180,
         border:      '1px solid',
-        borderColor: pinned || selected ? 'var(--color-purple)' : 'var(--color-border-hover)',
+        borderColor: selected ? 'var(--color-primary)' : 'var(--color-border-hover)',
       }}
     >
       <div className="relative flex-shrink-0 w-full overflow-hidden" style={{ height: 120 }}>
