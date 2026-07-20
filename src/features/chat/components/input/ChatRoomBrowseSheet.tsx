@@ -79,11 +79,7 @@ import { relativeTime } from '@/shared/utils/date'
 // that resolves rather than rendering a placeholder/skeleton card.
 const CARD_WIDTH  = 180
 const CARD_GAP    = 16
-// Exported so ChatInput's horizontal drag-scrub gesture (handleTopPan) can convert
-// finger-travel px into the same index-per-card unit this sheet's own scroll/snap
-// logic uses — keeps a full drag-across-one-card feel consistent with the row's
-// actual card width instead of an independently-tuned magic number.
-export const CARD_STEP = CARD_WIDTH + CARD_GAP
+const CARD_STEP   = CARD_WIDTH + CARD_GAP
 const EQUALIZER_WINDOW = 7
 const CREATE_SQUAD_ID  = 'create-squad'
 
