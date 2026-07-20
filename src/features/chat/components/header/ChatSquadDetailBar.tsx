@@ -97,10 +97,14 @@ export function ChatSquadDetailBar({
   return (
     <motion.div
       className="flex relative cursor-pointer items-center justify-between w-full"
+      style={{ gap: 8 }}
       onClick={onExpand}
     >
-      {/* Crew image + name/level */}
-      <div className="flex items-center flex-shrink-0 min-w-0" style={{ gap: 8 }}>
+      {/* Crew image + name/level — fixed 140px (Figma 599:4015 "groupHeader"), not
+          flex-shrink-0-and-hope: a long crew name needs a real width to truncate
+          against, and this also gives the row's outer `justify-between` a stable
+          left anchor to measure the online-avatars/action-btns space against. */}
+      <div className="flex items-center flex-shrink-0" style={{ gap: 8, width: 140 }}>
         <div className="relative flex-shrink-0" style={{ width: 24, height: 24 }}>
           <AnimatePresence initial={false}>
             <motion.div
@@ -118,16 +122,18 @@ export function ChatSquadDetailBar({
         <div className="flex flex-col min-w-0" style={{ gap: 2 }}>
           <div className="relative overflow-hidden" style={{ height: 16 }}>
             <AnimatePresence initial={false}>
+              {/* Figma 599:4018 — DM Sans Bold (700), not Black (900), and not
+                  uppercased (crewName renders as typed, e.g. "Squad Sh*t"). */}
               <motion.p
                 key={crewName}
-                className="absolute inset-0 font-body font-black text-secondary leading-none truncate"
+                className="absolute inset-0 font-body font-bold text-secondary leading-none truncate"
                 style={{ fontSize: 16, fontVariationSettings: '"opsz" 14' }}
                 initial={{ y: -16, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 exit={{ y: 16, opacity: 0 }}
                 transition={SLIDE_TRANSITION}
               >
-                {crewName.toUpperCase()}
+                {crewName}
               </motion.p>
             </AnimatePresence>
           </div>
@@ -152,7 +158,7 @@ export function ChatSquadDetailBar({
             exit={{ y: 14, opacity: 0 }}
             transition={SLIDE_TRANSITION}
             className="flex flex-1 min-w-0 items-center overflow-hidden"
-            style={{ gap: 4, marginLeft: 16, marginRight: 16, maxWidth: 164 }}
+            style={{ gap: 8, maxWidth: 164 }}
             onClick={(e) => e.stopPropagation()}
           >
             {onlineMembers.map((m) => (
@@ -165,15 +171,17 @@ export function ChatSquadDetailBar({
         )}
       </AnimatePresence>
 
-      {/* "Swipe" label + swipe-gesture hint icon (Figma 596:7302 "action btns") —
-          purely decorative and NOT a tap-to-expand target: stops propagation so a
-          tap here doesn't also open SquadDetailsSheet via the row's own onClick
-          (same pattern as the online-avatars row above). Icon pulses (translate +
-          mute→purple→mute) in place when ChatInput's handleTopPan detects the
-          swipe-up gesture; the label itself is static. A horizontal icon used to
-          sit alongside this one hinting a swipe-left-or-right gesture — removed
-          once swipe-up took over opening ChatRoomBrowseSheet (see ChatInput's
-          handleTopPanEnd), leaving this the only swipe gesture on the bar. */}
+      {/* "Swipe / view" label (two lines, Figma 599:4030 — literally "Swipe<br/>view",
+          a compact stand-in for "swipe up to view [details]") + swipe-gesture hint
+          icon (Figma 596:7302 "action btns") — purely decorative and NOT a
+          tap-to-expand target: stops propagation so a tap here doesn't also open
+          SquadDetailsSheet via the row's own onClick (same pattern as the
+          online-avatars row above). Icon pulses (translate + mute→purple→mute) in
+          place when ChatInput's handleTopPan detects the swipe-up gesture; the
+          label itself is static. A horizontal icon used to sit alongside this one
+          hinting a swipe-left-or-right gesture — removed once swipe-up took over
+          opening ChatRoomBrowseSheet (see ChatInput's handleTopPanEnd), leaving this
+          the only swipe gesture on the bar. */}
       <div
         className="flex items-center flex-shrink-0"
         style={{ gap: 4 }}
@@ -182,6 +190,8 @@ export function ChatSquadDetailBar({
       >
         <p className="font-silkscreen text-muted text-right leading-none whitespace-nowrap" style={{ fontSize: 8 }}>
           Swipe
+          <br />
+          view
         </p>
         <SwipeHintIcon controls={swipeHintControls} />
       </div>
