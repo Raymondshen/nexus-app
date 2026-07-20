@@ -547,15 +547,25 @@ export function ChatRoomBrowseSheet({
                 {/* Same horizontally-scrollable-row pattern SquadDetailsSheet's member card
                     row already uses (overflow-x-auto no-scrollbar) — not a new one-off.
                     The row bleeds full-bleed past the scroll container's own `--space-5`
-                    padding (negative margin) and re-adds that same amount as its OWN
-                    padding, so the gutter is part of the scrollable content instead of
-                    static ancestor padding. Without this, the auto-snap-to-current-room
-                    effect below (`scrollLeft = index * CARD_STEP`) — and any manual scroll
-                    to either end — leaves the edge card flush against the screen edge with
-                    zero breathing room, looking clipped. `CARD_STEP`'s snap math doesn't
-                    need to change: the leading padding is part of `scrollWidth`/`scrollLeft`
-                    itself, so `index * CARD_STEP` still lands each card `--space-5` in from
-                    the visible edge rather than flush against it. */}
+                    padding (negative margin) so the gutter is part of the scrollable
+                    content instead of static ancestor padding — otherwise the
+                    auto-snap-to-current-room effect below (`scrollLeft = index * CARD_STEP`),
+                    or a manual scroll to either end, leaves the edge card flush against the
+                    screen edge with zero breathing room, looking clipped.
+                    The gutter itself is two real flex-item spacers (leading/trailing), NOT
+                    `paddingLeft`/`paddingRight` on the scrolling element — trailing
+                    (end-side) padding on an `overflow-x` container is unreliably included in
+                    `scrollWidth` across browsers (a well-known cross-browser quirk: start
+                    padding is always honored, end padding after the last child often isn't),
+                    which is exactly why the right side stayed clipped after only adding
+                    `paddingRight` here. A real spacer element is unambiguously part of
+                    `scrollWidth`. The trailing spacer's width is `--space-5` minus `CARD_GAP`
+                    because the flex `gap` between it and the last card already contributes
+                    `CARD_GAP` of that space — the leading spacer needs no such subtraction
+                    since nothing precedes it for `gap` to apply to. `CARD_STEP`'s snap math
+                    doesn't need to change: the leading spacer is part of `scrollWidth`/
+                    `scrollLeft` itself, so `index * CARD_STEP` still lands each card
+                    `--space-5` in from the visible edge rather than flush against it. */}
                 <div
                   ref={rowRef}
                   onScroll={handleScroll}
@@ -564,11 +574,10 @@ export function ChatRoomBrowseSheet({
                     gap:         CARD_GAP,
                     marginLeft:  'calc(var(--space-5) * -1)',
                     marginRight: 'calc(var(--space-5) * -1)',
-                    paddingLeft:  'var(--space-5)',
-                    paddingRight: 'var(--space-5)',
                   }}
                   onClick={(e) => e.stopPropagation()}
                 >
+                  <div aria-hidden="true" className="flex-shrink-0" style={{ width: 'var(--space-5)' }} />
                   {items.map((item) => {
                     if (item.kind === 'create') {
                       return (
@@ -619,6 +628,7 @@ export function ChatRoomBrowseSheet({
                       </button>
                     )
                   })}
+                  <div aria-hidden="true" className="flex-shrink-0" style={{ width: `calc(var(--space-5) - ${CARD_GAP}px)` }} />
                 </div>
               </div>
             </div>

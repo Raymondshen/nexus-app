@@ -97,6 +97,9 @@ export function SquadDetailCard({
   )
 }
 
+// Gap between member cards — also referenced by the trailing spacer's width calc below.
+const MEMBER_ROW_GAP = 8
+
 interface SquadMemberRowProps {
   members:             MiniMember[]
   onlineUserIds:       Set<string>
@@ -123,23 +126,28 @@ export function SquadMemberRow({
   }), [members, onlineUserIds, memberMsgCounts])
 
   return (
-    // Bleeds past the scroll container's own `--space-5` padding (negative margin)
-    // and re-adds that same amount as this row's own padding, so the gutter scrolls
-    // with the content instead of being static ancestor padding — otherwise dragging
-    // to either end leaves the first/last member card flush against the screen edge
-    // with no breathing room. Same fix as the Squads row in ChatRoomBrowseSheet — see
-    // that component's own comment for the full reasoning.
+    // Bleeds past the scroll container's own `--space-5` padding (negative margin) so
+    // the gutter is part of the scrollable content instead of static ancestor padding
+    // — otherwise dragging to either end leaves the first/last member card flush
+    // against the screen edge with no breathing room. The gutter is two real flex-item
+    // spacers, NOT `paddingLeft`/`paddingRight` on the scrolling element — trailing
+    // (end-side) padding on an `overflow-x` container is unreliably included in
+    // `scrollWidth` across browsers, so a `paddingRight`-only version of this fix left
+    // the right side still clipped. The trailing spacer's width is `--space-5` minus
+    // `MEMBER_ROW_GAP` since the flex `gap` between it and the last card already
+    // contributes `MEMBER_ROW_GAP` of that space; the leading spacer needs no such
+    // subtraction since nothing precedes it for `gap` to apply to. Same fix as the
+    // Squads row in ChatRoomBrowseSheet — see that component's own comment.
     <div
       className="flex overflow-x-auto no-scrollbar nexus-scroll w-full flex-shrink-0"
       style={{
-        gap:          8,
-        marginLeft:   'calc(var(--space-5) * -1)',
-        marginRight:  'calc(var(--space-5) * -1)',
-        paddingLeft:  'var(--space-5)',
-        paddingRight: 'var(--space-5)',
+        gap:         MEMBER_ROW_GAP,
+        marginLeft:  'calc(var(--space-5) * -1)',
+        marginRight: 'calc(var(--space-5) * -1)',
       }}
       onClick={(e) => e.stopPropagation()}
     >
+      <div aria-hidden="true" className="flex-shrink-0" style={{ width: 'var(--space-5)' }} />
       {sortedMembers.map((m) => (
         <UserCard
           key={m.id}
@@ -152,6 +160,7 @@ export function SquadMemberRow({
           onTap={() => onTapMember(m.id)}
         />
       ))}
+      <div aria-hidden="true" className="flex-shrink-0" style={{ width: `calc(var(--space-5) - ${MEMBER_ROW_GAP}px)` }} />
     </div>
   )
 }
