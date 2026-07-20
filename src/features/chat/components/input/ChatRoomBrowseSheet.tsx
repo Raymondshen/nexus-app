@@ -547,38 +547,45 @@ export function ChatRoomBrowseSheet({
                 {/* Same horizontally-scrollable-row pattern SquadDetailsSheet's member card
                     row already uses (overflow-x-auto no-scrollbar) — not a new one-off.
                     The row bleeds full-bleed past the scroll container's own `--space-5`
-                    padding (negative margin) so the gutter is part of the scrollable
-                    content instead of static ancestor padding — otherwise the
-                    auto-snap-to-current-room effect below (`scrollLeft = index * CARD_STEP`),
-                    or a manual scroll to either end, leaves the edge card flush against the
-                    screen edge with zero breathing room, looking clipped.
+                    padding so the gutter is part of the scrollable content instead of static
+                    ancestor padding — otherwise the auto-snap-to-current-room effect below
+                    (`scrollLeft = index * CARD_STEP`), or a manual scroll to either end,
+                    leaves the edge card flush against the screen edge with zero breathing
+                    room, looking clipped.
+                    Full-bleed here is `width: calc(100% + --space-5*2)` + `marginLeft:
+                    -var(--space-5)` — NOT `marginLeft`/`marginRight` both negative on a
+                    `width: 100%` box. That was tried and measured (via a throwaway
+                    Playwright harness rendering this exact component) to be wrong:
+                    `margin-right` never affects an element's OWN rendered edges once width
+                    is fixed (non-auto) — it only affects the gap to whatever comes after it.
+                    With `marginLeft` alone doing the "bleed", the whole box just SHIFTS left
+                    by `--space-5`: the left edge lands correctly (0), but the right edge
+                    shifts left too, ending up `--space-5` short of the ancestor's own
+                    (uncancelled) right padding — i.e. `2 * --space-5` short of the true
+                    viewport edge. Expanding `width` by `--space-5*2` while shifting the box
+                    left by `--space-5` grows the box symmetrically in both directions instead.
                     The gutter itself is two real flex-item spacers (leading/trailing), NOT
                     `paddingLeft`/`paddingRight` on the scrolling element — trailing
                     (end-side) padding on an `overflow-x` container is unreliably included in
-                    `scrollWidth` across browsers (a well-known cross-browser quirk: start
-                    padding is always honored, end padding after the last child often isn't),
-                    which is exactly why the right side stayed clipped after only adding
-                    `paddingRight` here. A real spacer element is unambiguously part of
-                    `scrollWidth`. BOTH spacers are `--space-5` minus `CARD_GAP`, not just the
-                    trailing one — flex `gap` applies on either side of a spacer (between
-                    leading-spacer↔first-card, and between last-card↔trailing-spacer), so
-                    each spacer only needs to make up the *remainder* of `--space-5` after its
-                    own adjacent `gap` already contributes `CARD_GAP` of it. Giving the
-                    leading spacer the full `--space-5` (no subtraction) double-counted that
-                    gap and made the left gutter visibly bigger than the right — which is what
-                    made the right side look clipped by comparison, even though 16px alone
-                    was already the intended `--space-5` value. `CARD_STEP`'s snap math still
-                    doesn't need to change: the leading spacer is part of `scrollWidth`/
-                    `scrollLeft` itself, so `index * CARD_STEP` still lands each card
-                    `--space-5` in from the visible edge rather than flush against it. */}
+                    `scrollWidth` across browsers (start padding is always honored, end
+                    padding after the last child often isn't). A real spacer element is
+                    unambiguously part of `scrollWidth`. BOTH spacers are `--space-5` minus
+                    `CARD_GAP`, not just the trailing one — flex `gap` applies on either side
+                    of a spacer (between leading-spacer↔first-card, and between
+                    last-card↔trailing-spacer), so each spacer only needs to make up the
+                    *remainder* of `--space-5` after its own adjacent `gap` already
+                    contributes `CARD_GAP` of it. `CARD_STEP`'s snap math still doesn't need
+                    to change: the leading spacer is part of `scrollWidth`/`scrollLeft`
+                    itself, so `index * CARD_STEP` still lands each card `--space-5` in from
+                    the visible edge rather than flush against it. */}
                 <div
                   ref={rowRef}
                   onScroll={handleScroll}
-                  className="flex items-stretch overflow-x-auto no-scrollbar nexus-scroll w-full"
+                  className="flex items-stretch overflow-x-auto no-scrollbar nexus-scroll"
                   style={{
-                    gap:         CARD_GAP,
-                    marginLeft:  'calc(var(--space-5) * -1)',
-                    marginRight: 'calc(var(--space-5) * -1)',
+                    gap:        CARD_GAP,
+                    width:      'calc(100% + var(--space-5) * 2)',
+                    marginLeft: 'calc(var(--space-5) * -1)',
                   }}
                   onClick={(e) => e.stopPropagation()}
                 >

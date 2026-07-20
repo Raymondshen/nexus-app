@@ -126,27 +126,35 @@ export function SquadMemberRow({
   }), [members, onlineUserIds, memberMsgCounts])
 
   return (
-    // Bleeds past the scroll container's own `--space-5` padding (negative margin) so
-    // the gutter is part of the scrollable content instead of static ancestor padding
-    // — otherwise dragging to either end leaves the first/last member card flush
-    // against the screen edge with no breathing room. The gutter is two real flex-item
-    // spacers, NOT `paddingLeft`/`paddingRight` on the scrolling element — trailing
-    // (end-side) padding on an `overflow-x` container is unreliably included in
-    // `scrollWidth` across browsers, so a `paddingRight`-only version of this fix left
-    // the right side still clipped. BOTH spacers are `--space-5` minus `MEMBER_ROW_GAP`,
-    // not just the trailing one — flex `gap` applies on either side of a spacer (between
-    // leading-spacer↔first-card, and between last-card↔trailing-spacer), so each spacer
-    // only needs to make up the *remainder* of `--space-5` after its own adjacent `gap`
-    // already contributes `MEMBER_ROW_GAP` of it. Giving the leading spacer the full
-    // `--space-5` (no subtraction) double-counted that gap and made the left gutter
-    // visibly bigger than the right. Same fix as the Squads row in ChatRoomBrowseSheet —
-    // see that component's own comment.
+    // Bleeds past the scroll container's own `--space-5` padding so the gutter is part
+    // of the scrollable content instead of static ancestor padding — otherwise dragging
+    // to either end leaves the first/last member card flush against the screen edge
+    // with no breathing room.
+    // Full-bleed is `width: calc(100% + --space-5*2)` + `marginLeft: -var(--space-5)` —
+    // NOT `marginLeft`/`marginRight` both negative on a `flex-shrink-0` box whose width
+    // resolves from its parent's `w-full`. Measured via a throwaway Playwright harness
+    // rendering this exact component: `margin-right` never affects an element's OWN
+    // rendered edges once its width is fixed (non-auto) — it only affects the gap to
+    // whatever comes after it. With `marginLeft` alone doing the "bleed", the whole box
+    // just SHIFTS left by `--space-5`: the left edge lands correctly (0), but the right
+    // edge shifts left too, ending up short of the true viewport edge by `2 * --space-5`.
+    // Expanding `width` by `--space-5*2` while shifting the box left by `--space-5` grows
+    // the box symmetrically in both directions instead.
+    // The gutter itself is two real flex-item spacers, NOT `paddingLeft`/`paddingRight`
+    // on the scrolling element — trailing (end-side) padding on an `overflow-x`
+    // container is unreliably included in `scrollWidth` across browsers. BOTH spacers
+    // are `--space-5` minus `MEMBER_ROW_GAP`, not just the trailing one — flex `gap`
+    // applies on either side of a spacer (between leading-spacer↔first-card, and
+    // between last-card↔trailing-spacer), so each spacer only needs to make up the
+    // *remainder* of `--space-5` after its own adjacent `gap` already contributes
+    // `MEMBER_ROW_GAP` of it. Same fix as the Squads row in ChatRoomBrowseSheet — see
+    // that component's own comment.
     <div
-      className="flex overflow-x-auto no-scrollbar nexus-scroll w-full flex-shrink-0"
+      className="flex overflow-x-auto no-scrollbar nexus-scroll flex-shrink-0"
       style={{
-        gap:         MEMBER_ROW_GAP,
-        marginLeft:  'calc(var(--space-5) * -1)',
-        marginRight: 'calc(var(--space-5) * -1)',
+        gap:        MEMBER_ROW_GAP,
+        width:      'calc(100% + var(--space-5) * 2)',
+        marginLeft: 'calc(var(--space-5) * -1)',
       }}
       onClick={(e) => e.stopPropagation()}
     >
