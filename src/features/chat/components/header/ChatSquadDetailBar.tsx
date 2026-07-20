@@ -51,10 +51,20 @@ type PulseControls = ReturnType<typeof useAnimationControls>
 const HINT_TRANSITION = { duration: 0.3, times: [0, 0.3331, 0.6763, 1], ease: 'linear' as const }
 const SWIPE_HINT_PULSE = { y: [0, -4, 0, 0], color: [HINT_MUTED, HINT_PURPLE, HINT_MUTED, HINT_MUTED], transition: HINT_TRANSITION }
 
-// controls is optional so the same icon can render statically (Figma 596:7443's
-// one-time banner in ChatInput — see that component) without needing a dummy
-// AnimationControls that never starts.
-export function SwipeHintIcon({ controls }: { controls?: PulseControls }) {
+// The one-shot banner's own instance of this glyph (Figma 605:3639/605:3642) has a
+// different keyframe timeline (get_motion_context): a continuous horizontal bounce,
+// x 0 → 4 → 0 → 0 over 2s, linear, looping forever — not the tick-triggered vertical
+// pulse above. Solid purple throughout (no color keyframes) — Figma's own frozen
+// export of this instance is filled #A855F7, unlike the muted-by-default persistent
+// indicator.
+const HINT_LOOP_TRANSITION = { duration: 2, times: [0, 0.05, 0.1015, 1], ease: 'linear' as const, repeat: Infinity }
+const SWIPE_HINT_LOOP = { x: [0, 4, 0, 0], transition: HINT_LOOP_TRANSITION }
+
+// `controls` drives ChatSquadDetailBar's own tick-triggered vertical pulse below;
+// `loop` instead drives the one-shot banner's (Figma 605:3639, ChatInput) continuous
+// horizontal bounce — two different Figma instances of the same glyph with
+// different motion specs, so they're mutually exclusive, not shared animation state.
+export function SwipeHintIcon({ controls, loop = false }: { controls?: PulseControls; loop?: boolean }) {
   return (
     <motion.svg
       width={16}
@@ -62,8 +72,8 @@ export function SwipeHintIcon({ controls }: { controls?: PulseControls }) {
       viewBox="0 0 13.3333 13.3333"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
-      initial={{ y: 0, color: HINT_MUTED }}
-      animate={controls}
+      initial={loop ? { x: 0, color: HINT_PURPLE } : { y: 0, color: HINT_MUTED }}
+      animate={loop ? SWIPE_HINT_LOOP : controls}
       aria-hidden="true"
     >
       <path d="M1.33333 0H12V1.33333H1.33333V0ZM1.33333 12H12V13.3333H1.33333V12ZM0 1.33333H1.33333V12H0V1.33333ZM12 1.33333H13.3333V12H12V1.33333ZM6.04467 4.006H7.378V2.67267H6.04467V4.006ZM6.04467 10.6727H7.378V6.67267H6.04467V10.6727ZM4.71133 5.33933H8.71133V4.006H4.71133V5.33933ZM3.378 6.67267H10.0447V5.33933H3.378V6.67267Z" fill="currentColor" />

@@ -109,6 +109,13 @@ export async function kickMemberAction(
 
   // Service client bypasses RLS to delete another user's crew_members row
   const service = createServiceClient()
+  const { data: kickedProfile } = await service
+    .from('profiles')
+    .select('pinned_crew_id')
+    .eq('id', targetUserId)
+    .single()
+  const kickedFromPinnedCrew = (kickedProfile as { pinned_crew_id: string | null } | null)?.pinned_crew_id === crewId
+
   const { error } = await service
     .from('crew_members')
     .delete()
@@ -116,6 +123,15 @@ export async function kickMemberAction(
     .eq('user_id', targetUserId)
 
   if (error) return { error: error.message }
+
+  // Being kicked bypasses leave_crew entirely (the delete above is a direct service-
+  // client write, not the RPC), so the Pin Squad invariant — a user with >=1 squad
+  // always has exactly one pinned — has to be re-asserted here too, same as
+  // leave_crew does for a self-initiated leave. See pin_squad_invariant /
+  // repick_pinned_crew_on_kick migrations.
+  if (kickedFromPinnedCrew) {
+    await service.rpc('repick_pinned_crew', { p_user_id: targetUserId })
+  }
 
   revalidateTag(`crew-members:${crewId}`, 'max')
   return {}
@@ -274,28 +290,33 @@ export async function birthdaysCommandAction(crewId: string): Promise<{
 // Pin Squad: lets a user pin one of their own squads (surfaced first in
 // ChatRoomBrowseSheet, preferred by HomeClient's launch-redirect). A single
 // `profiles.pinned_crew_id` column gives "only one pin" and "pinning a new one
-// unpins the old" for free — this just overwrites it. Toggling the already-pinned
-// crew clears it.
-export async function togglePinCrewAction(crewId: string): Promise<{ pinned: boolean; error?: string }> {
+// unpins the old" for free — this just overwrites it.
+//
+// There is no unpin — the invariant (enforced DB-side by the
+// pin_squad_invariant migration: backfilled for every existing account, and kept
+// true going forward by create_crew/join_crew auto-pinning a user's first squad and
+// leave_crew re-picking a replacement if the pinned squad is left) is that any user
+// with at least one squad always has exactly one pinned. RoomPinSheet already
+// disables its Pin Squad button when the long-pressed card is the current pin, so
+// this is never called for an already-pinned crew, but it's written to just
+// (re)assert the pin regardless rather than exposing a null/toggle-off path.
+export async function pinCrewAction(crewId: string): Promise<{ error?: string }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { pinned: false, error: 'Not authenticated' }
+  if (!user) return { error: 'Not authenticated' }
 
   const { data: isMember } = await supabase.rpc('is_crew_member', { p_crew_id: crewId })
-  if (!isMember) return { pinned: false, error: 'Not a crew member' }
-
-  const { data: profile } = await supabase.from('profiles').select('pinned_crew_id').eq('id', user.id).single()
-  const currentlyPinned = (profile as { pinned_crew_id: string | null } | null)?.pinned_crew_id === crewId
+  if (!isMember) return { error: 'Not a crew member' }
 
   const { error } = await supabase
     .from('profiles')
-    .update({ pinned_crew_id: currentlyPinned ? null : crewId })
+    .update({ pinned_crew_id: crewId })
     .eq('id', user.id)
 
-  if (error) return { pinned: currentlyPinned, error: error.message }
+  if (error) return { error: error.message }
 
   revalidateTag(`profile:${user.id}`, 'max')
-  return { pinned: !currentlyPinned }
+  return {}
 }
 
 export async function createEventAction(data: {

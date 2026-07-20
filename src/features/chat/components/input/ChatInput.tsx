@@ -35,7 +35,7 @@ import { Plus } from 'pixelarticons/react/Plus'
 import { CornerUpLeft } from 'pixelarticons/react/CornerUpLeft'
 import { Close } from 'pixelarticons/react/Close'
 import { MagicEdit } from 'pixelarticons/react/MagicEdit'
-import { kickMemberAction, renameCrewAction, birthdaysCommandAction, togglePinCrewAction } from '@/app/(app)/chat/actions'
+import { kickMemberAction, renameCrewAction, birthdaysCommandAction, pinCrewAction } from '@/app/(app)/chat/actions'
 import { leaveCrewAction } from '@/app/(app)/home/actions'
 import dynamic from 'next/dynamic'
 import { CrewImageUploadModal } from '@/features/chat/components/sheets/CrewImageUploadModal'
@@ -111,7 +111,7 @@ interface ChatInputProps {
    * the dev-gated chat swipe-navigation feature. Omitted/empty on the DM screen. */
   chatRoomOrder?:      string[]
   /** This user's profiles.pinned_crew_id at page load — seeds ChatRoomBrowseSheet's
-   * Pin Squad state (see handleTogglePin below). Omitted/null on the DM screen. */
+   * Pin Squad state (see handlePinCrew below). Omitted/null on the DM screen. */
   initialPinnedCrewId?: string | null
 }
 
@@ -153,13 +153,20 @@ const EMPTY_MEMBERS: MemberProfile[] = []
 const EMPTY_ONLINE_IDS = new Set<string>()
 
 // Set once the user has actually triggered the swipe-up gesture — permanently hides
-// the "Swipe to : Switch Groups" banner (Figma 589:5938, originally a two-hint layout
-// per Figma 596:7443 before the horizontal gesture was removed) for this device from
-// then on, same one-shot-hint convention as nexus_first_message/nexus_crew_created
-// (see CLAUDE.md's Storage Keys). Scoped to nexus_chat_swipe_nav — the feature itself
-// is dev-gated, so the banner only ever renders for a session that already has it
-// enabled, and only for first-time/not-yet-triggered users (see dismissSwipeHint).
-const CHAT_SWIPE_HINT_SEEN_KEY = 'nexus_chat_swipe_nav_hint_seen'
+// the "Swipe up to view notification and squad details" banner (Figma 605:3639,
+// redesigned from the older 589:5938/596:7443 two-hint layout — copy + styling
+// updated to match) for this device from then on, same one-shot-hint convention as
+// nexus_first_message/nexus_crew_created (see CLAUDE.md's Storage Keys). Scoped to
+// nexus_chat_swipe_nav — the feature itself is dev-gated, so the banner only ever
+// renders for a session that already has it enabled, and only for first-time/
+// not-yet-triggered users (see dismissSwipeHint).
+//
+// `_v2` suffix: this key is intentionally a NEW name, not the pre-redesign one — by
+// request, the redesigned banner needed to show again for every device that had
+// already dismissed the old one, and a localStorage flag has no server-side record
+// to reset remotely. Retiring the old key name and starting a fresh one is the only
+// way to make an already-set client-side flag "unseen" again for everyone at once.
+const CHAT_SWIPE_HINT_SEEN_KEY = 'nexus_chat_swipe_nav_hint_seen_v2'
 
 // How far, in either axis, a pan gesture on chatInputContainer must travel before
 // handleTopPan classifies it as horizontal or vertical (see that function) — small
@@ -173,13 +180,15 @@ const PAN_DIRECTION_LOCK_PX = 12
 export function ChatInput({ crewId, userId, userProfile, memberProfiles, memberPinnedVinyls, crewName, inviteCode, creatorId, crewImageUrl: initialCrewImageUrl, crewBackgroundImageUrl: initialCrewBgUrl, initialXP, isDM, dmPartnerId, chatRoomOrder = [], initialPinnedCrewId = null }: ChatInputProps) {
   const router = useRouter()
   // Pin Squad state (see ChatRoomBrowseSheet's own doc comment) — optimistic, rolled
-  // back on server error. null = nothing pinned.
+  // back on server error. null only ever means "this user has zero squads" — the
+  // pin_squad_invariant migration backfills every existing account and
+  // create_crew/join_crew/leave_crew keep it true going forward, so there's no
+  // unpin path here anymore, just (re)assigning the pin to a different squad.
   const [pinnedCrewId, setPinnedCrewId] = useState<string | null>(initialPinnedCrewId)
-  async function handleTogglePin(targetCrewId: string) {
-    const previous  = pinnedCrewId
-    const wasPinned = previous === targetCrewId
-    setPinnedCrewId(wasPinned ? null : targetCrewId)
-    const result = await togglePinCrewAction(targetCrewId)
+  async function handlePinCrew(targetCrewId: string) {
+    const previous = pinnedCrewId
+    setPinnedCrewId(targetCrewId)
+    const result = await pinCrewAction(targetCrewId)
     if (result.error) setPinnedCrewId(previous)
   }
   // Squad-bar content shown in place of THIS room's own image/name/level/member count,
@@ -1747,24 +1756,31 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
           presence sync doesn't re-render all of ChatInput — see ChatTypingIndicator. ── */}
       <ChatTypingIndicator />
 
-      {/* Figma 596:7443 — one-shot banner teaching the swipe-up gesture (originally a
-          two-hint layout for swipe-up/SquadDetailsSheet + swipe-left-or-right/
-          ChatRoomBrowseSheet; the horizontal gesture was removed once swipe-up itself
-          started opening ChatRoomBrowseSheet, so only one hint remains), dev-gated
-          the same as the gesture itself (nexus_chat_swipe_nav) and hidden when
-          there's nothing to switch to. Permanently dismissed the first time the
-          gesture actually fires — see CHAT_SWIPE_HINT_SEEN_KEY / dismissSwipeHint.
-          Reuses SwipeHintIcon (no `controls` passed — static, doesn't need to pulse). */}
+      {/* Figma 605:3639 — one-shot banner teaching the swipe-up gesture (redesigned
+          from the older 589:5938/596:7443 two-hint layout — that one covered
+          swipe-up/SquadDetailsSheet + swipe-left-or-right/ChatRoomBrowseSheet; the
+          horizontal gesture was removed once swipe-up itself started opening
+          ChatRoomBrowseSheet, so only one hint remains, now with updated copy and a
+          dashed top divider), dev-gated the same as the gesture itself
+          (nexus_chat_swipe_nav) and hidden when there's nothing to switch to.
+          Permanently dismissed the first time the gesture actually fires — see
+          CHAT_SWIPE_HINT_SEEN_KEY / dismissSwipeHint. Reuses SwipeHintIcon with
+          `loop` (its own continuous horizontal-bounce motion spec, Figma 605:3642 —
+          distinct from the tick-triggered pulse ChatSquadDetailBar's persistent
+          indicator uses). */}
       {chatSwipeNavEnabled && showSwipeHint && chatRoomOrder.length > 1 && (
-        <div className="flex items-center justify-center w-full" style={{ gap: 8, padding: 'var(--x3) var(--x5)' }}>
+        <div
+          className="flex items-center justify-center w-full"
+          style={{ gap: 8, padding: 'var(--x3) var(--x5)', borderTop: '1px dashed var(--color-border)' }}
+        >
           <div className="flex items-center" style={{ gap: 8 }}>
             <p
               className="font-body font-light text-tertiary whitespace-nowrap"
               style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14', lineHeight: 1.4 }}
             >
-              Swipe to : Switch Groups
+              Swipe up to view notification and squad details
             </p>
-            <SwipeHintIcon />
+            <SwipeHintIcon loop />
           </div>
         </div>
       )}
@@ -1783,7 +1799,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
         allMuted={allMuted}
         onSelectRoom={handleSelectRoomFromBrowse}
         onCreateSquad={openCreateSquadFromBrowse}
-        onTogglePin={handleTogglePin}
+        onPinCrew={handlePinCrew}
         onLeaveRoom={(room) => requestLeaveSquad({ id: room.id, name: room.name, memberCount: room.memberCount })}
         onEditSquad={() => { setShowRoomBrowser(false); setShowManageSquad(true) }}
         onNotif={() => setShowNotifSheet(true)}

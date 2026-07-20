@@ -192,7 +192,7 @@ export function ChatRoomBrowseSheet({
   allMuted,
   onSelectRoom,
   onCreateSquad,
-  onTogglePin,
+  onPinCrew,
   onLeaveRoom,
   onEditSquad,
   onNotif,
@@ -213,7 +213,9 @@ export function ChatRoomBrowseSheet({
   allMuted:      boolean
   onSelectRoom:  (id: string) => void
   onCreateSquad: () => void
-  onTogglePin:   (id: string) => void
+  /** Long-press sheet's Pin Squad tap — always (re)assigns the pin to this room, no
+   *  unpin path (see RoomPinSheet's own doc comment for the invariant). */
+  onPinCrew:     (id: string) => void
   /** Long-press sheet's Leave Squad tap (Figma 605:3830) — works for ANY room card
    *  in the list, not just `currentRoomId`. See RoomPinSheet's own doc comment. */
   onLeaveRoom:   (room: BrowseRoom) => void
@@ -265,7 +267,7 @@ export function ChatRoomBrowseSheet({
   // ChatSheetReact's own long-press-opened sheet). The pinned room always sorts to
   // the front of `rooms` below (right after the ever-first Create Squad card) —
   // pinning a different room simply overwrites profiles.pinned_crew_id server-side
-  // (see togglePinCrewAction), so only one room can ever be pinned at a time.
+  // (see pinCrewAction), so only one room can ever be pinned at a time.
   const [pinSheetRoomId, setPinSheetRoomId] = useState<string | null>(null)
   const pinLongPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pinLongPressFiredRef = useRef(false)
@@ -664,7 +666,7 @@ export function ChatRoomBrowseSheet({
     {pinSheetRoom && (
       <RoomPinSheet
         pinned={pinSheetRoom.id === pinnedRoomId}
-        onTogglePin={() => onTogglePin(pinSheetRoom.id)}
+        onPin={() => onPinCrew(pinSheetRoom.id)}
         onLeave={() => onLeaveRoom(pinSheetRoom)}
         onClose={() => setPinSheetRoomId(null)}
       />
@@ -684,10 +686,14 @@ export function ChatRoomBrowseSheet({
 // existing current-room-only leave flow to accept an arbitrary target room).
 //
 // Pin Squad has no "unpin" path from here — matches the caption's own "one squad is
-// always pinned" (unpinning entirely isn't offered, only switching the pin to a
-// DIFFERENT squad). So when the long-pressed card is already the pinned one, the
-// button is disabled outright (`SheetActionButton`'s `disabled` prop, which also
-// renders its label/icon in `--color-tertiary`) — the heart icon swaps to a flat
+// always pinned", which is now a real DB-enforced invariant (see the
+// pin_squad_invariant migration: backfilled for every existing account, and kept
+// true going forward by create_crew/join_crew auto-pinning a user's first squad and
+// leave_crew re-picking a replacement if the pinned squad is left), not just UI
+// copy — unpinning entirely isn't offered, only switching the pin to a DIFFERENT
+// squad. So when the long-pressed card is already the pinned one, the button is
+// disabled outright (`SheetActionButton`'s `disabled` prop, which also renders its
+// label/icon in `--color-tertiary`) — the heart icon swaps to a flat
 // tertiary-filled variant (`pin-heart-tertiary.svg`) for the same reason `pin-heart.svg`
 // itself is a static asset rather than a pixelarticons glyph: it's a raster/vector file
 // with its own baked-in fill, not driven by `currentColor`.
@@ -697,12 +703,12 @@ export function ChatRoomBrowseSheet({
 // the heart's fill is the two-stop `--gradient-nexus` gradient (not flat, so
 // `currentColor` can't reproduce it) and neither shape has a pixelarticons match.
 function RoomPinSheet({
-  pinned, onTogglePin, onLeave, onClose,
+  pinned, onPin, onLeave, onClose,
 }: {
-  pinned:      boolean
-  onTogglePin: () => void
-  onLeave:     () => void
-  onClose:     () => void
+  pinned:  boolean
+  onPin:   () => void
+  onLeave: () => void
+  onClose: () => void
 }) {
   return (
     <BottomSheet onClose={onClose} zIndex={90} dismissOnPointerDown>
@@ -734,7 +740,7 @@ function RoomPinSheet({
                 />
               }
               label="Pin Squad"
-              onClick={() => { onTogglePin(); onClose() }}
+              onClick={() => { onPin(); onClose() }}
               disabled={pinned}
             />
             <p

@@ -17,17 +17,22 @@ import { Message } from 'pixelarticons/react/Message'
 // border tokens, same supabaseImageLoader + `--gradient-image-overlay` cover
 // treatment, same online-dot styling.
 //
-// Pinned styling (Figma 602:4170) — same flat `--color-purple` border `selected`
-// already uses (Figma's own export is `border border-[#a855f7] border-solid`, a
-// solid color, not a gradient ring — despite the file defining a "nexus gradient"
-// style, that gradient is only used by the badge icon below, not the border). A
-// small `--color-surface-sheet` badge (Figma's own `bg-[var(--surface-sheet)]`) sits
-// top-right over the cover photo, mirroring the avatar's bottom-left placement. The
+// Pinned styling (Figma 602:4170, header refined further at 606:3894) — same flat
+// `--color-purple` border `selected` already uses (Figma's own export is `border
+// border-[#a855f7] border-solid`, a solid color, not a gradient ring — despite the
+// file defining a "nexus gradient" style, that gradient is only used by the badge
+// icon below, not the border). A small `--color-surface-sheet` badge (Figma's own
+// `bg-[var(--surface-sheet)]`) sits top-right over the cover photo — per 606:3894's
+// auto-layout (badge row `justify-end` + avatar row, both inside the header's own
+// 12px padding), its right edge is flush with that same 12px inset, mirroring the
+// avatar's bottom-LEFT 12px placement exactly, not sitting closer to the corner. The
 // badge icon is a pixel-art heart filled with the exact `--gradient-nexus` stops
 // (#a855f7 → #d946ef) — not a pixelarticons glyph (none match this shape) and not
 // renderable via `currentColor` (the fill is a two-stop gradient, not flat) — so
 // it's a downloaded, committed static asset (`public/icons/pin-heart.svg`), same
-// pattern as `SocialLinksRow`'s brand-mark SVGs.
+// pattern as `SocialLinksRow`'s brand-mark SVGs. 606:3894 also shrank the icon
+// itself (its pixel container went from 24×16 to 24×12) — rendered here at width 12
+// (was 16, height auto to keep the file's own aspect ratio) to match.
 
 // Matches UserAvatar's size=24 below — reserves the online-avatars row's height
 // whether or not it actually has avatars to show, so every card in the horizontally-
@@ -76,7 +81,7 @@ export function SwipePreviewCard({
             className="absolute flex items-center justify-center flex-shrink-0"
             style={{
               top:           12,
-              right:         4,
+              right:         12,
               padding:       'var(--x2)',
               borderRadius:  'var(--x2)',
               background:    'var(--color-surface-sheet)',
@@ -85,7 +90,7 @@ export function SwipePreviewCard({
             aria-hidden="true"
           >
             {/* eslint-disable-next-line @next/next/no-img-element -- static gradient-fill asset, next/image adds no value here */}
-            <img src="/icons/pin-heart.svg" alt="" style={{ width: 16, height: 'auto', display: 'block' }} />
+            <img src="/icons/pin-heart.svg" alt="" style={{ width: 12, height: 'auto', display: 'block' }} />
           </div>
         )}
       </div>

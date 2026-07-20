@@ -217,6 +217,12 @@ export type Database = {
         Args: { p_crew_id: string }
         Returns: Record<string, unknown>
       }
+      /** Pin Squad invariant helper — service_role only (see kickMemberAction /
+       *  pin_squad_invariant migration). Not for client use. */
+      repick_pinned_crew: {
+        Args: { p_user_id: string }
+        Returns: void
+      }
       get_or_create_dm: {
         Args: { other_user_id: string }
         Returns: string

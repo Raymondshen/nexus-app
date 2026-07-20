@@ -60,6 +60,7 @@ All `SECURITY DEFINER`. Declared in `Database.Functions` in `src/types/index.ts`
 - `pin_message(p_message_id, p_duration_minutes?)` → jsonb — admin only, cap=5
 - `unpin_message(p_message_id)` → jsonb — admin only
 - `update_active()` → void — upserts `user_presence.last_active_at = now()` for `auth.uid()`; presence heartbeat
+- `repick_pinned_crew(p_user_id)` → void — Pin Squad invariant helper, service_role only; see the Pin Squad section
 
 ### Server Authority (column guards + RPC grants)
 Migration `20260709100000_security_column_guards_and_rpc_grants.sql` is the source of truth. Two enforcement layers beyond RLS:
@@ -69,7 +70,7 @@ Migration `20260709100000_security_column_guards_and_rpc_grants.sql` is the sour
 - `crews`: `total_xp`, `level`, `invite_code`, `is_dm`, `dm_partner_*` server-only (`prevent_client_crew_stat_writes`). Name/image/`last_message_*` stay client-writable.
 - `messages`: `reactions`, `xp_awarded`, `element_type`, `message_type`, `user_id`, `crew_id`, `created_at` server-only (`prevent_client_message_field_writes`) — only `content` + image fields are client-editable (the message-edit flow). Pin columns keep their own separate trigger.
 
-**Revoked client EXECUTE** — these SECURITY DEFINER RPCs are callable only by `service_role` (revoked from `public`/`anon`/`authenticated`, incl. the inherited PUBLIC grant): `increment_user_coins`, `increment_crew_xp`, `increment_friendship_xp`, `claim_daily_gem`, `toggle_reaction`, plus the trigger fns. Call them from edge functions / server actions via the service client, never `supabase.rpc(...)` on a browser/cookie client. The rest (`insert_message`, `join_crew`, polls, pins, `update_active`, `get_*`, …) keep `authenticated` EXECUTE.
+**Revoked client EXECUTE** — these SECURITY DEFINER RPCs are callable only by `service_role` (revoked from `public`/`anon`/`authenticated`, incl. the inherited PUBLIC grant): `increment_user_coins`, `increment_crew_xp`, `increment_friendship_xp`, `claim_daily_gem`, `toggle_reaction`, `repick_pinned_crew`, plus the trigger fns. Call them from edge functions / server actions via the service client, never `supabase.rpc(...)` on a browser/cookie client. The rest (`insert_message`, `join_crew`, polls, pins, `update_active`, `get_*`, …) keep `authenticated` EXECUTE.
 
 ## Game Values
 
@@ -308,11 +309,17 @@ Invite is surfaced only via the inline `<InviteCodeCard>` in the group card deta
 - `selectActivePins(messages)` from chatStore; `hiddenPinIds` + `toggleHiddenPin` in chatStore
 
 ### Pin Squad (`profiles.pinned_crew_id`) — not to be confused with the message-pin feature above
-Lets a user pin one of their own squads. Two effects: it's surfaced first (right after the ever-first Create Squad card) in `ChatRoomBrowseSheet`'s Squads row, and it's preferred by `HomeClient`'s existing session-scoped launch-redirect effect (`LAUNCH_REDIRECT_KEY`) over that effect's prior most-recent/only-crew fallback — so relaunching the app (a fresh session, e.g. after an iOS PWA kill) lands straight in the pinned squad. A single nullable `profiles.pinned_crew_id` column gives "only one pin at a time" and "pinning a new one unpins the old" for free — `togglePinCrewAction` (`chat/actions.ts`, verifies membership via `is_crew_member` first) just overwrites it; toggling the already-pinned crew clears it.
+**Invariant: any user who belongs to at least one squad always has exactly one pinned** (DM-only users, and users with zero squads, have `pinned_crew_id = null` and land on Home). This is enforced DB-side, not just a UI convention:
+- **Backfill** (`pin_squad_invariant` migration, 2026-07-20): every existing account with no pin got one — 1 squad → pin it directly; 2+ squads → pin whichever the user has sent the most messages in (ties broken by earliest `joined_at`, then crew id).
+- **Going forward**: `create_crew`/`join_crew` auto-pin the crew being created/joined whenever the caller doesn't already have a pin (covers a brand-new user's first squad without overriding a pin they've already chosen). `leave_crew` and `kickMemberAction` (`chat/actions.ts` — a kick deletes `crew_members` directly via the service client, bypassing `leave_crew` entirely) both call the `repick_pinned_crew(p_user_id)` helper (`repick_pinned_crew_on_kick` migration, service_role-only — no client should call it directly) whenever the crew being left/kicked-from was that user's pin, applying the same 1-squad/most-messages rule to whatever squads remain (or clearing to `null` if none do).
 
-Opened by a 500ms long-press on a room card in `ChatRoomBrowseSheet` (same threshold as `ChatSheetReact`'s own long-press sheets) — a minimal one-row `BottomSheet` (`RoomPinSheet`, same file) with a single Pin/Unpin `SheetActionButton`. No Figma spec for this yet.
+There is **no unpin** — pinning always means (re)assigning the pin to a specific squad. `pinCrewAction` (`chat/actions.ts`, verifies membership via `is_crew_member` first) just overwrites `pinned_crew_id`; `RoomPinSheet` (below) disables its own Pin Squad button entirely when the long-pressed card is already the pin.
 
-A stale pin (the pinned crew still exists but the user has since left it, so the `ON DELETE SET NULL` FK never fires) is harmless by design — every consumer (the browse sheet's reorder, the launch-redirect) only acts on the pin when its id is still present in the user's own current room/crew list, so it silently falls through to that consumer's normal fallback rather than erroring.
+Surfaced two places: sorted first (right after the ever-first Create Squad card) in `ChatRoomBrowseSheet`'s Squads row — with its own gradient-heart badge (Figma 602:4170, `SwipePreviewCard`'s `pinned` prop) — and preferred by `HomeClient`'s session-scoped launch-redirect effect (`LAUNCH_REDIRECT_KEY`) over that effect's most-recent/only-crew fallback (now mostly a safety net given the invariant above), so relaunching the app (a fresh session, e.g. after an iOS PWA kill clears sessionStorage) lands straight in the pinned squad instead of Home.
+
+Opened by a 500ms long-press on a room card in `ChatRoomBrowseSheet` (same threshold as `ChatSheetReact`'s own long-press sheets) — `RoomPinSheet` (same file, Figma 605:3830): a "What would you like to do?" header, a Pin Squad `SheetActionButton` (disabled + tertiary-colored icon/label when the card is already pinned) with an explanatory caption, and a Leave Squad `SheetActionButton` below it that works for ANY room card in the list via `ChatInput`'s `requestLeaveSquad` (generalized beyond just the currently-open room).
+
+A stale pin (the pinned crew was hard-deleted — `ON DELETE SET NULL` clears it automatically) is harmless by design — every consumer (the browse sheet's reorder, the launch-redirect) only acts on the pin when its id is still present in the user's own current room/crew list, falling through to that consumer's normal fallback rather than erroring. In practice this should be rare now since `leave_crew`/`kickMemberAction` proactively re-pick instead of just letting it go stale.
 
 **Direction**: `HomeClient`/`/home` are slated for full removal, with app-launch landing rerouted through the pinned squad instead of Home — Pin Squad is a first step toward that. Expect the launch-redirect logic above to move server-side (or be replaced outright) once Home actually goes away.
 
