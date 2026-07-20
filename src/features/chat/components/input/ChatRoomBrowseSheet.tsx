@@ -3,6 +3,7 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Plus } from 'pixelarticons/react/Plus'
+import { ChevronDown } from 'pixelarticons/react/ChevronDown'
 import { SwipePreviewCard } from '@/features/chat/components/input/SwipePreviewCard'
 import { useSheetDrag } from '@/shared/components/ui/sheet/useSheetDrag'
 import { useChatRoomPeekStore, type RoomMeta } from '@/features/chat/store/chatRoomPeekStore'
@@ -23,7 +24,11 @@ import { useChatRoomPeekStore, type RoomMeta } from '@/features/chat/store/chatR
 // row. Unlike Home's own DmNotificationPreviewCard, this section is never hidden —
 // with no unread room it renders a plain "you're all caught up" message instead, so
 // the sheet always shows both sections. Its wrapper carries `flex: 1 0 0` so it
-// fills whatever vertical space isn't used by "My Squads".
+// fills whatever vertical space isn't used by "My Squads". The section's title row
+// (Figma 599:3855) also carries a trailing `ChevronDown` (Figma 599:3861) — the
+// same explicit-close affordance SquadDetailsSheet's header row uses — so there's a
+// dedicated dismiss control alongside the existing tap-outside/tap-a-card/drag-down
+// closes documented below.
 //
 // A persistent overlay showing every room in chatRoomOrder as a native horizontally-
 // scrollable row, reusing the shared `SwipePreviewCard`, plus a "Create Squad" card
@@ -217,12 +222,27 @@ export function ChatRoomBrowseSheet({
           onClick={onClose}
         >
           <div className="flex flex-col w-full" style={{ gap: 'var(--space-5)', flex: '1 0 0' }}>
-            <p
-              className="font-body font-bold text-primary leading-none truncate w-full"
-              style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}
-            >
-              Notifications
-            </p>
+            <div className="flex items-center justify-between w-full" style={{ gap: 16 }}>
+              <p
+                className="font-body font-bold text-primary leading-none truncate min-w-0"
+                style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}
+              >
+                Notifications
+              </p>
+              {/* Figma 599:3861 — explicit close, same chevron-down affordance
+                  SquadDetailsSheet's header row uses. Tap dismisses the sheet;
+                  its own onClick already calls onClose directly, so it doesn't
+                  need to stopPropagation from the root's own backdrop-tap onClose. */}
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-shrink-0 appearance-none flex items-center justify-center"
+                style={{ width: 24, height: 24 }}
+                aria-label="Close"
+              >
+                <ChevronDown style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+              </button>
+            </div>
             {notifRoom
               ? <NotificationPreviewCard room={notifRoom} onTap={() => onSelectRoom(notifRoom.id)} />
               : <NoNotificationsCard />}
