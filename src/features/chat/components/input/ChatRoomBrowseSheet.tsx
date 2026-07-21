@@ -383,7 +383,7 @@ export function ChatRoomBrowseSheet({
             marginRight: 'auto',
           }}
           initial={{ opacity: 0 }}
-          animate={{ opacity: 1, transition: { duration: 0.12 } }}
+          animate={{ opacity: 1, transition: { duration: 0.2, ease: 'easeInOut' } }}
           exit={{ opacity: 0, transition: { duration: 0.2, ease: 'easeInOut' } }}
           {...dragProps}
           // Override useSheetDrag's own bottom elasticity (1 = follows the finger 1:1,
