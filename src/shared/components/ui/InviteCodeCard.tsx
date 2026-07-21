@@ -9,7 +9,7 @@ interface InviteCodeCardProps {
   style?: React.CSSProperties
 }
 
-// Shared by SquadDetailsSheet's Members section and MessageList's empty state
+// Shared by ChatRoomBrowseSheet's Group Details section and MessageList's empty state
 // (Figma 438:8098 / 426:1996) — same card exactly, just different max-width
 // constraints from each call site.
 export function InviteCodeCard({ inviteCode, style }: InviteCodeCardProps) {

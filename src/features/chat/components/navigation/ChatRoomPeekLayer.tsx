@@ -189,7 +189,7 @@ function PeekBarAndInput({ meta }: { meta: RoomMeta }) {
         crewName={meta.name}
         members={EMPTY_MEMBERS}
         onlineUserIds={EMPTY_ONLINE_IDS}
-        onExpand={noop}
+        onTap={noop}
       />
       <div
         className="w-full flex items-center"

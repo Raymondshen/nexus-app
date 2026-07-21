@@ -19,8 +19,8 @@ Light-top → dark-bottom scrim over **every** crew/group and profile background
 
 Full canonical list (all use the token):
 
-- `SquadDetailsSheet` group header cover
-- `UserCard` background image (member cards in SquadDetailsSheet)
+- `ChatRoomBrowseSheet` Group Details hero cover
+- `UserCard` background image (member cards in ChatRoomBrowseSheet's Group Details)
 - `ManageSquadProfile` hero
 - `HomeClient` squad preview + card preview (two spots) + profile preview
 - Profile heroes: `ProfileClient`, `MemberProfileClient`, `AccountPageMember`

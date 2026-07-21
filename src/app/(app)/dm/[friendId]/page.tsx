@@ -8,9 +8,10 @@ import { ErrorBoundary } from '@/shared/components/ui/ErrorBoundary'
 import { SlidePage } from '@/app/layouts/SlidePage'
 import type { Profile, AvatarClass } from '@/types'
 
-// No background_url here — SquadDetailsSheet (the only consumer) never
-// renders for DMs (ChatInput guards it with `!isDM`), so fetching it would
-// just be wasted DB/egress on every DM page load.
+// No background_url here — the squad member row (the only consumer, rendered
+// inside ChatRoomBrowseSheet's Group Details section) never shows for DMs
+// (ChatInput's squadDetail is null for `isDM`), so fetching it would just be
+// wasted DB/egress on every DM page load.
 type MemberProfile = Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url' | 'status'>
 type MemberProfileMap = Record<string, MemberProfile>
 

@@ -23,27 +23,23 @@ import { useChatRoomPeekStore, type RoomMeta } from '@/features/chat/store/chatR
 const PIN_LONG_PRESS_MS = 500
 
 // ─── ChatRoomBrowseSheet a.k.a. "Updates" (Figma 589:3619 "body") ─────────────
-// Opened by a swipe left or right (either direction — up opens SquadDetailsSheet
-// instead) anywhere on chatInputContainer, decided at release — see ChatInput's
-// handleTopPan/handleTopPanEnd for the gesture itself. This is the sole way to
-// quick-switch rooms from inside a chat room now — SquadDetailsSheet stays
-// reachable via tap on the bar, or via the swipe-up gesture, unrelated to this
-// sheet.
+// Opened two ways, both toggles onto the same sheet: a vertical, up-only pan
+// gesture anywhere on chatInputContainer (decided at release — see ChatInput's
+// handleTopPan/handleTopPanEnd), or a plain tap on ChatSquadDetailBar (its own
+// `onTap`, which just toggles ChatInput's `showRoomBrowser` state — a second tap
+// while it's open closes it). This is the sole way to quick-switch rooms or view
+// squad details from inside a chat room now — there is no separate sheet for
+// squad details anymore, this one covers both.
 //
 // Header: the shared `PageHeader`, `variant="sheet"` (Figma 599:7818 — bold
 // non-uppercase DM Sans title, no back chevron) rather than the default subpage
 // variant, since this overlay isn't nested under a `SlidePage` of its own and has
-// no "back" concept — it's mounted directly by ChatInput, same as
-// SquadDetailsSheet. When `squadDetail` is present (non-DM), title = the current
-// room's crew name with a decorative leading `ChevronRight` (`icon` prop, Figma
-// 599:7818's small chevron before "SQUAD SH*T") and `right` = an action-icon row —
-// `MagicEdit` (creator-only), `Library`, `Bell`/`BellOff`, then `Close` — so squad
-// actions stay reachable without leaving this sheet. This order (and Bell's
-// persistence, below) has since diverged from SquadDetailsSheet's own header,
-// which keeps `MagicEdit`, `Bell`, `Library`, close in that order with all four
-// always visible (no fade at all there — SquadDetailsSheet has no
-// `viewingGroupDetails`-style two-page scroll to fade against). Don't assume the
-// two headers are still identical. MagicEdit/Library here fade out (opacity 0,
+// no "back" concept — it's mounted directly by ChatInput. When `squadDetail` is
+// present (non-DM), title = the current room's crew name with a decorative
+// leading `ChevronRight` (`icon` prop, Figma 599:7818's small chevron before
+// "SQUAD SH*T") and `right` = an action-icon row — `MagicEdit` (creator-only),
+// `Library`, `Bell`/`BellOff`, then `Close` — so squad actions stay reachable
+// without leaving this sheet. MagicEdit/Library here fade out (opacity 0,
 // `pointerEvents: none`) while
 // `viewingGroupDetails` is false — i.e. while still on the Notifications+Squads
 // page below — and fade smoothly back in once the user scrolls/snaps to Group
@@ -58,13 +54,12 @@ const PIN_LONG_PRESS_MS = 500
 // programmatic scroll). Falls back to a plain "Updates" title + Close-only `right` when
 // `squadDetail` is null (DM screen — no squad to edit/mute/browse definitions
 // for, so nothing to fade either). The header row is wrapped in its own
-// `stopPropagation` div
-// (mirroring SquadDetailsSheet's) since the sheet root's own `onClick={onClose}`
-// would otherwise also fire on every header button tap — harmless for Close
-// (already idempotent) but wrong for Notif, which should open `NotifSheet` on top
-// without dismissing this sheet underneath. PageHeader owns the sheet's
-// top/left/right padding now; the body wrapper below only carries the remaining
-// bottom padding + inter-section gap.
+// `stopPropagation` div since the sheet root's own `onClick={onClose}` would
+// otherwise also fire on every header button tap — harmless for Close (already
+// idempotent) but wrong for Notif, which should open `NotifSheet` on top without
+// dismissing this sheet underneath. PageHeader owns the sheet's top/left/right
+// padding now; the body wrapper below only carries the remaining bottom padding +
+// inter-section gap.
 //
 // Notifications section (Figma 589:4570) — a single card surfacing whichever room
 // has unread messages and received one most recently (`notifRoom` below), shown
@@ -91,7 +86,7 @@ const PIN_LONG_PRESS_MS = 500
 // duplicated here), tap anywhere in the sheet OTHER than the scrollable row (the
 // row's own onClick stops propagation so a card tap doesn't also bubble into this),
 // or drag down anywhere in the sheet — a real, live-following pull via the same
-// `useSheetDrag` hook BottomSheet/SquadDetailsSheet's panel already share (see that
+// `useSheetDrag` hook `BottomSheet` itself uses (see that
 // hook's own doc comment for why it's a manual dragControls-driven gesture rather
 // than plain `drag="y"`: it's what lets a downward pull coexist with the row's
 // native horizontal scroll instead of one stealing the other). Releasing past its
@@ -134,20 +129,20 @@ const PIN_LONG_PRESS_MS = 500
 //
 // Below the Squads row (Figma 599:3931's `601:3901` "group card details" + `601:3919`
 // member row): the full detail card + member row for whichever room this sheet was
-// opened FROM (`currentRoomId`) — the exact same `SquadDetailCard`/`SquadMemberRow`
-// components `SquadDetailsSheet` renders (see that file's own doc comment; extracted
-// there rather than re-inlined here a third time). This only covers the current room
-// — `RoomMeta` (what every OTHER room card in the Squads row above is built from)
-// doesn't carry invite codes, per-member class/msg-count/vinyl, or a real XP fraction,
-// and fetching all of that for every room in the list just to render one static card
-// would be wasteful; ChatInput already computes it all for its own current room to
-// feed `SquadDetailsSheet`, so it's threaded down as the `squadDetail` prop instead of
-// refetched here. `null` on the DM screen, which has no invite/member-row concept.
-// Because this section makes the body reliably taller than the available viewport
-// (unlike before, when Notifications' own `flex: 1 0 0` grow made everything fit), the
-// body wrapper below is now `overflow-y-auto` — still one level below the sheet root,
-// same shape `SquadDetailsSheet`'s own scrollable body uses, so `useSheetDrag`'s
-// ancestor walk still finds it and gates the pull-to-close drag on `scrollTop <= 0`.
+// opened FROM (`currentRoomId`) — the shared `SquadDetailCard`/`SquadMemberRow`
+// components (see `SquadDetailCard.tsx`'s own doc comment) rather than inlined here.
+// This only covers the current room — `RoomMeta` (what every OTHER room card in the
+// Squads row above is built from) doesn't carry invite codes, per-member
+// class/msg-count/vinyl, or a real XP fraction, and fetching all of that for every
+// room in the list just to render one static card would be wasteful; ChatInput
+// already computes it all for its own current room, so it's threaded down as the
+// `squadDetail` prop instead of refetched here. `null` on the DM screen, which has
+// no invite/member-row concept. Because this section makes the body reliably taller
+// than the available viewport (unlike before, when Notifications' own `flex: 1 0 0`
+// grow made everything fit), the body wrapper below is now `overflow-y-auto` — still
+// one level below the sheet root, the same nested-scrollable-region shape
+// `useSheetDrag`'s ancestor walk needs (see that hook's own doc comment), so it
+// still gates the pull-to-close drag on `scrollTop <= 0`.
 const CARD_WIDTH  = 180
 const CARD_GAP    = 16
 const CARD_STEP   = CARD_WIDTH + CARD_GAP
@@ -167,8 +162,7 @@ function itemId(item: BrowseItem): string {
 }
 
 // The current room's own detail card + member row data — see this file's top doc
-// comment for why this is threaded down rather than derived from RoomMeta. Mirrors
-// the fields SquadDetailsSheet's own props already carry for the same room.
+// comment for why this is threaded down rather than derived from RoomMeta.
 export interface SquadDetailInfo {
   crewName:                string
   crewImageUrl:            string | null
@@ -183,8 +177,8 @@ export interface SquadDetailInfo {
   loadingCounts:           boolean
   memberPinnedVinyls?:     Record<string, { imageUrl: string | null; title: string | null }>
   onTapMember:             (memberId: string) => void
-  /** Figma 603:3511 "leave squad" — omitted (button hidden) if the caller has no
-   *  leave flow to offer, same optionality as SquadDetailsSheet's own `onLeave`. */
+  /** Figma 603:3511 "leave squad" — optional; omitted (button hidden) if the caller
+   *  has no leave flow to offer. */
   onLeave?:                () => void
 }
 
@@ -214,8 +208,7 @@ export function ChatRoomBrowseSheet({
   squadDetail:   SquadDetailInfo | null
   /** Compared against `squadDetail.creatorId` to gate the header's MagicEdit icon. */
   currentUserId: string
-  /** Drives the header's Bell/BellOff icon — same `allMuted` ChatInput already
-   *  computes for SquadDetailsSheet's identical action row. */
+  /** Drives the header's Bell/BellOff icon. */
   allMuted:      boolean
   onSelectRoom:  (id: string) => void
   onCreateSquad: () => void
@@ -392,7 +385,7 @@ export function ChatRoomBrowseSheet({
           exit={{ opacity: 0, transition: { duration: 0.2, ease: 'easeInOut' } }}
           {...dragProps}
           // Override useSheetDrag's own bottom elasticity (1 = follows the finger 1:1,
-          // what BottomSheet/SquadDetailsSheet's panel both want) down to 0 — this sheet
+          // what BottomSheet's panel wants) down to 0 — this sheet
           // shouldn't visually translate while being pulled at all, just stay put and let
           // the release-triggered `exit` fade (above) be the only close animation. The
           // gesture's own offset/velocity close-thresholds (onDragEnd, inside dragProps)
@@ -542,8 +535,8 @@ export function ChatRoomBrowseSheet({
                   <ScrollEqualizerBars items={equalizerItems} currentRoomId={currentRoomId} focusedItemId={focusedItemId} />
                 </div>
 
-                {/* Same horizontally-scrollable-row pattern SquadDetailsSheet's member card
-                    row already uses (overflow-x-auto no-scrollbar) — not a new one-off.
+                {/* Same horizontally-scrollable-row pattern this sheet's own member card
+                    row (SquadMemberRow, below) already uses (overflow-x-auto no-scrollbar) — not a new one-off.
                     The row bleeds full-bleed past the scroll container's own `--space-5`
                     padding so the gutter is part of the scrollable content instead of static
                     ancestor padding — otherwise the auto-snap-to-current-room effect below
@@ -680,12 +673,11 @@ export function ChatRoomBrowseSheet({
                   onTapMember={squadDetail.onTapMember}
                 />
 
-                {/* Figma 603:3511 "leave squad" — same outlined-red Button + stopPropagation
-                    wrapper as SquadDetailsSheet's own Leave Squad (see that component's
-                    doc comment); not part of the earlier 599:3931 crop this section's
-                    other pieces came from, but needed here for the same reason it's
-                    needed there — this sheet is a way into squad context with no other
-                    exit for it. */}
+                {/* Figma 603:3511 "leave squad" — outlined-red Button, wrapped in its own
+                    stopPropagation so the tap doesn't also close the sheet via the
+                    backdrop's own onClick; not part of the earlier 599:3931 crop this
+                    section's other pieces came from, but needed here since this sheet is
+                    a way into squad context with no other exit for it. */}
                 {squadDetail.onLeave && (
                   <div className="w-full flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                     <Button variant="outlined" color="red" onClick={squadDetail.onLeave} className="w-full">

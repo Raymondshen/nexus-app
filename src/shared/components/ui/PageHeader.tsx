@@ -18,18 +18,17 @@ interface PageHeaderProps {
   right?:  ReactNode
   // Optional decorative leading glyph before the title — 'sheet' variant only
   // (Figma 599:7818's small ChevronRight before the crew name). Not a button;
-  // purely visual, so callers that don't pass one (SquadDetailsSheet) keep
-  // rendering exactly as before. ChatRoomBrowseSheet passes it only when the
-  // header is showing squad context (title = crew name), not for its DM-screen
-  // "Updates" fallback title.
+  // purely visual, so callers that don't pass one (e.g. ChatRoomBrowseSheet's own
+  // DM-screen "Updates" fallback title, below) keep rendering exactly as before.
+  // ChatRoomBrowseSheet passes it only when the header is showing squad context
+  // (title = crew name).
   icon?:   ReactNode
   // 'default' (Figma 340:3665) — ChevronLeft back button + uppercase Silkscreen
   // title, used by every standard subpage.
   // 'sheet' (Figma 599:7818) — no back button; bold (non-uppercase) DM Sans
   // title in --color-secondary instead of Silkscreen/--color-primary. For
   // overlay-style sheets that dismiss via their own `right`-slot action (a
-  // close X, or a row of icons) rather than a back chevron — ChatRoomBrowseSheet,
-  // SquadDetailsSheet.
+  // close X, or a row of icons) rather than a back chevron — ChatRoomBrowseSheet.
   variant?: 'default' | 'sheet'
 }
 

@@ -11,10 +11,11 @@ import { UserCard, type MiniMember } from '@/shared/components/ui/UserCard'
 export type { MiniMember }
 
 // ─── SquadDetailCard + SquadMemberRow ──────────────────────────────────────────
-// Extracted from SquadDetailsSheet (Figma 596:8296 "group card details" / 596:8481
-// "member row") so ChatRoomBrowseSheet (Figma 599:3931) can reuse the exact same
-// hero+invite card and member-card row below its own Squads section instead of
-// re-inlining this markup a third time — see both call sites' own doc comments.
+// The hero+invite card and member-card row (Figma 596:8296 "group card details" /
+// 596:8481 "member row") rendered by ChatRoomBrowseSheet's Group Details section
+// (Figma 599:3931) — extracted into their own file rather than inlined into that
+// component, since these previously also backed the now-removed standalone
+// SquadDetailsSheet overlay.
 
 interface SquadDetailCardProps {
   crewName:                string

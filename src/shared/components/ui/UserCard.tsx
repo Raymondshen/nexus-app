@@ -33,7 +33,7 @@ const VINYL_PILL_HEIGHT = 20
 // looks like a real ticker's chrome, matching Figma 432:7827's full-height card (438:8058)
 // instead of collapsing like the shorter no-status card (432:8008). Height is pinned to
 // TICKER_HEIGHT_SMALL (the "x1" size variant this card uses — Figma 189:1785) rather than
-// left to emerge from padding/line-height — the member row (SquadDetailsSheet) stretches
+// left to emerge from padding/line-height — the member row (SquadMemberRow) stretches
 // every card to its tallest sibling (flex align-items:stretch), and since no child carries
 // flex-grow, even a sub-pixel mismatch between this and TickerBanner's real content height
 // collapses into visible blank space below the ticker on some platforms (observed on iOS
@@ -50,9 +50,10 @@ function BlankTickerSlot() {
   )
 }
 
-// Shared member card (Figma 356:3503 / 432:8008) — used by SquadDetailsSheet's Members
-// section and HomeClient's read-only squad details sheet (Figma 470:5082). Same card
-// exactly, just fed from different data-fetch paths per call site.
+// Shared member card (Figma 356:3503 / 432:8008) — used by ChatRoomBrowseSheet's Group
+// Details member row (SquadMemberRow) and HomeClient's read-only squad details sheet
+// (Figma 470:5082). Same card exactly, just fed from different data-fetch paths per
+// call site.
 export function UserCard({
   profile, msgCount, loading, isOnline, isCreator, vinyl, onTap,
 }: {

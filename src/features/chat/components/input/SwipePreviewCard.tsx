@@ -40,7 +40,7 @@ import { Message } from 'pixelarticons/react/Message'
 // whether or not it actually has avatars to show, so every card in the horizontally-
 // scrollable row renders at the same total height instead of the ones with no (or
 // hidden) online members collapsing shorter. Same "reserved slot beats letting
-// content collapse the row" pattern as SquadDetailsSheet's VINYL_PILL_HEIGHT/
+// content collapse the row" pattern as UserCard's VINYL_PILL_HEIGHT/
 // BlankTickerSlot (see that file's Figma 432:7827/432:8021 comment for the bug it
 // fixed there).
 const ONLINE_AVATARS_ROW_HEIGHT = 24

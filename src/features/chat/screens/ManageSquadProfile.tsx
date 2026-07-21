@@ -79,8 +79,8 @@ export function ManageSquadProfile({
   }
 
   // Left-edge swipe-to-dismiss, driven entirely by our own touch handling instead of
-  // the native OS back-swipe. This page opens by simultaneously closing SquadDetailsSheet
-  // (z-70) and mounting this page off-screen (x:100%) — the `pushState` above fires from
+  // the native OS back-swipe. This page opens by simultaneously closing ChatRoomBrowseSheet
+  // and mounting this page off-screen (x:100%) — the `pushState` above fires from
   // this component's OWN mount effect, i.e. while that cross-fade is still mid-flight. On
   // iOS, a native edge-swipe-back snapshots whatever's on screen at pushState time to use
   // as the "reveal" preview during the drag — which at that instant is still the sheet

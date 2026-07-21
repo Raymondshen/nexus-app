@@ -1291,9 +1291,10 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
 }
 
 // ─── Home Squad Details Sheet ─────────────────────────────────────────────────
-// Read-only mirror of SquadDetailsSheet (Figma 470:5082) — same header/invite/member-card
-// layout, minus the creator-only edit affordances and notif/library actions that belong
-// only to the in-chat version. Reuses UserCard + InviteCodeCard rather than re-inlining them.
+// Read-only mirror of ChatRoomBrowseSheet's Group Details section (Figma 470:5082) —
+// same header/invite/member-card layout, minus the creator-only edit affordances and
+// notif/library actions that belong only to the in-chat version. Reuses UserCard +
+// InviteCodeCard rather than re-inlining them.
 
 function HomeCrewDetailsSheet({
   summary,
@@ -1470,7 +1471,7 @@ function HomeCrewDetailsSheet({
         style={{ maxHeight: '85vh' }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* ── Group header — 240px, full-bleed (Figma 470:5082 / matches SquadDetailsSheet) ── */}
+        {/* ── Group header — 240px, full-bleed (Figma 470:5082 / matches ChatRoomBrowseSheet's Group Details) ── */}
         <div
           className="relative flex-shrink-0 flex flex-col justify-between rounded-tl-[16px] rounded-tr-[16px] overflow-hidden"
           style={{ height: 240, padding: 16 }}
@@ -1548,7 +1549,7 @@ function HomeCrewDetailsSheet({
         </div>
 
         {/* ── Members section (flex-1, vertical overflow only on short viewports —
-             matches SquadDetailsSheet's Members section exactly) ── */}
+             matches ChatRoomBrowseSheet's Group Details member row exactly) ── */}
         <div className="flex-1 min-h-0 flex flex-col overflow-y-auto nexus-scroll" style={{ padding: 16, gap: 16 }}>
           <p className="flex-shrink-0 font-silkscreen leading-none" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-primary)' }}>
             Members

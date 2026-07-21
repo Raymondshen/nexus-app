@@ -39,9 +39,10 @@ interface LinkPillProps {
 const TITLE_W = 32
 
 // Shared pill shell (Figma 105:533's "ButtonPill") for two unrelated use cases that
-// happen to share identical geometry: MessageBubble's header row + SquadDetailsSheet's
-// member cards (the pinned "vinyl" track), and the profile hero's social-link row
-// (Instagram/X/Reddit/LinkedIn/Custom Site). Only the icon + label content differ.
+// happen to share identical geometry: MessageBubble's header row + the squad member
+// row's cards (SquadMemberRow/UserCard, the pinned "vinyl" track), and the profile
+// hero's social-link row (Instagram/X/Reddit/LinkedIn/Custom Site). Only the icon +
+// label content differ.
 export function LinkPill({ type, imageUrl = null, title = null, href = null, label = null, stretch = false }: LinkPillProps) {
   const isVinyl = type === 'vinyl'
 

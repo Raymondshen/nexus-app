@@ -51,9 +51,6 @@ interface ChatStore {
   pinnedScrollTargetId:    string | null
   setPinnedScrollTargetId: (id: string | null) => void
 
-  squadDetailsOpen:        boolean
-  setSquadDetailsOpen:     (open: boolean) => void
-
   // Retry dispatcher for a failed outbox send — owned/registered by ChatInput (which
   // holds the closures needed to redo XP/broadcast side effects on success), invoked
   // by MessageBubble when the user taps a "failed — tap to retry" message.
@@ -93,7 +90,6 @@ export const useChatStore = create<ChatStore>((set) => ({
   editTo:                 null,
   friendshipXPByPair:     {},
   pinnedScrollTargetId:   null,
-  squadDetailsOpen:       false,
   requestRetrySend:       null,
   requestResync:          null,
   channelEpoch:           0,
@@ -182,7 +178,7 @@ export const useChatStore = create<ChatStore>((set) => ({
   // Bails out (returns {}) when the recomputed set is identical to the current
   // one — this runs on a 15s timer plus on every peer heartbeat broadcast, and
   // without the equality check it allocated a new Set (forcing every
-  // subscriber, e.g. SquadDetailsSheet's member sort, to re-render) even when
+  // subscriber, e.g. SquadMemberRow's member sort, to re-render) even when
   // nobody's online/offline status actually changed.
   sweepOnlineUserIds: (thresholdMs) =>
     set((s) => {
@@ -223,8 +219,6 @@ export const useChatStore = create<ChatStore>((set) => ({
     set((s) => ({ friendshipXPByPair: { ...s.friendshipXPByPair, [pairKey]: totalXP } })),
 
   setPinnedScrollTargetId: (id) => set({ pinnedScrollTargetId: id }),
-
-  setSquadDetailsOpen: (open) => set({ squadDetailsOpen: open }),
 
   setRequestRetrySend: (fn) => set({ requestRetrySend: fn }),
 

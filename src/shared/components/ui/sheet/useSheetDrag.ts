@@ -12,7 +12,7 @@ const CLOSE_VELOCITY = 400
 
 /**
  * Shared bottom-sheet pull-to-close gesture, used by both the standard `BottomSheet` and
- * the `SquadDetailsSheet` panel so the drag feels identical.
+ * `ChatRoomBrowseSheet`'s overlay so the drag feels identical.
  *
  * Framer's `drag` with the default listener stamps `touch-action: pan-x` on the sheet,
  * which kills native vertical scrolling of any inner list on touch devices. So this runs

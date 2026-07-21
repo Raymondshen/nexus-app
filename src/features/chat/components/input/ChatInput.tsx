@@ -40,15 +40,15 @@ import { leaveCrewAction } from '@/app/(app)/home/actions'
 import dynamic from 'next/dynamic'
 import { CrewImageUploadModal } from '@/features/chat/components/sheets/CrewImageUploadModal'
 import { CrewBackgroundUploadModal } from '@/features/chat/components/sheets/CrewBackgroundUploadModal'
-import { SquadDetailsSheet, type MiniMember } from '@/features/chat/components/sheets/SquadDetailsSheet'
+import { type MiniMember } from '@/features/chat/components/sheets/SquadDetailCard'
 import { ManageSquadProfile } from '@/features/chat/screens/ManageSquadProfile'
 import { NotifSheet, type NotifPrefs } from '@/features/chat/components/sheets/NotifSheet'
 import { AddMediaSheet } from '@/features/chat/components/input/AddMediaSheet'
 
 // Rarely-opened sheets, all conditionally rendered below — code-split so their
 // weight (Klipy picker UI, event creation + crop flow, poll creator) stays out of
-// the eager chat bundle and is fetched on first open. SquadDetailsSheet and
-// NotifSheet stay static: they're a core, frequently-used part of the screen.
+// the eager chat bundle and is fetched on first open. NotifSheet stays static:
+// it's a core, frequently-used part of the screen.
 const GifPickerSheet = dynamic(
   () => import('@/features/chat/components/input/GifPickerSheet').then((m) => m.GifPickerSheet),
   { ssr: false },
@@ -80,7 +80,8 @@ type SlashCommandName = typeof SLASH_COMMANDS[number]['name']
 
 // background_url is optional here (not a plain Pick field) because the DM page's
 // own MemberProfile — passed through unchanged as this same prop shape — never
-// fetches it (SquadDetailsSheet, the only consumer, is skipped for DMs).
+// fetches it (the squad member row is the only consumer, and ChatRoomBrowseSheet's
+// squadDetail — which feeds it — is always null on the DM screen).
 export type MemberProfile = Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url' | 'status'> & { background_url?: string | null }
 
 interface PendingImage {
@@ -221,7 +222,6 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, memberP
   const [fxpEnabled,       setFxpEnabled]        = useState(false)
   const [showSwipeHint,   setShowSwipeHint]   = useState(false)
   const [gemToastVisible,   setGemToastVisible]   = useState(false)
-  const [isExpanded,     setIsExpanded]     = useState(false)
   const [showNotifSheet,  setShowNotifSheet]  = useState(false)
   const [showManageSquad, setShowManageSquad] = useState(false)
   const [notifPrefs,      setNotifPrefs]      = useState<NotifPrefs>({ messages: true, mentions: true, replies: true })
@@ -323,8 +323,6 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   const setReplyTo        = useChatStore((s) => s.setReplyTo)
   const editTo            = useChatStore((s) => s.editTo)
   const setEditTo         = useChatStore((s) => s.setEditTo)
-  const squadDetailsOpen  = useChatStore((s) => s.squadDetailsOpen)
-  const setSquadDetailsOpen = useChatStore((s) => s.setSquadDetailsOpen)
   const channelEpoch      = useChatStore((s) => s.channelEpoch)
 
   const liveCrewName = storeCrewName || crewName
@@ -343,7 +341,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   // memberProfiles is a stable server-provided prop and kickedIds only changes on an
   // actual kick, so memoizing here keeps this array/its identity stable across the
   // component's frequent unrelated re-renders (realtime messages, XP, typing state) —
-  // which lets consumers like SquadDetailsSheet's sortedMembers memoization actually
+  // which lets consumers like SquadMemberRow's sortedMembers memoization actually
   // skip work instead of recomputing every time because `members` looked "new".
   const members     = useMemo(
     () => Object.values(memberProfiles).filter(m => !kickedIds.has(m.id)),
@@ -502,20 +500,13 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     return () => clearInterval(interval)
   }, [crewId, userId]) // eslint-disable-line
 
+  // Member message counts are only ever displayed inside ChatRoomBrowseSheet's own
+  // squad-detail section, so defer the RPC until it's actually opened rather than
+  // fetching on every chat mount. Refetches on every open (not cached per crew) so
+  // the total stays active — messages sent since last open must be reflected,
+  // matching HomeCrewDetailsSheet's fetch-on-mount behavior.
   useEffect(() => {
-    if (!squadDetailsOpen) return
-    setIsExpanded(true)
-    setSquadDetailsOpen(false)
-  }, [squadDetailsOpen]) // eslint-disable-line
-
-  // Member message counts are only ever displayed inside SquadDetailsSheet and
-  // ChatRoomBrowseSheet's own squad-detail section, so defer the RPC until one of
-  // those is actually opened rather than fetching on every chat mount. Refetches on
-  // every open (not cached per crew) so the total stays active — messages sent since
-  // last open must be reflected, matching HomeCrewDetailsSheet's fetch-on-mount
-  // behavior.
-  useEffect(() => {
-    if (!isExpanded && !showRoomBrowser) return
+    if (!showRoomBrowser) return
     let cancelled = false
     setLoadingCounts(true)
     createClient()
@@ -526,9 +517,9 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
         setLoadingCounts(false)
       })
     return () => { cancelled = true }
-  }, [isExpanded, showRoomBrowser, crewId]) // eslint-disable-line
+  }, [showRoomBrowser, crewId]) // eslint-disable-line
 
-  // Per-crew notification preferences — powers the Bell/BellOff icon in SquadDetailsSheet
+  // Per-crew notification preferences — powers the Bell/BellOff icon in ChatRoomBrowseSheet
   useEffect(() => {
     if (isDM) return
     let cancelled = false
@@ -691,10 +682,11 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   // ChatRoomBrowseSheet — decided at release (see
   // handleTopPanEnd), same target the swipe hint's `verticalSwipeTick`-driven icon
   // pulse on ChatSquadDetailBar advertises. (Down does nothing at release, same as
-  // before.) A horizontal drag no longer opens anything — ChatRoomBrowseSheet used
-  // to be reachable that way too, but that gesture was removed once swipe-up started
-  // opening the same sheet; SquadDetailsSheet stays reachable only via a plain tap on
-  // ChatSquadDetailBar (its own `onClick`), no longer via any swipe.
+  // before.) A horizontal drag no longer opens anything — it used to be reachable
+  // that way too, but that gesture was removed once swipe-up started opening the
+  // same sheet. A plain tap on ChatSquadDetailBar (its own `onClick`) opens the
+  // exact same sheet — see that call site's own doc comment — so swipe-up and tap
+  // are two gestures onto one destination, not two different overlays.
   // handleTopPan itself only locks which axis the gesture is, once per gesture the
   // first time it crosses PAN_DIRECTION_LOCK_PX (an otherwise-unrelated small
   // jitter, or a tap, can't cross that threshold by coincidence) — this is still
@@ -1594,8 +1586,8 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     void performLeaveSquad(target)
   }
 
-  // The current room's own Leave Squad (SquadDetailsSheet, ChatRoomBrowseSheet's
-  // Group Details section) — unchanged call shape for those existing call sites.
+  // The current room's own Leave Squad (ChatRoomBrowseSheet's Group Details
+  // section) — unchanged call shape for that existing call site.
   function handleLeaveSquadTapped() {
     requestLeaveSquad({ id: crewId, name: liveCrewName, memberCount })
   }
@@ -1620,7 +1612,6 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     setLeaveTarget(null)
     if (target.id === crewId) {
       // The room this ChatInput is actually mounted for — nothing left to show here.
-      setIsExpanded(false)
       setShowRoomBrowser(false)
       router.push('/home')
     } else {
@@ -1705,10 +1696,9 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     .map((id) => (roomPeekMeta[id] ? { id, ...roomPeekMeta[id] } : null))
     .filter((room): room is { id: string } & RoomMeta => room !== null)
 
-  // Feeds ChatRoomBrowseSheet's own squad-detail section (Figma 599:3931) — the exact
-  // same data already computed here for SquadDetailsSheet below, just reused. null for
-  // DMs, which don't have an invite/member-row concept (SquadDetailsSheet itself is
-  // skipped entirely for DMs too, see its own call site).
+  // Feeds ChatRoomBrowseSheet's own squad-detail section (Figma 599:3931). null for
+  // DMs, which don't have an invite/member-row concept — that section is skipped
+  // entirely when this is null, see ChatRoomBrowseSheet's own call site.
   const squadDetail: SquadDetailInfo | null = isDM ? null : {
     crewName:               liveCrewName,
     crewImageUrl,
@@ -1844,28 +1834,25 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
           </p>
         )}
 
-        {/* ── ChatSquadDetailBar — tap (or the chevron) to expand ── */}
+        {/* ── ChatSquadDetailBar — tap anywhere on the bar to toggle ChatRoomBrowseSheet ── */}
         {!isDM && (
           <ChatSquadDetailBar
             crewImageUrl={barOverride ? barOverride.imageUrl : crewImageUrl}
             crewName={barOverride ? barOverride.name : liveCrewName}
             members={barOverride ? EMPTY_MEMBERS : members}
             onlineUserIds={barOverride ? EMPTY_ONLINE_IDS : onlineUserIds}
-            onExpand={() => {
-              // While ChatRoomBrowseSheet is open, a tap on the bar dismisses it
-              // instead of also opening SquadDetailsSheet — matching every other
-              // "tap outside the row" dismissal (see that component's own doc
-              // comment), not stacking two overlay transitions on one tap.
-              if (showRoomBrowser) { setShowRoomBrowser(false); return }
-              setIsExpanded(true)
-            }}
+            // Toggles ChatRoomBrowseSheet — same destination the swipe-up gesture opens
+            // (see handleTopPan's own doc comment). A tap while it's already open closes
+            // it, matching every other "tap outside the row" dismissal instead of
+            // stacking a second open on top.
+            onTap={() => setShowRoomBrowser((prev) => !prev)}
             verticalSwipeTick={verticalSwipeTick}
           />
         )}
 
-        {/* ── Status indicators + input — stays visible under SquadDetailsSheet,
-            same as it already does under ChatRoomBrowseSheet (both overlays stop
-            at `bottom: chatInputHeight`, leaving this box on-screen below them). ── */}
+        {/* ── Status indicators + input — stays visible under ChatRoomBrowseSheet
+            (both it and the composer stop at `bottom: chatInputHeight`, leaving this
+            box on-screen below the overlay). ── */}
         <div>
           {sendError && (
             <button className="w-full font-pixel text-[7px] text-[#ff4444] mb-2 text-left" onClick={send}>
@@ -2256,44 +2243,6 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
         )}
       </AnimatePresence>
 
-      {/* ── Expanded member panel ── */}
-      <AnimatePresence>
-        {isExpanded && !isDM && (
-          <SquadDetailsSheet
-            crewName={liveCrewName}
-            memberCount={memberCount}
-            crewImageUrl={crewImageUrl}
-            members={squadSheetMembers}
-            onlineUserIds={onlineUserIds}
-            crewXP={crewXP}
-            crewLevel={crewLevel}
-            xpProgress={xpProgress}
-            totalMessages={totalMessages}
-            inviteCode={inviteCode}
-            creatorId={creatorId}
-            currentUserId={userId}
-            memberMsgCounts={memberMsgCounts}
-            loadingCounts={loadingCounts}
-            allMuted={allMuted}
-            memberPinnedVinyls={memberPinnedVinyls}
-            crewBackgroundImageUrl={crewBgUrl}
-            onEditSquad={() => { setIsExpanded(false); setShowManageSquad(true) }}
-            onTapMember={(memberId) => {
-              setIsExpanded(false)
-              sessionStorage.setItem('nexus_chat_from', 'chat')
-              router.push(`/chat/${crewId}/member/${memberId}`)
-            }}
-            onNotif={() => setShowNotifSheet(true)}
-            onLibrary={() => {
-              sessionStorage.setItem('nexus_chat_from', 'chat')
-              router.push(`/chat/${crewId}/definitions`)
-            }}
-            onLeave={handleLeaveSquadTapped}
-            onClose={() => setIsExpanded(false)}
-          />
-        )}
-      </AnimatePresence>
-
       {/* ── Manage Squad Profile page (creator edit — full-screen, replaces the old
           edit bottom sheet). Reuses the crew crop-upload modals + rename below, so
           the chat header's crew image/name/background preview updates live. ── */}
@@ -2318,7 +2267,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
               if (result?.error) { setCrewName(prev); return result }
               return result
             }}
-            onClose={() => { setShowManageSquad(false); setIsExpanded(false) }}
+            onClose={() => { setShowManageSquad(false); setShowRoomBrowser(false) }}
           />
         )}
       </AnimatePresence>

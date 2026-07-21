@@ -11,7 +11,9 @@ interface ChatSquadDetailBarProps {
   crewName:      string
   members:       MemberProfile[]
   onlineUserIds: Set<string>
-  onExpand:      () => void
+  /** Fires on any tap on the bar — the caller (ChatInput) owns the actual toggle
+   *  logic for whatever this opens/closes (ChatRoomBrowseSheet). */
+  onTap:         () => void
   // Bumped by ChatInput's handleTopPan the instant a pan gesture on chatInputContainer
   // locks to the vertical axis — each increment (0 is the "never fired" starting
   // value, never animated) replays the swipe-hint icon's pulse below. Bumps
@@ -81,7 +83,7 @@ export function SwipeHintIcon({ controls, loop = false }: { controls?: PulseCont
 
 export function ChatSquadDetailBar({
   crewImageUrl, crewName, members, onlineUserIds,
-  onExpand, verticalSwipeTick = 0,
+  onTap, verticalSwipeTick = 0,
 }: ChatSquadDetailBarProps) {
   const onlineMembers = members.filter((m) => onlineUserIds.has(m.id))
   const swipeHintControls = useAnimationControls()
@@ -96,7 +98,7 @@ export function ChatSquadDetailBar({
     <motion.div
       className="flex relative cursor-pointer items-center justify-between w-full"
       style={{ gap: 8 }}
-      onClick={onExpand}
+      onClick={onTap}
     >
       {/* Crew image + name/level — fixed 140px (Figma 599:4015 "groupHeader"), not
           flex-shrink-0-and-hope: a long crew name needs a real width to truncate
@@ -172,8 +174,8 @@ export function ChatSquadDetailBar({
       {/* "Swipe / view" label (two lines, Figma 599:4030 — literally "Swipe<br/>view",
           a compact stand-in for "swipe up to view [details]") + swipe-gesture hint
           icon (Figma 596:7302 "action btns") — purely decorative and NOT a
-          tap-to-expand target: stops propagation so a tap here doesn't also open
-          SquadDetailsSheet via the row's own onClick (same pattern as the
+          tap-to-expand target: stops propagation so a tap here doesn't also toggle
+          ChatRoomBrowseSheet via the row's own onClick (same pattern as the
           online-avatars row above). Icon pulses (translate + mute→purple→mute) in
           place when ChatInput's handleTopPan detects the swipe-up gesture; the
           label itself is static. A horizontal icon used to sit alongside this one
