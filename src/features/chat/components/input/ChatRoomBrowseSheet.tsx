@@ -407,11 +407,12 @@ export function ChatRoomBrowseSheet({
                 icon={<ChevronRight style={{ width: 16, height: 16, color: 'var(--color-secondary)' }} aria-hidden="true" />}
                 right={
                   <div className="flex items-center flex-shrink-0" style={{ gap: 16 }}>
-                    {/* MagicEdit/Bell/Library only make sense once the user has actually
+                    {/* MagicEdit/Library only make sense once the user has actually
                         scrolled to the Group Details page — faded out (and untappable,
                         `pointerEvents: 'none'`) while still on Notifications/Squads,
-                        fading in smoothly as `viewingGroupDetails` flips. Close is
-                        excluded — it stays visible/tappable on both pages. */}
+                        fading in smoothly as `viewingGroupDetails` flips. Bell and Close
+                        are excluded from that fade — they stay visible/tappable on both
+                        pages. Order: MagicEdit, Library, Bell, Close. */}
                     {currentUserId === squadDetail.creatorId && (
                       <button
                         onClick={onEditSquad}
@@ -431,25 +432,6 @@ export function ChatRoomBrowseSheet({
                       </button>
                     )}
                     <button
-                      onClick={onNotif}
-                      className="flex items-center justify-center"
-                      style={{
-                        width:         24,
-                        height:        24,
-                        color:         allMuted ? 'var(--color-muted)' : 'var(--color-primary)',
-                        opacity:       viewingGroupDetails ? 1 : 0,
-                        pointerEvents: viewingGroupDetails ? 'auto' : 'none',
-                        transition:    'opacity 200ms ease',
-                        willChange:    'opacity',
-                      }}
-                      aria-label={allMuted ? 'Notifications muted' : 'Notification settings'}
-                      aria-hidden={!viewingGroupDetails}
-                    >
-                      {allMuted
-                        ? <BellOff style={{ width: 24, height: 24 }} aria-hidden="true" />
-                        : <Bell style={{ width: 24, height: 24 }} aria-hidden="true" />}
-                    </button>
-                    <button
                       onClick={onLibrary}
                       className="flex items-center justify-center"
                       style={{
@@ -464,6 +446,17 @@ export function ChatRoomBrowseSheet({
                       aria-hidden={!viewingGroupDetails}
                     >
                       <Library style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={onNotif}
+                      className="flex-shrink-0 appearance-none flex items-center justify-center"
+                      style={{ width: 24, height: 24, color: allMuted ? 'var(--color-muted)' : 'var(--color-primary)' }}
+                      aria-label={allMuted ? 'Notifications muted' : 'Notification settings'}
+                    >
+                      {allMuted
+                        ? <BellOff style={{ width: 24, height: 24 }} aria-hidden="true" />
+                        : <Bell style={{ width: 24, height: 24 }} aria-hidden="true" />}
                     </button>
                     <button
                       type="button"
