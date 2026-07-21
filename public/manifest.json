@@ -2,6 +2,7 @@
   "name": "Nexus",
   "short_name": "Nexus",
   "description": "Your crew. Your war.",
+  "id": "/",
   "start_url": "/home",
   "display": "standalone",
   "orientation": "portrait",

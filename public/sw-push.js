@@ -203,12 +203,31 @@ self.addEventListener('push', (event) => {
     openClients.forEach(function(c) { c.postMessage({ type: 'nexus-push-received', ts: ts, title: title }) })
   })
 
+  // Self-heal: a push event proves this subscription is still genuinely alive at
+  // the browser/OS level, even if the app hasn't been opened in weeks — the one
+  // moment a dormant PWA still runs code. Re-confirm it to the server (refresh
+  // last_seen_at, re-sync keys if they drifted) via /api/push/heartbeat. Fires
+  // regardless of whether the banner below ends up suppressed — liveness doesn't
+  // depend on whether this particular message was shown.
+  var heartbeatPromise = self.registration.pushManager.getSubscription().then(function(sub) {
+    if (!sub) return
+    var json   = sub.toJSON()
+    var p256dh = json.keys && json.keys.p256dh
+    var subAuth = json.keys && json.keys.auth
+    if (!p256dh || !subAuth) return
+    return fetch('/api/push/heartbeat', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ endpoint: sub.endpoint, p256dh: p256dh, auth: subAuth }),
+    }).catch(function() {})
+  }).catch(function() {})
+
   // Suppress the OS banner (and badge bump) when the recipient currently has this
   // exact crew's chat open and foregrounded — they're already seeing the message
   // live, a push on top is redundant/annoying. Only message/mention/reply pushes
   // carry crew_id; friend_request/recruit_arrived are never suppressed this way.
   if (notifData && notifData.crew_id && notifData.crew_id === activeCrewId) {
-    event.waitUntil(Promise.all([logPromise, clientPromise]))
+    event.waitUntil(Promise.all([logPromise, clientPromise, heartbeatPromise]))
     return
   }
 
@@ -238,7 +257,7 @@ self.addEventListener('push', (event) => {
     })
   })
 
-  event.waitUntil(Promise.all([logPromise, clientPromise, showPromise]))
+  event.waitUntil(Promise.all([logPromise, clientPromise, showPromise, heartbeatPromise]))
 })
 
 // APNs device tokens rotate periodically on iOS. Persist the new endpoint to

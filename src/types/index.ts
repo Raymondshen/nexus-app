@@ -83,7 +83,7 @@ export type Database = {
       }
       push_subscriptions: {
         Row: PushSubscription
-        Insert: Omit<PushSubscription, 'id' | 'created_at'> & { id?: string; created_at?: string }
+        Insert: Omit<PushSubscription, 'id' | 'created_at' | 'last_seen_at'> & { id?: string; created_at?: string; last_seen_at?: string | null }
         Update: Partial<Omit<PushSubscription, 'id'>>
         Relationships: []
       }

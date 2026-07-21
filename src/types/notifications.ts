@@ -6,6 +6,7 @@ export interface PushSubscription extends Record<string, unknown> {
   p256dh: string
   auth: string
   created_at: string
+  last_seen_at: string | null
 }
 
 export interface NotificationPreferences extends Record<string, unknown> {
