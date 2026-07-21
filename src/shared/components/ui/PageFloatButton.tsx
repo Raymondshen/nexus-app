@@ -17,6 +17,9 @@ import type { AvatarClass } from '@/types'
 // rather than toLocaleDateString('en-US', { month: 'short' }) so the label stays the
 // same stylized format regardless of the device's own locale settings.
 const MONTH_ABBR = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
+// Same rationale as MONTH_ABBR — Figma 613:3750 prefixed the date with a 3-letter
+// day-of-week abbreviation ("TUE · JUN 20"). getDay() is Sunday-indexed (0 = Sun).
+const DAY_ABBR = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
 
 // Figma 613:3750's avatar sprite crop — the inner sprite renders at this fixed display size
 // before the 40×40 circular clip, regardless of the sprite sheet's own native pixel size, so
@@ -107,8 +110,11 @@ interface ChatFloatingNavProps {
 // stacked separately on the right):
 //   - Top row: a small 16×16 real-photo `UserAvatar` (Figma's own layer here was just a plain
 //     circle, auto-named "profile image" by Figma — rendering it as the user's actual profile
-//     photo, by explicit request, rather than a decorative dot) + username, right-aligned
-//     against the unread-count-or-date readout (same dual-state logic as before, just relocated).
+//     photo, by explicit request, rather than a decorative dot) + username (bold, `--md`),
+//     right-aligned against the unread-count-or-date readout — the date now includes a
+//     day-of-week abbreviation ("TUE · JUN 20", `DAY_ABBR`) in `--color-secondary`/semibold,
+//     up from a bare month+day in tertiary/medium (same dual-state logic as before, just
+//     relocated and restyled).
 //   - Bottom row: the gem/coin currency pills (unchanged), right-aligned against the plain class
 //     label text — the small 12×12 sprite icon that used to sit next to this label was dropped
 //     in this revision (Figma's own render has no icon there, just text).
@@ -149,13 +155,14 @@ export function ChatFloatingNav({
   const [showEventPreview, setShowEventPreview] = useState(false)
   const [devMode,          setDevMode]          = useState(false)
   const [eventsEnabled,    setEventsEnabled]    = useState(false)
-  // Today's date in the viewer's own local timezone, "OCT 20" (Figma 605:3619 — abbreviated
-  // month + day) — shown in place of the unread count when there's nothing new. Computed
-  // client-side in an effect (not during render) since the server's own clock/timezone can
-  // differ from the device's, which would otherwise make the SSR'd markup mismatch what the
-  // client hydrates to; null until the effect runs just means this line renders nothing for
-  // one frame rather than a wrong date. (Figma also shows a "· 80° F" temperature alongside
-  // this — intentionally left out for now, no weather API/geolocation exists in this project yet.)
+  // Today's date in the viewer's own local timezone, "TUE · JUN 20" (Figma 613:3750 —
+  // day-of-week + abbreviated month + day) — shown in place of the unread count when there's
+  // nothing new. Computed client-side in an effect (not during render) since the server's own
+  // clock/timezone can differ from the device's, which would otherwise make the SSR'd markup
+  // mismatch what the client hydrates to; null until the effect runs just means this line
+  // renders nothing for one frame rather than a wrong date. (Figma also shows a "· 80° F"
+  // temperature alongside this — intentionally left out for now, no weather API/geolocation
+  // exists in this project yet.)
   const [localDateLabel, setLocalDateLabel] = useState<string | null>(null)
 
   // History-stacking guard: without this, returning to /chat/[crewId] from a sub-page (or a
@@ -186,10 +193,11 @@ export function ChatFloatingNav({
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    const now = new Date()
+    const now   = new Date()
+    const day   = DAY_ABBR[now.getDay()]
     const month = MONTH_ABBR[now.getMonth()]
     const dd    = String(now.getDate()).padStart(2, '0')
-    setLocalDateLabel(`${month} ${dd}`)
+    setLocalDateLabel(`${day} · ${month} ${dd}`)
   }, [])
 
   return (
@@ -249,14 +257,15 @@ export function ChatFloatingNav({
                 <div className="flex items-center min-w-0" style={{ gap: 'var(--x3)' }}>
                   <UserAvatar avatarUrl={avatarUrl} username={username} size={16} bg="border" initialColor="primary" />
                   <span
-                    className="font-body font-semibold text-primary leading-none truncate text-left"
-                    style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}
+                    className="font-body font-bold text-primary leading-none truncate text-left"
+                    style={{ fontSize: 'var(--md)', fontVariationSettings: '"opsz" 14' }}
                   >
                     {username}
                   </span>
                 </div>
                 {/* Red "N New Message(s)" when there's something new; otherwise today's
-                    device-local date ("JUN 20", tertiary) in the same slot — never both. */}
+                    device-local date ("TUE · JUN 20", secondary/semibold) in the same slot —
+                    never both. */}
                 {totalUnreadMessages > 0 ? (
                   <p
                     className="font-body font-medium leading-none text-right whitespace-nowrap flex-shrink-0"
@@ -266,7 +275,7 @@ export function ChatFloatingNav({
                   </p>
                 ) : localDateLabel && (
                   <p
-                    className="font-body font-medium text-tertiary leading-none text-right whitespace-nowrap flex-shrink-0"
+                    className="font-body font-semibold text-secondary leading-none text-right whitespace-nowrap flex-shrink-0"
                     style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}
                   >
                     {localDateLabel}
