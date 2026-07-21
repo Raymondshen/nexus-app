@@ -97,8 +97,10 @@ export function SquadDetailCard({
   )
 }
 
-// Gap between member cards — also referenced by the trailing spacer's width calc below.
-const MEMBER_ROW_GAP = 8
+// Gap between member cards — matches the Squads list row's CARD_GAP (ChatRoomBrowseSheet)
+// so the two horizontally-scrollable card rows read as one consistent spacing rhythm.
+// Also referenced by the trailing spacer's width calc below.
+const MEMBER_ROW_GAP = 16
 
 interface SquadMemberRowProps {
   members:             MiniMember[]
