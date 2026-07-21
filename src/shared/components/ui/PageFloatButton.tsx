@@ -18,6 +18,12 @@ import type { AvatarClass } from '@/types'
 // same stylized format regardless of the device's own locale settings.
 const MONTH_ABBR = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
 
+// Figma 613:3750's avatar sprite crop — the inner sprite renders at this fixed display size
+// before the 40×40 circular clip, regardless of the sprite sheet's own native pixel size, so
+// every class's avatar reads at the same visual scale (see PixelSprite's own nativePx-varies
+// note for why a single fixed `scale` prop wouldn't do that).
+const AVATAR_SPRITE_DISPLAY_PX = 60
+
 interface PageFloatButtonProps {
   icon:       ReactNode
   onClick:    () => void
@@ -76,10 +82,11 @@ interface ChatFloatingNavProps {
 }
 
 // The chat room's floating top nav — composed of the profile-avatar+name+currency button
-// (Figma 577:5781 "squad-nav") plus a dev-gated PageFloatButton, and the chat-specific wiring
-// that used to live in its own FloatingBackButton component/file (navigation/). Merged here
-// by explicit instruction so there's a single source of button-related code instead of two,
-// at the cost of this shared/ui module now importing chat-only dependencies (useChatStore,
+// (Figma 613:3750 "chatNavbarTop" / "squad-nav", superseding the earlier 577:5781/603:3526
+// revisions) plus a dev-gated PageFloatButton, and the chat-specific wiring that used to live
+// in its own FloatingBackButton component/file (navigation/). Merged here by explicit
+// instruction so there's a single source of button-related code instead of two, at the cost of
+// this shared/ui module now importing chat-only dependencies (useChatStore,
 // EventSheetBottomPreview) that PageFloatButton's other consumers (ProfileClient,
 // AccountPageMember) never touch — those two are unaffected since they only import
 // PageFloatButton itself, not this export.
@@ -95,20 +102,37 @@ interface ChatFloatingNavProps {
 // path, so it's currently unreachable — left in place rather than deleted, same "kept but
 // orphaned" treatment as other dead-but-valid code noted in CLAUDE.md.
 //
-// Right side (Figma 603:3526, new revision) — the dev-gated Calendar2 button now shares its
-// flex-1/justify-end wrapper with a right-aligned "N New Messages" + class-sprite readout for
-// the CURRENT user: a red "{n} New Message(s)" row (hidden entirely when the total is 0 — this
-// is meant to draw attention, not read as a permanent "0 New Messages" fixture) above a 12×12
-// PixelSprite + class label, reusing the exact same sprite/scale/CLASS_LABELS pattern
-// UserCard's own member-class row already established rather than inventing a second one.
+// Figma 613:3750 restructures this into two explicit rows sharing one flex-1 text column next
+// to the avatar (was: avatar + stacked name/currency on the left, unread-or-date + sprite/class
+// stacked separately on the right):
+//   - Top row: a small 16×16 real-photo `UserAvatar` (Figma's own layer here was just a plain
+//     circle, auto-named "profile image" by Figma — rendering it as the user's actual profile
+//     photo, by explicit request, rather than a decorative dot) + username, right-aligned
+//     against the unread-count-or-date readout (same dual-state logic as before, just relocated).
+//   - Bottom row: the gem/coin currency pills (unchanged), right-aligned against the plain class
+//     label text — the small 12×12 sprite icon that used to sit next to this label was dropped
+//     in this revision (Figma's own render has no icon there, just text).
 // `avatarClass` is this user's crew_members.class for THIS crew (per-membership, not
 // profiles.avatar_class), and `initialTotalUnreadMessages` is a server-computed snapshot at
 // page load (same "initial" treatment as initialGemBalance/initialCoins) summed across every
 // non-DM crew this user belongs to — it doesn't live-update as messages land in OTHER rooms
 // while this one stays open, since that would need a cross-crew realtime subscription this
-// component doesn't otherwise carry. The profile block on the left is no longer flex-1 (Figma's
-// own layout gives the growth to the right side instead) — its text column still truncates via
-// its own min-w-0, just without consuming the row's remaining space anymore.
+// component doesn't otherwise carry.
+//
+// Avatar: Figma swaps the real profile photo for the user's own class sprite, animated (the
+// same walk-cycle `animate` prop the right-side sprite readout elsewhere in this file already
+// uses) rather than pinned to a single static direction, cropped circular via a 40×40
+// `overflow-hidden` frame around a larger centered sprite (`AVATAR_SPRITE_DISPLAY_PX`, matching
+// Figma's 60×60 inner crop regardless of the sprite sheet's native size, so every class reads at
+// the same visual scale). Falls back to the real-photo `UserAvatar` when this user's class has no
+// sprite mapping (`spriteInfoFor` returns null — e.g. an unmapped/legacy class); every class a
+// live crew-chat member can actually have does map to one, so this fallback is defensive rather
+// than expected to fire in practice.
+//
+// The Figma layer text for the class-label node ("Minnesota") doesn't match what Figma actually
+// renders there ("ROGUE" in the exported screenshot) — a stale/detached text-content field on
+// that node, not a new location feature. Verified against the rendered screenshot before trusting
+// it: this is the pre-existing class-label readout, just moved into the bottom row.
 export function ChatFloatingNav({
   crewId, currentUserId, avatarUrl, username, initialGemBalance, initialCoins,
   avatarClass, initialTotalUnreadMessages,
@@ -183,109 +207,117 @@ export function ChatFloatingNav({
       >
         {/* Nav row */}
         <div
-          className="flex items-center justify-between w-full pointer-events-none"
-          style={{ padding: 16 }}
+          className="flex items-center w-full pointer-events-none"
+          style={{ padding: 16, gap: 'var(--x3)' }}
         >
-          {/* Profile avatar + name + currency (Figma 577:5781 "squad-nav" navbar) — one
-              combined tap target opening the current user's own profile. min-w-0 so a long
-              username still truncates instead of overflowing; no longer flex-1 (Figma 603:3526
-              gives the row's remaining space to the right-side unread+class block instead). */}
+          {/* Avatar + two-row identity/currency column (Figma 613:3750 "navbar") — one combined
+              tap target opening the current user's own profile. flex-1/min-w-0 so long content
+              (username, unread text) truncates instead of overflowing or pushing the dev-gated
+              Calendar2 button (outside this button, below) off-screen. */}
           <button
             onClick={() => router.push('/profile')}
             aria-label="View your profile"
-            className="flex items-center min-w-0 appearance-none active:opacity-70 pointer-events-auto"
-            style={{ gap: 'var(--x5)' }}
+            className="flex flex-1 items-center min-w-0 appearance-none active:opacity-70 pointer-events-auto"
+            style={{ gap: 'var(--x3)' }}
           >
-            <UserAvatar
-              avatarUrl={avatarUrl}
-              username={username}
-              size={40}
-              bg="primary"
-              initialColor="black"
-              priority
-            />
-            <div className="flex flex-col min-w-0 items-start" style={{ gap: 'var(--x2)' }}>
-              <span
-                className="font-body font-bold text-primary leading-none truncate w-full text-left"
-                style={{ fontSize: 'var(--md)', fontVariationSettings: '"opsz" 14' }}
-              >
-                {username}
-              </span>
-              {/* Currency pills — same gem gradient-text/coin styling as HomeClient's
-                  profile-preview card (see that component); no tap-to-claim tooltip here,
-                  this is a display-only readout. */}
-              <div className="flex items-center" style={{ gap: 'var(--x3)' }}>
-                <div className="flex items-center" style={{ gap: 'var(--x2)' }}>
-                  <DiamondGem style={{ width: 12, height: 12, color: 'var(--color-purple)' }} aria-hidden="true" />
-                  <span
-                    className="font-silkscreen leading-none"
-                    style={{
-                      fontSize:              'var(--text-xxs)',
-                      background:            'linear-gradient(to right, var(--color-purple), #d946ef)',
-                      WebkitBackgroundClip:  'text',
-                      WebkitTextFillColor:   'transparent',
-                      backgroundClip:        'text',
-                    }}
-                  >
-                    {gemBalance}
-                  </span>
+            {/* Class-sprite avatar — see this component's own doc comment for the fixed-display-
+                size crop + real-photo fallback. */}
+            <div className="relative overflow-hidden rounded-full flex-shrink-0" style={{ width: 40, height: 40 }}>
+              {spriteInfo ? (
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+                  <PixelSprite
+                    spriteId={spriteInfo.id}
+                    nativePx={spriteInfo.nativePx}
+                    scale={AVATAR_SPRITE_DISPLAY_PX / spriteInfo.nativePx}
+                    animate
+                  />
                 </div>
-                <div className="w-[2px] h-[2px] bg-border-hover flex-shrink-0" aria-hidden="true" />
-                <div className="flex items-center" style={{ gap: 'var(--x2)' }}>
-                  <TokeCircle style={{ width: 12, height: 12, color: 'var(--color-coins)' }} aria-hidden="true" />
-                  <span className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-xxs)', color: 'var(--color-coins)' }}>
-                    {userCoins.toLocaleString()}
-                  </span>
-                </div>
-              </div>
+              ) : (
+                <UserAvatar
+                  avatarUrl={avatarUrl}
+                  username={username}
+                  size={40}
+                  bg="primary"
+                  initialColor="black"
+                  priority
+                />
+              )}
             </div>
-          </button>
-
-          {/* Right side — unread-message count (or, when there's nothing new, today's
-              local date) + this user's own class readout (Figma 603:3526), plus the
-              pre-existing dev-gated events button. flex-1/justify-end so this whole block
-              (not the profile button) absorbs the row's remaining space and right-aligns
-              its content. */}
-          <div className="flex flex-1 items-center justify-end pointer-events-auto" style={{ gap: 'var(--x5)' }}>
-            {(totalUnreadMessages > 0 || localDateLabel || spriteInfo) && (
-              <div className="flex flex-col items-end flex-shrink-0" style={{ gap: 'var(--x2)' }}>
+            <div className="flex flex-1 flex-col min-w-0 items-start" style={{ gap: 'var(--x2)' }}>
+              {/* Top row: small real-photo avatar + username ... unread-count-or-date. */}
+              <div className="flex items-center justify-between w-full">
+                <div className="flex items-center min-w-0" style={{ gap: 'var(--x3)' }}>
+                  <UserAvatar avatarUrl={avatarUrl} username={username} size={16} bg="border" initialColor="primary" />
+                  <span
+                    className="font-body font-semibold text-primary leading-none truncate text-left"
+                    style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}
+                  >
+                    {username}
+                  </span>
+                </div>
                 {/* Red "N New Message(s)" when there's something new; otherwise today's
-                    device-local date ("OCT 20", tertiary) in the same slot — never both. */}
+                    device-local date ("JUN 20", tertiary) in the same slot — never both. */}
                 {totalUnreadMessages > 0 ? (
                   <p
-                    className="font-body font-medium leading-none text-right whitespace-nowrap"
+                    className="font-body font-medium leading-none text-right whitespace-nowrap flex-shrink-0"
                     style={{ fontSize: 'var(--text-xs)', color: 'var(--red)', fontVariationSettings: '"opsz" 14' }}
                   >
                     {totalUnreadMessages} New Message{totalUnreadMessages === 1 ? '' : 's'}
                   </p>
                 ) : localDateLabel && (
                   <p
-                    className="font-body font-medium text-tertiary leading-none text-right whitespace-nowrap"
+                    className="font-body font-medium text-tertiary leading-none text-right whitespace-nowrap flex-shrink-0"
                     style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}
                   >
                     {localDateLabel}
                   </p>
                 )}
-                {spriteInfo && (
-                  <div className="flex items-center justify-end" style={{ gap: 8 }}>
-                    <div className="flex items-center justify-center overflow-hidden flex-shrink-0" style={{ width: 12, height: 12 }}>
-                      <PixelSprite spriteId={spriteInfo.id} nativePx={spriteInfo.nativePx} scale={0.5625} animate />
-                    </div>
-                    <span className="font-silkscreen leading-none text-tertiary whitespace-nowrap" style={{ fontSize: 'var(--text-mini)' }}>
-                      {classLabel}
+              </div>
+              {/* Bottom row: currency pills ... class label. Currency pills reuse the same gem
+                  gradient-text/coin styling as HomeClient's profile-preview card (see that
+                  component); no tap-to-claim tooltip here, this is a display-only readout. */}
+              <div className="flex items-center justify-between w-full">
+                <div className="flex items-center" style={{ gap: 'var(--x3)' }}>
+                  <div className="flex items-center" style={{ gap: 'var(--x2)' }}>
+                    <DiamondGem style={{ width: 12, height: 12, color: 'var(--color-purple)' }} aria-hidden="true" />
+                    <span
+                      className="font-silkscreen leading-none"
+                      style={{
+                        fontSize:              'var(--text-xxs)',
+                        background:            'linear-gradient(to right, var(--color-purple), #d946ef)',
+                        WebkitBackgroundClip:  'text',
+                        WebkitTextFillColor:   'transparent',
+                        backgroundClip:        'text',
+                      }}
+                    >
+                      {gemBalance}
                     </span>
                   </div>
+                  <div className="w-[2px] h-[2px] bg-border-hover flex-shrink-0" aria-hidden="true" />
+                  <div className="flex items-center" style={{ gap: 'var(--x2)' }}>
+                    <TokeCircle style={{ width: 12, height: 12, color: 'var(--color-coins)' }} aria-hidden="true" />
+                    <span className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-xxs)', color: 'var(--color-coins)' }}>
+                      {userCoins.toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+                {classLabel && (
+                  <span className="font-silkscreen leading-none text-tertiary whitespace-nowrap flex-shrink-0" style={{ fontSize: 'var(--text-mini)' }}>
+                    {classLabel}
+                  </span>
                 )}
               </div>
-            )}
-            {devMode && eventsEnabled && (
-              <PageFloatButton
-                onClick={() => setShowEventPreview(true)}
-                ariaLabel="Group events"
-                icon={<Calendar2 style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />}
-              />
-            )}
-          </div>
+            </div>
+          </button>
+
+          {devMode && eventsEnabled && (
+            <PageFloatButton
+              onClick={() => setShowEventPreview(true)}
+              ariaLabel="Group events"
+              icon={<Calendar2 style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />}
+              className="pointer-events-auto flex-shrink-0"
+            />
+          )}
         </div>
       </div>
 
