@@ -156,10 +156,8 @@ const EMPTY_ONLINE_IDS = new Set<string>()
 // the "Swipe up to view notification and squad details" banner (Figma 605:3639,
 // redesigned from the older 589:5938/596:7443 two-hint layout — copy + styling
 // updated to match) for this device from then on, same one-shot-hint convention as
-// nexus_first_message/nexus_crew_created (see CLAUDE.md's Storage Keys). Scoped to
-// nexus_chat_swipe_nav — the feature itself is dev-gated, so the banner only ever
-// renders for a session that already has it enabled, and only for first-time/
-// not-yet-triggered users (see dismissSwipeHint).
+// nexus_first_message/nexus_crew_created (see CLAUDE.md's Storage Keys). Only
+// renders for first-time/not-yet-triggered users (see dismissSwipeHint).
 //
 // `_v2` suffix: this key is intentionally a NEW name, not the pre-redesign one — by
 // request, the redesigned banner needed to show again for every device that had
@@ -221,7 +219,6 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, memberP
   const [pollEnabled,      setPollEnabled]       = useState(false)
   const [eventsEnabled,    setEventsEnabled]     = useState(false)
   const [fxpEnabled,       setFxpEnabled]        = useState(false)
-  const [chatSwipeNavEnabled, setChatSwipeNavEnabled] = useState(false)
   const [showSwipeHint,   setShowSwipeHint]   = useState(false)
   const [gemToastVisible,   setGemToastVisible]   = useState(false)
   const [isExpanded,     setIsExpanded]     = useState(false)
@@ -444,21 +441,17 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     setFxpEnabled(localStorage.getItem('nexus_friendship_xp') === '1')
     setPollEnabled(localStorage.getItem('nexus_poll_feature') === '1')
     setEventsEnabled(localStorage.getItem('nexus_events_enabled') === '1')
-    setChatSwipeNavEnabled(localStorage.getItem('nexus_chat_swipe_nav') === '1')
     setShowSwipeHint(localStorage.getItem(CHAT_SWIPE_HINT_SEEN_KEY) !== '1')
     function onFxpChange(e: Event)    { setFxpEnabled((e as CustomEvent<{ on: boolean }>).detail.on) }
     function onPollChange(e: Event)   { setPollEnabled((e as CustomEvent<{ on: boolean }>).detail.on) }
     function onEventsChange(e: Event) { setEventsEnabled((e as CustomEvent<{ on: boolean }>).detail.on) }
-    function onChatSwipeNavChange(e: Event) { setChatSwipeNavEnabled((e as CustomEvent<{ on: boolean }>).detail.on) }
     window.addEventListener('nexus-friendship-xp-change', onFxpChange)
     window.addEventListener('nexus-poll-feature-change', onPollChange)
     window.addEventListener('nexus-events-feature-change', onEventsChange)
-    window.addEventListener('nexus-chat-swipe-nav-change', onChatSwipeNavChange)
     return () => {
       window.removeEventListener('nexus-friendship-xp-change', onFxpChange)
       window.removeEventListener('nexus-poll-feature-change', onPollChange)
       window.removeEventListener('nexus-events-feature-change', onEventsChange)
-      window.removeEventListener('nexus-chat-swipe-nav-change', onChatSwipeNavChange)
     }
   }, [])
 
@@ -694,8 +687,8 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
 
   // ────────────────────────────────────────────────────────────────────────────
 
-  // Dev-gated (nexus_chat_swipe_nav): a vertical, up-only pan gesture anywhere on
-  // chatInputContainer opens ChatRoomBrowseSheet — decided at release (see
+  // A vertical, up-only pan gesture anywhere on chatInputContainer opens
+  // ChatRoomBrowseSheet — decided at release (see
   // handleTopPanEnd), same target the swipe hint's `verticalSwipeTick`-driven icon
   // pulse on ChatSquadDetailBar advertises. (Down does nothing at release, same as
   // before.) A horizontal drag no longer opens anything — ChatRoomBrowseSheet used
@@ -713,7 +706,6 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   }
 
   function handleTopPan(_: PointerEvent, info: PanInfo) {
-    if (!chatSwipeNavEnabled) return
     if (panDirectionRef.current !== null) return
     if (Math.abs(info.offset.x) < PAN_DIRECTION_LOCK_PX && Math.abs(info.offset.y) < PAN_DIRECTION_LOCK_PX) return
     panDirectionRef.current = Math.abs(info.offset.x) > Math.abs(info.offset.y) ? 'horizontal' : 'vertical'
@@ -734,7 +726,6 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
 
   function handleTopPanEnd(_: PointerEvent, info: PanInfo) {
     panDirectionRef.current = null
-    if (!chatSwipeNavEnabled) return
     const isVertical = Math.abs(info.offset.y) > Math.abs(info.offset.x)
     if (!isVertical) return
     if (info.offset.y < -50 || info.velocity.y < -300) {
@@ -1761,14 +1752,13 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
           swipe-up/SquadDetailsSheet + swipe-left-or-right/ChatRoomBrowseSheet; the
           horizontal gesture was removed once swipe-up itself started opening
           ChatRoomBrowseSheet, so only one hint remains, now with updated copy and a
-          dashed top divider), dev-gated the same as the gesture itself
-          (nexus_chat_swipe_nav) and hidden when there's nothing to switch to.
-          Permanently dismissed the first time the gesture actually fires — see
+          dashed top divider), hidden when there's nothing to switch to. Permanently
+          dismissed the first time the gesture actually fires — see
           CHAT_SWIPE_HINT_SEEN_KEY / dismissSwipeHint. Reuses SwipeHintIcon with
           `loop` (its own continuous horizontal-bounce motion spec, Figma 605:3642 —
           distinct from the tick-triggered pulse ChatSquadDetailBar's persistent
           indicator uses). */}
-      {chatSwipeNavEnabled && showSwipeHint && chatRoomOrder.length > 1 && (
+      {showSwipeHint && chatRoomOrder.length > 1 && (
         <div
           className="flex items-center justify-center w-full"
           style={{ gap: 8, padding: 'var(--x3) var(--x5)', borderTop: '1px dashed var(--color-border)' }}

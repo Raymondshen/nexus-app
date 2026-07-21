@@ -14,11 +14,9 @@ interface ChatSquadDetailBarProps {
   onExpand:      () => void
   // Bumped by ChatInput's handleTopPan the instant a pan gesture on chatInputContainer
   // locks to the vertical axis — each increment (0 is the "never fired" starting
-  // value, never animated) replays the swipe-hint icon's pulse below. Only ever
-  // increments while the dev-gated swipe gesture is enabled (see ChatInput's
-  // chatSwipeNavEnabled) — for everyone else it stays 0 and the icon just sits at
-  // rest. Bumps regardless of up/down, since down is a no-op at release but still
-  // worth the pulse feedback (see handleTopPan).
+  // value, never animated) replays the swipe-hint icon's pulse below. Bumps
+  // regardless of up/down, since down is a no-op at release but still worth the
+  // pulse feedback (see handleTopPan).
   verticalSwipeTick?: number
 }
 
