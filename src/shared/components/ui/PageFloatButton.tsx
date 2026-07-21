@@ -302,7 +302,7 @@ export function ChatFloatingNav({
                   </div>
                 </div>
                 {classLabel && (
-                  <span className="font-silkscreen leading-none text-tertiary whitespace-nowrap flex-shrink-0" style={{ fontSize: 'var(--text-mini)' }}>
+                  <span className="font-silkscreen leading-none text-tertiary whitespace-nowrap flex-shrink-0" style={{ fontSize: 'var(--text-xxs)' }}>
                     {classLabel}
                   </span>
                 )}
