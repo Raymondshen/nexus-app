@@ -120,7 +120,7 @@ export function SquadDetailsSheet({
         marginRight: 'auto',
       }}
       initial={{ opacity: 0 }}
-      animate={{ opacity: 1, transition: { duration: 0.12 } }}
+      animate={{ opacity: 1, transition: { duration: 0.2, ease: 'easeInOut' } }}
       exit={{ opacity: 0, transition: { duration: 0.2, ease: 'easeInOut' } }}
       {...dragProps}
       // Same override as ChatRoomBrowseSheet — the content shouldn't visually

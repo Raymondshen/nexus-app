@@ -36,15 +36,20 @@ const PIN_LONG_PRESS_MS = 500
 // no "back" concept — it's mounted directly by ChatInput, same as
 // SquadDetailsSheet. When `squadDetail` is present (non-DM), title = the current
 // room's crew name with a decorative leading `ChevronRight` (`icon` prop, Figma
-// 599:7818's small chevron before "SQUAD SH*T") and `right` = the exact same
-// action-icon row as SquadDetailsSheet's own header — `MagicEdit` (creator-only),
-// `Bell`/`BellOff`, `Library`, then `Close` — so squad actions stay reachable
-// without leaving this sheet. MagicEdit/Bell/Library fade out (opacity 0,
-// `pointerEvents: none`) while `viewingGroupDetails` is false — i.e. while still on
-// the Notifications+Squads page below — and fade smoothly back in once the user
-// scrolls/snaps to Group Details, since those actions only make sense once squad
-// context (the crew name in the title, the invite card, etc.) is actually on
-// screen. Close is excluded from the fade — it stays reachable on both pages.
+// 599:7818's small chevron before "SQUAD SH*T") and `right` = an action-icon row —
+// `MagicEdit` (creator-only), `Library`, `Bell`/`BellOff`, then `Close` — so squad
+// actions stay reachable without leaving this sheet. This order (and Bell's
+// persistence, below) has since diverged from SquadDetailsSheet's own header,
+// which keeps `MagicEdit`, `Bell`, `Library`, close in that order with all four
+// always visible (no fade at all there — SquadDetailsSheet has no
+// `viewingGroupDetails`-style two-page scroll to fade against). Don't assume the
+// two headers are still identical. MagicEdit/Library here fade out (opacity 0,
+// `pointerEvents: none`) while
+// `viewingGroupDetails` is false — i.e. while still on the Notifications+Squads
+// page below — and fade smoothly back in once the user scrolls/snaps to Group
+// Details, since those actions only make sense once squad context (the crew name
+// in the title, the invite card, etc.) is actually on screen. Bell and Close are
+// both excluded from that fade — they stay reachable on both pages.
 // `viewingGroupDetails` is a real `IntersectionObserver` (`root` = the scroll
 // container, `target` = the Group Details wrapper, `threshold: 0.5`) rather than a
 // scrollTop-percentage heuristic — a genuine "in view / not in view" toggle that's
