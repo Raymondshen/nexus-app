@@ -192,7 +192,7 @@ src/
 │   │   │                       SuggestDefinitionSheet, ReviewSuggestionSheet,
 │   │   │                       ChatSheetReact, EmojiReactionPickerSheet
 │   │   ├── polls/              PollCard, PollCreatorSheet
-│   │   ├── header/             ChatHeader, DMHeader
+│   │   ├── header/             ChatSquadDetailBar (collapsed in-room bar)
 │   │   └── navigation/         DMOverlayBack, ShareModal
 │   ├── chat/screens/           DefinitionHomePage (definitions list page; stub re-export DefinitionsClient.tsx)
 │   ├── home/                   HomeClient, InviteArsenal, homePreviewCache.ts
