@@ -358,18 +358,23 @@ const JOIN_CLASSES: {
 ]
 
 function HomeActionSheet({
+  initialView = 'menu',
   onClose,
   coins,
   infiniteCoins,
   onOpenArsenal,
 }: {
+  /** Which view to mount into — 'create' skips the Create/Join chooser for entry
+   *  points (e.g. ChatRoomBrowseSheet's Create Squad card) that already told the
+   *  user where they were headed. Defaults to the chooser for every other caller. */
+  initialView?:  SheetView
   onClose:       () => void
   coins:         number
   infiniteCoins: boolean
   onOpenArsenal: () => void
 }) {
   const router = useRouter()
-  const [view, setView] = useState<SheetView>('menu')
+  const [view, setView] = useState<SheetView>(initialView)
 
   // ── Join state ───────────────────────────────────────────────────────────
   const [joinCode,    setJoinCode]    = useState('')
@@ -1624,6 +1629,11 @@ export function HomeClient({
     })
   )
   const [showCreate,        setShowCreate]        = useState(false)
+  // Which of HomeActionSheet's internal views it should mount into — 'menu' (the
+  // Create/Join chooser) for every generic entry point, 'create' only for the
+  // ChatRoomBrowseSheet deep link below, which already told the user it was taking
+  // them to Create Squad specifically and shouldn't make them pick again.
+  const [createSheetView,   setCreateSheetView]   = useState<SheetView>('menu')
   // ChatRoomBrowseSheet's "Create Squad" card (Figma 589:3631) routes here with this
   // param instead of duplicating a second create-squad flow — reuses this exact sheet.
   // Handled during render (guarded by `handledOpenCreate` so it only ever fires once,
@@ -1633,6 +1643,7 @@ export function HomeClient({
   const [handledOpenCreate, setHandledOpenCreate] = useState(false)
   if (!handledOpenCreate && searchParams.get('openCreate') === '1') {
     setHandledOpenCreate(true)
+    setCreateSheetView('create')
     setShowCreate(true)
   }
   // A plain History API rewrite, NOT router.replace() — home/page.tsx now redirects
@@ -1905,7 +1916,10 @@ export function HomeClient({
     }
   }, [leaveTarget, leaving])
 
-  const handleCloseCreate      = useCallback(() => setShowCreate(false), [])
+  const handleCloseCreate      = useCallback(() => {
+    setShowCreate(false)
+    setCreateSheetView('menu')
+  }, [])
   const handleOpenArsenal      = useCallback(() => {
     router.push('/home/invite')
   }, [router])
@@ -1954,7 +1968,7 @@ export function HomeClient({
             setTimeout(() => setShowCoinTip(false), 2000)
           }}
           onFriends={() => router.push('/friends')}
-          onInviteSquad={() => setShowCreate(true)}
+          onInviteSquad={() => { setCreateSheetView('menu'); setShowCreate(true) }}
           fxpEnabled={fxpEnabled}
           totalFriendshipXP={localFriendshipXP}
           showHeartTip={showHeartTip}
@@ -1990,7 +2004,7 @@ export function HomeClient({
         <div className="flex flex-col w-full" style={{ gap: 20 }}>
           <p className="font-silkscreen text-primary leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-xs)' }}>Group chat</p>
           {crews.length === 0 ? (
-            <EmptyState onCreate={() => setShowCreate(true)} />
+            <EmptyState onCreate={() => { setCreateSheetView('menu'); setShowCreate(true) }} />
           ) : (
             <div className="flex flex-col" style={{ gap: 20 }}>
               {crews.map((summary) => (
@@ -2017,6 +2031,7 @@ export function HomeClient({
         {showCreate && (
           <HomeActionSheet
             key="action-sheet"
+            initialView={createSheetView}
             onClose={handleCloseCreate}
             coins={coins}
             infiniteCoins={infiniteCoins}
