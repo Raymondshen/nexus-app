@@ -66,8 +66,6 @@ interface HomeClientProps {
   initialGemBalance:  number
   announcements:      AnnouncementItem[]
   totalFriendshipXP:  number
-  /** profiles.pinned_crew_id — preferred by the launch-redirect effect below when set. */
-  pinnedCrewId?:      string | null
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -1596,11 +1594,6 @@ function HomeCrewDetailsSheet({
 
 // ─── HomeClient ───────────────────────────────────────────────────────────────
 
-// Session-scoped (one-shot per tab, same pattern as HomeLoadingGate's splash flag) —
-// gates the launch-redirect effect below so it only fires the very first time Home
-// mounts in this session, not on every return trip to /home.
-const LAUNCH_REDIRECT_KEY = 'nexus_launch_redirected'
-
 export function HomeClient({
   initialCrews,
   userId,
@@ -1615,7 +1608,6 @@ export function HomeClient({
   initialGemBalance,
   announcements,
   totalFriendshipXP,
-  pinnedCrewId = null,
 }: HomeClientProps) {
   const router = useRouter()
 
@@ -1636,38 +1628,22 @@ export function HomeClient({
   // param instead of duplicating a second create-squad flow — reuses this exact sheet.
   // Handled during render (guarded by `handledOpenCreate` so it only ever fires once,
   // the "you might not need an effect" pattern) rather than in a useEffect; the actual
-  // URL cleanup (router.replace, a real side effect) still belongs in one below.
+  // URL cleanup still belongs in one below.
   const searchParams = useSearchParams()
   const [handledOpenCreate, setHandledOpenCreate] = useState(false)
   if (!handledOpenCreate && searchParams.get('openCreate') === '1') {
     setHandledOpenCreate(true)
     setShowCreate(true)
   }
+  // A plain History API rewrite, NOT router.replace() — home/page.tsx now redirects
+  // any *navigation* to bare /home straight into the user's pinned squad (see that
+  // file's launch-redirect comment). A router.replace() here would re-invoke that
+  // server component mid-flow, the instant the create-squad sheet opens, and bounce
+  // the user straight back into their existing pinned squad before they could use it.
+  // history.replaceState only rewrites the visible URL, no Next.js navigation involved.
   useEffect(() => {
-    if (handledOpenCreate) router.replace('/home')
-  }, [handledOpenCreate, router])
-
-  // Launch redirect: skip Home and land directly in the user's pinned squad (Pin
-  // Squad, see ChatRoomBrowseSheet), or failing that their most recently opened
-  // chatroom (or their only one) — matching the request that opening the app should
-  // go straight into chat. Only fires once per session (see LAUNCH_REDIRECT_KEY) —
-  // later visits to /home in the same session (e.g. the swipe-back-inserted /home
-  // entry beneath a chat room, or tapping back from a squad) render Home normally
-  // instead of re-redirecting. Squads only (initialCrews already excludes DMs, see
-  // home/page.tsx) — "chatroom" here means Squad chat, not a DM. A stale pin (the
-  // pinned crew no longer among initialCrews — e.g. the user left it) just falls
-  // through to the same most-recent/only-crew fallback as having no pin at all.
-  useEffect(() => {
-    if (sessionStorage.getItem(LAUNCH_REDIRECT_KEY)) return
-    sessionStorage.setItem(LAUNCH_REDIRECT_KEY, '1')
-    if (searchParams.get('openCreate') === '1') return
-    if (initialCrews.length === 0) return
-    const pinned = pinnedCrewId ? initialCrews.find((cs) => cs.crew.id === pinnedCrewId) : undefined
-    const target = pinned ?? (initialCrews.length === 1
-      ? initialCrews[0]
-      : [...initialCrews].sort((a, b) => (b.lastSeen ?? '').localeCompare(a.lastSeen ?? ''))[0])
-    router.replace(`/chat/${target.crew.id}`)
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+    if (handledOpenCreate) window.history.replaceState(null, '', '/home')
+  }, [handledOpenCreate])
 
   const [detailsTarget,     setDetailsTarget]     = useState<CrewSummary | null>(null)
   const [leaveTarget,       setLeaveTarget]       = useState<CrewSummary | null>(null)

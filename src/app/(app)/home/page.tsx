@@ -129,7 +129,12 @@ type MembershipWithCrew = {
   crew:      Crew | null
 }
 
-export default async function HomePage() {
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ openCreate?: string }>
+}) {
+  const { openCreate } = await searchParams
   const supabase = await createClient()
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) redirect('/login')
@@ -163,6 +168,27 @@ export default async function HomePage() {
   const memberSince = profile?.created_at ? new Date(profile.created_at).getFullYear().toString() : ''
   const friendUserIds = friendshipRows.map(f => f.requester_id === user.id ? f.addressee_id : f.requester_id)
 
+  // Launch redirect (server-side): skip Home and land directly in the user's pinned
+  // squad — or failing that, whichever squad they most recently had open, or their
+  // only one. Runs on every request to /home (PWA cold launch via manifest start_url,
+  // a hard refresh, or any of the app's many `redirect('/home')`/`router.push('/home')`
+  // fallback call sites), not just once per session — this replaced an earlier
+  // client-side version of the same logic (HomeClient's old sessionStorage-gated
+  // effect) that couldn't guarantee a redirect on a plain page refresh. Skipped only
+  // for the Create Squad deep link (`?openCreate=1`, see ChatInput.openCreateSquadFromBrowse)
+  // so that flow can still render Home's create-squad sheet. DM channels are excluded
+  // (`!m.crew.is_dm`) — a stale pin pointing at a squad the user has since left just
+  // falls through to the most-recent/only-squad fallback, same as having no pin at all.
+  const squadMemberships = memberships.filter((m) => m.crew && !m.crew.is_dm)
+  if (openCreate !== '1' && squadMemberships.length > 0) {
+    const pinnedId = profile?.pinned_crew_id ?? null
+    const pinned = pinnedId ? squadMemberships.find((m) => m.crew_id === pinnedId) : undefined
+    const target = pinned ?? (squadMemberships.length === 1
+      ? squadMemberships[0]
+      : [...squadMemberships].sort((a, b) => (b.last_seen ?? '').localeCompare(a.last_seen ?? ''))[0])
+    redirect(`/chat/${target.crew_id}`)
+  }
+
   if (memberships.length === 0) {
     const friendProfiles = await getCachedFriendProfiles(friendUserIds)
     const friends = buildFriends(friendshipRows, friendProfiles, user.id)
@@ -181,7 +207,6 @@ export default async function HomePage() {
         initialGemBalance={profile?.gem_balance ?? 0}
         announcements={announcements}
         totalFriendshipXP={profile?.totalFriendshipXP ?? 0}
-        pinnedCrewId={profile?.pinned_crew_id ?? null}
       />
     )
   }
@@ -283,7 +308,6 @@ export default async function HomePage() {
       initialGemBalance={profile?.gem_balance ?? 0}
       announcements={announcements}
       totalFriendshipXP={profile?.totalFriendshipXP ?? 0}
-      pinnedCrewId={profile?.pinned_crew_id ?? null}
     />
   )
 }

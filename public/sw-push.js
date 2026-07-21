@@ -24,8 +24,15 @@ var LOCAL_ASSETS_RE    = /\/(sprites|icons|lottie|img)\//
 // unauthenticated users always get a fresh redirect from the server.
 // Bump the version string when a deploy would make old HTML incompatible
 // (the activate handler below purges previous versions automatically).
-var NEXUS_PAGES_CACHE = 'nexus-pages-v2'
-var NEXUS_PAGE_PATHS  = ['/home', '/chat/', '/vault/', '/friends', '/profile', '/dm/']
+// /home is deliberately NOT in this list: home/page.tsx redirects every
+// navigation there straight into the user's pinned squad chat (server-side,
+// on every request — see that file's launch-redirect comment), and that
+// redirect is the entire point of a PWA cold launch (manifest start_url is
+// /home). Serving a stale cached copy here — which follows the redirect and
+// caches whatever squad's HTML that resolved to at the time — would replay
+// an old destination instead of hitting the server for the current one.
+var NEXUS_PAGES_CACHE = 'nexus-pages-v3'
+var NEXUS_PAGE_PATHS  = ['/chat/', '/vault/', '/friends', '/profile', '/dm/']
 
 function isAppPage(pathname) {
   for (var i = 0; i < NEXUS_PAGE_PATHS.length; i++) {
