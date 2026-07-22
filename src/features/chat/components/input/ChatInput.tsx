@@ -239,28 +239,6 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, memberP
     }
     return null
   })
-  // Captured alongside barOverride, from the same in-flight peek — which side
-  // ChatSquadDetailBar's group-A-to-group-B crossfade should slide toward (see that
-  // component's enterX/exitX). Deliberately never cleared back to null for the rest of
-  // this mount's lifetime, unlike barOverride itself (which flips back to null one
-  // tick after mount, once B's real identity is loaded — see that effect below):
-  // clearing it in that same tick would break the transition it's meant to drive.
-  // AnimatePresence's exiting (group A) instance keeps whatever props were
-  // current on its last active render — direction still set — but the entering
-  // (group B) instance reads props fresh on the render where the key actually flips;
-  // if direction were already cleared by then, B would fade in with no slide while A
-  // slid out, a mismatched half-slide/half-fade instead of one consistent motion. A
-  // stale leftover value is harmless afterward: crewName won't change again for the
-  // rest of this mount except in the rare case of a live in-session rename, which
-  // would then (incorrectly, but low-stakes) replay this direction's slide instead of
-  // a plain fade.
-  const [barSwipeDirection] = useState<'left' | 'right' | null>(() => {
-    const { peek, currentCrewId, roomMeta } = useChatRoomPeekStore.getState()
-    if (peek && peek.targetCrewId === crewId && currentCrewId && roomMeta[currentCrewId]) {
-      return peek.direction
-    }
-    return null
-  })
   const chatInputBoxRef = useRef<HTMLDivElement>(null)
   const [text,           setText]          = useState('')
   const [sendError,      setSendError]      = useState<string | null>(null)
@@ -1918,7 +1896,6 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
             crewName={barOverride ? barOverride.name : liveCrewName}
             members={barOverride ? EMPTY_MEMBERS : members}
             onlineUserIds={barOverride ? EMPTY_ONLINE_IDS : onlineUserIds}
-            swipeDirection={barSwipeDirection}
             // Toggles ChatRoomBrowseSheet — same destination the swipe-up gesture opens
             // (see handleTopPan's own doc comment). A tap while it's already open closes
             // it, matching every other "tap outside the row" dismissal instead of
