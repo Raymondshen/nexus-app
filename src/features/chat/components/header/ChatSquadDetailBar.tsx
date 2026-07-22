@@ -128,13 +128,34 @@ export function ChatSquadDetailBar({
           </AnimatePresence>
         </div>
         <div className="flex flex-col min-w-0" style={{ gap: 2 }}>
-          <div className="relative overflow-hidden" style={{ height: 16 }}>
+          {/* These two wrappers used to be `overflow-hidden` (to mask the old SLIDE
+              animation's text traveling outside its row mid-transition — see git
+              history) with each `<p>` positioned `absolute inset-0`, which forces the
+              paragraph's own box to exactly the wrapper's tightened `height` (16 / 8,
+              matching `line-height:1` at that font-size). That's too tight for real
+              rendered glyph ink — DM Sans/Silkscreen's ascenders/descenders exceed a
+              `line-height:1` box at these sizes — so between the wrapper's
+              `overflow-hidden` and `truncate`'s own `overflow:hidden` on the `<p>`
+              itself (now sized to that same tight box via `inset-0`), the text was
+              being clipped away rather than just crossfading. Fixed two ways together:
+              the wrapper drops `overflow-hidden` (no longer needed now that this is a
+              pure opacity fade, not a slide, so nothing needs masking), and each `<p>`
+              uses `inset-x-0 top-0` instead of `inset-0` so its own box is only
+              width-constrained (still positioned absolutely, so the crossfading old/new
+              copies still overlap correctly) — its height is intrinsic to the font
+              again, not forced down to the reserved row height. `truncate`'s
+              `overflow:hidden` still does its actual job (long-name horizontal
+              ellipsis) since `white-space:nowrap` means there's nothing to overflow
+              vertically once height is intrinsic. The wrapper's fixed `height` stays
+              as a rough layout reservation so the column doesn't visibly reflow, not as
+              a hard clip boundary. */}
+          <div className="relative" style={{ height: 16 }}>
             <AnimatePresence initial={false}>
               {/* Figma 599:4018 — DM Sans Bold (700), not Black (900), and not
                   uppercased (crewName renders as typed, e.g. "Squad Sh*t"). */}
               <motion.p
                 key={crewName}
-                className="absolute inset-0 font-body font-bold text-secondary leading-none truncate"
+                className="absolute inset-x-0 top-0 font-body font-bold text-secondary leading-none truncate"
                 style={{ fontSize: 16, fontVariationSettings: '"opsz" 14' }}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -145,7 +166,7 @@ export function ChatSquadDetailBar({
               </motion.p>
             </AnimatePresence>
           </div>
-          <div className="relative overflow-hidden" style={{ height: 8 }}>
+          <div className="relative" style={{ height: 8 }}>
             <AnimatePresence initial={false}>
               {/* Keyed by crewName (not the online count) — a room switch crossfades
                   this label same as the image/name above; the count updating within
@@ -153,7 +174,7 @@ export function ChatSquadDetailBar({
                   the text in place with no re-animation, since the key hasn't changed. */}
               <motion.p
                 key={crewName}
-                className="absolute inset-0 font-silkscreen text-tertiary leading-none truncate"
+                className="absolute inset-x-0 top-0 font-silkscreen text-tertiary leading-none truncate"
                 style={{ fontSize: 8 }}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
