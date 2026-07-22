@@ -1,11 +1,10 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
-import { Upload } from 'pixelarticons/react/Upload'
 import { TokeCircle } from 'pixelarticons/react/TokeCircle'
 import { Heart } from 'pixelarticons/react/Heart'
 import { Copy } from 'pixelarticons/react/Copy'
@@ -19,11 +18,10 @@ import { InviteCodeCard } from '@/shared/components/ui/InviteCodeCard'
 import { HomeLoadingGate } from '@/shared/components/ui/HomeLoadingGate'
 import { UserCard, type MiniMember } from '@/shared/components/ui/UserCard'
 import { createClient } from '@/shared/supabase/client'
-import { leaveCrewAction, createCrewFromHomeAction, joinCrewFromHomeAction, joinSelectClassAction } from '@/app/(app)/home/actions'
+import { leaveCrewAction, joinCrewFromHomeAction, joinSelectClassAction } from '@/app/(app)/home/actions'
 import { spriteIdFor } from '@/shared/components/game/PixelSprite'
 import { CLASS_BASE_STATS } from '@/shared/constants/classStats'
 import type { CombatClass } from '@/types'
-import { updateCrewImageAction, updateCrewBackgroundImageAction } from '@/app/(app)/chat/actions'
 import { Button } from '@/shared/components/ui/Button'
 import type { CrewSummary } from '@/app/(app)/home/page'
 import type { Message, MessageWithProfile } from '@/types'
@@ -35,10 +33,6 @@ import { DiamondGem } from 'pixelarticons/react/DiamondGem'
 import { isGemGateOpen } from '@/shared/utils/gems'
 import { GEM_DAILY_LIMIT } from '@/shared/constants/config'
 import { consumeHomeLastMessage } from '@/features/home/utils/homePreviewCache'
-import type { Area } from 'react-easy-crop'
-import { compressCanvas, extForBlob, validateImageFile } from '@/shared/utils/imageCompress'
-import { drawCroppedCanvas } from '@/shared/utils/cropImage'
-import { PhotoCropModal } from '@/shared/components/ui/PhotoCropModal'
 import { getXPInCurrentLevel, getXPForCurrentLevel, getXPProgress } from '@/shared/utils/xp'
 import { relativeTime } from '@/shared/utils/date'
 import { MUSIC_DOMAINS } from '@/shared/constants/config'
@@ -293,7 +287,7 @@ function AccountPreview({
 
 // ─── Home action sheet (Create / Join / Invite) ───────────────────────────────
 
-type SheetView = 'menu' | 'create' | 'join' | 'class'
+type SheetView = 'menu' | 'join' | 'class'
 
 const JOIN_CLASSES: {
   id:          CombatClass
@@ -358,23 +352,18 @@ const JOIN_CLASSES: {
 ]
 
 function HomeActionSheet({
-  initialView = 'menu',
   onClose,
   coins,
   infiniteCoins,
   onOpenArsenal,
 }: {
-  /** Which view to mount into — 'create' skips the Create/Join chooser for entry
-   *  points (e.g. ChatRoomBrowseSheet's Create Squad card) that already told the
-   *  user where they were headed. Defaults to the chooser for every other caller. */
-  initialView?:  SheetView
   onClose:       () => void
   coins:         number
   infiniteCoins: boolean
   onOpenArsenal: () => void
 }) {
   const router = useRouter()
-  const [view, setView] = useState<SheetView>(initialView)
+  const [view, setView] = useState<SheetView>('menu')
 
   // ── Join state ───────────────────────────────────────────────────────────
   const [joinCode,    setJoinCode]    = useState('')
@@ -390,111 +379,6 @@ function HomeActionSheet({
   const [classIdx,         setClassIdx]         = useState(0)
   const [classLoading,     setClassLoading]     = useState(false)
   const [classError,       setClassError]       = useState<string | null>(null)
-
-  // ── Create state ─────────────────────────────────────────────────────────
-  const [squadName,             setSquadName]             = useState('')
-  const [pendingProfilePhoto,   setPendingProfilePhoto]   = useState<File | null>(null)
-  const [profilePhotoBlobs,     setProfilePhotoBlobs]     = useState<{ blob256: Blob; blob128: Blob } | null>(null)
-  const [profilePhotoPreview,   setProfilePhotoPreview]   = useState<string | null>(null)
-  const [pendingBackground,     setPendingBackground]     = useState<File | null>(null)
-  const [backgroundBlob,        setBackgroundBlob]        = useState<Blob | null>(null)
-  const [backgroundPreview,     setBackgroundPreview]     = useState<string | null>(null)
-  const [creating,              setCreating]              = useState(false)
-  const [createError,           setCreateError]           = useState<string | null>(null)
-
-  const profilePhotoRef = useRef<HTMLInputElement>(null)
-  const backgroundRef   = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    return () => {
-      if (profilePhotoPreview) URL.revokeObjectURL(profilePhotoPreview)
-      if (backgroundPreview)   URL.revokeObjectURL(backgroundPreview)
-    }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  function handleProfilePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    e.target.value = ''
-    if (!file) return
-    const validation = validateImageFile(file, 10 * 1024 * 1024) // 10 MB, matches avatar upload
-    if (!validation.ok) { setCreateError(validation.error); return }
-    setPendingProfilePhoto(file)
-  }
-
-  function handleBackgroundChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    e.target.value = ''
-    if (!file) return
-    const validation = validateImageFile(file, 15 * 1024 * 1024) // 15 MB, matches background upload
-    if (!validation.ok) { setCreateError(validation.error); return }
-    setPendingBackground(file)
-  }
-
-  async function handleProfilePhotoCropConfirm(area: Area, img: HTMLImageElement) {
-    setPendingProfilePhoto(null)
-    const [blob256, blob128] = await Promise.all([
-      compressCanvas(drawCroppedCanvas(img, area, 256, 256)),
-      compressCanvas(drawCroppedCanvas(img, area, 128, 128)),
-    ])
-    if (profilePhotoPreview) URL.revokeObjectURL(profilePhotoPreview)
-    setProfilePhotoBlobs({ blob256, blob128 })
-    setProfilePhotoPreview(URL.createObjectURL(blob256))
-  }
-
-  async function handleBackgroundCropConfirm(area: Area, img: HTMLImageElement) {
-    setPendingBackground(null)
-    const blob = await compressCanvas(drawCroppedCanvas(img, area, 1080, 608))
-    if (backgroundPreview) URL.revokeObjectURL(backgroundPreview)
-    setBackgroundBlob(blob)
-    setBackgroundPreview(URL.createObjectURL(blob))
-  }
-
-  async function handleCreate() {
-    if (creating || squadName.trim().length < 2) return
-    setCreating(true)
-    setCreateError(null)
-    try {
-      const result = await createCrewFromHomeAction(squadName)
-      if ('error' in result) { setCreateError(result.error); setCreating(false); return }
-      const { crewId } = result
-      const supabase   = createClient()
-
-      if (profilePhotoBlobs) {
-        try {
-          const ts  = Date.now()
-          const ext = extForBlob(profilePhotoBlobs.blob256)
-          const [res256] = await Promise.all([
-            supabase.storage.from('crew-images').upload(`${crewId}/${ts}-256.${ext}`, profilePhotoBlobs.blob256, { contentType: profilePhotoBlobs.blob256.type, cacheControl: '31536000' }),
-            supabase.storage.from('crew-images').upload(`${crewId}/${ts}-128.${ext}`, profilePhotoBlobs.blob128, { contentType: profilePhotoBlobs.blob128.type, cacheControl: '31536000' }),
-          ])
-          if (!res256.error) {
-            const { data: { publicUrl } } = supabase.storage.from('crew-images').getPublicUrl(`${crewId}/${ts}-256.${ext}`)
-            await updateCrewImageAction(crewId, publicUrl, `${crewId}/${ts}`)
-          }
-        } catch { /* non-fatal */ }
-      }
-
-      if (backgroundBlob) {
-        try {
-          const ts   = Date.now() + 1
-          const ext  = extForBlob(backgroundBlob)
-          const path = `${crewId}/bg-${ts}.${ext}`
-          const { error: upErr } = await supabase.storage.from('crew-images')
-            .upload(path, backgroundBlob, { contentType: backgroundBlob.type, cacheControl: '31536000' })
-          if (!upErr) {
-            const { data: { publicUrl } } = supabase.storage.from('crew-images').getPublicUrl(path)
-            await updateCrewBackgroundImageAction(crewId, publicUrl)
-          }
-        } catch { /* non-fatal */ }
-      }
-
-      router.push(`/onboarding/class?crew=${crewId}`)
-      onClose()
-    } catch (err) {
-      setCreateError(err instanceof Error ? err.message : 'Something went wrong')
-      setCreating(false)
-    }
-  }
 
   async function handleJoin() {
     if (joinLoading || joinCode.length !== 6) return
@@ -529,153 +413,6 @@ function HomeActionSheet({
   }
 
   const sheetContent = (() => {
-    if (view === 'create') {
-      return (
-        <>
-          {/* Header */}
-          <div className="flex flex-col flex-shrink-0" style={{ gap: 4 }}>
-            <p className="font-silkscreen leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}>
-              SQUAD SH**T
-            </p>
-            <h2 className="font-body font-bold text-primary leading-none" style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}>
-              Create a squad
-            </h2>
-          </div>
-
-          {/* Preview label */}
-          <p className="font-silkscreen leading-none flex-shrink-0" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}>
-            Squad Card Preview
-          </p>
-
-          {/* Squad Card Preview */}
-          <div className="relative w-full overflow-hidden flex-shrink-0" style={{ height: 180 }}>
-            {backgroundPreview ? (
-              /* eslint-disable-next-line @next/next/no-img-element */
-              <img src={backgroundPreview} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
-            ) : (
-              <div style={{ position: 'absolute', inset: 0, background: 'var(--color-surface)' }} />
-            )}
-            <div style={{ position: 'absolute', inset: 0, background: 'var(--gradient-image-overlay)' }} />
-            <div style={{ position: 'relative', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: 16 }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                <div style={{ width: 40, height: 40, overflow: 'hidden', flexShrink: 0, background: profilePhotoPreview ? 'transparent' : '#27272a' }}>
-                  {profilePhotoPreview && (
-                    /* eslint-disable-next-line @next/next/no-img-element */
-                    <img src={profilePhotoPreview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  )}
-                </div>
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <p className="font-body font-bold text-primary leading-none" style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}>
-                    {squadName || 'Squad Name'}
-                  </p>
-                  <p className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}>
-                    1 members
-                  </p>
-                </div>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}>0/100 XP</span>
-                  <span className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}>0 total Squad msg.</span>
-                </div>
-                <div style={{ height: 4, background: 'rgba(255,255,255,0.1)', borderRadius: 2 }}>
-                  <div style={{ width: '0%', height: '100%', background: 'var(--color-xp)', borderRadius: 2 }} />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Upload buttons */}
-          <div className="flex flex-shrink-0" style={{ gap: 8 }}>
-            <button
-              type="button"
-              onClick={() => profilePhotoRef.current?.click()}
-              className="flex-1 flex items-center justify-center overflow-hidden"
-              style={{ height: 48, gap: 8, border: '1px solid var(--color-purple)' }}
-            >
-              <Upload style={{ width: 16, height: 16, color: 'var(--color-purple)' }} aria-hidden="true" />
-              <span className="font-silkscreen leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-xxs)', color: 'var(--color-purple)' }}>
-                Profile Photo
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={() => backgroundRef.current?.click()}
-              className="flex-1 flex items-center justify-center overflow-hidden"
-              style={{ height: 48, gap: 8, border: '1px solid var(--color-purple)' }}
-            >
-              <Upload style={{ width: 16, height: 16, color: 'var(--color-purple)' }} aria-hidden="true" />
-              <span className="font-silkscreen leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-xxs)', color: 'var(--color-purple)' }}>
-                Background Image
-              </span>
-            </button>
-          </div>
-          <input ref={profilePhotoRef} type="file" accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif" onChange={handleProfilePhotoChange} className="hidden" aria-hidden="true" />
-          <input ref={backgroundRef}   type="file" accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif" onChange={handleBackgroundChange}   className="hidden" aria-hidden="true" />
-
-          <PhotoCropModal
-            file={pendingProfilePhoto}
-            aspect={1}
-            cropShape="rect"
-            title="PROFILE PHOTO"
-            onCancel={() => setPendingProfilePhoto(null)}
-            onConfirm={handleProfilePhotoCropConfirm}
-          />
-          <PhotoCropModal
-            file={pendingBackground}
-            aspect={1080 / 608}
-            cropShape="rect"
-            title="BACKGROUND IMAGE"
-            height={220}
-            onCancel={() => setPendingBackground(null)}
-            onConfirm={handleBackgroundCropConfirm}
-          />
-
-          {/* Squad Name input */}
-          <div className="flex flex-col flex-shrink-0" style={{ gap: 8 }}>
-            <p className="font-body leading-none tracking-[0.2px]" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14', fontWeight: 500 }}>
-              <span className="text-primary">Squad Name </span>
-              <span style={{ color: 'var(--red)' }}>*</span>
-            </p>
-            <input
-              value={squadName}
-              onChange={(e) => setSquadName(e.target.value.slice(0, 30))}
-              placeholder="BFF Hangout, Family, etc..."
-              className="w-full bg-black text-primary placeholder:text-muted font-body font-normal focus:outline-none focus:border-[var(--color-purple)] transition-colors"
-              style={{ border: '1px solid var(--color-border-hover)', padding: 12, fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
-            />
-          </div>
-
-          {/* Action buttons */}
-          <div className="flex flex-col flex-shrink-0" style={{ gap: 16 }}>
-            {createError && (
-              <p className="font-silkscreen" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-danger)' }}>
-                {createError}
-              </p>
-            )}
-            <button
-              type="button"
-              onClick={handleCreate}
-              disabled={creating || squadName.trim().length < 2}
-              className="w-full flex items-center justify-center font-silkscreen text-primary bg-[var(--color-purple)] overflow-hidden disabled:opacity-40"
-              style={{ fontSize: 'var(--text-xs)', height: 48, boxShadow: '4px 4px 0 rgba(168,85,247,0.5)' }}
-            >
-              {creating ? '...' : 'CREATE SQUAD'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setView('menu')}
-              disabled={creating}
-              className="w-full flex items-center justify-center font-silkscreen overflow-hidden disabled:opacity-40"
-              style={{ height: 48, fontSize: 'var(--text-xs)', color: 'var(--red)', border: '1px solid var(--red)' }}
-            >
-              CANCEL
-            </button>
-          </div>
-        </>
-      )
-    }
-
     if (view === 'class') {
       const selected  = JOIN_CLASSES[classIdx]
       const spriteId  = spriteIdFor(selected.id as import('@/types').AvatarClass)
@@ -928,7 +665,7 @@ function HomeActionSheet({
         </div>
 
         <div className="flex flex-col" style={{ gap: 'var(--space-5)' }}>
-          <Button shadow className="w-full" onClick={() => setView('create')}>
+          <Button shadow className="w-full" onClick={() => { onClose(); router.push('/home/create') }}>
             CREATE A SQUAD
           </Button>
 
@@ -968,7 +705,7 @@ function HomeActionSheet({
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
         transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-        drag={creating || joinLoading || classLoading ? false : 'y'}
+        drag={joinLoading || classLoading ? false : 'y'}
         dragConstraints={{ top: 0, bottom: 0 }}
         dragElastic={{ top: 0, bottom: 1 }}
         onDragEnd={(_, info) => {
@@ -981,7 +718,7 @@ function HomeActionSheet({
         <div
           className="overflow-y-auto nexus-scroll flex flex-col"
           style={{
-            gap:           view === 'create' || view === 'class' ? 20 : 'var(--space-7)',
+            gap:           view === 'class' ? 20 : 'var(--space-7)',
             paddingTop:    24,
             paddingLeft:   16,
             paddingRight:  16,
@@ -1630,32 +1367,6 @@ export function HomeClient({
     })
   )
   const [showCreate,        setShowCreate]        = useState(false)
-  // Which of HomeActionSheet's internal views it should mount into — 'menu' (the
-  // Create/Join chooser) for every generic entry point, 'create' only for the
-  // ChatRoomBrowseSheet deep link below, which already told the user it was taking
-  // them to Create Squad specifically and shouldn't make them pick again.
-  const [createSheetView,   setCreateSheetView]   = useState<SheetView>('menu')
-  // ChatRoomBrowseSheet's "Create Squad" card (Figma 589:3631) routes here with this
-  // param instead of duplicating a second create-squad flow — reuses this exact sheet.
-  // Handled during render (guarded by `handledOpenCreate` so it only ever fires once,
-  // the "you might not need an effect" pattern) rather than in a useEffect; the actual
-  // URL cleanup still belongs in one below.
-  const searchParams = useSearchParams()
-  const [handledOpenCreate, setHandledOpenCreate] = useState(false)
-  if (!handledOpenCreate && searchParams.get('openCreate') === '1') {
-    setHandledOpenCreate(true)
-    setCreateSheetView('create')
-    setShowCreate(true)
-  }
-  // A plain History API rewrite, NOT router.replace() — home/page.tsx now redirects
-  // any *navigation* to bare /home straight into the user's pinned squad (see that
-  // file's launch-redirect comment). A router.replace() here would re-invoke that
-  // server component mid-flow, the instant the create-squad sheet opens, and bounce
-  // the user straight back into their existing pinned squad before they could use it.
-  // history.replaceState only rewrites the visible URL, no Next.js navigation involved.
-  useEffect(() => {
-    if (handledOpenCreate) window.history.replaceState(null, '', '/home')
-  }, [handledOpenCreate])
 
   const [detailsTarget,     setDetailsTarget]     = useState<CrewSummary | null>(null)
   const [leaveTarget,       setLeaveTarget]       = useState<CrewSummary | null>(null)
@@ -1917,10 +1628,7 @@ export function HomeClient({
     }
   }, [leaveTarget, leaving])
 
-  const handleCloseCreate      = useCallback(() => {
-    setShowCreate(false)
-    setCreateSheetView('menu')
-  }, [])
+  const handleCloseCreate      = useCallback(() => setShowCreate(false), [])
   const handleOpenArsenal      = useCallback(() => {
     router.push('/home/invite')
   }, [router])
@@ -1969,7 +1677,7 @@ export function HomeClient({
             setTimeout(() => setShowCoinTip(false), 2000)
           }}
           onFriends={() => router.push('/friends')}
-          onInviteSquad={() => { setCreateSheetView('menu'); setShowCreate(true) }}
+          onInviteSquad={() => setShowCreate(true)}
           fxpEnabled={fxpEnabled}
           totalFriendshipXP={localFriendshipXP}
           showHeartTip={showHeartTip}
@@ -2005,7 +1713,7 @@ export function HomeClient({
         <div className="flex flex-col w-full" style={{ gap: 20 }}>
           <p className="font-silkscreen text-primary leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-xs)' }}>Group chat</p>
           {crews.length === 0 ? (
-            <EmptyState onCreate={() => { setCreateSheetView('menu'); setShowCreate(true) }} />
+            <EmptyState onCreate={() => setShowCreate(true)} />
           ) : (
             <div className="flex flex-col" style={{ gap: 20 }}>
               {crews.map((summary) => (
@@ -2032,7 +1740,6 @@ export function HomeClient({
         {showCreate && (
           <HomeActionSheet
             key="action-sheet"
-            initialView={createSheetView}
             onClose={handleCloseCreate}
             coins={coins}
             infiniteCoins={infiniteCoins}

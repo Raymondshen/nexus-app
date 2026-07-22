@@ -129,12 +129,7 @@ type MembershipWithCrew = {
   crew:      Crew | null
 }
 
-export default async function HomePage({
-  searchParams,
-}: {
-  searchParams: Promise<{ openCreate?: string }>
-}) {
-  const { openCreate } = await searchParams
+export default async function HomePage() {
   const supabase = await createClient()
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) redirect('/login')
@@ -174,13 +169,12 @@ export default async function HomePage({
   // a hard refresh, or any of the app's many `redirect('/home')`/`router.push('/home')`
   // fallback call sites), not just once per session — this replaced an earlier
   // client-side version of the same logic (HomeClient's old sessionStorage-gated
-  // effect) that couldn't guarantee a redirect on a plain page refresh. Skipped only
-  // for the Create Squad deep link (`?openCreate=1`, see ChatInput.openCreateSquadFromBrowse)
-  // so that flow can still render Home's create-squad sheet. DM channels are excluded
-  // (`!m.crew.is_dm`) — a stale pin pointing at a squad the user has since left just
-  // falls through to the most-recent/only-squad fallback, same as having no pin at all.
+  // effect) that couldn't guarantee a redirect on a plain page refresh. DM channels
+  // are excluded (`!m.crew.is_dm`) — a stale pin pointing at a squad the user has
+  // since left just falls through to the most-recent/only-squad fallback, same as
+  // having no pin at all.
   const squadMemberships = memberships.filter((m) => m.crew && !m.crew.is_dm)
-  if (openCreate !== '1' && squadMemberships.length > 0) {
+  if (squadMemberships.length > 0) {
     const pinnedId = profile?.pinned_crew_id ?? null
     const pinned = pinnedId ? squadMemberships.find((m) => m.crew_id === pinnedId) : undefined
     const target = pinned ?? (squadMemberships.length === 1

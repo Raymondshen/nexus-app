@@ -727,13 +727,12 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   }
 
   // Used by ChatRoomBrowseSheet's own Create Squad card tap (its onCreateSquad prop
-  // below).
+  // below). Navigates straight to the standalone Create Squad page (Figma 426:2044,
+  // `CreateSquadPage`) rather than round-tripping through Home's sheet — see that
+  // component's own doc comment.
   function openCreateSquadFromBrowse() {
     setShowRoomBrowser(false)
-    // Reuses Home's existing create-squad sheet/flow (createCrewFromHomeAction)
-    // rather than duplicating it here — HomeClient auto-opens it when it sees this
-    // query param (see its own effect for that).
-    router.push('/home?openCreate=1')
+    router.push('/home/create')
   }
 
   // Used by ChatRoomBrowseSheet's tap-to-navigate (see its onSelectRoom call site
