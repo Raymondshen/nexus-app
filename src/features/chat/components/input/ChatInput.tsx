@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo, useSyncExternalStore } from 'react'
+import React, { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
@@ -174,31 +174,6 @@ const CHAT_SWIPE_HINT_SEEN_KEY = 'nexus_chat_swipe_nav_hint_seen_v2'
 // in handleTopPanEnd, regardless of which axis this locks to.
 const PAN_DIRECTION_LOCK_PX = 12
 
-// SSR-safe localStorage dev-flag reader, one instance per (storageKey, changeEvent)
-// pair — mirrors useQuickReactions' useSyncExternalStore pattern
-// (src/shared/utils/quickReactions.ts) rather than the old "read in a useEffect, call
-// setState in its body" approach: the latter is exactly what react-hooks/set-state-in-effect
-// flags (an effect isn't the React-idiomatic way to sync from an external store like
-// localStorage — useSyncExternalStore is, and it also sidesteps any SSR/hydration
-// mismatch, since getServerSnapshot below always returns false regardless of what's
-// actually in localStorage). DeveloperUserSettings.tsx is the sole writer for both flags
-// this drives (nexus_friendship_xp/nexus-friendship-xp-change,
-// nexus_events_enabled/nexus-events-feature-change) — it dispatches the change event
-// itself after writing, same-tab, so no `storage` event listener is needed here.
-function makeLocalStorageFlagStore(storageKey: string, changeEvent: string) {
-  function getSnapshot() {
-    return typeof window === 'undefined' ? false : localStorage.getItem(storageKey) === '1'
-  }
-  function subscribe(onStoreChange: () => void) {
-    window.addEventListener(changeEvent, onStoreChange)
-    return () => window.removeEventListener(changeEvent, onStoreChange)
-  }
-  return { getSnapshot, subscribe }
-}
-const FXP_FLAG_STORE    = makeLocalStorageFlagStore('nexus_friendship_xp',  'nexus-friendship-xp-change')
-const EVENTS_FLAG_STORE = makeLocalStorageFlagStore('nexus_events_enabled', 'nexus-events-feature-change')
-const GET_SERVER_SNAPSHOT_FALSE = () => false
-
 // ─── ChatInput ────────────────────────────────────────────────────────────────
 
 export function ChatInput({ crewId, userId, userProfile, memberProfiles, memberPinnedVinyls, crewName, inviteCode, creatorId, crewImageUrl: initialCrewImageUrl, crewBackgroundImageUrl: initialCrewBgUrl, initialXP, isDM, dmPartnerId, chatRoomOrder = [], initialPinnedCrewId = null }: ChatInputProps) {
@@ -242,14 +217,9 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, memberP
   const chatInputBoxRef = useRef<HTMLDivElement>(null)
   const [text,           setText]          = useState('')
   const [sendError,      setSendError]      = useState<string | null>(null)
-  // Read via useSyncExternalStore (see makeLocalStorageFlagStore above), not a
-  // useState+useEffect pair — that's what actually satisfies react-hooks/set-state-in-effect
-  // here, not just a disable comment, since this genuinely is syncing from an external
-  // store. There's no separate `pollEnabled` — the poll-creation entry point that would
-  // have consumed it isn't wired to any UI anymore (`showPollCreator` below is never
-  // set true), so that flag was dead: read, stored, never once referenced.
-  const eventsEnabled = useSyncExternalStore(EVENTS_FLAG_STORE.subscribe, EVENTS_FLAG_STORE.getSnapshot, GET_SERVER_SNAPSHOT_FALSE)
-  const fxpEnabled    = useSyncExternalStore(FXP_FLAG_STORE.subscribe,    FXP_FLAG_STORE.getSnapshot,    GET_SERVER_SNAPSHOT_FALSE)
+  const [pollEnabled,      setPollEnabled]       = useState(false)
+  const [eventsEnabled,    setEventsEnabled]     = useState(false)
+  const [fxpEnabled,       setFxpEnabled]        = useState(false)
   const [showSwipeHint,   setShowSwipeHint]   = useState(false)
   const [gemToastVisible,   setGemToastVisible]   = useState(false)
   const [showNotifSheet,  setShowNotifSheet]  = useState(false)
@@ -465,36 +435,31 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     [members]
   )
 
-  // showSwipeHint has no other writer/change-event to subscribe to (see
-  // CHAT_SWIPE_HINT_SEEN_KEY's own doc comment — only this component's own
-  // dismissSwipeHint ever sets it, via a direct setState alongside the localStorage
-  // write, not a cross-tab/cross-component signal), so a full useSyncExternalStore
-  // store (like fxpEnabled/eventsEnabled above) isn't warranted here — but the read
-  // still has to happen post-mount, not in a lazy useState initializer, since the
-  // server-rendered HTML always renders the hint hidden (no `window` to read
-  // localStorage from during SSR) and the client's first hydration-matching render
-  // must match that exactly. Reading it eagerly client-side would make that first
-  // render disagree with the server's, a hydration mismatch — same reasoning
-  // useSyncExternalStore's getServerSnapshot exists to avoid above, just without that
-  // machinery since there's nothing external to subscribe to here.
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setFxpEnabled(localStorage.getItem('nexus_friendship_xp') === '1')
+    setPollEnabled(localStorage.getItem('nexus_poll_feature') === '1')
+    setEventsEnabled(localStorage.getItem('nexus_events_enabled') === '1')
     setShowSwipeHint(localStorage.getItem(CHAT_SWIPE_HINT_SEEN_KEY) !== '1')
+    function onFxpChange(e: Event)    { setFxpEnabled((e as CustomEvent<{ on: boolean }>).detail.on) }
+    function onPollChange(e: Event)   { setPollEnabled((e as CustomEvent<{ on: boolean }>).detail.on) }
+    function onEventsChange(e: Event) { setEventsEnabled((e as CustomEvent<{ on: boolean }>).detail.on) }
+    window.addEventListener('nexus-friendship-xp-change', onFxpChange)
+    window.addEventListener('nexus-poll-feature-change', onPollChange)
+    window.addEventListener('nexus-events-feature-change', onEventsChange)
+    return () => {
+      window.removeEventListener('nexus-friendship-xp-change', onFxpChange)
+      window.removeEventListener('nexus-poll-feature-change', onPollChange)
+      window.removeEventListener('nexus-events-feature-change', onEventsChange)
+    }
   }, [])
 
   useEffect(() => {
     if (replyTo) focusField()
-  }, [replyTo])
+  }, [replyTo]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Populate input when entering edit mode. Not just a state-mirroring effect
-  // ("you might not need an effect") — recheckOverflow/focusField are genuine
-  // imperative DOM work (measuring the rendered text, focusing the field) that must
-  // run after the setText above has actually committed to the DOM, so the setState
-  // here can't be hoisted out to render time the way react-hooks/set-state-in-effect
-  // would otherwise want.
+  // Populate input when entering edit mode
   useEffect(() => {
     if (editTo) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setText(editTo.content)
       textRef.current = editTo.content
       requestAnimationFrame(() => {
@@ -533,20 +498,16 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     update()
     const interval = setInterval(update, 60_000)
     return () => clearInterval(interval)
-  }, [crewId, userId])
+  }, [crewId, userId]) // eslint-disable-line
 
   // Member message counts are only ever displayed inside ChatRoomBrowseSheet's own
   // squad-detail section, so defer the RPC until it's actually opened rather than
   // fetching on every chat mount. Refetches on every open (not cached per crew) so
   // the total stays active — messages sent since last open must be reflected,
-  // matching HomeCrewDetailsSheet's fetch-on-mount behavior. The setLoadingCounts(true)
-  // below is the standard "kick off an async fetch, track its loading state" shape —
-  // there's no way to start the RPC call itself outside an effect (it's a side effect
-  // by nature), so the state that tracks it can't be hoisted to render time either.
+  // matching HomeCrewDetailsSheet's fetch-on-mount behavior.
   useEffect(() => {
     if (!showRoomBrowser) return
     let cancelled = false
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoadingCounts(true)
     createClient()
       .rpc('get_crew_member_msg_counts', { p_crew_id: crewId })
@@ -556,7 +517,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
         setLoadingCounts(false)
       })
     return () => { cancelled = true }
-  }, [showRoomBrowser, crewId])
+  }, [showRoomBrowser, crewId]) // eslint-disable-line
 
   // Per-crew notification preferences — powers the Bell/BellOff icon in ChatRoomBrowseSheet
   useEffect(() => {
@@ -672,7 +633,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
         el.style.height = Math.min(el.scrollHeight, pt + pb + lh * 3) + 'px'
       }
     }
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Restore caret and set initial textarea height after element swap
   useLayoutEffect(() => {
@@ -1137,7 +1098,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
         if (typeof data.coins_earned === 'number' && data.coins_earned > 0) addUserCoins(data.coins_earned)
       })
       .catch(() => {})
-  }, [crewId, userId, userProfile, updateMessage, setCrewXP, addUserCoins])
+  }, [crewId, userId, userProfile, updateMessage, setCrewXP, addUserCoins]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Shared "message successfully persisted" side effects — same for a fresh send and
   // a retried one, so text/image/gif/retry all get identical broadcast/XP/friendship-xp
@@ -1204,7 +1165,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
         })
       }
     }
-  }, [crewId, userId, userProfile, fxpEnabled, isDM, dmPartnerId, liveCrewName, broadcastNewMessage, setLastActive, settleXp])
+  }, [crewId, userId, userProfile, fxpEnabled, isDM, dmPartnerId, liveCrewName, broadcastNewMessage, setLastActive, settleXp]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleChatImagesPick(files: File[]) {
     if (files.length === 0) return
@@ -1358,7 +1319,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     void sendWithRetry(job, (raw) => handleSendSuccess(raw, job))
 
     focusField()
-  }, [crewId, userId, userProfile, isDM, addMessage, bumpCrewXP, handleSendSuccess])
+  }, [crewId, userId, userProfile, isDM, addMessage, bumpCrewXP, handleSendSuccess]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const send = useCallback(() => {
     const content = sanitizeMessage(text)

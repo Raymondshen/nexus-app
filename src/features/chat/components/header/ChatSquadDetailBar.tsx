@@ -22,21 +22,13 @@ interface ChatSquadDetailBarProps {
   verticalSwipeTick?: number
 }
 
-// Shared crossfade used by the crew image, name, and online-count text below — a
-// room switch (the chat-swipe-nav arrival transition — see ChatInput's barOverride
-// mount-seeding effect) reads as a clean opacity swap rather than a slide, so the
-// outgoing room's identity dissolves out while the incoming one dissolves in at the
-// same spot (each lives in a `relative`+`absolute inset-0` wrapper so both can overlap
-// mid-crossfade instead of shoving layout). `initial={false}` on each AnimatePresence
-// keeps this from also playing on the very first mount of a plain room open — it only
-// fires on an actual identity change.
-const FADE_TRANSITION = { duration: 0.2, ease: 'easeInOut' } as const
-
-// Separate, unrelated spring used only by the online-avatars row's own show/hide below
-// (triggered by the member-online count crossing zero, not by a room switch) — kept
-// distinct from FADE_TRANSITION so that room-switch crossfade and this presence-driven
-// slide can be tuned independently.
-const ONLINE_ROW_SLIDE_TRANSITION = { type: 'spring', stiffness: 170, damping: 21 } as const
+// Shared top-to-bottom slide used by the crew image and name below — the incoming
+// value enters from above, the outgoing one continues past its resting spot and out
+// the bottom, so a swap reads as one continuous downward motion rather than a cut.
+// `initial={false}` on each AnimatePresence keeps this from also playing on the very
+// first mount of a plain room open — it only fires on an actual identity change (the
+// chat-swipe-nav arrival transition — see ChatInput's barOverride mount-seeding effect).
+const SLIDE_TRANSITION = { type: 'spring', stiffness: 170, damping: 21 } as const
 
 // Figma 596:8403's "action btns" swipe-gesture hint icon (chevron_up 599:3910) — a
 // pixel-art arrow-in-a-frame glyph, not a pixelarticons icon (checked; none of the
@@ -118,73 +110,36 @@ export function ChatSquadDetailBar({
             <motion.div
               key={crewName}
               className="absolute inset-0"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={FADE_TRANSITION}
+              initial={{ y: -14, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 14, opacity: 0 }}
+              transition={SLIDE_TRANSITION}
             >
               <GroupAvatar imageUrl={crewImageUrl} name={crewName} size={24} />
             </motion.div>
           </AnimatePresence>
         </div>
         <div className="flex flex-col min-w-0" style={{ gap: 2 }}>
-          {/* These two wrappers used to be `overflow-hidden` (to mask the old SLIDE
-              animation's text traveling outside its row mid-transition — see git
-              history) with each `<p>` positioned `absolute inset-0`, which forces the
-              paragraph's own box to exactly the wrapper's tightened `height` (16 / 8,
-              matching `line-height:1` at that font-size). That's too tight for real
-              rendered glyph ink — DM Sans/Silkscreen's ascenders/descenders exceed a
-              `line-height:1` box at these sizes — so between the wrapper's
-              `overflow-hidden` and `truncate`'s own `overflow:hidden` on the `<p>`
-              itself (now sized to that same tight box via `inset-0`), the text was
-              being clipped away rather than just crossfading. Fixed two ways together:
-              the wrapper drops `overflow-hidden` (no longer needed now that this is a
-              pure opacity fade, not a slide, so nothing needs masking), and each `<p>`
-              uses `inset-x-0 top-0` instead of `inset-0` so its own box is only
-              width-constrained (still positioned absolutely, so the crossfading old/new
-              copies still overlap correctly) — its height is intrinsic to the font
-              again, not forced down to the reserved row height. `truncate`'s
-              `overflow:hidden` still does its actual job (long-name horizontal
-              ellipsis) since `white-space:nowrap` means there's nothing to overflow
-              vertically once height is intrinsic. The wrapper's fixed `height` stays
-              as a rough layout reservation so the column doesn't visibly reflow, not as
-              a hard clip boundary. */}
-          <div className="relative" style={{ height: 16 }}>
+          <div className="relative overflow-hidden" style={{ height: 16 }}>
             <AnimatePresence initial={false}>
               {/* Figma 599:4018 — DM Sans Bold (700), not Black (900), and not
                   uppercased (crewName renders as typed, e.g. "Squad Sh*t"). */}
               <motion.p
                 key={crewName}
-                className="absolute inset-x-0 top-0 font-body font-bold text-secondary leading-none truncate"
+                className="absolute inset-0 font-body font-bold text-secondary leading-none truncate"
                 style={{ fontSize: 16, fontVariationSettings: '"opsz" 14' }}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={FADE_TRANSITION}
+                initial={{ y: -16, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: 16, opacity: 0 }}
+                transition={SLIDE_TRANSITION}
               >
                 {crewName}
               </motion.p>
             </AnimatePresence>
           </div>
-          <div className="relative" style={{ height: 8 }}>
-            <AnimatePresence initial={false}>
-              {/* Keyed by crewName (not the online count) — a room switch crossfades
-                  this label same as the image/name above; the count updating within
-                  the same room (presence heartbeats/broadcasts arriving) just swaps
-                  the text in place with no re-animation, since the key hasn't changed. */}
-              <motion.p
-                key={crewName}
-                className="absolute inset-x-0 top-0 font-silkscreen text-tertiary leading-none truncate"
-                style={{ fontSize: 8 }}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={FADE_TRANSITION}
-              >
-                {onlineMembers.length} Member online
-              </motion.p>
-            </AnimatePresence>
-          </div>
+          <p className="font-silkscreen text-tertiary leading-none" style={{ fontSize: 8 }}>
+            {onlineMembers.length} Member online
+          </p>
         </div>
       </div>
 
@@ -204,7 +159,7 @@ export function ChatSquadDetailBar({
             initial={{ y: -14, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 14, opacity: 0 }}
-            transition={ONLINE_ROW_SLIDE_TRANSITION}
+            transition={SLIDE_TRANSITION}
             className="flex flex-1 min-w-0 items-center overflow-hidden"
             style={{ gap: 8, maxWidth: 164 }}
           >
