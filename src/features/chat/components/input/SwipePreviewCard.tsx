@@ -33,8 +33,9 @@ import { Message } from 'pixelarticons/react/Message'
 // renderable via `currentColor` (the fill is a two-stop gradient, not flat) — so
 // it's a downloaded, committed static asset (`public/icons/pin-heart.svg`), same
 // pattern as `SocialLinksRow`'s brand-mark SVGs. 606:3894 also shrank the icon
-// itself (its pixel container went from 24×16 to 24×12) — rendered here at width 12
-// (was 16, height auto to keep the file's own aspect ratio) to match.
+// itself (its pixel container went from 24×16 to 24×12, i.e. width 16 → 12) — since
+// then, sized down further to 8 (manual override, not a further Figma revision),
+// height auto to keep the file's own aspect ratio.
 
 // Matches UserAvatar's size=24 below — reserves the online-avatars row's height
 // whether or not it actually has avatars to show, so every card in the horizontally-
@@ -93,7 +94,7 @@ export function SwipePreviewCard({
             aria-hidden="true"
           >
             {/* eslint-disable-next-line @next/next/no-img-element -- static gradient-fill asset, next/image adds no value here */}
-            <img src="/icons/pin-heart.svg" alt="" style={{ width: 12, height: 'auto', display: 'block' }} />
+            <img src="/icons/pin-heart.svg" alt="" style={{ width: 8, height: 'auto', display: 'block' }} />
           </div>
         )}
       </div>

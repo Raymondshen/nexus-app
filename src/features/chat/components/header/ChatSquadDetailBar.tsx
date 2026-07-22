@@ -148,7 +148,10 @@ export function ChatSquadDetailBar({
           moment members show as online (e.g. shortly
           after landing in a room, as presence heartbeats/broadcasts arrive) and slides
           out the same way if they drop to none (e.g. the outgoing side of a room-swipe,
-          which has no presence data for the destination room to show). */}
+          which has no presence data for the destination room to show). Purely decorative
+          — no per-avatar tap action — so, unlike a real interactive child, it does NOT
+          stop propagation: a tap here still bubbles up to the row's own onClick and opens
+          ChatRoomBrowseSheet, same as tapping anywhere else on the bar. */}
       <AnimatePresence initial={false}>
         {onlineMembers.length > 0 && (
           <motion.div
@@ -159,7 +162,6 @@ export function ChatSquadDetailBar({
             transition={SLIDE_TRANSITION}
             className="flex flex-1 min-w-0 items-center overflow-hidden"
             style={{ gap: 8, maxWidth: 164 }}
-            onClick={(e) => e.stopPropagation()}
           >
             {onlineMembers.map((m) => (
               <div key={m.id} className="relative flex-shrink-0">
@@ -173,20 +175,18 @@ export function ChatSquadDetailBar({
 
       {/* "Swipe / view" label (two lines, Figma 599:4030 — literally "Swipe<br/>view",
           a compact stand-in for "swipe up to view [details]") + swipe-gesture hint
-          icon (Figma 596:7302 "action btns") — purely decorative and NOT a
-          tap-to-expand target: stops propagation so a tap here doesn't also toggle
-          ChatRoomBrowseSheet via the row's own onClick (same pattern as the
-          online-avatars row above). Icon pulses (translate + mute→purple→mute) in
-          place when ChatInput's handleTopPan detects the swipe-up gesture; the
-          label itself is static. A horizontal icon used to sit alongside this one
-          hinting a swipe-left-or-right gesture — removed once swipe-up took over
-          opening ChatRoomBrowseSheet (see ChatInput's handleTopPanEnd), leaving this
-          the only swipe gesture on the bar. */}
+          icon (Figma 596:7302 "action btns") — purely decorative, no action of its
+          own, so a tap here bubbles up to the row's own onClick like the rest of the
+          bar (same as the online-avatars row above) rather than stopping propagation.
+          Icon pulses (translate + mute→purple→mute) in place when ChatInput's
+          handleTopPan detects the swipe-up gesture; the label itself is static. A
+          horizontal icon used to sit alongside this one hinting a swipe-left-or-right
+          gesture — removed once swipe-up took over opening ChatRoomBrowseSheet (see
+          ChatInput's handleTopPanEnd), leaving this the only swipe gesture on the bar. */}
       <div
         className="flex items-center flex-shrink-0"
         style={{ gap: 4 }}
         aria-hidden="true"
-        onClick={(e) => e.stopPropagation()}
       >
         <p className="font-silkscreen text-muted text-right leading-none whitespace-nowrap" style={{ fontSize: 8 }}>
           Swipe

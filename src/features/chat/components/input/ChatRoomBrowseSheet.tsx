@@ -373,7 +373,7 @@ export function ChatRoomBrowseSheet({
         <motion.div
           key="room-browse-sheet"
           ref={sheetRef}
-          className="fixed left-0 right-0 top-0 bg-black/85 flex flex-col"
+          className="fixed left-0 right-0 top-0 bg-black/95 flex flex-col"
           style={{
             bottom:     chatInputHeight,
             maxWidth:   480,
