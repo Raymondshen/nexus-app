@@ -36,6 +36,10 @@ function isYouTubeUrl(url: URL): boolean { return YOUTUBE_HOSTS.has(url.hostname
 function isRedditUrl(url: URL): boolean {
   return url.hostname === 'www.reddit.com'
     || url.hostname === 'reddit.com'
+    || url.hostname === 'old.reddit.com'
+    || url.hostname === 'np.reddit.com'
+    || url.hostname === 'amp.reddit.com'
+    || url.hostname === 'm.reddit.com'
     || url.hostname === 'redd.it'
 }
 
@@ -51,6 +55,22 @@ function isSpotifyUrl(url: URL): boolean {
     || url.hostname === 'spotify.com'
 }
 
+function isFacebookUrl(url: URL): boolean {
+  return url.hostname === 'www.facebook.com'
+    || url.hostname === 'facebook.com'
+    || url.hostname === 'm.facebook.com'
+    || url.hostname === 'web.facebook.com'
+    || url.hostname === 'fb.watch'
+}
+
+function isTikTokUrl(url: URL): boolean {
+  return url.hostname === 'www.tiktok.com'
+    || url.hostname === 'tiktok.com'
+    || url.hostname === 'm.tiktok.com'
+    || url.hostname === 'vm.tiktok.com'
+    || url.hostname === 'vt.tiktok.com'
+}
+
 interface YouTubeOEmbed { title?: string; thumbnail_url?: string }
 
 async function fetchYouTubePreview(rawUrl: string, signal: AbortSignal): Promise<OGPreview | null> {
@@ -62,10 +82,34 @@ async function fetchYouTubePreview(rawUrl: string, signal: AbortSignal): Promise
   return { url: rawUrl, title: data.title, image: data.thumbnail_url, site_name: 'YouTube', fetched_at: new Date().toISOString() }
 }
 
-function toOldRedditUrl(url: URL): string {
+// Reddit gates old.reddit.com behind a forced login wall for non-browser requests
+// (redirects to /login?reason=lor2) and serves a JS bot-verification challenge page
+// on www.reddit.com to an ordinary desktop UA — but still serves full og tags on
+// www.reddit.com to a known feed-crawler UA (Twitterbot/Discordbot; see fetchOGPreview's
+// UA selection). Normalizing every reddit host variant (old./np./amp./m.) to
+// www.reddit.com is what actually matters here — the UA is what unlocks it.
+function toWwwRedditUrl(url: URL): string {
   const r = new URL(url.toString())
-  r.hostname = 'old.reddit.com'
+  r.hostname = 'www.reddit.com'
   return r.toString()
+}
+
+interface TikTokOEmbed { title?: string; author_name?: string; thumbnail_url?: string; provider_name?: string }
+
+async function fetchTikTokPreview(rawUrl: string, signal: AbortSignal): Promise<OGPreview | null> {
+  const endpoint = `https://www.tiktok.com/oembed?url=${encodeURIComponent(rawUrl)}`
+  const res = await fetch(endpoint, { signal, headers: { 'User-Agent': 'Mozilla/5.0' } })
+  if (!res.ok) return null
+  const data = (await res.json()) as TikTokOEmbed
+  if (!data.title && !data.thumbnail_url) return null
+  return {
+    url:        rawUrl,
+    title:      data.title,
+    description: data.author_name ? `@${data.author_name}` : undefined,
+    image:      data.thumbnail_url,
+    site_name:  data.provider_name ?? 'TikTok',
+    fetched_at: new Date().toISOString(),
+  }
 }
 
 export async function fetchOGPreview(rawUrl: string): Promise<OGPreview | null> {
@@ -86,13 +130,25 @@ export async function fetchOGPreview(rawUrl: string): Promise<OGPreview | null> 
       clearTimeout(timer)
       return preview
     }
+    if (isTikTokUrl(parsedUrl)) {
+      const preview = await fetchTikTokPreview(rawUrl, controller.signal)
+      clearTimeout(timer)
+      return preview
+    }
 
-    const fetchUrl  = isRedditUrl(parsedUrl) ? toOldRedditUrl(parsedUrl) : rawUrl
-    // Spotify's default (non-crawler) response is a near-empty JS shell with no OG tags at
-    // all — like Instagram, it only serves the full meta tags to known crawler UAs.
-    const userAgent = isInstagramUrl(parsedUrl) || isSpotifyUrl(parsedUrl)
-      ? 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)'
-      : 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
+    const fetchUrl = isRedditUrl(parsedUrl) ? toWwwRedditUrl(parsedUrl) : rawUrl
+    // Each of these sites serves a near-empty JS shell (or, for Reddit, a bot-verification
+    // challenge / forced login wall) to an ordinary browser UA with no session, and only
+    // returns real og tags to a UA it recognizes as a known link-preview crawler:
+    // - Instagram/Spotify/Facebook accept Facebook's own crawler UA.
+    // - Reddit blocks that specific UA (verified: 429s it) but serves www.reddit.com fine
+    //   to Twitterbot/Discordbot-style UAs — old.reddit.com no longer works logged-out at
+    //   all (redirects to a login wall) regardless of UA, hence the www.reddit.com rewrite above.
+    const userAgent = isRedditUrl(parsedUrl)
+      ? 'Twitterbot/1.0'
+      : isInstagramUrl(parsedUrl) || isSpotifyUrl(parsedUrl) || isFacebookUrl(parsedUrl)
+        ? 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)'
+        : 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
 
     const res = await fetch(fetchUrl, { signal: controller.signal, headers: { 'User-Agent': userAgent, 'Accept': 'text/html' } })
     clearTimeout(timer)

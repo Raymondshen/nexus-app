@@ -15,6 +15,19 @@ const MAX_IMAGE_BYTES = 8 * 1024 * 1024
 const FETCH_USER_AGENT =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
 
+// Facebook's own crawler-media lookaside host (used as the og:image for Facebook Page
+// links — see fetchOGPreview's Facebook handling) serves a text/html placeholder instead
+// of the actual image to an ordinary browser UA, but serves it fine to its own crawler
+// UA — verified directly against the endpoint (curl + a plain Chrome UA came back
+// text/html; facebookexternalhit came back image/jpeg). Other Meta CDN hosts
+// (cdninstagram.com, fbcdn.net) don't have this gate and work fine with the default UA.
+function pickImageUserAgent(url: URL): string {
+  if (url.hostname === 'fbsbx.com' || url.hostname.endsWith('.fbsbx.com')) {
+    return 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)'
+  }
+  return FETCH_USER_AGENT
+}
+
 export async function GET(req: NextRequest) {
   const rawUrl = new URL(req.url).searchParams.get('url')
   if (!rawUrl) return new NextResponse(null, { status: 400 })
@@ -33,7 +46,7 @@ export async function GET(req: NextRequest) {
   try {
     const res = await fetch(parsedUrl.toString(), {
       signal: controller.signal,
-      headers: { 'User-Agent': FETCH_USER_AGENT },
+      headers: { 'User-Agent': pickImageUserAgent(parsedUrl) },
     })
     clearTimeout(timer)
 

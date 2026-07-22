@@ -801,9 +801,16 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
       })
     }
 
-    // Seed initial online set from DB — covers members active outside this tab
-    const memberIds = Object.keys(profilesRef.current)
-    if (memberIds.length > 0) {
+    // Seed/resync online set from DB — covers members active outside this tab, and
+    // (via the visibilitychange call below) members who came online/went offline while
+    // this device was backgrounded. Realtime 'active' broadcasts alone can't be trusted
+    // to catch that window: iOS suspends the socket's deliverability while the PWA is
+    // backgrounded/screen-locked, phoenix broadcasts are fire-and-forget (never queued
+    // for a suspended client to replay on resume), and a brief background often doesn't
+    // even trip CLOSED/rejoin — so nothing else re-reads the true DB state afterward.
+    const seedPeerPresenceFromDb = () => {
+      const memberIds = Object.keys(profilesRef.current)
+      if (memberIds.length === 0) return
       supabase
         .from('user_presence')
         .select('user_id, last_active_at')
@@ -816,13 +823,16 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
             if (p.user_id === userId || !p.last_active_at) return
             peerEntries[p.user_id] = new Date(p.last_active_at).getTime()
           })
-          // Single atomic update: merge peers into map and recompute online set in one shot
+          // Single atomic update: merge peers into map (peerEntries' fresh DB timestamp
+          // overwrites any stale locally-known one for that same id) and recompute the
+          // online set in one shot.
           useChatStore.setState((s) => {
             const lastActiveMap = { ...s.lastActiveMap, ...peerEntries }
             return { lastActiveMap, onlineUserIds: computeOnlineIds(lastActiveMap, ONLINE_THRESHOLD_MS) }
           })
         })
     }
+    seedPeerPresenceFromDb()
 
     let heartbeatTimer: ReturnType<typeof setInterval> | null = null
     const startHeartbeat = () => {
@@ -956,6 +966,12 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
         heartbeat()
         startHeartbeat()
         notifyActiveCrew(crewId)
+        // Re-read peer presence from the DB rather than trusting whatever broadcasts
+        // happened to arrive while backgrounded — see seedPeerPresenceFromDb above for
+        // why broadcasts alone can't be trusted to have covered that window. This is
+        // what makes the online-avatar row (ChatSquadDetailBar) accurate immediately on
+        // foreground instead of waiting up to one more 30s peer heartbeat cycle.
+        seedPeerPresenceFromDb()
         // Backfill anything that arrived while backgrounded. If the socket stayed
         // up (brief background) no SUBSCRIBED re-fires, so this is the only catch-up
         // trigger for that case; if it dropped, this runs before the rejoin's
@@ -974,6 +990,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     function handleOnline() {
       heartbeat()
       startHeartbeat()
+      seedPeerPresenceFromDb()
       useChatStore.getState().requestResync?.()
     }
     window.addEventListener('online', handleOnline)
