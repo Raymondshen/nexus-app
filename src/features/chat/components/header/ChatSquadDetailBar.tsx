@@ -20,15 +20,52 @@ interface ChatSquadDetailBarProps {
   // regardless of up/down, since down is a no-op at release but still worth the
   // pulse feedback (see handleTopPan).
   verticalSwipeTick?: number
+  /** Which side this room was switched to FROM — 'left' means the previous room's
+   *  content should slide out to the left while this room's slides in from the right
+   *  (advancing forward, e.g. tapping a room further down ChatRoomBrowseSheet's list),
+   *  'right' is the mirror (going back up the list). Sourced from ChatInput's
+   *  barSwipeDirection, itself captured from chatRoomPeekStore's `peek.direction` at
+   *  mount — see that state's own doc comment for why it's captured once and never
+   *  cleared. `null`/`undefined` (a plain, non-swipe mount — tap in from Home, deep
+   *  link, back-nav, refresh) falls back to a pure fade, no horizontal motion. */
+  swipeDirection?: 'left' | 'right' | null
 }
 
-// Shared top-to-bottom slide used by the crew image and name below — the incoming
-// value enters from above, the outgoing one continues past its resting spot and out
-// the bottom, so a swap reads as one continuous downward motion rather than a cut.
-// `initial={false}` on each AnimatePresence keeps this from also playing on the very
-// first mount of a plain room open — it only fires on an actual identity change (the
-// chat-swipe-nav arrival transition — see ChatInput's barOverride mount-seeding effect).
-const SLIDE_TRANSITION = { type: 'spring', stiffness: 170, damping: 21 } as const
+// Crossfade + direction-aware slide used by the crew image, name, online-count text,
+// and online-avatars row below — a room switch (the chat-swipe-nav arrival transition
+// — see ChatInput's barOverride mount-seeding effect) reads as one continuous
+// horizontal motion in the swiped direction, fading as it goes, rather than a flat
+// opacity swap or the old vertical slide-down. The outgoing room's identity slides out
+// one way while the incoming one slides in from the other side, both fading, at the
+// same spot (each lives in a `relative`+`absolute inset-0` or `relative overflow-hidden`
+// wrapper so both can overlap mid-transition instead of shoving layout). `initial={false}`
+// on each AnimatePresence keeps this from also playing on the very first mount of a
+// plain room open — it only fires on an actual identity change.
+const FADE_TRANSITION = { duration: 0.2, ease: 'easeInOut' } as const
+
+// How far, in px, the enter/exit slide travels — modest on purpose: this is a compact
+// bar (24px avatar, text truncated well under 140px, the avatar row capped at 164px
+// wide), not a full-screen transition, so a large offset would read as content jumping
+// rather than sliding.
+const SWIPE_SLIDE_PX = 20
+
+// Where an ENTERING (incoming room) element starts, before animating to its resting
+// x:0 — 'left' means the room switch is advancing forward, so new content enters from
+// the right (positive x); 'right' enters from the left (negative x); no direction
+// (a non-swipe identity change) starts at rest, i.e. a pure fade.
+function enterX(direction: 'left' | 'right' | null | undefined): number {
+  if (direction === 'left')  return SWIPE_SLIDE_PX
+  if (direction === 'right') return -SWIPE_SLIDE_PX
+  return 0
+}
+
+// Where an EXITING (outgoing room) element animates to, continuing past its resting
+// spot and off in the direction opposite its own entrance — the mirror of enterX.
+function exitX(direction: 'left' | 'right' | null | undefined): number {
+  if (direction === 'left')  return -SWIPE_SLIDE_PX
+  if (direction === 'right') return SWIPE_SLIDE_PX
+  return 0
+}
 
 // Figma 596:8403's "action btns" swipe-gesture hint icon (chevron_up 599:3910) — a
 // pixel-art arrow-in-a-frame glyph, not a pixelarticons icon (checked; none of the
@@ -83,7 +120,7 @@ export function SwipeHintIcon({ controls, loop = false }: { controls?: PulseCont
 
 export function ChatSquadDetailBar({
   crewImageUrl, crewName, members, onlineUserIds,
-  onTap, verticalSwipeTick = 0,
+  onTap, verticalSwipeTick = 0, swipeDirection = null,
 }: ChatSquadDetailBarProps) {
   const onlineMembers = members.filter((m) => onlineUserIds.has(m.id))
   const swipeHintControls = useAnimationControls()
@@ -110,10 +147,10 @@ export function ChatSquadDetailBar({
             <motion.div
               key={crewName}
               className="absolute inset-0"
-              initial={{ y: -14, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 14, opacity: 0 }}
-              transition={SLIDE_TRANSITION}
+              initial={{ opacity: 0, x: enterX(swipeDirection) }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: exitX(swipeDirection) }}
+              transition={FADE_TRANSITION}
             >
               <GroupAvatar imageUrl={crewImageUrl} name={crewName} size={24} />
             </motion.div>
@@ -128,38 +165,59 @@ export function ChatSquadDetailBar({
                 key={crewName}
                 className="absolute inset-0 font-body font-bold text-secondary leading-none truncate"
                 style={{ fontSize: 16, fontVariationSettings: '"opsz" 14' }}
-                initial={{ y: -16, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                exit={{ y: 16, opacity: 0 }}
-                transition={SLIDE_TRANSITION}
+                initial={{ opacity: 0, x: enterX(swipeDirection) }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: exitX(swipeDirection) }}
+                transition={FADE_TRANSITION}
               >
                 {crewName}
               </motion.p>
             </AnimatePresence>
           </div>
-          <p className="font-silkscreen text-tertiary leading-none" style={{ fontSize: 8 }}>
-            {onlineMembers.length} Member online
-          </p>
+          <div className="relative overflow-hidden" style={{ height: 8 }}>
+            <AnimatePresence initial={false}>
+              {/* Keyed by crewName (not the online count) — a room switch crossfades
+                  this label same as the image/name above; the count updating within
+                  the same room (presence heartbeats/broadcasts arriving) just swaps
+                  the text in place with no re-animation, since the key hasn't changed. */}
+              <motion.p
+                key={crewName}
+                className="absolute inset-0 font-silkscreen text-tertiary leading-none truncate"
+                style={{ fontSize: 8 }}
+                initial={{ opacity: 0, x: enterX(swipeDirection) }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: exitX(swipeDirection) }}
+                transition={FADE_TRANSITION}
+              >
+                {onlineMembers.length} Member online
+              </motion.p>
+            </AnimatePresence>
+          </div>
         </div>
       </div>
 
       {/* Online member avatars only — capped to ~6 visible at once, no overflow scroll;
-          extra members past the maxWidth are simply clipped. Slides in from the top the
-          moment members show as online (e.g. shortly
-          after landing in a room, as presence heartbeats/broadcasts arrive) and slides
-          out the same way if they drop to none (e.g. the outgoing side of a room-swipe,
-          which has no presence data for the destination room to show). Purely decorative
-          — no per-avatar tap action — so, unlike a real interactive child, it does NOT
-          stop propagation: a tap here still bubbles up to the row's own onClick and opens
+          extra members past the maxWidth are simply clipped. Keyed by crewName like the
+          image/name/count above — a room switch slides+fades this row the same
+          direction, in sync with the rest of the bar (e.g. the outgoing side of a
+          room-swipe has no presence data for the destination room, so it goes from "some
+          avatars" straight to "none" as part of that same swap, rather than getting its
+          own separate reveal afterward). Within the SAME room, the row still simply
+          appears/disappears as the member-online count crosses zero (e.g. shortly after
+          landing, as presence heartbeats/broadcasts arrive) — the key hasn't changed
+          then, so `swipeDirection` (null outside an active room switch) falls back to a
+          plain fade for that case, same as the image/name/count. Purely decorative — no
+          per-avatar tap action — so, unlike a real interactive child, it does NOT stop
+          propagation: a tap here still bubbles up to the row's own onClick and opens
           ChatRoomBrowseSheet, same as tapping anywhere else on the bar. */}
       <AnimatePresence initial={false}>
         {onlineMembers.length > 0 && (
           <motion.div
-            key="online-row"
-            initial={{ y: -14, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 14, opacity: 0 }}
-            transition={SLIDE_TRANSITION}
+            key={crewName}
+            initial={{ opacity: 0, x: enterX(swipeDirection) }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: exitX(swipeDirection) }}
+            transition={FADE_TRANSITION}
             className="flex flex-1 min-w-0 items-center overflow-hidden"
             style={{ gap: 8, maxWidth: 164 }}
           >
