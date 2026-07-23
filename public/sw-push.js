@@ -42,6 +42,41 @@ function isAppPage(pathname) {
   return false
 }
 
+// Absolute last-resort HTML — inlined so it depends on neither Cache Storage nor
+// a live fetch succeeding. This is the fallback OF the fallback: offlineFallback()
+// below normally serves the real /offline.html, but that file only ever reaches
+// Cache Storage via the 'install' handler's own network fetch (cache.add), which
+// can itself fail under the exact deploy-cutover network flakiness this whole
+// chain exists to survive — with no retry, that leaves /offline.html permanently
+// missing from cache until the SW next reinstalls. This inline copy is what
+// keeps that scenario from falling through to the bare native "This page
+// couldn't load" error.
+var OFFLINE_FALLBACK_HTML = '<!DOCTYPE html><html><head><meta charset="UTF-8">' +
+  '<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">' +
+  '<title>Nexus — Offline</title><style>body{background:#0a0612;color:#fff;' +
+  'font-family:system-ui,-apple-system,sans-serif;min-height:100dvh;display:flex;' +
+  'flex-direction:column;align-items:center;justify-content:center;padding:24px;' +
+  'text-align:center;gap:16px}button{background:#fff;color:#0a0612;border:none;' +
+  'border-radius:8px;padding:12px 24px;font-size:16px;font-weight:600}</style></head>' +
+  '<body><h1>You are offline</h1><p>Check your connection and try again.</p>' +
+  '<button onclick="location.reload()">Reload</button></body></html>'
+
+// Never let a navigation fallback resolve to undefined (event.respondWith(undefined)
+// is what produces the bare native error page). Try the precached real offline.html
+// first, then a live fetch of it (covers "precache missed but the network's fine
+// again now"), then the fully inline copy above, which cannot fail.
+function offlineFallback() {
+  return caches.match('/offline.html').then(function(cached) {
+    if (cached) return cached
+    return fetch('/offline.html').catch(function() {
+      return new Response(OFFLINE_FALLBACK_HTML, {
+        status:  200,
+        headers: { 'Content-Type': 'text/html; charset=utf-8' },
+      })
+    })
+  })
+}
+
 // ─── Fetch handler ────────────────────────────────────────────────────────────
 
 self.addEventListener('fetch', function(event) {
@@ -63,7 +98,7 @@ self.addEventListener('fetch', function(event) {
               if (response.ok) cache.put(request, response.clone())
               return response
             }).catch(function() {
-              return cached || caches.match('/offline.html')
+              return cached || offlineFallback()
             })
             // Serve stale HTML immediately; network response updates cache in bg
             return cached || networkFetch
@@ -87,7 +122,7 @@ self.addEventListener('fetch', function(event) {
     // native error page.
     event.respondWith(
       fetch(request).catch(function() {
-        return caches.match('/offline.html')
+        return offlineFallback()
       })
     )
     return
@@ -153,22 +188,33 @@ self.addEventListener('fetch', function(event) {
 // kills installation on iOS Safari, so we bypass it entirely.
 
 self.addEventListener('install', function(event) {
-  // Every `caches.match('/offline.html')` fallback above (both navigation branches)
-  // assumes this file already exists in Cache Storage — it doesn't get there on its
-  // own. next-pwa's generated sw.js/fallback-*.js DOES precache it via workbox's
-  // `fallbacks` config (next.config.ts's pwaConfig), but that generated worker is
-  // never registered (see CLAUDE.md — SWRegister only registers this hand-written
-  // file), so that precaching never actually runs. Without this, a genuine network
-  // failure with nothing already cached for that URL resolves the fallback to
-  // `undefined`, and `event.respondWith(undefined)` produces the exact same bare
-  // native "This page couldn't load" error this is meant to prevent.
-  event.waitUntil(
-    caches.open(NEXUS_PAGES_CACHE).then(function(cache) {
+  // offlineFallback() prefers this precached copy over the inline HTML fallback —
+  // it doesn't get into Cache Storage on its own. next-pwa's generated sw.js/
+  // fallback-*.js DOES precache it via workbox's `fallbacks` config (next.config.ts's
+  // pwaConfig), but that generated worker is never registered (see CLAUDE.md —
+  // SWRegister only registers this hand-written file), so that precaching never
+  // actually runs.
+  //
+  // This fetch runs at install time, which for an already-installed PWA is
+  // triggered by a foreground SW update check (SWRegister's visibilitychange
+  // handler) — i.e. it can land in the exact same deploy-cutover network
+  // flakiness the offline fallback exists to survive. One retry after a short
+  // delay covers a one-off blip; if both attempts fail, offlineFallback()'s own
+  // inline-HTML fallback (see above) still prevents the bare native error page —
+  // this retry is just to make that ugly last resort less often necessary.
+  function precacheOfflinePage(attempt) {
+    return caches.open(NEXUS_PAGES_CACHE).then(function(cache) {
       return cache.add('/offline.html')
     }).catch(function(err) {
+      if (attempt < 1) {
+        return new Promise(function(resolve) { setTimeout(resolve, 2000) })
+          .then(function() { return precacheOfflinePage(attempt + 1) })
+      }
       console.error('[sw-push] failed to precache offline.html:', err)
     })
-  )
+  }
+
+  event.waitUntil(precacheOfflinePage(0))
   self.skipWaiting()
 })
 
