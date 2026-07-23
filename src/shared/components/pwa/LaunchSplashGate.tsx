@@ -7,7 +7,7 @@ import { LaunchSplashContent } from './LaunchSplashContent'
 const FADE_DURATION_S = 0.7
 // Beat to let the fully-filled resting frame register before fading — same
 // convention the old HomeLoadingGate's SETTLE_MS used.
-const SETTLE_MS = 500
+const SETTLE_MS = 1000
 
 // "Ready" as an external store (document.readyState + the `load` event) rather
 // than a `useEffect` that calls `setState` in its body — the React-idiomatic

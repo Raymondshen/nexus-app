@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion, useMotionValue, useReducedMotion, animate, type AnimationPlaybackControls } from 'framer-motion'
 
-// Figma 544:2720 "home - screen" — the ghost (node 642:8315 "launch 1", 56×56) +
+// Figma 544:2721 "home - screen" — the ghost (node 642:8315 "launch 1", 80×80) +
 // "NEXUS" wordmark, both fading from a transparent/outline state to fully
 // filled. Figma's own keyframe timeline for the text (get_motion_context):
 // `color` goes rgba(250,250,250,0) → #FAFAFA over 24.96% of a 2.404s duration,
@@ -112,12 +112,12 @@ export function LaunchSplashContent({
 
   return (
     <div className="flex flex-col items-center justify-center" style={{ gap: 'var(--x5)' }}>
-      <motion.div className="relative flex-shrink-0" style={{ width: 56, height: 56, opacity: fill }}>
+      <motion.div className="relative flex-shrink-0" style={{ width: 80, height: 80, opacity: fill }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={`/sprites/ghost/launch/launch_${String(frame + 1).padStart(4, '0')}.webp`}
           alt=""
-          style={{ width: 56, height: 56, objectFit: 'contain', imageRendering: 'pixelated' }}
+          style={{ width: 80, height: 80, objectFit: 'contain', imageRendering: 'pixelated' }}
           aria-hidden="true"
         />
       </motion.div>
