@@ -77,6 +77,17 @@ function offlineFallback() {
   })
 }
 
+// fetch() only REJECTS on a genuine network-level failure — a transient 502/503/504
+// from the origin (old serverless instance draining, new one not warm yet — exactly
+// what a Vercel deploy cutover produces for a brief window) resolves normally as a
+// response object, so a bare `.catch()` never sees it and hands that bad gateway
+// response straight to the browser untouched. Treat a 5xx the same as a thrown
+// error for fallback purposes; a 4xx (401/404/etc) is a legitimate application
+// response and must NOT be swapped for the offline page.
+function isServerError(response) {
+  return response.status >= 500 && response.status <= 599
+}
+
 // ─── Fetch handler ────────────────────────────────────────────────────────────
 
 self.addEventListener('fetch', function(event) {
@@ -96,6 +107,9 @@ self.addEventListener('fetch', function(event) {
           return cache.match(request).then(function(cached) {
             var networkFetch = fetch(request).then(function(response) {
               if (response.ok) cache.put(request, response.clone())
+              // A 5xx during this response.ok check already skips caching it above —
+              // still must not hand it back as-is when there's nothing better cached.
+              if (isServerError(response)) return cached || offlineFallback()
               return response
             }).catch(function() {
               return cached || offlineFallback()
@@ -119,9 +133,15 @@ self.addEventListener('fetch', function(event) {
     // no retry, no offline.html, nothing. NetworkOnly-with-fallback here preserves
     // "always hit the network, never replay stale HTML for these paths" while still
     // catching that failure and handing back our own offline page instead of a bare
-    // native error page.
+    // native error page. Also covers a resolved-but-5xx response (see isServerError's
+    // own doc comment) — a plain .catch() alone doesn't see those, only a rejected
+    // fetch() promise, so a deploy-cutover 502/503 was still slipping through
+    // unfiltered even with this branch already in place.
     event.respondWith(
-      fetch(request).catch(function() {
+      fetch(request).then(function(response) {
+        if (isServerError(response)) return offlineFallback()
+        return response
+      }).catch(function() {
         return offlineFallback()
       })
     )
