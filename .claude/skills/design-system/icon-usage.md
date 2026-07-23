@@ -5,8 +5,9 @@ Icons (`pixelarticons`) — key usages:
 |---|---|---|
 | Back buttons | `ChevronLeft` | 24×24, `--color-purple` (except Definitions page: `--color-primary`) |
 | Expand/collapse | `ChevronRight` (rotated) | 24×24 |
-| Floating nav — notifs | `Bell` / `BellOff` | 24×24 |
-| Floating nav — glossary | `Library` | 24×24 |
+| ChatRoomBrowseSheet — notifs | `Bell` / `BellOff` | 24×24 |
+| ChatRoomBrowseSheet — glossary | `Library` | 24×24 |
+| ChatFloatingNav — room quick-switch | `Menu` | 24×24 |
 | ChatRoomBrowseSheet — edit | `MagicEdit` | 24×24 |
 | ChatRoomBrowseSheet — close | `Close` | 24×24, `--color-primary` |
 | Own Profile page — dev settings | `Braces` | 24×24, `--color-primary` |
