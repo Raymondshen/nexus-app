@@ -22,7 +22,6 @@ import { addToOutbox, readOutbox, type OutboxJob } from '@/shared/utils/outbox'
 import { acquireCrewMessageChannel, releaseCrewMessageChannel, isActiveCrewMessageChannel, evictCrewMessageChannel } from '@/shared/supabase/crewMessageChannel'
 import { IMAGE_CONFIG } from '@/shared/constants/config'
 import { ChatSquadDetailBar, SwipeHintIcon } from '@/features/chat/components/header/ChatSquadDetailBar'
-import { skipNextSlideEnter } from '@/app/layouts/SlidePage'
 import { useChatRoomPeekStore } from '@/features/chat/store/chatRoomPeekStore'
 import type { RoomMeta } from '@/features/chat/store/chatRoomPeekStore'
 import { ensureRoomMeta } from '@/features/chat/utils/ensureRoomMeta'
@@ -36,7 +35,7 @@ import { Plus } from 'pixelarticons/react/Plus'
 import { CornerUpLeft } from 'pixelarticons/react/CornerUpLeft'
 import { Close } from 'pixelarticons/react/Close'
 import { MagicEdit } from 'pixelarticons/react/MagicEdit'
-import { kickMemberAction, renameCrewAction, birthdaysCommandAction, pinCrewAction } from '@/app/(app)/chat/actions'
+import { kickMemberAction, renameCrewAction, birthdaysCommandAction } from '@/app/(app)/chat/actions'
 import { leaveCrewAction } from '@/app/(app)/home/actions'
 import dynamic from 'next/dynamic'
 import { CrewImageUploadModal } from '@/features/chat/components/sheets/CrewImageUploadModal'
@@ -112,9 +111,6 @@ interface ChatInputProps {
   /** This user's group-chat crew ids, most-recently-active first (DMs excluded) — feeds
    * the dev-gated chat swipe-navigation feature. Omitted/empty on the DM screen. */
   chatRoomOrder?:      string[]
-  /** This user's profiles.pinned_crew_id at page load — seeds ChatRoomBrowseSheet's
-   * Pin Squad state (see handlePinCrew below). Omitted/null on the DM screen. */
-  initialPinnedCrewId?: string | null
 }
 
 function sanitizeMessage(raw: string): string {
@@ -181,20 +177,8 @@ const EVENTS_FLAG_STORE = makeLocalStorageFlagStore('nexus_events_enabled', 'nex
 
 // ─── ChatInput ────────────────────────────────────────────────────────────────
 
-export function ChatInput({ crewId, userId, userProfile, memberProfiles, memberPinnedVinyls, crewName, inviteCode, creatorId, crewImageUrl: initialCrewImageUrl, crewBackgroundImageUrl: initialCrewBgUrl, initialXP, isDM, dmPartnerId, chatRoomOrder = [], initialPinnedCrewId = null }: ChatInputProps) {
+export function ChatInput({ crewId, userId, userProfile, memberProfiles, memberPinnedVinyls, crewName, inviteCode, creatorId, crewImageUrl: initialCrewImageUrl, crewBackgroundImageUrl: initialCrewBgUrl, initialXP, isDM, dmPartnerId, chatRoomOrder = [] }: ChatInputProps) {
   const router = useRouter()
-  // Pin Squad state (see ChatRoomBrowseSheet's own doc comment) — optimistic, rolled
-  // back on server error. null only ever means "this user has zero squads" — the
-  // pin_squad_invariant migration backfills every existing account and
-  // create_crew/join_crew/leave_crew keep it true going forward, so there's no
-  // unpin path here anymore, just (re)assigning the pin to a different squad.
-  const [pinnedCrewId, setPinnedCrewId] = useState<string | null>(initialPinnedCrewId)
-  async function handlePinCrew(targetCrewId: string) {
-    const previous = pinnedCrewId
-    setPinnedCrewId(targetCrewId)
-    const result = await pinCrewAction(targetCrewId)
-    if (result.error) setPinnedCrewId(previous)
-  }
   // Squad-bar content shown in place of THIS room's own image/name/level/member count,
   // used only on the arrival side of a committed room-swipe (see the mount-seeding
   // effect below) — never on the departing side anymore. The outgoing room's real bar
@@ -242,17 +226,9 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, memberP
   const [removeError,    setRemoveError]    = useState<string | null>(null)
   const [showLastMemberWarning, setShowLastMemberWarning] = useState(false)
   const [leavingSquad,   setLeavingSquad]   = useState(false)
-  // Which room the last-member warning above (and the eventual leave call) actually
-  // targets — null defaults to the room this ChatInput is mounted for (`crewId`,
-  // `liveCrewName`). Set when Leave Squad is tapped for a DIFFERENT room via
-  // ChatRoomBrowseSheet's per-card long-press sheet (Figma 605:3830) — see
-  // requestLeaveSquad below.
+  // Always { id: crewId, name: liveCrewName } now — see handleLeaveSquadTapped.
+  // Kept as state (not derived inline) since the warning sheet's JSX reads it.
   const [leaveTarget,    setLeaveTarget]    = useState<{ id: string; name: string } | null>(null)
-  // Rooms successfully left via that same per-card Leave Squad while NOT navigating
-  // away (i.e. some room other than `crewId`) — filtered out of browseRooms below so
-  // a left room stops appearing in the Squads row without needing a full reload of
-  // `chatRoomOrder` (a server-provided prop this component never otherwise mutates).
-  const [locallyLeftRoomIds, setLocallyLeftRoomIds] = useState<Set<string>>(new Set())
   const [kickedIds,      setKickedIds]      = useState<Set<string>>(new Set())
   const [crewImageUrl,   setCrewImageUrl]   = useState<string | null>(initialCrewImageUrl ?? null)
   const [crewImageFile,  setCrewImageFile]  = useState<File | null>(null)
@@ -708,43 +684,15 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     }
   }
 
-  // Used by ChatRoomBrowseSheet's own Create Squad card tap (its onCreateSquad prop
-  // below). Navigates straight to the standalone Create Squad page (Figma 426:2044,
-  // `CreateSquadPage`) rather than round-tripping through Home's sheet — see that
-  // component's own doc comment.
-  function openCreateSquadFromBrowse() {
-    setShowRoomBrowser(false)
-    router.push('/home/create')
-  }
-
-  // Used by ChatRoomBrowseSheet's tap-to-navigate (see its onSelectRoom call site
-  // below) — `direction` only affects which side ChatRoomPeekLayer's ghost enters
-  // from; a tap has no real drag direction, so the caller passes whichever is
-  // closest to correct based on list position.
-  function commitRoomSwitch(targetId: string, direction: 'left' | 'right') {
-    // No barOverride hard-cut here anymore — this room's own bar stays showing its
-    // own identity, unchanged, all the way to unmount. The destination room's own
-    // mount-seeded barOverride (see its lazy initializer above) is what now plays the
-    // group-A-to-group-B transition, on arrival, once B's real data is loaded.
-    useChatRoomPeekStore.getState().setPeek({ targetCrewId: targetId, direction, x: 0, phase: 'committing' })
-    // The peek layer above is what visually reveals the destination room (sliding its
-    // ghost placeholder all the way to x:0 — which 'committing' always does,
-    // regardless of the `x` passed here) — the real SlidePage that mounts once
-    // navigation lands should pick up silently at that same rest position instead of
-    // re-playing its own entrance (position) animation on top, which would look like a
-    // second, redundant slide-in. It still crossfades in (fadeIn=true) since, unlike a
-    // plain back-nav, there's no already-rendered real content underneath — only the
-    // peek layer's ghost — so popping straight to fully opaque would be an abrupt cut
-    // rather than a smooth handoff. See skipNextSlideEnter's own doc comment.
-    skipNextSlideEnter(true)
-    sessionStorage.setItem('nexus_chat_from', 'chat')
-    router.push(`/chat/${targetId}`)
-  }
-
-  // ChatRoomBrowseSheet shows every room in chatRoomOrder — fetched only once the
-  // sheet actually opens, not eagerly on mount, since a user's full crew list could be
-  // arbitrarily long. ensureRoomMeta already dedupes against whatever's cached, so
-  // this is cheap on a room a prior browse-sheet open already warmed.
+  // Warms chatRoomPeekStore's roomMeta cache for every room in chatRoomOrder the
+  // moment the (now Group-Details-only) browse sheet opens — no longer for that
+  // sheet's own benefit (it doesn't show other rooms anymore, see
+  // ChatRoomBrowseSheet's own doc comment), but ChatRoomPeekLayer's swipe-nav
+  // ghost placeholder still needs a room's name/image/level available the instant
+  // a peek starts, and this is still the cheapest place to opportunistically warm
+  // it for rooms the user hasn't actually opened yet this session. ensureRoomMeta
+  // already dedupes against whatever's cached, so this is a no-op for anything a
+  // prior open (here, or ChatSquadsPage's own on-mount seeding) already warmed.
   useEffect(() => {
     if (!showRoomBrowser) return
     for (const id of chatRoomOrder) {
@@ -1570,24 +1518,18 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
 
   // Leaving as the last member permanently deletes the crew (CASCADE wipes its
   // messages and vibes) — gate that path behind an explicit warning instead of
-  // letting it fire silently from a single tap. Generalized to accept any target
-  // room (not just `crewId`) so ChatRoomBrowseSheet's per-card long-press sheet
-  // (Figma 605:3830) can offer Leave Squad for ANY room in the browse list —
-  // `leave_crew`/`leaveCrewAction` already take an arbitrary crew id, this gating
-  // was just hardcoded to the current room by every call site until now.
-  function requestLeaveSquad(target: { id: string; name: string; memberCount: number }) {
-    if (target.memberCount <= 1) {
-      setLeaveTarget(target)
+  // letting it fire silently from a single tap. Leaving THIS room only — the
+  // browse sheet's per-card long-press Leave Squad (for an arbitrary OTHER room)
+  // moved to ChatSquadsPage.tsx along with the rest of the room-browsing UI (see
+  // ChatRoomBrowseSheet's own doc comment); ChatSquadsPage keeps its own copy of
+  // this same last-member gate for that case.
+  function handleLeaveSquadTapped() {
+    if (memberCount <= 1) {
+      setLeaveTarget({ id: crewId, name: liveCrewName })
       setShowLastMemberWarning(true)
       return
     }
-    void performLeaveSquad(target)
-  }
-
-  // The current room's own Leave Squad (ChatRoomBrowseSheet's Group Details
-  // section) — unchanged call shape for that existing call site.
-  function handleLeaveSquadTapped() {
-    requestLeaveSquad({ id: crewId, name: liveCrewName, memberCount })
+    void performLeaveSquad({ id: crewId, name: liveCrewName })
   }
 
   async function performLeaveSquad(target: { id: string; name: string }) {
@@ -1608,18 +1550,9 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     setLeavingSquad(false)
     setShowLastMemberWarning(false)
     setLeaveTarget(null)
-    if (target.id === crewId) {
-      // The room this ChatInput is actually mounted for — nothing left to show here.
-      setShowRoomBrowser(false)
-      router.push('/home')
-    } else {
-      // Some OTHER room, left from the browse sheet's long-press menu without ever
-      // navigating into it — just drop it from the visible room list. A `pinnedCrewId`
-      // now pointing at a room the user has left is harmless, same as any other stale
-      // pin (see CLAUDE.md's Pin Squad section) — every consumer already no-ops when
-      // the pinned id isn't in the user's current room list.
-      setLocallyLeftRoomIds((prev) => new Set(prev).add(target.id))
-    }
+    // Always this room — nothing left to show here.
+    setShowRoomBrowser(false)
+    router.push('/home')
   }
 
   // ─── @mention helpers ───────────────────────────────────────────────────────
@@ -1684,16 +1617,6 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
 
   const totalMessages = [...memberMsgCounts.values()].reduce((s, n) => s + n, 0)
 
-  // ChatRoomBrowseSheet's full list — every chatRoomOrder id with roomMeta already
-  // loaded (warmed by the effect above the moment the sheet opens), in that same
-  // list order. A room still mid-fetch is simply omitted until it resolves rather
-  // than padded with a placeholder.
-  const roomPeekMeta = useChatRoomPeekStore((s) => s.roomMeta)
-  const browseRooms = chatRoomOrder
-    .filter((id) => !locallyLeftRoomIds.has(id))
-    .map((id) => (roomPeekMeta[id] ? { id, ...roomPeekMeta[id] } : null))
-    .filter((room): room is { id: string } & RoomMeta => room !== null)
-
   // Feeds ChatRoomBrowseSheet's own squad-detail section (Figma 599:3931). null for
   // DMs, which don't have an invite/member-row concept — that section is skipped
   // entirely when this is null, see ChatRoomBrowseSheet's own call site.
@@ -1716,15 +1639,6 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
       router.push(`/chat/${crewId}/member/${memberId}`)
     },
     onLeave: handleLeaveSquadTapped,
-  }
-
-  function handleSelectRoomFromBrowse(targetId: string) {
-    setShowRoomBrowser(false)
-    if (targetId === crewId) return
-    const currentIndex = chatRoomOrder.indexOf(crewId)
-    const targetIndex  = chatRoomOrder.indexOf(targetId)
-    const direction: 'left' | 'right' = targetIndex > currentIndex ? 'left' : 'right'
-    commitRoomSwitch(targetId, direction)
   }
 
   return (
@@ -1762,22 +1676,16 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
         </div>
       )}
 
-      {/* Swipe-on-the-container overlay — every room, scrollable, tap to navigate.
-          Opened at the current room by handleTopPanEnd (swipe up — see this
-          component's own doc comment) or by tap-scrolling within the sheet itself
-          once open. */}
+      {/* Group Details overlay for this room — opened by handleTopPanEnd (swipe up
+          — see this component's own doc comment) or by tapping ChatSquadDetailBar.
+          Quick-switching to another room lives on its own page now (ChatSquadsPage,
+          via ChatFloatingNav's Menu button) — see ChatRoomBrowseSheet's own doc
+          comment for the split. */}
       <ChatRoomBrowseSheet
         visible={showRoomBrowser}
-        rooms={browseRooms}
-        currentRoomId={crewId}
-        pinnedRoomId={pinnedCrewId}
         squadDetail={squadDetail}
         currentUserId={userId}
         allMuted={allMuted}
-        onSelectRoom={handleSelectRoomFromBrowse}
-        onCreateSquad={openCreateSquadFromBrowse}
-        onPinCrew={handlePinCrew}
-        onLeaveRoom={(room) => requestLeaveSquad({ id: room.id, name: room.name, memberCount: room.memberCount })}
         onEditSquad={() => { setShowRoomBrowser(false); setShowManageSquad(true) }}
         onNotif={() => setShowNotifSheet(true)}
         onLibrary={() => {

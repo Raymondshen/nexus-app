@@ -30,13 +30,20 @@ interface PageHeaderProps {
   // overlay-style sheets that dismiss via their own `right`-slot action (a
   // close X, or a row of icons) rather than a back chevron — ChatRoomBrowseSheet.
   variant?: 'default' | 'sheet'
+  // Overrides the variant's own default title color token — 'sheet' normally
+  // renders --color-secondary (ChatRoomBrowseSheet's crew-name/"Updates" title).
+  // A caller whose own Figma spec deviates from that default (bold DM Sans, no
+  // back button, but --color-primary — Figma 589:3617's "Squads" page header)
+  // passes this instead of hand-rolling a custom header. Unused on 'default',
+  // which is always --color-primary already.
+  titleColor?: 'primary' | 'secondary'
 }
 
 // Shared header for every subpage/sheet overlay — see CLAUDE.md → Page Structure.
 // 'default' variant: ChevronLeft back button + uppercase Silkscreen title, used by
 // the Definitions list page, CreateDefinitionPage overlay, ManageSquadProfile,
 // ManageUserProfile, and DeveloperUserSettings. 'sheet' variant: see above.
-export function PageHeader({ title, onBack, right, icon, variant = 'default' }: PageHeaderProps) {
+export function PageHeader({ title, onBack, right, icon, variant = 'default', titleColor }: PageHeaderProps) {
   const slideBack = useSlideBack()
   const handleBack = onBack ?? slideBack
   return (
@@ -54,7 +61,7 @@ export function PageHeader({ title, onBack, right, icon, variant = 'default' }: 
           <div className="flex items-center min-w-0 flex-1" style={{ gap: 'var(--x2)' }}>
             {icon}
             <p
-              className="font-body font-bold leading-none text-secondary truncate min-w-0"
+              className={`font-body font-bold leading-none truncate min-w-0 ${titleColor === 'primary' ? 'text-primary' : 'text-secondary'}`}
               style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}
             >
               {title}

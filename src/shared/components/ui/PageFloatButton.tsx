@@ -4,6 +4,7 @@ import { type ReactNode, useEffect, useState, useSyncExternalStore } from 'react
 import { AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { Calendar2 } from 'pixelarticons/react/Calendar2'
+import { Menu } from 'pixelarticons/react/Menu'
 import { DiamondGem } from 'pixelarticons/react/DiamondGem'
 import { TokeCircle } from 'pixelarticons/react/TokeCircle'
 import { useChatStore } from '@/store/chatStore'
@@ -116,9 +117,10 @@ interface ChatFloatingNavProps {
 }
 
 // The chat room's floating top nav — composed of the profile-avatar+name+currency button
-// (Figma 642:7771 "squad-nav", superseding 637:8619 "squad-nav", which superseded 613:3750
-// "chatNavbarTop" / "squad-nav", which itself superseded the earlier 577:5781/603:3526
-// revisions) plus a dev-gated PageFloatButton, and the chat-specific wiring that used to live
+// (Figma 637:8569 "squad-nav", superseding 642:7771 "squad-nav", which superseded 637:8619
+// "squad-nav", which superseded 613:3750 "chatNavbarTop" / "squad-nav", which itself
+// superseded the earlier 577:5781/603:3526 revisions) plus a dev-gated PageFloatButton, and
+// the chat-specific wiring that used to live
 // in its own FloatingBackButton component/file (navigation/). Merged here by explicit
 // instruction so there's a single source of button-related code instead of two, at the cost of
 // this shared/ui module now importing chat-only dependencies (useChatStore,
@@ -152,10 +154,18 @@ interface ChatFloatingNavProps {
 // profile photo by explicit request) is dropped entirely — that export's "top row" node
 // contains only the username text, nothing else. The scrim gradient also got a different
 // stop table in that revision.
-// Figma 642:7771 ("squad-nav") is the current revision on top of THAT: the main avatar frame
+// Figma 642:7771 ("squad-nav") was a further revision on top of THAT: the main avatar frame
 // (see "Avatar" paragraph below) swapped from a plain circular clip to a bordered, 4px-rounded
 // square, and the scrim gradient's last two stops got slightly more opaque (65%/25% black at
 // 80%/100%, up from 60%/10%). Nothing else changed from 637:8619.
+// Figma 637:8569 ("squad-nav") is the current revision on top of THAT: the avatar frame's
+// background went from solid black to fully transparent, gained a soft drop shadow
+// (`0px 0px 20px 12px rgba(0,0,0,0.1)`) and a glass blur (see "Avatar" paragraph below) — the
+// gradient is unchanged (identical stop table to 642:7771). This revision's export also shows a
+// second button in the nav row — a plain hamburger `Menu` icon (Figma node 642:7822/642:7818,
+// confirmed against pixelarticons' `Menu` path) — opens ChatSquadsPage (Figma 589:3617,
+// `/chat/[crewId]/squads`, see that route's own doc comment), a real route rather than another
+// client-side overlay since ChatFloatingNav has no wiring to ChatInput's own overlay state.
 // `avatarClass` is this user's crew_members.class for THIS crew (per-membership, not
 // profiles.avatar_class), and `initialTotalUnreadMessages` is a server-computed snapshot at
 // page load (same "initial" treatment as initialGemBalance/initialCoins) summed across every
@@ -166,9 +176,10 @@ interface ChatFloatingNavProps {
 // Avatar: Figma swaps the real profile photo for the user's own class sprite, animated (the
 // same walk-cycle `animate` prop the right-side sprite readout elsewhere in this file already
 // uses) rather than pinned to a single static direction, cropped via a 40×40 `overflow-hidden`
-// frame (bordered, 4px-rounded — see 642:7771 above) around a larger centered sprite
-// (`AVATAR_SPRITE_DISPLAY_PX`, matching Figma's 45×45 inner crop regardless of the sprite
-// sheet's native size, so every class reads at the same visual scale). Falls back to the
+// frame (bordered, 4px-rounded, transparent + glass-blurred + soft-shadowed — see 637:8569
+// above) around a larger centered sprite (`AVATAR_SPRITE_DISPLAY_PX`, matching Figma's 45×45
+// inner crop regardless of the sprite sheet's native size, so every class reads at the same
+// visual scale). Falls back to the
 // real-photo `UserAvatar` when this user's class has no sprite mapping (`spriteInfoFor` returns
 // null — e.g. an unmapped/legacy class); every class a live crew-chat member can actually have
 // does map to one, so this fallback is defensive rather than expected to fire in practice —
@@ -250,10 +261,19 @@ export function ChatFloatingNav({
             style={{ gap: 'var(--x3)' }}
           >
             {/* Class-sprite avatar — see this component's own doc comment for the fixed-display-
-                size crop + real-photo fallback. */}
+                size crop + real-photo fallback. Glass effect (backdrop-filter: blur(7px)) isn't
+                present in the raw Figma export — same round-trip gap PageFloatButton's own doc
+                comment notes for its glass buttons — applied explicitly here to match the
+                "GLASS radius: 7" effect Figma's metadata reports for this node. */}
             <div
               className="relative overflow-hidden border flex-shrink-0"
-              style={{ width: 40, height: 40, borderRadius: 'var(--x2)', borderColor: 'var(--color-border-hover)', background: 'var(--color-background)' }}
+              style={{
+                width: 40, height: 40, borderRadius: 'var(--x2)', borderColor: 'var(--color-border-hover)',
+                background:           'transparent',
+                boxShadow:            '0px 0px 20px 12px rgba(0,0,0,0.1)',
+                backdropFilter:       'blur(7px)',
+                WebkitBackdropFilter: 'blur(7px)',
+              }}
             >
               {spriteInfo ? (
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
@@ -338,6 +358,30 @@ export function ChatFloatingNav({
                 )}
               </div>
             </div>
+          </button>
+
+          {/* Figma 637:8569's second nav button (642:7822/642:7818) — a hamburger `Menu`
+              icon (pixelarticons path confirmed against the exported SVG). Opens
+              ChatSquadsPage (Figma 589:3617, `/chat/[crewId]/squads`) — a real route
+              rather than another client-side overlay, since ChatFloatingNav is a
+              server-composed sibling of ChatInput, not its parent, and has no access
+              to ChatInput's own overlay state (ChatRoomBrowseSheet, etc.). Sets
+              nexus_chat_from first, same as ChatInput's own onLibrary handler — see
+              the Gotchas note in CLAUDE.md: without it, returning here stacks an
+              extra /home history entry via this component's own history-stacking-
+              guard effect above. Not dev-gated, unlike Calendar2 below, since Figma's
+              export shows it unconditionally. */}
+          <button
+            type="button"
+            onClick={() => {
+              sessionStorage.setItem('nexus_chat_from', 'chat')
+              router.push(`/chat/${crewId}/squads`)
+            }}
+            aria-label="Squads"
+            className="flex flex-col items-center justify-center flex-shrink-0 appearance-none pointer-events-auto active:opacity-70"
+            style={{ padding: 'var(--x3)', borderRadius: 'var(--x2)' }}
+          >
+            <Menu style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
           </button>
 
           {devMode && eventsEnabled && (

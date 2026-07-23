@@ -70,6 +70,12 @@ interface ChatRoomPeekStore {
   // for the rest of the session is a non-issue for a transient preview.
   roomMeta:    Record<string, RoomMeta>
   setRoomMeta: (crewId: string, meta: RoomMeta) => void
+  /** Merges many rooms' worth of RoomMeta in a single `set()` — one re-render of
+   *  every `roomMeta` subscriber (e.g. ChatRoomPeekLayer, mounted for the whole
+   *  chat/[crewId] layout) instead of one per room. Used by ChatSquadsPage.tsx to
+   *  seed its whole server-fetched room list on mount without looping
+   *  `setRoomMeta` — see that call site's own doc comment. */
+  setRoomMetaBulk: (entries: Record<string, RoomMeta>) => void
 
   peek:    PeekState | null
   setPeek: (peek: PeekState | null) => void
@@ -92,6 +98,7 @@ export const useChatRoomPeekStore = create<ChatRoomPeekStore>((set) => ({
 
   roomMeta: {},
   setRoomMeta: (crewId, meta) => set((s) => ({ roomMeta: { ...s.roomMeta, [crewId]: meta } })),
+  setRoomMetaBulk: (entries) => set((s) => ({ roomMeta: { ...s.roomMeta, ...entries } })),
 
   peek: null,
   setPeek: (peek) => set({ peek }),

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import Script from 'next/script'
 import { GuestBanner } from '@/shared/components/banners/GuestBanner'
+import { LaunchSplashGate } from '@/shared/components/pwa/LaunchSplashGate'
 import { InstallPrompt } from '@/shared/components/pwa/InstallPrompt'
 import { NotificationPrompt } from '@/shared/components/pwa/NotificationPrompt'
 import { PushRefresh } from '@/shared/components/pwa/PushRefresh'
@@ -23,6 +24,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       </Script>
       <GuestBanner />
       {children}
+      <LaunchSplashGate />
       <InstallPrompt />
       <NotificationPrompt />
       <PushRefresh />

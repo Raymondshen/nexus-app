@@ -94,11 +94,13 @@ export function ChatSquadDetailBar({
           <div className="relative overflow-hidden" style={{ height: 16 }}>
             <AnimatePresence initial={false}>
               {/* Figma 637:3891 — DM Sans Bold (700), not Black (900), primary color
-                  (not secondary), and not uppercased (crewName renders as typed,
-                  e.g. "Squad Sh*t"). */}
+                  (not secondary). Uppercased via CSS (`uppercase` — crewName itself
+                  stays whatever case it was typed in, e.g. "Squad Sh*t" renders as
+                  "SQUAD SH*T") by explicit request, overriding Figma's own literal
+                  as-typed rendering. */}
               <motion.p
                 key={crewName}
-                className="absolute inset-0 font-body font-bold text-primary leading-none truncate"
+                className="absolute inset-0 font-body font-bold text-primary leading-none truncate uppercase"
                 style={{ fontSize: 16, fontVariationSettings: '"opsz" 14' }}
                 initial={{ y: -16, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
