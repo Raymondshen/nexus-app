@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from 'next'
 import { Press_Start_2P, DM_Sans, Silkscreen } from 'next/font/google'
 import { validateConfig } from '@/shared/constants/config'
 import { SWRegister } from '@/shared/components/pwa/SWRegister'
-import { AppUpdateWatcher } from '@/shared/components/pwa/AppUpdateWatcher'
 import './globals.css'
 
 const pressStart2P = Press_Start_2P({
@@ -93,7 +92,6 @@ export default function RootLayout({
     <html lang="en" className={`${pressStart2P.variable} ${dmSans.variable} ${silkscreen.variable}`} suppressHydrationWarning>
       <body className="min-h-screen bg-[#0a0612] text-white antialiased">
         <SWRegister />
-        <AppUpdateWatcher />
         {children}
       </body>
     </html>
