@@ -29,6 +29,7 @@ import { ensureRoomMeta } from '@/features/chat/utils/ensureRoomMeta'
 import { ChatTypingIndicator } from '@/features/chat/components/input/ChatTypingIndicator'
 import { ChatRoomBrowseSheet, type SquadDetailInfo } from '@/features/chat/components/input/ChatRoomBrowseSheet'
 import { isGemGateOpen, recordGemClaim } from '@/shared/utils/gems'
+import { makeLocalStorageFlagStore, getServerFlagSnapshotFalse } from '@/shared/utils/localStorageFlag'
 import type { GemClaimResult } from '@/types'
 import { Send } from 'pixelarticons/react/Send'
 import { Plus } from 'pixelarticons/react/Plus'
@@ -167,37 +168,16 @@ const EMPTY_ONLINE_IDS = new Set<string>()
 // way to make an already-set client-side flag "unseen" again for everyone at once.
 const CHAT_SWIPE_HINT_SEEN_KEY = 'nexus_chat_swipe_nav_hint_seen_v2'
 
-// How far, in either axis, a pan gesture on chatInputContainer must travel before
-// handleTopPan classifies it as horizontal or vertical (see that function) — small
-// enough to feel immediate, large enough that an incidental jitter or a tap doesn't
-// get misread as a direction. The open decision itself always happens at release,
-// in handleTopPanEnd, regardless of which axis this locks to.
-const PAN_DIRECTION_LOCK_PX = 12
-
 // SSR-safe localStorage dev-flag reader, one instance per (storageKey, changeEvent)
 // pair — mirrors useQuickReactions' useSyncExternalStore pattern
 // (src/shared/utils/quickReactions.ts) rather than the old "read in a useEffect, call
-// setState in its body" approach: the latter is exactly what react-hooks/set-state-in-effect
-// flags (an effect isn't the React-idiomatic way to sync from an external store like
-// localStorage — useSyncExternalStore is, and it also sidesteps any SSR/hydration
-// mismatch, since getServerSnapshot below always returns false regardless of what's
-// actually in localStorage). DeveloperUserSettings.tsx is the sole writer for both flags
-// this drives (nexus_friendship_xp/nexus-friendship-xp-change,
+// setState in its body" approach (see makeLocalStorageFlagStore's own doc comment for
+// why). DeveloperUserSettings.tsx is the sole writer for both flags this drives
+// (nexus_friendship_xp/nexus-friendship-xp-change,
 // nexus_events_enabled/nexus-events-feature-change) — it dispatches the change event
 // itself after writing, same-tab, so no `storage` event listener is needed here.
-function makeLocalStorageFlagStore(storageKey: string, changeEvent: string) {
-  function getSnapshot() {
-    return typeof window === 'undefined' ? false : localStorage.getItem(storageKey) === '1'
-  }
-  function subscribe(onStoreChange: () => void) {
-    window.addEventListener(changeEvent, onStoreChange)
-    return () => window.removeEventListener(changeEvent, onStoreChange)
-  }
-  return { getSnapshot, subscribe }
-}
 const FXP_FLAG_STORE    = makeLocalStorageFlagStore('nexus_friendship_xp',  'nexus-friendship-xp-change')
 const EVENTS_FLAG_STORE = makeLocalStorageFlagStore('nexus_events_enabled', 'nexus-events-feature-change')
-const GET_SERVER_SNAPSHOT_FALSE = () => false
 
 // ─── ChatInput ────────────────────────────────────────────────────────────────
 
@@ -248,8 +228,8 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, memberP
   // store. There's no separate `pollEnabled` — the poll-creation entry point that would
   // have consumed it isn't wired to any UI anymore (`showPollCreator` below is never
   // set true), so that flag was dead: read, stored, never once referenced.
-  const eventsEnabled = useSyncExternalStore(EVENTS_FLAG_STORE.subscribe, EVENTS_FLAG_STORE.getSnapshot, GET_SERVER_SNAPSHOT_FALSE)
-  const fxpEnabled    = useSyncExternalStore(FXP_FLAG_STORE.subscribe,    FXP_FLAG_STORE.getSnapshot,    GET_SERVER_SNAPSHOT_FALSE)
+  const eventsEnabled = useSyncExternalStore(EVENTS_FLAG_STORE.subscribe, EVENTS_FLAG_STORE.getSnapshot, getServerFlagSnapshotFalse)
+  const fxpEnabled    = useSyncExternalStore(FXP_FLAG_STORE.subscribe,    FXP_FLAG_STORE.getSnapshot,    getServerFlagSnapshotFalse)
   const [showSwipeHint,   setShowSwipeHint]   = useState(false)
   const [gemToastVisible,   setGemToastVisible]   = useState(false)
   const [showNotifSheet,  setShowNotifSheet]  = useState(false)
@@ -288,19 +268,6 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   // ChatRoomBrowseSheet, a persistent "every room, scrollable, tap to navigate"
   // overlay. Stays true until the user taps a card or the backdrop.
   const [showRoomBrowser, setShowRoomBrowser] = useState(false)
-  // Locks which axis the current pan gesture on chatInputContainer means, decided
-  // once per gesture the first time it crosses PAN_DIRECTION_LOCK_PX in either
-  // axis — see handleTopPan. Null between gestures and while still undecided. Still
-  // tracks 'horizontal' even though a horizontal drag no longer opens anything (see
-  // handleTopPanEnd) — that's what lets handleTopPan tell a horizontal drag apart
-  // from a vertical one so it doesn't pulse the swipe-up hint for the wrong gesture.
-  const panDirectionRef = useRef<'horizontal' | 'vertical' | null>(null)
-  // Bumped once per gesture, the instant handleTopPan locks the axis to 'vertical' —
-  // drives ChatSquadDetailBar's swipe-hint icon pulse. Fires on axis-lock (mid-drag),
-  // not on a qualifying release, so the icon still pulses even if the swipe-up
-  // doesn't end up crossing handleTopPanEnd's open threshold — the pulse is feedback
-  // for "you're swiping", not for "that swipe opened something".
-  const [verticalSwipeTick, setVerticalSwipeTick] = useState(0)
   const [showEventSheet,  setShowEventSheet]  = useState(false)
   const [isMultiline,     setIsMultiline]     = useState(false)
 
@@ -718,35 +685,12 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   // ────────────────────────────────────────────────────────────────────────────
 
   // A vertical, up-only pan gesture anywhere on chatInputContainer opens
-  // ChatRoomBrowseSheet — decided at release (see
-  // handleTopPanEnd), same target the swipe hint's `verticalSwipeTick`-driven icon
-  // pulse on ChatSquadDetailBar advertises. (Down does nothing at release, same as
-  // before.) A horizontal drag no longer opens anything — it used to be reachable
-  // that way too, but that gesture was removed once swipe-up started opening the
-  // same sheet. A plain tap on ChatSquadDetailBar (its own `onClick`) opens the
-  // exact same sheet — see that call site's own doc comment — so swipe-up and tap
-  // are two gestures onto one destination, not two different overlays.
-  // handleTopPan itself only locks which axis the gesture is, once per gesture the
-  // first time it crosses PAN_DIRECTION_LOCK_PX (an otherwise-unrelated small
-  // jitter, or a tap, can't cross that threshold by coincidence) — this is still
-  // needed even with one gesture left, so a dominantly-horizontal drag doesn't
-  // mistakenly pulse the vertical hint icon just because its y-offset also ticks
-  // past the lock threshold.
-  function handleTopPanStart() {
-    panDirectionRef.current = null
-  }
-
-  function handleTopPan(_: PointerEvent, info: PanInfo) {
-    if (panDirectionRef.current !== null) return
-    if (Math.abs(info.offset.x) < PAN_DIRECTION_LOCK_PX && Math.abs(info.offset.y) < PAN_DIRECTION_LOCK_PX) return
-    panDirectionRef.current = Math.abs(info.offset.x) > Math.abs(info.offset.y) ? 'horizontal' : 'vertical'
-    if (panDirectionRef.current === 'vertical') {
-      // Pulse regardless of up/down — down does nothing at release, but the hint
-      // pulse itself isn't a promise the release will actually open something (see
-      // this ref's own doc comment).
-      setVerticalSwipeTick((t) => t + 1)
-    }
-  }
+  // ChatRoomBrowseSheet — decided entirely at release, below. A horizontal drag
+  // doesn't open anything — it used to be reachable that way too, but that gesture
+  // was removed once swipe-up started opening the same sheet. A plain tap on
+  // ChatSquadDetailBar (its own `onClick`) opens the exact same sheet — see that
+  // call site's own doc comment — so swipe-up and tap are two gestures onto one
+  // destination, not two different overlays.
 
   // One-shot hint dismissal — see CHAT_SWIPE_HINT_SEEN_KEY's own doc comment.
   function dismissSwipeHint() {
@@ -756,7 +700,6 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   }
 
   function handleTopPanEnd(_: PointerEvent, info: PanInfo) {
-    panDirectionRef.current = null
     const isVertical = Math.abs(info.offset.y) > Math.abs(info.offset.x)
     if (!isVertical) return
     if (info.offset.y < -50 || info.velocity.y < -300) {
@@ -1799,10 +1742,9 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
           ChatRoomBrowseSheet, so only one hint remains, now with updated copy and a
           dashed top divider), hidden when there's nothing to switch to. Permanently
           dismissed the first time the gesture actually fires — see
-          CHAT_SWIPE_HINT_SEEN_KEY / dismissSwipeHint. Reuses SwipeHintIcon with
-          `loop` (its own continuous horizontal-bounce motion spec, Figma 605:3642 —
-          distinct from the tick-triggered pulse ChatSquadDetailBar's persistent
-          indicator uses). */}
+          CHAT_SWIPE_HINT_SEEN_KEY / dismissSwipeHint. Uses SwipeHintIcon's own
+          continuous horizontal-bounce motion spec (Figma 605:3642) — a distinct
+          glyph/timeline from ChatSquadDetailBar's own persistent chevron hint. */}
       {showSwipeHint && chatRoomOrder.length > 1 && (
         <div
           className="flex items-center justify-center w-full"
@@ -1815,7 +1757,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
             >
               Swipe up to view notification and squad details
             </p>
-            <SwipeHintIcon loop />
+            <SwipeHintIcon />
           </div>
         </div>
       )}
@@ -1845,16 +1787,14 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
         onClose={() => setShowRoomBrowser(false)}
       />
 
-      {/* Figma 577:4905 ("chatInputContainer") — squad bar + input field together, as one
+      {/* Figma 637:3886 ("chatInputContainer") — squad bar + input field together, as one
           unit.
 
-          onPan/onPanEnd live HERE (the whole container), not on ChatSquadDetailBar —
-          a swipe up anywhere in the container (bar or input row) should drive
-          ChatRoomBrowseSheet, per handleTopPanStart's own doc comment. */}
+          onPanEnd lives HERE (the whole container), not on ChatSquadDetailBar — a
+          swipe up anywhere in the container (bar or input row) should drive
+          ChatRoomBrowseSheet, per handleTopPanEnd's own doc comment. */}
       <motion.div
         className="border-t border-border flex flex-col"
-        onPanStart={handleTopPanStart}
-        onPan={handleTopPan}
         onPanEnd={handleTopPanEnd}
         style={{
           paddingTop:    'var(--space-5)',
@@ -1894,14 +1834,15 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
           <ChatSquadDetailBar
             crewImageUrl={barOverride ? barOverride.imageUrl : crewImageUrl}
             crewName={barOverride ? barOverride.name : liveCrewName}
+            crewLevel={barOverride ? barOverride.level : crewLevel}
+            memberCount={barOverride ? barOverride.memberCount : memberCount}
             members={barOverride ? EMPTY_MEMBERS : members}
             onlineUserIds={barOverride ? EMPTY_ONLINE_IDS : onlineUserIds}
             // Toggles ChatRoomBrowseSheet — same destination the swipe-up gesture opens
-            // (see handleTopPan's own doc comment). A tap while it's already open closes
-            // it, matching every other "tap outside the row" dismissal instead of
-            // stacking a second open on top.
+            // (see handleTopPanEnd's own doc comment). A tap while it's already open
+            // closes it, matching every other "tap outside the row" dismissal instead
+            // of stacking a second open on top.
             onTap={() => setShowRoomBrowser((prev) => !prev)}
-            verticalSwipeTick={verticalSwipeTick}
           />
         )}
 
@@ -2135,7 +2076,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
                     <button
                       onClick={() => setShowMediaPicker(true)}
                       disabled={pendingImages.length >= 4}
-                      className="flex-shrink-0 flex items-center justify-center text-muted active:text-purple disabled:opacity-30 disabled:cursor-not-allowed"
+                      className="flex-shrink-0 flex items-center justify-center text-primary active:text-purple disabled:opacity-30 disabled:cursor-not-allowed"
                       style={{ width: 16, height: 16 }}
                       aria-label="Add media"
                     >

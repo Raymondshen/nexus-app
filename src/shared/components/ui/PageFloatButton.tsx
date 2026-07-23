@@ -1,6 +1,6 @@
 'use client'
 
-import { type ReactNode, useEffect, useState } from 'react'
+import { type ReactNode, useEffect, useState, useSyncExternalStore } from 'react'
 import { AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { Calendar2 } from 'pixelarticons/react/Calendar2'
@@ -11,6 +11,7 @@ import { EventSheetBottomPreview } from '@/features/events/components/EventSheet
 import { UserAvatar } from '@/shared/components/ui/UserAvatar'
 import { CLASS_LABELS } from '@/shared/components/ui/UserCard'
 import { PixelSprite, spriteInfoFor } from '@/shared/components/game/PixelSprite'
+import { makeLocalStorageFlagStore, getServerFlagSnapshotFalse } from '@/shared/utils/localStorageFlag'
 import type { AvatarClass } from '@/types'
 
 // Fixed uppercase 3-letter abbreviations (Figma 605:3619, "JUN 20") — a manual table
@@ -21,11 +22,41 @@ const MONTH_ABBR = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP
 // day-of-week abbreviation ("TUE · JUN 20"). getDay() is Sunday-indexed (0 = Sun).
 const DAY_ABBR = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
 
-// Figma 613:3750's avatar sprite crop — the inner sprite renders at this fixed display size
-// before the 40×40 circular clip, regardless of the sprite sheet's own native pixel size, so
-// every class's avatar reads at the same visual scale (see PixelSprite's own nativePx-varies
-// note for why a single fixed `scale` prop wouldn't do that).
-const AVATAR_SPRITE_DISPLAY_PX = 60
+// nexus_dev_mode has no in-app toggle UI (see CLAUDE.md's Dev Mode section) — only ever
+// set via devtools, so this changeEvent name is never actually dispatched anywhere; the
+// store still needs one to satisfy makeLocalStorageFlagStore's signature, and a static
+// event name that nothing fires is equivalent to the old effect's own "read once on
+// mount, never refreshed" behavior. nexus_events_enabled DOES have a real writer
+// (DeveloperUserSettings.tsx) — same store instance ChatInput.tsx uses for its own copy
+// of this exact flag.
+const DEV_MODE_FLAG_STORE = makeLocalStorageFlagStore('nexus_dev_mode', 'nexus-dev-mode-change')
+const EVENTS_FLAG_STORE   = makeLocalStorageFlagStore('nexus_events_enabled', 'nexus-events-feature-change')
+
+// Computed fresh on every render via useSyncExternalStore rather than once in an effect
+// (see makeLocalStorageFlagStore's doc comment for why an effect-body setState is the
+// wrong tool here) — subscribe is a no-op (never notifies) since this only needs to be
+// correct-as-of-render, not push-updated; getServerSnapshot returns null so SSR renders
+// nothing here and the real date fills in on the client, avoiding a hydration mismatch
+// against the server's own clock/timezone. (Figma also shows a "· 80° F" temperature
+// alongside this — intentionally left out for now, no weather API/geolocation exists in
+// this project yet.)
+function subscribeNever() { return () => {} }
+function getDateSnapshot() {
+  const now   = new Date()
+  const day   = DAY_ABBR[now.getDay()]
+  const month = MONTH_ABBR[now.getMonth()]
+  const dd    = String(now.getDate()).padStart(2, '0')
+  return `${day} · ${month} ${dd}`
+}
+function getServerDateSnapshot() { return null }
+
+// Figma 642:7771's avatar sprite crop (was 60 under 613:3750/637:8619's circular 40×40
+// clip; this revision swapped the frame to a bordered 4px-rounded square and shrank the
+// inner crop to 45) — the inner sprite renders at this fixed display size before the
+// 40×40 clip, regardless of the sprite sheet's own native pixel size, so every class's
+// avatar reads at the same visual scale (see PixelSprite's own nativePx-varies note for
+// why a single fixed `scale` prop wouldn't do that).
+const AVATAR_SPRITE_DISPLAY_PX = 45
 
 interface PageFloatButtonProps {
   icon:       ReactNode
@@ -85,7 +116,8 @@ interface ChatFloatingNavProps {
 }
 
 // The chat room's floating top nav — composed of the profile-avatar+name+currency button
-// (Figma 613:3750 "chatNavbarTop" / "squad-nav", superseding the earlier 577:5781/603:3526
+// (Figma 642:7771 "squad-nav", superseding 637:8619 "squad-nav", which superseded 613:3750
+// "chatNavbarTop" / "squad-nav", which itself superseded the earlier 577:5781/603:3526
 // revisions) plus a dev-gated PageFloatButton, and the chat-specific wiring that used to live
 // in its own FloatingBackButton component/file (navigation/). Merged here by explicit
 // instruction so there's a single source of button-related code instead of two, at the cost of
@@ -105,19 +137,25 @@ interface ChatFloatingNavProps {
 // path, so it's currently unreachable — left in place rather than deleted, same "kept but
 // orphaned" treatment as other dead-but-valid code noted in CLAUDE.md.
 //
-// Figma 613:3750 restructures this into two explicit rows sharing one flex-1 text column next
+// Figma 613:3750 restructured this into two explicit rows sharing one flex-1 text column next
 // to the avatar (was: avatar + stacked name/currency on the left, unread-or-date + sprite/class
 // stacked separately on the right):
-//   - Top row: a small 16×16 real-photo `UserAvatar` (Figma's own layer here was just a plain
-//     circle, auto-named "profile image" by Figma — rendering it as the user's actual profile
-//     photo, by explicit request, rather than a decorative dot) + username (bold, `--md`),
-//     right-aligned against the unread-count-or-date readout — the date now includes a
-//     day-of-week abbreviation ("TUE · JUN 20", `DAY_ABBR`) in `--color-secondary`/semibold,
-//     up from a bare month+day in tertiary/medium (same dual-state logic as before, just
-//     relocated and restyled).
-//   - Bottom row: the gem/coin currency pills (unchanged), right-aligned against the plain class
-//     label text — the small 12×12 sprite icon that used to sit next to this label was dropped
+//   - Top row: username (bold, `--md`), right-aligned against the unread-count-or-date readout —
+//     the date includes a day-of-week abbreviation ("TUE · JUN 20", `DAY_ABBR`) in
+//     `--color-secondary`/semibold.
+//   - Bottom row: the gem/coin currency pills, right-aligned against the plain class label text —
+//     the small 12×12 sprite icon that used to sit next to this label was dropped
 //     in this revision (Figma's own render has no icon there, just text).
+// Figma 637:8619 ("squad-nav") was a further revision on top of that: the top row's small
+// 16×16 real-photo `UserAvatar` next to the username (Figma's own layer there was just a
+// plain circle, auto-named "profile image" — it had been rendered as the user's actual
+// profile photo by explicit request) is dropped entirely — that export's "top row" node
+// contains only the username text, nothing else. The scrim gradient also got a different
+// stop table in that revision.
+// Figma 642:7771 ("squad-nav") is the current revision on top of THAT: the main avatar frame
+// (see "Avatar" paragraph below) swapped from a plain circular clip to a bordered, 4px-rounded
+// square, and the scrim gradient's last two stops got slightly more opaque (65%/25% black at
+// 80%/100%, up from 60%/10%). Nothing else changed from 637:8619.
 // `avatarClass` is this user's crew_members.class for THIS crew (per-membership, not
 // profiles.avatar_class), and `initialTotalUnreadMessages` is a server-computed snapshot at
 // page load (same "initial" treatment as initialGemBalance/initialCoins) summed across every
@@ -127,13 +165,15 @@ interface ChatFloatingNavProps {
 //
 // Avatar: Figma swaps the real profile photo for the user's own class sprite, animated (the
 // same walk-cycle `animate` prop the right-side sprite readout elsewhere in this file already
-// uses) rather than pinned to a single static direction, cropped circular via a 40×40
-// `overflow-hidden` frame around a larger centered sprite (`AVATAR_SPRITE_DISPLAY_PX`, matching
-// Figma's 60×60 inner crop regardless of the sprite sheet's native size, so every class reads at
-// the same visual scale). Falls back to the real-photo `UserAvatar` when this user's class has no
-// sprite mapping (`spriteInfoFor` returns null — e.g. an unmapped/legacy class); every class a
-// live crew-chat member can actually have does map to one, so this fallback is defensive rather
-// than expected to fire in practice.
+// uses) rather than pinned to a single static direction, cropped via a 40×40 `overflow-hidden`
+// frame (bordered, 4px-rounded — see 642:7771 above) around a larger centered sprite
+// (`AVATAR_SPRITE_DISPLAY_PX`, matching Figma's 45×45 inner crop regardless of the sprite
+// sheet's native size, so every class reads at the same visual scale). Falls back to the
+// real-photo `UserAvatar` when this user's class has no sprite mapping (`spriteInfoFor` returns
+// null — e.g. an unmapped/legacy class); every class a live crew-chat member can actually have
+// does map to one, so this fallback is defensive rather than expected to fire in practice —
+// `UserAvatar` itself is always circular (see its own doc comment), so this fallback renders a
+// circle inside the square frame rather than matching it; Figma's export never mocks this state.
 //
 // The Figma layer text for the class-label node ("Minnesota") doesn't match what Figma actually
 // renders there ("ROGUE" in the exported screenshot) — a stale/detached text-content field on
@@ -153,17 +193,14 @@ export function ChatFloatingNav({
   const classLabel          = avatarClass ? (CLASS_LABELS[avatarClass] ?? avatarClass) : null
 
   const [showEventPreview, setShowEventPreview] = useState(false)
-  const [devMode,          setDevMode]          = useState(false)
-  const [eventsEnabled,    setEventsEnabled]    = useState(false)
+  const devMode       = useSyncExternalStore(DEV_MODE_FLAG_STORE.subscribe, DEV_MODE_FLAG_STORE.getSnapshot, getServerFlagSnapshotFalse)
+  const eventsEnabled = useSyncExternalStore(EVENTS_FLAG_STORE.subscribe,   EVENTS_FLAG_STORE.getSnapshot,   getServerFlagSnapshotFalse)
   // Today's date in the viewer's own local timezone, "TUE · JUN 20" (Figma 613:3750 —
   // day-of-week + abbreviated month + day) — shown in place of the unread count when there's
-  // nothing new. Computed client-side in an effect (not during render) since the server's own
-  // clock/timezone can differ from the device's, which would otherwise make the SSR'd markup
-  // mismatch what the client hydrates to; null until the effect runs just means this line
-  // renders nothing for one frame rather than a wrong date. (Figma also shows a "· 80° F"
-  // temperature alongside this — intentionally left out for now, no weather API/geolocation
-  // exists in this project yet.)
-  const [localDateLabel, setLocalDateLabel] = useState<string | null>(null)
+  // nothing new. See getDateSnapshot/getServerDateSnapshot above for why this reads via
+  // useSyncExternalStore rather than an effect: null on the server (and for one client
+  // render pre-hydration) means this line renders nothing rather than a wrong date.
+  const localDateLabel = useSyncExternalStore(subscribeNever, getDateSnapshot, getServerDateSnapshot)
 
   // History-stacking guard: without this, returning to /chat/[crewId] from a sub-page (or a
   // fresh deep link) leaves no /home entry beneath it, so the OS/browser back gesture exits
@@ -180,25 +217,9 @@ export function ChatFloatingNav({
   }, [])
 
   useEffect(() => {
-    setDevMode(localStorage.getItem('nexus_dev_mode') === '1')
-    setEventsEnabled(localStorage.getItem('nexus_events_enabled') === '1')
-    function onEventsChange(e: Event) { setEventsEnabled((e as CustomEvent<{ on: boolean }>).detail.on) }
-    window.addEventListener('nexus-events-feature-change', onEventsChange)
-    return () => window.removeEventListener('nexus-events-feature-change', onEventsChange)
-  }, [])
-
-  useEffect(() => {
     if (initialGemBalance !== undefined) setGemBalance(initialGemBalance)
     if (initialCoins !== undefined) setUserCoins(initialCoins)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    const now   = new Date()
-    const day   = DAY_ABBR[now.getDay()]
-    const month = MONTH_ABBR[now.getMonth()]
-    const dd    = String(now.getDate()).padStart(2, '0')
-    setLocalDateLabel(`${day} · ${month} ${dd}`)
-  }, [])
 
   return (
     <>
@@ -207,10 +228,10 @@ export function ChatFloatingNav({
         className="absolute top-0 left-0 right-0 z-[60] flex flex-col pointer-events-none overflow-hidden"
         style={{
           paddingTop: 'env(safe-area-inset-top, 0px)',
-          // Figma 603:3526's own multi-stop gradient (matches the native top app bar
-          // scrim more closely than the old 3-stop version) — replaces the earlier
-          // simpler gradient outright rather than layering a second one.
-          background: 'linear-gradient(180deg, rgba(0,0,0,1) 0%, rgba(0,0,0,0.947) 61.54%, rgba(0,0,0,0.8) 77.886%, rgba(0,0,0,0.5) 88.463%, rgba(0,0,0,0) 100%)',
+          // Figma 642:7771's own multi-stop gradient — supersedes 637:8619's table
+          // outright rather than layering a second one. Slightly more opaque at the
+          // tail than that version (25% black at 100% vs 10%), otherwise identical.
+          background: 'linear-gradient(180deg, rgba(0,0,0,1) 0%, rgba(0,0,0,0.9) 39.909%, rgba(0,0,0,0.8) 60%, rgba(0,0,0,0.65) 80%, rgba(0,0,0,0.25) 100%)',
         }}
       >
         {/* Nav row */}
@@ -230,7 +251,10 @@ export function ChatFloatingNav({
           >
             {/* Class-sprite avatar — see this component's own doc comment for the fixed-display-
                 size crop + real-photo fallback. */}
-            <div className="relative overflow-hidden rounded-full flex-shrink-0" style={{ width: 40, height: 40 }}>
+            <div
+              className="relative overflow-hidden border flex-shrink-0"
+              style={{ width: 40, height: 40, borderRadius: 'var(--x2)', borderColor: 'var(--color-border-hover)', background: 'var(--color-background)' }}
+            >
               {spriteInfo ? (
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
                   <PixelSprite
@@ -252,17 +276,14 @@ export function ChatFloatingNav({
               )}
             </div>
             <div className="flex flex-1 flex-col min-w-0 items-start" style={{ gap: 'var(--x2)' }}>
-              {/* Top row: small real-photo avatar + username ... unread-count-or-date. */}
+              {/* Top row: username ... unread-count-or-date. */}
               <div className="flex items-center justify-between w-full">
-                <div className="flex items-center min-w-0" style={{ gap: 'var(--x3)' }}>
-                  <UserAvatar avatarUrl={avatarUrl} username={username} size={16} bg="border" initialColor="primary" />
-                  <span
-                    className="font-body font-bold text-primary leading-none truncate text-left"
-                    style={{ fontSize: 'var(--md)', fontVariationSettings: '"opsz" 14' }}
-                  >
-                    {username}
-                  </span>
-                </div>
+                <span
+                  className="font-body font-bold text-primary leading-none truncate text-left min-w-0"
+                  style={{ fontSize: 'var(--md)', fontVariationSettings: '"opsz" 14' }}
+                >
+                  {username}
+                </span>
                 {/* Red "N New Message(s)" when there's something new; otherwise today's
                     device-local date ("TUE · JUN 20", secondary/semibold) in the same slot —
                     never both. */}

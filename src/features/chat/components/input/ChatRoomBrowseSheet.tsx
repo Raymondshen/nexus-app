@@ -869,9 +869,10 @@ function NoNotificationsCard() {
 
 // Figma 599:7813 ("A_small_round_ghost_with_front-flip_south") — a 9-frame sleep-loop
 // sprite (public/sprites/ghost/sleep/ghost-sleeping_0001.webp…0009.webp, 1-indexed),
-// looped continuously via setInterval — same simple frame-cycling approach as
-// ChatRoomPeekLayer's WalkingGhost (a different ghost animation, different frame
-// set/count, not worth sharing a generic sprite-loop abstraction over just these two).
+// looped continuously via setInterval. ChatRoomPeekLayer's own ghost placeholder used
+// to animate the same way (a different sprite/frame set) but is now a single static
+// frame — this is the only sprite in the app still doing frame-cycling, not worth a
+// shared sprite-loop abstraction for just one consumer.
 const SLEEP_FRAME_COUNT = 9
 const SLEEP_FRAME_MS    = 200
 
