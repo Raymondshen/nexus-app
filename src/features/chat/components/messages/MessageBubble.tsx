@@ -535,7 +535,12 @@ function MessageBubbleImpl({
     onHypeManHeal: (amount) => setHealFloat({ id: Date.now(), amount }),
   });
 
+  // Gates the createPortal(..., document.body) calls below — document.body doesn't
+  // exist during SSR, so this must flip after mount, not during the initial render;
+  // not a state-mirroring anti-pattern react-hooks/set-state-in-effect otherwise wants
+  // hoisted out.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
   }, []);
 
@@ -769,6 +774,15 @@ function MessageBubbleImpl({
       : undefined;
   const { data: ogPreview, loading: ogLoading } = useOGPreview(ogUrl);
 
+  // ─── Reaction pills — must be called before early returns (see ogPreview above) ──
+  const sortedReactions = React.useMemo(
+    () =>
+      Object.entries(displayReactions)
+        .filter(([, users]) => users.length > 0)
+        .sort(([, a], [, b]) => b.length - a.length),
+    [displayReactions], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+
   // ─── System messages ────────────────────────────────────────────────────────
   if (message.message_type === "system") {
     return <SystemMessage message={message} />;
@@ -910,14 +924,6 @@ function MessageBubbleImpl({
 
   const avatarUrl = message.profile.avatar_url as string | null | undefined;
   const timeStr = format(new Date(message.created_at), "h:mma").toLowerCase();
-
-  const sortedReactions = React.useMemo(
-    () =>
-      Object.entries(displayReactions)
-        .filter(([, users]) => users.length > 0)
-        .sort(([, a], [, b]) => b.length - a.length),
-    [displayReactions], // eslint-disable-line react-hooks/exhaustive-deps
-  );
 
   return (
     <>

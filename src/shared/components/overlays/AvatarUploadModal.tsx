@@ -53,8 +53,14 @@ export function AvatarUploadModal({ file, userId, isDev, onClose, onSuccess }: A
   const [debugSteps, setDebugSteps]       = useState<DebugStep[]>([])
   const [showDebug, setShowDebug]         = useState(false)
 
+  // Synchronizes local state with the `file` prop's lifecycle — genuinely an effect,
+  // not a state-mirroring anti-pattern: createObjectURL/revokeObjectURL is a real
+  // external-resource synchronization that must run after commit (and be cleaned up),
+  // and the reset-to-defaults branch is the symmetric counterpart of that same
+  // lifecycle transition, not a separate concern that could be computed during render.
   useEffect(() => {
     if (!file) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setImgSrc('')
       setCroppedAreaPixels(null)
       setUploadError('')

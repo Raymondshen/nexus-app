@@ -14,6 +14,10 @@ type PromptState = 'hidden' | 'visible' | 'granted' | 'denied' | 'sub_failed'
 export function NotificationPrompt() {
   const [state, setState] = useState<PromptState>('hidden')
 
+  // Gating reads browser-only APIs (Notification support, permission state,
+  // localStorage) unavailable during SSR — must run post-mount, not derivable at
+  // render time or via a lazy useState initializer without a hydration mismatch.
+  // Not a state-mirroring anti-pattern.
   useEffect(() => {
     if (!isSupported()) return
 
@@ -28,6 +32,7 @@ export function NotificationPrompt() {
     const lastPrompted = localStorage.getItem(PROMPTED_KEY)
     if (lastPrompted && Date.now() - parseInt(lastPrompted, 10) < RETRY_MS) return
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setState('visible')
   }, [])
 

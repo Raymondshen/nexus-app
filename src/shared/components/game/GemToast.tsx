@@ -33,8 +33,14 @@ const EXIT: Parameters<typeof motion.div>[0]['exit'] = {
 }
 
 export function GemToast({ visible, stacked }: GemToastProps) {
+  // Gates the createPortal call below — document.body doesn't exist during SSR, so
+  // this must flip after mount, not during the initial render; not a state-mirroring
+  // anti-pattern react-hooks/set-state-in-effect otherwise wants hoisted out.
   const [mounted, setMounted] = useState(false)
-  useEffect(() => setMounted(true), [])
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMounted(true)
+  }, [])
   if (!mounted) return null
 
   return createPortal(

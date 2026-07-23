@@ -228,7 +228,12 @@ export function EventPageFull({ crewId, currentUserId }: EventPageFullProps) {
     setLoading(false)
   }, [crewId])
 
+  // Initial events fetch on mount — genuine data fetching (React's own "you might
+  // not need an effect" guide lists this as one of the two legitimate uses), not a
+  // state-mirroring anti-pattern; loadEvents' own setLoading/setEvents calls are
+  // what react-hooks/set-state-in-effect flags here.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadEvents()
   }, [loadEvents])
 

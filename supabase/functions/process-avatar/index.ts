@@ -26,7 +26,7 @@ serve(async (req) => {
     // Generate AVIF variants in parallel
     await Promise.all(
       AVIF_SIZES.map(async (size) => {
-        const avifBuf: Buffer = await (sharp as any)(srcBuffer)
+        const avifBuf: Buffer = await sharp(srcBuffer)
           .resize(size, size, { fit: 'cover' })
           .avif({ quality: AVIF_QUALITY[size] })
           .toBuffer()

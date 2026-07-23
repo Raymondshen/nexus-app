@@ -203,6 +203,10 @@ export function LoginForm({
   useEffect(() => {
     if (step !== 'invite-profile' && step !== 'reserve-google') return
     let cancelled = false
+    // Genuine data fetching keyed on `step` (React's own "you might not need an
+    // effect" guide lists this as one of the two legitimate uses), not a
+    // state-mirroring anti-pattern.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoadingReserved(true)
 
     checkReservedUserAction().then(async result => {

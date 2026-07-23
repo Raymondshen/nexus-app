@@ -1,9 +1,15 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useSyncExternalStore } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createClient } from '@/shared/supabase/client'
 import { subscribeToPush } from '@/shared/utils/notifications'
+import { makeLocalStorageFlagStore, getServerFlagSnapshotFalse } from '@/shared/utils/localStorageFlag'
+
+// Dev feature flag — read via useSyncExternalStore (see makeLocalStorageFlagStore's
+// own doc comment for why an effect-body setState isn't the React-idiomatic way to
+// sync from an external store like localStorage).
+const PUSH_DIAG_STORE = makeLocalStorageFlagStore('nexus_push_diag', 'nexus-push-diag-change')
 
 type SubType = 'apns' | 'fcm' | 'unknown' | 'none'
 
@@ -45,7 +51,7 @@ function formatAge(isoStr: string): string {
 }
 
 export function PushDebugFAB() {
-  const [showFab,        setShowFab]        = useState(false)
+  const showFab = useSyncExternalStore(PUSH_DIAG_STORE.subscribe, PUSH_DIAG_STORE.getSnapshot, getServerFlagSnapshotFalse)
   const [open,           setOpen]           = useState(false)
   const [status,         setStatus]         = useState<Status | null>(null)
   const [checking,       setChecking]       = useState(false)
@@ -62,16 +68,6 @@ export function PushDebugFAB() {
     const entry = new Date().toLocaleTimeString('en', { hour12: false }) + ' ' + msg
     logBuf.current = [entry, ...logBuf.current].slice(0, 30)
     setLog([...logBuf.current])
-  }, [])
-
-  // Read push-diag flag from localStorage + react to dev-section toggle
-  useEffect(() => {
-    setShowFab(localStorage.getItem('nexus_push_diag') === '1')
-    function onFlagChange(e: Event) {
-      setShowFab((e as CustomEvent<{ on: boolean }>).detail.on)
-    }
-    window.addEventListener('nexus-push-diag-change', onFlagChange)
-    return () => window.removeEventListener('nexus-push-diag-change', onFlagChange)
   }, [])
 
   // Read persisted last-push timestamp from Cache API (written by SW even when app is closed)
@@ -192,8 +188,11 @@ export function PushDebugFAB() {
     }
   }, [showFab, checkStatus])
 
-  // Re-check when panel opens if status hasn't been fetched yet.
+  // Re-check when panel opens if status hasn't been fetched yet — genuine data
+  // fetching triggered by a prop/state condition, not a state-mirroring anti-pattern;
+  // checkStatus' own setChecking/setStatus calls are what the lint rule flags here.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (open && !status && !checking) checkStatus()
   }, [open, status, checking, checkStatus])
 

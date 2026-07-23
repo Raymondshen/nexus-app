@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
 
     // Resolve crew names for the muted rows.
     const mutedCrewIds = (mutedCrews ?? []).map((r) => (r as Record<string, unknown>).crew_id as string)
-    let crewNames: Record<string, string> = {}
+    const crewNames: Record<string, string> = {}
     if (mutedCrewIds.length > 0) {
       const { data: crews } = await admin
         .from('crews')

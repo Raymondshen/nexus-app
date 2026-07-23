@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useSyncExternalStore } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { PanInfo } from 'framer-motion'
@@ -35,6 +35,14 @@ import { consumeHomeLastMessage } from '@/features/home/utils/homePreviewCache'
 import { getXPInCurrentLevel, getXPForCurrentLevel, getXPProgress } from '@/shared/utils/xp'
 import { relativeTime } from '@/shared/utils/date'
 import { MUSIC_DOMAINS } from '@/shared/constants/config'
+import { makeLocalStorageFlagStore, getServerFlagSnapshotFalse } from '@/shared/utils/localStorageFlag'
+
+// Dev feature flags — read via useSyncExternalStore (see makeLocalStorageFlagStore's
+// own doc comment for why an effect-body setState isn't the React-idiomatic way to
+// sync from an external store like localStorage).
+const INFINITE_COINS_STORE = makeLocalStorageFlagStore('nexus_infinite_coins', 'nexus-infinite-coins-change')
+const AFK_EXP_STORE        = makeLocalStorageFlagStore('nexus_afk_exp',        'nexus-afk-exp-change')
+const FRIENDSHIP_XP_STORE  = makeLocalStorageFlagStore('nexus_friendship_xp',  'nexus-friendship-xp-change')
 
 export interface FriendSummary {
   id:            string
@@ -1380,11 +1388,11 @@ export function HomeClient({
     return base
   })
   const [localFriendshipXP,    setLocalFriendshipXP]    = useState(totalFriendshipXP)
-  const [fxpEnabled,           setFxpEnabled]           = useState(false)
+  const fxpEnabled     = useSyncExternalStore(FRIENDSHIP_XP_STORE.subscribe,  FRIENDSHIP_XP_STORE.getSnapshot,  getServerFlagSnapshotFalse)
   const [showCoinTip,          setShowCoinTip]          = useState(false)
   const [showHeartTip,         setShowHeartTip]         = useState(false)
-  const [infiniteCoins,        setInfiniteCoins]        = useState(false)
-  const [afkExpEnabled,        setAfkExpEnabled]        = useState(false)
+  const infiniteCoins = useSyncExternalStore(INFINITE_COINS_STORE.subscribe, INFINITE_COINS_STORE.getSnapshot, getServerFlagSnapshotFalse)
+  const afkExpEnabled = useSyncExternalStore(AFK_EXP_STORE.subscribe,        AFK_EXP_STORE.getSnapshot,        getServerFlagSnapshotFalse)
   const [gemBalance,           setGemBalance]           = useState(() => {
     const store = useChatStore.getState()
     const base = Math.max(initialGemBalance, store.gemBalance)
@@ -1397,43 +1405,17 @@ export function HomeClient({
     friends.reduce((sum, f) => sum + f.unreadCount, 0)
   )
 
-  // Sync dmUnread down when server-fresh friends prop arrives (router.refresh or remount)
+  // Sync dmUnread down when a server-fresh friends prop arrives (router.refresh or
+  // remount) — genuinely divergent local state, not a state-mirroring anti-pattern:
+  // dmUnread is also incremented locally on realtime DM arrival and reset to 0 on
+  // tap (see below), so it can't just be computed from `friends` during render.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setDmUnread(friends.reduce((sum, f) => sum + f.unreadCount, 0))
   }, [friends])
 
   const profileCacheRef = useRef<Record<string, string>>(profileCache)
   useEffect(() => { profileCacheRef.current = profileCache }, [profileCache])
-
-  // Sync infinite coins flag from localStorage + listen for dev-section toggle
-  useEffect(() => {
-    setInfiniteCoins(localStorage.getItem('nexus_infinite_coins') === '1')
-    function onFlagChange(e: Event) {
-      setInfiniteCoins((e as CustomEvent<{ on: boolean }>).detail.on)
-    }
-    window.addEventListener('nexus-infinite-coins-change', onFlagChange)
-    return () => window.removeEventListener('nexus-infinite-coins-change', onFlagChange)
-  }, [])
-
-  // Sync AFK XP feature flag from localStorage + listen for dev-section toggle
-  useEffect(() => {
-    setAfkExpEnabled(localStorage.getItem('nexus_afk_exp') === '1')
-    function onFlagChange(e: Event) {
-      setAfkExpEnabled((e as CustomEvent<{ on: boolean }>).detail.on)
-    }
-    window.addEventListener('nexus-afk-exp-change', onFlagChange)
-    return () => window.removeEventListener('nexus-afk-exp-change', onFlagChange)
-  }, [])
-
-  // Sync Friendship XP feature flag from localStorage + listen for dev-section toggle
-  useEffect(() => {
-    setFxpEnabled(localStorage.getItem('nexus_friendship_xp') === '1')
-    function onFlagChange(e: Event) {
-      setFxpEnabled((e as CustomEvent<{ on: boolean }>).detail.on)
-    }
-    window.addEventListener('nexus-friendship-xp-change', onFlagChange)
-    return () => window.removeEventListener('nexus-friendship-xp-change', onFlagChange)
-  }, [])
 
   useEffect(() => {
     isGemGateOpen().then((open) => setClaimedGemToday(!open))
@@ -1446,7 +1428,14 @@ export function HomeClient({
     })
   }, [])
 
-  useEffect(() => { setCrews(initialCrews) }, [initialCrews])
+  // Sync crews down when a server-fresh initialCrews prop arrives — genuinely
+  // divergent local state, not a state-mirroring anti-pattern: crews is also
+  // mutated locally elsewhere (realtime updates, unread reset, leave-crew removal),
+  // so it can't just be computed from initialCrews during render.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setCrews(initialCrews)
+  }, [initialCrews])
 
   // Unlocks NotificationPrompt eligibility for any device that has a crew to be
   // notified about, not just the device that happened to run onboarding. Without

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useSyncExternalStore } from 'react'
 import Image from 'next/image'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createClient } from '@/shared/supabase/client'
@@ -10,7 +10,13 @@ import { SlidePage, useSlideBack } from '@/app/layouts/SlidePage'
 import { useChatStore } from '@/store/chatStore'
 import { generateAppInviteAction, getInviteCodesAction } from '@/app/(app)/home/actions'
 import { avatarImageLoader } from '@/shared/supabase/imageLoader'
+import { makeLocalStorageFlagStore, getServerFlagSnapshotFalse } from '@/shared/utils/localStorageFlag'
 import type { InviteCodeData } from '@/app/(app)/home/actions'
+
+// Dev feature flag — read via useSyncExternalStore (see makeLocalStorageFlagStore's
+// own doc comment for why an effect-body setState isn't the React-idiomatic way to
+// sync from an external store like localStorage).
+const INFINITE_COINS_STORE = makeLocalStorageFlagStore('nexus_infinite_coins', 'nexus-infinite-coins-change')
 
 interface InvitePageProps {
   userId:       string
@@ -44,11 +50,7 @@ export function InvitePage({ userId, initialCoins }: InvitePageProps) {
   const [toast,         setToast]         = useState<{ msg: string; color: string } | null>(null)
   const [copiedId,      setCopiedId]      = useState<string | null>(null)
   const [coins,         setCoins]         = useState(initialCoins)
-  const [infiniteCoins, setInfiniteCoins] = useState(false)
-
-  useEffect(() => {
-    setInfiniteCoins(localStorage.getItem('nexus_infinite_coins') === '1')
-  }, [])
+  const infiniteCoins = useSyncExternalStore(INFINITE_COINS_STORE.subscribe, INFINITE_COINS_STORE.getSnapshot, getServerFlagSnapshotFalse)
 
   const showToast = useCallback((msg: string, color: string) => {
     setToast({ msg, color })
@@ -61,7 +63,14 @@ export function InvitePage({ userId, initialCoins }: InvitePageProps) {
     setLoading(false)
   }, [])
 
-  useEffect(() => { loadCodes() }, [loadCodes])
+  // Initial invite-codes fetch on mount — genuine data fetching (React's own "you
+  // might not need an effect" guide lists this as one of the two legitimate uses),
+  // not a state-mirroring anti-pattern; loadCodes' setLoading/setCodes calls are
+  // what react-hooks/set-state-in-effect flags here.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadCodes()
+  }, [loadCodes])
 
   useEffect(() => {
     const supabase = createClient()

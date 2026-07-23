@@ -187,9 +187,15 @@ export function AnnouncementsSheet({
   // grouped-by-date history rather than only the undismissed delta.
   const [visible, setVisible] = useState<AnnouncementItem[] | null>(null);
 
+  // getDismissed() reads localStorage, unavailable during SSR — the read has to
+  // happen post-mount, not in a lazy useState initializer, since the server-rendered
+  // HTML always renders `visible` as null and the client's first hydration-matching
+  // render must agree with that exactly (same reasoning ChatInput's own
+  // showSwipeHint read documents). Not a state-mirroring anti-pattern.
   useEffect(() => {
     const dismissed = getDismissed();
     const hasUnseen = announcements.some((a) => !dismissed.has(a.id));
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setVisible(hasUnseen ? announcements : []);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 

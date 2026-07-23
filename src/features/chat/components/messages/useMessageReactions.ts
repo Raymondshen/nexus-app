@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useChatStore } from '@/store/chatStore'
 import { createClient } from '@/shared/supabase/client'
 
@@ -34,7 +34,9 @@ export function useMessageReactions({
   // Always-current reactions value — avoids stale closure in handleReaction without
   // needing `reactions` as a useCallback dep (which would recreate it on every change).
   const reactionsRef = useRef(reactions)
-  reactionsRef.current = reactions
+  useEffect(() => {
+    reactionsRef.current = reactions
+  }, [reactions])
 
   const updateMessage         = useChatStore((s) => s.updateMessage)
   const markReactionPending   = useChatStore((s) => s.markReactionPending)

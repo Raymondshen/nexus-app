@@ -1,11 +1,21 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useSyncExternalStore } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { SlidePage } from '@/app/layouts/SlidePage'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
 import { PageHeader } from '@/shared/components/ui/PageHeader'
+import { makeLocalStorageFlagStore, getServerFlagSnapshotFalse } from '@/shared/utils/localStorageFlag'
+
+// Each toggle below mirrors a localStorage dev flag — read via useSyncExternalStore
+// (see makeLocalStorageFlagStore's own doc comment for why an effect-body setState
+// isn't the React-idiomatic way to sync from an external store like localStorage).
+const PUSH_DIAG_STORE      = makeLocalStorageFlagStore('nexus_push_diag',      'nexus-push-diag-change')
+const INFINITE_COINS_STORE = makeLocalStorageFlagStore('nexus_infinite_coins', 'nexus-infinite-coins-change')
+const POLL_FEATURE_STORE   = makeLocalStorageFlagStore('nexus_poll_feature',   'nexus-poll-feature-change')
+const EVENTS_FEATURE_STORE = makeLocalStorageFlagStore('nexus_events_enabled', 'nexus-events-feature-change')
+const FRIENDSHIP_XP_STORE  = makeLocalStorageFlagStore('nexus_friendship_xp',  'nexus-friendship-xp-change')
 
 export interface DeveloperUserSettingsProps {
   initialCoins: number
@@ -88,23 +98,14 @@ function DevToggleRow({ title, description, enabled, onChange }: { title: string
 export function DeveloperUserSettings({ initialCoins }: DeveloperUserSettingsProps) {
   const router = useRouter()
 
-  const [showPush,      setShowPush]      = useState(false)
-  const [infiniteCoins, setInfiniteCoins] = useState(false)
-  const [pollFeature,   setPollFeature]   = useState(false)
-  const [eventsFeature, setEventsFeature] = useState(false)
-  const [friendshipXP,  setFriendshipXP]  = useState(false)
-
-  useEffect(() => {
-    setShowPush(localStorage.getItem('nexus_push_diag') === '1')
-    setInfiniteCoins(localStorage.getItem('nexus_infinite_coins') === '1')
-    setPollFeature(localStorage.getItem('nexus_poll_feature') === '1')
-    setEventsFeature(localStorage.getItem('nexus_events_enabled') === '1')
-    setFriendshipXP(localStorage.getItem('nexus_friendship_xp') === '1')
-  }, [])
+  const showPush      = useSyncExternalStore(PUSH_DIAG_STORE.subscribe,      PUSH_DIAG_STORE.getSnapshot,      getServerFlagSnapshotFalse)
+  const infiniteCoins = useSyncExternalStore(INFINITE_COINS_STORE.subscribe, INFINITE_COINS_STORE.getSnapshot, getServerFlagSnapshotFalse)
+  const pollFeature   = useSyncExternalStore(POLL_FEATURE_STORE.subscribe,   POLL_FEATURE_STORE.getSnapshot,   getServerFlagSnapshotFalse)
+  const eventsFeature = useSyncExternalStore(EVENTS_FEATURE_STORE.subscribe, EVENTS_FEATURE_STORE.getSnapshot, getServerFlagSnapshotFalse)
+  const friendshipXP  = useSyncExternalStore(FRIENDSHIP_XP_STORE.subscribe,  FRIENDSHIP_XP_STORE.getSnapshot,  getServerFlagSnapshotFalse)
 
   function toggleShowPush() {
     const next = !showPush
-    setShowPush(next)
     if (next) localStorage.setItem('nexus_push_diag', '1')
     else localStorage.removeItem('nexus_push_diag')
     window.dispatchEvent(new CustomEvent('nexus-push-diag-change', { detail: { on: next } }))
@@ -112,7 +113,6 @@ export function DeveloperUserSettings({ initialCoins }: DeveloperUserSettingsPro
 
   function toggleInfiniteCoins() {
     const next = !infiniteCoins
-    setInfiniteCoins(next)
     if (next) localStorage.setItem('nexus_infinite_coins', '1')
     else localStorage.removeItem('nexus_infinite_coins')
     window.dispatchEvent(new CustomEvent('nexus-infinite-coins-change', { detail: { on: next } }))
@@ -120,7 +120,6 @@ export function DeveloperUserSettings({ initialCoins }: DeveloperUserSettingsPro
 
   function togglePollFeature() {
     const next = !pollFeature
-    setPollFeature(next)
     if (next) localStorage.setItem('nexus_poll_feature', '1')
     else localStorage.removeItem('nexus_poll_feature')
     window.dispatchEvent(new CustomEvent('nexus-poll-feature-change', { detail: { on: next } }))
@@ -128,7 +127,6 @@ export function DeveloperUserSettings({ initialCoins }: DeveloperUserSettingsPro
 
   function toggleEventsFeature() {
     const next = !eventsFeature
-    setEventsFeature(next)
     if (next) localStorage.setItem('nexus_events_enabled', '1')
     else localStorage.removeItem('nexus_events_enabled')
     window.dispatchEvent(new CustomEvent('nexus-events-feature-change', { detail: { on: next } }))
@@ -136,7 +134,6 @@ export function DeveloperUserSettings({ initialCoins }: DeveloperUserSettingsPro
 
   function toggleFriendshipXP() {
     const next = !friendshipXP
-    setFriendshipXP(next)
     if (next) localStorage.setItem('nexus_friendship_xp', '1')
     else localStorage.removeItem('nexus_friendship_xp')
     window.dispatchEvent(new CustomEvent('nexus-friendship-xp-change', { detail: { on: next } }))

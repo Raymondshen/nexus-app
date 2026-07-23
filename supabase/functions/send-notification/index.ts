@@ -148,8 +148,9 @@ Deno.serve(async (req: Request) => {
     let finalIds = targetIds
     if (prefCol !== null) {
       const prefDisabledSet = new Set(
-        // deno-lint-ignore no-explicit-any
-        (globalPrefsResult.data ?? []).filter((r: any) => r[prefCol] === false).map((r: any) => r.user_id as string)
+        (globalPrefsResult.data ?? [])
+          .filter((r: Record<string, unknown>) => r[prefCol] === false)
+          .map((r: Record<string, unknown>) => r.user_id as string)
       )
       finalIds = targetIds.filter(uid => !prefDisabledSet.has(uid))
 
@@ -163,8 +164,9 @@ Deno.serve(async (req: Request) => {
       // Apply per-crew preference filter
       if (payload?.crew_id) {
         const crewDisabledSet = new Set(
-          // deno-lint-ignore no-explicit-any
-          (crewPrefsResult.data ?? []).filter((r: any) => r[prefCol] === false).map((r: any) => r.user_id as string)
+          (crewPrefsResult.data ?? [])
+            .filter((r: Record<string, unknown>) => r[prefCol] === false)
+            .map((r: Record<string, unknown>) => r.user_id as string)
         )
         finalIds = finalIds.filter(uid => !crewDisabledSet.has(uid))
       }

@@ -91,7 +91,10 @@ export function GifPickerSheet({ onSelect, onClose }: GifPickerSheetProps) {
   const prevQueryRef = useRef("");
   const loadingRef = useRef(true);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  loadingRef.current = loading;
+
+  useEffect(() => {
+    loadingRef.current = loading;
+  }, [loading]);
 
   useEffect(() => {
     searchInputRef.current?.blur();
@@ -120,7 +123,12 @@ export function GifPickerSheet({ onSelect, onClose }: GifPickerSheetProps) {
     [],
   );
 
+  // Initial trending-GIF fetch on mount — genuine data fetching (React's own "you
+  // might not need an effect" guide lists this as one of the two legitimate uses),
+  // not a state-mirroring anti-pattern; fetchGifs' synchronous setLoading/setError
+  // calls at its top are what react-hooks/set-state-in-effect flags here.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchGifs("", 1, false);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 

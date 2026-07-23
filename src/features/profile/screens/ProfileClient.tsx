@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useSyncExternalStore, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { SlidePage, useSlideBack } from '@/app/layouts/SlidePage'
@@ -17,7 +17,14 @@ import { PhotosGrid, type PhotosGridHandle } from '@/features/profile/components
 import { FloatingViewPill, PILL_BOTTOM_INSET } from '@/features/profile/components/FloatingViewPill'
 import { UploadOptionsSheet } from '@/features/profile/components/UploadOptionsSheet'
 import { useSwipeTabs, useTabPanelHeight, TAB_SLIDE_VARIANTS, TAB_SLIDE_TRANSITION } from '@/features/profile/hooks/useSwipeTabs'
+import { makeLocalStorageFlagStore, getServerFlagSnapshotFalse } from '@/shared/utils/localStorageFlag'
 import type { PublicNote, ProfilePhoto } from '@/types'
+
+// Dev feature flags — read via useSyncExternalStore (see makeLocalStorageFlagStore's
+// own doc comment for why an effect-body setState isn't the React-idiomatic way to
+// sync from an external store like localStorage).
+const AFK_EXP_STORE      = makeLocalStorageFlagStore('nexus_afk_exp',       'nexus-afk-exp-change')
+const FRIENDSHIP_XP_STORE = makeLocalStorageFlagStore('nexus_friendship_xp', 'nexus-friendship-xp-change')
 
 interface ProfileClientProps {
   userId:            string
@@ -89,10 +96,14 @@ export function ProfileClient({
   type ProfileTab = 'photos' | 'vibes'
   const TAB_ORDER: Record<ProfileTab, number> = { photos: 0, vibes: 1 }
   const [activeTab, setActiveTab] = useState<ProfileTab>('photos')
-  const tabDirRef = useRef(1)
+  // Direction the incoming tab panel slides in from (Figma's TAB_SLIDE_VARIANTS
+  // `custom` prop) — real state, not a ref, since it's read during render (feeding
+  // AnimatePresence/motion.div below); a ref read during render can't be relied on
+  // to reflect the latest committed value.
+  const [tabDir, setTabDir] = useState<1 | -1>(1)
   function switchTab(tab: ProfileTab) {
     if (tab === activeTab) return
-    tabDirRef.current = TAB_ORDER[tab] > TAB_ORDER[activeTab] ? 1 : -1
+    setTabDir(TAB_ORDER[tab] > TAB_ORDER[activeTab] ? 1 : -1)
     setActiveTab(tab)
   }
 
@@ -105,22 +116,8 @@ export function ProfileClient({
   const [showUploadOptions, setShowUploadOptions] = useState(false)
 
   // ── Dev feature flags ─────────────────────────────────────────────────────
-  const [afkExp,      setAfkExp]      = useState(false)
-  const [fxpEnabled,  setFxpEnabled]  = useState(false)
-
-  useEffect(() => {
-    setAfkExp(localStorage.getItem('nexus_afk_exp') === '1')
-    const handler = (e: Event) => setAfkExp((e as CustomEvent<{ on: boolean }>).detail.on)
-    window.addEventListener('nexus-afk-exp-change', handler)
-    return () => window.removeEventListener('nexus-afk-exp-change', handler)
-  }, [])
-
-  useEffect(() => {
-    setFxpEnabled(localStorage.getItem('nexus_friendship_xp') === '1')
-    const handler = (e: Event) => setFxpEnabled((e as CustomEvent<{ on: boolean }>).detail.on)
-    window.addEventListener('nexus-friendship-xp-change', handler)
-    return () => window.removeEventListener('nexus-friendship-xp-change', handler)
-  }, [])
+  const afkExp     = useSyncExternalStore(AFK_EXP_STORE.subscribe,      AFK_EXP_STORE.getSnapshot,      getServerFlagSnapshotFalse)
+  const fxpEnabled = useSyncExternalStore(FRIENDSHIP_XP_STORE.subscribe, FRIENDSHIP_XP_STORE.getSnapshot, getServerFlagSnapshotFalse)
 
   const msgFormatted = totalMessages.toLocaleString()
 
@@ -224,11 +221,11 @@ export function ProfileClient({
             useTabPanelHeight mirrors the active panel's height onto this container so the page's
             scroll height stays correct through tab switches and content changes (add/remove photo). ── */}
         <div ref={tabContentRef} className="relative w-full overflow-hidden" style={{ height: panelHeight }}>
-          <AnimatePresence initial={false} custom={tabDirRef.current}>
+          <AnimatePresence initial={false} custom={tabDir}>
             <motion.div
               key={activeTab}
               ref={panelRef}
-              custom={tabDirRef.current}
+              custom={tabDir}
               className="absolute top-0 left-0 right-0"
               variants={TAB_SLIDE_VARIANTS}
               initial="enter"

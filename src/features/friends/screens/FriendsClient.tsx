@@ -126,9 +126,13 @@ function SwipeableFriendCard({
   const [open, setOpen] = useState(false)
   const wasDragging = useRef(false)
 
+  // Closes this card's swipe-reveal whenever a DIFFERENT card opens — genuinely
+  // synchronizing with the imperative Framer Motion `animate()` call, not a
+  // state-mirroring anti-pattern; `setOpen(false)` just tracks that same transition.
   useEffect(() => {
     if (openCardId !== entry.friendship.id) {
       animate(x, 0, { type: 'spring', stiffness: 300, damping: 28 })
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setOpen(false)
     }
   }, [openCardId]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -227,9 +231,13 @@ export function FriendsClient({
     setFriends((prev) => prev.filter((e) => e.friendship.id !== entry.friendship.id))
   }
 
-  // Debounced username search
+  // Debounced username search — genuine data fetching keyed on searchQuery (React's
+  // own "you might not need an effect" guide lists this as one of the two
+  // legitimate uses); the early-return branch is the "query too short" case of
+  // that same effect, not a separate state-mirroring concern.
   useEffect(() => {
     const q = searchQuery.trim()
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (q.length < 2) { setSearchResults([]); setIsSearching(false); return }
     setIsSearching(true)
     const timer = setTimeout(async () => {

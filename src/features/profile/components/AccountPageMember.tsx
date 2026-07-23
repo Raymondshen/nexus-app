@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useSyncExternalStore, useRef } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { UserAvatar } from '@/shared/components/ui/UserAvatar'
 import { ProfileHeroBackground } from '@/shared/components/ui/ProfileHeroBackground'
@@ -14,7 +14,13 @@ import { PhotosGrid, type PhotosGridHandle } from '@/features/profile/components
 import { FloatingViewPill, PILL_BOTTOM_INSET } from '@/features/profile/components/FloatingViewPill'
 import { UploadOptionsSheet } from '@/features/profile/components/UploadOptionsSheet'
 import { useSwipeTabs, useTabPanelHeight, TAB_SLIDE_VARIANTS, TAB_SLIDE_TRANSITION } from '@/features/profile/hooks/useSwipeTabs'
+import { makeLocalStorageFlagStore, getServerFlagSnapshotFalse } from '@/shared/utils/localStorageFlag'
 import type { PublicNote, ProfilePhoto } from '@/types'
+
+// Dev feature flag — read via useSyncExternalStore (see makeLocalStorageFlagStore's
+// own doc comment for why an effect-body setState isn't the React-idiomatic way to
+// sync from an external store like localStorage).
+const FRIENDSHIP_XP_STORE = makeLocalStorageFlagStore('nexus_friendship_xp', 'nexus-friendship-xp-change')
 
 interface Props {
   userId:           string
@@ -67,10 +73,14 @@ export function AccountPageMember({
   type MemberTab = 'photos' | 'vibes'
   const TAB_ORDER: Record<MemberTab, number> = { photos: 0, vibes: 1 }
   const [activeTab, setActiveTab] = useState<MemberTab>('photos')
-  const tabDirRef   = useRef(1)
+  // Direction the incoming tab panel slides in from (Figma's TAB_SLIDE_VARIANTS
+  // `custom` prop) — real state, not a ref, since it's read during render (feeding
+  // AnimatePresence/motion.div below); a ref read during render can't be relied on
+  // to reflect the latest committed value.
+  const [tabDir, setTabDir] = useState<1 | -1>(1)
   function switchTab(tab: MemberTab) {
     if (tab === activeTab) return
-    tabDirRef.current = TAB_ORDER[tab] > TAB_ORDER[activeTab] ? 1 : -1
+    setTabDir(TAB_ORDER[tab] > TAB_ORDER[activeTab] ? 1 : -1)
     setActiveTab(tab)
   }
 
@@ -82,13 +92,7 @@ export function AccountPageMember({
   const vibesGridRef  = useRef<VibesGridHandle>(null)
   const [showUploadOptions, setShowUploadOptions] = useState(false)
 
-  const [fxpEnabled, setFxpEnabled] = useState(false)
-  useEffect(() => {
-    setFxpEnabled(localStorage.getItem('nexus_friendship_xp') === '1')
-    const handler = (e: Event) => setFxpEnabled((e as CustomEvent<{ on: boolean }>).detail.on)
-    window.addEventListener('nexus-friendship-xp-change', handler)
-    return () => window.removeEventListener('nexus-friendship-xp-change', handler)
-  }, [])
+  const fxpEnabled = useSyncExternalStore(FRIENDSHIP_XP_STORE.subscribe, FRIENDSHIP_XP_STORE.getSnapshot, getServerFlagSnapshotFalse)
 
   const bondTotal  = friendshipXP ?? 0
   const bondLevel  = Math.floor(bondTotal / BOND_XP_PER_LEVEL) + 1
@@ -179,11 +183,11 @@ export function AccountPageMember({
             useTabPanelHeight mirrors the active panel's height onto this container so the page's
             scroll height stays correct through tab switches and content changes. ── */}
         <div ref={tabContentRef} className="relative w-full overflow-hidden" style={{ height: panelHeight }}>
-          <AnimatePresence initial={false} custom={tabDirRef.current}>
+          <AnimatePresence initial={false} custom={tabDir}>
             <motion.div
               key={activeTab}
               ref={panelRef}
-              custom={tabDirRef.current}
+              custom={tabDir}
               className="absolute top-0 left-0 right-0"
               variants={TAB_SLIDE_VARIANTS}
               initial="enter"
