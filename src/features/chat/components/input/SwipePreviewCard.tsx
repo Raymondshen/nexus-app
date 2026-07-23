@@ -108,15 +108,17 @@ export function SwipePreviewCard({
             Lv.{room.level} · {room.memberCount} member
           </p>
         </div>
-        {/* `selected` doubles as "is the currently-open room" here (see ChatRoomBrowseSheet's
-            call site) — only that room's onlineMembers is live (ChatInput's onlineUserIds);
-            every other card's is a one-shot user_presence snapshot from ensureRoomMeta that
-            never updates again, so showing it would read as live when it's actually stale.
-            The row itself always renders at ONLINE_AVATARS_ROW_HEIGHT — a blank reserved
-            slot when there's nothing to show, so cards without avatars don't collapse
-            shorter than their neighbors. */}
+        {/* Shown on every card, not just the currently-open room — a member being
+            online in a DIFFERENT squad than the one you have open right now is exactly
+            what this row should surface. The currently-open room's onlineMembers stays
+            continuously live (ChatInput's own onlineUserIds); every other card's is a
+            user_presence snapshot refreshed each time this sheet opens (see
+            ensureRoomMeta.ts's refreshLiveRoomState) rather than a one-shot fetch frozen
+            at first-peek time. The row itself always renders at
+            ONLINE_AVATARS_ROW_HEIGHT — a blank reserved slot when there's nothing to
+            show, so cards without avatars don't collapse shorter than their neighbors. */}
         <div className="flex items-center flex-shrink-0" style={{ gap: 8, height: ONLINE_AVATARS_ROW_HEIGHT }}>
-          {selected && onlineMembers.map((m) => (
+          {onlineMembers.map((m) => (
             <div key={m.id} className="relative flex-shrink-0">
               <UserAvatar avatarUrl={m.avatarUrl} username={m.username} size={24} />
               <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#66bb6a] border-[1.5px] border-black" />

@@ -41,9 +41,13 @@ export interface RoomMeta {
   // to joined_at) in that crew — same cutoff Home's own unread badge uses. Always 0 for
   // the room currently open (ChatInput publishes that one directly, no RPC round trip).
   unreadCount:        number
-  // One-shot user_presence snapshot at fetch time (not a live subscription — this room
-  // isn't mounted/subscribed to presence broadcasts unless it's the one currently open),
-  // via the same computeOnlineIds() helper ChatInput's own live presence uses.
+  // user_presence snapshot, via the same computeOnlineIds() helper ChatInput's own
+  // live presence uses. Not a live subscription for a room that isn't the one
+  // currently open (no presence channel is mounted for it), but refreshed every time
+  // ensureRoomMeta is called for an already-cached room (i.e. every time
+  // ChatRoomBrowseSheet opens) — see ensureRoomMeta.ts's refreshLiveRoomState. The
+  // currently-open room's own entry stays continuously live instead, kept in sync by
+  // ChatInput's own "publish own meta" effect off chatStore's onlineUserIds.
   onlineMembers:      RoomMetaOnlineMember[]
 }
 

@@ -77,31 +77,55 @@ export async function ensureRoomMeta(crewId: string, userId: string): Promise<vo
   }
 }
 
-// A room's full RoomMeta (name/image/level/member count/online members) is cheap to
-// leave as a one-shot snapshot from whenever it was first peeked — that stuff rarely
-// changes mid-session. unreadCount/lastMessagePreview/lastMessageAt are different:
-// they're exactly what ChatRoomBrowseSheet exists to surface accurately (the red
-// equalizer bar + "N unread messages" footer, and the Notifications card's preview
-// text/timestamp), so a room peeked early in the session can't keep showing
-// permanently-stale values after new messages arrive while you're chatting elsewhere.
-// This refetches just those fields — same cutoff/RPC ensureRoomMeta's full fetch
-// uses, plus the same crews columns — and patches them into the existing cached
-// RoomMeta, every time ensureRoomMeta is called for an already-cached room (i.e. every
-// time ChatRoomBrowseSheet opens).
+// A room's name/image/level/member count are cheap to leave as a one-shot snapshot
+// from whenever it was first peeked — that stuff rarely changes mid-session.
+// unreadCount/lastMessagePreview/lastMessageAt/onlineMembers are different: they're
+// exactly what ChatRoomBrowseSheet exists to surface accurately (the red equalizer
+// bar + "N unread messages" footer, the Notifications card's preview text/timestamp,
+// and each Squads-row card's online-member avatars — see SwipePreviewCard, which
+// shows this for every room card, not just the currently-open one), so a room peeked
+// early in the session can't keep showing permanently-stale values after new
+// messages arrive or members come/go online while you're chatting elsewhere. This
+// refetches just those fields — same cutoff/RPC/presence-threshold ensureRoomMeta's
+// full fetch uses, plus the same crews columns — and patches them into the existing
+// cached RoomMeta, every time ensureRoomMeta is called for an already-cached room
+// (i.e. every time ChatRoomBrowseSheet opens). Still not a live subscription for a
+// room that isn't the one currently open (no presence channel is mounted for it), but
+// refreshed on every sheet-open instead of staying frozen at first-peek state for the
+// rest of the session.
 async function refreshLiveRoomState(crewId: string, userId: string, cached: RoomMeta): Promise<void> {
   inFlight.add(crewId)
   try {
     const supabase = createClient()
-    const [{ data: memberRow }, { data: crewRow }] = await Promise.all([
+    const [{ data: memberRow }, { data: crewRow }, { data: memberData }] = await Promise.all([
       supabase.from('crew_members').select('last_seen, joined_at').eq('crew_id', crewId).eq('user_id', userId).maybeSingle(),
       supabase.from('crews').select('last_message_preview, last_message_at').eq('id', crewId).single(),
+      supabase.from('crew_members').select('user_id, profiles(username, avatar_url)').eq('crew_id', crewId),
     ])
     const member = memberRow as { last_seen: string | null; joined_at: string } | null
     const crew   = crewRow as { last_message_preview: string | null; last_message_at: string | null } | null
     const cutoff = member?.last_seen ?? member?.joined_at ?? new Date(0).toISOString()
 
-    const { data: unreadData } = await supabase.rpc('get_unread_counts', { p_crew_ids: [crewId], p_cutoffs: [cutoff] })
+    const memberRows = (memberData ?? []) as unknown as CrewMemberRow[]
+    const memberIds  = memberRows.map((r) => r.user_id)
+
+    const [{ data: unreadData }, { data: presenceData }] = await Promise.all([
+      supabase.rpc('get_unread_counts', { p_crew_ids: [crewId], p_cutoffs: [cutoff] }),
+      memberIds.length > 0
+        ? supabase.from('user_presence').select('user_id, last_active_at').in('user_id', memberIds)
+        : Promise.resolve({ data: [] as { user_id: string; last_active_at: string }[] }),
+    ])
     const unreadCount = unreadData?.[0]?.unread_count ?? 0
+
+    const lastActiveMap: Record<string, number> = {}
+    for (const row of presenceData ?? []) {
+      lastActiveMap[(row as { user_id: string; last_active_at: string }).user_id] =
+        new Date((row as { user_id: string; last_active_at: string }).last_active_at).getTime()
+    }
+    const onlineIds = computeOnlineIds(lastActiveMap, PRESENCE_ONLINE_THRESHOLD_MS)
+    const onlineMembers = memberRows
+      .filter((r) => onlineIds.has(r.user_id))
+      .map((r) => ({ id: r.user_id, username: r.profiles?.username ?? '???', avatarUrl: r.profiles?.avatar_url ?? null }))
 
     // Re-read current cached meta rather than closing over the stale `cached` param —
     // ChatInput's own "publish own meta" effect (see its doc comment) could have
@@ -112,6 +136,7 @@ async function refreshLiveRoomState(crewId: string, userId: string, cached: Room
       unreadCount,
       lastMessagePreview: crew?.last_message_preview ?? latest.lastMessagePreview,
       lastMessageAt:      crew?.last_message_at ?? latest.lastMessageAt,
+      onlineMembers,
     })
   } finally {
     inFlight.delete(crewId)
