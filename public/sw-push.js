@@ -72,6 +72,25 @@ self.addEventListener('fetch', function(event) {
       )
       return
     }
+
+    // Every other navigation (/home, /, /login, /onboarding/*, ...) is deliberately
+    // NOT cached above — /home always needs a fresh server hit for its pinned-squad
+    // launch redirect (see the comment above NEXUS_PAGE_PATHS), and /login/onboarding
+    // must always get a live auth check. But leaving these completely unintercepted
+    // means a transient network failure (e.g. the brief window right as a new Vercel
+    // deploy cuts over, which is exactly when this got noticed — tends to happen
+    // right after a commit+push) falls straight through to the OS's own native
+    // "This page couldn't load" error screen instead of anything this app controls —
+    // no retry, no offline.html, nothing. NetworkOnly-with-fallback here preserves
+    // "always hit the network, never replay stale HTML for these paths" while still
+    // catching that failure and handing back our own offline page instead of a bare
+    // native error page.
+    event.respondWith(
+      fetch(request).catch(function() {
+        return caches.match('/offline.html')
+      })
+    )
+    return
   }
 
   // ── CacheFirst for Next.js static assets (JS/CSS/fonts) ─────────────────
@@ -133,7 +152,23 @@ self.addEventListener('fetch', function(event) {
 // multi-argument importScripts call in next-pwa's generated sw.js silently
 // kills installation on iOS Safari, so we bypass it entirely.
 
-self.addEventListener('install', () => {
+self.addEventListener('install', function(event) {
+  // Every `caches.match('/offline.html')` fallback above (both navigation branches)
+  // assumes this file already exists in Cache Storage — it doesn't get there on its
+  // own. next-pwa's generated sw.js/fallback-*.js DOES precache it via workbox's
+  // `fallbacks` config (next.config.ts's pwaConfig), but that generated worker is
+  // never registered (see CLAUDE.md — SWRegister only registers this hand-written
+  // file), so that precaching never actually runs. Without this, a genuine network
+  // failure with nothing already cached for that URL resolves the fallback to
+  // `undefined`, and `event.respondWith(undefined)` produces the exact same bare
+  // native "This page couldn't load" error this is meant to prevent.
+  event.waitUntil(
+    caches.open(NEXUS_PAGES_CACHE).then(function(cache) {
+      return cache.add('/offline.html')
+    }).catch(function(err) {
+      console.error('[sw-push] failed to precache offline.html:', err)
+    })
+  )
   self.skipWaiting()
 })
 
