@@ -32,7 +32,7 @@ const LOOP_EASE: [number, number, number, number] = [0.5, 0, 0.5, 1]
 const FINISH_S       = 0.2
 
 // Frame-cycling ghost sprite (public/sprites/ghost/launch/launch_0001.webp…0009.webp,
-// 1-indexed) — same interval-based frame-swap pattern SquadsListShared's
+// 1-indexed) — same interval-based frame-swap pattern ChatRoomBrowseSheet's
 // SleepingGhost uses for its own 9-frame loop.
 const GHOST_FRAME_COUNT = 9
 const GHOST_FRAME_MS    = 130

@@ -4,7 +4,6 @@ import { type ReactNode, useEffect, useState, useSyncExternalStore } from 'react
 import { AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { Calendar2 } from 'pixelarticons/react/Calendar2'
-import { Menu } from 'pixelarticons/react/Menu'
 import { DiamondGem } from 'pixelarticons/react/DiamondGem'
 import { TokeCircle } from 'pixelarticons/react/TokeCircle'
 import { useChatStore } from '@/store/chatStore'
@@ -161,11 +160,11 @@ interface ChatFloatingNavProps {
 // Figma 637:8569 ("squad-nav") is the current revision on top of THAT: the avatar frame's
 // background went from solid black to fully transparent, gained a soft drop shadow
 // (`0px 0px 20px 12px rgba(0,0,0,0.1)`) and a glass blur (see "Avatar" paragraph below) — the
-// gradient is unchanged (identical stop table to 642:7771). This revision's export also shows a
-// second button in the nav row — a plain hamburger `Menu` icon (Figma node 642:7822/642:7818,
-// confirmed against pixelarticons' `Menu` path) — opens ChatSquadsPage (Figma 589:3617,
-// `/chat/[crewId]/squads`, see that route's own doc comment), a real route rather than another
-// client-side overlay since ChatFloatingNav has no wiring to ChatInput's own overlay state.
+// gradient is unchanged (identical stop table to 642:7771). That revision's export also showed a
+// second nav-row button — a hamburger `Menu` icon opening a standalone Squads/Notifications page
+// — but that page was folded back into ChatRoomBrowseSheet (see that file's own doc comment), so
+// the button was removed here rather than repointed; swipe-up/tap-the-bar already reach the same
+// content from inside the room.
 // `avatarClass` is this user's crew_members.class for THIS crew (per-membership, not
 // profiles.avatar_class), and `initialTotalUnreadMessages` is a server-computed snapshot at
 // page load (same "initial" treatment as initialGemBalance/initialCoins) summed across every
@@ -358,30 +357,6 @@ export function ChatFloatingNav({
                 )}
               </div>
             </div>
-          </button>
-
-          {/* Figma 637:8569's second nav button (642:7822/642:7818) — a hamburger `Menu`
-              icon (pixelarticons path confirmed against the exported SVG). Opens
-              ChatSquadsPage (Figma 589:3617, `/chat/[crewId]/squads`) — a real route
-              rather than another client-side overlay, since ChatFloatingNav is a
-              server-composed sibling of ChatInput, not its parent, and has no access
-              to ChatInput's own overlay state (ChatRoomBrowseSheet, etc.). Sets
-              nexus_chat_from first, same as ChatInput's own onLibrary handler — see
-              the Gotchas note in CLAUDE.md: without it, returning here stacks an
-              extra /home history entry via this component's own history-stacking-
-              guard effect above. Not dev-gated, unlike Calendar2 below, since Figma's
-              export shows it unconditionally. */}
-          <button
-            type="button"
-            onClick={() => {
-              sessionStorage.setItem('nexus_chat_from', 'chat')
-              router.push(`/chat/${crewId}/squads`)
-            }}
-            aria-label="Squads"
-            className="flex flex-col items-center justify-center flex-shrink-0 appearance-none pointer-events-auto active:opacity-70"
-            style={{ padding: 'var(--x3)', borderRadius: 'var(--x2)' }}
-          >
-            <Menu style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
           </button>
 
           {devMode && eventsEnabled && (
