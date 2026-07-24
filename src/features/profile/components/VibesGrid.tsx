@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useLayoutEffect, useRef, useMemo, useCallback, forwardRef, useImperativeHandle } from 'react'
+import { useState, useLayoutEffect, useEffect, useRef, useMemo, useCallback, forwardRef, useImperativeHandle } from 'react'
+import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { deleteNoteAction, reorderNotesAction } from '@/app/(app)/profile/notes/actions'
 import { updatePinnedVinylAction } from '@/app/(app)/profile/actions'
@@ -82,6 +83,14 @@ export const VIBES_PIN_CHANGE_EVENT = 'nexus-vibes-pin-change'
 
 // Exported so VibesPlaylistSheet's own list rows (Figma 690:16468, which replaced the
 // profile's Vibes tab) reuse the exact same long-press context menu instead of a duplicate.
+// Portals to document.body (same pattern as MessageBubble's ChatSheetReact/PinDurationSheet
+// etc.) rather than rendering in place: VibesPlaylistSheet renders this nested inside its
+// own BottomSheet, whose motion.div has an active `transform` — a transformed ancestor
+// becomes the containing block for `position: fixed` descendants, so without the portal
+// this sheet's "fixed inset-0"/"fixed bottom-0" were being positioned relative to that
+// BottomSheet's box instead of the viewport, rendering behind/clipped by its own Add Music
+// section instead of overlaying the whole screen. VibesGrid's own (non-nested) cards are
+// unaffected either way since document.body is still the correct destination there too.
 export function VinylActionSheet({
   note,
   isPinned,
@@ -97,7 +106,16 @@ export function VinylActionSheet({
   onRemove:    () => void
   onClose:     () => void
 }) {
-  return (
+  // document.body doesn't exist during SSR, so this must flip after mount, not during
+  // the initial render — see MessageBubble's identical `mounted` gate for createPortal.
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- SSR-safe createPortal mount flag, same pattern as MessageBubble
+    setMounted(true)
+  }, [])
+  if (!mounted) return null
+
+  return createPortal(
     <>
       {/* Backdrop */}
       <motion.div
@@ -186,7 +204,8 @@ export function VinylActionSheet({
 
         </div>
       </motion.div>
-    </>
+    </>,
+    document.body
   )
 }
 
