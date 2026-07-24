@@ -1,18 +1,11 @@
 import DelayedSkeleton from '@/shared/components/ui/DelayedSkeleton'
+import LoadingHeaderSkeleton from '@/shared/components/ui/LoadingHeaderSkeleton'
 
 export default function ErrorLogsLoading() {
   return (
     <DelayedSkeleton>
       <div className="min-h-screen bg-black flex flex-col">
-        <div
-          className="flex items-center gap-3 px-4 pb-3"
-          style={{ paddingTop: 'max(env(safe-area-inset-top), 8px)' }}
-        >
-          <div className="w-6 h-10 flex items-center">
-            <div className="w-4 h-4 bg-border animate-pulse" />
-          </div>
-          <div className="h-4 w-28 bg-border animate-pulse" />
-        </div>
+        <LoadingHeaderSkeleton titleWidth="w-28" />
         <div className="px-4 pt-4 flex flex-col gap-3">
           {[0, 1, 2, 3].map((i) => (
             <div

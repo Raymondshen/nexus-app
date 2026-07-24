@@ -1,28 +1,14 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { SlidePage, useSlideBack } from '@/app/layouts/SlidePage'
+import { SlidePage } from '@/app/layouts/SlidePage'
 import { UserAvatar } from '@/shared/components/ui/UserAvatar'
-import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
+import { BareIconBackButton } from '@/shared/components/ui/BareIconBackButton'
 import { Check } from 'pixelarticons/react/Check'
 import { Close } from 'pixelarticons/react/Close'
 import { acceptFriendRequestAction, deleteFriendshipAction } from '@/app/(app)/friends/actions'
 import type { FriendProfile } from '@/types'
 import type { FriendEntry } from '@/features/friends/screens/FriendsClient'
-
-function BackButton() {
-  const goBack = useSlideBack()
-  return (
-    <button
-      onClick={goBack}
-      aria-label="Back"
-      className="flex-shrink-0 flex items-center justify-center"
-      style={{ width: 24, height: 40 }}
-    >
-      <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
-    </button>
-  )
-}
 
 function UserAvatarFromProfile({ profile, size = 48 }: { profile: FriendProfile | null; size?: number }) {
   return (
@@ -172,7 +158,7 @@ export function InboxClient({ incomingRequests: initialIncoming, outgoingRequest
         }}
       >
         <div className="flex items-center h-10" style={{ gap: 'var(--space-3)' }}>
-          <BackButton />
+          <BareIconBackButton />
           <span className="font-silkscreen text-[length:var(--text-xxl)] text-primary uppercase leading-none">
             Inbox
           </span>

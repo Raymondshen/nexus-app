@@ -5,9 +5,9 @@ import { useRouter } from 'next/navigation'
 import { motion, useMotionValue, animate } from 'framer-motion'
 import { UserAvatar } from '@/shared/components/ui/UserAvatar'
 import type { PanInfo } from 'framer-motion'
-import { SlidePage, useSlideBack } from '@/app/layouts/SlidePage'
+import { SlidePage } from '@/app/layouts/SlidePage'
 import { TickerBanner } from '@/shared/components/banners/TickerBanner'
-import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
+import { BareIconBackButton } from '@/shared/components/ui/BareIconBackButton'
 import { Search } from 'pixelarticons/react/Search'
 import { Inbox } from 'pixelarticons/react/Inbox'
 import { MailRight } from 'pixelarticons/react/MailRight'
@@ -16,20 +16,6 @@ import { createClient } from '@/shared/supabase/client'
 import { signInWithGoogle } from '@/shared/supabase/auth'
 import { sendFriendRequestAction, deleteFriendshipAction } from '@/app/(app)/friends/actions'
 import type { Friendship, FriendProfile } from '@/types'
-
-function BackButton() {
-  const goBack = useSlideBack()
-  return (
-    <button
-      onClick={goBack}
-      aria-label="Back"
-      className="flex-shrink-0 flex items-center justify-center"
-      style={{ width: 24, height: 40 }}
-    >
-      <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
-    </button>
-  )
-}
 
 export interface FriendEntry {
   friendship:    Friendship
@@ -290,7 +276,7 @@ export function FriendsClient({
       >
         <div className="flex items-center justify-between h-10">
           <div className="flex items-center" style={{ gap: 'var(--space-3)' }}>
-            <BackButton />
+            <BareIconBackButton />
             <span className="font-silkscreen text-[length:var(--text-xxl)] text-primary uppercase leading-none">
               Friends
             </span>

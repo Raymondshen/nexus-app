@@ -1,18 +1,11 @@
 import DelayedSkeleton from '@/shared/components/ui/DelayedSkeleton'
+import LoadingHeaderSkeleton from '@/shared/components/ui/LoadingHeaderSkeleton'
 
 export default function FriendsLoading() {
   return (
     <DelayedSkeleton>
     <div className="min-h-screen bg-black flex flex-col">
-      <div
-        className="flex items-center gap-4 px-4 pb-4 border-b border-border"
-        style={{ paddingTop: 'max(env(safe-area-inset-top), 0px)' }}
-      >
-        <div className="w-6 h-10 flex items-center">
-          <div className="w-4 h-4 bg-border animate-pulse" />
-        </div>
-        <div className="h-3 w-20 bg-border animate-pulse" />
-      </div>
+      <LoadingHeaderSkeleton titleWidth="w-20" withBorder />
 
       <div className="px-4 pt-4">
         <div className="h-10 bg-surface border border-border animate-pulse" />

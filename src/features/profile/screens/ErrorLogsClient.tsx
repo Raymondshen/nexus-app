@@ -2,25 +2,11 @@
 
 import { useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { SlidePage, useSlideBack } from '@/app/layouts/SlidePage'
-import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
+import { SlidePage } from '@/app/layouts/SlidePage'
+import { BareIconBackButton } from '@/shared/components/ui/BareIconBackButton'
 import { Close } from 'pixelarticons/react/Close'
 import { deleteClientErrorAction } from '@/app/actions/errors'
 import type { ClientError } from '@/types'
-
-function BackButton() {
-  const goBack = useSlideBack()
-  return (
-    <button
-      onClick={goBack}
-      aria-label="Back"
-      className="flex-shrink-0 flex items-center justify-center"
-      style={{ width: 24, height: 40 }}
-    >
-      <ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-purple)' }} aria-hidden="true" />
-    </button>
-  )
-}
 
 function ErrorDetailSheet({
   error,
@@ -165,7 +151,7 @@ export function ErrorLogsClient({ initialErrors }: ErrorLogsClientProps) {
         }}
       >
         <div className="flex items-center h-10" style={{ gap: 'var(--space-3)' }}>
-          <BackButton />
+          <BareIconBackButton color="var(--color-purple)" />
           <span className="font-silkscreen text-[length:var(--text-xxl)] text-primary uppercase leading-none">
             Error Logs
           </span>
