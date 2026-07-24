@@ -67,53 +67,54 @@ export function ChatSquadDetailBar({
 
   return (
     <motion.div
-      className="flex relative cursor-pointer items-center justify-between w-full"
-      style={{ gap: 8 }}
+      className="flex relative cursor-pointer items-center w-full"
+      style={{ gap: 16 }}
       onClick={onTap}
     >
-      {/* Crew image + name/level — fixed 140px (Figma 599:4015 "groupHeader"), not
-          flex-shrink-0-and-hope: a long crew name needs a real width to truncate
-          against, and this also gives the row's outer `justify-between` a stable
-          left anchor to measure the online-avatars/action-btns space against. */}
-      <div className="flex items-center flex-shrink-0" style={{ gap: 8, width: 140 }}>
-        <div className="relative flex-shrink-0" style={{ width: 24, height: 24 }}>
+      {/* Crew image + name/level (Figma 645:8038 "groupHeader", supersedes the older
+          599:4015 revision) — flex-1, splitting the row equally with the online-avatars
+          block below rather than a fixed 140px column; min-w-0 lets a long crew name
+          truncate instead of pushing past its share. */}
+      <div className="flex items-center min-w-0" style={{ gap: 12, flex: '1 0 0' }}>
+        <div className="relative flex-shrink-0" style={{ width: 32, height: 32 }}>
           <AnimatePresence initial={false}>
             <motion.div
               key={crewName}
               className="absolute inset-0"
-              initial={{ y: -14, opacity: 0 }}
+              initial={{ y: -18, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 14, opacity: 0 }}
+              exit={{ y: 18, opacity: 0 }}
               transition={SLIDE_TRANSITION}
             >
-              <GroupAvatar imageUrl={crewImageUrl} name={crewName} size={24} />
+              <GroupAvatar imageUrl={crewImageUrl} name={crewName} size={32} />
             </motion.div>
           </AnimatePresence>
         </div>
         <div className="flex flex-col min-w-0" style={{ gap: 2 }}>
-          <div className="relative overflow-hidden" style={{ height: 16 }}>
+          <div className="relative overflow-hidden" style={{ height: 18 }}>
             <AnimatePresence initial={false}>
-              {/* Figma 637:3891 — DM Sans Bold (700), not Black (900), primary color
-                  (not secondary). Uppercased via CSS (`uppercase` — crewName itself
-                  stays whatever case it was typed in, e.g. "Squad Sh*t" renders as
-                  "SQUAD SH*T") by explicit request, overriding Figma's own literal
-                  as-typed rendering. */}
+              {/* Figma 645:8041 — DM Sans SemiBold (600) sm (14px), 0.2px tracking —
+                  a step down from the older 637:3891 revision's 16px Bold. Still
+                  uppercased via CSS (crewName itself stays whatever case it was
+                  typed in, e.g. "Squad Sh*t" renders as "SQUAD SH*T") by the same
+                  standing request that overrode 637:3891's literal as-typed
+                  rendering — this redesign doesn't reverse that. */}
               <motion.p
                 key={crewName}
-                className="absolute inset-0 font-body font-bold text-primary leading-none truncate uppercase"
-                style={{ fontSize: 16, fontVariationSettings: '"opsz" 14' }}
-                initial={{ y: -16, opacity: 0 }}
+                className="absolute inset-0 font-body font-semibold text-primary truncate uppercase"
+                style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14', letterSpacing: '0.2px', lineHeight: 'normal' }}
+                initial={{ y: -18, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
-                exit={{ y: 16, opacity: 0 }}
+                exit={{ y: 18, opacity: 0 }}
                 transition={SLIDE_TRANSITION}
               >
                 {crewName}
               </motion.p>
             </AnimatePresence>
           </div>
-          {/* Figma 637:4349 "metadata" — crew level + total member count, replacing
-              the former "{N} Member online" line (online status is now conveyed
-              purely by the avatar row's green dots, not restated here in text). */}
+          {/* Figma 645:8042 "metadata" — crew level + total member count, unchanged
+              from the older 637:4349 revision (online status is conveyed purely by
+              the avatar row's green dots, not restated here in text). */}
           <div className="flex items-center" style={{ gap: 4 }}>
             <p className="font-silkscreen text-tertiary leading-none" style={{ fontSize: 'var(--text-xxs)' }}>
               Lv.{crewLevel}
@@ -129,37 +130,39 @@ export function ChatSquadDetailBar({
         </div>
       </div>
 
-      {/* Online member avatars only — capped to ~6 visible at once, no overflow scroll;
-          extra members past the maxWidth are simply clipped. Slides in from the top the
-          moment members show as online (e.g. shortly
-          after landing in a room, as presence heartbeats/broadcasts arrive) and slides
-          out the same way if they drop to none (e.g. the outgoing side of a room-swipe,
-          which has no presence data for the destination room to show). Purely decorative
-          — no per-avatar tap action — so, unlike a real interactive child, it does NOT
-          stop propagation: a tap here still bubbles up to the row's own onClick and opens
-          ChatRoomBrowseSheet, same as tapping anywhere else on the bar. */}
+      {/* Online member avatars only (Figma 645:8048 "avatar row") — the same flex-1
+          share as groupHeader above, replacing the older revision's fixed
+          maxWidth:164 cap; overflow-hidden still clips whatever doesn't fit that
+          share. Slides in from the top the moment members show as online (e.g.
+          shortly after landing in a room, as presence heartbeats/broadcasts arrive)
+          and slides out the same way if they drop to none (e.g. the outgoing side
+          of a room-swipe, which has no presence data for the destination room to
+          show). Purely decorative — no per-avatar tap action — so, unlike a real
+          interactive child, it does NOT stop propagation: a tap here still bubbles
+          up to the row's own onClick and opens ChatRoomBrowseSheet, same as tapping
+          anywhere else on the bar. */}
       <AnimatePresence initial={false}>
         {onlineMembers.length > 0 && (
           <motion.div
             key="online-row"
-            initial={{ y: -14, opacity: 0 }}
+            initial={{ y: -18, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 14, opacity: 0 }}
+            exit={{ y: 18, opacity: 0 }}
             transition={SLIDE_TRANSITION}
-            className="flex flex-1 min-w-0 items-center overflow-hidden"
-            style={{ gap: 8, maxWidth: 164 }}
+            className="flex items-center overflow-hidden min-w-0"
+            style={{ gap: 8, flex: '1 0 0' }}
           >
             {onlineMembers.map((m) => (
               <div key={m.id} className="relative flex-shrink-0">
                 <UserAvatar avatarUrl={m.avatar_url as string | null} username={m.username} size={24} />
-                <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#66bb6a] border-[1.5px] border-black" />
+                <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border-[1.5px] border-black" style={{ background: 'var(--color-success)' }} />
               </div>
             ))}
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Swipe-gesture hint (Figma 637:3886 "chevron_up") — purely decorative, no
+      {/* Swipe-gesture hint (Figma 645:8050 "chevron_up") — purely decorative, no
           action of its own, so a tap here bubbles up to the row's own onClick like
           the rest of the bar (same as the online-avatars row above) rather than
           stopping propagation. Static — no accompanying text label. */}

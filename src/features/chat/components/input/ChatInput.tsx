@@ -36,6 +36,9 @@ import { Plus } from 'pixelarticons/react/Plus'
 import { CornerUpLeft } from 'pixelarticons/react/CornerUpLeft'
 import { Close } from 'pixelarticons/react/Close'
 import { MagicEdit } from 'pixelarticons/react/MagicEdit'
+import { Camera } from 'pixelarticons/react/Camera'
+import { GifIcon } from '@/shared/icons/GifIcon'
+import { DefinitionIcon } from '@/shared/icons/DefinitionIcon'
 import { kickMemberAction, renameCrewAction, birthdaysCommandAction, pinCrewAction } from '@/app/(app)/chat/actions'
 import { leaveCrewAction } from '@/app/(app)/home/actions'
 import dynamic from 'next/dynamic'
@@ -44,7 +47,6 @@ import { CrewBackgroundUploadModal } from '@/features/chat/components/sheets/Cre
 import { type MiniMember } from '@/features/chat/components/sheets/SquadDetailCard'
 import { ManageSquadProfile } from '@/features/chat/screens/ManageSquadProfile'
 import { NotifSheet, type NotifPrefs } from '@/features/chat/components/sheets/NotifSheet'
-import { AddMediaSheet } from '@/features/chat/components/input/AddMediaSheet'
 
 // Rarely-opened sheets, all conditionally rendered below — code-split so their
 // weight (Klipy picker UI, event creation + crop flow, poll creator) stays out of
@@ -179,6 +181,36 @@ const CHAT_SWIPE_HINT_SEEN_KEY = 'nexus_chat_swipe_nav_hint_seen_v2'
 const FXP_FLAG_STORE    = makeLocalStorageFlagStore('nexus_friendship_xp',  'nexus-friendship-xp-change')
 const EVENTS_FLAG_STORE = makeLocalStorageFlagStore('nexus_events_enabled', 'nexus-events-feature-change')
 
+// One of the three Upload/GIF/Definition pills in the add menu (Figma 645:8116,
+// "buttons") — only ever used here, so kept local rather than promoted to
+// shared/ui alongside SheetActionButton (a full-width sheet row, a different shape).
+function AddMenuPill({ icon, label, onClick, disabled = false }: { icon: React.ReactNode; label: string; onClick: () => void; disabled?: boolean }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className="flex items-center flex-shrink-0 appearance-none active:opacity-70 disabled:opacity-30 disabled:cursor-not-allowed"
+      style={{
+        background:   'var(--color-surface-elevated)',
+        borderRadius: 'var(--space-2)',
+        padding:      'var(--space-4)',
+        gap:          'var(--space-2)',
+        color:        'var(--color-secondary)',
+      }}
+    >
+      <span className="flex-shrink-0 flex items-center justify-center" style={{ width: 16, height: 16 }} aria-hidden="true">
+        {icon}
+      </span>
+      <span
+        className="font-body font-semibold whitespace-nowrap leading-none"
+        style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}
+      >
+        {label}
+      </span>
+    </button>
+  )
+}
+
 // ─── ChatInput ────────────────────────────────────────────────────────────────
 
 export function ChatInput({ crewId, userId, userProfile, memberProfiles, memberPinnedVinyls, crewName, inviteCode, creatorId, crewImageUrl: initialCrewImageUrl, crewBackgroundImageUrl: initialCrewBgUrl, initialXP, isDM, dmPartnerId, chatRoomOrder = [], initialPinnedCrewId = null }: ChatInputProps) {
@@ -260,7 +292,11 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, memberP
   const [crewBgFile,     setCrewBgFile]     = useState<File | null>(null)
 const [showPollCreator,  setShowPollCreator]  = useState(false)
   const [showGifPicker,    setShowGifPicker]    = useState(false)
-  const [showMediaPicker,  setShowMediaPicker]  = useState(false)
+  // Opened by the Plus button next to the text field (Figma 645:8116) — swaps the
+  // squad detail bar for an inline Upload/GIF/Definition pill row and swaps the
+  // Plus icon for a Close/X. Closed by tapping that X, or tapping anywhere outside
+  // chatInputContainerRef (see the pointerdown effect below) — never a bottom sheet.
+  const [showAddMenu,      setShowAddMenu]      = useState(false)
   const [mentionQuery,    setMentionQuery]    = useState<string | null>(null)
   const [mentionIndex,    setMentionIndex]    = useState(0)
   const [isFocused,       setIsFocused]       = useState(false)
@@ -278,6 +314,11 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   const inputRef              = useRef<HTMLInputElement>(null)
   const mirrorRef             = useRef<HTMLSpanElement>(null)
   const innerContainerRef     = useRef<HTMLDivElement>(null)
+  // The bordered "chatInputContainer" box (squad bar/add-menu + input row) — used to
+  // detect a tap outside it while the add menu is open (see the pointerdown effect
+  // below), separate from chatInputBoxRef, which wraps this plus the typing
+  // indicator/swipe hint/ChatRoomBrowseSheet above it.
+  const chatInputContainerRef = useRef<HTMLDivElement>(null)
   const pendingCaretPosRef    = useRef<number | null>(null)
   const isMultilineRef        = useRef(false)
   const textRef               = useRef('')
@@ -709,6 +750,22 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
       dismissSwipeHint()
     }
   }
+
+  // Cancels the add menu (see showAddMenu's own doc comment) on a tap anywhere
+  // outside chatInputContainerRef — the X button inside it closes via its own
+  // onClick instead, so this only ever needs to handle the "outside" half.
+  // pointerdown (not click) so it fires before a target inside the container (e.g.
+  // the text field) processes its own focus/click side effects.
+  useEffect(() => {
+    if (!showAddMenu) return
+    function handlePointerDown(e: PointerEvent) {
+      if (chatInputContainerRef.current && !chatInputContainerRef.current.contains(e.target as Node)) {
+        setShowAddMenu(false)
+      }
+    }
+    document.addEventListener('pointerdown', handlePointerDown)
+    return () => document.removeEventListener('pointerdown', handlePointerDown)
+  }, [showAddMenu])
 
   // ChatRoomBrowseSheet shows every room in chatRoomOrder — fetched only once the
   // sheet actually opens, not eagerly on mount, since a user's full crew list could be
@@ -1795,23 +1852,29 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
         onClose={() => setShowRoomBrowser(false)}
       />
 
-      {/* Figma 637:3886 ("chatInputContainer") — squad bar + input field together, as one
-          unit.
+      {/* Figma 645:8036 ("chatInputContainer", supersedes the older 637:3886 revision)
+          — squad bar/add-menu + input field together, as one unit.
 
           onPanEnd lives HERE (the whole container), not on ChatSquadDetailBar — a
           swipe up anywhere in the container (bar or input row) should drive
           ChatRoomBrowseSheet, per handleTopPanEnd's own doc comment. */}
       <motion.div
+        ref={chatInputContainerRef}
         className="border-t border-border flex flex-col"
         onPanEnd={handleTopPanEnd}
         style={{
           paddingTop:    'var(--space-5)',
           paddingLeft:   'var(--space-5)',
           paddingRight:  'var(--space-5)',
-          // Figma 596:8403 ("chatInputContainer") specs pb: var(--x8, 28px) — was a
-          // hardcoded 32px, drifted from the design token.
+          // pb: var(--x8, 28px) per Figma — was a hardcoded 32px, drifted from the
+          // design token.
           paddingBottom: 'max(env(safe-area-inset-bottom), var(--space-8))',
-          gap:           'var(--space-5)',
+          // gap: var(--x4, 12px) per Figma (measured from 645:8036's own child
+          // y-offsets: squadDetails ends at y=48, chatInputField starts at y=60) —
+          // was var(--space-5)/16px, drifted from the design token. Applies uniformly
+          // to every direct child of this flex column, not just squadDetails↔input:
+          // the friendship-XP/gem toasts and the DM "Chatting with" label too.
+          gap:           'var(--space-4)',
         }}
       >
         {/* ── Friendship XP toast (DM send or group @mention) — dev-gated: nexus_friendship_xp ── */}
@@ -1837,22 +1900,57 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
           </p>
         )}
 
-        {/* ── ChatSquadDetailBar — tap anywhere on the bar to toggle ChatRoomBrowseSheet ── */}
-        {!isDM && (
-          <ChatSquadDetailBar
-            crewImageUrl={barOverride ? barOverride.imageUrl : crewImageUrl}
-            crewName={barOverride ? barOverride.name : liveCrewName}
-            crewLevel={barOverride ? barOverride.level : crewLevel}
-            memberCount={barOverride ? barOverride.memberCount : memberCount}
-            members={barOverride ? EMPTY_MEMBERS : members}
-            onlineUserIds={barOverride ? EMPTY_ONLINE_IDS : onlineUserIds}
-            // Toggles ChatRoomBrowseSheet — same destination the swipe-up gesture opens
-            // (see handleTopPanEnd's own doc comment). A tap while it's already open
-            // closes it, matching every other "tap outside the row" dismissal instead
-            // of stacking a second open on top.
-            onTap={() => setShowRoomBrowser((prev) => !prev)}
-          />
-        )}
+        {/* ── ChatSquadDetailBar / add menu — mutually exclusive (Figma 645:8116).
+            Tapping Plus (below) fades the squad bar out and fades this Upload/GIF/
+            Definition pill row in, in its place; tapping the resulting X, or
+            anywhere outside chatInputContainerRef, fades back to the squad bar (see
+            showAddMenu's own doc comment + the pointerdown effect above). ── */}
+        <AnimatePresence initial={false}>
+          {showAddMenu ? (
+            <motion.div
+              key="add-menu"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="flex items-center"
+              style={{ gap: 'var(--space-2)', height: 40 }}
+            >
+              <AddMenuPill
+                icon={<Camera style={{ width: 16, height: 16 }} aria-hidden="true" />}
+                label="Upload"
+                disabled={pendingImages.length >= 4}
+                onClick={() => { setShowAddMenu(false); chatImageInputRef.current?.click() }}
+              />
+              <AddMenuPill
+                icon={<GifIcon style={{ width: 16, height: 16 }} aria-hidden="true" />}
+                label="GIF"
+                onClick={() => { setShowAddMenu(false); setShowGifPicker(true) }}
+              />
+              <AddMenuPill
+                icon={<DefinitionIcon style={{ width: 16, height: 16 }} aria-hidden="true" />}
+                label="Definition"
+                onClick={() => { setShowAddMenu(false); router.push(`/chat/${crewId}/definitions`) }}
+              />
+            </motion.div>
+          ) : !isDM ? (
+            <motion.div key="squad-bar" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
+              <ChatSquadDetailBar
+                crewImageUrl={barOverride ? barOverride.imageUrl : crewImageUrl}
+                crewName={barOverride ? barOverride.name : liveCrewName}
+                crewLevel={barOverride ? barOverride.level : crewLevel}
+                memberCount={barOverride ? barOverride.memberCount : memberCount}
+                members={barOverride ? EMPTY_MEMBERS : members}
+                onlineUserIds={barOverride ? EMPTY_ONLINE_IDS : onlineUserIds}
+                // Toggles ChatRoomBrowseSheet — same destination the swipe-up gesture opens
+                // (see handleTopPanEnd's own doc comment). A tap while it's already open
+                // closes it, matching every other "tap outside the row" dismissal instead
+                // of stacking a second open on top.
+                onTap={() => setShowRoomBrowser((prev) => !prev)}
+              />
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
 
         {/* ── Status indicators + input — stays visible under ChatRoomBrowseSheet
             (both it and the composer stop at `bottom: chatInputHeight`, leaving this
@@ -2070,25 +2168,29 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
 
                 {/* ── Text input + send button row ── */}
                 <div className="flex items-center" style={{ gap: 16, minHeight: pendingImages.length > 0 ? 18 : 48 }}>
-                  {/* Plus button — slides left and fades out on focus */}
+                  {/* Plus/X toggle — slides left and fades out on focus, same as before,
+                      except while the add menu itself is open: it has to stay put and
+                      tappable there so X remains reachable even if the field is also
+                      focused (see showAddMenu's own doc comment). */}
                   <motion.div
                     className="flex-shrink-0 overflow-hidden flex items-center justify-center"
                     animate={{
-                      width:       isFocused ? 0 : 16,
-                      opacity:     isFocused ? 0 : 1,
-                      marginRight: isFocused ? -16 : 0,
+                      width:       isFocused && !showAddMenu ? 0 : 16,
+                      opacity:     isFocused && !showAddMenu ? 0 : 1,
+                      marginRight: isFocused && !showAddMenu ? -16 : 0,
                     }}
                     transition={{ type: 'spring', stiffness: 320, damping: 28 }}
-                    style={{ pointerEvents: isFocused ? 'none' : 'auto' }}
+                    style={{ pointerEvents: isFocused && !showAddMenu ? 'none' : 'auto' }}
                   >
                     <button
-                      onClick={() => setShowMediaPicker(true)}
-                      disabled={pendingImages.length >= 4}
-                      className="flex-shrink-0 flex items-center justify-center text-primary active:text-purple disabled:opacity-30 disabled:cursor-not-allowed"
+                      onClick={() => setShowAddMenu((prev) => !prev)}
+                      className="flex-shrink-0 flex items-center justify-center text-primary active:text-purple"
                       style={{ width: 16, height: 16 }}
-                      aria-label="Add media"
+                      aria-label={showAddMenu ? 'Close add menu' : 'Add media'}
                     >
-                      <Plus style={{ width: 16, height: 16 }} aria-hidden="true" />
+                      {showAddMenu
+                        ? <Close style={{ width: 16, height: 16 }} aria-hidden="true" />
+                        : <Plus style={{ width: 16, height: 16 }} aria-hidden="true" />}
                     </button>
                   </motion.div>
                   <div ref={innerContainerRef} className="relative flex-1 min-w-0 overflow-hidden">
@@ -2170,18 +2272,6 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
           </div>{/* end relative wrapper */}
         </div>
       </motion.div>{/* end squad+input bordered box (Figma 577:4905) */}
-
-      {/* ── Media picker sheet (Upload Photo / GIF) ── */}
-      <AnimatePresence>
-        {showMediaPicker && (
-          <AddMediaSheet
-            onClose={() => setShowMediaPicker(false)}
-            onUploadPhoto={() => chatImageInputRef.current?.click()}
-            onPickGif={() => setShowGifPicker(true)}
-            photoDisabled={pendingImages.length >= 4}
-          />
-        )}
-      </AnimatePresence>
 
       {/* ── Kick confirmation sheet ── */}
       <AnimatePresence>
