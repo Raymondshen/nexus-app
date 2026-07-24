@@ -101,7 +101,10 @@ export function SquadDetailCard({
       {/* Invite + Manage Squad section */}
       {(inviteCode || onManageSquad) && (
         <div className="flex flex-col w-full flex-shrink-0" style={{ gap: 'var(--x5)', padding: 16 }}>
-          {inviteCode && <InviteCodeCard inviteCode={inviteCode} />}
+          {/* Figma 674:14743 "invite card" — borderless row treatment, not the
+              bordered/drop-shadow default MessageList's empty state uses; see
+              InviteCodeCard's own `variant` doc comment. */}
+          {inviteCode && <InviteCodeCard inviteCode={inviteCode} variant="inline" />}
           {/* Figma 674:14748 — outlined purple, restores the entry point into
               ManageSquadProfile that the header's MagicEdit icon used to own. */}
           {onManageSquad && (

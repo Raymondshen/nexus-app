@@ -2,7 +2,6 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus } from 'pixelarticons/react/Plus'
 import { ChevronDown } from 'pixelarticons/react/ChevronDown'
 import { Bell } from 'pixelarticons/react/Bell'
 import { BellOff } from 'pixelarticons/react/BellOff'
@@ -493,11 +492,16 @@ export function ChatRoomBrowseSheet({
                       <SwipePreviewCard room={room} pinned={room.id === pinnedRoomId} isCurrent={room.id === currentRoomId} />
                     </button>
                   ))}
-                  {/* Create Squad (Figma 674:15311) — always the LAST card in the row, after
-                      every room including the pinned one; never first, never a separate
-                      button below the row (see this file's top doc comment). Same
+                  {/* Create Squad (Figma 674:15420 "Frame331") — always the LAST card in the
+                      row, after every room including the pinned one; never first, never a
+                      separate button below the row (see this file's top doc comment). Same
                       180×240 footprint as SwipePreviewCard so it sits flush with its
-                      siblings, dashed --color-border-hover border per Figma. */}
+                      siblings. Dashed `--color-purple` border (not `--color-border-hover` —
+                      an earlier revision used the neutral tone before this redesign), a
+                      looping `WaveGhost` (below) in place of the old static Plus icon, and
+                      "Create a Squad" rendered in the shared `--gradient-nexus` text
+                      gradient (same two stops Figma specifies, #a855f7→#d946ef) rather than
+                      flat tertiary text. */}
                   <button
                     type="button"
                     onClick={onCreateSquad}
@@ -505,17 +509,22 @@ export function ChatRoomBrowseSheet({
                     style={{
                       width:  CARD_WIDTH,
                       height: 240,
-                      gap:    'var(--x3)',
-                      border: '1px dashed var(--color-border-hover)',
+                      gap:    'var(--x1)',
+                      border: '1px dashed var(--color-purple)',
                     }}
                     aria-label="Create Squad"
                   >
-                    <Plus style={{ width: 24, height: 24, color: 'var(--color-tertiary)', flexShrink: 0 }} aria-hidden="true" />
+                    <WaveGhost size={40} />
                     <p
-                      className="font-body font-medium text-tertiary text-center leading-none"
-                      style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
+                      className="bg-clip-text text-transparent font-body font-medium text-center leading-none whitespace-nowrap overflow-hidden text-ellipsis"
+                      style={{
+                        backgroundImage: 'var(--gradient-nexus)',
+                        fontSize:  'var(--text-sm)',
+                        width:     156,
+                        fontVariationSettings: '"opsz" 14',
+                      }}
                     >
-                      Create Squad
+                      Create a Squad
                     </p>
                   </button>
                   <div aria-hidden="true" className="flex-shrink-0" style={{ width: `calc(var(--space-5) - ${CARD_GAP}px)` }} />
@@ -788,6 +797,47 @@ function NoNotificationsCard() {
       >
         You&apos;re all up to date. I will alert you when you have new messages.
       </p>
+    </div>
+  )
+}
+
+// Figma 674:15420 "Frame331" — a 9-frame wave-loop sprite (public/sprites/ghost/wave/
+// wave_0001.webp…0009.webp, 1-indexed, same frame-cycling pattern as SleepingGhost
+// below) for the Create Squad card. The Figma node crops each 56×56 native frame to a
+// tighter, centered 40×40 zoom (`size-[157.78%]` at `inset -28.89%` on all sides) rather
+// than showing the sprite's full padded canvas — (56 / 1.5778) ≈ 35.5px of the source is
+// kept and scaled up, ((157.78% * 40) - 40) / 2 ≈ 11.56px trimmed off each edge — so this
+// reproduces that same crop via an absolute-positioned, oversized `<img>` inside an
+// `overflow-hidden` box rather than rendering the frame at its native size like
+// SleepingGhost/LaunchSplashContent do.
+const WAVE_FRAME_COUNT = 9
+const WAVE_FRAME_MS    = 150
+
+function WaveGhost({ size = 40 }: { size?: number }) {
+  const [frame, setFrame] = useState(0)
+
+  useEffect(() => {
+    const id = setInterval(() => setFrame((f) => (f + 1) % WAVE_FRAME_COUNT), WAVE_FRAME_MS)
+    return () => clearInterval(id)
+  }, [])
+
+  return (
+    <div className="relative flex-shrink-0 overflow-hidden" style={{ width: size, height: size }}>
+      {/* eslint-disable-next-line @next/next/no-img-element -- small looping pixel sprite, next/image adds no value here */}
+      <img
+        src={`/sprites/ghost/wave/wave_${String(frame + 1).padStart(4, '0')}.webp`}
+        alt=""
+        style={{
+          position:       'absolute',
+          left:           '-28.89%',
+          top:            '-28.89%',
+          width:          '157.78%',
+          height:         '157.78%',
+          maxWidth:       'none',
+          imageRendering: 'pixelated',
+        }}
+        aria-hidden="true"
+      />
     </div>
   )
 }
