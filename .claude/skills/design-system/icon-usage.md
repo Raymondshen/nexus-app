@@ -6,7 +6,7 @@ Icons (`pixelarticons`) — key usages:
 | Back buttons | `ChevronLeft` | 24×24, `--color-purple` (except Definitions page: `--color-primary`) |
 | Expand/collapse | `ChevronRight` (rotated) | 24×24 |
 | ChatRoomBrowseSheet — notifs | `Bell` / `BellOff` | 24×24 |
-| ChatFloatingNav — room quick-switch | `Menu` | 24×24 |
+| ChatFloatingNav — group events (dev-gated) | `Calendar2` | 24×24, `--color-primary` |
 | ChatRoomBrowseSheet — close | `ChevronDown` | 24×24, `--color-primary` |
 | ChatRoomBrowseSheet — create squad | `Plus` | 16×16, `--color-tertiary` |
 | SwipePreviewCard — member count | `User` | 12×12, `--color-secondary` |
