@@ -4,7 +4,7 @@ import { createClient } from '@/shared/supabase/server'
 import { fetchOGPreview } from '@/shared/utils/og-preview'
 import type { PublicNote, BoardSection } from '@/types'
 
-const NOTE_COLS    = 'id, crew_id, created_by, url, og_title, og_image_url, source_domain, section_id, created_at'
+const NOTE_COLS    = 'id, crew_id, created_by, url, og_title, og_image_url, source_domain, section_id, position, created_at'
 const SECTION_COLS = 'id, crew_id, created_by, name, position, created_at'
 
 // ─── Notes ────────────────────────────────────────────────────────────────────
@@ -92,6 +92,26 @@ export async function fetchMoreNotesAction(cursor: string, crewId: string): Prom
     .limit(30)
 
   return (data ?? []) as unknown as PublicNote[]
+}
+
+// Persists a full renumbering of the caller's own vibes (VibesPlaylistSheet's
+// tap-and-hold drag reorder) — position becomes each id's index in `orderedIds`, so a
+// drag always rewrites the whole list rather than computing a fractional/between-
+// neighbor value. `.eq('created_by', ...)` is defense-in-depth on top of the
+// "note creators can update notes" RLS policy, which already scopes this to the caller's
+// own rows regardless.
+export async function reorderNotesAction(orderedIds: string[]): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) return { error: 'Unauthorized' }
+
+  const results = await Promise.all(
+    orderedIds.map((id, index) =>
+      supabase.from('notes').update({ position: index }).eq('id', id).eq('created_by', session.user.id)
+    )
+  )
+  if (results.some(r => r.error)) return { error: 'Failed to save order' }
+  return {}
 }
 
 export async function deleteNoteAction(noteId: string): Promise<{ error?: string }> {

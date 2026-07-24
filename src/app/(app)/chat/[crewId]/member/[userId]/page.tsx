@@ -38,7 +38,10 @@ export default async function MemberProfilePage({ params }: Props) {
       .maybeSingle(),
     supabase
       .from('profiles')
-      .select('username, avatar_url, background_url, status, created_at, pinned_vinyl_id, instagram_url, x_url, reddit_url, linkedin_url, custom_site_url')
+      // is_dev is only ever read below when isOwner (userId === viewerId) — in that
+      // case this row IS the viewer's own, so it doubles as the Braces-icon gate
+      // without a second query. Irrelevant/unused when viewing someone else's profile.
+      .select('username, avatar_url, background_url, status, created_at, pinned_vinyl_id, is_dev, instagram_url, x_url, reddit_url, linkedin_url, custom_site_url')
       .eq('id', userId)
       .single(),
     supabase
@@ -50,8 +53,11 @@ export default async function MemberProfilePage({ params }: Props) {
     supabase.from('crews').select('name').eq('id', crewId).single(),
     supabase
       .from('notes')
-      .select('id, crew_id, created_by, url, og_title, og_image_url, source_domain, section_id, created_at')
+      .select('id, crew_id, created_by, url, og_title, og_image_url, source_domain, section_id, position, created_at')
       .eq('created_by', userId)
+      // Reflect this member's own drag-to-reorder order (VibesPlaylistSheet), same as
+      // the profile/page.tsx query for the owner's own profile.
+      .order('position', { ascending: true })
       .order('created_at', { ascending: false })
       .limit(30),
     // Global crew memberships for the member (filtered to non-DM below — DMs aren't group chats)
@@ -94,7 +100,7 @@ export default async function MemberProfilePage({ params }: Props) {
 
   type ProfileRow = {
     username: string; avatar_url: string | null; background_url: string | null; status: string | null; created_at: string
-    pinned_vinyl_id: string | null
+    pinned_vinyl_id: string | null; is_dev: boolean
     instagram_url: string | null; x_url: string | null; reddit_url: string | null; linkedin_url: string | null; custom_site_url: string | null
   }
   const profile      = profileResult.data as ProfileRow
@@ -135,6 +141,8 @@ export default async function MemberProfilePage({ params }: Props) {
       <AccountPageMember
         userId={userId}
         viewerId={viewerId}
+        isDev={profile.is_dev === true}
+        isGuest={session.user.is_anonymous === true}
         username={profile.username}
         avatarUrl={profile.avatar_url}
         backgroundUrl={profile.background_url}

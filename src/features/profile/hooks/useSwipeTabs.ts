@@ -7,7 +7,11 @@ const SWIPE_DISTANCE_THRESHOLD = 60
 const SWIPE_VELOCITY_THRESHOLD = 400
 const SWIPE_INTENT_THRESHOLD   = 10
 
-// ─── Tab slide transition (ProfileClient, AccountPageMember) ─────────────────
+// ─── Tab slide transition — no live consumers ────────────────────────────────
+// ProfileClient and AccountPageMember both dropped their Photos/Vibes tab-switch UI
+// in favor of an always-visible Photos grid + CurrentVibeRow/VibesPlaylistSheet
+// (Figma 684:15581 / 690:16468). Kept but orphaned rather than deleted, same
+// treatment as other unused-but-valid code noted elsewhere in CLAUDE.md.
 // Carousel-style slide: the outgoing panel travels fully off in the direction of
 // travel while the incoming panel slides in from the opposite edge, at the same
 // time (not sequential — AnimatePresence's default "sync" mode, not "wait").

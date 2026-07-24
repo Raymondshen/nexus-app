@@ -7,6 +7,8 @@ export interface Note extends Record<string, unknown> {
   og_image_url:   string | null
   source_domain:  string | null
   section_id:     string | null
+  /** Per-creator sort key for drag-to-reorder (VibesPlaylistSheet). Not globally unique. */
+  position:       number
   created_at:     string
 }
 
@@ -20,6 +22,8 @@ export interface PublicNote extends Record<string, unknown> {
   og_image_url:  string | null
   source_domain: string | null
   section_id:    string | null
+  /** Per-creator sort key for drag-to-reorder (VibesPlaylistSheet). Not globally unique. */
+  position:      number
   created_at:    string
 }
 

@@ -55,6 +55,10 @@ function isSpotifyUrl(url: URL): boolean {
     || url.hostname === 'spotify.com'
 }
 
+function isAppleMusicUrl(url: URL): boolean {
+  return url.hostname === 'music.apple.com'
+}
+
 function isFacebookUrl(url: URL): boolean {
   return url.hostname === 'www.facebook.com'
     || url.hostname === 'facebook.com'
@@ -71,7 +75,7 @@ function isTikTokUrl(url: URL): boolean {
     || url.hostname === 'vt.tiktok.com'
 }
 
-interface YouTubeOEmbed { title?: string; thumbnail_url?: string }
+interface YouTubeOEmbed { title?: string; thumbnail_url?: string; author_name?: string }
 
 async function fetchYouTubePreview(rawUrl: string, signal: AbortSignal): Promise<OGPreview | null> {
   const endpoint = `https://www.youtube.com/oembed?url=${encodeURIComponent(rawUrl)}&format=json`
@@ -79,7 +83,12 @@ async function fetchYouTubePreview(rawUrl: string, signal: AbortSignal): Promise
   if (!res.ok) return null
   const data = (await res.json()) as YouTubeOEmbed
   if (!data.title && !data.thumbnail_url) return null
-  return { url: rawUrl, title: data.title, image: data.thumbnail_url, site_name: 'YouTube', fetched_at: new Date().toISOString() }
+  // author_name is the uploading channel's name. Appended via the same "Title · Artist"
+  // separator Spotify tracks already use (see the music.song branch below) — every
+  // consumer that splits og_title on " · " (VibesGrid's VinylTrackLabel/AlbumCard ticker,
+  // CurrentVibeRow's title/subtitle split) picks this up for free with no schema change.
+  const title = data.title && data.author_name ? `${data.title} · ${data.author_name}` : data.title
+  return { url: rawUrl, title, image: data.thumbnail_url, site_name: 'YouTube', fetched_at: new Date().toISOString() }
 }
 
 // Reddit gates old.reddit.com behind a forced login wall for non-browser requests
@@ -194,6 +203,15 @@ export async function fetchOGPreview(rawUrl: string): Promise<OGPreview | null> 
     if (title && isSpotifyUrl(parsedUrl) && getMeta(head, 'og:type') === 'music.song') {
       const artist = getMeta(head, 'music:musician_description') ?? ogDesc?.split(' · ')[0]
       if (artist) title = `${title} · ${artist}`
+    }
+
+    // Apple Music song/album pages: og:title is always "{Title} by {Artist} on Apple Music"
+    // (verified live for both music.song and music.album types) — reformat to the same
+    // "Title · Artist" separator the rest of this file/VibesGrid/CurrentVibeRow expect,
+    // instead of leaving the raw "by ... on Apple Music" phrasing in the stored title.
+    if (title && isAppleMusicUrl(parsedUrl)) {
+      const m = /^(.+?) by (.+?) on Apple Music$/.exec(title)
+      if (m) title = `${m[1]} · ${m[2]}`
     }
 
     return {

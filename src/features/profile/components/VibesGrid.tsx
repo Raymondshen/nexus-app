@@ -2,7 +2,7 @@
 
 import { useState, useLayoutEffect, useRef, useMemo, useCallback, forwardRef, useImperativeHandle } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { deleteNoteAction } from '@/app/(app)/profile/notes/actions'
+import { deleteNoteAction, reorderNotesAction } from '@/app/(app)/profile/notes/actions'
 import { updatePinnedVinylAction } from '@/app/(app)/profile/actions'
 import { MUSIC_DOMAINS as MUSIC_DOMAINS_LIST } from '@/shared/constants/config'
 import type { PublicNote } from '@/types'
@@ -23,23 +23,31 @@ export function isMusicUrl(url: string): boolean {
   }
 }
 
-function isMusicNote(n: PublicNote): boolean {
+export function isMusicNote(n: PublicNote): boolean {
   return !!n.source_domain && MUSIC_DOMAINS.has(normHost(n.source_domain))
+}
+
+/** Splits "Song · Artist" (the separator og-preview.ts appends for YouTube/Spotify/Apple
+ *  Music) into a title/subtitle pair; falls back to the whole string with no subtitle. */
+export function splitTitleArtist(ogTitle: string): [string, string | null] {
+  const idx = ogTitle.indexOf(' · ')
+  if (idx === -1) return [ogTitle, null]
+  return [ogTitle.slice(0, idx), ogTitle.slice(idx + 3)]
 }
 
 // ─── Source-platform badge (Figma 559:6341's "social_icons") ─────────────────
 // Only the 3 platforms with a Figma-supplied brand mark get a badge — Apple Music /
 // SoundCloud notes (still valid vibes, see MUSIC_DOMAINS) simply render without one.
 
-type MusicPlatform = 'youtube' | 'youtube_music' | 'spotify'
+export type MusicPlatform = 'youtube' | 'youtube_music' | 'spotify'
 
-const PLATFORM_ICON_SRC: Record<MusicPlatform, string> = {
+export const PLATFORM_ICON_SRC: Record<MusicPlatform, string> = {
   youtube:       '/icons/social-youtube.svg',
   youtube_music: '/icons/social-youtube-music.svg',
   spotify:       '/icons/social-spotify.svg',
 }
 
-function resolveMusicPlatform(note: PublicNote): MusicPlatform | null {
+export function resolveMusicPlatform(note: PublicNote): MusicPlatform | null {
   let host = note.source_domain ? normHost(note.source_domain) : ''
   if (!host) {
     try { host = normHost(new URL(note.url).hostname) } catch { return null }
@@ -52,7 +60,7 @@ function resolveMusicPlatform(note: PublicNote): MusicPlatform | null {
 
 // YouTube hqdefault thumbnails are 480×360 (4:3) with black bars baked in.
 // Upgrade to maxresdefault (1280×720, 16:9, no bars) at render time.
-function resolveYtThumbnail(url: string): string {
+export function resolveYtThumbnail(url: string): string {
   try {
     if (new URL(url).hostname !== 'i.ytimg.com') return url
   } catch { return url }
@@ -64,11 +72,17 @@ function ytFallback(url: string): string {
   return url.replace('/maxresdefault.jpg', '/mqdefault.jpg')
 }
 
-const VIBES_PINNED_KEY = 'nexus_vibes_pinned'
+// Exported so any other mounted surface for the SAME profile (e.g. ProfileClient's
+// CurrentVibeRow preview) can read/derive the same pinned vibe without duplicating the
+// key, and stay live-in-sync via VIBES_PIN_CHANGE_EVENT below.
+export const VIBES_PINNED_KEY = 'nexus_vibes_pinned'
+export const VIBES_PIN_CHANGE_EVENT = 'nexus-vibes-pin-change'
 
 // ─── VinylActionSheet — long-press context menu ───────────────────────────────
 
-function VinylActionSheet({
+// Exported so VibesPlaylistSheet's own list rows (Figma 690:16468, which replaced the
+// profile's Vibes tab) reuse the exact same long-press context menu instead of a duplicate.
+export function VinylActionSheet({
   note,
   isPinned,
   isOwner,
@@ -528,10 +542,98 @@ function AlbumCard({
   )
 }
 
+// ─── useVibesState — shared data/pin/remove logic ────────────────────────────
+// Extracted so both VibesGrid (square-tile grid) and VibesPlaylistSheet (the Figma
+// 690:16468 list-style bottom sheet that replaced the profile's Vibes tab) derive
+// from the exact same pin/remove/localStorage/event logic instead of duplicating it
+// across two different renderings of the same underlying vibes data.
+export interface VibesState {
+  orderedVinyls: PublicNote[]
+  pinnedId:      string | null
+  addVibe:       (note: PublicNote) => void
+  togglePin:     (vinylId: string) => void
+  remove:        (vinylId: string) => void
+  /** Tap-and-hold drag reorder (VibesPlaylistSheet) — takes the NON-pinned notes in
+   *  their new order and persists the full renumbering via reorderNotesAction. */
+  reorder:       (newRestOrder: PublicNote[]) => void
+}
+
+export function useVibesState(initialVinyls: PublicNote[], isOwner: boolean, initialPinnedId: string | null): VibesState {
+  const [vinyls, setVinyls] = useState<PublicNote[]>(() => initialVinyls.filter(isMusicNote))
+
+  const [pinnedId, setPinnedId] = useState<string | null>(() => {
+    // VIBES_PINNED_KEY is a device-scoped cache of the signed-in user's OWN pinned
+    // vinyl — only relevant when viewing your own profile. Viewing another member's
+    // profile must use their DB-backed initialPinnedId only, or the viewer's own
+    // cached pin (almost never one of the target's note ids) silently overrides it,
+    // making the member's actual pinned vinyl render as a square card instead of
+    // the spinning disc.
+    if (!isOwner || typeof window === 'undefined') return initialPinnedId
+    // localStorage takes precedence for same-session changes; fall back to DB value
+    return localStorage.getItem(VIBES_PINNED_KEY) ?? initialPinnedId
+  })
+
+  // Persists a pin change to localStorage + the DB and notifies any other mounted
+  // surface for this same profile (e.g. ProfileClient's CurrentVibeRow preview) via
+  // VIBES_PIN_CHANGE_EVENT, since that preview has its own independent pinnedId state.
+  const persistPinned = useCallback((next: string | null) => {
+    if (next) localStorage.setItem(VIBES_PINNED_KEY, next)
+    else localStorage.removeItem(VIBES_PINNED_KEY)
+    updatePinnedVinylAction(next)
+    window.dispatchEvent(new CustomEvent(VIBES_PIN_CHANGE_EVENT, { detail: { pinnedId: next } }))
+  }, [])
+
+  const addVibe = useCallback((note: PublicNote) => {
+    setVinyls(prev => [note, ...prev])
+  }, [])
+
+  const togglePin = useCallback((vinylId: string) => {
+    setPinnedId(prev => {
+      const next = prev === vinylId ? null : vinylId
+      persistPinned(next)
+      return next
+    })
+  }, [persistPinned])
+
+  const remove = useCallback((vinylId: string) => {
+    setVinyls(prev => prev.filter(v => v.id !== vinylId))
+    setPinnedId(prev => {
+      if (prev !== vinylId) return prev
+      persistPinned(null)
+      return null
+    })
+    deleteNoteAction(vinylId)
+  }, [persistPinned])
+
+  // Pinned vinyl always floats to the first slot
+  const orderedVinyls = useMemo(() => {
+    if (!pinnedId) return vinyls
+    const idx = vinyls.findIndex(v => v.id === pinnedId)
+    if (idx <= 0) return vinyls
+    const arr = [...vinyls]
+    arr.unshift(arr.splice(idx, 1)[0])
+    return arr
+  }, [vinyls, pinnedId])
+
+  // The pinned note's own position in `vinyls` never matters for display (orderedVinyls
+  // always floats it to the front regardless), so a reorder only needs to splice the
+  // dragged non-pinned order back in — persisted positions are 0..N-1 over just that
+  // subset, matching what reorderNotesAction writes.
+  const reorder = useCallback((newRestOrder: PublicNote[]) => {
+    setVinyls(prev => {
+      const pinned = prev.find(v => v.id === pinnedId)
+      return pinned ? [pinned, ...newRestOrder] : newRestOrder
+    })
+    reorderNotesAction(newRestOrder.map(v => v.id))
+  }, [pinnedId])
+
+  return { orderedVinyls, pinnedId, addVibe, togglePin, remove, reorder }
+}
+
 // ─── VibesGrid (main export) ──────────────────────────────────────────────────
 // Adding a vibe now happens exclusively through UploadOptionsSheet (opened from the
-// floating pill's "+" button) — see VibesGridHandle.addVibe below. There is no more
-// in-grid add tile or standalone add sheet.
+// own-profile header's "+" button, or the floating pill on member profiles) — see
+// VibesGridHandle.addVibe below. There is no more in-grid add tile or standalone add sheet.
 
 export interface VibesGridHandle {
   /** Prepends an already-saved vibe to grid state — used by UploadOptionsSheet's inline "Add Vibes" section. */
@@ -550,52 +652,10 @@ export const VibesGrid = forwardRef<VibesGridHandle, VibesGridProps>(function Vi
   { initialVinyls, isOwner, initialPinnedId = null, bottomInset = 0 },
   ref
 ) {
-  const [vinyls,  setVinyls]  = useState<PublicNote[]>(() => initialVinyls.filter(isMusicNote))
+  const { orderedVinyls, pinnedId, addVibe, togglePin: handleTogglePin, remove: handleRemove } =
+    useVibesState(initialVinyls, isOwner, initialPinnedId)
 
-  useImperativeHandle(ref, () => ({
-    addVibe: (note) => setVinyls(prev => [note, ...prev]),
-  }), [])
-  const [pinnedId, setPinnedId] = useState<string | null>(() => {
-    // VIBES_PINNED_KEY is a device-scoped cache of the signed-in user's OWN pinned
-    // vinyl — only relevant when viewing your own profile. Viewing another member's
-    // profile must use their DB-backed initialPinnedId only, or the viewer's own
-    // cached pin (almost never one of the target's note ids) silently overrides it,
-    // making the member's actual pinned vinyl render as a square card instead of
-    // the spinning disc.
-    if (!isOwner || typeof window === 'undefined') return initialPinnedId
-    // localStorage takes precedence for same-session changes; fall back to DB value
-    return localStorage.getItem(VIBES_PINNED_KEY) ?? initialPinnedId
-  })
-
-  function handleTogglePin(vinylId: string) {
-    setPinnedId(prev => {
-      const next = prev === vinylId ? null : vinylId
-      if (next) localStorage.setItem(VIBES_PINNED_KEY, next)
-      else localStorage.removeItem(VIBES_PINNED_KEY)
-      updatePinnedVinylAction(next)
-      return next
-    })
-  }
-
-  function handleRemove(vinylId: string) {
-    setVinyls(prev => prev.filter(v => v.id !== vinylId))
-    if (pinnedId === vinylId) {
-      setPinnedId(null)
-      localStorage.removeItem(VIBES_PINNED_KEY)
-      updatePinnedVinylAction(null)
-    }
-    deleteNoteAction(vinylId)
-  }
-
-  // Pinned vinyl always floats to the first slot
-  const orderedVinyls = useMemo(() => {
-    if (!pinnedId) return vinyls
-    const idx = vinyls.findIndex(v => v.id === pinnedId)
-    if (idx <= 0) return vinyls
-    const arr = [...vinyls]
-    arr.unshift(arr.splice(idx, 1)[0])
-    return arr
-  }, [vinyls, pinnedId])
+  useImperativeHandle(ref, () => ({ addVibe }), [addVibe])
 
   if (orderedVinyls.length === 0) {
     return (

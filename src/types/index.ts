@@ -179,8 +179,8 @@ export type Database = {
       }
       notes: {
         Row: Note
-        Insert: Omit<Note, 'id' | 'created_at'> & { id?: string; created_at?: string }
-        Update: Partial<Pick<Note, 'og_title' | 'og_image_url' | 'source_domain' | 'section_id'>>
+        Insert: Omit<Note, 'id' | 'created_at' | 'position'> & { id?: string; created_at?: string; position?: number }
+        Update: Partial<Pick<Note, 'og_title' | 'og_image_url' | 'source_domain' | 'section_id' | 'position'>>
         Relationships: []
       }
       board_sections: {

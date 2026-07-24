@@ -10,8 +10,12 @@ export type ProfileViewTab = 'photos' | 'vibes'
 export const PILL_BOTTOM_INSET = 72
 
 // ─── FloatingViewPill — Photos/Vibes toggle + add button (Figma 559:6686) ─────
-// Shared across every profile surface that pairs PhotosGrid + VibesGrid under one
-// screen (own profile, member profiles) — replaces the old top PHOTOS/VIBES tab row.
+// No live consumers — AccountPageMember (member profiles) adopted the same
+// always-visible Photos grid + CurrentVibeRow layout ProfileClient uses (Figma
+// 684:15581), so this pill's toggle/add roles are now covered everywhere by the
+// header's own "+" button and CurrentVibeRow's playlist icon (which opens
+// VibesPlaylistSheet). Kept but orphaned rather than deleted, same treatment as
+// other unused-but-valid code noted elsewhere in this doc (e.g. DefinitionButton).
 // The active view's icon renders slightly larger (Figma's own mock jumps 16px→24px,
 // +50%, which read as too dramatic in practice, so toned down to 19px here) and in
 // --color-primary; the inactive one stays 16px in --color-tertiary. The add "+" is

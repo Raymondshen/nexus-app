@@ -95,8 +95,12 @@ export default async function ProfilePage() {
   // hide vibes the moment someone leaves or is kicked from that squad).
   const notesResult = await supabase
     .from('notes')
-    .select('id, crew_id, created_by, url, og_title, og_image_url, source_domain, section_id, created_at')
+    .select('id, crew_id, created_by, url, og_title, og_image_url, source_domain, section_id, position, created_at')
     .eq('created_by', user.id)
+    // position first (VibesPlaylistSheet's drag-to-reorder), created_at as the tiebreaker
+    // for notes that share a position (new notes default to 0 — see the migration's own
+    // comment for why that still sorts them newest-first among themselves).
+    .order('position', { ascending: true })
     .order('created_at', { ascending: false })
     .limit(30)
   const initialNotes = (notesResult.data ?? []) as unknown as PublicNote[]

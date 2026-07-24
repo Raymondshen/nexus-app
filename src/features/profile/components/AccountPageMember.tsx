@@ -1,19 +1,22 @@
 'use client'
 
 import { useState, useSyncExternalStore, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { AnimatePresence, motion } from 'framer-motion'
 import { UserAvatar } from '@/shared/components/ui/UserAvatar'
 import { ProfileHeroBackground } from '@/shared/components/ui/ProfileHeroBackground'
 import { useSlideBack } from '@/app/layouts/SlidePage'
 import { TickerBanner } from '@/shared/components/banners/TickerBanner'
 import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
+import { MagicEdit } from 'pixelarticons/react/MagicEdit'
+import { Braces } from 'pixelarticons/react/Braces'
+import { Plus } from 'pixelarticons/react/Plus'
 import { PageFloatButton } from '@/shared/components/ui/PageFloatButton'
 import { SocialLinksRow } from '@/shared/components/ui/SocialLinksRow'
-import { VibesGrid, type VibesGridHandle } from '@/features/profile/components/VibesGrid'
 import { PhotosGrid, type PhotosGridHandle } from '@/features/profile/components/PhotosGrid'
-import { FloatingViewPill, PILL_BOTTOM_INSET } from '@/features/profile/components/FloatingViewPill'
-import { UploadOptionsSheet } from '@/features/profile/components/UploadOptionsSheet'
-import { useSwipeTabs, useTabPanelHeight, TAB_SLIDE_VARIANTS, TAB_SLIDE_TRANSITION } from '@/features/profile/hooks/useSwipeTabs'
+import { CurrentVibeRow } from '@/features/profile/components/CurrentVibeRow'
+import { VibesPlaylistSheet } from '@/features/profile/components/VibesPlaylistSheet'
+import { UploadOptionsSheet, type UploadOptionsSection } from '@/features/profile/components/UploadOptionsSheet'
 import { makeLocalStorageFlagStore, getServerFlagSnapshotFalse } from '@/shared/utils/localStorageFlag'
 import type { PublicNote, ProfilePhoto } from '@/types'
 
@@ -25,6 +28,9 @@ const FRIENDSHIP_XP_STORE = makeLocalStorageFlagStore('nexus_friendship_xp', 'ne
 interface Props {
   userId:           string
   viewerId:         string
+  /** Braces icon gate — only ever meaningful when isOwner (this IS the viewer's own row then). */
+  isDev:            boolean
+  isGuest:          boolean
   username:         string
   avatarUrl:        string | null
   backgroundUrl:    string | null
@@ -46,9 +52,26 @@ interface Props {
 
 const BOND_XP_PER_LEVEL = 100
 
+// ─── BackButton ───────────────────────────────────────────────────────────────
+// See ProfileClient's identical BackButton for why this stays its own component —
+// same useSlideBack context-trap: AccountPageMember itself sits above its own
+// SlidePage's provider (the (app) layout renders {children} directly).
+function BackButton() {
+  const goBack = useSlideBack()
+  return (
+    <PageFloatButton
+      onClick={goBack}
+      ariaLabel="Back"
+      icon={<ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />}
+    />
+  )
+}
+
 export function AccountPageMember({
   userId,
   viewerId,
+  isDev,
+  isGuest,
   username,
   avatarUrl,
   backgroundUrl,
@@ -67,45 +90,32 @@ export function AccountPageMember({
   linkedinUrl = null,
   customSiteUrl = null,
 }: Props) {
-  const goBack      = useSlideBack()
-  const isOwner     = viewerId === userId
+  const router  = useRouter()
+  const isOwner = viewerId === userId
 
-  type MemberTab = 'photos' | 'vibes'
-  const TAB_ORDER: Record<MemberTab, number> = { photos: 0, vibes: 1 }
-  const [activeTab, setActiveTab] = useState<MemberTab>('photos')
-  // Direction the incoming tab panel slides in from (Figma's TAB_SLIDE_VARIANTS
-  // `custom` prop) — real state, not a ref, since it's read during render (feeding
-  // AnimatePresence/motion.div below); a ref read during render can't be relied on
-  // to reflect the latest committed value.
-  const [tabDir, setTabDir] = useState<1 | -1>(1)
-  function switchTab(tab: MemberTab) {
-    if (tab === activeTab) return
-    setTabDir(TAB_ORDER[tab] > TAB_ORDER[activeTab] ? 1 : -1)
-    setActiveTab(tab)
-  }
-
-  const tabContentRef = useRef<HTMLDivElement>(null)
-  useSwipeTabs(tabContentRef, TAB_ORDER, activeTab, switchTab)
-  const { panelRef, height: panelHeight } = useTabPanelHeight(activeTab)
+  // Vibes/notes lifted here for the same reason as ProfileClient — CurrentVibeRow
+  // (always mounted) and VibesPlaylistSheet (mounts fresh per open) both read this
+  // array, so an add/remove/reorder inside either must update the shared source.
+  const [notes, setNotes] = useState<PublicNote[]>(initialNotes)
 
   const photosGridRef = useRef<PhotosGridHandle>(null)
-  const vibesGridRef  = useRef<VibesGridHandle>(null)
   const [showUploadOptions, setShowUploadOptions] = useState(false)
+  const [uploadSection, setUploadSection] = useState<UploadOptionsSection>('photos')
+  const [showVibesSheet, setShowVibesSheet] = useState(false)
 
   const fxpEnabled = useSyncExternalStore(FRIENDSHIP_XP_STORE.subscribe, FRIENDSHIP_XP_STORE.getSnapshot, getServerFlagSnapshotFalse)
 
-  const bondTotal  = friendshipXP ?? 0
-  const bondLevel  = Math.floor(bondTotal / BOND_XP_PER_LEVEL) + 1
+  const bondTotal   = friendshipXP ?? 0
+  const bondLevel   = Math.floor(bondTotal / BOND_XP_PER_LEVEL) + 1
   const bondXPInLvl = bondTotal % BOND_XP_PER_LEVEL
-  const bondPct    = (bondXPInLvl / BOND_XP_PER_LEVEL) * 100
+  const bondPct     = (bondXPInLvl / BOND_XP_PER_LEVEL) * 100
 
   return (
     <>
-      {/* ── Scrollable page body — hero, status ticker, and the Photos/Vibes tab content
-          all flow together as one continuous scroll (previously only the grid itself
-          scrolled internally while the hero stayed fixed above it). The back button and
-          the floating pill are rendered as fixed siblings below, outside this scrolling
-          div, so they stay pinned on screen regardless of scroll position. ── */}
+      {/* ── Scrollable page body — hero, status ticker, the Currently Vibing preview, and
+          the Photos grid all flow together as one continuous scroll, matching ProfileClient
+          (Figma 684:15581) — no more Photos/Vibes tab-switch pill; Vibes lives in its own
+          sheet (VibesPlaylistSheet) reached via CurrentVibeRow's playlist icon. ── */}
       <div className="flex-1 min-h-0 overflow-y-auto nexus-scroll">
 
         {/* ── Hero — full-bleed, fixed 280px + safe-area-top ───────────────── */}
@@ -176,45 +186,22 @@ export function AccountPageMember({
         {/* ── Status ticker ────────────────────────────────────────────────────── */}
         {status && <TickerBanner text={status} />}
 
-        {/* ── Tab content — Photos/Vibes switched via the floating pill below or a left/right swipe.
-            Slide transition (see TAB_SLIDE_VARIANTS): outgoing panel slides fully off-screen in the
-            direction of travel while the incoming panel slides in from the opposite edge. Panels are
-            top/left/right-anchored (not inset-0) so each sizes to its own natural content height;
-            useTabPanelHeight mirrors the active panel's height onto this container so the page's
-            scroll height stays correct through tab switches and content changes. ── */}
-        <div ref={tabContentRef} className="relative w-full overflow-hidden" style={{ height: panelHeight }}>
-          <AnimatePresence initial={false} custom={tabDir}>
-            <motion.div
-              key={activeTab}
-              ref={panelRef}
-              custom={tabDir}
-              className="absolute top-0 left-0 right-0"
-              variants={TAB_SLIDE_VARIANTS}
-              initial="enter"
-              animate="center"
-              exit="exit"
-              transition={TAB_SLIDE_TRANSITION}
-            >
-              {activeTab === 'photos' ? (
-                <PhotosGrid
-                  ref={photosGridRef}
-                  initialPhotos={initialPhotos}
-                  userId={userId}
-                  isOwner={isOwner}
-                  bottomInset={PILL_BOTTOM_INSET}
-                />
-              ) : (
-                <VibesGrid
-                  ref={vibesGridRef}
-                  initialVinyls={initialNotes}
-                  isOwner={isOwner}
-                  initialPinnedId={initialPinnedId}
-                  bottomInset={PILL_BOTTOM_INSET}
-                />
-              )}
-            </motion.div>
-          </AnimatePresence>
-        </div>
+        {/* ── Currently vibing preview (Figma 684:15733) — always visible above the
+            Photos grid. Playlist icon opens VibesPlaylistSheet (Figma 690:16468). ── */}
+        <CurrentVibeRow
+          notes={notes}
+          isOwner={isOwner}
+          initialPinnedId={initialPinnedId}
+          onOpenPlaylist={() => setShowVibesSheet(true)}
+        />
+
+        {/* ── Photos grid — the only tab content now; no Photos/Vibes tab-switch machinery. ── */}
+        <PhotosGrid
+          ref={photosGridRef}
+          initialPhotos={initialPhotos}
+          userId={userId}
+          isOwner={isOwner}
+        />
       </div>
 
       {/* Top gradient for button legibility — floats over whatever is currently
@@ -227,40 +214,74 @@ export function AccountPageMember({
         }}
       />
 
-      {/* Fixed overlay: back button */}
+      {/* Fixed overlay: back button + (owner only) dev/edit/add buttons — same treatment
+          as ProfileClient's own header. A viewer looking at someone else's profile only
+          ever sees the back button. */}
       <div
-        className="absolute left-0 right-0 flex items-center px-4 pointer-events-none z-20"
+        className="absolute left-0 right-0 flex items-center justify-between px-4 pointer-events-none z-20"
         style={{ top: 'calc(env(safe-area-inset-top, 0px) + 18px)' }}
       >
         <div className="pointer-events-auto">
-          <PageFloatButton
-            onClick={goBack}
-            ariaLabel="Back"
-            icon={<ChevronLeft style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />}
-          />
+          <BackButton />
         </div>
+
+        {isOwner && (
+          <div className="flex items-center pointer-events-auto" style={{ gap: 16 }}>
+            {isDev && (
+              <PageFloatButton
+                onClick={() => router.push('/profile/settings')}
+                ariaLabel="Developer settings"
+                icon={<Braces style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />}
+              />
+            )}
+
+            <PageFloatButton
+              onClick={() => router.push('/profile/manage')}
+              ariaLabel="Edit profile"
+              disabled={isGuest}
+              icon={<MagicEdit style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />}
+            />
+
+            <PageFloatButton
+              onClick={() => setShowUploadOptions(true)}
+              ariaLabel="Add photo or vibe"
+              disabled={isGuest}
+              icon={<Plus style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />}
+            />
+          </div>
+        )}
       </div>
 
-      {/* Floating Photos/Vibes/Add pill (Figma 559:6686) */}
-      <div
-        className="absolute left-0 right-0 z-10 flex justify-center pointer-events-none"
-        style={{ bottom: 'max(env(safe-area-inset-bottom), 16px)' }}
-      >
-        <div className="pointer-events-auto">
-          <FloatingViewPill activeTab={activeTab} onSwitch={switchTab} onAdd={() => setShowUploadOptions(true)} showAdd={isOwner} />
-        </div>
-      </div>
+      {isOwner && (
+        <AnimatePresence>
+          {showUploadOptions && (
+            <UploadOptionsSheet
+              onClose={() => setShowUploadOptions(false)}
+              activeSection={uploadSection}
+              onSwitchSection={setUploadSection}
+              crews={notesCrews}
+              onVibeAdded={(note) => setNotes(prev => [note, ...prev])}
+              onUploadPhoto={() => photosGridRef.current?.openAdd()}
+              onOpenCamera={() => photosGridRef.current?.openCamera()}
+            />
+          )}
+        </AnimatePresence>
+      )}
 
       <AnimatePresence>
-        {showUploadOptions && (
-          <UploadOptionsSheet
-            onClose={() => setShowUploadOptions(false)}
-            activeSection={activeTab}
-            onSwitchSection={switchTab}
+        {showVibesSheet && (
+          <VibesPlaylistSheet
+            notes={notes}
+            isOwner={isOwner}
+            initialPinnedId={initialPinnedId}
             crews={notesCrews}
-            onVibeAdded={(note) => vibesGridRef.current?.addVibe(note)}
-            onUploadPhoto={() => photosGridRef.current?.openAdd()}
-            onOpenCamera={() => photosGridRef.current?.openCamera()}
+            onClose={() => setShowVibesSheet(false)}
+            onVibeAdded={(note) => setNotes(prev => [note, ...prev])}
+            onVibeRemoved={(noteId) => setNotes(prev => prev.filter(n => n.id !== noteId))}
+            onReorder={(newOrder) => setNotes(prev => {
+              const ids = new Set(newOrder.map(n => n.id))
+              return [...newOrder, ...prev.filter(n => !ids.has(n.id))]
+            })}
           />
         )}
       </AnimatePresence>
