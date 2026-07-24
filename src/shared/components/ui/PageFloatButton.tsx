@@ -138,12 +138,30 @@ interface ChatFloatingNavProps {
 // path, so it's currently unreachable — left in place rather than deleted, same "kept but
 // orphaned" treatment as other dead-but-valid code noted in CLAUDE.md.
 //
-// Figma 653:8181 ("header") is the current revision — it replaces every prior "squad-nav"
+// Figma 659:9545 ("wrapper") is the current revision — it swaps 653:8181's flat
+// `--color-surface-sheet` solid-fill card for a true glass card: fully transparent
+// background, a soft glow shadow (`0px 0px 20px 12px rgba(0,0,0,0.1)`, Figma's own "glass"
+// effect style) and a `blur(7px)` backdrop-filter (Figma's "GLASS radius: 7" effect metadata
+// on this node — glass/background-blur effects don't reliably round-trip through the
+// design-context export as a Tailwind/CSS class, same gap already noted below for the avatar
+// frame and in `PageFloatButton`'s own doc comment, so it's applied explicitly here too).
+// This is the same glass treatment `PageFloatButton` already uses elsewhere in this file, just
+// with 0 fill opacity instead of `rgba(0,0,0,0.25)` — nothing about layout/padding/radius/gap
+// changed underneath it. The Figma reference code exports no border/stroke class for this
+// node either (same round-trip gap), but the glass edge highlight IS visibly present in the
+// rendered screenshot — pixel-sampled directly off the Figma export (not guessed) at 1px solid
+// `var(--color-border-hover)` (`#3f3f46`, confirmed by exact RGB match on the sampled edge
+// pixels), the same border color/treatment the avatar frame below already uses. Added as a
+// literal `border` + `borderColor` here since it doesn't come along for free with the shadow/
+// blur.
+//
+// Figma 653:8181 ("header") was the prior revision — it replaced every earlier "squad-nav"
 // edge-to-edge gradient-scrim treatment with a self-contained floating card: inset `--x5`
-// (16px) from both screen edges, `--color-surface-sheet` solid background, `--x3` (8px)
-// corner radius, and a plain drop shadow (`0px 4px 4px 0px rgba(0,0,0,0.25)`) instead of the
-// tall multi-stop black gradient that used to blend the bar into the scrolling message list
-// beneath it. The card's own internal padding is `--x5` on every side, and the avatar↔details
+// (16px) from both screen edges, `--x3` (8px) corner radius, and (at the time) a flat
+// `--color-surface-sheet` fill + plain drop shadow (`0px 4px 4px 0px rgba(0,0,0,0.25)`)
+// instead of the tall multi-stop black gradient that used to blend the bar into the scrolling
+// message list beneath it — 659:9545 above only changed the fill/shadow/blur, not this
+// layout. The card's own internal padding is `--x5` on every side, and the avatar↔details
 // gap widened from `--x3` to `--x4` (12px) to match this export. Nothing about the two-row
 // details layout changed from the prior revision (see below) — only the outer chrome did.
 // Figma 613:3750 restructured that inner layout into two explicit rows sharing one flex-1 text
@@ -179,10 +197,14 @@ interface ChatFloatingNavProps {
 // Avatar: Figma swaps the real profile photo for the user's own class sprite, animated (the
 // same walk-cycle `animate` prop the right-side sprite readout elsewhere in this file already
 // uses) rather than pinned to a single static direction, cropped via a 40×40 `overflow-hidden`
-// frame (bordered, 4px-rounded, transparent + glass-blurred + soft-shadowed — see 637:8569
-// above) around a larger centered sprite (`AVATAR_SPRITE_DISPLAY_PX`, matching Figma's 45×45
-// inner crop regardless of the sprite sheet's native size, so every class reads at the same
-// visual scale). Falls back to the
+// frame (bordered, 4px-rounded, glass-blurred + soft-shadowed — see 637:8569 above) around a
+// larger centered sprite (`AVATAR_SPRITE_DISPLAY_PX`, matching Figma's 45×45 inner crop
+// regardless of the sprite sheet's native size, so every class reads at the same visual
+// scale). Frame background is `var(--color-background)` (solid, matching Figma's own
+// `bg-[var(--background,black)]` export on this node) — 637:8569 above went transparent, but
+// 659:9545's export reverts that back to a solid backing behind the sprite, which still reads
+// as "glass" because the surrounding blur/shadow/border come from the frame's own effects, not
+// from anything showing through the backing itself. Falls back to the
 // real-photo `UserAvatar` when this user's class has no sprite mapping (`spriteInfoFor` returns
 // null — e.g. an unmapped/legacy class); every class a live crew-chat member can actually have
 // does map to one, so this fallback is defensive rather than expected to fire in practice —
@@ -257,13 +279,16 @@ export function ChatFloatingNav({
           <button
             onClick={() => router.push('/profile')}
             aria-label="View your profile"
-            className="flex flex-1 items-center min-w-0 appearance-none active:opacity-70 pointer-events-auto"
+            className="flex flex-1 items-center min-w-0 appearance-none active:opacity-70 pointer-events-auto overflow-hidden border"
             style={{
-              gap:           'var(--x4)',
-              padding:       'var(--x5)',
-              background:    'var(--color-surface-sheet)',
-              borderRadius:  'var(--x3)',
-              boxShadow:     '0px 4px 4px 0px rgba(0,0,0,0.25)',
+              gap:                  'var(--x4)',
+              padding:              'var(--x5)',
+              background:           'transparent',
+              borderRadius:         'var(--x3)',
+              borderColor:          'var(--color-border-hover)',
+              boxShadow:            '0px 0px 20px 12px rgba(0,0,0,0.1)',
+              backdropFilter:       'blur(7px)',
+              WebkitBackdropFilter: 'blur(7px)',
             }}
           >
             {/* Class-sprite avatar — see this component's own doc comment for the fixed-display-
@@ -275,7 +300,7 @@ export function ChatFloatingNav({
               className="relative overflow-hidden border flex-shrink-0"
               style={{
                 width: 40, height: 40, borderRadius: 'var(--x2)', borderColor: 'var(--color-border-hover)',
-                background:           'transparent',
+                background:           'var(--color-background)',
                 boxShadow:            '0px 0px 20px 12px rgba(0,0,0,0.1)',
                 backdropFilter:       'blur(7px)',
                 WebkitBackdropFilter: 'blur(7px)',
