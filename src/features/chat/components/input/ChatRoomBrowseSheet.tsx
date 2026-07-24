@@ -66,11 +66,14 @@ const PIN_LONG_PRESS_MS = 500
 //
 // A persistent overlay showing every room in chatRoomOrder as a native horizontally-
 // scrollable row, reusing the shared `SwipePreviewCard` (Figma 674:14650, its own
-// redesign — see that file). "Create Squad" (Figma 674:14678 "button") is now a
-// separate full-width dashed button BELOW the row, not a card inside it — it always
-// navigates straight to the standalone Create Squad page (`onCreateSquad`'s call
-// site in ChatInput → `/home/create`) and is never part of the row's own scroll
-// tracking/equalizer. Dismisses three ways: tap a room card (navigates there
+// redesign — see that file). "Create Squad" (Figma 674:15311) is the LAST card in
+// that same scrollable row — always trailing every room regardless of pin order,
+// never first — not a separate full-width button below it (an earlier revision put
+// it there; Figma 674:14485 moved it back inside the row). It always navigates
+// straight to the standalone Create Squad page (`onCreateSquad`'s call site in
+// ChatInput → `/home/create`) and, like before, isn't part of the equalizer's own
+// room-tracking (see ScrollEqualizerBars — it's built from `rooms`, not the rendered
+// card list). Dismisses three ways: tap a room card (navigates there
 // immediately), tap anywhere in the sheet OTHER than the scrollable row/Create Squad
 // button (the row's own onClick stops propagation so a card tap doesn't also bubble
 // into this, and Create Squad's button does the same), or drag down anywhere in the
@@ -88,19 +91,22 @@ const PIN_LONG_PRESS_MS = 500
 // The header's equalizer bars are live: they track native scroll position via a
 // sliding window of up to EQUALIZER_WINDOW rooms centered on whichever card is
 // currently scrolled into view (`focusedIndex`, updated on `onScroll`). Per-bar rules
-// (Figma 589:3622, and the explicit color/growth spec this implements):
+// (Figma 674:15287, and the explicit color/growth spec this implements):
 //   - color: `--color-primary` if that bar's room is `currentRoomId` (the room
 //     you're actually chatting in — this is fixed to that room's own position and
 //     never changes with scroll); else red if that room has unread messages; else
 //     muted. Primary always wins over red/muted for the current room's own bar,
 //     wherever it sits in the window.
-//   - height: tall (16) only for whichever bar is currently FOCUSED (scrolled into
-//     view) — a bar can be tall AND primary at once (you've scrolled back to your
-//     own room), tall and red (scrolled onto an unread room), or tall and muted
-//     (scrolled onto a read one). This is what makes "the bar size growth would be
-//     different colors dependent on the group being viewed" — the growing bar
-//     always reflects whichever room it currently represents' own color,
-//     primary/red/muted are not mutually exclusive with the grow state.
+//   - height: SHORT (4px) only for whichever bar is currently FOCUSED (scrolled
+//     into view); every other bar in the window sits TALL (8px, the container's
+//     own height) — a bar can be short AND primary at once (you've scrolled back
+//     to your own room), short and red (scrolled onto an unread room), or short
+//     and muted (scrolled onto a read one). Matches Figma's spec exactly (the
+//     un-focused bars are `h-full` against an 8px-tall container while the
+//     focused one is a fixed 4px) — this is the inverse of an earlier revision
+//     that grew the focused bar taller instead of shrinking it. The growing/
+//     shrinking bar always reflects whichever room it currently represents' own
+//     color; primary/red/muted are not mutually exclusive with the size state.
 // Each bar is a `layout`-animated motion.div inside an `AnimatePresence
 // mode="popLayout"`, so when the window shifts by one room (scrolling past a card
 // boundary), the remaining bars smoothly slide to their new slot instead of snapping —
@@ -416,15 +422,12 @@ export function ChatRoomBrowseSheet({
               </div>
 
               <div className="flex flex-col w-full flex-shrink-0" style={{ gap: 'var(--space-5)' }}>
-                <div className="flex items-center justify-between w-full">
-                  <p
-                    className="font-body font-medium text-primary leading-none truncate min-w-0"
-                    style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
-                  >
-                    Squads
-                  </p>
-                  <ScrollEqualizerBars rooms={equalizerRooms} currentRoomId={currentRoomId} focusedRoomId={focusedRoomId} />
-                </div>
+                <p
+                  className="font-body font-medium text-primary leading-none truncate min-w-0 w-full"
+                  style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
+                >
+                  Squads
+                </p>
 
                 {/* Same horizontally-scrollable-row pattern this sheet's own member card
                     row (SquadMemberRow, below) already uses (overflow-x-auto no-scrollbar) — not a new one-off.
@@ -487,39 +490,54 @@ export function ChatRoomBrowseSheet({
                       className="flex-shrink-0 appearance-none text-left active:opacity-80 overflow-hidden"
                       aria-label={`Go to ${room.name}`}
                     >
-                      <SwipePreviewCard room={room} pinned={room.id === pinnedRoomId} />
+                      <SwipePreviewCard room={room} pinned={room.id === pinnedRoomId} isCurrent={room.id === currentRoomId} />
                     </button>
                   ))}
-                  <div aria-hidden="true" className="flex-shrink-0" style={{ width: `calc(var(--space-5) - ${CARD_GAP}px)` }} />
-                </div>
-
-                {/* Create Squad (Figma 674:14678 "button") — a separate full-width dashed
-                    button below the row now, not a card inside it (see this file's top
-                    doc comment). Own `stopPropagation` wrapper, same pattern as the Leave
-                    Squad button further down, since it sits outside the row's own
-                    stopPropagation container. */}
-                <div className="w-full flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                  {/* Create Squad (Figma 674:15311) — always the LAST card in the row, after
+                      every room including the pinned one; never first, never a separate
+                      button below the row (see this file's top doc comment). Same
+                      180×240 footprint as SwipePreviewCard so it sits flush with its
+                      siblings, dashed --color-border-hover border per Figma. */}
                   <button
                     type="button"
                     onClick={onCreateSquad}
-                    className="appearance-none flex items-center justify-center w-full"
+                    className="flex-shrink-0 appearance-none flex flex-col items-center justify-center rounded-[var(--x3,8px)]"
                     style={{
-                      gap:            8,
-                      height:         48,
-                      border:         '1px dashed',
-                      borderColor:    'var(--color-muted)',
-                      paddingLeft:    'var(--x5)',
-                      paddingRight:   'var(--x5)',
-                      paddingTop:     'var(--x3)',
-                      paddingBottom:  'var(--x3)',
+                      width:  CARD_WIDTH,
+                      height: 240,
+                      gap:    'var(--x3)',
+                      border: '1px dashed var(--color-border-hover)',
                     }}
                     aria-label="Create Squad"
                   >
-                    <Plus style={{ width: 16, height: 16, color: 'var(--color-tertiary)', flexShrink: 0 }} aria-hidden="true" />
-                    <p className="font-silkscreen text-tertiary leading-none" style={{ fontSize: 'var(--text-mini)' }}>
-                      Create squad
+                    <Plus style={{ width: 24, height: 24, color: 'var(--color-tertiary)', flexShrink: 0 }} aria-hidden="true" />
+                    <p
+                      className="font-body font-medium text-tertiary text-center leading-none"
+                      style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
+                    >
+                      Create Squad
                     </p>
                   </button>
+                  <div aria-hidden="true" className="flex-shrink-0" style={{ width: `calc(var(--space-5) - ${CARD_GAP}px)` }} />
+                </div>
+
+                {/* Equalizer + "Swipe down to view more" hint (Figma 674:15320) — its own
+                    footer row BELOW the Squads card row, not paired with the "Squads"
+                    label above it (an earlier revision put it there; this Figma export
+                    has no such pairing). */}
+                <div className="flex items-end justify-between w-full flex-shrink-0">
+                  <ScrollEqualizerBars rooms={equalizerRooms} currentRoomId={currentRoomId} focusedRoomId={focusedRoomId} />
+                  <p
+                    className="font-body font-normal whitespace-nowrap flex-shrink-0"
+                    style={{
+                      fontSize:   'var(--text-xs)',
+                      color:      'var(--color-muted)',
+                      lineHeight: 1.4,
+                      fontVariationSettings: '"opsz" 14',
+                    }}
+                  >
+                    Swipe down to view more ↓
+                  </p>
                 </div>
               </div>
             </div>
@@ -814,7 +832,7 @@ function ScrollEqualizerBars({
   focusedRoomId: string | undefined
 }) {
   return (
-    <div className="flex items-end flex-shrink-0" style={{ gap: 8 }}>
+    <div className="flex items-end flex-shrink-0" style={{ gap: 8, height: 8 }}>
       <AnimatePresence mode="popLayout" initial={false}>
         {rooms.map((room) => {
           const isFocused = room.id === focusedRoomId
@@ -826,7 +844,7 @@ function ScrollEqualizerBars({
               key={room.id}
               layout
               initial={{ opacity: 0, height: 8 }}
-              animate={{ opacity: isCurrent || isFocused ? 1 : 0.5, height: isFocused ? 16 : 8 }}
+              animate={{ opacity: isCurrent || isFocused ? 1 : 0.5, height: isFocused ? 4 : 8 }}
               exit={{ opacity: 0 }}
               transition={{ type: 'spring', stiffness: 400, damping: 32 }}
               style={{ width: 2, background: color }}

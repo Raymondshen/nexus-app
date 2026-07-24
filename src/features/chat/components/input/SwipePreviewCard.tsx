@@ -31,15 +31,25 @@ import { User } from 'pixelarticons/react/User'
 // renderable via `currentColor` (the fill is a two-stop gradient, not flat) — so
 // it's a downloaded, committed static asset (`public/icons/pin-heart.svg`), same
 // pattern as `SocialLinksRow`'s brand-mark SVGs.
+//
+// A separate `isCurrent` border was reinstated on top of that merge (Figma's
+// current export doesn't show this state, but it's explicit product direction):
+// the room you're actually chatting in — `ChatRoomBrowseSheet`'s `currentRoomId` —
+// gets a `--color-tertiary` border when it isn't also the pinned room. Pinned
+// still wins outright (purple + badge) if a room is both current and pinned; the
+// two states are mutually exclusive borders, never combined/doubled.
 
 export function SwipePreviewCard({
-  room, pinned = false,
+  room, pinned = false, isCurrent = false,
 }: {
-  room:    RoomMeta & { id: string }
+  room:      RoomMeta & { id: string }
   /** Figma 674:14650 — top-right badge AND the card's purple border (see this
    *  file's own doc comment for why these two merged). Defaults false for callers
    *  that don't track a pin (e.g. any future reuse outside ChatRoomBrowseSheet). */
-  pinned?: boolean
+  pinned?:   boolean
+  /** The room actually open in chat right now — tertiary border, badge-less.
+   *  Ignored (no border) when `pinned` is also true. */
+  isCurrent?: boolean
 }) {
   return (
     <div
@@ -47,7 +57,11 @@ export function SwipePreviewCard({
       style={{
         width:  180,
         height: 240,
-        border: pinned ? '1px solid var(--color-purple)' : 'none',
+        border: pinned
+          ? '1px solid var(--color-purple)'
+          : isCurrent
+            ? '1px solid var(--color-tertiary)'
+            : 'none',
       }}
     >
       {/* eslint-disable-next-line @next/next/no-img-element -- full-bleed cover fill, same pattern as UserCard/ProfileHeroBackground */}
@@ -68,7 +82,7 @@ export function SwipePreviewCard({
               aria-hidden="true"
             >
               {/* eslint-disable-next-line @next/next/no-img-element -- static gradient-fill asset, next/image adds no value here */}
-              <img src="/icons/pin-heart.svg" alt="" style={{ width: 16, height: 'auto', display: 'block' }} />
+              <img src="/icons/pin-heart.svg" alt="" style={{ width: 12, height: 'auto', display: 'block' }} />
             </div>
           )}
         </div>
