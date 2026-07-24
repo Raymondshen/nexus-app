@@ -247,7 +247,7 @@ export function ChatFloatingNav({
         {/* Nav row */}
         <div
           className="flex items-center w-full pointer-events-none"
-          style={{ padding: 16, gap: 'var(--x3)' }}
+          style={{ padding: 16, gap: 'var(--x5)' }}
         >
           {/* Avatar + two-row identity/currency column (Figma 613:3750 "navbar") — one combined
               tap target opening the current user's own profile. flex-1/min-w-0 so long content
@@ -298,8 +298,8 @@ export function ChatFloatingNav({
               {/* Top row: username ... unread-count-or-date. */}
               <div className="flex items-center justify-between w-full">
                 <span
-                  className="font-body font-bold text-primary leading-none truncate text-left min-w-0"
-                  style={{ fontSize: 'var(--md)', fontVariationSettings: '"opsz" 14' }}
+                  className="font-body font-semibold text-primary leading-none truncate text-left min-w-0 tracking-[0.2px]"
+                  style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
                 >
                   {username}
                 </span>
