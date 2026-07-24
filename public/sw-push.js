@@ -65,8 +65,20 @@ var OFFLINE_FALLBACK_HTML = '<!DOCTYPE html><html><head><meta charset="UTF-8">' 
 // is what produces the bare native error page). Try the precached real offline.html
 // first, then a live fetch of it (covers "precache missed but the network's fine
 // again now"), then the fully inline copy above, which cannot fail.
+//
+// The leading `.catch()` on `caches.match()` is load-bearing, not defensive
+// boilerplate: Cache Storage itself can reject (iOS Safari private-browsing
+// restrictions, quota exceeded, storage evicted under pressure) independently of
+// whether the network is up. Before this existed, that rejection propagated out of
+// `offlineFallback()` uncaught — every call site below does `return offlineFallback()`
+// straight into `event.respondWith`, so a rejected promise there reproduces the exact
+// bare native error page this whole function exists to prevent, just from a Cache
+// API failure instead of a network one. `caches.match()` (used here, unscoped) can
+// fail for the same storage-level reasons `caches.open()` can (see the app-page
+// navigate branch's own `.catch()` below) even though it doesn't require a specific
+// named cache to already be open.
 function offlineFallback() {
-  return caches.match('/offline.html').then(function(cached) {
+  return caches.match('/offline.html').catch(function() { return null }).then(function(cached) {
     if (cached) return cached
     return fetch('/offline.html').catch(function() {
       return new Response(OFFLINE_FALLBACK_HTML, {
@@ -106,7 +118,7 @@ self.addEventListener('fetch', function(event) {
         caches.open(NEXUS_PAGES_CACHE).then(function(cache) {
           return cache.match(request).then(function(cached) {
             var networkFetch = fetch(request).then(function(response) {
-              if (response.ok) cache.put(request, response.clone())
+              if (response.ok) cache.put(request, response.clone()).catch(function() {})
               // A 5xx during this response.ok check already skips caching it above —
               // still must not hand it back as-is when there's nothing better cached.
               if (isServerError(response)) return cached || offlineFallback()
@@ -116,6 +128,24 @@ self.addEventListener('fetch', function(event) {
             })
             // Serve stale HTML immediately; network response updates cache in bg
             return cached || networkFetch
+          })
+        }).catch(function() {
+          // Cache Storage itself failed here (quota exceeded, iOS private-browsing
+          // restriction, storage evicted under pressure) — opening NEXUS_PAGES_CACHE
+          // or reading from it rejected before a network fetch was ever attempted.
+          // Without this catch, that rejection propagated straight out of
+          // event.respondWith, and a rejected respondWith promise is exactly what
+          // produces the browser's own native "This page couldn't load" error — the
+          // same symptom the isServerError/offlineFallback machinery above exists to
+          // prevent, just triggered by the cache layer instead of the network. Fall
+          // through to the same network-first-with-fallback the uncached-path branch
+          // below already uses, so a Cache Storage failure degrades to "no caching"
+          // rather than "no page".
+          return fetch(request).then(function(response) {
+            if (isServerError(response)) return offlineFallback()
+            return response
+          }).catch(function() {
+            return offlineFallback()
           })
         })
       )
@@ -160,7 +190,7 @@ self.addEventListener('fetch', function(event) {
         return cache.match(request).then(function(cached) {
           if (cached) return cached
           return fetch(request).then(function(response) {
-            if (response.ok) cache.put(request, response.clone())
+            if (response.ok) cache.put(request, response.clone()).catch(function() {})
             return response
           })
         })
@@ -176,7 +206,7 @@ self.addEventListener('fetch', function(event) {
         return cache.match(request).then(function(cached) {
           if (cached) return cached
           return fetch(request).then(function(response) {
-            if (response.ok) cache.put(request, response.clone())
+            if (response.ok) cache.put(request, response.clone()).catch(function() {})
             return response
           })
         })
@@ -192,7 +222,7 @@ self.addEventListener('fetch', function(event) {
       return cache.match(request).then(function(cached) {
         if (cached) return cached
         return fetch(request).then(function(response) {
-          if (response.ok) cache.put(request, response.clone())
+          if (response.ok) cache.put(request, response.clone()).catch(function() {})
           return response
         })
       })
