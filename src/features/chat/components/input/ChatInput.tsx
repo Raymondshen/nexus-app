@@ -1789,6 +1789,31 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
       : undefined,
   }
 
+  // Upload/GIF/Definition pills (Figma 645:8116) — identical content whether the add
+  // menu is crossfading in over ChatSquadDetailBar (squad rooms) or appearing alone
+  // (DMs, which have no squad bar to swap against); built once here so both render
+  // paths below share the same markup instead of duplicating it.
+  const addMenuPills = (
+    <>
+      <AddMenuPill
+        icon={<Camera style={{ width: 16, height: 16 }} aria-hidden="true" />}
+        label="Upload"
+        disabled={pendingImages.length >= 4}
+        onClick={() => { setShowAddMenu(false); chatImageInputRef.current?.click() }}
+      />
+      <AddMenuPill
+        icon={<GifIcon style={{ width: 16, height: 16 }} aria-hidden="true" />}
+        label="GIF"
+        onClick={() => { setShowAddMenu(false); setShowGifPicker(true) }}
+      />
+      <AddMenuPill
+        icon={<DefinitionIcon style={{ width: 16, height: 16 }} aria-hidden="true" />}
+        label="Definition"
+        onClick={() => { setShowAddMenu(false); router.push(`/chat/${crewId}/definitions`) }}
+      />
+    </>
+  )
+
   function handleSelectRoomFromBrowse(targetId: string) {
     setShowRoomBrowser(false)
     if (targetId === crewId) return
@@ -1904,53 +1929,82 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
             Tapping Plus (below) fades the squad bar out and fades this Upload/GIF/
             Definition pill row in, in its place; tapping the resulting X, or
             anywhere outside chatInputContainerRef, fades back to the squad bar (see
-            showAddMenu's own doc comment + the pointerdown effect above). ── */}
-        <AnimatePresence initial={false}>
-          {showAddMenu ? (
-            <motion.div
-              key="add-menu"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              className="flex items-center"
-              style={{ gap: 'var(--space-2)', height: 40 }}
-            >
-              <AddMenuPill
-                icon={<Camera style={{ width: 16, height: 16 }} aria-hidden="true" />}
-                label="Upload"
-                disabled={pendingImages.length >= 4}
-                onClick={() => { setShowAddMenu(false); chatImageInputRef.current?.click() }}
-              />
-              <AddMenuPill
-                icon={<GifIcon style={{ width: 16, height: 16 }} aria-hidden="true" />}
-                label="GIF"
-                onClick={() => { setShowAddMenu(false); setShowGifPicker(true) }}
-              />
-              <AddMenuPill
-                icon={<DefinitionIcon style={{ width: 16, height: 16 }} aria-hidden="true" />}
-                label="Definition"
-                onClick={() => { setShowAddMenu(false); router.push(`/chat/${crewId}/definitions`) }}
-              />
-            </motion.div>
-          ) : !isDM ? (
-            <motion.div key="squad-bar" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
-              <ChatSquadDetailBar
-                crewImageUrl={barOverride ? barOverride.imageUrl : crewImageUrl}
-                crewName={barOverride ? barOverride.name : liveCrewName}
-                crewLevel={barOverride ? barOverride.level : crewLevel}
-                memberCount={barOverride ? barOverride.memberCount : memberCount}
-                members={barOverride ? EMPTY_MEMBERS : members}
-                onlineUserIds={barOverride ? EMPTY_ONLINE_IDS : onlineUserIds}
-                // Toggles ChatRoomBrowseSheet — same destination the swipe-up gesture opens
-                // (see handleTopPanEnd's own doc comment). A tap while it's already open
-                // closes it, matching every other "tap outside the row" dismissal instead
-                // of stacking a second open on top.
-                onTap={() => setShowRoomBrowser((prev) => !prev)}
-              />
-            </motion.div>
-          ) : null}
-        </AnimatePresence>
+            showAddMenu's own doc comment + the pointerdown effect above).
+
+            Squad rooms always have exactly one of {ChatSquadDetailBar, add-menu}
+            showing, so this renders as a fixed 40px-tall, absolutely-positioned
+            crossfade slot rather than plain AnimatePresence siblings in normal flow.
+            With the default (overlapping) AnimatePresence mode, BOTH the exiting and
+            entering element are mounted for the ~150ms fade — in normal flow that
+            briefly stacked ChatSquadDetailBar's own 32px height (from its 32px crew
+            avatar) on top of the pill row's 40px, so chatInputBoxRef's ResizeObserver
+            (below) saw the composer grow then shrink on every tap and republished
+            that height to chatRoomPeekStore, which MessageList reads for its own
+            bottom offset — the message list visibly jumped along with the flicker.
+            Pinning both to the same absolute box keeps the wrapper's real height
+            constant through the whole transition, so only opacity crossfades and
+            nothing downstream ever re-measures. DMs have no ChatSquadDetailBar to
+            swap against — just the add menu appearing/disappearing alone — so they
+            keep the simpler normal-flow mount/unmount below instead. ── */}
+        {!isDM ? (
+          <div className="relative w-full flex-shrink-0" style={{ height: 40 }}>
+            <AnimatePresence initial={false}>
+              {showAddMenu ? (
+                <motion.div
+                  key="add-menu"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute left-0 right-0 top-0 flex items-center"
+                  style={{ height: 40, gap: 'var(--space-2)' }}
+                >
+                  {addMenuPills}
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="squad-bar"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute left-0 right-0 top-0 flex items-center"
+                  style={{ height: 40 }}
+                >
+                  <ChatSquadDetailBar
+                    crewImageUrl={barOverride ? barOverride.imageUrl : crewImageUrl}
+                    crewName={barOverride ? barOverride.name : liveCrewName}
+                    crewLevel={barOverride ? barOverride.level : crewLevel}
+                    memberCount={barOverride ? barOverride.memberCount : memberCount}
+                    members={barOverride ? EMPTY_MEMBERS : members}
+                    onlineUserIds={barOverride ? EMPTY_ONLINE_IDS : onlineUserIds}
+                    // Toggles ChatRoomBrowseSheet — same destination the swipe-up gesture opens
+                    // (see handleTopPanEnd's own doc comment). A tap while it's already open
+                    // closes it, matching every other "tap outside the row" dismissal instead
+                    // of stacking a second open on top.
+                    onTap={() => setShowRoomBrowser((prev) => !prev)}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        ) : (
+          <AnimatePresence initial={false}>
+            {showAddMenu && (
+              <motion.div
+                key="add-menu"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.15 }}
+                className="flex items-center"
+                style={{ gap: 'var(--space-2)', height: 40 }}
+              >
+                {addMenuPills}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        )}
 
         {/* ── Status indicators + input — stays visible under ChatRoomBrowseSheet
             (both it and the composer stop at `bottom: chatInputHeight`, leaving this
