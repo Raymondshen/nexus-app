@@ -115,11 +115,11 @@ interface ChatFloatingNavProps {
   initialTotalUnreadMessages?: number
 }
 
-// The chat room's floating top nav — composed of the profile-avatar+name+currency button
-// (Figma 637:8569 "squad-nav", superseding 642:7771 "squad-nav", which superseded 637:8619
-// "squad-nav", which superseded 613:3750 "chatNavbarTop" / "squad-nav", which itself
-// superseded the earlier 577:5781/603:3526 revisions) plus a dev-gated PageFloatButton, and
-// the chat-specific wiring that used to live
+// The chat room's floating top nav — composed of the profile-avatar+name+currency card
+// (Figma 653:8181 "header", superseding 637:8569 "squad-nav", which superseded 642:7771
+// "squad-nav", which superseded 637:8619 "squad-nav", which superseded 613:3750
+// "chatNavbarTop" / "squad-nav", which itself superseded the earlier 577:5781/603:3526
+// revisions) plus a dev-gated PageFloatButton, and the chat-specific wiring that used to live
 // in its own FloatingBackButton component/file (navigation/). Merged here by explicit
 // instruction so there's a single source of button-related code instead of two, at the cost of
 // this shared/ui module now importing chat-only dependencies (useChatStore,
@@ -138,9 +138,17 @@ interface ChatFloatingNavProps {
 // path, so it's currently unreachable — left in place rather than deleted, same "kept but
 // orphaned" treatment as other dead-but-valid code noted in CLAUDE.md.
 //
-// Figma 613:3750 restructured this into two explicit rows sharing one flex-1 text column next
-// to the avatar (was: avatar + stacked name/currency on the left, unread-or-date + sprite/class
-// stacked separately on the right):
+// Figma 653:8181 ("header") is the current revision — it replaces every prior "squad-nav"
+// edge-to-edge gradient-scrim treatment with a self-contained floating card: inset `--x5`
+// (16px) from both screen edges, `--color-surface-sheet` solid background, `--x3` (8px)
+// corner radius, and a plain drop shadow (`0px 4px 4px 0px rgba(0,0,0,0.25)`) instead of the
+// tall multi-stop black gradient that used to blend the bar into the scrolling message list
+// beneath it. The card's own internal padding is `--x5` on every side, and the avatar↔details
+// gap widened from `--x3` to `--x4` (12px) to match this export. Nothing about the two-row
+// details layout changed from the prior revision (see below) — only the outer chrome did.
+// Figma 613:3750 restructured that inner layout into two explicit rows sharing one flex-1 text
+// column next to the avatar (was: avatar + stacked name/currency on the left, unread-or-date +
+// sprite/class stacked separately on the right):
 //   - Top row: username (bold, `--md`), right-aligned against the unread-count-or-date readout —
 //     the date includes a day-of-week abbreviation ("TUE · JUN 20", `DAY_ABBR`) in
 //     `--color-secondary`/semibold.
@@ -151,20 +159,16 @@ interface ChatFloatingNavProps {
 // 16×16 real-photo `UserAvatar` next to the username (Figma's own layer there was just a
 // plain circle, auto-named "profile image" — it had been rendered as the user's actual
 // profile photo by explicit request) is dropped entirely — that export's "top row" node
-// contains only the username text, nothing else. The scrim gradient also got a different
-// stop table in that revision.
+// contains only the username text, nothing else.
 // Figma 642:7771 ("squad-nav") was a further revision on top of THAT: the main avatar frame
 // (see "Avatar" paragraph below) swapped from a plain circular clip to a bordered, 4px-rounded
-// square, and the scrim gradient's last two stops got slightly more opaque (65%/25% black at
-// 80%/100%, up from 60%/10%). Nothing else changed from 637:8619.
-// Figma 637:8569 ("squad-nav") is the current revision on top of THAT: the avatar frame's
-// background went from solid black to fully transparent, gained a soft drop shadow
-// (`0px 0px 20px 12px rgba(0,0,0,0.1)`) and a glass blur (see "Avatar" paragraph below) — the
-// gradient is unchanged (identical stop table to 642:7771). That revision's export also showed a
-// second nav-row button — a hamburger `Menu` icon opening a standalone Squads/Notifications page
-// — but that page was folded back into ChatRoomBrowseSheet (see that file's own doc comment), so
-// the button was removed here rather than repointed; swipe-up/tap-the-bar already reach the same
-// content from inside the room.
+// square. Figma 637:8569 ("squad-nav") was a further revision on top of THAT: the avatar
+// frame's background went from solid black to fully transparent, gained a soft drop shadow
+// (`0px 0px 20px 12px rgba(0,0,0,0.1)`) and a glass blur (see "Avatar" paragraph below) — that
+// revision's export also showed a second nav-row button — a hamburger `Menu` icon opening a
+// standalone Squads/Notifications page — but that page was folded back into
+// ChatRoomBrowseSheet (see that file's own doc comment), so the button was removed here rather
+// than repointed; swipe-up/tap-the-bar already reach the same content from inside the room.
 // `avatarClass` is this user's crew_members.class for THIS crew (per-membership, not
 // profiles.avatar_class), and `initialTotalUnreadMessages` is a server-computed snapshot at
 // page load (same "initial" treatment as initialGemBalance/initialCoins) summed across every
@@ -233,31 +237,34 @@ export function ChatFloatingNav({
 
   return (
     <>
-      {/* Floating gradient top nav */}
+      {/* Floating top nav — Figma 653:8181 "header": an inset rounded card (--x5 gutter from
+          both screen edges), not the earlier edge-to-edge gradient scrim. */}
       <div
-        className="absolute top-0 left-0 right-0 z-[60] flex flex-col pointer-events-none overflow-hidden"
-        style={{
-          paddingTop: 'env(safe-area-inset-top, 0px)',
-          // Figma 642:7771's own multi-stop gradient — supersedes 637:8619's table
-          // outright rather than layering a second one. Slightly more opaque at the
-          // tail than that version (25% black at 100% vs 10%), otherwise identical.
-          background: 'linear-gradient(180deg, rgba(0,0,0,1) 0%, rgba(0,0,0,0.9) 39.909%, rgba(0,0,0,0.8) 60%, rgba(0,0,0,0.65) 80%, rgba(0,0,0,0.25) 100%)',
-        }}
+        className="absolute top-0 left-0 right-0 z-[60] pointer-events-none"
+        style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
       >
         {/* Nav row */}
         <div
           className="flex items-center w-full pointer-events-none"
-          style={{ padding: 16, gap: 'var(--x5)' }}
+          style={{ paddingLeft: 'var(--x5)', paddingRight: 'var(--x5)', gap: 'var(--x5)' }}
         >
-          {/* Avatar + two-row identity/currency column (Figma 613:3750 "navbar") — one combined
-              tap target opening the current user's own profile. flex-1/min-w-0 so long content
+          {/* Avatar + two-row identity/currency column (Figma 653:8181 "header" / "wrapper") —
+              one combined tap target opening the current user's own profile, styled as its own
+              floating card (surface-sheet background, x3 radius, drop shadow) rather than sitting
+              directly on the old full-bleed gradient bar. flex-1/min-w-0 so long content
               (username, unread text) truncates instead of overflowing or pushing the dev-gated
               Calendar2 button (outside this button, below) off-screen. */}
           <button
             onClick={() => router.push('/profile')}
             aria-label="View your profile"
             className="flex flex-1 items-center min-w-0 appearance-none active:opacity-70 pointer-events-auto"
-            style={{ gap: 'var(--x3)' }}
+            style={{
+              gap:           'var(--x4)',
+              padding:       'var(--x5)',
+              background:    'var(--color-surface-sheet)',
+              borderRadius:  'var(--x3)',
+              boxShadow:     '0px 4px 4px 0px rgba(0,0,0,0.25)',
+            }}
           >
             {/* Class-sprite avatar — see this component's own doc comment for the fixed-display-
                 size crop + real-photo fallback. Glass effect (backdrop-filter: blur(7px)) isn't
