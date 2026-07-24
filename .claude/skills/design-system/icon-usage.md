@@ -6,10 +6,10 @@ Icons (`pixelarticons`) — key usages:
 | Back buttons | `ChevronLeft` | 24×24, `--color-purple` (except Definitions page: `--color-primary`) |
 | Expand/collapse | `ChevronRight` (rotated) | 24×24 |
 | ChatRoomBrowseSheet — notifs | `Bell` / `BellOff` | 24×24 |
-| ChatRoomBrowseSheet — glossary | `Library` | 24×24 |
 | ChatFloatingNav — room quick-switch | `Menu` | 24×24 |
-| ChatRoomBrowseSheet — edit | `MagicEdit` | 24×24 |
-| ChatRoomBrowseSheet — close | `Close` | 24×24, `--color-primary` |
+| ChatRoomBrowseSheet — close | `ChevronDown` | 24×24, `--color-primary` |
+| ChatRoomBrowseSheet — create squad | `Plus` | 16×16, `--color-tertiary` |
+| SwipePreviewCard — member count | `User` | 12×12, `--color-secondary` |
 | Own Profile page — dev settings | `Braces` | 24×24, `--color-primary` |
 | Own Profile page — edit profile | `MagicEdit` | 24×24, `--color-primary` |
 | Manage Profile page — back | `ChevronLeft` | 24×24, `--color-tertiary` (bare, no button box — not the usual back-button treatment) |
