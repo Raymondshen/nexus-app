@@ -6,16 +6,18 @@ import { motion } from 'framer-motion'
 import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
 import { GroupAvatar } from '@/shared/components/ui/GroupAvatar'
 import { InviteCodeCard } from '@/shared/components/ui/InviteCodeCard'
+import { Button } from '@/shared/components/ui/Button'
 import { UserCard, type MiniMember } from '@/shared/components/ui/UserCard'
 
 export type { MiniMember }
 
 // ─── SquadDetailCard + SquadMemberRow ──────────────────────────────────────────
-// The hero+invite card and member-card row (Figma 596:8296 "group card details" /
-// 596:8481 "member row") rendered by ChatRoomBrowseSheet's Group Details section
-// (Figma 599:3931) — extracted into their own file rather than inlined into that
-// component, since these previously also backed the now-removed standalone
-// SquadDetailsSheet overlay.
+// The hero+invite card and member-card row (Figma 674:14730 "group card details" /
+// 674:14749 "member row", the "Current Squad Information" redesign of the former
+// "Group Details" section, 596:8296/596:8481) rendered by ChatRoomBrowseSheet's
+// section of the same name (Figma 674:14729) — extracted into their own file
+// rather than inlined into that component, since these previously also backed the
+// now-removed standalone SquadDetailsSheet overlay.
 
 interface SquadDetailCardProps {
   crewName:                string
@@ -23,12 +25,19 @@ interface SquadDetailCardProps {
   crewBackgroundImageUrl?: string | null
   totalMessages:           number
   xpProgress:              number
+  /** XP accumulated within the current level — the "0" in "0 / 100XP" (Figma 674:14739). */
+  xpInLevel:               number
+  /** XP needed to complete the current level — the "100" in "0 / 100XP". */
+  xpNeeded:                number
   inviteCode?:             string
+  /** Figma 674:14748 "Manage Squad" — optional; omitted (button hidden) if the
+   *  caller has no manage flow to offer (e.g. the viewer isn't the creator). */
+  onManageSquad?:          () => void
 }
 
-// Group card details (Figma 596:8296) — hero + invite, one rounded card.
+// Group card details (Figma 674:14730) — hero + invite + Manage Squad, one rounded card.
 export function SquadDetailCard({
-  crewName, crewImageUrl, crewBackgroundImageUrl, totalMessages, xpProgress, inviteCode,
+  crewName, crewImageUrl, crewBackgroundImageUrl, totalMessages, xpProgress, xpInLevel, xpNeeded, inviteCode, onManageSquad,
 }: SquadDetailCardProps) {
   return (
     <div
@@ -67,14 +76,15 @@ export function SquadDetailCard({
           <GroupAvatar imageUrl={crewImageUrl} name={crewName} size={40} />
           <div className="flex flex-col flex-1 min-w-0" style={{ gap: 4 }}>
             <p
-              className="font-body font-black leading-none truncate uppercase"
+              className="font-body font-bold leading-none truncate uppercase"
               style={{ fontSize: 'var(--text-md)', color: 'var(--color-secondary)', fontVariationSettings: '"opsz" 14' }}
             >
               {crewName}
             </p>
             <div className="flex flex-col w-full" style={{ gap: 8 }}>
-              <p className="font-silkscreen leading-none w-full" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>
-                {totalMessages.toLocaleString()} total Squad msg.
+              <p className="font-silkscreen leading-none w-full" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}>
+                {xpInLevel.toLocaleString()} / {xpNeeded.toLocaleString()}XP{' · '}
+                <span style={{ color: 'var(--color-secondary)' }}>{totalMessages.toLocaleString()} Squad msg.</span>
               </p>
               <div className="bg-[var(--color-surface)] overflow-hidden w-full" style={{ height: 4 }}>
                 <motion.div
@@ -88,10 +98,17 @@ export function SquadDetailCard({
         </div>
       </div>
 
-      {/* Invite section */}
-      {inviteCode && (
-        <div className="w-full flex-shrink-0" style={{ padding: 16 }}>
-          <InviteCodeCard inviteCode={inviteCode} />
+      {/* Invite + Manage Squad section */}
+      {(inviteCode || onManageSquad) && (
+        <div className="flex flex-col w-full flex-shrink-0" style={{ gap: 'var(--x5)', padding: 16 }}>
+          {inviteCode && <InviteCodeCard inviteCode={inviteCode} />}
+          {/* Figma 674:14748 — outlined purple, restores the entry point into
+              ManageSquadProfile that the header's MagicEdit icon used to own. */}
+          {onManageSquad && (
+            <Button variant="outlined" color="purple" onClick={onManageSquad} className="w-full">
+              Manage Squad
+            </Button>
+          )}
         </div>
       )}
     </div>

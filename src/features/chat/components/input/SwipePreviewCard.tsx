@@ -1,151 +1,96 @@
 'use client'
 
 import { GroupAvatar } from '@/shared/components/ui/GroupAvatar'
-import { UserAvatar } from '@/shared/components/ui/UserAvatar'
 import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
 import type { RoomMeta } from '@/features/chat/store/chatRoomPeekStore'
-import { Check } from 'pixelarticons/react/Check'
-import { Message } from 'pixelarticons/react/Message'
+import { User } from 'pixelarticons/react/User'
 
-// One 180px squad card (Figma 582:2892 default / 582:3150 selected) — cover photo +
-// gradient + small avatar, name/level/member-count, up to 4 online-member avatars, and
-// a status footer. Used by ChatRoomBrowseSheet (the swipe-left/right "browse every
-// room" overlay) — extracted to its own file rather than living inside that component so
-// the card's own Figma provenance/markup notes stay with the card, not the sheet.
-// Markup/tokens mirror `UserCard.tsx` (the sole other "180px crew-ish card with a
-// cover header" in the app) rather than reinventing this shape: same width/radius/
-// border tokens, same supabaseImageLoader + `--gradient-image-overlay` cover
-// treatment, same online-dot styling.
+// One 180×240 squad card (Figma 674:14650 pinned / 674:14663 default) — full-bleed
+// cover photo + `--gradient-image-overlay` scrim (see the design-system skill's
+// gradients.md — same token `SquadDetailCard`'s hero uses for this exact
+// "bottom-anchored text over a full cover image" shape, not a hand-rolled rgba
+// gradient) with avatar/name/level/member-count anchored to the bottom. Used by
+// ChatRoomBrowseSheet (the swipe-left/right "browse every room" overlay) —
+// extracted to its own file rather than living inside that component so the card's
+// own Figma provenance/markup notes stay with the card, not the sheet.
 //
-// Pinned styling (Figma 602:4170, header refined further at 606:3894) — the pin no
-// longer affects the border at all: a pinned-but-not-selected card gets the same
-// plain `--color-border-hover` border as any other unselected card, so the badge is
-// the only visual pin indicator. `selected` (the currently-open room) drives the
-// border on its own, in `--color-primary` — see `ScrollEqualizerBars` in
-// ChatRoomBrowseSheet for the matching current-room bar color. A small
-// `--color-surface-sheet` badge (Figma's own `bg-[var(--surface-sheet)]`) sits
-// top-right over the cover photo — per 606:3894's
-// auto-layout (badge row `justify-end` + avatar row, both inside the header's own
-// 12px padding), its right edge is flush with that same 12px inset, mirroring the
-// avatar's bottom-LEFT 12px placement exactly, not sitting closer to the corner. The
+// This replaced an earlier two-zone design (a 120px photo header, then a separate
+// solid-background info block below it with online-member avatars and an
+// unread-message footer strip) — none of that survived into 674:14650/674:14663,
+// which show only avatar+name+level+count over the full image. There's no more
+// per-card online-avatars row or unread-message strip; the equalizer bars in
+// ChatRoomBrowseSheet's header already surface unread state per room.
+//
+// Pinned styling merges what used to be two independent indicators (a
+// `--color-primary` border for the currently-open room, and a badge for the pinned
+// room with no border effect of its own) into one: only the pinned room gets a
+// border now, in `--color-purple`, plus the top-right badge — confirmed against
+// this design, which shows the border and badge only ever appearing together. The
 // badge icon is a pixel-art heart filled with the exact `--gradient-nexus` stops
 // (#a855f7 → #d946ef) — not a pixelarticons glyph (none match this shape) and not
 // renderable via `currentColor` (the fill is a two-stop gradient, not flat) — so
 // it's a downloaded, committed static asset (`public/icons/pin-heart.svg`), same
-// pattern as `SocialLinksRow`'s brand-mark SVGs. 606:3894 also shrank the icon
-// itself (its pixel container went from 24×16 to 24×12, i.e. width 16 → 12) — since
-// then, sized down further to 8 (manual override, not a further Figma revision),
-// height auto to keep the file's own aspect ratio.
-
-// Matches UserAvatar's size=24 below — reserves the online-avatars row's height
-// whether or not it actually has avatars to show, so every card in the horizontally-
-// scrollable row renders at the same total height instead of the ones with no (or
-// hidden) online members collapsing shorter. Same "reserved slot beats letting
-// content collapse the row" pattern as UserCard's VINYL_PILL_HEIGHT/
-// BlankTickerSlot (see that file's Figma 432:7827/432:8021 comment for the bug it
-// fixed there).
-const ONLINE_AVATARS_ROW_HEIGHT = 24
+// pattern as `SocialLinksRow`'s brand-mark SVGs.
 
 export function SwipePreviewCard({
-  room, selected, pinned = false,
+  room, pinned = false,
 }: {
-  room:     RoomMeta & { id: string }
-  selected: boolean
-  /** Figma 602:4170/606:3894 — top-right heart badge only, no border effect of its
-   *  own (see the border color comment above `selected`). Defaults false for
-   *  callers that don't track a pin (e.g. any future reuse outside ChatRoomBrowseSheet). */
-  pinned?:  boolean
+  room:    RoomMeta & { id: string }
+  /** Figma 674:14650 — top-right badge AND the card's purple border (see this
+   *  file's own doc comment for why these two merged). Defaults false for callers
+   *  that don't track a pin (e.g. any future reuse outside ChatRoomBrowseSheet). */
+  pinned?: boolean
 }) {
-  const onlineMembers = room.onlineMembers.slice(0, 4)
-  const hasUnread     = room.unreadCount > 0
-
   return (
     <div
-      className="bg-black flex flex-col flex-shrink-0 overflow-hidden rounded-[var(--x3,8px)]"
+      className="relative flex-shrink-0 overflow-hidden rounded-[var(--x3,8px)]"
       style={{
-        width:       180,
-        border:      '1px solid',
-        borderColor: selected ? 'var(--color-primary)' : 'var(--color-border-hover)',
+        width:  180,
+        height: 240,
+        border: pinned ? '1px solid var(--color-purple)' : 'none',
       }}
     >
-      <div className="relative flex-shrink-0 w-full overflow-hidden" style={{ height: 120 }}>
-        {/* eslint-disable-next-line @next/next/no-img-element -- full-bleed cover fill, same pattern as UserCard/ProfileHeroBackground */}
-        <img
-          src={supabaseImageLoader({ src: room.backgroundImageUrl ?? '/img/default_image.png', width: 360, quality: 90 })}
-          alt=""
-          aria-hidden
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
-        />
-        <div className="absolute inset-0 pointer-events-none" style={{ background: 'var(--gradient-image-overlay)' }} />
-        <div className="absolute" style={{ left: 12, bottom: 12 }}>
-          <GroupAvatar imageUrl={room.imageUrl} name={room.name} size={32} />
-        </div>
-        {pinned && (
-          <div
-            className="absolute flex items-center justify-center flex-shrink-0"
-            style={{
-              top:           12,
-              right:         12,
-              padding:       'var(--x2)',
-              borderRadius:  'var(--x2)',
-              background:    'var(--color-surface-sheet)',
-              boxShadow:     '0px 0px 10px rgba(0,0,0,0.1)',
-            }}
-            aria-hidden="true"
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element -- static gradient-fill asset, next/image adds no value here */}
-            <img src="/icons/pin-heart.svg" alt="" style={{ width: 8, height: 'auto', display: 'block' }} />
-          </div>
-        )}
-      </div>
+      {/* eslint-disable-next-line @next/next/no-img-element -- full-bleed cover fill, same pattern as UserCard/ProfileHeroBackground */}
+      <img
+        src={supabaseImageLoader({ src: room.backgroundImageUrl ?? '/img/default_image.png', width: 360, quality: 90 })}
+        alt=""
+        aria-hidden
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+      />
+      <div className="absolute inset-0 pointer-events-none" style={{ background: 'var(--gradient-image-overlay)' }} />
 
-      <div className="flex flex-col w-full flex-shrink-0" style={{ padding: 12, gap: 8 }}>
-        <div className="flex flex-col" style={{ gap: 4 }}>
-          <p className="font-body font-bold text-secondary truncate leading-none" style={{ fontSize: 16, fontVariationSettings: '"opsz" 14' }}>
-            {room.name}
-          </p>
-          <p className="font-silkscreen text-tertiary leading-none" style={{ fontSize: 'var(--text-mini)' }}>
-            Lv.{room.level} · {room.memberCount} member
-          </p>
-        </div>
-        {/* Shown on every card, not just the currently-open room — a member being
-            online in a DIFFERENT squad than the one you have open right now is exactly
-            what this row should surface. The currently-open room's onlineMembers stays
-            continuously live (ChatInput's own onlineUserIds); every other card's is a
-            user_presence snapshot refreshed each time this sheet opens (see
-            ensureRoomMeta.ts's refreshLiveRoomState) rather than a one-shot fetch frozen
-            at first-peek time. The row itself always renders at
-            ONLINE_AVATARS_ROW_HEIGHT — a blank reserved slot when there's nothing to
-            show, so cards without avatars don't collapse shorter than their neighbors. */}
-        <div className="flex items-center flex-shrink-0" style={{ gap: 8, height: ONLINE_AVATARS_ROW_HEIGHT }}>
-          {onlineMembers.map((m) => (
-            <div key={m.id} className="relative flex-shrink-0">
-              <UserAvatar avatarUrl={m.avatarUrl} username={m.username} size={24} />
-              <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#66bb6a] border-[1.5px] border-black" />
+      <div className="relative flex flex-col h-full justify-between" style={{ padding: 16 }}>
+        <div className="flex justify-end w-full flex-shrink-0">
+          {pinned && (
+            <div
+              className="flex items-center justify-center flex-shrink-0 rounded-[var(--x2,4px)]"
+              style={{ width: 24, height: 24, background: 'var(--color-background)' }}
+              aria-hidden="true"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element -- static gradient-fill asset, next/image adds no value here */}
+              <img src="/icons/pin-heart.svg" alt="" style={{ width: 16, height: 'auto', display: 'block' }} />
             </div>
-          ))}
+          )}
         </div>
-      </div>
 
-      <div
-        className="flex items-center border-t border-b border-border flex-shrink-0"
-        style={{ gap: 8, paddingLeft: 8, paddingRight: 8, paddingTop: 12, paddingBottom: 12 }}
-      >
-        {hasUnread ? (
-          <>
-            <Message style={{ width: 8, height: 8, color: 'var(--red)', flexShrink: 0 }} aria-hidden="true" />
-            <p className="font-silkscreen leading-none truncate" style={{ fontSize: 'var(--text-mini)', color: 'var(--red)' }}>
-              {room.unreadCount} unread message{room.unreadCount === 1 ? '' : 's'}
+        <div className="flex items-center w-full flex-shrink-0" style={{ gap: 8 }}>
+          <GroupAvatar imageUrl={room.imageUrl} name={room.name} size={32} />
+          <div className="flex flex-col flex-1 min-w-0" style={{ gap: 4 }}>
+            <p className="font-body font-bold text-primary truncate leading-none" style={{ fontSize: 16, fontVariationSettings: '"opsz" 14' }}>
+              {room.name}
             </p>
-          </>
-        ) : (
-          <>
-            <Check style={{ width: 8, height: 8, color: 'var(--color-muted)', flexShrink: 0 }} aria-hidden="true" />
-            <p className="font-silkscreen text-muted leading-none truncate" style={{ fontSize: 'var(--text-mini)' }}>
-              {room.lastMessagePreview || 'Nothing new'}
-            </p>
-          </>
-        )}
+            <div className="flex items-center flex-shrink-0" style={{ gap: 4 }}>
+              <span className="font-silkscreen text-secondary leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-mini)' }}>
+                Lv.{room.level}
+              </span>
+              <span className="flex-shrink-0 rounded-full bg-[var(--color-secondary)]" style={{ width: 2, height: 2 }} aria-hidden="true" />
+              <User style={{ width: 12, height: 12, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
+              <span className="font-silkscreen text-secondary leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-mini)' }}>
+                {room.memberCount}
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   )

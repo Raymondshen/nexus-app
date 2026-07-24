@@ -7,7 +7,7 @@ import type { PanInfo } from 'framer-motion'
 import { UserAvatar } from '@/shared/components/ui/UserAvatar'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { createClient } from '@/shared/supabase/client'
-import { getXPProgress } from '@/shared/utils/xp'
+import { getXPProgress, getXPInCurrentLevel, getXPForCurrentLevel } from '@/shared/utils/xp'
 import { useChatStore } from '@/store/chatStore'
 import { FriendshipXPToast } from '@/shared/components/game/FriendshipXPToast'
 import { GemToast } from '@/shared/components/game/GemToast'
@@ -335,6 +335,8 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   const pendingImagesRef  = useRef<PendingImage[]>([])
   pendingImagesRef.current = pendingImages
   const xpProgress  = getXPProgress(crewXP)
+  const xpInLevel   = getXPInCurrentLevel(crewXP)
+  const xpNeeded    = getXPForCurrentLevel(crewXP)
   // memberProfiles is a stable server-provided prop and kickedIds only changes on an
   // actual kick, so memoizing here keeps this array/its identity stable across the
   // component's frequent unrelated re-renders (realtime messages, XP, typing state) —
@@ -1703,6 +1705,8 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     crewBackgroundImageUrl: crewBgUrl,
     totalMessages,
     xpProgress,
+    xpInLevel,
+    xpNeeded,
     inviteCode,
     creatorId,
     members:                squadSheetMembers,
@@ -1716,6 +1720,16 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
       router.push(`/chat/${crewId}/member/${memberId}`)
     },
     onLeave: handleLeaveSquadTapped,
+    // Figma 674:14748 "Manage Squad" — restores the entry point into
+    // ManageSquadProfile that the header's MagicEdit icon used to own before that
+    // header was redesigned (see ChatRoomBrowseSheet's header doc comment).
+    // Creator-only, same gate the old header icon used — `renameCrewAction`
+    // already enforces this server-side, so a non-creator would just hit an error
+    // on save; omitted (button hidden) rather than shown-disabled, matching
+    // `onLeave`'s own optional-callback pattern.
+    onManageSquad: userId === creatorId
+      ? () => { setShowRoomBrowser(false); setShowManageSquad(true) }
+      : undefined,
   }
 
   function handleSelectRoomFromBrowse(targetId: string) {
@@ -1772,18 +1786,12 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
         currentRoomId={crewId}
         pinnedRoomId={pinnedCrewId}
         squadDetail={squadDetail}
-        currentUserId={userId}
         allMuted={allMuted}
         onSelectRoom={handleSelectRoomFromBrowse}
         onCreateSquad={openCreateSquadFromBrowse}
         onPinCrew={handlePinCrew}
         onLeaveRoom={(room) => requestLeaveSquad({ id: room.id, name: room.name, memberCount: room.memberCount })}
-        onEditSquad={() => { setShowRoomBrowser(false); setShowManageSquad(true) }}
         onNotif={() => setShowNotifSheet(true)}
-        onLibrary={() => {
-          sessionStorage.setItem('nexus_chat_from', 'chat')
-          router.push(`/chat/${crewId}/definitions`)
-        }}
         onClose={() => setShowRoomBrowser(false)}
       />
 

@@ -81,11 +81,12 @@ export async function ensureRoomMeta(crewId: string, userId: string): Promise<vo
 // from whenever it was first peeked — that stuff rarely changes mid-session.
 // unreadCount/lastMessagePreview/lastMessageAt/onlineMembers are different: they're
 // exactly what ChatRoomBrowseSheet exists to surface accurately (the red equalizer
-// bar + "N unread messages" footer, the Notifications card's preview text/timestamp,
-// and each Squads-row card's online-member avatars — see SwipePreviewCard, which
-// shows this for every room card, not just the currently-open one), so a room peeked
-// early in the session can't keep showing permanently-stale values after new
-// messages arrive or members come/go online while you're chatting elsewhere. This
+// bar, the Latest News card's preview text/timestamp — `onlineMembers` is currently
+// unread by any Squads-row card, `SwipePreviewCard` dropped its online-avatars row
+// in its 674:14650 redesign, but is kept here since the field is still cheap to
+// carry and may get a new consumer), so a room peeked early in the session can't
+// keep showing permanently-stale values after new messages arrive or members come/go
+// online while you're chatting elsewhere. This
 // refetches just those fields — same cutoff/RPC/presence-threshold ensureRoomMeta's
 // full fetch uses, plus the same crews columns — and patches them into the existing
 // cached RoomMeta, every time ensureRoomMeta is called for an already-cached room
