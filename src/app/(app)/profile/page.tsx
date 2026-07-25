@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { unstable_cache } from 'next/cache'
 import { createClient, createServiceClient } from '@/shared/supabase/server'
 import { ProfileClient } from '@/features/profile/screens/ProfileClient'
+import { MUSIC_DOMAINS } from '@/shared/constants/config'
 import type { PublicNote, ProfilePhoto } from '@/types'
 
 async function fetchInviterUsername(userId: string): Promise<string | null> {
@@ -89,14 +90,21 @@ export default async function ProfilePage() {
     }))
   }
 
-  // Batch 2 — all of this user's own vibes, regardless of whether they're still
-  // in the crew they were posted to (RLS grants creators standing read access to
-  // their own notes; scoping this query to currently-joined crews would silently
-  // hide vibes the moment someone leaves or is kicked from that squad).
+  // Batch 2 — all of this user's own VIBES (music-domain notes only), regardless of
+  // whether they're still in the crew they were posted to (RLS grants creators standing
+  // read access to their own notes; scoping this query to currently-joined crews would
+  // silently hide vibes the moment someone leaves or is kicked from that squad).
+  // `notes` is also used by the crew-wide "vibes board" feature (any URL, not just
+  // music), so filtering by source_domain server-side isn't just a bandwidth optimization
+  // — without it, a user active on that board could have their most-recent-30 window
+  // filled with non-music notes, silently starving CurrentVibeRow/VibesPlaylistSheet of
+  // older music vibes that fall outside it (isMusicNote's client-side filter only ever
+  // sees whatever this query happened to return).
   const notesResult = await supabase
     .from('notes')
     .select('id, crew_id, created_by, url, og_title, og_image_url, source_domain, section_id, position, created_at')
     .eq('created_by', user.id)
+    .in('source_domain', MUSIC_DOMAINS)
     // position first (VibesPlaylistSheet's drag-to-reorder), created_at as the tiebreaker
     // for notes that share a position (new notes default to 0 — see the migration's own
     // comment for why that still sorts them newest-first among themselves).

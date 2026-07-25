@@ -97,20 +97,19 @@ export async function fetchMoreNotesAction(cursor: string, crewId: string): Prom
 // Persists a full renumbering of the caller's own vibes (VibesPlaylistSheet's
 // tap-and-hold drag reorder) — position becomes each id's index in `orderedIds`, so a
 // drag always rewrites the whole list rather than computing a fractional/between-
-// neighbor value. `.eq('created_by', ...)` is defense-in-depth on top of the
-// "note creators can update notes" RLS policy, which already scopes this to the caller's
-// own rows regardless.
+// neighbor value. A single reorder_notes RPC call (one round trip, one UPDATE...FROM
+// unnest() WITH ORDINALITY statement — migration 20260725120000) replaces what used to
+// be N parallel per-note .update() calls. security invoker means it runs as the caller,
+// so the existing "note creators can update notes" RLS policy is what actually scopes
+// this to the caller's own rows — the RPC's own `created_by = auth.uid()` is
+// defense-in-depth on top of that, not the sole guard.
 export async function reorderNotesAction(orderedIds: string[]): Promise<{ error?: string }> {
   const supabase = await createClient()
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) return { error: 'Unauthorized' }
 
-  const results = await Promise.all(
-    orderedIds.map((id, index) =>
-      supabase.from('notes').update({ position: index }).eq('id', id).eq('created_by', session.user.id)
-    )
-  )
-  if (results.some(r => r.error)) return { error: 'Failed to save order' }
+  const { error } = await supabase.rpc('reorder_notes', { p_ids: orderedIds })
+  if (error) return { error: 'Failed to save order' }
   return {}
 }
 

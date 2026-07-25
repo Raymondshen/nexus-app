@@ -287,6 +287,10 @@ export type Database = {
         Args: { p_crew_id: string }
         Returns: boolean
       }
+      reorder_notes: {
+        Args: { p_ids: string[] }
+        Returns: void
+      }
     }
     Enums: Record<string, never>
   }

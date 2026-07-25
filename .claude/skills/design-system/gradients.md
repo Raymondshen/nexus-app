@@ -36,4 +36,4 @@ Dark-top → transparent scrim, a short (~86px) band purely for back/edit **butt
 ## Exceptions — do not "fix" these onto a token
 
 - **Event hero.** `EventPageInfoClient`'s cover keeps its own fade-to-black, intentionally not on `--gradient-image-overlay`.
-- **Not covers.** Purple `linear-gradient(to right, var(--color-purple), #d946ef)` fills are XP/bond progress bars and currency pills; `NotesGrid`/`VibesGrid` card thumbnails use their own scrims. None are crew/profile covers.
+- **Not covers.** Purple `linear-gradient(to right, var(--color-purple), #d946ef)` fills are XP/bond progress bars and currency pills; `NotesGrid`/`VinylComboArt`/`SquareAlbumArt` (Vibes) card thumbnails use their own scrims. None are crew/profile covers.

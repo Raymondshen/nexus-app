@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { addNoteAction } from '@/app/(app)/profile/notes/actions'
 import { InputField } from '@/shared/components/ui/InputField'
-import { isMusicUrl } from '@/features/profile/components/VibesGrid'
+import { isMusicUrl } from '@/features/profile/components/vibesShared'
 import type { PublicNote } from '@/types'
 
 // ─── AddVibeForm — Music Link input + ADD VIBE button ─────────────────────────

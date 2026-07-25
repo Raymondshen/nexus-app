@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/shared/supabase/server'
 import { SlidePage } from '@/app/layouts/SlidePage'
 import { AccountPageMember } from '@/features/profile/components/AccountPageMember'
+import { MUSIC_DOMAINS } from '@/shared/constants/config'
 import type { PublicNote, ProfilePhoto } from '@/types'
 
 interface Props {
@@ -55,6 +56,10 @@ export default async function MemberProfilePage({ params }: Props) {
       .from('notes')
       .select('id, crew_id, created_by, url, og_title, og_image_url, source_domain, section_id, position, created_at')
       .eq('created_by', userId)
+      // Music-domain notes only — see profile/page.tsx's identical filter for why this
+      // is a correctness fix (not just bandwidth), since `notes` is shared with the
+      // crew-wide vibes board feature (any URL).
+      .in('source_domain', MUSIC_DOMAINS)
       // Reflect this member's own drag-to-reorder order (VibesPlaylistSheet), same as
       // the profile/page.tsx query for the owner's own profile.
       .order('position', { ascending: true })

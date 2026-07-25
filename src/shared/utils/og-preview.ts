@@ -88,9 +88,9 @@ async function fetchYouTubePreview(rawUrl: string, signal: AbortSignal): Promise
   // that suffix so the displayed artist reads as just the artist name.
   const artist = data.author_name?.replace(/\s*-\s*Topic$/i, '')
   // Appended via the same "Title · Artist" separator Spotify tracks already use (see the
-  // music.song branch below) — every consumer that splits og_title on " · " (VibesGrid's
-  // VinylTrackLabel/AlbumCard ticker, CurrentVibeRow's title/subtitle split) picks this
-  // up for free with no schema change.
+  // music.song branch below) — every consumer that splits og_title on " · "
+  // (splitTitleArtist, vibesShared.tsx — used by CurrentVibeRow/VibesPlaylistSheet's
+  // title/subtitle split) picks this up for free with no schema change.
   const title = data.title && artist ? `${data.title} · ${artist}` : data.title
   return { url: rawUrl, title, image: data.thumbnail_url, site_name: 'YouTube', fetched_at: new Date().toISOString() }
 }
@@ -211,7 +211,7 @@ export async function fetchOGPreview(rawUrl: string): Promise<OGPreview | null> 
 
     // Apple Music song/album pages: og:title is always "{Title} by {Artist} on Apple Music"
     // (verified live for both music.song and music.album types) — reformat to the same
-    // "Title · Artist" separator the rest of this file/VibesGrid/CurrentVibeRow expect,
+    // "Title · Artist" separator the rest of this file/vibesShared.tsx/CurrentVibeRow expect,
     // instead of leaving the raw "by ... on Apple Music" phrasing in the stored title.
     if (title && isAppleMusicUrl(parsedUrl)) {
       const m = /^(.+?) by (.+?) on Apple Music$/.exec(title)

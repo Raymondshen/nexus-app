@@ -7,22 +7,22 @@ import { Menu } from 'pixelarticons/react/Menu'
 import { BottomSheet } from '@/shared/components/ui/sheet/BottomSheet'
 import { AddVibeForm } from '@/features/profile/components/AddVibeForm'
 import { VinylComboArt } from '@/features/profile/components/VinylComboArt'
+import { TitleBlock, PlatformIcon } from '@/features/profile/components/VibeTitleBlock'
 import {
   useVibesState,
   splitTitleArtist,
-  resolveMusicPlatform,
   resolveYtThumbnail,
-  PLATFORM_ICON_SRC,
+  ytFallback,
   VinylActionSheet,
-} from '@/features/profile/components/VibesGrid'
+} from '@/features/profile/components/vibesShared'
 import type { PublicNote } from '@/types'
 
 // ─── VibesPlaylistSheet — "Playlist Vibes" bottom sheet (Figma 690:16468) ─────
-// Replaces the profile's old Vibes tab/page: it's no longer a swipeable panel behind
-// FloatingViewPill/the tab system — it's opened exclusively via CurrentVibeRow's
-// playlist-icon tap (see ProfileClient), as a BottomSheet. Shares data/pin/remove
-// logic with VibesGrid (the square-tile version still used on member profiles) via
-// the useVibesState hook, so both surfaces stay behaviorally identical.
+// Replaces the profile's old Vibes tab/page entirely (the former square-tile grid
+// component and the floating Photos/Vibes toggle pill were both deleted, not just
+// orphaned, once this shipped) — opened exclusively via CurrentVibeRow's playlist-icon
+// tap (see ProfileClient/AccountPageMember), as a BottomSheet. Data/pin/remove/reorder
+// logic lives in the shared useVibesState hook (vibesShared.tsx).
 
 interface VibesPlaylistSheetProps {
   notes:           PublicNote[]
@@ -47,64 +47,34 @@ interface VibesPlaylistSheetProps {
   onReorder:       (newOrder: PublicNote[]) => void
 }
 
-// ─── TitleBlock — eyebrow (pinned card only) + title + artist ────────────────
-
-function TitleBlock({ eyebrow, title, artist }: { eyebrow?: string; title: string; artist: string | null }) {
-  return (
-    <div className="flex flex-col flex-1 min-w-0 justify-center" style={{ gap: 'var(--x2)' }}>
-      {eyebrow && (
-        <p className="font-silkscreen leading-none overflow-hidden text-ellipsis whitespace-nowrap w-full" style={{ fontSize: 'var(--mini)', color: 'var(--color-tertiary)' }}>
-          {eyebrow}
-        </p>
-      )}
-      <div className="flex flex-col w-full" style={{ gap: 'var(--x2)' }}>
-        <p
-          className="font-body font-semibold leading-none overflow-hidden text-ellipsis whitespace-nowrap"
-          style={{ fontSize: 'var(--sm)', letterSpacing: '0.2px', color: 'var(--color-primary)', fontVariationSettings: '"opsz" 14' }}
-        >
-          {title}
-        </p>
-        {artist && (
-          <p
-            className="font-body font-light leading-tight overflow-hidden text-ellipsis whitespace-nowrap"
-            style={{ fontSize: 'var(--xs)', color: 'var(--color-secondary)', fontVariationSettings: '"opsz" 14' }}
-          >
-            {artist}
-          </p>
-        )}
-      </div>
-    </div>
-  )
-}
-
-// ─── PlatformIcon — opens the source link ─────────────────────────────────────
-
-function PlatformIcon({ note }: { note: PublicNote }) {
-  const platform = resolveMusicPlatform(note)
-  if (!platform) return null
-  return (
-    <a
-      href={note.url}
-      target="_blank"
-      rel="noopener noreferrer"
-      aria-label="Open in source app"
-      className="flex-shrink-0 flex items-center justify-center"
-      style={{ width: 24, height: 24 }}
-    >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={PLATFORM_ICON_SRC[platform]} alt="" aria-hidden style={{ width: '100%', height: '100%', display: 'block' }} />
-    </a>
-  )
-}
-
 // ─── SquareAlbumArt — plain 56×56 og_image tile, no vinyl disc (list rows only) ──
+// Self-contained resolve + error fallback (mqdefault -> hqdefault) + lazy loading, same
+// reasoning as VinylComboArt. Callers MUST pass `key={note.id}` — VibeListRow's own
+// `.map()` key already covers this since a note's row identity IS its id.
 
-function SquareAlbumArt({ imgSrc }: { imgSrc: string | null }) {
+function SquareAlbumArt({ ogImageUrl }: { ogImageUrl: string | null }) {
+  const [imgSrc, setImgSrc] = useState<string | null>(() => ogImageUrl ? resolveYtThumbnail(ogImageUrl) : null)
+
+  const handleImgError = useCallback(() => {
+    setImgSrc(prev => {
+      if (!prev) return prev
+      if (prev.includes('/mqdefault.jpg')) return ytFallback(prev)
+      return prev
+    })
+  }, [])
+
   return (
     <div className="relative flex-shrink-0 overflow-hidden" style={{ width: 56, height: 56 }}>
       {imgSrc ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={imgSrc} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+        <img
+          src={imgSrc}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          onError={handleImgError}
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+        />
       ) : (
         <div style={{ position: 'absolute', inset: 0, background: 'var(--color-surface)' }} />
       )}
@@ -148,14 +118,12 @@ function PinnedVibeCard({
     if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null }
   }
   // Suppresses the nested <a> (VinylComboArt's album art, PlatformIcon) from also
-  // navigating on the touchend-synthesized click that follows a long-press — same
-  // guard VibesGrid's AlbumCard/VinylTrack use for their own long-press sheets.
+  // navigating on the touchend-synthesized click that follows a long-press.
   function onClickCapture(e: React.MouseEvent) {
     if (firedRef.current) { e.preventDefault(); firedRef.current = false }
   }
 
   const [title, artist] = splitTitleArtist(note.og_title ?? note.url)
-  const imgSrc = note.og_image_url ? resolveYtThumbnail(note.og_image_url) : null
 
   return (
     <div
@@ -171,7 +139,7 @@ function PinnedVibeCard({
       onPointerLeave={cancelPress}
       onClickCapture={onClickCapture}
     >
-      <VinylComboArt imgSrc={imgSrc} href={note.url} />
+      <VinylComboArt key={note.id} ogImageUrl={note.og_image_url} href={note.url} />
       <TitleBlock eyebrow="Currently vibing" title={title} artist={artist} />
       <PlatformIcon note={note} />
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -231,8 +199,7 @@ function VibeListRow({
     if (actionTimerRef.current) { clearTimeout(actionTimerRef.current); actionTimerRef.current = null }
   }
   // Suppresses the nested <a> (PlatformIcon) from also navigating on the
-  // touchend-synthesized click that follows a long-press — same guard VibesGrid's
-  // AlbumCard/VinylTrack use for their own long-press sheets.
+  // touchend-synthesized click that follows a long-press.
   function onClickCapture(e: React.MouseEvent) {
     if (firedRef.current) { e.preventDefault(); firedRef.current = false }
   }
@@ -248,7 +215,6 @@ function VibeListRow({
   }
 
   const [title, artist] = splitTitleArtist(note.og_title ?? note.url)
-  const imgSrc = note.og_image_url ? resolveYtThumbnail(note.og_image_url) : null
 
   return (
     <Reorder.Item
@@ -279,7 +245,7 @@ function VibeListRow({
       >
         <Menu style={{ width: 24, height: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
       </div>
-      <SquareAlbumArt imgSrc={imgSrc} />
+      <SquareAlbumArt ogImageUrl={note.og_image_url} />
       <TitleBlock title={title} artist={artist} />
       <PlatformIcon note={note} />
 
@@ -307,7 +273,6 @@ export function VibesPlaylistSheet({ notes, isOwner, initialPinnedId, crews, onC
   const pinned = pinnedId ? orderedVinyls.find(v => v.id === pinnedId) ?? null : null
   const rest   = pinned ? orderedVinyls.filter(v => v.id !== pinned.id) : orderedVinyls
 
-  const handleTogglePin = useCallback((id: string) => togglePin(id), [togglePin])
   const handleRemove    = useCallback((id: string) => { remove(id); onVibeRemoved(id) }, [remove, onVibeRemoved])
   const handleVibeAdded = useCallback((note: PublicNote) => { addVibe(note); onVibeAdded(note) }, [addVibe, onVibeAdded])
   const handleReorder   = useCallback((newRestOrder: PublicNote[]) => {
@@ -335,7 +300,7 @@ export function VibesPlaylistSheet({ notes, isOwner, initialPinnedId, crews, onC
             <PinnedVibeCard
               note={pinned}
               isOwner={isOwner}
-              onTogglePin={() => handleTogglePin(pinned.id)}
+              onTogglePin={() => togglePin(pinned.id)}
               onRemove={() => handleRemove(pinned.id)}
             />
           )}
@@ -345,7 +310,7 @@ export function VibesPlaylistSheet({ notes, isOwner, initialPinnedId, crews, onC
                 key={note.id}
                 note={note}
                 isOwner={isOwner}
-                onTogglePin={() => handleTogglePin(note.id)}
+                onTogglePin={() => togglePin(note.id)}
                 onRemove={() => handleRemove(note.id)}
               />
             ))}

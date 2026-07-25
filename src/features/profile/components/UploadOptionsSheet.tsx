@@ -64,9 +64,10 @@ function SectionCard({
 // ─── UploadOptionsSheet ────────────────────────────────────────────────────────
 // Opened from the own-profile header's "+" button — both ProfileClient (own profile)
 // and AccountPageMember (member profile, owner view only) render this the same way
-// now that FloatingViewPill is orphaned (see its own file) — the sole entry point
-// for adding a vibe or a photo now that VibesGrid/PhotosGrid no longer render their own
-// in-grid add tiles. Lets the owner choose between adding a vibe (inline Music Link
+// now that FloatingViewPill has been removed entirely — the sole entry point for
+// adding a vibe or a photo, since PhotosGrid has no in-grid add tile of its own and
+// there's no more grid-based Vibes view at all (see VibesPlaylistSheet). Lets the
+// owner choose between adding a vibe (inline Music Link
 // input + save) or sharing a photo (Upload Photo → native gallery picker, Camera →
 // native camera capture, both driven through PhotosGridHandle).
 // `activeSection` is local UI state private to this sheet (which accordion section is
