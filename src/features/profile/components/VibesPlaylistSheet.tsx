@@ -237,14 +237,16 @@ function VibeListRow({
       onPointerLeave={cancelRowPress}
       onClickCapture={onClickCapture}
     >
-      <div
-        onPointerDown={onHandlePointerDown}
-        onPointerUp={cancelHandlePress}
-        onPointerLeave={cancelHandlePress}
-        style={{ touchAction: 'none', WebkitTouchCallout: 'none', flexShrink: 0, display: 'flex' }}
-      >
-        <Menu style={{ width: 24, height: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
-      </div>
+      {isOwner && (
+        <div
+          onPointerDown={onHandlePointerDown}
+          onPointerUp={cancelHandlePress}
+          onPointerLeave={cancelHandlePress}
+          style={{ touchAction: 'none', WebkitTouchCallout: 'none', flexShrink: 0, display: 'flex' }}
+        >
+          <Menu style={{ width: 24, height: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
+        </div>
+      )}
       <SquareAlbumArt ogImageUrl={note.og_image_url} />
       <TitleBlock title={title} artist={artist} />
       <PlatformIcon note={note} />
