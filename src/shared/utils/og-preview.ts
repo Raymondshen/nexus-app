@@ -83,11 +83,15 @@ async function fetchYouTubePreview(rawUrl: string, signal: AbortSignal): Promise
   if (!res.ok) return null
   const data = (await res.json()) as YouTubeOEmbed
   if (!data.title && !data.thumbnail_url) return null
-  // author_name is the uploading channel's name. Appended via the same "Title · Artist"
-  // separator Spotify tracks already use (see the music.song branch below) — every
-  // consumer that splits og_title on " · " (VibesGrid's VinylTrackLabel/AlbumCard ticker,
-  // CurrentVibeRow's title/subtitle split) picks this up for free with no schema change.
-  const title = data.title && data.author_name ? `${data.title} · ${data.author_name}` : data.title
+  // author_name is the uploading channel's name. YouTube Music's auto-generated artist
+  // channels are always named "{Artist} - Topic" (never a real handle/brand) — strip
+  // that suffix so the displayed artist reads as just the artist name.
+  const artist = data.author_name?.replace(/\s*-\s*Topic$/i, '')
+  // Appended via the same "Title · Artist" separator Spotify tracks already use (see the
+  // music.song branch below) — every consumer that splits og_title on " · " (VibesGrid's
+  // VinylTrackLabel/AlbumCard ticker, CurrentVibeRow's title/subtitle split) picks this
+  // up for free with no schema change.
+  const title = data.title && artist ? `${data.title} · ${artist}` : data.title
   return { url: rawUrl, title, image: data.thumbnail_url, site_name: 'YouTube', fetched_at: new Date().toISOString() }
 }
 
