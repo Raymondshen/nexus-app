@@ -11,7 +11,8 @@
     "lint": "eslint",
     "generate-icons": "node scripts/generate-icons.mjs",
     "generate-announcement-manifest": "node scripts/generate-announcement-manifest.mjs",
-    "backfill-spotify-notes": "tsx scripts/backfill-spotify-notes.ts"
+    "backfill-spotify-notes": "tsx scripts/backfill-spotify-notes.ts",
+    "backfill-youtube-notes": "tsx scripts/backfill-youtube-notes.ts"
   },
   "dependencies": {
     "@hackernoon/pixel-icon-library": "^1.1.0",
