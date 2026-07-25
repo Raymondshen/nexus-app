@@ -53,6 +53,16 @@ Reuse `Button`/`DefinitionButton` for the CTA itself — `SheetFooter` only owns
 
 ---
 
+## Nesting a per-item action sheet inside another sheet
+
+If a component that opens its own `position: fixed` action sheet (a long-press context menu, say) might ever render **inside** another `BottomSheet`, portal that inner sheet to `document.body` (`createPortal`, gated by a `mounted` state flipped in a `useEffect` — `document.body` doesn't exist during SSR). Don't render it in place.
+
+Why: `BottomSheet`'s outer `motion.div` carries an active `transform` while animating. A transformed ancestor becomes the *containing block* for `position: fixed` descendants (CSS spec) — so a nested fixed sheet positions against that ancestor's own box instead of the viewport, silently rendering behind/clipped by whatever else is in the outer sheet. No console error, no visual cue pointing at the cause — z-index doesn't help either, since the bug is *where* the box is placed, not stacking order.
+
+Reference implementation: `VinylActionSheet` (`src/features/profile/components/VibesGrid.tsx`) — reused unmodified by both `VibesGrid`'s own (non-nested) cards and `VibesPlaylistSheet`'s rows (nested inside a `BottomSheet`); the portal makes it correct in both places. Same `mounted`-gated `createPortal` pattern as `MessageBubble`'s `ChatSheetReact`/`PinDurationSheet`.
+
+---
+
 ## Variants
 
 Use the existing header variants.

@@ -649,10 +649,15 @@ export function useVibesState(initialVinyls: PublicNote[], isOwner: boolean, ini
   return { orderedVinyls, pinnedId, addVibe, togglePin, remove, reorder }
 }
 
-// ─── VibesGrid (main export) ──────────────────────────────────────────────────
-// Adding a vibe now happens exclusively through UploadOptionsSheet (opened from the
-// own-profile header's "+" button, or the floating pill on member profiles) — see
-// VibesGridHandle.addVibe below. There is no more in-grid add tile or standalone add sheet.
+// ─── VibesGrid (main export) — no live consumers ──────────────────────────────
+// Both ProfileClient and AccountPageMember adopted the always-visible Photos grid +
+// CurrentVibeRow + VibesPlaylistSheet layout (Figma 684:15581 / 690:16468), so this
+// square-tile grid (AlbumCard/VinylTrack/VinylTrackLabel below) is no longer rendered
+// anywhere. Kept but orphaned rather than deleted, same treatment as FloatingViewPill —
+// the FILE itself stays fully load-bearing regardless, since useVibesState/isMusicNote/
+// splitTitleArtist/resolveMusicPlatform/PLATFORM_ICON_SRC/resolveYtThumbnail/
+// VinylActionSheet/VIBES_PINNED_KEY/VIBES_PIN_CHANGE_EVENT are all exported from here and
+// consumed by CurrentVibeRow, VibesPlaylistSheet, AddVibeForm, and UploadOptionsSheet.
 
 export interface VibesGridHandle {
   /** Prepends an already-saved vibe to grid state — used by UploadOptionsSheet's inline "Add Vibes" section. */
