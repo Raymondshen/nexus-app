@@ -1888,7 +1888,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
         className="border-t border-border flex flex-col"
         onPanEnd={handleTopPanEnd}
         style={{
-          paddingTop:    'var(--space-5)',
+          paddingTop:    'var(--space-4)',
           paddingLeft:   'var(--space-5)',
           paddingRight:  'var(--space-5)',
           // pb: var(--x8, 28px) per Figma — was a hardcoded 32px, drifted from the
