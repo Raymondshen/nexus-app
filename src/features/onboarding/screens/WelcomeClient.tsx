@@ -8,20 +8,13 @@ import { ChevronLeft } from 'pixelarticons/react/ChevronLeft'
 
 export default function WelcomeClient({
   crewId,
-  inviterUsername,
-  validInviteCode,
 }: {
-  crewId:           string | null
-  inviterUsername:  string | null
-  validInviteCode:  string | null
+  crewId: string | null
 }) {
   const router  = useRouter()
-  const isInvited = Boolean(inviterUsername)
 
-  const heading = isInvited ? "You're in the Nexus." : 'The Nexus is yours.'
-  const subtext  = isInvited
-    ? `${inviterUsername} recruited you. Now find your crew.`
-    : 'Build your crew. Start the fight.'
+  const heading = 'The Nexus is yours.'
+  const subtext = 'Build your crew. Start the fight.'
 
   const [showJoin,  setShowJoin]  = useState(false)
   const [crewCode,  setCrewCode]  = useState('')
@@ -137,9 +130,6 @@ export default function WelcomeClient({
                       className="w-full bg-[#080514] border-2 px-3 py-3 text-white font-pixel text-[16px] tracking-[0.5em] text-center placeholder:text-[#3a2555] placeholder:tracking-[0.2em] focus:outline-none border-[#2a1545] focus:border-[#bf5fff]"
                     />
                     <input type="hidden" name="crewCode"   value={crewCode} />
-                    {validInviteCode && (
-                      <input type="hidden" name="inviteCode" value={validInviteCode} />
-                    )}
                     <p className="font-pixel text-[7px] text-[#3d2660]">{crewCode.length}/6 characters</p>
                   </div>
                   <button

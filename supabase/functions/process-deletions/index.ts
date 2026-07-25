@@ -70,12 +70,6 @@ Deno.serve(async (req) => {
         await deleteStorageFiles(supabase, 'backgrounds', p.background_storage_key)
       }
 
-      // Phase 1 — nullify optional FK references so cascade constraints don't block us
-      await Promise.all([
-        supabase.from('app_invites').update({ inviter_id: null }).eq('inviter_id', userId),
-        supabase.from('app_invites').update({ used_by: null }).eq('used_by', userId),
-      ])
-
       // Phase 2 — leaf-level rows that reference tables deleted below
       await supabase.from('definition_suggestions').delete().eq('suggester_id', userId)
 

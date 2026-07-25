@@ -5,23 +5,6 @@ import { ProfileClient } from '@/features/profile/screens/ProfileClient'
 import { MUSIC_DOMAINS } from '@/shared/constants/config'
 import type { PublicNote, ProfilePhoto } from '@/types'
 
-async function fetchInviterUsername(userId: string): Promise<string | null> {
-  const service = createServiceClient()
-  const { data: invite } = await service
-    .from('app_invites')
-    .select('inviter_id')
-    .eq('used_by', userId)
-    .eq('used', true)
-    .maybeSingle()
-  if (!invite?.inviter_id) return null
-  const { data: prof } = await service
-    .from('profiles')
-    .select('username')
-    .eq('id', invite.inviter_id as string)
-    .single()
-  return (prof as { username?: string } | null)?.username ?? null
-}
-
 function getCachedProfile(userId: string) {
   return unstable_cache(
     async () => {
@@ -49,7 +32,7 @@ export default async function ProfilePage() {
   const user = session.user
 
   // Batch 1 — everything except board data (board needs crew IDs first)
-  const [profile, messagesResult, membershipsResult, inviterUsername, friendshipXPResult, photosResult] = await Promise.all([
+  const [profile, messagesResult, membershipsResult, friendshipXPResult, photosResult] = await Promise.all([
     getCachedProfile(user.id),
     supabase
       .from('messages')
@@ -60,7 +43,6 @@ export default async function ProfilePage() {
       .from('crew_members')
       .select('crew_id')
       .eq('user_id', user.id),
-    fetchInviterUsername(user.id),
     supabase
       .from('friendship_xp')
       .select('total_xp')
@@ -128,7 +110,6 @@ export default async function ProfilePage() {
       isGuest={user.is_anonymous === true}
       totalMessages={totalMessages}
       groupChats={groupChats}
-      inviterUsername={inviterUsername}
       initialStatus={profile?.status ?? null}
       totalFriendshipXP={totalFriendshipXP}
       initialNotes={initialNotes}

@@ -360,14 +360,8 @@ const JOIN_CLASSES: {
 
 function HomeActionSheet({
   onClose,
-  coins,
-  infiniteCoins,
-  onOpenArsenal,
 }: {
   onClose:       () => void
-  coins:         number
-  infiniteCoins: boolean
-  onOpenArsenal: () => void
 }) {
   const router = useRouter()
   const [view, setView] = useState<SheetView>('menu')
@@ -679,20 +673,6 @@ function HomeActionSheet({
           <Button variant="outlined" shadow className="w-full" onClick={() => setView('join')}>
             JOIN A SQUAD
           </Button>
-
-          <div className="flex flex-col" style={{ gap: 'var(--space-3)' }}>
-            <button
-              onClick={onOpenArsenal}
-              className="w-full h-[48px] flex items-center justify-center bg-black border overflow-hidden"
-              style={{ borderColor: 'var(--color-yellow)', boxShadow: '4px 4px 0px 0px rgba(245,158,11,0.5)' }}
-            >
-              <span className="font-silkscreen leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-yellow)' }}>INVITE A FRIEND</span>
-            </button>
-            <p className="font-silkscreen leading-none tracking-[0.2px]" style={{ fontSize: 'var(--text-xxs)' }}>
-              <span style={{ color: 'var(--color-tertiary)' }}>25 coins = invite code · </span>
-              <span style={{ color: 'var(--color-yellow)' }}>{infiniteCoins ? '∞' : coins.toLocaleString()} coins</span>
-            </p>
-          </div>
         </div>
       </>
     )
@@ -1617,9 +1597,6 @@ export function HomeClient({
   }, [leaveTarget, leaving])
 
   const handleCloseCreate      = useCallback(() => setShowCreate(false), [])
-  const handleOpenArsenal      = useCallback(() => {
-    router.push('/home/invite')
-  }, [router])
   const handleCloseLeave  = useCallback(() => {
     if (!leaving) { setLeaveTarget(null); setLeaveError(null) }
   }, [leaving])
@@ -1728,9 +1705,6 @@ export function HomeClient({
           <HomeActionSheet
             key="action-sheet"
             onClose={handleCloseCreate}
-            coins={coins}
-            infiniteCoins={infiniteCoins}
-            onOpenArsenal={handleOpenArsenal}
           />
         )}
         {detailsTarget && !leaveTarget && (

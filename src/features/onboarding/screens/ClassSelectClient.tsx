@@ -76,11 +76,9 @@ const CLASSES: {
 export default function ClassSelectClient({
   crewId,
   welcome,
-  invite,
 }: {
   crewId:  string
   welcome: boolean
-  invite:  string | null
 }) {
   const router = useRouter()
   const [idx, setIdx] = useState(0)
@@ -236,7 +234,6 @@ export default function ClassSelectClient({
             <input type="hidden" name="class"   value={selected.id} />
             <input type="hidden" name="crewId"  value={crewId} />
             <input type="hidden" name="welcome" value={welcome ? '1' : '0'} />
-            {invite && <input type="hidden" name="invite" value={invite} />}
             <button
               type="submit"
               disabled={isPending}

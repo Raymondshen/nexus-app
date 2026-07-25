@@ -17,7 +17,7 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-type NotificationType = 'message_received' | 'mention_received' | 'reply_received' | 'friend_request' | 'recruit_arrived'
+type NotificationType = 'message_received' | 'mention_received' | 'reply_received' | 'friend_request'
 
 // Maps each notification type to its preference column in notification_preferences.
 // null = always deliver (no preference gate).
@@ -26,7 +26,6 @@ const PREF_COLUMN: Record<NotificationType, 'notif_messages' | 'notif_mentions' 
   mention_received: 'notif_mentions',
   reply_received:   'notif_replies',
   friend_request:   null,
-  recruit_arrived:  null,
 }
 
 function buildPayload(type: NotificationType, data: Record<string, unknown>) {
@@ -66,14 +65,6 @@ function buildPayload(type: NotificationType, data: Record<string, unknown>) {
         icon:  '/icons/icon-192.png',
         badge: '/icons/icon-192.png',
         data:  { url: '/friends' },
-      }
-    case 'recruit_arrived':
-      return {
-        title: 'Your recruit arrived.',
-        body:  `${data.new_username ?? 'Someone'} just entered the Nexus.`,
-        icon:  '/icons/icon-192.png',
-        badge: '/icons/icon-192.png',
-        data:  { url: '/home' },
       }
   }
 }

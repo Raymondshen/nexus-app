@@ -15,14 +15,12 @@ import { UserAvatar } from '@/shared/components/ui/UserAvatar'
 import { TickerBanner } from '@/shared/components/banners/TickerBanner'
 import { AvatarUploadModal } from '@/shared/components/overlays/AvatarUploadModal'
 import { BackgroundUploadModal } from '@/shared/components/overlays/BackgroundUploadModal'
-import { signInWithGoogleForInvite, signInWithGoogle } from '@/shared/supabase/auth'
+import { signInWithGoogle } from '@/shared/supabase/auth'
 import {
-  validateInviteCodeAction,
-  checkReservedUserAction,
+  getSignupSessionAction,
   reservePlaceAction,
-  completeInviteFlowAction,
-  reserveAfterGoogleAction,
-  type CheckReservedResult,
+  completeSignupAction,
+  type SignupSessionResult,
 } from '@/app/(auth)/login/actions'
 import { validateSocialLinkFormat, buildSocialLink, PLATFORM_URL_PREFIX } from '@/shared/utils/socialLinks'
 import type { AvatarClass } from '@/types'
@@ -37,10 +35,7 @@ const CLASSES: { id: AvatarClass; name: string; flavor: string; color: string }[
 
 type Step =
   | 'landing'
-  | 'invite-code'    // enter & validate invite code first
-  | 'invite-oauth'   // google sign-in (after code validated)
-  | 'invite-profile' // username + class (after oauth)
-  | 'reserve-google'  // direct Google sign-in, no Nexus account yet (Figma 547:2452/2587)
+  | 'create-profile' // display name + class + profile details (after Google oauth)
   | 'reserve-email'
   | 'reserve-class'
   | 'reserve-name'
@@ -144,35 +139,25 @@ const variants = {
 }
 
 export function LoginForm({
-  flow,
-  step: stepParam,
-  urlError,
-  code,
+  newAccount,
 }: {
-  flow?: string
-  step?: string
-  urlError?: string
-  code?: string
+  newAccount?: string
 }) {
   const router = useRouter()
 
   const [step, setStep] = useState<Step>(
-    flow === 'invite' && stepParam === '2' ? 'invite-profile'
-    : urlError === 'no_account' ? 'reserve-google'
-    : 'landing'
+    newAccount === '1' ? 'create-profile' : 'landing'
   )
   const [email, setEmail]                 = useState('')
   const [username, setUsername]           = useState('')
   const [firstName, setFirstName]         = useState('')
   const [lastName, setLastName]           = useState('')
   const [selectedClass, setSelectedClass] = useState<AvatarClass>('mage')
-  const [inviteCode, setInviteCode]       = useState('')
   const [error, setError]                 = useState<string | null>(null)
   const [loading, setLoading]             = useState(false)
-  const [googleLoading, setGoogleLoading] = useState(false)
   const [signInLoading, setSignInLoading] = useState(false)
-  const [reservedData, setReservedData]   = useState<CheckReservedResult | null>(null)
-  const [loadingReserved, setLoadingReserved] = useState(false)
+  const [sessionData, setSessionData]     = useState<SignupSessionResult | null>(null)
+  const [loadingSession, setLoadingSession] = useState(false)
   const [doneUsername, setDoneUsername]   = useState('')
   const [doneClass, setDoneClass]         = useState('')
 
@@ -193,95 +178,34 @@ export function LoginForm({
   const avatarFileInputRef = useRef<HTMLInputElement>(null)
   const bgFileInputRef     = useRef<HTMLInputElement>(null)
 
-  // ── Reserve-after-Google step (Figma 547:2452/2587) ───────────────────────
-  const [reservedSuccess, setReservedSuccess] = useState(false)
-
-  // When reaching invite-profile or reserve-google, fetch the session snapshot
-  // (email/coins/gems/avatar) and any existing reservation. The auto-complete
-  // branch below only fires when `code` is set, which never happens on the
-  // reserve-google entry path (no invite flow cookie) — safe to share.
+  // On reaching create-profile, fetch the session snapshot (email/coins/gems/
+  // avatar) for the hero preview. If somehow no session exists (e.g. a direct
+  // link to ?newAccount=1 with no active Google session), bounce back to landing.
   useEffect(() => {
-    if (step !== 'invite-profile' && step !== 'reserve-google') return
+    if (step !== 'create-profile') return
     let cancelled = false
     // Genuine data fetching keyed on `step` (React's own "you might not need an
     // effect" guide lists this as one of the two legitimate uses), not a
     // state-mirroring anti-pattern.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setLoadingReserved(true)
+    setLoadingSession(true)
 
-    checkReservedUserAction().then(async result => {
+    getSignupSessionAction().then(result => {
       if (cancelled) return
-      setReservedData(result)
-      if (result.hasSession) setAvatarUrl(result.avatarUrl)
-
-      if (result.found) {
-        setUsername(result.data.username)
-        const cls = result.data.class as AvatarClass | null
-        if (cls) setSelectedClass(cls)
-
-        // Reserved user has username + class from the waitlist — skip the form
-        // and complete the invite flow automatically.
-        if (cls && code) {
-          try {
-            const completion = await completeInviteFlowAction(code, result.data.username, cls)
-            if (cancelled) return
-            if (completion.success) {
-              router.push('/home')
-              return  // leave spinner up during navigation
-            }
-            setError(completion.error ?? 'The rift destabilized. Try again.')
-          } catch {
-            if (!cancelled) setError('The rift destabilized. Try again.')
-          }
-        }
-      } else if (!result.hasSession) {
-        if (!cancelled) {
-          setStep('invite-oauth')
-          setError('Sign in with Google first, then enter your invite code.')
-        }
+      setSessionData(result)
+      if (result.hasSession) {
+        setAvatarUrl(result.avatarUrl)
+      } else {
+        setStep('landing')
+        setError('Please sign in again.')
       }
-
-      if (!cancelled) setLoadingReserved(false)
+      setLoadingSession(false)
     })
 
     return () => { cancelled = true }
   }, [step])
 
-  async function handleValidateCode() {
-    setError(null)
-    setLoading(true)
-    try {
-      const result = await validateInviteCodeAction(inviteCode)
-      if (result.valid) {
-        setStep('invite-oauth')
-      } else {
-        setError(result.error ?? 'The Nexus does not recognize this code.')
-      }
-    } catch {
-      setError('The rift destabilized. Try again.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  async function handleInviteOAuth() {
-    setError(null)
-    setGoogleLoading(true)
-    try {
-      // Persist the validated code across the OAuth redirect via a short-lived cookie
-      document.cookie = `nexus_invite_code=${encodeURIComponent(inviteCode)}; path=/; SameSite=Lax; max-age=300`
-      await signInWithGoogleForInvite()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not connect to Google.')
-      setGoogleLoading(false)
-    }
-  }
-
-  async function handleCompleteInvite() {
-    if (!code) {
-      setError('Session expired. Please start over.')
-      return
-    }
+  async function handleCreateProfile() {
     if (!firstName.trim()) { setError('First name is required.'); return }
     if (!lastName.trim())  { setError('Last name is required.');  return }
     const instagramUrl = buildSocialLink('instagram', instagramHandle)
@@ -297,7 +221,7 @@ export function LoginForm({
     setError(null)
     setLoading(true)
     try {
-      const result = await completeInviteFlowAction(code, username, selectedClass, firstName, lastName, {
+      const result = await completeSignupAction(username, selectedClass, firstName, lastName, {
         status,
         instagramUrl,
         xUrl,
@@ -309,29 +233,6 @@ export function LoginForm({
         router.push('/home')
       } else {
         setError(result.error ?? 'The rift destabilized. Try again.')
-      }
-    } catch {
-      setError('The rift destabilized. Try again.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  async function handleReserveGoogle() {
-    if (reservedSuccess) return
-    setError(null)
-    setLoading(true)
-    try {
-      const result = await reserveAfterGoogleAction(username, inviteCode)
-      if (!result.success) {
-        setError(result.error ?? 'The rift destabilized. Try again.')
-        return
-      }
-      if (result.reserved) {
-        setReservedSuccess(true)
-      } else {
-        // A valid invite code was entered — registration completed immediately.
-        router.push('/home')
       }
     } catch {
       setError('The rift destabilized. Try again.')
@@ -374,18 +275,7 @@ export function LoginForm({
   function goBack() {
     setError(null)
     switch (step) {
-      case 'invite-code':    setStep('landing');       break
-      case 'invite-oauth':
-        setStep('landing')
-        setInviteCode('')
-        break
-      case 'invite-profile': setStep('landing');       break
-      case 'reserve-google':
-        setStep('landing')
-        setUsername('')
-        setInviteCode('')
-        setReservedSuccess(false)
-        break
+      case 'create-profile': setStep('landing');       break
       case 'reserve-email':  setStep('landing');       break
       case 'reserve-class':  setStep('reserve-email'); break
       case 'reserve-name':   setStep('reserve-class'); break
@@ -398,17 +288,15 @@ export function LoginForm({
     }
   }
 
-  const isReserved = reservedData?.found === true
-
   // ── Landing (Figma 544:2786) ────────────────────────────────────────────
   // Full-bleed screen, no boxed card — replaces the old "ENTER THE NEXUS"
-  // step. Only Google sign-in + the invite-code entry point remain; the
+  // step. Signup is public: the only entry point is Google sign-in. A new
+  // Google account (no Nexus profile yet) is routed straight to the
+  // create-profile step server-side by /auth/callback (?newAccount=1). The
   // waitlist ("reserve my place") steps below are no longer reachable from
   // here but are kept rather than deleted, matching this codebase's existing
   // orphaned-but-valid-code convention (see CLAUDE.md → Manage Profile /
-  // Developer Settings). Sign-in success/failure (existing account vs. no
-  // account found) is decided server-side in /auth/callback, which already
-  // redirects back here with ?error=no_account when no profile exists.
+  // Developer Settings).
   if (step === 'landing') {
     return (
       <div
@@ -437,6 +325,15 @@ export function LoginForm({
         </div>
 
         <div className="flex flex-col items-start w-full" style={{ gap: 'var(--x5)' }}>
+          {error && (
+            <p
+              className="font-body font-normal text-center w-full leading-relaxed"
+              style={{ fontSize: 'var(--xs)', color: 'var(--red)', fontVariationSettings: '"opsz" 14' }}
+            >
+              {error}
+            </p>
+          )}
+
           <Button
             type="button"
             variant="filled"
@@ -451,286 +348,19 @@ export function LoginForm({
           >
             SIGN IN WITH GOOGLE
           </Button>
-
-          <div className="flex flex-col items-start w-full" style={{ gap: 'var(--x2)' }}>
-            <Button
-              type="button"
-              variant="outlined"
-              color="purple"
-              className="w-full"
-              onClick={() => { setError(null); setStep('invite-code') }}
-            >
-              I HAVE AN INVITE CODE
-            </Button>
-            <p
-              className="font-body font-light text-tertiary w-full leading-[1.4]"
-              style={{ fontSize: 'var(--xs)', fontVariationSettings: '"opsz" 14' }}
-            >
-              Nexus is invite-only. Got a code from your squad?
-            </p>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // ── Reserve after Google sign-in (Figma 547:2452 / 547:2587) ─────────────
-  // "SIGN IN WITH GOOGLE" (no invite code) succeeded, but this Google account
-  // has no Nexus profile yet — /auth/callback redirects here with
-  // ?error=no_account. The user is already authenticated; this screen lets
-  // them reserve a display name against that account (or, if they happen to
-  // have an invite code, complete registration immediately via the same
-  // field).
-  if (step === 'reserve-google') {
-    const sessionSnapshot = reservedData && reservedData.hasSession ? reservedData : null
-
-    return (
-      <div
-        className="flex-1 flex flex-col items-center justify-center w-full"
-        style={{
-          gap: 'var(--x6)',
-          paddingLeft: 'var(--x5)',
-          paddingRight: 'var(--x5)',
-          paddingTop: 'max(env(safe-area-inset-top), var(--x5))',
-          paddingBottom: 'max(env(safe-area-inset-bottom), var(--x5))',
-        }}
-      >
-        <div className="flex flex-col items-center w-full" style={{ gap: 'var(--x3)' }}>
-          <h1
-            className="font-pixel text-primary text-center leading-none tracking-[0.2px]"
-            style={{ fontSize: 'var(--display)' }}
-          >
-            NEXUS
-          </h1>
-          <p
-            className="font-body font-normal text-secondary text-center w-full leading-[1.5]"
-            style={{ fontSize: 'var(--sm)', fontVariationSettings: '"opsz" 14' }}
-          >
-            Unfortunately no account exists for that google account. You may reserve this account and display name until you receive a code. Code invites are only possible through sending a request to the dev&rsquo;s or existing users of Nexus.
-          </p>
-        </div>
-
-        <div className="flex flex-col items-start w-full" style={{ gap: 'var(--x5)' }}>
-          {error && (
-            <p
-              className="font-body font-normal text-center w-full leading-relaxed"
-              style={{ fontSize: 'var(--xs)', color: 'var(--red)', fontVariationSettings: '"opsz" 14' }}
-            >
-              {error}
-            </p>
-          )}
-
-          <InputField
-            label="Account"
-            disabled
-            value={sessionSnapshot?.email ?? ''}
-            onChange={() => {}}
-          />
-
-          <InputField
-            label="Display Name"
-            required
-            disabled={reservedSuccess}
-            value={username}
-            onChange={(v) => setUsername(v.replace(/<[^>]*>/g, '').slice(0, 20))}
-            placeholder="your display name"
-            maxLength={20}
-          />
-
-          <InputField
-            label="Enter Invite Code"
-            disabled={reservedSuccess}
-            value={inviteCode}
-            onChange={(v) => setInviteCode(v.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10))}
-            placeholder="ABCDEF"
-            helperText="Enter the personal invite code given to you."
-            autoComplete="off"
-            autoCapitalize="characters"
-          />
-
-          <Button
-            type="button"
-            variant="filled"
-            color={reservedSuccess ? 'green' : undefined}
-            loading={loading}
-            disabled={loading || !username.trim()}
-            className="w-full"
-            onClick={handleReserveGoogle}
-          >
-            {reservedSuccess ? 'RESERVED' : 'RESERVE MY NAME'}
-          </Button>
-
-          <Button
-            type="button"
-            variant="outlined"
-            color="tertiary"
-            className="w-full"
-            onClick={goBack}
-          >
-            BACK HOME
-          </Button>
-        </div>
-      </div>
-    )
-  }
-
-  // ── Invite — Code entry (Figma 545:5713) ────────────────────────────────
-  // Full-bleed screen matching the landing step's layout — no boxed card.
-  // Validation runs on Enter (form submit) via handleValidateCode; Cancel
-  // creation routes back to the landing step (Google sign-in / invite-code
-  // entry point).
-  if (step === 'invite-code') {
-    return (
-      <div
-        className="flex-1 flex flex-col items-center justify-center w-full"
-        style={{
-          gap: 'var(--x6)',
-          paddingLeft: 'var(--x5)',
-          paddingRight: 'var(--x5)',
-          paddingTop: 'max(env(safe-area-inset-top), var(--x5))',
-          paddingBottom: 'max(env(safe-area-inset-bottom), var(--x5))',
-        }}
-      >
-        <div className="flex flex-col items-center w-full" style={{ gap: 'var(--x3)' }}>
-          <h1
-            className="font-pixel text-primary text-center leading-none tracking-[0.2px]"
-            style={{ fontSize: 'var(--display)' }}
-          >
-            NEXUS
-          </h1>
-          <p
-            className="font-body font-normal text-secondary text-center w-full leading-[1.5]"
-            style={{ fontSize: 'var(--sm)', fontVariationSettings: '"opsz" 14' }}
-          >
-            Let&rsquo;s create your account
-          </p>
-        </div>
-
-        <form
-          className="flex flex-col items-start w-full"
-          style={{ gap: 'var(--x5)' }}
-          onSubmit={e => { e.preventDefault(); handleValidateCode() }}
-        >
-          {error && (
-            <p
-              className="font-body font-normal text-center w-full leading-relaxed"
-              style={{ fontSize: 'var(--xs)', color: 'var(--red)', fontVariationSettings: '"opsz" 14' }}
-            >
-              {error}
-            </p>
-          )}
-
-          <InputField
-            label="Enter Invite Code"
-            required
-            value={inviteCode}
-            onChange={v => setInviteCode(v.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10))}
-            placeholder="ABCDEF"
-            helperText="Enter the personal invite code given to you."
-            autoComplete="off"
-            autoCapitalize="characters"
-          />
-
-          <Button
-            type="submit"
-            variant="filled"
-            loading={loading}
-            disabled={loading || !inviteCode.trim()}
-            className="w-full"
-          >
-            ENTER
-          </Button>
-
-          <Button
-            type="button"
-            variant="outlined"
-            color="tertiary"
-            className="w-full"
-            onClick={goBack}
-          >
-            CANCEL CREATION
-          </Button>
-        </form>
-      </div>
-    )
-  }
-
-  // ── Invite — OAuth (Figma 546:2052) ──────────────────────────────────────
-  // Full-bleed screen matching the landing/invite-code layout. Cancel
-  // creation returns straight to the landing step (goBack resets step +
-  // inviteCode), not back to the code-entry step.
-  if (step === 'invite-oauth') {
-    return (
-      <div
-        className="flex-1 flex flex-col items-center justify-center w-full"
-        style={{
-          gap: 'var(--x6)',
-          paddingLeft: 'var(--x5)',
-          paddingRight: 'var(--x5)',
-          paddingTop: 'max(env(safe-area-inset-top), var(--x5))',
-          paddingBottom: 'max(env(safe-area-inset-bottom), var(--x5))',
-        }}
-      >
-        <div className="flex flex-col items-center w-full" style={{ gap: 'var(--x3)' }}>
-          <h1
-            className="font-pixel text-primary text-center leading-none tracking-[0.2px]"
-            style={{ fontSize: 'var(--display)' }}
-          >
-            NEXUS
-          </h1>
-          <p
-            className="font-body font-normal text-secondary text-center w-full leading-[1.5]"
-            style={{ fontSize: 'var(--sm)', fontVariationSettings: '"opsz" 14' }}
-          >
-            Welcome! Invite code was valid. Sign in with google to create your account.
-          </p>
-        </div>
-
-        <div className="flex flex-col items-start w-full" style={{ gap: 'var(--x5)' }}>
-          {error && (
-            <p
-              className="font-body font-normal text-center w-full leading-relaxed"
-              style={{ fontSize: 'var(--xs)', color: 'var(--red)', fontVariationSettings: '"opsz" 14' }}
-            >
-              {error}
-            </p>
-          )}
-
-          <Button
-            type="button"
-            variant="filled"
-            loading={googleLoading}
-            disabled={googleLoading}
-            className="w-full"
-            onClick={handleInviteOAuth}
-          >
-            SIGN IN WITH GOOGLE
-          </Button>
-
-          <Button
-            type="button"
-            variant="outlined"
-            color="tertiary"
-            className="w-full"
-            onClick={goBack}
-          >
-            CANCEL CREATION
-          </Button>
         </div>
       </div>
     )
   }
 
   // ── Create Profile (Figma 547:2289) ──────────────────────────────────────
-  // Final step of the invite signup flow — modeled directly on
-  // ManageUserProfile.tsx (same hero/upload/field patterns) rather than a new
-  // layout. Reserved users with a class on file never see this screen (the
-  // effect above auto-completes and navigates to /home first); a reserved
-  // user without a class still lands here with Display Name locked.
-  if (step === 'invite-profile') {
-    const sessionSnapshot = reservedData && reservedData.hasSession ? reservedData : null
+  // Landed here after a fresh Google sign-in with no Nexus profile yet —
+  // modeled directly on ManageUserProfile.tsx (same hero/upload/field
+  // patterns) rather than a new layout.
+  if (step === 'create-profile') {
+    const sessionSnapshot = sessionData && sessionData.hasSession ? sessionData : null
     const heroName = username.trim() || 'Warrior'
-    const canSubmit = !loading && !loadingReserved && !!code
+    const canSubmit = !loading && !loadingSession
       && !!username.trim() && !!firstName.trim() && !!lastName.trim()
 
     return (
@@ -796,9 +426,8 @@ export function LoginForm({
           <div className="flex flex-col w-full" style={{ gap: 20, paddingLeft: 16, paddingRight: 16, paddingTop: 16, paddingBottom: 16 }}>
 
             {error && <ErrorBox message={error} />}
-            {!code && !loadingReserved && <ErrorBox message="Session expired. Please start over." />}
 
-            {loadingReserved ? (
+            {loadingSession ? (
               <div className="py-6 flex justify-center">
                 <span className="flex gap-1">
                   <span className="inline-block w-1.5 h-1.5 bg-[#bf5fff] animate-bounce" style={{ animationDelay: '0ms' }} />
@@ -863,7 +492,6 @@ export function LoginForm({
                 <InputField
                   label="Display Name"
                   required
-                  disabled={isReserved}
                   value={username}
                   onChange={(v) => setUsername(v.replace(/<[^>]*>/g, '').slice(0, 20))}
                   placeholder="your display name"
@@ -921,7 +549,7 @@ export function LoginForm({
             loading={loading}
             disabled={!canSubmit}
             className="w-full"
-            onClick={handleCompleteInvite}
+            onClick={handleCreateProfile}
           >
             CREATE PROFILE
           </Button>

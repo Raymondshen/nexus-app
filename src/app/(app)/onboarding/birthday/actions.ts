@@ -17,7 +17,6 @@ export async function saveBirthdayAction(
   const year    = parseInt(formData.get('year')   as string, 10)
   const crewId  = (formData.get('crewId') as string) || null
   const welcome = formData.get('welcome') === '1'
-  const invite  = (formData.get('invite') as string) || null
 
   if (!month || !day || !year) return { error: 'Please fill in all birthday fields.' }
 
@@ -44,8 +43,7 @@ export async function saveBirthdayAction(
   revalidateTag(`profile:${user.id}`, 'max')
 
   if (crewId) {
-    const inviteParam = invite ? `&invite=${invite}` : ''
-    redirect(`/onboarding/class?crew=${crewId}${welcome ? '&welcome=1' : ''}${inviteParam}`)
+    redirect(`/onboarding/class?crew=${crewId}${welcome ? '&welcome=1' : ''}`)
   } else {
     redirect('/onboarding/welcome')
   }

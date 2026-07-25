@@ -15,7 +15,7 @@ import type { PushSubscription, NotificationPreferences, CrewNotificationPrefere
 import type { Friendship } from './friends'
 import type { Event, EventRsvp } from './events'
 import type { Note, BoardSection } from './board'
-import type { ReservedUser, AppInvite, ClientError, PendingDeletion } from './system'
+import type { ReservedUser, ClientError, PendingDeletion } from './system'
 
 // ─── Supabase Database type ───────────────────────────────────────────────────
 
@@ -109,12 +109,6 @@ export type Database = {
         Row: Announcement
         Insert: Omit<Announcement, 'id' | 'created_at'> & { id?: string; created_at?: string }
         Update: Partial<Omit<Announcement, 'id' | 'created_at'>>
-        Relationships: []
-      }
-      app_invites: {
-        Row: AppInvite
-        Insert: Omit<AppInvite, 'id' | 'created_at'> & { id?: string; created_at?: string }
-        Update: Partial<Omit<AppInvite, 'id'>>
         Relationships: []
       }
       polls: {

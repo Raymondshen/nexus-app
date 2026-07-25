@@ -9,16 +9,6 @@ export interface ReservedUser extends Record<string, unknown> {
   converted:  boolean
 }
 
-export interface AppInvite extends Record<string, unknown> {
-  id:         string
-  code:       string
-  inviter_id: string | null
-  used:       boolean
-  used_by:    string | null
-  used_at:    string | null
-  created_at: string
-}
-
 export interface ClientError extends Record<string, unknown> {
   id:         string
   user_id:    string | null

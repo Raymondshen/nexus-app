@@ -35,7 +35,6 @@ interface ProfileClientProps {
   isGuest:           boolean
   totalMessages:     number
   groupChats:        number
-  inviterUsername:   string | null
   initialStatus:     string | null
   totalFriendshipXP: number
   initialNotes:      PublicNote[]
@@ -77,7 +76,6 @@ export function ProfileClient({
   isGuest,
   totalMessages,
   groupChats,
-  inviterUsername,
   initialStatus,
   totalFriendshipXP,
   initialNotes,
@@ -158,7 +156,6 @@ export function ProfileClient({
                 </p>
                 <p className="font-silkscreen" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>
                   {groupChats} group chat{groupChats !== 1 ? 's' : ''}
-                  {inviterUsername ? ` · rec. by ${inviterUsername}` : ''}
                 </p>
               </div>
             </div>

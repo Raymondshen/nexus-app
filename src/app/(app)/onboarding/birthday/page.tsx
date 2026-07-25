@@ -5,9 +5,9 @@ import BirthdayClient from '@/features/onboarding/screens/BirthdayClient'
 export default async function BirthdayPage({
   searchParams,
 }: {
-  searchParams: Promise<{ crew?: string; welcome?: string; invite?: string }>
+  searchParams: Promise<{ crew?: string; welcome?: string }>
 }) {
-  const { crew: crewId, welcome, invite } = await searchParams
+  const { crew: crewId, welcome } = await searchParams
 
   const supabase = await createClient()
   const { data: { session } } = await supabase.auth.getSession()
@@ -23,12 +23,11 @@ export default async function BirthdayPage({
 
   if (birthday) {
     if (crewId) {
-      const inviteParam = invite ? `&invite=${invite}` : ''
-      redirect(`/onboarding/class?crew=${crewId}${welcome === '1' ? '&welcome=1' : ''}${inviteParam}`)
+      redirect(`/onboarding/class?crew=${crewId}${welcome === '1' ? '&welcome=1' : ''}`)
     } else {
       redirect('/onboarding/welcome')
     }
   }
 
-  return <BirthdayClient crewId={crewId ?? null} welcome={welcome === '1'} invite={invite ?? null} />
+  return <BirthdayClient crewId={crewId ?? null} welcome={welcome === '1'} />
 }

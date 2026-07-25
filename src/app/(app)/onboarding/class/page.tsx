@@ -5,9 +5,9 @@ import ClassSelectClient from '@/features/onboarding/screens/ClassSelectClient'
 export default async function ClassSelectPage({
   searchParams,
 }: {
-  searchParams: Promise<{ crew?: string; welcome?: string; invite?: string }>
+  searchParams: Promise<{ crew?: string; welcome?: string }>
 }) {
-  const { crew: crewId, welcome, invite } = await searchParams
+  const { crew: crewId, welcome } = await searchParams
   if (!crewId) redirect('/home')
 
   const supabase = await createClient()
@@ -29,5 +29,5 @@ export default async function ClassSelectPage({
     redirect(`/chat/${crewId}${welcome === '1' ? '?welcome=1' : ''}`)
   }
 
-  return <ClassSelectClient crewId={crewId} welcome={welcome === '1'} invite={invite ?? null} />
+  return <ClassSelectClient crewId={crewId} welcome={welcome === '1'} />
 }
