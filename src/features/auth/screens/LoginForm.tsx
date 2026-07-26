@@ -26,6 +26,12 @@ type Step =
   | 'landing'
   | 'create-profile' // display name + class + profile details (after Google oauth)
 
+// The Create Profile screen has never had a class picker (that only ever lived
+// in the now-removed reserve-class waitlist step) — every new account gets this
+// default avatar_class silently; real per-crew class choice happens later in
+// onboarding (crew_members.class, see CLAUDE.md's Onboarding section).
+const DEFAULT_AVATAR_CLASS: AvatarClass = 'mage'
+
 function ErrorBox({ message }: { message: string }) {
   return (
     <div className="bg-[#ff4444]/10 border border-[#ff4444]/50 px-3 py-2">
@@ -47,7 +53,6 @@ export function LoginForm({
   const [username, setUsername]           = useState('')
   const [firstName, setFirstName]         = useState('')
   const [lastName, setLastName]           = useState('')
-  const [selectedClass]                   = useState<AvatarClass>('mage')
   const [error, setError]                 = useState<string | null>(null)
   const [loading, setLoading]             = useState(false)
   const [signInLoading, setSignInLoading] = useState(false)
@@ -114,7 +119,7 @@ export function LoginForm({
     setError(null)
     setLoading(true)
     try {
-      const result = await completeSignupAction(username, selectedClass, firstName, lastName, {
+      const result = await completeSignupAction(username, DEFAULT_AVATAR_CLASS, firstName, lastName, {
         status,
         instagramUrl,
         xUrl,

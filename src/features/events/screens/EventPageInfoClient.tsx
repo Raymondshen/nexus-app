@@ -84,7 +84,6 @@ export function EventPageInfoClient({
   })()
 
   const coverSrc = event.cover_image_url || DEFAULT_EVENT_IMAGE
-  const isLocal  = !event.cover_image_url
 
   // Pre-fill values for the edit sheet from the current event
   const editInitialValues = {

@@ -105,7 +105,7 @@ export function SlidePage({ children, className, style, backHref, nativeSwipe, d
       x: '100%',
       transition: { type: 'tween', ease: [0.32, 0, 0.67, 0], duration: 0.15 },
     })
-  }, [controls, router, backHref]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [controls, router, backHref])
 
   useEffect(() => {
     if (skipEnter) {

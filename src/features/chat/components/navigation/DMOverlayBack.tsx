@@ -22,7 +22,6 @@ export function DMOverlayBack({
   initialXP,
   friendUsername,
   friendAvatarUrl,
-  friendId,
 }: DMOverlayBackProps) {
   const goBack = useSlideBack()
   // Selector, not a bare destructure — actions are stable, so this never re-renders;

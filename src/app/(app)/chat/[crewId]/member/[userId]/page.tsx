@@ -28,7 +28,6 @@ export default async function MemberProfilePage({ params }: Props) {
     globalMembershipsResult,
     globalMessagesResult,
     friendshipXPResult,
-    targetCrewMemberResult,
     photosResult,
   ] = await Promise.all([
     supabase
@@ -83,13 +82,6 @@ export default async function MemberProfilePage({ params }: Props) {
       .or(
         `and(user_a.eq.${viewerId},user_b.eq.${userId}),and(user_a.eq.${userId},user_b.eq.${viewerId})`
       )
-      .maybeSingle(),
-    // Joined date for this specific crew
-    supabase
-      .from('crew_members')
-      .select('joined_at')
-      .eq('crew_id', crewId)
-      .eq('user_id', userId)
       .maybeSingle(),
     // Profile photos for the member
     supabase

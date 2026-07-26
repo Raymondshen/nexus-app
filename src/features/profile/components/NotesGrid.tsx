@@ -129,7 +129,7 @@ function AddCard({ onClick }: { onClick: () => void }) {
 // ─── Section block ────────────────────────────────────────────────────────────
 
 function SectionBlock({
-  sectionId, name, notes, pending, failed, viewerId, isCreator, readOnly,
+  sectionId, name, notes, pending, failed, isCreator, readOnly,
   onNoteImageError, onNoteLongPress, onAddCard, onDeleteSection,
 }: {
   sectionId:        string | null
@@ -137,7 +137,6 @@ function SectionBlock({
   notes:            PublicNote[]
   pending:          PendingNote[]
   failed:           Set<string>
-  viewerId:         string
   isCreator:        boolean
   readOnly:         boolean
   onNoteImageError: (id: string) => void
@@ -485,7 +484,7 @@ export const NotesGrid = forwardRef<NotesGridHandle, NotesGridProps>(function No
     } finally {
       setLoadingMore(false)
     }
-  }, [loadingMore, hasMore, notes, lockCrew, initialCrewId, crewIds])
+  }, [loadingMore, hasMore, notes, lockCrew, initialCrewId, crewIds, creatorFilter])
 
   useEffect(() => { loadMoreRef.current = loadMore }, [loadMore])
 
@@ -631,7 +630,6 @@ export const NotesGrid = forwardRef<NotesGridHandle, NotesGridProps>(function No
                 notes={sNotes}
                 pending={pendingBySectionId[section.id] ?? []}
                 failed={failedImages}
-                viewerId={viewerId}
                 isCreator={isCreator(section)}
                 readOnly={readOnly}
                 onNoteImageError={(id) => setFailedImages(prev => new Set(prev).add(id))}
@@ -648,7 +646,6 @@ export const NotesGrid = forwardRef<NotesGridHandle, NotesGridProps>(function No
               notes={unsorted}
               pending={pendingBySectionId['__unsorted__'] ?? []}
               failed={failedImages}
-              viewerId={viewerId}
               isCreator={false}
               readOnly={readOnly}
               onNoteImageError={(id) => setFailedImages(prev => new Set(prev).add(id))}

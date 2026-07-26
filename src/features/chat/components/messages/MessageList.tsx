@@ -116,7 +116,6 @@ function definitionsEqual(a: SquadDefinitionWithCreator[], b: SquadDefinitionWit
 
 export function MessageList({
   crewId,
-  crewName,
   currentUserId,
   memberProfiles,
   creatorId,
@@ -236,7 +235,7 @@ export function MessageList({
       }
     } catch { }
     setHistoryLoaded(false)
-  }, [crewId]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [crewId])
 
   useEffect(() => {
     const cacheKey = `nexus-msgs-${crewId}`
@@ -501,13 +500,13 @@ export function MessageList({
     hasInitialScrolled.current    = true
     needsBottomCorrection.current = true
     pinToBottom()
-  }, [historyLoaded, items.length, pinToBottom]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [historyLoaded, items.length, pinToBottom])
 
   // Re-pin after every measurement batch that expands the virtual canvas
   const totalVirtualSize = virtualizer.getTotalSize()
   useBrowserLayoutEffect(() => {
     if (needsBottomCorrection.current) pinToBottom()
-  }, [totalVirtualSize, pinToBottom]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [totalVirtualSize, pinToBottom])
 
   // ─── Auto-scroll on new message (append) ─────────────────────────────────────
 
@@ -547,7 +546,7 @@ export function MessageList({
     // `anchorPendingRef` would stay stuck `true` forever, permanently blocking both
     // the auto-fill effect and manual scroll-up pagination (both gate on it). Same
     // reasoning as the auto-fill effect's dependency choice below.
-  }, [messages.length]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [messages.length])
 
   // ─── Pinned message scroll ────────────────────────────────────────────────────
 
@@ -721,7 +720,7 @@ export function MessageList({
     }
     // Self-reference is intentional: the closure compares itself against the store's
     // registered dispatcher as a staleness guard — it must NOT be its own dep.
-  }, [crewId, resolveProfile]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [crewId, resolveProfile])
 
   // Register the catch-up dispatcher for ChatInput's channel lifecycle to invoke.
   // Same store-callback pattern as requestRetrySend.

@@ -23,7 +23,7 @@ import { CLASS_BASE_STATS } from '@/shared/constants/classStats'
 import type { CombatClass } from '@/types'
 import { Button } from '@/shared/components/ui/Button'
 import type { CrewSummary } from '@/app/(app)/home/page'
-import type { Message, MessageWithProfile } from '@/types'
+import type { MessageWithProfile } from '@/types'
 import { useChatStore } from '@/store/chatStore'
 import { clearSkipNextSlideEnter, consumeHomeParallaxReveal } from '@/app/layouts/SlidePage'
 import { AnnouncementsSheet } from '@/shared/components/banners/AnnouncementsSheet'
@@ -80,7 +80,6 @@ function truncate(str: string, max: number): string {
 function AccountPreview({
   username,
   avatarUrl,
-  crewCount,
   totalMessages,
   status,
   onEditProfile,
@@ -89,7 +88,6 @@ function AccountPreview({
   infiniteCoins,
   showCoinTip,
   onCoinTap,
-  onFriends,
   onInviteSquad,
   fxpEnabled,
   totalFriendshipXP,
@@ -102,7 +100,6 @@ function AccountPreview({
 }: {
   username:          string
   avatarUrl:         string | null
-  crewCount:         number
   totalMessages:     number
   status:            string | null
   onEditProfile:     () => void
@@ -111,7 +108,6 @@ function AccountPreview({
   infiniteCoins:     boolean
   showCoinTip:       boolean
   onCoinTap:         () => void
-  onFriends:            () => void
   onInviteSquad:        () => void
   fxpEnabled:           boolean
   totalFriendshipXP:    number
@@ -1329,7 +1325,6 @@ export function HomeClient({
   userId,
   username,
   avatarUrl,
-  memberSince,
   profileCache,
   totalMessages,
   status,
@@ -1628,7 +1623,6 @@ export function HomeClient({
         <AccountPreview
           username={username}
           avatarUrl={avatarUrl}
-          crewCount={crews.length}
           totalMessages={totalMessages}
           status={status}
           onEditProfile={() => router.push('/profile')}
@@ -1640,7 +1634,6 @@ export function HomeClient({
             setShowCoinTip(true)
             setTimeout(() => setShowCoinTip(false), 2000)
           }}
-          onFriends={() => router.push('/friends')}
           onInviteSquad={() => setShowCreate(true)}
           fxpEnabled={fxpEnabled}
           totalFriendshipXP={localFriendshipXP}

@@ -482,8 +482,6 @@ function MessageBubbleImpl({
   groupId,
   currentUserId,
   crewId,
-  xpOverride,
-  coinOverride,
   onAvatarTap,
   definitions = EMPTY_DEFINITIONS,
   memberUsernames = EMPTY_USERNAMES,
@@ -543,54 +541,6 @@ function MessageBubbleImpl({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
   }, []);
-
-  // ─── XP count-up ────────────────────────────────────────────────────────────
-  const xpTarget = xpOverride ?? message.xp_awarded ?? 0;
-  const [displayXP, setDisplayXP] = useState(xpTarget);
-  const displayXPRef = useRef(xpTarget);
-
-  useEffect(() => {
-    const start = displayXPRef.current;
-    const end = xpTarget;
-    if (start === end) return;
-    const duration = 500;
-    const startTime = performance.now();
-    let raf: number;
-    function step(now: number) {
-      const t = Math.min((now - startTime) / duration, 1);
-      const eased = 1 - Math.pow(1 - t, 3);
-      const val = Math.round(start + (end - start) * eased);
-      displayXPRef.current = val;
-      setDisplayXP(val);
-      if (t < 1) raf = requestAnimationFrame(step);
-    }
-    raf = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf);
-  }, [xpTarget]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ─── Coin count-up ──────────────────────────────────────────────────────────
-  const coinTarget = coinOverride ?? ((message.xp_awarded ?? 0) > 0 ? 1 : 0);
-  const [_displayCoins, setDisplayCoins] = useState(coinTarget);
-  const displayCoinsRef = useRef(coinTarget);
-
-  useEffect(() => {
-    const start = displayCoinsRef.current;
-    const end = coinTarget;
-    if (start === end) return;
-    const duration = 500;
-    const startTime = performance.now();
-    let raf: number;
-    function step(now: number) {
-      const t = Math.min((now - startTime) / duration, 1);
-      const eased = 1 - Math.pow(1 - t, 3);
-      const val = Math.round(start + (end - start) * eased);
-      displayCoinsRef.current = val;
-      setDisplayCoins(val);
-      if (t < 1) raf = requestAnimationFrame(step);
-    }
-    raf = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf);
-  }, [coinTarget]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Reply tap — scroll to original message with a brief purple flash ───────
   function handleReplyTap() {
@@ -780,7 +730,7 @@ function MessageBubbleImpl({
       Object.entries(displayReactions)
         .filter(([, users]) => users.length > 0)
         .sort(([, a], [, b]) => b.length - a.length),
-    [displayReactions], // eslint-disable-line react-hooks/exhaustive-deps
+    [displayReactions],
   );
 
   // ─── System messages ────────────────────────────────────────────────────────

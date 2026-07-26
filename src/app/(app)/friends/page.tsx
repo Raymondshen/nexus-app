@@ -132,14 +132,6 @@ export default async function FriendsPage() {
     lastMessageAt: null,
   }))
 
-  const outgoing: FriendEntry[] = outgoingRows.map((r) => ({
-    friendship:    r,
-    profile:       profileMap[r.addressee_id] ?? null,
-    unreadCount:   0,
-    lastMessage:   null,
-    lastMessageAt: null,
-  }))
-
   return (
     <FriendsClient
       userId={user.id}

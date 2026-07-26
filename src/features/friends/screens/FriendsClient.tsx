@@ -259,7 +259,7 @@ export function FriendsClient({
     } finally {
       removeLoading(profile.id)
     }
-  }, [isGuest]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isGuest])
 
   const handleGoogleSignIn = useCallback(async () => {
     setGoogleLoading(true)

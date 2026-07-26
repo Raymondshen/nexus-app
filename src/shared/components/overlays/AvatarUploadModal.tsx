@@ -73,12 +73,6 @@ export function AvatarUploadModal({ file, userId, isDev, onClose, onSuccess }: A
     return () => URL.revokeObjectURL(url)
   }, [file])
 
-  function setStep(steps: DebugStep[], index: number, patch: Partial<DebugStep>): DebugStep[] {
-    const next = [...steps]
-    next[index] = { ...next[index], ...patch }
-    return next
-  }
-
   async function handleSave() {
     if (!croppedAreaPixels || saving) return
 

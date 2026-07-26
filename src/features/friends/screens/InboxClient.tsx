@@ -116,7 +116,7 @@ export function InboxClient({ incomingRequests: initialIncoming, outgoingRequest
     } finally {
       removeLoading(entry.friendship.id)
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleDecline = useCallback(async (entry: FriendEntry) => {
     addLoading(entry.friendship.id)
@@ -128,7 +128,7 @@ export function InboxClient({ incomingRequests: initialIncoming, outgoingRequest
     } finally {
       removeLoading(entry.friendship.id)
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleCancel = useCallback(async (entry: FriendEntry) => {
     addLoading(entry.friendship.id)
@@ -140,7 +140,7 @@ export function InboxClient({ incomingRequests: initialIncoming, outgoingRequest
     } finally {
       removeLoading(entry.friendship.id)
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])
 
   const isEmpty = incoming.length === 0 && outgoing.length === 0
 

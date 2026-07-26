@@ -55,7 +55,6 @@ function formatEventDate(dateStr: string): string {
 function EventCardPreview({ event, crewId }: { event: EnrichedEvent; crewId: string }) {
   const router = useRouter()
   const coverSrc = event.cover_image_url || DEFAULT_EVENT_IMAGE
-  const isLocal  = !event.cover_image_url
 
   return (
     <button
@@ -167,7 +166,6 @@ function EventCardPreview({ event, crewId }: { event: EnrichedEvent; crewId: str
 
 export function EventPageFull({ crewId, currentUserId }: EventPageFullProps) {
   const goBack     = useSlideBack()
-  const router     = useRouter()
   const [events,      setEvents]      = useState<EnrichedEvent[]>([])
   const [loading,     setLoading]     = useState(true)
   const [showCreate,  setShowCreate]  = useState(false)

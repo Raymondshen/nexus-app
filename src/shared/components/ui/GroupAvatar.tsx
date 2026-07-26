@@ -39,6 +39,9 @@ export function GroupAvatar({
           loader={avatarImageLoader}
         />
       ) : (
+        // next/image would need `dangerouslyAllowSVG` (not set in next.config.ts) to
+        // serve a local SVG through its optimizer — a plain <img> is correct here.
+        // eslint-disable-next-line @next/next/no-img-element
         <img src="/icons/ghost-fallback.svg" alt="" className="w-full h-full" style={{ imageRendering: 'pixelated' }} />
       )}
     </div>

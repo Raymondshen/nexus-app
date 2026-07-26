@@ -53,7 +53,6 @@ function EventCardPreview({
   onTap:  () => void
 }) {
   const coverSrc = event.cover_image_url || DEFAULT_EVENT_IMAGE
-  const isLocal  = !event.cover_image_url
 
   return (
     <button
