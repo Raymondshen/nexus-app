@@ -107,11 +107,15 @@ interface ChatFloatingNavProps {
   /** This user's class for THIS crew (crew_members.class, not profiles.avatar_class —
    *  class is per-membership) — drives the right-side sprite + label (Figma 603:3526). */
   avatarClass?:                 AvatarClass | null
-  /** Total unread message count across every non-DM crew this user belongs to (server-
-   *  computed once at page load, same "initial snapshot" treatment as
+  /** Total unread message count across every OTHER non-DM crew this user belongs to
+   *  (server-computed once at page load, same "initial snapshot" treatment as
    *  initialGemBalance/initialCoins — it doesn't live-update as messages arrive in
-   *  OTHER rooms while this one stays open, since that would need a cross-crew realtime
-   *  subscription this component doesn't otherwise need). Omitted/0 hides the row. */
+   *  those other rooms while this one stays open, since that would need a cross-crew
+   *  realtime subscription this component doesn't otherwise need). Deliberately excludes
+   *  THIS crew (see chat/[crewId]/page.tsx's Stage 3) — its own unread count would just be
+   *  stale last_seen state that's about to be read the instant this page renders, and with
+   *  no client-side live update, showing it here would leave the badge stuck at that count
+   *  until the user navigated elsewhere and back. Omitted/0 hides the row. */
   initialTotalUnreadMessages?: number
 }
 

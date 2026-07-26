@@ -11,8 +11,10 @@ Silkscreen
   Silkscreen headings (distinct from page-title usage, which runs larger — xl/xxl).
   Code: `font-silkscreen text-[length:var(--text-md)]`. No current use — the swipe-nav
   transition splash's room-name row (ChatRoomPeekLayer.tsx) used to be the reference
-  example here, but a later Figma revision (node 659:9526) moved that row to
-  `app/title` (DM Sans Bold, md/16px) instead — see the `font-body` bold usage below.
+  example here, then briefly moved to DM Sans Bold md/16px, before the current Figma
+  revision (node 659:9526) moved it again to DM Sans Black (font-black/900) at display
+  size (32px, `--text-display`), uppercase, 0.64px tracking — see the `font-body` black
+  usage in ChatRoomPeekLayer.tsx's `PeekGhost`.
 
 Headings / Titles:
 - Display

@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import DelayedSkeleton from '@/shared/components/ui/DelayedSkeleton'
 import { useChatRoomPeekStore } from '@/features/chat/store/chatRoomPeekStore'
@@ -27,7 +28,20 @@ import { ChatMessageSkeletonRows } from '@/features/chat/components/messages/Cha
 export default function ChatLoading() {
   const { crewId } = useParams<{ crewId: string }>()
   const peek = useChatRoomPeekStore((s) => s.peek)
-  if (peek && peek.phase === 'committing' && peek.targetCrewId === crewId) return null
+  const isPeekTarget = !!peek && peek.phase === 'committing' && peek.targetCrewId === crewId
+
+  // This component MOUNTING (regardless of what it renders) is itself proof the outgoing
+  // room's real page was just torn down for this navigation — the slow-path half of
+  // `chatRoomPeekStore`'s `exposed` flag (see that flag's own doc comment for the fast-
+  // path half, set directly by ChatRoomPeekLayer once the destination lands instead).
+  // This is what tells the peek layer's ghost/label it has actually become visible, so
+  // its entrance animation can start from here rather than from whenever `peek` was
+  // first created (while still fully hidden behind the page this replaced).
+  useEffect(() => {
+    if (isPeekTarget) useChatRoomPeekStore.getState().setExposed(true)
+  }, [isPeekTarget])
+
+  if (isPeekTarget) return null
 
   return (
     <DelayedSkeleton>

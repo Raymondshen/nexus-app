@@ -2,7 +2,7 @@
 import { createContext, useContext, useRef, useCallback, useEffect } from 'react'
 import { motion, useAnimation } from 'framer-motion'
 import { useRouter } from 'next/navigation'
-import { SWIPE_NAV_ARRIVAL_FADE_MS } from '@/features/chat/store/chatRoomPeekStore'
+import { SWIPE_NAV_ARRIVAL_FADE_MS, useChatRoomPeekStore } from '@/features/chat/store/chatRoomPeekStore'
 
 const SlideBackContext = createContext<() => void>(() => {})
 
@@ -37,9 +37,14 @@ let _fadeInOnNextSkip = false
 // all before this navigation (unlike a plain back-nav, where the previous page was
 // already rendered underneath and popping straight to visible is correct). Chat's
 // swipe-nav is the only current caller that passes this: SlidePage mounts at opacity 0
-// and fades to 1 over SWIPE_NAV_ARRIVAL_FADE_MS, blending from whatever's still
-// showing underneath (ChatRoomPeekLayer keeps itself mounted for that same duration —
-// see its own doc comment) instead of instantly occluding it.
+// and stays there — it does NOT start fading in the instant it mounts. It waits on
+// chatRoomPeekStore's `revealReady` flag instead (see the effect below), which only
+// flips once ChatRoomPeekLayer's own reveal timeline has run its course (a guaranteed
+// minimum reveal window, then a landed-check, then a hold — see that component's doc
+// comment for the full choreography); once it does, this page fades to opacity 1 over
+// SWIPE_NAV_ARRIVAL_FADE_MS, blending from whatever's still showing underneath
+// (ChatRoomPeekLayer keeps itself mounted for that same duration) instead of instantly
+// occluding it.
 export function skipNextSlideEnter(fadeIn = false) {
   _skipNextSlideEnter  = true
   _fadeInOnNextSkip    = fadeIn
@@ -91,6 +96,14 @@ export function SlidePage({ children, className, style, backHref, nativeSwipe, d
   // Read synchronously at render time so initial= is correct on first paint.
   const skipEnter    = _skipNextSlideEnter
   const fadeInOnSkip = _fadeInOnNextSkip
+  // Snapshotted into a ref (rather than read fresh from the module var on every render)
+  // because the mount effect below clears `_fadeInOnNextSkip` back to false right after
+  // reading it — a later re-render of this SAME instance (e.g. when `revealReady` flips,
+  // which can happen up to ~1.5s after mount) would otherwise recompute `fadeInOnSkip` as
+  // false and silently defeat the gated effect further down. `useRef`'s initializer only
+  // ever runs once, so this preserves the value as of first render regardless of what the
+  // module var does afterward.
+  const fadeInOnSkipRef = useRef(fadeInOnSkip)
 
   const goBack = useCallback(() => {
     if (exiting.current) return
@@ -111,12 +124,9 @@ export function SlidePage({ children, className, style, backHref, nativeSwipe, d
     if (skipEnter) {
       _skipNextSlideEnter = false
       _fadeInOnNextSkip   = false
-      if (fadeInOnSkip) {
-        controls.start({
-          opacity: 1,
-          transition: { duration: SWIPE_NAV_ARRIVAL_FADE_MS / 1000, ease: 'easeOut' },
-        })
-      }
+      // fadeInOnSkip's own opacity tween is NOT started here — see the `revealReady`-
+      // gated effect below for why, and this page stays at its initial opacity:0 (set
+      // via the `initial=` prop further down) until that fires.
     } else {
       controls.start({
         x: 0,
@@ -124,6 +134,20 @@ export function SlidePage({ children, className, style, backHref, nativeSwipe, d
       })
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Chat's swipe-nav arrival crossfade: don't start fading this page in the instant it
+  // mounts — wait for ChatRoomPeekLayer's own reveal timeline to actually finish first
+  // (see skipNextSlideEnter's `fadeIn` doc comment above). Only relevant when
+  // fadeInOnSkip was true at mount; `revealReady` is otherwise irrelevant to every other
+  // SlidePage in the app (plain nav, back-nav) and stays false for them.
+  const revealReady = useChatRoomPeekStore((s) => s.revealReady)
+  useEffect(() => {
+    if (!fadeInOnSkipRef.current || !revealReady) return
+    controls.start({
+      opacity: 1,
+      transition: { duration: SWIPE_NAV_ARRIVAL_FADE_MS / 1000, ease: 'easeOut' },
+    })
+  }, [revealReady, controls])
 
   useEffect(() => {
     if (backHref) router.prefetch(backHref)

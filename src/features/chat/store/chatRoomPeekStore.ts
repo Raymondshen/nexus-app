@@ -16,6 +16,23 @@ import { create } from 'zustand'
 // mid-fade. Both sides read this one constant so they can't drift out of sync.
 export const SWIPE_NAV_ARRIVAL_FADE_MS = 250
 
+// Reveal→fade choreography for the destination room's ghost/label placeholder (see
+// ChatRoomPeekLayer's own doc comment for the full timeline). Per explicit spec: (1) the
+// label's own slide-up + fade-in entrance runs for exactly this long — it also doubles as
+// the minimum time the ghost plays, unconditionally, before the "has the destination
+// actually landed?" check runs, so the check only ever fires once the entrance has
+// actually finished (never mid-tween), and so a fast/cached room switch doesn't just
+// flash the ghost for a handful of milliseconds before cutting to the real page. Both
+// this and the entrance/exit tweens are anchored to `exposed` (see that flag below), not
+// to when `peek` itself is created — otherwise the "duration" here would include however
+// long the outgoing page took to actually unmount and reveal this layer, which is exactly
+// what made the entrance feel instant/skipped in practice before `exposed` was added.
+export const PEEK_MIN_REVEAL_MS = 1000
+// (3) Once the destination has landed (whichever happens later: this minimum, or the
+// actual data load), the ghost keeps running for this much longer before the crossfade —
+// and the label's own slide-down + fade-out — starts.
+export const PEEK_CONTINUE_MS = 1000
+
 export interface RoomMetaOnlineMember {
   id:        string
   username:  string
@@ -74,6 +91,39 @@ interface ChatRoomPeekStore {
   peek:    PeekState | null
   setPeek: (peek: PeekState | null) => void
 
+  // True once the ghost/label placeholder has actually become visible to the user — i.e.
+  // once whatever was covering it (the outgoing room's real page) has been removed from
+  // the DOM. `peek` becomes non-null (and ChatRoomPeekLayer starts rendering the ghost)
+  // the instant the user taps a room card, well before that's actually true: Next.js
+  // keeps the outgoing page mounted, fully opaque, on top of this layer for however long
+  // the destination route takes to resolve. Two different call sites can be the one that
+  // flips this, whichever happens first: `chat/[crewId]/loading.tsx` mounting (its own
+  // render is `null` in the swipe-nav case, but the mount itself proves the outgoing page
+  // was just torn down — the slow path, when the destination route doesn't resolve
+  // instantly) or `ChatRoomPeekLayer` itself detecting `currentCrewId === peek.
+  // targetCrewId` (the fast path — a cached/instant navigation can skip the loading
+  // fallback entirely and mount the real destination page directly, which itself mounts
+  // at opacity 0 per `skipNextSlideEnter`'s `fadeIn` param, momentarily exposing this
+  // layer through it). Without this, the label's entrance was timed from `peek`'s own
+  // creation instead — meaning on any navigation slower than an instant tap, most or all
+  // of the entrance tween played out while still fully hidden, and by the time the user
+  // could actually see anything, the label was already sitting at its resting state —
+  // which is exactly the "feels instant" symptom this was added to fix. `setPeek` resets
+  // this to false whenever a new gesture starts.
+  exposed:    boolean
+  setExposed: (exposed: boolean) => void
+
+  // Flips true once ChatRoomPeekLayer's own reveal→fade timeline (PEEK_MIN_REVEAL_MS,
+  // then the "has the destination landed?" check, then PEEK_CONTINUE_MS — see that
+  // component's doc comment) has actually run its course. This is the signal SlidePage's
+  // `fadeInOnSkip` branch waits on before starting the destination page's own opacity
+  // crossfade, instead of starting it the instant the page mounts (see both components'
+  // doc comments for the full choreography). `setPeek` resets this to false whenever a
+  // new gesture starts, so a stale `true` from a previous room switch can't leak into
+  // the next one.
+  revealReady:    boolean
+  setRevealReady: (ready: boolean) => void
+
   // Live rendered height of the current room's ChatSquadDetailBar + input box
   // (ChatInput's own outermost element, measured via ResizeObserver — see ChatInput's
   // chatInputBoxRef effect). Since only the message-history log container now slides
@@ -94,7 +144,13 @@ export const useChatRoomPeekStore = create<ChatRoomPeekStore>((set) => ({
   setRoomMeta: (crewId, meta) => set((s) => ({ roomMeta: { ...s.roomMeta, [crewId]: meta } })),
 
   peek: null,
-  setPeek: (peek) => set({ peek }),
+  setPeek: (peek) => set(peek ? { peek, exposed: false, revealReady: false } : { peek }),
+
+  exposed: false,
+  setExposed: (exposed) => set((s) => (s.exposed === exposed ? s : { exposed })),
+
+  revealReady: false,
+  setRevealReady: (ready) => set({ revealReady: ready }),
 
   chatInputHeight: 140,
   setChatInputHeight: (h) => set((s) => (s.chatInputHeight === h ? s : { chatInputHeight: h })),

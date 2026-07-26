@@ -144,15 +144,23 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
   }
 
   // Stage 3 — total unread "group messages" (non-DM only, matching chatRoomOrderRows above)
-  // across every crew this user belongs to, for ChatFloatingNav's header (Figma 603:3526).
-  // Depends on Stage 2's crew ids/cutoffs, so it can't join that parallel batch; run after
-  // the membership/class redirects above so a page that's about to redirect away doesn't
-  // pay for this extra round trip first. Same last_seen-falls-back-to-joined_at cutoff
-  // convention home/page.tsx's own unread query uses.
-  const totalUnreadResult = chatRoomOrderRows.length > 0
+  // across every OTHER crew this user belongs to, for ChatFloatingNav's header (Figma
+  // 603:3526). Excludes the crew being rendered right now (`crewId`) — same convention
+  // chatRoomPeekStore's RoomMeta.unreadCount already uses ("always 0 for the room currently
+  // open") — since whatever this crew's stale `last_seen` cutoff would otherwise count as
+  // unread is, by definition, about to be read the instant this page renders. Without this
+  // exclusion the badge would show "N New Messages" for messages already on screen, and
+  // since this prop is a one-time server snapshot with no client-side live update, it would
+  // stay stuck at that count for the rest of the session in this room. Depends on Stage 2's
+  // crew ids/cutoffs, so it can't join that parallel batch; run after the membership/class
+  // redirects above so a page that's about to redirect away doesn't pay for this extra round
+  // trip first. Same last_seen-falls-back-to-joined_at cutoff convention home/page.tsx's own
+  // unread query uses.
+  const otherRoomRows = chatRoomOrderRows.filter((r) => r.crew_id !== crewId)
+  const totalUnreadResult = otherRoomRows.length > 0
     ? await supabase.rpc('get_unread_counts', {
-        p_crew_ids: chatRoomOrderRows.map((r) => r.crew_id),
-        p_cutoffs:  chatRoomOrderRows.map((r) => (r.last_seen ?? r.joined_at) as string),
+        p_crew_ids: otherRoomRows.map((r) => r.crew_id),
+        p_cutoffs:  otherRoomRows.map((r) => (r.last_seen ?? r.joined_at) as string),
       })
     : { data: [] as { crew_id: string; unread_count: number }[] };
   const totalUnreadMessages = (totalUnreadResult.data ?? []).reduce((sum, r) => sum + (r.unread_count ?? 0), 0);
