@@ -2,6 +2,7 @@
 
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronUp } from 'pixelarticons/react/ChevronUp'
+import { ChevronDown } from 'pixelarticons/react/ChevronDown'
 import { User } from 'pixelarticons/react/User'
 import { UserAvatar } from '@/shared/components/ui/UserAvatar'
 import { GroupAvatar } from '@/shared/components/ui/GroupAvatar'
@@ -17,6 +18,11 @@ interface ChatSquadDetailBarProps {
   /** Fires on any tap on the bar — the caller (ChatInput) owns the actual toggle
    *  logic for whatever this opens/closes (ChatRoomBrowseSheet). */
   onTap:         () => void
+  /** Whether ChatRoomBrowseSheet (the thing this bar's `onTap` toggles) is
+   *  currently open — flips the swipe-hint chevron from up to down so it keeps
+   *  pointing toward whatever tapping it again would do (open below vs. close
+   *  back down). */
+  isSheetOpen?:  boolean
 }
 
 // Shared top-to-bottom slide used by the crew image and name below — the incoming
@@ -61,7 +67,7 @@ export function SwipeHintIcon() {
 
 export function ChatSquadDetailBar({
   crewImageUrl, crewName, crewLevel, memberCount, members, onlineUserIds,
-  onTap,
+  onTap, isSheetOpen = false,
 }: ChatSquadDetailBarProps) {
   const onlineMembers = members.filter((m) => onlineUserIds.has(m.id))
 
@@ -165,9 +171,13 @@ export function ChatSquadDetailBar({
       {/* Swipe-gesture hint (Figma 645:8050 "chevron_up") — purely decorative, no
           action of its own, so a tap here bubbles up to the row's own onClick like
           the rest of the bar (same as the online-avatars row above) rather than
-          stopping propagation. Static — no accompanying text label. */}
+          stopping propagation. Static — no accompanying text label. Flips to
+          ChevronDown while `isSheetOpen` (ChatRoomBrowseSheet is showing), so the
+          hint always points toward what tapping it again does. */}
       <div className="flex-shrink-0" aria-hidden="true">
-        <ChevronUp style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+        {isSheetOpen
+          ? <ChevronDown style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />
+          : <ChevronUp style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />}
       </div>
     </motion.div>
   )

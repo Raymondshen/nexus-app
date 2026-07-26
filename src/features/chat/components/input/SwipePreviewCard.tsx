@@ -90,7 +90,7 @@ export function SwipePreviewCard({
         <div className="flex items-center w-full flex-shrink-0" style={{ gap: 8 }}>
           <GroupAvatar imageUrl={room.imageUrl} name={room.name} size={32} />
           <div className="flex flex-col flex-1 min-w-0" style={{ gap: 4 }}>
-            <p className="font-body font-bold text-primary truncate leading-none" style={{ fontSize: 16, fontVariationSettings: '"opsz" 14' }}>
+            <p className="font-body font-bold text-primary truncate leading-none uppercase" style={{ fontSize: 16, fontVariationSettings: '"opsz" 14' }}>
               {room.name}
             </p>
             <div className="flex items-center flex-shrink-0" style={{ gap: 4 }}>

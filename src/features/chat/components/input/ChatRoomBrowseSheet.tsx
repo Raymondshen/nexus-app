@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronDown } from 'pixelarticons/react/ChevronDown'
 import { Bell } from 'pixelarticons/react/Bell'
@@ -13,6 +13,7 @@ import { SheetActionButton } from '@/shared/components/ui/SheetActionButton'
 import { SwipePreviewCard } from '@/features/chat/components/input/SwipePreviewCard'
 import { SquadDetailCard, SquadMemberRow, type MiniMember } from '@/features/chat/components/sheets/SquadDetailCard'
 import { useSheetDrag } from '@/shared/components/ui/sheet/useSheetDrag'
+import { useSpriteFrameLoop } from '@/shared/hooks/useSpriteFrameLoop'
 import { useChatRoomPeekStore, type RoomMeta } from '@/features/chat/store/chatRoomPeekStore'
 
 // Long-press timing for the room card's Pin Squad sheet — same 500ms threshold
@@ -50,12 +51,24 @@ const PIN_LONG_PRESS_MS = 500
 // PageHeader owns the sheet's top/left/right padding now; the body wrapper below
 // only carries the remaining bottom padding + inter-section gap.
 //
-// "Latest News" section (Figma 674:14485, renamed from "Notifications") — a
-// stacked card per room with unread messages (Figma 674:14869), newest activity
-// first (`unreadRooms` below), shown above the "Squads" row (deliberately
-// reordered from Figma 589:3619's own top-to-bottom layout, which has "Squads"
-// first — Notifications leads here by explicit request). Tapping a card navigates
-// there, same as tapping its card in the Squads row. Unlike Home's own
+// A brief revision reused `ChatSquadDetailBar` (crew identity + online-avatars row,
+// with its trailing swipe-hint chevron overridden by real Bell/BellOff+ChevronDown
+// action buttons) for this header instead of the static title — reverted back to
+// this by explicit request. The override mechanism that reuse needed (a
+// `trailingSlot` prop on `ChatSquadDetailBar`) was removed outright rather than left
+// as dead code once this was its only consumer; `ChatSquadDetailBar`'s `isSheetOpen`
+// prop is unrelated and still live, driving the collapsed in-room bar's own up/down
+// swipe-hint chevron.
+//
+// "Notifications" section (Figma 674:14485 — the node itself reads "Group
+// Notifications", but per explicit request the in-app copy drops "Group"; this went
+// through "Notifications" → "Latest News" → "Group Notifications" → back to
+// "Notifications" across successive revisions) — a stacked
+// card per room with unread messages (Figma 674:14869), newest activity first
+// (`unreadRooms` below), shown above the "Squads" row (deliberately reordered from
+// Figma 589:3619's own top-to-bottom layout, which has "Squads" first —
+// Notifications leads here by explicit request). Tapping a card navigates there,
+// same as tapping its card in the Squads row. Unlike Home's own
 // DmNotificationPreviewCard, this section is never hidden — with zero unread rooms
 // it renders a bordered empty state (`NoNotificationsCard`, Figma 674:14541)
 // instead, so the sheet always shows both sections. Its wrapper carries
@@ -234,7 +247,7 @@ export function ChatRoomBrowseSheet({
   }
 
   // Every room with unread messages, newest activity first — see this file's top
-  // doc comment for the "Latest News" section this feeds (Figma 674:14869 — a
+  // doc comment for the "Notifications" section this feeds (Figma 674:14869 — a
   // stacked card per unread room, replacing the empty state entirely once there's
   // at least one). The current room is never a candidate here since ChatInput
   // always publishes its own unreadCount as 0 (see RoomMeta.unreadCount's doc
@@ -407,7 +420,7 @@ export function ChatRoomBrowseSheet({
                   className="font-body font-medium text-primary leading-none truncate w-full"
                   style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
                 >
-                  Latest News
+                  Notifications
                 </p>
                 {unreadRooms.length > 0
                   ? (
@@ -557,7 +570,7 @@ export function ChatRoomBrowseSheet({
                 file's top doc comment for why `squadDetail` is threaded down rather
                 than derived from RoomMeta, and why it's null (nothing rendered) on the
                 DM screen. The section label precedes the card, same pattern as the
-                "Latest News"/"Squads" section labels above. */}
+                "Notifications"/"Squads" section labels above. */}
             {squadDetail && (
               <div
                 className="flex flex-col w-full flex-shrink-0"
@@ -778,9 +791,10 @@ function NotificationPreviewCard({ room, onTap }: { room: BrowseRoom; onTap: () 
 }
 
 // Shown in place of NotificationPreviewCard when no room has unread messages — the
-// "Latest News" section always renders (see this file's top doc comment), it just
-// swaps between the card and this empty state rather than disappearing. Figma
-// 674:14541 — a bordered (`--color-border`, rounded-x3) box, still filling the
+// "Notifications" section always renders (see this file's top doc comment), it
+// just swaps between the card and this empty state rather than disappearing. Figma
+// 674:14541 — a DASHED (`--color-border`, rounded-x3) box — verified against the live
+// design context, not `1px solid` as this used to render — still filling the
 // section's own flex-1 space (unlike the unread NotificationPreviewCard's
 // natural-height `--color-surface-sheet` box): sleeping-ghost sprite + muted copy,
 // centered.
@@ -788,9 +802,9 @@ function NoNotificationsCard() {
   return (
     <div
       className="w-full flex-1 min-h-0 flex flex-col items-center justify-center text-center rounded-[var(--x3,8px)]"
-      style={{ gap: 'var(--space-2)', border: '1px solid var(--color-border)', paddingLeft: 'var(--x11)', paddingRight: 'var(--x11)' }}
+      style={{ gap: 'var(--space-2)', border: '1px dashed var(--color-border)', paddingLeft: 'var(--x11)', paddingRight: 'var(--x11)' }}
     >
-      <SleepingGhost size={56} />
+      <SleepingGhost size={48} />
       <p
         className="font-body font-normal text-tertiary w-full"
         style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14', lineHeight: 1.5 }}
@@ -802,24 +816,19 @@ function NoNotificationsCard() {
 }
 
 // Figma 674:15420 "Frame331" — a 9-frame wave-loop sprite (public/sprites/ghost/wave/
-// wave_0001.webp…0009.webp, 1-indexed, same frame-cycling pattern as SleepingGhost
-// below) for the Create Squad card. The Figma node crops each 56×56 native frame to a
-// tighter, centered 40×40 zoom (`size-[157.78%]` at `inset -28.89%` on all sides) rather
-// than showing the sprite's full padded canvas — (56 / 1.5778) ≈ 35.5px of the source is
-// kept and scaled up, ((157.78% * 40) - 40) / 2 ≈ 11.56px trimmed off each edge — so this
-// reproduces that same crop via an absolute-positioned, oversized `<img>` inside an
-// `overflow-hidden` box rather than rendering the frame at its native size like
-// SleepingGhost/LaunchSplashContent do.
+// wave_0001.webp…0009.webp, 1-indexed, same shared `useSpriteFrameLoop` cycling
+// SleepingGhost below uses) for the Create Squad card. The Figma node crops each
+// 56×56 native frame to a tighter, centered 40×40 zoom (`size-[157.78%]` at `inset
+// -28.89%` on all sides) rather than showing the sprite's full padded canvas —
+// (56 / 1.5778) ≈ 35.5px of the source is kept and scaled up, ((157.78% * 40) - 40) /
+// 2 ≈ 11.56px trimmed off each edge — so this reproduces that same crop via an
+// absolute-positioned, oversized `<img>` inside an `overflow-hidden` box rather than
+// rendering the frame at its native size like SleepingGhost/LaunchSplashContent do.
 const WAVE_FRAME_COUNT = 9
 const WAVE_FRAME_MS    = 150
 
 function WaveGhost({ size = 40 }: { size?: number }) {
-  const [frame, setFrame] = useState(0)
-
-  useEffect(() => {
-    const id = setInterval(() => setFrame((f) => (f + 1) % WAVE_FRAME_COUNT), WAVE_FRAME_MS)
-    return () => clearInterval(id)
-  }, [])
+  const frame = useSpriteFrameLoop(WAVE_FRAME_COUNT, WAVE_FRAME_MS)
 
   return (
     <div className="relative flex-shrink-0 overflow-hidden" style={{ width: size, height: size }}>
@@ -843,30 +852,42 @@ function WaveGhost({ size = 40 }: { size?: number }) {
 }
 
 // Figma 599:7813 ("A_small_round_ghost_with_front-flip_south") — a 9-frame sleep-loop
-// sprite (public/sprites/ghost/sleep/ghost-sleeping_0001.webp…0009.webp, 1-indexed),
-// looped continuously via setInterval. ChatRoomPeekLayer's own ghost placeholder used
-// to animate the same way (a different sprite/frame set) but is now a single static
-// frame — this is the only sprite in the app still doing frame-cycling, not worth a
-// shared sprite-loop abstraction for just one consumer.
+// sprite (public/sprites/ghost/sleep/ghost-sleeping_0001.webp…0009.webp, 1-indexed).
+// The frame-cycling mechanism itself (index state + interval + wraparound) is shared
+// via `useSpriteFrameLoop` with WaveGhost above and ChatRoomPeekLayer's own swipe-nav
+// splash ghost — the three were byte-for-byte identical modulo the frame count/
+// interval, and that hook also gets all three `prefers-reduced-motion` support they
+// didn't have before. Rendering stays bespoke per component, since each crops/sizes
+// its own sprite sheet differently and there's no value in forcing that into a shared
+// shape too. Cropped per NoNotificationsCard's own Figma node (674:14543): each
+// native 56×56 frame has asymmetric transparent padding around the ghost (unlike
+// WaveGhost's evenly-padded sprite), so the crop offset isn't the same on both axes —
+// `left: -45.39%`/`top: -21.7%` at `168.17%` scale, straight from Figma's own crop
+// numbers — inside a 48×48 overflow-hidden box.
 const SLEEP_FRAME_COUNT = 9
 const SLEEP_FRAME_MS    = 200
 
-function SleepingGhost({ size = 80 }: { size?: number }) {
-  const [frame, setFrame] = useState(0)
-
-  useEffect(() => {
-    const id = setInterval(() => setFrame((f) => (f + 1) % SLEEP_FRAME_COUNT), SLEEP_FRAME_MS)
-    return () => clearInterval(id)
-  }, [])
+function SleepingGhost({ size = 48 }: { size?: number }) {
+  const frame = useSpriteFrameLoop(SLEEP_FRAME_COUNT, SLEEP_FRAME_MS)
 
   return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={`/sprites/ghost/sleep/ghost-sleeping_${String(frame + 1).padStart(4, '0')}.webp`}
-      alt=""
-      style={{ width: size, height: size, flexShrink: 0, imageRendering: 'pixelated' }}
-      aria-hidden="true"
-    />
+    <div className="relative flex-shrink-0 overflow-hidden" style={{ width: size, height: size }}>
+      {/* eslint-disable-next-line @next/next/no-img-element -- small looping pixel sprite, next/image adds no value here */}
+      <img
+        src={`/sprites/ghost/sleep/ghost-sleeping_${String(frame + 1).padStart(4, '0')}.webp`}
+        alt=""
+        style={{
+          position:       'absolute',
+          left:           '-45.39%',
+          top:            '-21.7%',
+          width:          '168.17%',
+          height:         '168.17%',
+          maxWidth:       'none',
+          imageRendering: 'pixelated',
+        }}
+        aria-hidden="true"
+      />
+    </div>
   )
 }
 

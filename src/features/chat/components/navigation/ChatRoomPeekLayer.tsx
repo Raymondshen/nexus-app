@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { useChatRoomPeekStore, SWIPE_NAV_ARRIVAL_FADE_MS, type RoomMeta } from '@/features/chat/store/chatRoomPeekStore'
 import { ChatSquadDetailBar } from '@/features/chat/components/header/ChatSquadDetailBar'
+import { useSpriteFrameLoop } from '@/shared/hooks/useSpriteFrameLoop'
 import { Send } from 'pixelarticons/react/Send'
 import { Plus } from 'pixelarticons/react/Plus'
 import type { MemberProfile } from '@/features/chat/components/input/ChatInput'
@@ -53,12 +54,12 @@ function noop() {}
 // over it anyway).
 //
 // So this layer renders two independent pieces: a floating ghost loading placeholder
-// (Figma 637:3802 — a single static frame, public/sprites/ghost/walk/frame_000.png, a
-// distinct asset from MessageList's own EmptyState gif, plus a "Migrating to
-// {target-room-name}" line underneath — occluded the same way as the bar/input shell
-// during an active drag, and only actually revealed in the post-commit unmount→mount
-// gap, same timing as the shell) and the
-// static, group-A-identity bar/input shell described above. This message-area
+// (Figma 637:3802 — a looping walk-cycle sprite, public/sprites/ghost/walk/
+// frame_000.png…frame_005.png, a distinct asset from MessageList's own EmptyState gif,
+// plus a "Migrating To {target-room-name}" line underneath — occluded the same way as
+// the bar/input shell during an active drag, and only actually revealed in the
+// post-commit unmount→mount gap, same timing as the shell) and the static,
+// group-A-identity bar/input shell described above. This message-area
 // placeholder is swipe-nav-specific — chat/[crewId]/loading.tsx's own route-level
 // fallback (a normal navigation with nothing on screen yet: tap in from Home, deep
 // link, back-nav) keeps its own ChatMessageSkeletonRows skeleton, a deliberately
@@ -211,18 +212,31 @@ function PeekBarAndInput({ meta }: { meta: RoomMeta }) {
   )
 }
 
-// Figma 637:3802 ("body") — a single static frame (public/sprites/ghost/walk/
-// frame_000.png, same sprite sheet as the walk cycle other ghost surfaces use, just
-// not looped here — this is a resting placeholder, not an animated character) at
-// 40×40, plus a "Migrating to {room}" line underneath in Silkscreen (Regular, md/16px
-// — see the design-system skill's typography.md, `font-silkscreen` section): "Migrating
-// to" in `--color-muted`, the room name in `--color-primary`, matching the Figma node's
-// two-span text run. `label` is the target room's name from roomMeta — already
-// prefetched for the adjacent rooms in chatRoomOrder by the time a drag can actually
-// reach this far (see ChatInput's own prefetch effect), so this is null only in the
-// unlikely case that prefetch hasn't resolved yet; the whole line just doesn't render
-// rather than show "Migrating to" next to a blank/undefined name.
+// Figma 637:3802 ("body") — a looping 6-frame walk-cycle sprite (public/sprites/
+// ghost/walk/frame_000.png…frame_005.png, 0-indexed) at 48×48, cropped the same way
+// WaveGhost crops the wave sprite's padded canvas: each native 48×48 frame has
+// visible transparent padding around the ghost, so it's zoomed via an oversized
+// absolute `<img>` (183.2% at a -41.6% inset, straight from Figma's own crop numbers)
+// inside a 48×48 overflow-hidden box rather than rendered at 1:1 like SleepingGhost's
+// own (unpadded) sprite. The frame-cycling mechanism itself comes from the shared
+// `useSpriteFrameLoop` hook (also used by ChatRoomBrowseSheet's WaveGhost/
+// SleepingGhost) — same interval-driven index, now with `prefers-reduced-motion`
+// support none of the three had before. Below the sprite, a "Migrating To {room}"
+// line in DM Sans Bold md/16px (Figma's `app/title` text style — this screen used to
+// run Silkscreen instead, since corrected; see the design-system skill's
+// typography.md): "Migrating To " in `--color-muted`, the room name in
+// `--color-primary` bold, matching the Figma node's two-span text run. `label` is the
+// target room's name from roomMeta — already prefetched for the adjacent rooms in
+// chatRoomOrder by the time a drag can actually reach this far (see ChatInput's own
+// prefetch effect), so this is null only in the unlikely case that prefetch hasn't
+// resolved yet; the whole line just doesn't render rather than show "Migrating To"
+// next to a blank/undefined name.
+const PEEK_GHOST_FRAME_COUNT = 6
+const PEEK_GHOST_FRAME_MS    = 150
+
 function PeekGhost({ label }: { label: string | null }) {
+  const frame = useSpriteFrameLoop(PEEK_GHOST_FRAME_COUNT, PEEK_GHOST_FRAME_MS)
+
   return (
     <div
       className="flex flex-col items-center justify-center"
@@ -234,20 +248,29 @@ function PeekGhost({ label }: { label: string | null }) {
         paddingBottom: 'var(--space-5)',
       }}
     >
-      <div className="relative flex-shrink-0" style={{ width: 40, height: 40 }}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
+      <div className="relative flex-shrink-0 overflow-hidden" style={{ width: 48, height: 48 }}>
+        {/* eslint-disable-next-line @next/next/no-img-element -- small looping pixel sprite, next/image adds no value here */}
         <img
-          src="/sprites/ghost/walk/frame_000.png"
+          src={`/sprites/ghost/walk/frame_${String(frame).padStart(3, '0')}.png`}
           alt=""
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', imageRendering: 'pixelated' }}
+          style={{
+            position:       'absolute',
+            left:           '-41.6%',
+            top:            '-41.6%',
+            width:          '183.2%',
+            height:         '183.2%',
+            maxWidth:       'none',
+            imageRendering: 'pixelated',
+          }}
+          aria-hidden="true"
         />
       </div>
       {label && (
         <p
-          className="font-silkscreen text-center leading-none truncate w-full"
-          style={{ fontSize: 'var(--text-md)' }}
+          className="font-body font-bold text-center leading-none truncate w-full"
+          style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}
         >
-          <span className="text-muted">Migrating to </span>
+          <span className="text-muted">Migrating To </span>
           <span className="text-primary">{label}</span>
         </p>
       )}

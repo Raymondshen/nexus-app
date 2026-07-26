@@ -81,7 +81,7 @@ export async function ensureRoomMeta(crewId: string, userId: string): Promise<vo
 // from whenever it was first peeked — that stuff rarely changes mid-session.
 // unreadCount/lastMessagePreview/lastMessageAt/onlineMembers are different: they're
 // exactly what ChatRoomBrowseSheet exists to surface accurately (the red equalizer
-// bar, the Latest News card's preview text/timestamp — `onlineMembers` is currently
+// bar, the Notifications card's preview text/timestamp — `onlineMembers` is currently
 // unread by any Squads-row card, `SwipePreviewCard` dropped its online-avatars row
 // in its 674:14650 redesign, but is kept here since the field is still cheap to
 // carry and may get a new consumer), so a room peeked early in the session can't

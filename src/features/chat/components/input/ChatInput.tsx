@@ -1983,6 +1983,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
                     // closes it, matching every other "tap outside the row" dismissal instead
                     // of stacking a second open on top.
                     onTap={() => setShowRoomBrowser((prev) => !prev)}
+                    isSheetOpen={showRoomBrowser}
                   />
                 </motion.div>
               )}
