@@ -15,7 +15,7 @@ import type { PushSubscription, NotificationPreferences, CrewNotificationPrefere
 import type { Friendship } from './friends'
 import type { Event, EventRsvp } from './events'
 import type { Note, BoardSection } from './board'
-import type { ReservedUser, ClientError, PendingDeletion } from './system'
+import type { ClientError, PendingDeletion } from './system'
 
 // ─── Supabase Database type ───────────────────────────────────────────────────
 
@@ -115,12 +115,6 @@ export type Database = {
         Row: Poll
         Insert: Omit<Poll, 'id' | 'votes' | 'created_at'> & { id?: string; votes?: Record<string, string[]>; created_at?: string }
         Update: Partial<Omit<Poll, 'id' | 'created_at'>>
-        Relationships: []
-      }
-      reserved_users: {
-        Row: ReservedUser
-        Insert: Omit<ReservedUser, 'id' | 'created_at' | 'converted'> & { id?: string; created_at?: string; converted?: boolean }
-        Update: Partial<Omit<ReservedUser, 'id'>>
         Relationships: []
       }
       squad_definitions: {

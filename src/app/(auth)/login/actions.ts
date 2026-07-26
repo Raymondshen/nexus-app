@@ -46,59 +46,6 @@ export async function getSignupSessionAction(): Promise<SignupSessionResult> {
   }
 }
 
-export async function reservePlaceAction(
-  email: string,
-  username: string,
-  cls: string,
-  firstName: string,
-  lastName: string,
-): Promise<{ success: boolean; error?: string }> {
-  const emailClean = email.trim().toLowerCase()
-  if (!emailClean.endsWith('@gmail.com')) {
-    return { success: false, error: 'Gmail only. Your class and name will be held until your invite arrives.' }
-  }
-
-  const usernameClean  = username.trim().replace(/<[^>]*>/g, '').slice(0, 20)
-  const firstNameClean = firstName.trim().replace(/<[^>]*>/g, '').slice(0, 50)
-  const lastNameClean  = lastName.trim().replace(/<[^>]*>/g, '').slice(0, 50)
-
-  const usernameError = validateUsernameFormat(usernameClean)
-  if (usernameError) {
-    return { success: false, error: usernameError }
-  }
-  if (!firstNameClean) {
-    return { success: false, error: 'First name is required.' }
-  }
-  if (!lastNameClean) {
-    return { success: false, error: 'Last name is required.' }
-  }
-
-  const service = createServiceClient()
-
-  const { data: existing } = await service
-    .from('reserved_users')
-    .select('id')
-    .eq('email', emailClean)
-    .maybeSingle()
-
-  if (existing) {
-    return { success: false, error: 'A warrior already guards this name.' }
-  }
-
-  const { error } = await service
-    .from('reserved_users')
-    .insert({ email: emailClean, username: usernameClean, class: cls || null, first_name: firstNameClean, last_name: lastNameClean })
-
-  if (error) {
-    if (error.code === '23505') {
-      return { success: false, error: 'A warrior already guards this name.' }
-    }
-    return { success: false, error: 'The rift destabilized. Try again.' }
-  }
-
-  return { success: true }
-}
-
 export interface CompleteSignupExtra {
   status?:         string
   instagramUrl?:   string

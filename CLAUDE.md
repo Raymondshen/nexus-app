@@ -20,7 +20,6 @@ push_subscriptions  id, user_id, crew_id (nullable), endpoint (UNIQUE), p256dh, 
 notification_preferences   user_id (PK), notif_messages, notif_mentions, updated_at
 friendships         id, requester_id, addressee_id, status (pending|accepted), created_at — UNIQUE(requester_id, addressee_id)
 coin_log            id, user_id, crew_id (nullable), coins, source, created_at
-reserved_users      id, email (text unique), username, class, first_name, last_name, created_at, converted (bool default false)
 announcements       id, title (1–200 chars), text (1–500 chars), image_url (nullable — 1–300 chars when set; null only while a draft, required to publish), active (bool default true), created_at
 polls               id, message_id (uuid → messages nullable), crew_id, creator_id, question (1–200 chars), options (jsonb string[]), votes (jsonb default '{}' — `{"0":["userId",...]}`), expires_at, closed_at, created_at
 squad_definitions   id, crew_id, creator_id, word (1–100 chars, comma-separated aliases), definition (1–500 chars), text_effect (text nullable), created_at — UNIQUE INDEX (crew_id, lower(word))
@@ -101,7 +100,7 @@ Quick-pick reactions: default set `['👍','👎','😭','🤣','😤','🔥']` 
 - Auth check: `getSession()` (cookie-only), NOT `getUser()` (100–300ms overhead)
 
 ### Login — `/login` (`src/features/auth/screens/LoginForm.tsx`)
-Single client component, a `step` state machine (not real routing) rendering full-bleed screens (no boxed card) — `landing`, `create-profile`, plus the orphaned-but-kept legacy `reserve-email`/`reserve-class`/`reserve-name`/`reserve-done` chain (see Decision Framework's "kept but orphaned" convention — this chain and its backing `reserved_users` table/`reservePlaceAction` predate public signup and have had no reachable entry point since before that; left alone rather than deleted). Only `create-profile` uses `PageHeader`/`PageFooter` — `landing` and the reserve-chain steps (short, single-viewport, no scrolling body) use the same centered flex layout.
+Single client component, a two-step `step` state machine (not real routing) rendering full-bleed screens (no boxed card) — `landing`, `create-profile`. Only `create-profile` uses `PageHeader`/`PageFooter` — `landing` (short, single-viewport, no scrolling body) uses a centered flex layout.
 
 **Flow**: `landing` → "SIGN IN WITH GOOGLE" (`signInWithGoogle()`, no invite cookie) → `/auth/callback` exchanges the OAuth code and checks `profiles.username`:
 - Username already set (returning user) → `/home`.
@@ -115,7 +114,7 @@ Single client component, a `step` state machine (not real routing) rendering ful
 - `selectClassAction` → welcome ONLY when `crew_members` count = 1
 
 ### Username Format
-Letters, digits, underscore only (`^[A-Za-z0-9_]+$`), 3–20 chars — enforced by `validateUsernameFormat()` (`src/shared/utils/username.ts`), the sole source of truth for the character rule. Wired into every path that sets a username: `reservePlaceAction` / `completeSignupAction` (`login/actions.ts`), `updateUsername()` helper used by both `updateProfileDetailsAction` and `setUsernameAfterResetAction` (`profile/actions.ts`).
+Letters, digits, underscore only (`^[A-Za-z0-9_]+$`), 3–20 chars — enforced by `validateUsernameFormat()` (`src/shared/utils/username.ts`), the sole source of truth for the character rule. Wired into every path that sets a username: `completeSignupAction` (`login/actions.ts`), `updateUsername()` helper used by both `updateProfileDetailsAction` and `setUsernameAfterResetAction` (`profile/actions.ts`).
 
 `profiles.needs_username_reset` (bool, default false) flags accounts whose username predates this rule (spaces, apostrophes, periods, etc). Migration `20260705212709_add_needs_username_reset` backfilled it via the regex, not hardcoded ids. `UsernameResetSheet` (`src/shared/components/overlays/`, mounted in `(app)/layout.tsx`) checks the flag client-side on every app load and — Figma 419:1891 — shows a **non-dismissible** `<BottomSheet onClose={() => {}} disableDrag>` prefilled with the old username until `setUsernameAfterResetAction` clears the flag.
 

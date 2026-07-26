@@ -1,14 +1,3 @@
-export interface ReservedUser extends Record<string, unknown> {
-  id:         string
-  email:      string
-  username:   string
-  class:      string | null
-  first_name: string | null
-  last_name:  string | null
-  created_at: string
-  converted:  boolean
-}
-
 export interface ClientError extends Record<string, unknown> {
   id:         string
   user_id:    string | null
