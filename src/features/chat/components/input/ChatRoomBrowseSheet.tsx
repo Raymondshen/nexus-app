@@ -335,7 +335,7 @@ export function ChatRoomBrowseSheet({
         <motion.div
           key="room-browse-sheet"
           ref={sheetRef}
-          className="fixed left-0 right-0 top-0 flex flex-col"
+          className="fixed left-0 right-0 top-0 bg-black/95 flex flex-col"
           style={{
             bottom:     chatInputHeight,
             maxWidth:   480,
@@ -392,7 +392,7 @@ export function ChatRoomBrowseSheet({
 
           <div
             ref={scrollContainerRef}
-            className="flex flex-col w-full min-h-0 overflow-y-auto nexus-scroll bg-black/95"
+            className="flex flex-col w-full min-h-0 overflow-y-auto nexus-scroll"
             style={{
               gap:            'var(--space-5)',
               flex:           '1 1 auto',
