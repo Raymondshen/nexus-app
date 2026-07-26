@@ -33,7 +33,7 @@ const PIN_LONG_PRESS_MS = 500
 // `variant="sheet"` (bold non-uppercase DM Sans title, no back chevron) rather
 // than the default subpage variant, since this overlay isn't nested under a
 // `SlidePage` of its own and has no "back" concept — it's mounted directly by
-// ChatInput. Title is a static "My Squads" in every state (DM or squad) — no
+// ChatInput. Title is a static "Details" in every state (DM or squad) — no
 // dynamic crew name, no decorative leading chevron. `right` is just two icons:
 // `Bell`/`BellOff` (opens `NotifSheet` on top, this sheet stays open) then
 // `ChevronDown` (closes this sheet — same handler `Close` used to). This
@@ -65,14 +65,14 @@ const PIN_LONG_PRESS_MS = 500
 // through "Notifications" → "Latest News" → "Group Notifications" → back to
 // "Notifications" across successive revisions) — a stacked
 // card per room with unread messages (Figma 674:14869), newest activity first
-// (`unreadRooms` below), shown above the "Squads" row (deliberately reordered from
-// Figma 589:3619's own top-to-bottom layout, which has "Squads" first —
+// (`unreadRooms` below), shown above the "Groups" row (deliberately reordered from
+// Figma 589:3619's own top-to-bottom layout, which has "Groups" first —
 // Notifications leads here by explicit request). Tapping a card navigates there,
-// same as tapping its card in the Squads row. Unlike Home's own
+// same as tapping its card in the Groups row. Unlike Home's own
 // DmNotificationPreviewCard, this section is never hidden — with zero unread rooms
 // it renders a bordered empty state (`NoNotificationsCard`, Figma 674:14541)
 // instead, so the sheet always shows both sections. Its wrapper carries
-// `flex: 1 0 0` so it fills whatever vertical space isn't used by "Squads" (the
+// `flex: 1 0 0` so it fills whatever vertical space isn't used by "Groups" (the
 // stacked-cards case doesn't itself grow to fill that space — only the empty
 // state's own ghost/copy self-centers within it).
 //
@@ -132,12 +132,12 @@ const PIN_LONG_PRESS_MS = 500
 // else `ensureRoomMeta` is used), so a room is simply omitted from this list until
 // that resolves rather than rendering a placeholder/skeleton card.
 //
-// Below the Squads row (Figma 599:3931's `601:3901` "group card details" + `601:3919`
+// Below the Groups row (Figma 599:3931's `601:3901` "group card details" + `601:3919`
 // member row): the full detail card + member row for whichever room this sheet was
 // opened FROM (`currentRoomId`) — the shared `SquadDetailCard`/`SquadMemberRow`
 // components (see `SquadDetailCard.tsx`'s own doc comment) rather than inlined here.
 // This only covers the current room — `RoomMeta` (what every OTHER room card in the
-// Squads row above is built from) doesn't carry invite codes, per-member
+// Groups row above is built from) doesn't carry invite codes, per-member
 // class/msg-count/vinyl, or a real XP fraction, and fetching all of that for every
 // room in the list just to render one static card would be wasteful; ChatInput
 // already computes it all for its own current room, so it's threaded down as the
@@ -335,7 +335,7 @@ export function ChatRoomBrowseSheet({
         <motion.div
           key="room-browse-sheet"
           ref={sheetRef}
-          className="fixed left-0 right-0 top-0 bg-black/95 flex flex-col"
+          className="fixed left-0 right-0 top-0 flex flex-col"
           style={{
             bottom:     chatInputHeight,
             maxWidth:   480,
@@ -361,7 +361,7 @@ export function ChatRoomBrowseSheet({
               onClick={onClose} would otherwise also fire on every header tap). */}
           <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
             <PageHeader
-              title="My Squads"
+              title="Details"
               variant="sheet"
               right={
                 <div className="flex items-center flex-shrink-0" style={{ gap: 16 }}>
@@ -392,7 +392,7 @@ export function ChatRoomBrowseSheet({
 
           <div
             ref={scrollContainerRef}
-            className="flex flex-col w-full min-h-0 overflow-y-auto nexus-scroll"
+            className="flex flex-col w-full min-h-0 overflow-y-auto nexus-scroll bg-black/95"
             style={{
               gap:            'var(--space-5)',
               flex:           '1 1 auto',
@@ -402,13 +402,13 @@ export function ChatRoomBrowseSheet({
               scrollSnapType: 'y mandatory',
             }}
           >
-            {/* Notifications + Squads combined into a single scroll-snap "page" that
+            {/* Notifications + Groups combined into a single scroll-snap "page" that
                 fills the full height below the header (`height: 100%` of this scroll
                 container, not just its own content height) — swiping/scrolling down
                 slides past it and settles (native scroll-snap, no JS) on Group Details
                 below, rather than a continuous scroll through all three sections. This
                 is also what lets Notifications' own `flex: 1 0 0` genuinely fill the
-                remaining space next to Squads (centering NoNotificationsCard's ghost),
+                remaining space next to Groups (centering NoNotificationsCard's ghost),
                 since this wrapper's height is now the real viewport height rather than
                 whatever the unclamped sum of all three sections happened to be. */}
             <div
@@ -438,7 +438,7 @@ export function ChatRoomBrowseSheet({
                   className="font-body font-medium text-primary leading-none truncate min-w-0 w-full"
                   style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}
                 >
-                  Squads
+                  Groups
                 </p>
 
                 {/* Same horizontally-scrollable-row pattern this sheet's own member card
@@ -544,7 +544,7 @@ export function ChatRoomBrowseSheet({
                 </div>
 
                 {/* Equalizer + "Swipe down to view more" hint (Figma 674:15320) — its own
-                    footer row BELOW the Squads card row, not paired with the "Squads"
+                    footer row BELOW the Groups card row, not paired with the "Groups"
                     label above it (an earlier revision put it there; this Figma export
                     has no such pairing). */}
                 <div className="flex items-end justify-between w-full flex-shrink-0">
@@ -570,7 +570,7 @@ export function ChatRoomBrowseSheet({
                 file's top doc comment for why `squadDetail` is threaded down rather
                 than derived from RoomMeta, and why it's null (nothing rendered) on the
                 DM screen. The section label precedes the card, same pattern as the
-                "Notifications"/"Squads" section labels above. */}
+                "Notifications"/"Groups" section labels above. */}
             {squadDetail && (
               <div
                 className="flex flex-col w-full flex-shrink-0"
@@ -618,7 +618,7 @@ export function ChatRoomBrowseSheet({
               </div>
             )}
             {/* `scroll-snap-type: y mandatory` above only has two valid resting
-                positions without this — the top of the Squads page and the top of
+                positions without this — the top of the Groups page and the top of
                 Group Details — so releasing a scroll anywhere INSIDE Group Details'
                 own content (past the member row, toward Leave Squad) would always
                 spring back up to its top, permanently hiding the button no matter
@@ -626,7 +626,7 @@ export function ChatRoomBrowseSheet({
                 sitting after everything else, adds a third legitimate mandatory
                 rest position at the true scroll limit — so scrolling all the way
                 down through Group Details now stays put there instead of snapping
-                away, while the Squads↔Group-Details boundary snap is untouched. */}
+                away, while the Groups↔Group-Details boundary snap is untouched. */}
             {squadDetail && <div aria-hidden className="w-full flex-shrink-0" style={{ height: 1, scrollSnapAlign: 'end' }} />}
           </div>
         </motion.div>
