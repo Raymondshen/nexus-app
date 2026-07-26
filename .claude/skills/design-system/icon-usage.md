@@ -8,7 +8,8 @@ Icons (`pixelarticons`) — key usages:
 | ChatRoomBrowseSheet — notifs | `Bell` / `BellOff` | 24×24 |
 | ChatFloatingNav — group events (dev-gated) | `Calendar2` | 24×24, `--color-primary` |
 | ChatRoomBrowseSheet — close | `ChevronDown` | 24×24, `--color-primary` |
-| ChatRoomBrowseSheet — create squad | `Plus` | 16×16, `--color-tertiary` |
+| ChatRoomBrowseSheet — join a group | `Plus` | 24×24, `--color-tertiary` |
+| ChatRoomBrowseSheet — create squad | `Plus` | 24×24, `--color-purple` |
 | SwipePreviewCard — member count | `User` | 12×12, `--color-secondary` |
 | Own Profile page — dev settings | `Braces` | 24×24, `--color-primary` |
 | Own Profile page — edit profile | `MagicEdit` | 24×24, `--color-primary` |
