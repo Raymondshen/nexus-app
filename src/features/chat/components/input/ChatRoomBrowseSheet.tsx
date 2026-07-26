@@ -1,20 +1,25 @@
 'use client'
 
 import { useLayoutEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronDown } from 'pixelarticons/react/ChevronDown'
 import { Bell } from 'pixelarticons/react/Bell'
 import { BellOff } from 'pixelarticons/react/BellOff'
+import { Plus } from 'pixelarticons/react/Plus'
 import { PageHeader } from '@/shared/components/ui/PageHeader'
 import { Button } from '@/shared/components/ui/Button'
+import { InputField } from '@/shared/components/ui/InputField'
 import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
 import { BottomSheet } from '@/shared/components/ui/sheet/BottomSheet'
+import { SheetFooter } from '@/shared/components/ui/sheet/SheetFooter'
 import { SheetActionButton } from '@/shared/components/ui/SheetActionButton'
 import { SwipePreviewCard } from '@/features/chat/components/input/SwipePreviewCard'
 import { SquadDetailCard, SquadMemberRow, type MiniMember } from '@/features/chat/components/sheets/SquadDetailCard'
 import { useSheetDrag } from '@/shared/components/ui/sheet/useSheetDrag'
 import { useSpriteFrameLoop } from '@/shared/hooks/useSpriteFrameLoop'
 import { useChatRoomPeekStore, type RoomMeta } from '@/features/chat/store/chatRoomPeekStore'
+import { joinCrewFromHomeAction } from '@/app/(app)/home/actions'
 
 // Long-press timing for the room card's Pin Squad sheet — same 500ms threshold
 // ChatSheetReact/MessageBubble already use for their own long-press-opened sheets.
@@ -78,20 +83,26 @@ const PIN_LONG_PRESS_MS = 500
 //
 // A persistent overlay showing every room in chatRoomOrder as a native horizontally-
 // scrollable row, reusing the shared `SwipePreviewCard` (Figma 674:14650, its own
-// redesign — see that file). "Create Squad" (Figma 674:15311) is the LAST card in
-// that same scrollable row — always trailing every room regardless of pin order,
-// never first — not a separate full-width button below it (an earlier revision put
-// it there; Figma 674:14485 moved it back inside the row). It always navigates
-// straight to the standalone Create Squad page (`onCreateSquad`'s call site in
-// ChatInput → `/home/create`) and, like before, isn't part of the equalizer's own
-// room-tracking (see ScrollEqualizerBars — it's built from `rooms`, not the rendered
-// card list). Dismisses three ways: tap a room card (navigates there
-// immediately), tap anywhere in the sheet OTHER than the scrollable row/Create Squad
-// button (the row's own onClick stops propagation so a card tap doesn't also bubble
-// into this, and Create Squad's button does the same), or drag down anywhere in the
-// sheet — a real, live-following pull via the same `useSheetDrag` hook `BottomSheet`
-// itself uses (see that hook's own doc comment for why it's a manual
-// dragControls-driven gesture rather than plain `drag="y"`: it's what lets a
+// redesign — see that file). "Join a Group" (Figma 674:15428) and "Create a Squad"
+// (Figma 705:17392) are the last two cards in that same scrollable row, in that
+// order — Join a Group immediately before Create a Squad, both always trailing every
+// real room regardless of pin order, never first — not a separate full-width button
+// below them (an earlier revision put Create Squad there; Figma 674:14485 moved it
+// back inside the row, and later replaced both cards' looping ghost-sprite icon with
+// a flat pixelarticons `Plus` glyph — see RainbowGhost's own doc comment for where the
+// dropped ghost sprites went). Create Squad navigates straight to the standalone
+// Create Squad page (`onCreateSquad`'s call site in ChatInput → `/home/create`); Join
+// a Group instead opens `JoinGroupSheet` (below) for invite-code entry, since there's
+// no equivalent standalone "join" page/route to send it to. Neither card is part of
+// the equalizer's own room-tracking (see ScrollEqualizerBars — it's built from
+// `rooms`, not the rendered card list). Dismisses three ways: tap a room card
+// (navigates there immediately), tap anywhere in the sheet OTHER than the scrollable
+// row/Join a Group/Create Squad buttons (the row's own onClick stops propagation so
+// a card tap doesn't also bubble into this, and both of those buttons do the same),
+// or drag down anywhere in the sheet — a real, live-following pull via the same
+// `useSheetDrag` hook `BottomSheet` itself uses (see that hook's own doc comment for
+// why it's a manual dragControls-driven gesture rather than plain `drag="y"`: it's
+// what lets a
 // downward pull coexist with the row's native horizontal scroll instead of one
 // stealing the other). Releasing past its threshold calls `onClose`; short of that,
 // Framer's own drag-constraint spring-back returns it to rest. Either way — a
@@ -231,6 +242,10 @@ export function ChatRoomBrowseSheet({
   const [pinSheetRoomId, setPinSheetRoomId] = useState<string | null>(null)
   const pinLongPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pinLongPressFiredRef = useRef(false)
+
+  // Join a Group (Figma 674:15428 "Frame 331") — opens the invite-code entry sheet
+  // below rather than navigating anywhere; see JoinGroupSheet's own doc comment.
+  const [showJoinGroup, setShowJoinGroup] = useState(false)
 
   function handleCardPressStart(roomId: string) {
     pinLongPressFiredRef.current = false
@@ -505,16 +520,53 @@ export function ChatRoomBrowseSheet({
                       <SwipePreviewCard room={room} pinned={room.id === pinnedRoomId} isCurrent={room.id === currentRoomId} />
                     </button>
                   ))}
-                  {/* Create Squad (Figma 674:15420 "Frame331") — always the LAST card in the
-                      row, after every room including the pinned one; never first, never a
-                      separate button below the row (see this file's top doc comment). Same
-                      180×240 footprint as SwipePreviewCard so it sits flush with its
-                      siblings. Dashed `--color-purple` border (not `--color-border-hover` —
-                      an earlier revision used the neutral tone before this redesign), a
-                      looping `WaveGhost` (below) in place of the old static Plus icon, and
-                      "Create a Squad" rendered in the shared `--gradient-nexus` text
-                      gradient (same two stops Figma specifies, #a855f7→#d946ef) rather than
-                      flat tertiary text. */}
+                  {/* Join a Group (Figma 674:15428, redesigned per 674:14485 "Group
+                      Notifications") — sits immediately before Create a Squad, both still
+                      trailing every real room card. Same 180×240 footprint, dashed
+                      `--color-tertiary` border and plain tertiary text/icon (not the
+                      purple/gradient treatment Create a Squad uses below — Figma gives
+                      this card a deliberately quieter, secondary look). A flat pixelarticons
+                      `Plus` icon now, not a looping ghost sprite — an earlier revision used
+                      one (first WaveGhost, then a dedicated PhotoGhost), both dropped once
+                      Figma's own node was updated to the plain plus glyph. Opens
+                      JoinGroupSheet rather than navigating directly. */}
+                  <button
+                    type="button"
+                    onClick={() => setShowJoinGroup(true)}
+                    className="flex-shrink-0 appearance-none flex flex-col items-center justify-center rounded-[var(--x3,8px)]"
+                    style={{
+                      width:  CARD_WIDTH,
+                      height: 240,
+                      gap:    'var(--x2)',
+                      border: '1px dashed var(--color-tertiary)',
+                    }}
+                    aria-label="Join a Group"
+                  >
+                    <Plus style={{ width: 24, height: 24, color: 'var(--color-tertiary)' }} aria-hidden="true" />
+                    <p
+                      className="font-body font-medium text-center leading-none whitespace-nowrap overflow-hidden text-ellipsis"
+                      style={{
+                        color:     'var(--color-tertiary)',
+                        fontSize:  'var(--text-sm)',
+                        width:     156,
+                        fontVariationSettings: '"opsz" 14',
+                      }}
+                    >
+                      Join a Group
+                    </p>
+                  </button>
+
+                  {/* Create Squad (Figma 705:17392, redesigned per 674:14485 "Group
+                      Notifications") — always the LAST card in the row, after every room
+                      including the pinned one; never first, never a separate button below
+                      the row (see this file's top doc comment). Same 180×240 footprint as
+                      SwipePreviewCard so it sits flush with its siblings. Dashed
+                      `--color-purple` border, a flat pixelarticons `Plus` icon in that same
+                      purple (not a looping `WaveGhost` sprite anymore — dropped once
+                      Figma's own node swapped to the plain plus glyph, same as Join a
+                      Group's), and "Create a Squad" rendered in the shared
+                      `--gradient-nexus` text gradient (same two stops Figma specifies,
+                      #a855f7→#d946ef) rather than flat tertiary text. */}
                   <button
                     type="button"
                     onClick={onCreateSquad}
@@ -522,12 +574,12 @@ export function ChatRoomBrowseSheet({
                     style={{
                       width:  CARD_WIDTH,
                       height: 240,
-                      gap:    'var(--x1)',
+                      gap:    'var(--x2)',
                       border: '1px dashed var(--color-purple)',
                     }}
                     aria-label="Create Squad"
                   >
-                    <WaveGhost size={40} />
+                    <Plus style={{ width: 24, height: 24, color: 'var(--color-purple)' }} aria-hidden="true" />
                     <p
                       className="bg-clip-text text-transparent font-body font-medium text-center leading-none whitespace-nowrap overflow-hidden text-ellipsis"
                       style={{
@@ -641,6 +693,13 @@ export function ChatRoomBrowseSheet({
         onClose={() => setPinSheetRoomId(null)}
       />
     )}
+
+    {showJoinGroup && (
+      <JoinGroupSheet
+        onClose={() => setShowJoinGroup(false)}
+        onCloseBrowseSheet={onClose}
+      />
+    )}
     </>
   )
 }
@@ -741,6 +800,98 @@ function RoomPinSheet({
   )
 }
 
+// Join a Group (Figma 674:15428's tap target) — invite-code entry sheet, opened by
+// the Groups row's own Join a Group card above. Reuses `joinCrewFromHomeAction`
+// (home/actions.ts) — the exact same server action HomeClient's Join A Squad flow
+// already calls — rather than duplicating the invite-code/`join_crew` RPC plumbing
+// a second time. Unlike that flow, this deliberately skips the post-join class-select
+// step: `class` is a nullable, flavor-only column now that the boss-fight combat
+// system that used to consume it is gone, and every consumer already renders a
+// graceful fallback for a null class (UserCard's `classLabel` falls back to
+// "Unknown", `spriteInfoFor(null)` has its own default) — so forcing a class pick
+// here would only add friction with no functional payoff. `onCloseBrowseSheet` is
+// the parent ChatRoomBrowseSheet's own `onClose`, called on a successful join (same
+// as a room card's onSelectRoom already does) so navigating to the new room doesn't
+// leave the browse overlay stacked underneath it.
+function JoinGroupSheet({
+  onClose, onCloseBrowseSheet,
+}: {
+  onClose:            () => void
+  onCloseBrowseSheet: () => void
+}) {
+  const router = useRouter()
+  const [code,    setCode]    = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error,   setError]   = useState<string | null>(null)
+
+  function handleCodeChange(value: string) {
+    setError(null)
+    setCode(value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))
+  }
+
+  async function handleJoin() {
+    if (loading || code.length !== 6) return
+    setLoading(true)
+    setError(null)
+    const result = await joinCrewFromHomeAction(code)
+    if ('error' in result) { setError(result.error); setLoading(false); return }
+    // Same nexus_chat_from guard ChatInput's own commitRoomSwitch/openCreateSquadFromBrowse
+    // use before routing away from a chat room — see ChatFloatingNav's Gotchas entry.
+    sessionStorage.setItem('nexus_chat_from', 'chat')
+    // Close both this sheet and the parent browse overlay before navigating — neither
+    // one unmounts on its own just because the destination page is about to replace
+    // the tree, and a client-side navigation isn't necessarily instant, so leaving
+    // either `visible`/`showJoinGroup` true would let this sheet (and the backdrop
+    // beneath it) keep rendering on top for however long the transition takes.
+    onClose()
+    onCloseBrowseSheet()
+    router.push(`/chat/${result.crewId}`)
+  }
+
+  return (
+    <BottomSheet onClose={onClose} zIndex={90} disableDrag={loading}>
+      <div
+        className="flex flex-col w-full"
+        style={{ gap: 'var(--x5)', paddingLeft: 'var(--md)', paddingRight: 'var(--md)' }}
+      >
+        <div className="flex flex-col w-full" style={{ gap: 'var(--x2)' }}>
+          <p
+            className="font-body font-bold leading-none w-full"
+            style={{ fontSize: 'var(--md)', color: 'var(--color-primary)', fontVariationSettings: '"opsz" 14' }}
+          >
+            Join a Group
+          </p>
+          <p
+            className="font-body font-light leading-none w-full"
+            style={{ fontSize: 'var(--text-xs)', color: 'var(--color-tertiary)', fontVariationSettings: '"opsz" 14' }}
+          >
+            Join the group from the code you&apos;ve received from a member.
+          </p>
+        </div>
+
+        <InputField
+          label="Invite Code"
+          value={code}
+          onChange={handleCodeChange}
+          placeholder="A3X9KP"
+          autoComplete="off"
+          maxLength={6}
+        />
+        {error && (
+          <p className="font-body font-normal leading-none" style={{ fontSize: 'var(--text-xs)', color: 'var(--red)', fontVariationSettings: '"opsz" 14' }}>
+            {error}
+          </p>
+        )}
+      </div>
+      <SheetFooter>
+        <Button onClick={handleJoin} loading={loading} disabled={code.length !== 6} className="w-full">
+          Join Group
+        </Button>
+      </SheetFooter>
+    </BottomSheet>
+  )
+}
+
 // Notifications card (Figma 674:14870 "home - chatCardPreview") — one per unread
 // room, stacked by the caller (see this file's top doc comment for how
 // `unreadRooms` is built/sorted). A small 24×32 cover-crop thumbnail of the room's
@@ -796,15 +947,16 @@ function NotificationPreviewCard({ room, onTap }: { room: BrowseRoom; onTap: () 
 // 674:14541 — a DASHED (`--color-border`, rounded-x3) box — verified against the live
 // design context, not `1px solid` as this used to render — still filling the
 // section's own flex-1 space (unlike the unread NotificationPreviewCard's
-// natural-height `--color-surface-sheet` box): sleeping-ghost sprite + muted copy,
-// centered.
+// natural-height `--color-surface-sheet` box): rainbow-ghost sprite + muted copy,
+// centered. Was SleepingGhost (the sleep/ pose) before Figma 674:14485's redesign
+// swapped in the rainbow pose — see RainbowGhost's own doc comment.
 function NoNotificationsCard() {
   return (
     <div
       className="w-full flex-1 min-h-0 flex flex-col items-center justify-center text-center rounded-[var(--x3,8px)]"
       style={{ gap: 'var(--space-2)', border: '1px dashed var(--color-border)', paddingLeft: 'var(--x11)', paddingRight: 'var(--x11)' }}
     >
-      <SleepingGhost size={48} />
+      <RainbowGhost size={48} />
       <p
         className="font-body font-normal text-tertiary w-full"
         style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14', lineHeight: 1.5 }}
@@ -815,73 +967,34 @@ function NoNotificationsCard() {
   )
 }
 
-// Figma 674:15420 "Frame331" — a 9-frame wave-loop sprite (public/sprites/ghost/wave/
-// wave_0001.webp…0009.webp, 1-indexed, same shared `useSpriteFrameLoop` cycling
-// SleepingGhost below uses) for the Create Squad card. The Figma node crops each
-// 56×56 native frame to a tighter, centered 40×40 zoom (`size-[157.78%]` at `inset
-// -28.89%` on all sides) rather than showing the sprite's full padded canvas —
-// (56 / 1.5778) ≈ 35.5px of the source is kept and scaled up, ((157.78% * 40) - 40) /
-// 2 ≈ 11.56px trimmed off each edge — so this reproduces that same crop via an
-// absolute-positioned, oversized `<img>` inside an `overflow-hidden` box rather than
-// rendering the frame at its native size like SleepingGhost/LaunchSplashContent do.
-const WAVE_FRAME_COUNT = 9
-const WAVE_FRAME_MS    = 150
+// Figma 674:14541/674:14542 (redesigned per 674:14485 "Group Notifications") — a
+// 9-frame rainbow-loop sprite (public/sprites/ghost/rainbow/rainbow_0001.webp…
+// 0009.webp, 1-indexed) for NoNotificationsCard's empty state. Replaced the earlier
+// sleep-loop pose (SleepingGhost) once Figma's own node was updated to this one.
+// Same native 56×56 frame size and even padding as the other ghost sprite sheets
+// this file used to render (verified by inspecting the frames directly), cropped to
+// Figma's own numbers for this node — `left/top: -28.3%` at `156.6%` scale — inside a
+// 48×48 overflow-hidden box. Frame-cycling mechanics via the shared
+// `useSpriteFrameLoop` hook (also used by ChatRoomPeekLayer's own swipe-nav splash
+// ghost), which is what gives this `prefers-reduced-motion` support for free.
+const RAINBOW_FRAME_COUNT = 9
+const RAINBOW_FRAME_MS    = 150
 
-function WaveGhost({ size = 40 }: { size?: number }) {
-  const frame = useSpriteFrameLoop(WAVE_FRAME_COUNT, WAVE_FRAME_MS)
-
-  return (
-    <div className="relative flex-shrink-0 overflow-hidden" style={{ width: size, height: size }}>
-      {/* eslint-disable-next-line @next/next/no-img-element -- small looping pixel sprite, next/image adds no value here */}
-      <img
-        src={`/sprites/ghost/wave/wave_${String(frame + 1).padStart(4, '0')}.webp`}
-        alt=""
-        style={{
-          position:       'absolute',
-          left:           '-28.89%',
-          top:            '-28.89%',
-          width:          '157.78%',
-          height:         '157.78%',
-          maxWidth:       'none',
-          imageRendering: 'pixelated',
-        }}
-        aria-hidden="true"
-      />
-    </div>
-  )
-}
-
-// Figma 599:7813 ("A_small_round_ghost_with_front-flip_south") — a 9-frame sleep-loop
-// sprite (public/sprites/ghost/sleep/ghost-sleeping_0001.webp…0009.webp, 1-indexed).
-// The frame-cycling mechanism itself (index state + interval + wraparound) is shared
-// via `useSpriteFrameLoop` with WaveGhost above and ChatRoomPeekLayer's own swipe-nav
-// splash ghost — the three were byte-for-byte identical modulo the frame count/
-// interval, and that hook also gets all three `prefers-reduced-motion` support they
-// didn't have before. Rendering stays bespoke per component, since each crops/sizes
-// its own sprite sheet differently and there's no value in forcing that into a shared
-// shape too. Cropped per NoNotificationsCard's own Figma node (674:14543): each
-// native 56×56 frame has asymmetric transparent padding around the ghost (unlike
-// WaveGhost's evenly-padded sprite), so the crop offset isn't the same on both axes —
-// `left: -45.39%`/`top: -21.7%` at `168.17%` scale, straight from Figma's own crop
-// numbers — inside a 48×48 overflow-hidden box.
-const SLEEP_FRAME_COUNT = 9
-const SLEEP_FRAME_MS    = 200
-
-function SleepingGhost({ size = 48 }: { size?: number }) {
-  const frame = useSpriteFrameLoop(SLEEP_FRAME_COUNT, SLEEP_FRAME_MS)
+function RainbowGhost({ size = 48 }: { size?: number }) {
+  const frame = useSpriteFrameLoop(RAINBOW_FRAME_COUNT, RAINBOW_FRAME_MS)
 
   return (
     <div className="relative flex-shrink-0 overflow-hidden" style={{ width: size, height: size }}>
       {/* eslint-disable-next-line @next/next/no-img-element -- small looping pixel sprite, next/image adds no value here */}
       <img
-        src={`/sprites/ghost/sleep/ghost-sleeping_${String(frame + 1).padStart(4, '0')}.webp`}
+        src={`/sprites/ghost/rainbow/rainbow_${String(frame + 1).padStart(4, '0')}.webp`}
         alt=""
         style={{
           position:       'absolute',
-          left:           '-45.39%',
-          top:            '-21.7%',
-          width:          '168.17%',
-          height:         '168.17%',
+          left:           '-28.3%',
+          top:            '-28.3%',
+          width:          '156.6%',
+          height:         '156.6%',
           maxWidth:       'none',
           imageRendering: 'pixelated',
         }}
