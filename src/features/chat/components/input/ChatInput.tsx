@@ -1888,18 +1888,18 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
         className="border-t border-border flex flex-col"
         onPanEnd={handleTopPanEnd}
         style={{
-          paddingTop:    'var(--space-4)',
+          // top/gap: var(--x3, 8px) — tightened from var(--space-4)/12px by
+          // explicit request.
+          paddingTop:    'var(--space-3)',
           paddingLeft:   'var(--space-5)',
           paddingRight:  'var(--space-5)',
           // pb: var(--x8, 28px) per Figma — was a hardcoded 32px, drifted from the
           // design token.
           paddingBottom: 'max(env(safe-area-inset-bottom), var(--space-8))',
-          // gap: var(--x4, 12px) per Figma (measured from 645:8036's own child
-          // y-offsets: squadDetails ends at y=48, chatInputField starts at y=60) —
-          // was var(--space-5)/16px, drifted from the design token. Applies uniformly
-          // to every direct child of this flex column, not just squadDetails↔input:
-          // the friendship-XP/gem toasts and the DM "Chatting with" label too.
-          gap:           'var(--space-4)',
+          // Applies uniformly to every direct child of this flex column, not just
+          // squadDetails↔input: the friendship-XP/gem toasts and the DM "Chatting
+          // with" label too.
+          gap:           'var(--space-3)',
         }}
       >
         {/* ── Friendship XP toast (DM send or group @mention) — dev-gated: nexus_friendship_xp ── */}
