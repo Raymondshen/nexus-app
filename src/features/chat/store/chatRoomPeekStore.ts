@@ -124,6 +124,17 @@ interface ChatRoomPeekStore {
   revealReady:    boolean
   setRevealReady: (ready: boolean) => void
 
+  // Flips true once the ghost's own reveal timeline (PEEK_MIN_REVEAL_MS + the
+  // landed-check + PEEK_CONTINUE_MS) has run its course — this is what starts the
+  // label's reversed exit text animation (ChatRoomPeekLayer's `PeekGhostLabel`).
+  // Deliberately a separate flag from `revealReady`: the label's own reverse exit runs
+  // for a full second before the destination page's crossfade is allowed to start (see
+  // ChatRoomPeekLayer's doc comment) — `revealReady` only flips once that text exit is
+  // ~90% played out, not the instant it begins. `setPeek` resets this to false whenever
+  // a new gesture starts, same as `exposed`/`revealReady`.
+  textExiting:    boolean
+  setTextExiting: (exiting: boolean) => void
+
   // Live rendered height of the current room's ChatSquadDetailBar + input box
   // (ChatInput's own outermost element, measured via ResizeObserver — see ChatInput's
   // chatInputBoxRef effect). Since only the message-history log container now slides
@@ -144,13 +155,16 @@ export const useChatRoomPeekStore = create<ChatRoomPeekStore>((set) => ({
   setRoomMeta: (crewId, meta) => set((s) => ({ roomMeta: { ...s.roomMeta, [crewId]: meta } })),
 
   peek: null,
-  setPeek: (peek) => set(peek ? { peek, exposed: false, revealReady: false } : { peek }),
+  setPeek: (peek) => set(peek ? { peek, exposed: false, revealReady: false, textExiting: false } : { peek }),
 
   exposed: false,
   setExposed: (exposed) => set((s) => (s.exposed === exposed ? s : { exposed })),
 
   revealReady: false,
   setRevealReady: (ready) => set({ revealReady: ready }),
+
+  textExiting: false,
+  setTextExiting: (exiting) => set({ textExiting: exiting }),
 
   chatInputHeight: 140,
   setChatInputHeight: (h) => set((s) => (s.chatInputHeight === h ? s : { chatInputHeight: h })),

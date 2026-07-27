@@ -83,14 +83,19 @@ function noop() {}
 // load state, (2) once that's elapsed, check whether the destination has actually landed
 // (`currentCrewId === peek.targetCrewId`) — if not yet, keep waiting, (3) once landed
 // (whichever comes later: the minimum, or the real load), keep the ghost running for
-// PEEK_CONTINUE_MS more, then (4) fade — flip `revealReady`, which is what SlidePage's
-// `fadeInOnSkip` branch actually waits on before starting its own opacity tween (see that
-// component's own doc comment), and hold this layer mounted for that same
-// SWIPE_NAV_ARRIVAL_FADE_MS duration so the real page has something to crossfade from
-// instead of an already-blank layer. See the "reveal → fade choreography" effect below
-// for the implementation. Step 0 is what actually fixes the label's entrance from
-// feeling instant/skipped in testing — before `exposed` existed, the entrance was timed
-// from `peek`'s own creation (the tap), which happens well before this layer is actually
+// PEEK_CONTINUE_MS more, then (4) flip `textExiting` — the label plays its reversed exit
+// (room name leads, "Moving To" follows — the mirror image of the entrance's order) over
+// PEEK_TEXT_EXIT_DURATION_MS, (5) once that exit is PEEK_TEXT_EXIT_REVEAL_FRACTION (90%)
+// played out, flip `revealReady`, which is what SlidePage's `fadeInOnSkip` branch
+// actually waits on before starting its own opacity tween (see that component's own doc
+// comment), and hold this layer mounted for that same SWIPE_NAV_ARRIVAL_FADE_MS duration
+// so the real page has something to crossfade from instead of an already-blank layer.
+// `revealReady` is deliberately its own flag, separate from `textExiting` — the room
+// reveal isn't allowed to start until the reversed text exit has nearly finished, not the
+// instant it begins. See the "reveal → fade choreography" effect below for the
+// implementation. Step 0 is what actually fixes the label's entrance from feeling
+// instant/skipped in testing — before `exposed` existed, the entrance was timed from
+// `peek`'s own creation (the tap), which happens well before this layer is actually
 // uncovered, so most or all of the tween played out while still fully hidden.
 // Renders nothing outside an active gesture.
 export function ChatRoomPeekLayer() {
@@ -99,8 +104,9 @@ export function ChatRoomPeekLayer() {
   const setPeek         = useChatRoomPeekStore((s) => s.setPeek)
   const exposed         = useChatRoomPeekStore((s) => s.exposed)
   const setExposed      = useChatRoomPeekStore((s) => s.setExposed)
-  const revealReady     = useChatRoomPeekStore((s) => s.revealReady)
   const setRevealReady  = useChatRoomPeekStore((s) => s.setRevealReady)
+  const textExiting     = useChatRoomPeekStore((s) => s.textExiting)
+  const setTextExiting  = useChatRoomPeekStore((s) => s.setTextExiting)
   const chatInputHeight = useChatRoomPeekStore((s) => s.chatInputHeight)
   const roomMeta        = useChatRoomPeekStore((s) => s.roomMeta)
 
@@ -134,16 +140,25 @@ export function ChatRoomPeekLayer() {
     if (!exposed) { setExposed(true); return }
     const elapsedSinceReveal = Date.now() - (revealedAtRef.current ?? Date.now())
     const remainingMin       = Math.max(0, PEEK_MIN_REVEAL_MS - elapsedSinceReveal)
-    let fadeTimer: ReturnType<typeof setTimeout> | undefined
-    const readyTimer = setTimeout(() => {
-      setRevealReady(true)
-      fadeTimer = setTimeout(() => setPeek(null), SWIPE_NAV_ARRIVAL_FADE_MS)
+    let revealTimer: ReturnType<typeof setTimeout> | undefined
+    let fadeTimer:   ReturnType<typeof setTimeout> | undefined
+    // (4) start the label's reversed exit text animation …
+    const textExitTimer = setTimeout(() => {
+      setTextExiting(true)
+      // (5) … then, once it's ~90% played out (not the instant it starts), let the
+      // destination room's own crossfade begin — see `revealReady`'s doc comment in
+      // chatRoomPeekStore for why this is a distinct, later-firing flag.
+      revealTimer = setTimeout(() => {
+        setRevealReady(true)
+        fadeTimer = setTimeout(() => setPeek(null), SWIPE_NAV_ARRIVAL_FADE_MS)
+      }, PEEK_TEXT_EXIT_DURATION_MS * PEEK_TEXT_EXIT_REVEAL_FRACTION)
     }, remainingMin + PEEK_CONTINUE_MS)
     return () => {
-      clearTimeout(readyTimer)
+      clearTimeout(textExitTimer)
+      if (revealTimer) clearTimeout(revealTimer)
       if (fadeTimer) clearTimeout(fadeTimer)
     }
-  }, [peek, exposed, currentCrewId, setExposed, setPeek, setRevealReady])
+  }, [peek, exposed, currentCrewId, setExposed, setPeek, setRevealReady, setTextExiting])
 
   if (!peek) return null
 
@@ -212,7 +227,7 @@ export function ChatRoomPeekLayer() {
           if (peek.phase === 'cancelling') setPeek(null)
         }}
       >
-        <PeekGhost label={roomMeta[peek.targetCrewId]?.name ?? null} exposed={exposed} exiting={revealReady} />
+        <PeekGhost label={roomMeta[peek.targetCrewId]?.name ?? null} exposed={exposed} exiting={textExiting} />
       </motion.div>
 
       {/* Static bar/input shell — never slides with `x`, matching the real bar/input's
@@ -321,35 +336,40 @@ const PEEK_GHOST_SPRITE_PX   = 56
 // time (fade + a short upward slide per character) rather than the line arriving as one
 // unit. `PEEK_TEXT_VARIANTS`' y-offset was cut from 35px (the whole line's own line-box
 // height, right for a full-line slide) down to a few px — a per-character slide needs to
-// read as a subtle settle, not each letter sweeping up its own full line height. Exit
-// stays a single simultaneous fade (all characters together, no reverse-stagger) — the
-// ask there was a smoother *ease*, not a re-staggered exit.
+// read as a subtle settle, not each letter sweeping up its own full line height.
+//
+// The exit is a deliberate mirror of the entrance, not a plain reverse-fade: the room
+// name now LEADS (it was the one that followed on the way in) and "MOVING TO" follows it
+// out, each line's own characters also reverse-cascading (last-in, first-out) — and the
+// whole reversed sequence runs for a full PEEK_TEXT_EXIT_DURATION_MS (1s), noticeably
+// longer than the old single 250ms fade, before the destination room is allowed to start
+// revealing underneath (see ChatRoomPeekLayer's own choreography effect + `revealReady`'s
+// doc comment in chatRoomPeekStore for the "only at 90%" gating).
 const PEEK_CHAR_ENTER_EASE          = [0.16, 1, 0.3, 1] as const   // ease-out — each letter decelerates into place
-const PEEK_EXIT_EASE                = [0.22, 1, 0.36, 1] as const  // smooth ease-out — a gentler settle than the old symmetric in/out curve
+const PEEK_EXIT_EASE                = [0.22, 1, 0.36, 1] as const  // smooth ease-out — a gentler settle than a symmetric in/out curve
 const PEEK_CHAR_ENTER_DURATION_MS   = 380
+const PEEK_CHAR_EXIT_DURATION_MS    = 320
 const PEEK_CHAR_STAGGER_MS          = 26   // per-character delay within one line
 const PEEK_LINE_STAGGER_SPREAD_MS   = 380  // a line's own characters never spread across more than this, however long the room name is
-const PEEK_LINE2_START_DELAY_MS     = 260  // room name starts partway through "Moving To"'s reveal — reads as "following", not a dead pause between the two
+const PEEK_LINE2_START_DELAY_MS     = 260  // entrance: room name starts partway through "Moving To"'s reveal — reads as "following", not a dead pause between the two
+const PEEK_LINE1_EXIT_DELAY_MS      = 300  // exit: "Moving To" now follows the room name out — the reverse of the entrance's line order
+const PEEK_LINE2_EXIT_DELAY_MS      = 0    // exit: room name leads
 const PEEK_LINE1_TEXT               = 'Moving To'
+
+// The whole reversed exit sequence (both lines, all characters) is budgeted to this
+// duration; the destination room's own reveal crossfade doesn't start until this has
+// played PEEK_TEXT_EXIT_REVEAL_FRACTION (90%) of the way through — see
+// ChatRoomPeekLayer's choreography effect, which is what actually schedules these two
+// steps against real timers. Both live here (not just in that effect) since the label's
+// own per-character delays below are derived from the same duration.
+export const PEEK_TEXT_EXIT_DURATION_MS     = 1000
+export const PEEK_TEXT_EXIT_REVEAL_FRACTION = 0.9
 
 const PEEK_TEXT_VARIANTS = { hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }
 
-// Stable object reference, defined once at module scope rather than as an inline literal
-// on the `transition` prop — `PeekGhost`'s sprite ticks `frame` state every
-// PEEK_GHOST_FRAME_MS (150ms) for its whole walk-cycle, and recreating a fresh
-// `transition` object on every one of those re-renders was very likely what caused an
-// earlier "pops in and out, doesn't show until the last step" bug: Framer Motion re-
-// evaluates the animation whenever the props it's tracking change identity, so a tween
-// that's supposed to run once was instead getting re-issued roughly every 150ms for as
-// long as the sprite kept ticking — never actually completing a visible, continuous
-// interpolation. Fixed two ways: this transition object is stable (never recreated), AND
-// the label is split into its own `PeekGhostLabel` component below so it doesn't
-// re-render on every sprite frame tick at all — only when `label`/`exiting` themselves
-// change (twice per gesture: once at mount, once at exit).
-const PEEK_TEXT_EXIT_TRANSITION = { duration: SWIPE_NAV_ARRIVAL_FADE_MS / 1000, ease: PEEK_EXIT_EASE }
-
-// Caps per-character stagger so a long room name's reveal doesn't stretch out
-// indefinitely — spread stays fixed at PEEK_LINE_STAGGER_SPREAD_MS regardless of length.
+// Caps per-character stagger so a long room name's reveal (or reversed exit) doesn't
+// stretch out indefinitely — spread stays fixed at PEEK_LINE_STAGGER_SPREAD_MS
+// regardless of length.
 function peekCharStaggerMs(charCount: number) {
   if (charCount <= 1) return 0
   return Math.min(PEEK_CHAR_STAGGER_MS, PEEK_LINE_STAGGER_SPREAD_MS / (charCount - 1))
@@ -379,14 +399,15 @@ function PeekGhostSprite() {
 }
 
 // One line of the label, split into per-character `<motion.span>`s so each letter fades
-// + slides in on its own staggered delay (`startDelayMs` + i * the line's own capped
-// per-char stagger). Exit ignores the stagger entirely — every character animates back
-// to `hidden` together on `PEEK_TEXT_EXIT_TRANSITION`, since only the entrance was asked
-// to read as sequential/letter-by-letter.
-function AnimatedPeekLine({ text, color, startDelayMs, exposed, exiting, truncate }: {
+// + slides in (or, on exit, back out) on its own staggered delay. Entrance stagger runs
+// forward (`enterDelayMs` + i * stagger — first character first); exit stagger runs
+// backward (`exitDelayMs` + (last index - i) * stagger — last character first), so the
+// exit reads as a genuine reverse-cascade rather than the same sweep played backwards.
+function AnimatedPeekLine({ text, color, enterDelayMs, exitDelayMs, exposed, exiting, truncate }: {
   text: string
   color: string
-  startDelayMs: number
+  enterDelayMs: number
+  exitDelayMs: number
   /** See `PeekGhostLabel`'s own doc comment — same `exposed`/`exiting` gating, just
    *  applied per character instead of to one whole line. */
   exposed: boolean
@@ -416,8 +437,8 @@ function AnimatedPeekLine({ text, color, startDelayMs, exposed, exiting, truncat
           animate={charAnimate}
           transition={
             exiting
-              ? PEEK_TEXT_EXIT_TRANSITION
-              : { duration: PEEK_CHAR_ENTER_DURATION_MS / 1000, ease: PEEK_CHAR_ENTER_EASE, delay: (startDelayMs + i * stagger) / 1000 }
+              ? { duration: PEEK_CHAR_EXIT_DURATION_MS / 1000, ease: PEEK_EXIT_EASE, delay: (exitDelayMs + (chars.length - 1 - i) * stagger) / 1000 }
+              : { duration: PEEK_CHAR_ENTER_DURATION_MS / 1000, ease: PEEK_CHAR_ENTER_EASE, delay: (enterDelayMs + i * stagger) / 1000 }
           }
           style={{ display: 'inline-block' }}
         >
@@ -438,19 +459,19 @@ function PeekGhostLabel({ label, exposed, exiting }: {
   exposed: boolean
   /** True once ChatRoomPeekLayer's own reveal→fade choreography (PEEK_MIN_REVEAL_MS,
    *  then the landed-check, then PEEK_CONTINUE_MS — see that component's top doc
-   *  comment) has actually finished — i.e. `revealReady`, passed straight through. Until
+   *  comment) has actually finished — i.e. `textExiting`, passed straight through. Until
    *  this flips, the label stays visible continuously once exposed — with no separate
-   *  mid-timeline hide. Only once `exiting` flips does it fade + slide back down — timed
-   *  to the same SWIPE_NAV_ARRIVAL_FADE_MS window the layer holds itself mounted for
-   *  afterward, so the exit tween finishes exactly as the whole splash screen fades off,
-   *  not before it. */
+   *  mid-timeline hide. Once `exiting` flips, the two lines reverse out (room name
+   *  leads, "Moving To" follows) over PEEK_TEXT_EXIT_DURATION_MS — a full second, not
+   *  the short SWIPE_NAV_ARRIVAL_FADE_MS crossfade, which only starts once this reversed
+   *  exit is ~90% done (see `revealReady`'s doc comment in chatRoomPeekStore). */
   exiting: boolean
 }) {
   if (!label) return null
   return (
     <div className="w-full">
-      <AnimatedPeekLine text={PEEK_LINE1_TEXT} color="var(--color-muted)" startDelayMs={0} exposed={exposed} exiting={exiting} />
-      <AnimatedPeekLine text={label} color="var(--color-primary)" startDelayMs={PEEK_LINE2_START_DELAY_MS} exposed={exposed} exiting={exiting} truncate />
+      <AnimatedPeekLine text={PEEK_LINE1_TEXT} color="var(--color-muted)" enterDelayMs={0} exitDelayMs={PEEK_LINE1_EXIT_DELAY_MS} exposed={exposed} exiting={exiting} />
+      <AnimatedPeekLine text={label} color="var(--color-primary)" enterDelayMs={PEEK_LINE2_START_DELAY_MS} exitDelayMs={PEEK_LINE2_EXIT_DELAY_MS} exposed={exposed} exiting={exiting} truncate />
     </div>
   )
 }
