@@ -45,20 +45,23 @@ export async function requestPermission(): Promise<PermissionState> {
 
 /**
  * Save the current push subscription to the DB. Called on every app mount
- * (PushRefresh) and after FORCE RESUB.
+ * (PushRefresh) whenever permission is already granted — there's no separate
+ * manual "force resubscribe" entry point on this device's own side anymore;
+ * the closest equivalent is /profile/developer/push-diagnostics's per-user
+ * refresh button, which only deletes DB rows server-side and relies on this
+ * function running again next time that device's own PushRefresh mounts.
  *
  * Design decisions:
  * - Session is checked first so we fail fast with a clear warning.
- * - We INSERT without deleting first. Deleting then inserting creates a
- *   zero-row window that races with the debug FAB's auto-check (which fires
- *   on mount at the same time). It also risks losing the row if the insert
- *   fails after the delete. A plain INSERT that treats 23505 (duplicate key)
- *   as success is both safer and race-free.
- * - If the existing endpoint fails to insert (any non-23505 error — e.g. it
- *   was 410'd and now APNs rejects it at the source), we unsubscribe, get a
- *   fresh APNs token, and try again.
- * - Dispatches 'nexus-push-subscribed' on window when done so the FAB can
- *   re-check status without polling.
+ * - INSERT first, not delete-then-insert or a plain upsert — see trySave()'s
+ *   own comment for why (RLS + a shared-device conflict scenario).
+ * - If the existing endpoint fails to save (any error other than a 23505
+ *   conflict on our own row — e.g. it was 410'd and APNs now rejects it at
+ *   the source), we unsubscribe, get a fresh APNs token, and try again.
+ * - pruneOtherRowsForThisDevice() cleans up this device's own past duplicate
+ *   endpoints (see its own comment) after every successful save.
+ * - Dispatches 'nexus-push-subscribed' on window when done so PushDebugFAB's
+ *   status pill can re-check without polling.
  */
 export async function subscribeToPush(): Promise<PushSubscription | null> {
   if (!isSupported()) return null
@@ -79,12 +82,18 @@ export async function subscribeToPush(): Promise<PushSubscription | null> {
   const registration = await navigator.serviceWorker.ready
   const vapidKey = urlBase64ToUint8Array(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!)
 
-  // Upsert on endpoint (not insert-then-ignore-23505) so device_id/os_permission/
-  // sw_state get backfilled/refreshed on an already-existing row too, not just at
-  // first creation — this is what lets a row created before device_id existed pick
-  // one up the next time this same device successfully re-subscribes, without a
-  // separate backfill script. Single atomic statement, so no delete-then-insert
-  // race with the debug FAB/diagnostics page's own read.
+  // INSERT first (not upsert) — push_subscriptions' UPDATE RLS policy is scoped to
+  // `auth.uid() = user_id` (rows the caller already owns). An upsert's ON CONFLICT DO
+  // UPDATE runs that same policy check against the CONFLICTING row, so if the
+  // endpoint already belongs to a *different* user (a shared device/browser two
+  // accounts both subscribed from, without clearing site data between them — a real
+  // scenario with this project's own test accounts) RLS denies the update, upsert
+  // throws, and the caller below falls back to unsubscribe+fresh-subscribe — burning
+  // a needless new endpoint, exactly the duplicate-accumulation bug this whole
+  // mechanism exists to stop. Insert-then-conditionally-update avoids that: a 23505
+  // conflict falls through to a plain UPDATE scoped to `.eq('user_id', userId)`,
+  // which the same RLS policy still governs — but a 0-row UPDATE is not an error, it
+  // just silently no-ops when the row belongs to someone else, instead of throwing.
   async function trySave(sub: PushSubscription): Promise<PushSubscription> {
     const json   = sub.toJSON()
     const p256dh = json.keys?.p256dh
@@ -94,21 +103,30 @@ export async function subscribeToPush(): Promise<PushSubscription | null> {
     // os_permission/sw_state are diagnostic-only (see /profile/developer/push-diagnostics)
     // — captured at the one moment this code has both facts in hand, since neither is
     // knowable server-side for another user's device without a client report like this.
-    const { error } = await supabase
+    const fields = {
+      p256dh,
+      auth,
+      device_id:     deviceId,
+      os_permission: 'Notification' in window ? Notification.permission : null,
+      sw_state:      registration.active?.state ?? null,
+    }
+
+    const { error: insertError } = await supabase
       .from('push_subscriptions')
-      .upsert({
-        user_id:       userId,
-        endpoint:      sub.endpoint,
-        p256dh,
-        auth,
-        device_id:     deviceId,
-        os_permission: 'Notification' in window ? Notification.permission : null,
-        sw_state:      registration.active?.state ?? null,
-      }, { onConflict: 'endpoint' })
+      .insert({ user_id: userId, endpoint: sub.endpoint, ...fields })
 
-    if (!error) return sub
+    if (!insertError) return sub
+    if (insertError.code !== '23505') {
+      throw new Error(`insert failed: ${insertError.message} (code=${insertError.code})`)
+    }
 
-    throw new Error(`upsert failed: ${error.message} (code=${error.code})`)
+    // Conflict: row already exists. Backfill device_id/os_permission/sw_state onto it
+    // — best-effort, since this only matters for a row this device already owns; if it
+    // belongs to another user sharing this browser, RLS makes it a harmless 0-row no-op.
+    try {
+      await supabase.from('push_subscriptions').update(fields).eq('endpoint', sub.endpoint).eq('user_id', userId)
+    } catch { /* best-effort backfill only */ }
+    return sub
   }
 
   // Self-heals the iOS getSubscription()-false-negative bug (see the retry loop's

@@ -13,6 +13,7 @@ export interface PushDiagnosticUser {
   subscribed:         boolean
   subscriptionCount:  number
   lastSeenAt:         string | null
+  subscribedSince:    string | null
   hasApns:            boolean
   hasFcm:             boolean
   osGranted:          'yes' | 'no' | 'unknown'
@@ -109,9 +110,12 @@ function UserDiagnosticCard({
   onRefresh: () => void
 }) {
   const [copied, setCopied] = useState(false)
-  const platform = platformLabel(user)
-  const issues   = detectIssues(user)
+  const platform    = platformLabel(user)
+  const issues      = detectIssues(user)
   const consoleLines = [...issues.map((i) => `✗ ${i}`), ...log]
+  // Falls back to earliest subscribe date when never confirmed alive, rather
+  // than showing no date at all.
+  const displayDate = user.lastSeenAt ?? user.subscribedSince
 
   function handleCopy() {
     const text = consoleLines.join('\n')
@@ -131,7 +135,7 @@ function UserDiagnosticCard({
           <UserAvatar avatarUrl={user.avatarUrl} username={user.username} size={32} bg="border" initialColor="primary" />
           <div className="flex-1 min-w-0 flex flex-col justify-center" style={{ gap: 'var(--x1)', height: 37 }}>
             <p className="font-body font-semibold text-primary truncate" style={{ fontSize: 'var(--sm)', letterSpacing: '0.2px', fontVariationSettings: '"opsz" 14' }}>
-              {user.username}{user.lastSeenAt ? ` · ${formatMMDDYY(user.lastSeenAt)}` : ''}
+              {user.username}{displayDate ? ` · ${formatMMDDYY(displayDate)}` : ''}
             </p>
             <div className="flex items-center" style={{ gap: 8 }}>
               <div className="flex items-center overflow-clip py-px" style={{ gap: 'var(--x2)' }}>
@@ -191,16 +195,18 @@ function UserDiagnosticCard({
 }
 
 export function PushDiagnostics({ initialUsers }: PushDiagnosticsProps) {
-  const [users,       setUsers]       = useState(initialUsers)
-  const [logsByUser,  setLogsByUser]  = useState<Record<string, string[]>>({})
-  const [resubbingId, setResubbingId] = useState<string | null>(null)
+  const [users,        setUsers]        = useState(initialUsers)
+  const [logsByUser,   setLogsByUser]   = useState<Record<string, string[]>>({})
+  // A Set, not a single id — refreshing two different rows in quick succession
+  // must not clear the first row's spinner just because a second one started.
+  const [resubbingIds, setResubbingIds] = useState<Set<string>>(new Set())
 
   function appendLog(userId: string, line: string) {
     setLogsByUser((prev) => ({ ...prev, [userId]: [...(prev[userId] ?? []), line] }))
   }
 
   async function handleRefresh(user: PushDiagnosticUser) {
-    setResubbingId(user.id)
+    setResubbingIds((prev) => new Set(prev).add(user.id))
     appendLog(user.id, `→ force resub requested for @${user.username}…`)
     try {
       const result = await forceResubForUserAction(user.id)
@@ -210,12 +216,16 @@ export function PushDiagnostics({ initialUsers }: PushDiagnosticsProps) {
       }
       appendLog(user.id, `✓ deleted ${result.deletedCount ?? 0} row(s) — resolves next time this device reopens the app`)
       setUsers((prev) => prev.map((u) => u.id === user.id
-        ? { ...u, subscribed: false, subscriptionCount: 0, lastSeenAt: null, hasApns: false, hasFcm: false, osGranted: 'unknown', swActivated: 'unknown' }
+        ? { ...u, subscribed: false, subscriptionCount: 0, lastSeenAt: null, subscribedSince: null, hasApns: false, hasFcm: false, osGranted: 'unknown', swActivated: 'unknown' }
         : u))
     } catch (err) {
       appendLog(user.id, `✗ ${String(err).slice(0, 120)}`)
     } finally {
-      setResubbingId(null)
+      setResubbingIds((prev) => {
+        const next = new Set(prev)
+        next.delete(user.id)
+        return next
+      })
     }
   }
 
@@ -234,7 +244,7 @@ export function PushDiagnostics({ initialUsers }: PushDiagnosticsProps) {
             key={user.id}
             user={user}
             log={logsByUser[user.id] ?? []}
-            resubbing={resubbingId === user.id}
+            resubbing={resubbingIds.has(user.id)}
             onRefresh={() => handleRefresh(user)}
           />
         ))}

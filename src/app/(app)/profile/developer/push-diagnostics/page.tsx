@@ -54,6 +54,11 @@ export default async function PushDiagnosticsPage() {
       if (!s.last_seen_at) return max
       return !max || s.last_seen_at > max ? s.last_seen_at : max
     }, null)
+    // Fallback for the card's date slot when never confirmed alive (no heartbeat
+    // has round-tripped yet) — earliest subscribe still beats showing no date at all.
+    const subscribedSince = subs.reduce<string | null>((min, s) => {
+      return !min || s.created_at < min ? s.created_at : min
+    }, null)
 
     const permissions = subs.map((s) => s.os_permission).filter((v): v is string => !!v)
     const swStates    = subs.map((s) => s.sw_state).filter((v): v is string => !!v)
@@ -65,6 +70,7 @@ export default async function PushDiagnosticsPage() {
       subscribed:        subs.length > 0,
       subscriptionCount: subs.length,
       lastSeenAt,
+      subscribedSince,
       hasApns:           subs.some((s) => s.endpoint.includes('web.push.apple.com')),
       hasFcm:            subs.some((s) => s.endpoint.includes('fcm.googleapis.com')),
       osGranted:         permissions.length === 0 ? 'unknown' : permissions.includes('granted') ? 'yes' : 'no',
