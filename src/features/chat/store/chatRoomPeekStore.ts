@@ -13,8 +13,17 @@ import { create } from 'zustand'
 // param), and ChatRoomPeekLayer keeps itself mounted underneath — still showing the
 // ghost/backdrop — for this same duration after the real room lands, so there's
 // something underneath to actually fade FROM instead of the peek's ghost popping away
-// mid-fade. Both sides read this one constant so they can't drift out of sync.
-export const SWIPE_NAV_ARRIVAL_FADE_MS = 250
+// mid-fade. Both sides read this one constant so they can't drift out of sync. Bumped
+// from an original 250ms — that short a crossfade read as an instant pop rather than a
+// fade, especially paired with `easeOut`'s naturally front-loaded motion (see the ease
+// constant below, which was changed alongside this for the same reason).
+export const SWIPE_NAV_ARRIVAL_FADE_MS = 450
+// `easeOut` front-loads a fade-in — most of the opacity change happens in the first
+// fraction of the duration, then it visibly dawdles at the tail — which is what made the
+// old crossfade read as "pops in almost instantly" rather than a smooth reveal. A
+// symmetric ease-in-out ramps up AND down, so the reveal has a gradual start as well as
+// a gradual finish instead of an abrupt initial jump.
+export const SWIPE_NAV_ARRIVAL_FADE_EASE = 'easeInOut' as const
 
 // Reveal→fade choreography for the destination room's ghost/label placeholder (see
 // ChatRoomPeekLayer's own doc comment for the full timeline). Per explicit spec: (1) the

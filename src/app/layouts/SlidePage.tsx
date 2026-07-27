@@ -2,7 +2,7 @@
 import { createContext, useContext, useRef, useCallback, useEffect } from 'react'
 import { motion, useAnimation } from 'framer-motion'
 import { useRouter } from 'next/navigation'
-import { SWIPE_NAV_ARRIVAL_FADE_MS, useChatRoomPeekStore } from '@/features/chat/store/chatRoomPeekStore'
+import { SWIPE_NAV_ARRIVAL_FADE_MS, SWIPE_NAV_ARRIVAL_FADE_EASE, useChatRoomPeekStore } from '@/features/chat/store/chatRoomPeekStore'
 
 const SlideBackContext = createContext<() => void>(() => {})
 
@@ -145,7 +145,7 @@ export function SlidePage({ children, className, style, backHref, nativeSwipe, d
     if (!fadeInOnSkipRef.current || !revealReady) return
     controls.start({
       opacity: 1,
-      transition: { duration: SWIPE_NAV_ARRIVAL_FADE_MS / 1000, ease: 'easeOut' },
+      transition: { duration: SWIPE_NAV_ARRIVAL_FADE_MS / 1000, ease: SWIPE_NAV_ARRIVAL_FADE_EASE },
     })
   }, [revealReady, controls])
 
