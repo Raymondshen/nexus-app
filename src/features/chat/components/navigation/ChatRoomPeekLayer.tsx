@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { motion } from 'framer-motion'
 import {
   useChatRoomPeekStore, SWIPE_NAV_ARRIVAL_FADE_MS, PEEK_MIN_REVEAL_MS, PEEK_CONTINUE_MS,
@@ -304,37 +304,37 @@ function PeekBarAndInput({ meta }: { meta: RoomMeta }) {
 // independent text nodes stacked with zero gap ("Moving To" then the room name), not one
 // text run with a line break — confirmed via `get_design_context` on each child frame
 // individually, since the parent-level call collapses them into a single misleading
-// two-span `<p>` with an inline `<br/>`. Reproduced here as two separate block-level
-// `<motion.p>`s for that reason (and so only the room-name line needs `truncate`, not the
-// fixed "MOVING TO" line — a shared `truncate`/nowrap would collapse the line break too):
-// "MOVING TO" in `--color-muted`, the room name in `--color-primary`. `uppercase` is a CSS
-// transform here, not a literal caps string, so it renders correctly regardless of the
-// room name's own casing. `label` is the target room's name from roomMeta — already
-// prefetched for the adjacent rooms in chatRoomOrder by the time a drag can actually reach
-// this far (see ChatInput's own prefetch effect), so this is null only in the unlikely
-// case that prefetch hasn't resolved yet; the whole block just doesn't render rather than
-// show "Moving To" next to a blank/undefined name.
+// two-span `<p>` with an inline `<br/>`. Reproduced here as two separate lines for that
+// reason: "MOVING TO" in `--color-muted`, the room name in `--color-primary`. `uppercase`
+// is a CSS transform here, not a literal caps string, so it renders correctly regardless
+// of the room name's own casing. `label` is the target room's name from roomMeta —
+// already prefetched for the adjacent rooms in chatRoomOrder by the time a drag can
+// actually reach this far (see ChatInput's own prefetch effect), so this is null only in
+// the unlikely case that prefetch hasn't resolved yet; the whole block just doesn't
+// render rather than show "Moving To" next to a blank/undefined name.
 const PEEK_GHOST_FRAME_COUNT = 6
 const PEEK_GHOST_FRAME_MS    = 150
 const PEEK_GHOST_SPRITE_PX   = 56
 
-// Figma's own timeline for this node (get_motion_context on 659:9526) animates both label
-// lines as a fade+slide-up entrance — opacity 0→1, y:35→0 (35px being each line's own
-// line-box height from the metadata, so each line slides up exactly its own height into
-// place) — on a [0.5,0,0.5,1] ease, as one segment of an infinitely-repeating 2s loop
-// (Figma's own prototype-preview convention for previewing an animation continuously).
-// Reproduced here as a one-shot reveal per explicit spec rather than that raw timeline:
-// the whole label (both lines together, no inter-line stagger) slides up + fades in over
-// PEEK_MIN_REVEAL_MS (the same window ChatRoomPeekLayer's own choreography holds before
-// it's allowed to check whether the destination has loaded, so the check only ever runs
-// once this entrance has actually finished), then plays once more, reversed (fade + slide
-// back down) once `exiting` flips true — see that prop's own doc comment below. Both
-// directions — and both lines — share this one variants object (opacity 0/y 35 ↔ opacity
-// 1/y 0); only which state `animate` targets, and the transition duration, differs.
-const PEEK_TEXT_EASE     = [0.5, 0, 0.5, 1] as const
-const PEEK_TEXT_VARIANTS = { hidden: { opacity: 0, y: 35 }, visible: { opacity: 1, y: 0 } }
+// Per explicit request: the entrance is no longer a single fade+slide of the whole label
+// block. "MOVING TO" reveals first, then the room name follows, each one letter at a
+// time (fade + a short upward slide per character) rather than the line arriving as one
+// unit. `PEEK_TEXT_VARIANTS`' y-offset was cut from 35px (the whole line's own line-box
+// height, right for a full-line slide) down to a few px — a per-character slide needs to
+// read as a subtle settle, not each letter sweeping up its own full line height. Exit
+// stays a single simultaneous fade (all characters together, no reverse-stagger) — the
+// ask there was a smoother *ease*, not a re-staggered exit.
+const PEEK_CHAR_ENTER_EASE          = [0.16, 1, 0.3, 1] as const   // ease-out — each letter decelerates into place
+const PEEK_EXIT_EASE                = [0.22, 1, 0.36, 1] as const  // smooth ease-out — a gentler settle than the old symmetric in/out curve
+const PEEK_CHAR_ENTER_DURATION_MS   = 380
+const PEEK_CHAR_STAGGER_MS          = 26   // per-character delay within one line
+const PEEK_LINE_STAGGER_SPREAD_MS   = 380  // a line's own characters never spread across more than this, however long the room name is
+const PEEK_LINE2_START_DELAY_MS     = 260  // room name starts partway through "Moving To"'s reveal — reads as "following", not a dead pause between the two
+const PEEK_LINE1_TEXT               = 'Moving To'
 
-// Stable object references, defined once at module scope rather than as inline literals
+const PEEK_TEXT_VARIANTS = { hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0 } }
+
+// Stable object reference, defined once at module scope rather than as an inline literal
 // on the `transition` prop — `PeekGhost`'s sprite ticks `frame` state every
 // PEEK_GHOST_FRAME_MS (150ms) for its whole walk-cycle, and recreating a fresh
 // `transition` object on every one of those re-renders was very likely what caused an
@@ -342,12 +342,18 @@ const PEEK_TEXT_VARIANTS = { hidden: { opacity: 0, y: 35 }, visible: { opacity: 
 // evaluates the animation whenever the props it's tracking change identity, so a tween
 // that's supposed to run once was instead getting re-issued roughly every 150ms for as
 // long as the sprite kept ticking — never actually completing a visible, continuous
-// interpolation. Fixed two ways: these transition objects are now stable (never
-// recreated), AND the label is split into its own `PeekGhostLabel` component below so it
-// doesn't re-render on every sprite frame tick at all — only when `label`/`exiting`
-// themselves change (twice per gesture: once at mount, once at exit).
-const PEEK_TEXT_ENTER_TRANSITION = { duration: PEEK_MIN_REVEAL_MS / 1000, ease: PEEK_TEXT_EASE }
-const PEEK_TEXT_EXIT_TRANSITION  = { duration: SWIPE_NAV_ARRIVAL_FADE_MS / 1000, ease: PEEK_TEXT_EASE }
+// interpolation. Fixed two ways: this transition object is stable (never recreated), AND
+// the label is split into its own `PeekGhostLabel` component below so it doesn't
+// re-render on every sprite frame tick at all — only when `label`/`exiting` themselves
+// change (twice per gesture: once at mount, once at exit).
+const PEEK_TEXT_EXIT_TRANSITION = { duration: SWIPE_NAV_ARRIVAL_FADE_MS / 1000, ease: PEEK_EXIT_EASE }
+
+// Caps per-character stagger so a long room name's reveal doesn't stretch out
+// indefinitely — spread stays fixed at PEEK_LINE_STAGGER_SPREAD_MS regardless of length.
+function peekCharStaggerMs(charCount: number) {
+  if (charCount <= 1) return 0
+  return Math.min(PEEK_CHAR_STAGGER_MS, PEEK_LINE_STAGGER_SPREAD_MS / (charCount - 1))
+}
 
 function PeekGhostSprite() {
   const frame = useSpriteFrameLoop(PEEK_GHOST_FRAME_COUNT, PEEK_GHOST_FRAME_MS)
@@ -372,13 +378,63 @@ function PeekGhostSprite() {
   )
 }
 
+// One line of the label, split into per-character `<motion.span>`s so each letter fades
+// + slides in on its own staggered delay (`startDelayMs` + i * the line's own capped
+// per-char stagger). Exit ignores the stagger entirely — every character animates back
+// to `hidden` together on `PEEK_TEXT_EXIT_TRANSITION`, since only the entrance was asked
+// to read as sequential/letter-by-letter.
+function AnimatedPeekLine({ text, color, startDelayMs, exposed, exiting, truncate }: {
+  text: string
+  color: string
+  startDelayMs: number
+  /** See `PeekGhostLabel`'s own doc comment — same `exposed`/`exiting` gating, just
+   *  applied per character instead of to one whole line. */
+  exposed: boolean
+  exiting: boolean
+  truncate?: boolean
+}) {
+  const chars = useMemo(() => Array.from(text), [text])
+  const stagger = peekCharStaggerMs(chars.length)
+  // `initial="hidden"` differs from `animate`'s resolved value once `exposed` flips true
+  // (it becomes 'visible' unless `exiting`), which is exactly the case Framer Motion's
+  // tween is designed for — it plays the transition from wherever the element currently
+  // is to `animate`'s new target, right when that prop actually changes.
+  const charAnimate = !exposed || exiting ? 'hidden' : 'visible'
+  return (
+    <p
+      className={`font-body font-black uppercase${truncate ? ' truncate' : ''}`}
+      style={{
+        fontSize: 'var(--text-display)', letterSpacing: '0.64px', lineHeight: 1.1,
+        color, fontVariationSettings: '"opsz" 14', whiteSpace: 'nowrap',
+      }}
+    >
+      {chars.map((ch, i) => (
+        <motion.span
+          key={i}
+          variants={PEEK_TEXT_VARIANTS}
+          initial="hidden"
+          animate={charAnimate}
+          transition={
+            exiting
+              ? PEEK_TEXT_EXIT_TRANSITION
+              : { duration: PEEK_CHAR_ENTER_DURATION_MS / 1000, ease: PEEK_CHAR_ENTER_EASE, delay: (startDelayMs + i * stagger) / 1000 }
+          }
+          style={{ display: 'inline-block' }}
+        >
+          {ch === ' ' ? ' ' : ch}
+        </motion.span>
+      ))}
+    </p>
+  )
+}
+
 function PeekGhostLabel({ label, exposed, exiting }: {
   label: string | null
   /** True once this layer has actually become visible to the user — see `exposed`'s own
-   *  doc comment in chatRoomPeekStore. The entrance (slide up + fade in) doesn't start
-   *  until this flips; before that, the label stays in its pre-entrance "hidden" pose
-   *  (unrendered, effectively, since it's fully occluded anyway) rather than running its
-   *  tween out while nothing could see it. */
+   *  doc comment in chatRoomPeekStore. The entrance (per-character slide up + fade in)
+   *  doesn't start until this flips; before that, every character stays in its
+   *  pre-entrance "hidden" pose (unrendered, effectively, since it's fully occluded
+   *  anyway) rather than running its tween out while nothing could see it. */
   exposed: boolean
   /** True once ChatRoomPeekLayer's own reveal→fade choreography (PEEK_MIN_REVEAL_MS,
    *  then the landed-check, then PEEK_CONTINUE_MS — see that component's top doc
@@ -391,33 +447,10 @@ function PeekGhostLabel({ label, exposed, exiting }: {
   exiting: boolean
 }) {
   if (!label) return null
-  // `initial="hidden"` differs from `animate`'s resolved value once `exposed` flips true
-  // (it becomes 'visible' unless `exiting`), which is exactly the case Framer Motion's
-  // tween is designed for — it plays the transition from wherever the element currently
-  // is to `animate`'s new target, right when that prop actually changes.
-  const textAnimate = !exposed || exiting ? 'hidden' : 'visible'
   return (
     <div className="w-full">
-      <motion.p
-        variants={PEEK_TEXT_VARIANTS}
-        initial="hidden"
-        animate={textAnimate}
-        transition={exiting ? PEEK_TEXT_EXIT_TRANSITION : PEEK_TEXT_ENTER_TRANSITION}
-        className="font-body font-black uppercase"
-        style={{ fontSize: 'var(--text-display)', letterSpacing: '0.64px', lineHeight: 1.1, color: 'var(--color-muted)', fontVariationSettings: '"opsz" 14' }}
-      >
-        Moving To
-      </motion.p>
-      <motion.p
-        variants={PEEK_TEXT_VARIANTS}
-        initial="hidden"
-        animate={textAnimate}
-        transition={exiting ? PEEK_TEXT_EXIT_TRANSITION : PEEK_TEXT_ENTER_TRANSITION}
-        className="font-body font-black uppercase truncate"
-        style={{ fontSize: 'var(--text-display)', letterSpacing: '0.64px', lineHeight: 1.1, color: 'var(--color-primary)', fontVariationSettings: '"opsz" 14' }}
-      >
-        {label}
-      </motion.p>
+      <AnimatedPeekLine text={PEEK_LINE1_TEXT} color="var(--color-muted)" startDelayMs={0} exposed={exposed} exiting={exiting} />
+      <AnimatedPeekLine text={label} color="var(--color-primary)" startDelayMs={PEEK_LINE2_START_DELAY_MS} exposed={exposed} exiting={exiting} truncate />
     </div>
   )
 }
