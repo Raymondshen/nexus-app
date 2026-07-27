@@ -356,7 +356,7 @@ self.addEventListener('push', (event) => {
   // Suppress the OS banner (and badge bump) when the recipient currently has this
   // exact crew's chat open and foregrounded — they're already seeing the message
   // live, a push on top is redundant/annoying. Only message/mention/reply pushes
-  // carry crew_id; friend_request/recruit_arrived are never suppressed this way.
+  // carry crew_id; friend_request/health_check are never suppressed this way.
   if (notifData && notifData.crew_id && notifData.crew_id === activeCrewId) {
     event.waitUntil(Promise.all([logPromise, clientPromise, heartbeatPromise]))
     return

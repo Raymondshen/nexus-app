@@ -26,7 +26,12 @@ export async function sendFriendRequestAction(addresseeId: string): Promise<{ ok
     const fnUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/send-notification`
     await fetch(fnUrl, {
       method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
+      // send-notification is meant to be deployed with --no-verify-jwt (only ever
+      // called server-side), but that's deploy-time gateway config, not something
+      // this code controls — a future redeploy without that flag would silently
+      // 401 this call before send-notification's own code runs. The service-role
+      // key is a valid JWT the gateway accepts regardless of the flag's state.
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}` },
       body: JSON.stringify({
         user_id: addresseeId,
         type:    'friend_request',

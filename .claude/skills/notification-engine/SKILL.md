@@ -19,19 +19,20 @@ Two independent preference layers, both optional per type:
 - **Global** — `notification_preferences` (one row per user): `notif_messages`, `notif_mentions`.
 - **Per-crew** — `crew_notification_preferences` (one row per user+crew, `UNIQUE(user_id, crew_id)`): same two columns, lets a user mute one chat without muting all of them.
 
-A type with no meaningful "mute" concept (e.g. `friend_request`, `recruit_arrived`) maps to `null` in `PREF_COLUMN` and is **always delivered** — it skips both preference queries entirely.
+A type with no meaningful "mute" concept (e.g. `friend_request`, `health_check`) maps to `null` in `PREF_COLUMN` and is **always delivered** — it skips both preference queries entirely.
 
 ## The 4 pieces every notification type touches
 
 ### 1. `send-notification/index.ts` — the type itself
 ```ts
-type NotificationType = 'message_received' | 'mention_received' | 'friend_request' | 'recruit_arrived'
+type NotificationType = 'message_received' | 'mention_received' | 'reply_received' | 'friend_request' | 'health_check'
 
-const PREF_COLUMN: Record<NotificationType, 'notif_messages' | 'notif_mentions' | null> = {
+const PREF_COLUMN: Record<NotificationType, 'notif_messages' | 'notif_mentions' | 'notif_replies' | null> = {
   message_received: 'notif_messages',
   mention_received:  'notif_mentions',
+  reply_received:    'notif_replies',
   friend_request:    null,
-  recruit_arrived:   null,
+  health_check:      null, // ops canary only, see /api/cron/push-health — never user-facing
 }
 ```
 If the new type is mutable by the user, it must reuse `notif_messages`/`notif_mentions` or add a new column (see "Adding a whole new preference column" below) — `PREF_COLUMN`'s value type only widens when a new column is actually added to both tables.
@@ -53,11 +54,17 @@ case 'your_new_type':
 ```ts
 fetch(`${SUPABASE_URL}/functions/v1/send-notification`, {
   method:  'POST',
-  headers: { 'Content-Type': 'application/json' },
+  // Always send this, even though send-notification is meant to be deployed with
+  // --no-verify-jwt (only ever called server-side). That flag is deploy-time gateway
+  // config, not something this call site controls — a future redeploy that forgets
+  // it would otherwise silently 401 every call before send-notification's own code
+  // runs. The service-role key is a valid signed JWT, so it passes the gateway
+  // check regardless of the flag's state.
+  headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` },
   body: JSON.stringify({ user_ids: [...], type: 'your_new_type', payload: { crew_id, crew_name, ... } }),
 }).catch(() => {}) // fire-and-forget — never block the caller's main flow on push delivery
 ```
-Every existing call site is **fire-and-forget** (`.catch(() => {})`, not awaited into the response). Notification delivery must never block or fail the primary action (message send, friend request, etc). See `supabase/functions/award-xp/index.ts:101-134` for the canonical multi-recipient example (splits mentioned vs. non-mentioned users into two parallel calls), or `src/app/(app)/friends/actions.ts` for a single-recipient server-action example.
+Every existing call site is **fire-and-forget** (`.catch(() => {})`, not awaited into the response) AND sends this Bearer header. Notification delivery must never block or fail the primary action (message send, friend request, etc). See `supabase/functions/award-xp/index.ts:101-134` for the canonical multi-recipient example (splits mentioned vs. non-mentioned users into two parallel calls), `src/app/(app)/friends/actions.ts` for a single-recipient server-action example, or `src/app/api/cron/push-health/route.ts` for a canary/ops-only example (`health_check` type, not user-facing).
 
 Include `payload.crew_id` whenever the notification is crew-scoped — the edge function only applies the per-crew mute query `if (payload?.crew_id)`. Omitting it silently skips crew-level muting (global prefs still apply).
 
@@ -98,7 +105,7 @@ When adding a new toggle, update **both** consumers' `select()`, load-mapping, a
 2. Add it to `PREF_COLUMN` (`null` = always deliver, no mute possible).
 3. Add a `case` to `buildPayload()` → `{ title, body, icon, badge, data: { url } }`.
 4. Call `send-notification` (raw `fetch`, fire-and-forget) from the actual trigger point — a DB write, an edge function, or a server action.
-5. Deploy: `supabase functions deploy send-notification --project-ref tlveyeisjbythssmocth` (no `--no-verify-jwt` needed here since it's a service-role-authenticated internal call in most flows, but check whether your trigger caller has a user JWT — `award-xp`/`friends/actions.ts` call it without one).
+5. Deploy: `supabase functions deploy send-notification --project-ref tlveyeisjbythssmocth`. The function is meant to run with `--no-verify-jwt` (only ever called server-side), but every caller also sends `Authorization: Bearer <service-role-key>` regardless — see step 3's example — so a redeploy that forgets the flag doesn't silently 401 every call.
 6. **`git push` does NOT deploy edge functions** — always run the `supabase functions deploy` command yourself after editing `send-notification/index.ts` or CLAUDE.md's `mention_received` example will drift from what's actually live.
 
 ## Key files
@@ -109,10 +116,10 @@ When adding a new toggle, update **both** consumers' `select()`, load-mapping, a
 - `src/features/chat/components/header/ChatHeader.tsx` — per-crew prefs consumer
 - `supabase/functions/award-xp/index.ts:101-134` — canonical multi-recipient trigger example (`message_received` / `mention_received` split)
 - `src/app/(app)/friends/actions.ts` — canonical single-recipient trigger example (`friend_request`)
-- `src/app/(app)/onboarding/welcome/actions.ts` + `.../welcome/page.tsx` — `recruit_arrived` trigger (two call sites, both fire the same type)
 - `public/sw-push.js` — service worker: displays the push (`showNotification`, minimal-options iOS fallback) and routes taps (`notificationclick` → `event.notification.data.url`)
 - `src/app/api/test/push/route.ts` — debug endpoint (`GET` = diagnostics on current subscriptions + muted crews, `POST` = sends a real `message_received` test push to the calling user)
 - `src/shared/components/pwa/PushDebugFAB.tsx` — dev-only floating action button UI for the above debug endpoint
+- `src/app/api/cron/push-health/route.ts` — daily Vercel cron canary (see CLAUDE.md's Edge Functions section for schedule). Fires a `health_check` push (ops-only `NotificationType`, `PREF_COLUMN`-mapped to `null`, never surfaced in `NotifSheet`) at every `is_dev` account's own subscriptions and fails the cron run (non-200) if the HTTP call errors, 401s, or nothing actually sends — the automated version of "did a redeploy silently break delivery," so it doesn't take a user reporting a missed notification to find out
 - `public/sw-push.js` — also owns `activeCrewId` state, the `message` listener, and the suppression check in the `push` handler (active-crew suppression)
 - `src/shared/utils/notifications.ts` — `notifyActiveCrew()`
 - `src/features/chat/components/input/ChatInput.tsx` — the only call site for `notifyActiveCrew`, piggybacked on the existing per-crew presence effect
@@ -122,7 +129,7 @@ When adding a new toggle, update **both** consumers' `select()`, load-mapping, a
 - **Subscribing** is INSERT-only, no delete-first — `push_subscriptions.endpoint` is `UNIQUE`, so a `23505` conflict on re-subscribe is the *success* path, not an error to surface.
 - **Notification `tag` must be unique per push** (`sw-push.js` appends `-{timestamp}`) — without it, iOS coalesces/suppresses rapid repeat pushes into a single alert instead of showing each one.
 - **iOS Web Push only supports a minimal `showNotification` option set** — `badge` is stripped, and `sw-push.js` retries with just `{ body }` if the full options object is rejected.
-- **Debugging**: HTTP 401 from `send-notification` means it was deployed without `--no-verify-jwt`; a result status of `expired_deleted` means APNs returned 410 for that subscription (already deleted from `push_subscriptions` by the cleanup step) — the client should force a re-subscribe.
+- **Debugging**: HTTP 401 from `send-notification` means it was deployed without `--no-verify-jwt` AND the caller didn't send the `Authorization: Bearer <service-role-key>` header (see step 3 above) — check both, since every real caller now sends that header specifically so this class of redeploy mistake degrades gracefully instead of silently killing delivery; `/api/cron/push-health`'s daily canary also surfaces this automatically. A result status of `expired_deleted` means APNs returned 410 for that subscription (already deleted from `push_subscriptions` by the cleanup step) — the client should force a re-subscribe.
 
 ## Opt-in gotchas (found while debugging "push isn't working" for a real user)
 
@@ -134,10 +141,10 @@ When adding a new toggle, update **both** consumers' `select()`, load-mapping, a
 
 ## Active-crew suppression — no banner for a chat already open
 
-A push for `message_received`/`mention_received`/`reply_received` is **not shown** as an OS notification if the recipient currently has that exact crew's chat screen open and foregrounded — they're already seeing the message live via Realtime, so a banner on top is redundant. `friend_request`/`recruit_arrived` are never suppressed this way (no crew concept). This is a client-visibility filter layered on top of the existing preference-mute filters (global/per-crew `notif_messages` etc.) — both can independently cause a push to not show; they're separate mechanisms, don't conflate them when debugging "why didn't I get notified."
+A push for `message_received`/`mention_received`/`reply_received` is **not shown** as an OS notification if the recipient currently has that exact crew's chat screen open and foregrounded — they're already seeing the message live via Realtime, so a banner on top is redundant. `friend_request`/`health_check` are never suppressed this way (no crew concept). This is a client-visibility filter layered on top of the existing preference-mute filters (global/per-crew `notif_messages` etc.) — both can independently cause a push to not show; they're separate mechanisms, don't conflate them when debugging "why didn't I get notified."
 
 **How it works, end to end:**
-1. `buildPayload()` in `send-notification/index.ts` puts `crew_id` directly in the push's `data` object for the three chat-message types (not just baked into `data.url`) — `/dm/[friendId]` routes never expose crew_id in their URL, so the service worker can't recover it by parsing `url` alone. If you add a new crew-scoped `NotificationType`, include `crew_id` in its `data` too if it should ever be eligible for this suppression; omit it (like `friend_request`/`recruit_arrived`) if it shouldn't.
+1. `buildPayload()` in `send-notification/index.ts` puts `crew_id` directly in the push's `data` object for the three chat-message types (not just baked into `data.url`) — `/dm/[friendId]` routes never expose crew_id in their URL, so the service worker can't recover it by parsing `url` alone. If you add a new crew-scoped `NotificationType`, include `crew_id` in its `data` too if it should ever be eligible for this suppression; omit it (like `friend_request`/`health_check`) if it shouldn't.
 2. `ChatInput.tsx` is the single owner of "is the user currently looking at this crew's chat" — it already runs a per-crew effect for the presence heartbeat (mount / `visibilitychange` / unmount), so `notifyActiveCrew(crewId)` (`shared/utils/notifications.ts`) is called at those same three points: on mount if the page starts visible, on each `visibilitychange` (`crewId` when visible, `null` when hidden), and `null` on unmount/crew-switch. This posts `{ type: 'nexus-active-crew', crewId }` to the active service worker.
 3. `sw-push.js` keeps a module-scope `activeCrewId`, updated by a `message` listener for that event type. In the `push` handler, if the incoming `notifData.crew_id === activeCrewId`, it skips `showNotification` and the `navigator.setAppBadge()` call entirely — but still runs the push-log/diagnostics and client `postMessage` (so `PushDebugFAB` and any open tab still see the push arrived, just silently).
 
@@ -150,7 +157,7 @@ A push for `message_received`/`mention_received`/`reply_received` is **not shown
 ## Gotchas
 - **Fire-and-forget only.** Every trigger call site uses `.catch(() => {})` and does not `await` into the response path. A notification failure must never fail or delay the user-facing action it's attached to.
 - **`payload.crew_id` is what turns on per-crew mute checking.** The edge function only queries `crew_notification_preferences` `if (payload?.crew_id)`. A crew-scoped type that forgets to pass `crew_id` will still honor global mute but silently ignore per-crew mute.
-- **`prefCol !== null` gates both preference queries, not just one.** A `null`-mapped type (`friend_request`, `recruit_arrived`) skips the entire preference-fetch block and always resolves every target id — there is no way to opt out of these short of removing all push subscriptions.
+- **`prefCol !== null` gates both preference queries, not just one.** A `null`-mapped type (`friend_request`, `health_check`) skips the entire preference-fetch block and always resolves every target id — there is no way to opt out of these short of removing all push subscriptions.
 - **iOS Web Push only supports a minimal `showNotification` option set.** `sw-push.js` already handles this (retries with `{ body }` only if the full options object is rejected) — don't add new required fields to the push payload that iOS doesn't document support for without adding the same fallback.
 - **Stale subscription cleanup is automatic and global to the function** — any 410/404 from `web-push` during *any* notification type deletes that `push_subscriptions` row. You don't need (and shouldn't add) per-type cleanup logic.
 - **`NotifPrefs` is duplicated state, not a shared hook.** `SettingsClient.tsx` (global) and `ChatHeader.tsx` (per-crew) each independently load/upsert — a new toggle key must be wired into both or one surface will silently keep defaulting.

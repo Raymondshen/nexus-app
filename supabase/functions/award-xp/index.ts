@@ -128,6 +128,16 @@ Deno.serve(async (req: Request) => {
       const otherUserIds = (membersResult.data ?? []).map((m: { user_id: string }) => m.user_id)
       const mentionedSet = new Set(mentionedIds)
       const fnUrl        = `${Deno.env.get('SUPABASE_URL')}/functions/v1/send-notification`
+      // send-notification is meant to be deployed with --no-verify-jwt (it's only ever
+      // called server-side/inter-function, never from a browser), but the gateway's
+      // verify_jwt flag is deploy-time config, not something this code controls — a
+      // future redeploy without that flag silently 401s every one of these calls
+      // before send-notification's own code even runs. Sending the service-role key
+      // as a bearer token makes these calls succeed regardless of that flag's state.
+      const fnHeaders = {
+        'Content-Type':  'application/json',
+        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+      }
       const notifPayload = {
         sender_name:     username ?? 'Someone',
         content_preview: (content ?? '').slice(0, 80),
@@ -146,7 +156,7 @@ Deno.serve(async (req: Request) => {
       if (replyTargetId) {
         fetch(fnUrl, {
           method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: fnHeaders,
           body: JSON.stringify({ user_id: replyTargetId, type: 'reply_received', payload: notifPayload }),
         }).catch(() => {})
       }
@@ -156,7 +166,7 @@ Deno.serve(async (req: Request) => {
         if (validMentioned.length > 0) {
           fetch(fnUrl, {
             method:  'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: fnHeaders,
             body: JSON.stringify({ user_ids: validMentioned, type: 'mention_received', payload: notifPayload }),
           }).catch(() => {})
         }
@@ -166,7 +176,7 @@ Deno.serve(async (req: Request) => {
       if (nonMentionedIds.length > 0) {
         fetch(fnUrl, {
           method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: fnHeaders,
           body: JSON.stringify({ user_ids: nonMentionedIds, type: 'message_received', payload: notifPayload }),
         }).catch(() => {})
       }

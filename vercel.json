@@ -8,6 +8,10 @@
     {
       "path": "/api/cron/process-deletions",
       "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/push-health",
+      "schedule": "0 15 * * *"
     }
   ],
   "headers": [

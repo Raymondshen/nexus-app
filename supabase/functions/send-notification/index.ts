@@ -17,7 +17,7 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-type NotificationType = 'message_received' | 'mention_received' | 'reply_received' | 'friend_request'
+type NotificationType = 'message_received' | 'mention_received' | 'reply_received' | 'friend_request' | 'health_check'
 
 // Maps each notification type to its preference column in notification_preferences.
 // null = always deliver (no preference gate).
@@ -26,6 +26,9 @@ const PREF_COLUMN: Record<NotificationType, 'notif_messages' | 'notif_mentions' 
   mention_received: 'notif_mentions',
   reply_received:   'notif_replies',
   friend_request:   null,
+  // Ops canary only — see /api/cron/push-health. Never user-facing, so it's
+  // always-deliver by design, not a preference gap to fill in later.
+  health_check:     null,
 }
 
 function buildPayload(type: NotificationType, data: Record<string, unknown>) {
@@ -65,6 +68,16 @@ function buildPayload(type: NotificationType, data: Record<string, unknown>) {
         icon:  '/icons/icon-192.png',
         badge: '/icons/icon-192.png',
         data:  { url: '/friends' },
+      }
+    case 'health_check':
+      // Deliberately distinct copy so a dev seeing it on their own phone never
+      // mistakes it for a real message or bug report — see /api/cron/push-health.
+      return {
+        title: '🩺 Nexus Push Health Check',
+        body:  `Daily push pipeline check — ${String(data.checked_at || new Date().toISOString()).slice(0, 10)}`,
+        icon:  '/icons/icon-192.png',
+        badge: '/icons/icon-192.png',
+        data:  { url: '/profile' },
       }
   }
 }
