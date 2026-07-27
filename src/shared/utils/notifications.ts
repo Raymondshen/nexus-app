@@ -74,9 +74,19 @@ export async function subscribeToPush(): Promise<PushSubscription | null> {
     const auth   = json.keys?.auth
     if (!p256dh || !auth) throw new Error('subscription missing p256dh/auth keys')
 
+    // os_permission/sw_state are diagnostic-only (see /profile/developer/push-diagnostics)
+    // — captured at the one moment this code has both facts in hand, since neither is
+    // knowable server-side for another user's device without a client report like this.
     const { error } = await supabase
       .from('push_subscriptions')
-      .insert({ user_id: userId, endpoint: sub.endpoint, p256dh, auth })
+      .insert({
+        user_id:       userId,
+        endpoint:      sub.endpoint,
+        p256dh,
+        auth,
+        os_permission: 'Notification' in window ? Notification.permission : null,
+        sw_state:      registration.active?.state ?? null,
+      })
 
     // 23505 = unique_violation: row already exists — nothing to do.
     if (!error || error.code === '23505') return sub

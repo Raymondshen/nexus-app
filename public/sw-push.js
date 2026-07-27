@@ -346,10 +346,20 @@ self.addEventListener('push', (event) => {
     var p256dh = json.keys && json.keys.p256dh
     var subAuth = json.keys && json.keys.auth
     if (!p256dh || !subAuth) return
+    // sw_state is genuinely 'activated' here — this code is only running because the
+    // SW's push handler fired. Notification.permission isn't universally exposed in
+    // a service worker context, so osPermission is sent best-effort only when present
+    // (see /api/push/heartbeat's own doc comment for how a missing value is handled).
     return fetch('/api/push/heartbeat', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ endpoint: sub.endpoint, p256dh: p256dh, auth: subAuth }),
+      body: JSON.stringify({
+        endpoint:     sub.endpoint,
+        p256dh:       p256dh,
+        auth:         subAuth,
+        swState:      'activated',
+        osPermission: (typeof Notification !== 'undefined' && Notification.permission) || undefined,
+      }),
     }).catch(function() {})
   }).catch(function() {})
 

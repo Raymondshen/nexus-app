@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { SlidePage } from '@/app/layouts/SlidePage'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
+import { SettingsCog } from 'pixelarticons/react/SettingsCog'
 import { PageHeader } from '@/shared/components/ui/PageHeader'
 import { makeLocalStorageFlagStore, getServerFlagSnapshotFalse } from '@/shared/utils/localStorageFlag'
 
@@ -93,6 +94,26 @@ function DevToggleRow({ title, description, enabled, onChange }: { title: string
   )
 }
 
+// ─── Manage Notification Subscription row (Figma 708:18773's elevated nav
+// card — distinct from DevNavRow: filled surface-elevated background, leading
+// gear icon, no description line) ──────────────────────────────────────────
+
+function ManageNotificationSubscriptionRow({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex items-center w-full text-left"
+      style={{ gap: 8, padding: 'var(--x5)', background: 'var(--color-surface-elevated)', borderRadius: 'var(--x3)' }}
+    >
+      <SettingsCog style={{ width: 16, height: 16, color: 'var(--color-secondary)' }} aria-hidden="true" />
+      <p className="font-body font-normal text-primary flex-1 min-w-0" style={{ fontSize: 'var(--sm)', fontVariationSettings: '"opsz" 14' }}>
+        Manage Notification Subscription
+      </p>
+      <ChevronRight style={{ width: 20, height: 20, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
+    </button>
+  )
+}
+
 // ─── DeveloperUserSettings ────────────────────────────────────────────────────
 
 export function DeveloperUserSettings({ initialCoins }: DeveloperUserSettingsProps) {
@@ -158,12 +179,15 @@ export function DeveloperUserSettings({ initialCoins }: DeveloperUserSettingsPro
         />
 
         <SectionLabel>Debug</SectionLabel>
-        <DevToggleRow
-          title="Notification Subscription"
-          description="Test push notifications"
-          enabled={showPush}
-          onChange={toggleShowPush}
-        />
+        <div className="flex flex-col w-full" style={{ gap: 8 }}>
+          <DevToggleRow
+            title="Notification Subscription"
+            description="Test push notifications"
+            enabled={showPush}
+            onChange={toggleShowPush}
+          />
+          <ManageNotificationSubscriptionRow onClick={() => router.push('/profile/developer/push-diagnostics')} />
+        </div>
 
         <SectionLabel>Features</SectionLabel>
         <DevToggleRow

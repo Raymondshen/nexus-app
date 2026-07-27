@@ -24,16 +24,24 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
-  const { endpoint, p256dh, auth } = body
+  const { endpoint, p256dh, auth, osPermission, swState } = body
   if (!endpoint || !p256dh || !auth) {
     return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
   }
 
   const admin = createClient(supabaseUrl, serviceKey)
 
+  // osPermission/swState are best-effort — the SW's push handler proves sw_state is
+  // genuinely 'activated' just by running, but Notification.permission inside a
+  // service worker isn't universally available, so this may arrive undefined; only
+  // overwrite the stored value when the caller actually sent one.
   const { data, error } = await admin
     .from('push_subscriptions')
-    .update({ p256dh, auth, last_seen_at: new Date().toISOString() })
+    .update({
+      p256dh, auth, last_seen_at: new Date().toISOString(),
+      ...(osPermission ? { os_permission: osPermission } : {}),
+      ...(swState      ? { sw_state: swState }           : {}),
+    })
     .eq('endpoint', endpoint)
     .select('id')
 
