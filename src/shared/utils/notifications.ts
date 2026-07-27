@@ -3,6 +3,18 @@ import { createClient } from '@/shared/supabase/client'
 export type PermissionState = 'granted' | 'denied' | 'unsupported'
 
 const PERMISSION_KEY = 'nexus_notif_state'
+const DEVICE_ID_KEY  = 'nexus_push_device_id'
+
+// A stable per-device id, generated once and persisted locally — see
+// subscribeToPush()'s pruning step for what this exists to make safe.
+function getOrCreateDeviceId(): string {
+  let id = localStorage.getItem(DEVICE_ID_KEY)
+  if (!id) {
+    id = crypto.randomUUID()
+    localStorage.setItem(DEVICE_ID_KEY, id)
+  }
+  return id
+}
 
 export function isSupported(): boolean {
   return (
@@ -57,7 +69,8 @@ export async function subscribeToPush(): Promise<PushSubscription | null> {
     console.warn('[notifications] subscribeToPush: no session — skipping')
     return null
   }
-  const userId = session.user.id
+  const userId   = session.user.id
+  const deviceId = getOrCreateDeviceId()
 
   const regs = await navigator.serviceWorker.getRegistrations()
   if (regs.length === 0) {
@@ -66,8 +79,12 @@ export async function subscribeToPush(): Promise<PushSubscription | null> {
   const registration = await navigator.serviceWorker.ready
   const vapidKey = urlBase64ToUint8Array(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!)
 
-  // INSERT only — no delete first. 23505 (duplicate key) means the row
-  // already exists with the correct endpoint; treat it as success.
+  // Upsert on endpoint (not insert-then-ignore-23505) so device_id/os_permission/
+  // sw_state get backfilled/refreshed on an already-existing row too, not just at
+  // first creation — this is what lets a row created before device_id existed pick
+  // one up the next time this same device successfully re-subscribes, without a
+  // separate backfill script. Single atomic statement, so no delete-then-insert
+  // race with the debug FAB/diagnostics page's own read.
   async function trySave(sub: PushSubscription): Promise<PushSubscription> {
     const json   = sub.toJSON()
     const p256dh = json.keys?.p256dh
@@ -79,26 +96,51 @@ export async function subscribeToPush(): Promise<PushSubscription | null> {
     // knowable server-side for another user's device without a client report like this.
     const { error } = await supabase
       .from('push_subscriptions')
-      .insert({
+      .upsert({
         user_id:       userId,
         endpoint:      sub.endpoint,
         p256dh,
         auth,
+        device_id:     deviceId,
         os_permission: 'Notification' in window ? Notification.permission : null,
         sw_state:      registration.active?.state ?? null,
-      })
+      }, { onConflict: 'endpoint' })
 
-    // 23505 = unique_violation: row already exists — nothing to do.
-    if (!error || error.code === '23505') return sub
+    if (!error) return sub
 
-    throw new Error(`insert failed: ${error.message} (code=${error.code})`)
+    throw new Error(`upsert failed: ${error.message} (code=${error.code})`)
+  }
+
+  // Self-heals the iOS getSubscription()-false-negative bug (see the retry loop's
+  // own comment below): every time this device successfully saves a subscription,
+  // delete any of its OWN other rows — same user_id + device_id, different endpoint
+  // — left behind by a past false negative that minted a needless duplicate.
+  // Scoping to device_id (not just user_id) is what makes this safe to run
+  // unconditionally; without it, a blanket cleanup could delete a different
+  // device's still-valid row (see the notification-engine skill's own gotcha on
+  // why mass-deletion was rejected before this identifier existed). Best-effort —
+  // never throws, since a failed prune just means one more duplicate row sticks
+  // around, not a broken subscription.
+  async function pruneOtherRowsForThisDevice(currentEndpoint: string) {
+    try {
+      await supabase
+        .from('push_subscriptions')
+        .delete()
+        .eq('user_id', userId)
+        .eq('device_id', deviceId)
+        .neq('endpoint', currentEndpoint)
+    } catch { /* best-effort */ }
   }
 
   // getSubscription() can throw or transiently return null on iOS before the SW is
   // fully controlling — retrying a couple times avoids mistaking that race for "no
   // subscription exists" and minting a needless fresh one (each fresh subscribe()
-  // gets its own unique endpoint on iOS, so every false negative here leaves a
-  // permanent extra row in push_subscriptions instead of reusing the real one).
+  // gets its own unique endpoint on iOS, so a false negative here mints a genuine
+  // duplicate). Retries reduce how often that happens but don't eliminate it — it's
+  // a Safari-side quirk, not something client code fully controls — so
+  // pruneOtherRowsForThisDevice() below is what actually stops it from being
+  // permanent, by cleaning up this device's own past duplicates on every successful
+  // save rather than relying on this loop alone.
   let sub: PushSubscription | null = null
   for (let attempt = 0; attempt < 3 && !sub; attempt++) {
     if (attempt > 0) await new Promise((r) => setTimeout(r, 150))
@@ -110,6 +152,7 @@ export async function subscribeToPush(): Promise<PushSubscription | null> {
   if (sub) {
     try {
       const saved = await trySave(sub)
+      await pruneOtherRowsForThisDevice(saved.endpoint)
       window.dispatchEvent(new CustomEvent('nexus-push-subscribed'))
       return saved
     } catch (err) {
@@ -127,6 +170,7 @@ export async function subscribeToPush(): Promise<PushSubscription | null> {
       applicationServerKey: vapidKey,
     })
     const saved = await trySave(freshSub)
+    await pruneOtherRowsForThisDevice(saved.endpoint)
     window.dispatchEvent(new CustomEvent('nexus-push-subscribed'))
     return saved
   } catch (err) {
