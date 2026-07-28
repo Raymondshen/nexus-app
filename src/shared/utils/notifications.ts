@@ -47,7 +47,7 @@ export async function requestPermission(): Promise<PermissionState> {
  * Save the current push subscription to the DB. Called on every app mount
  * (PushRefresh) whenever permission is already granted — there's no separate
  * manual "force resubscribe" entry point on this device's own side anymore;
- * the closest equivalent is /profile/developer/push-diagnostics's per-user
+ * the closest equivalent is /profile/developer/manage-notifications's per-user
  * refresh button, which only deletes DB rows server-side and relies on this
  * function running again next time that device's own PushRefresh mounts.
  *
@@ -100,7 +100,7 @@ export async function subscribeToPush(): Promise<PushSubscription | null> {
     const auth   = json.keys?.auth
     if (!p256dh || !auth) throw new Error('subscription missing p256dh/auth keys')
 
-    // os_permission/sw_state are diagnostic-only (see /profile/developer/push-diagnostics)
+    // os_permission/sw_state are diagnostic-only (see /profile/developer/manage-notifications)
     // — captured at the one moment this code has both facts in hand, since neither is
     // knowable server-side for another user's device without a client report like this.
     const fields = {

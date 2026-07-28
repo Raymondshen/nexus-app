@@ -1,18 +1,22 @@
 'use client'
 
+import type { ReactNode } from 'react'
 import { useSyncExternalStore } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { SlidePage } from '@/app/layouts/SlidePage'
 import { ChevronRight } from 'pixelarticons/react/ChevronRight'
-import { SettingsCog } from 'pixelarticons/react/SettingsCog'
+import { Megaphone } from 'pixelarticons/react/Megaphone'
+import { Bell } from 'pixelarticons/react/Bell'
 import { PageHeader } from '@/shared/components/ui/PageHeader'
 import { makeLocalStorageFlagStore, getServerFlagSnapshotFalse } from '@/shared/utils/localStorageFlag'
 
 // Each toggle below mirrors a localStorage dev flag — read via useSyncExternalStore
 // (see makeLocalStorageFlagStore's own doc comment for why an effect-body setState
 // isn't the React-idiomatic way to sync from an external store like localStorage).
-const PUSH_DIAG_STORE      = makeLocalStorageFlagStore('nexus_push_diag',      'nexus-push-diag-change')
+// nexus_push_diag has no toggle here (Figma 708:18773 dropped it) — Manage
+// Notifications below is this screen's sole notification-debug entry point now;
+// nexus_push_diag itself is still devtools-only, same as nexus_dev_mode/nexus_chat_camera.
 const INFINITE_COINS_STORE = makeLocalStorageFlagStore('nexus_infinite_coins', 'nexus-infinite-coins-change')
 const POLL_FEATURE_STORE   = makeLocalStorageFlagStore('nexus_poll_feature',   'nexus-poll-feature-change')
 const EVENTS_FEATURE_STORE = makeLocalStorageFlagStore('nexus_events_enabled', 'nexus-events-feature-change')
@@ -22,7 +26,7 @@ export interface DeveloperUserSettingsProps {
   initialCoins: number
 }
 
-// ─── Section label ("Admin" / "Debug" / "Features") ──────────────────────────
+// ─── Section label ("Features") ──────────────────────────────────────────────
 
 function SectionLabel({ children }: { children: string }) {
   return (
@@ -58,24 +62,6 @@ function ToggleSwitch({ enabled, onChange }: { enabled: boolean; onChange: () =>
   )
 }
 
-// ─── Nav row ("selection-row" — SemiBold title, no gap, tracking) ────────────
-
-function DevNavRow({ title, description, onClick }: { title: string; description: string; onClick: () => void }) {
-  return (
-    <button onClick={onClick} className="flex items-center w-full text-left" style={{ gap: 'var(--space-3)' }}>
-      <div className="flex-1 min-w-0 flex flex-col gap-0 leading-[0] tracking-[0.2px]">
-        <p className="font-body font-semibold text-secondary leading-normal" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14' }}>
-          {title}
-        </p>
-        <p className="font-body font-normal text-tertiary leading-normal" style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}>
-          {description}
-        </p>
-      </div>
-      <ChevronRight style={{ width: 20, height: 20, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
-    </button>
-  )
-}
-
 // ─── Toggle row ("toggle-setting" — Medium title, Light description, 8px gap) ─
 
 function DevToggleRow({ title, description, enabled, onChange }: { title: string; description: string; enabled: boolean; onChange: () => void }) {
@@ -94,20 +80,22 @@ function DevToggleRow({ title, description, enabled, onChange }: { title: string
   )
 }
 
-// ─── Manage Notification Subscription row (Figma 708:18773's elevated nav
-// card — distinct from DevNavRow: filled surface-elevated background, leading
-// gear icon, no description line) ──────────────────────────────────────────
+// ─── Elevated nav row (Figma 708:18773 "Row") — icon + single-line label +
+// chevron, filled surface-elevated background. Both Announcements and Manage
+// Notifications share this shape now (an earlier revision had Announcements as
+// a bare two-line row and only Manage Notifications elevated — Figma unified
+// them into one style). ─────────────────────────────────────────────────────
 
-function ManageNotificationSubscriptionRow({ onClick }: { onClick: () => void }) {
+function DevElevatedNavRow({ icon, label, onClick }: { icon: ReactNode; label: string; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
       className="flex items-center w-full text-left"
-      style={{ gap: 8, padding: 'var(--x5)', background: 'var(--color-surface-elevated)', borderRadius: 'var(--x3)' }}
+      style={{ gap: 'var(--x3)', padding: 'var(--x5)', background: 'var(--color-surface-elevated)', borderRadius: 'var(--x3)' }}
     >
-      <SettingsCog style={{ width: 16, height: 16, color: 'var(--color-secondary)' }} aria-hidden="true" />
-      <p className="font-body font-normal text-primary flex-1 min-w-0" style={{ fontSize: 'var(--sm)', fontVariationSettings: '"opsz" 14' }}>
-        Manage Notification Subscription
+      {icon}
+      <p className="font-body font-medium text-primary flex-1 min-w-0" style={{ fontSize: 'var(--sm)', fontVariationSettings: '"opsz" 14' }}>
+        {label}
       </p>
       <ChevronRight style={{ width: 20, height: 20, color: 'var(--color-secondary)', flexShrink: 0 }} aria-hidden="true" />
     </button>
@@ -119,18 +107,10 @@ function ManageNotificationSubscriptionRow({ onClick }: { onClick: () => void })
 export function DeveloperUserSettings({ initialCoins }: DeveloperUserSettingsProps) {
   const router = useRouter()
 
-  const showPush      = useSyncExternalStore(PUSH_DIAG_STORE.subscribe,      PUSH_DIAG_STORE.getSnapshot,      getServerFlagSnapshotFalse)
   const infiniteCoins = useSyncExternalStore(INFINITE_COINS_STORE.subscribe, INFINITE_COINS_STORE.getSnapshot, getServerFlagSnapshotFalse)
   const pollFeature   = useSyncExternalStore(POLL_FEATURE_STORE.subscribe,   POLL_FEATURE_STORE.getSnapshot,   getServerFlagSnapshotFalse)
   const eventsFeature = useSyncExternalStore(EVENTS_FEATURE_STORE.subscribe, EVENTS_FEATURE_STORE.getSnapshot, getServerFlagSnapshotFalse)
   const friendshipXP  = useSyncExternalStore(FRIENDSHIP_XP_STORE.subscribe,  FRIENDSHIP_XP_STORE.getSnapshot,  getServerFlagSnapshotFalse)
-
-  function toggleShowPush() {
-    const next = !showPush
-    if (next) localStorage.setItem('nexus_push_diag', '1')
-    else localStorage.removeItem('nexus_push_diag')
-    window.dispatchEvent(new CustomEvent('nexus-push-diag-change', { detail: { on: next } }))
-  }
 
   function toggleInfiniteCoins() {
     const next = !infiniteCoins
@@ -171,22 +151,17 @@ export function DeveloperUserSettings({ initialCoins }: DeveloperUserSettingsPro
         className="flex-1 overflow-y-auto nexus-scroll flex flex-col"
         style={{ gap: 20, paddingLeft: 16, paddingRight: 16, paddingTop: 16, paddingBottom: 'max(env(safe-area-inset-bottom), 16px)' }}
       >
-        <SectionLabel>Admin</SectionLabel>
-        <DevNavRow
-          title="Announcements"
-          description="Add new announcements or updates."
-          onClick={() => router.push('/profile/developer/announcements')}
-        />
-
-        <SectionLabel>Debug</SectionLabel>
-        <div className="flex flex-col w-full" style={{ gap: 8 }}>
-          <DevToggleRow
-            title="Notification Subscription"
-            description="Test push notifications"
-            enabled={showPush}
-            onChange={toggleShowPush}
+        <div className="flex flex-col w-full" style={{ gap: 'var(--x3)' }}>
+          <DevElevatedNavRow
+            icon={<Megaphone style={{ width: 16, height: 16, color: 'var(--color-secondary)' }} aria-hidden="true" />}
+            label="Announcements"
+            onClick={() => router.push('/profile/developer/announcements')}
           />
-          <ManageNotificationSubscriptionRow onClick={() => router.push('/profile/developer/push-diagnostics')} />
+          <DevElevatedNavRow
+            icon={<Bell style={{ width: 16, height: 16, color: 'var(--color-secondary)' }} aria-hidden="true" />}
+            label="Manage Notifications"
+            onClick={() => router.push('/profile/developer/manage-notifications')}
+          />
         </div>
 
         <SectionLabel>Features</SectionLabel>

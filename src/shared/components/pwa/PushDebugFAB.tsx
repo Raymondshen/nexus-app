@@ -21,12 +21,12 @@ interface Status {
 // Always-visible floating pill (dev mode only) — an ambient glance at the
 // current device's own push status without leaving whatever screen you're on.
 // Tapping it opens the full multi-user diagnostics page (Developer Settings →
-// Manage Notification Subscription) rather than a self-contained panel — that
-// page now owns every action this FAB used to do inline (force resub, DB row
-// inspection, issue detection), fed by real server-side data for every user,
-// not just this session's own browser state. Keeping this component down to
-// "compute the dot color, navigate on tap" avoids duplicating that page's logic
-// in two places.
+// Manage Notifications) rather than a self-contained panel — that page now
+// owns every action this FAB used to do inline (force resub, DB row
+// inspection, issue detection, and now full account removal), fed by real
+// server-side data for every user, not just this session's own browser state.
+// Keeping this component down to "compute the dot color, navigate on tap"
+// avoids duplicating that page's logic in two places.
 export function PushDebugFAB() {
   const router  = useRouter()
   const showFab = useSyncExternalStore(PUSH_DIAG_STORE.subscribe, PUSH_DIAG_STORE.getSnapshot, getServerFlagSnapshotFalse)
@@ -104,7 +104,7 @@ export function PushDebugFAB() {
 
   return (
     <button
-      onClick={() => router.push('/profile/developer/push-diagnostics')}
+      onClick={() => router.push('/profile/developer/manage-notifications')}
       className="fixed right-3 z-[70] flex items-center gap-1.5 px-2.5 py-1.5 select-none"
       style={{
         bottom:       'calc(env(safe-area-inset-bottom, 0px) + 72px)',

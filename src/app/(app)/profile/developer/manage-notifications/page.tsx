@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient, createServiceClient } from '@/shared/supabase/server'
-import { PushDiagnostics } from '@/features/profile/screens/PushDiagnostics'
-import type { PushDiagnosticUser } from '@/features/profile/screens/PushDiagnostics'
+import { ManageNotifications } from '@/features/profile/screens/ManageNotifications'
+import type { PushDiagnosticUser } from '@/features/profile/screens/ManageNotifications'
 
 interface ProfileRow {
   id:         string
@@ -18,7 +18,7 @@ interface SubscriptionRow {
   sw_state:      string | null
 }
 
-export default async function PushDiagnosticsPage() {
+export default async function ManageNotificationsPage() {
   const supabase = await createClient()
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) redirect('/login')
@@ -78,5 +78,5 @@ export default async function PushDiagnosticsPage() {
     }
   })
 
-  return <PushDiagnostics initialUsers={users} />
+  return <ManageNotifications initialUsers={users} />
 }
