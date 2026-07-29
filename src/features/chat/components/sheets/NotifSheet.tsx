@@ -1,7 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { BottomSheet } from "@/shared/components/ui/sheet/BottomSheet";
+import { Button } from "@/shared/components/ui/Button";
+import { requestPermission, subscribeToPush, isSupported } from "@/shared/utils/notifications";
 
 export type NotifPrefs = {
   messages: boolean;
@@ -81,6 +84,18 @@ export function NotifSheet({
   onToggle: (type: keyof NotifPrefs) => void;
   onClose: () => void;
 }) {
+  const [resubscribing, setResubscribing] = useState(false);
+
+  async function handleResubscribe() {
+    setResubscribing(true);
+    try {
+      const result = await requestPermission();
+      if (result === "granted") await subscribeToPush();
+    } finally {
+      setResubscribing(false);
+    }
+  }
+
   return (
     <BottomSheet onClose={onClose} zIndex={80}>
       <div
@@ -139,6 +154,33 @@ export function NotifSheet({
             onToggle={() => onToggle("replies")}
           />
         </div>
+
+        {isSupported() && (
+          <>
+            <div className="border-t border-border w-full" />
+            <div className="flex flex-col flex-shrink-0" style={{ gap: 8 }}>
+              <p
+                className="font-body font-light leading-normal"
+                style={{
+                  fontSize: 12,
+                  color: "var(--color-tertiary)",
+                  fontVariationSettings: '"opsz" 14',
+                }}
+              >
+                Not getting alerts? Re-enable push on this device.
+              </p>
+              <Button
+                variant="outlined"
+                size="sm"
+                loading={resubscribing}
+                onClick={handleResubscribe}
+                className="w-full"
+              >
+                Re-enable
+              </Button>
+            </div>
+          </>
+        )}
       </div>
     </BottomSheet>
   );
