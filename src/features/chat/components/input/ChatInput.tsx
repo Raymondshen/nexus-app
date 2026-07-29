@@ -14,7 +14,7 @@ import { GemToast } from '@/shared/components/game/GemToast'
 import { SUPABASE_URL, PRESENCE_ONLINE_THRESHOLD_MS, config } from '@/shared/constants/config'
 import { haptic } from '@/shared/utils/sounds'
 import { compressImage, generateLQIP, validateImageUpload, getNetworkQuality } from '@/shared/utils/imageProcessing'
-import { computeOnlineIds } from '@/shared/utils/presence'
+import { computeOnlineIds, setsEqual } from '@/shared/utils/presence'
 import { notifyActiveCrew } from '@/shared/utils/notifications'
 import { sendWithRetry } from '@/shared/utils/sendWithRetry'
 import { postEdgeFn } from '@/shared/utils/edgeFetch'
@@ -340,6 +340,21 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   const rebuildTimerRef       = useRef<ReturnType<typeof setTimeout> | null>(null)
   const rebuildAttemptsRef    = useRef(0)
   const pendingRebuildRef     = useRef(false)
+  // Single place that actually persists a presence write — throttled so a DB round
+  // trip only happens once per ACTIVE_WRITE_THROTTLE_MS regardless of which call site
+  // (heartbeat interval, foreground-resume, or a message-send piggyback) asked for it.
+  // Takes an existing client rather than calling createClient() itself — the mount
+  // effect's heartbeat fires every 30s for the life of the room session, and
+  // createBrowserClient() isn't free (GoTrueClient init, cookie reads, an
+  // auto-refresh timer) — constructing a fresh one per tick would leak that cost
+  // for as long as the chat screen stays open.
+  const writePresence = useCallback((ts: number, client: ReturnType<typeof createClient>) => {
+    if (ts - lastActiveWriteRef.current < ACTIVE_WRITE_THROTTLE_MS) return
+    lastActiveWriteRef.current = ts
+    client.rpc('update_active').then(() => {}, (err) => {
+      if (config.isDev) console.warn('[presence] update_active failed', err)
+    })
+  }, [])
   // Individual selectors — a bare useChatStore() destructure subscribes to the whole
   // store, so every Realtime-driven update (incoming messages, reaction patches,
   // optimistic-send reconciliation — all of which replace the `messages` array this
@@ -836,10 +851,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
       const ts = Date.now()
       setLastActive(userId, ts)
       ch.send({ type: 'broadcast', event: 'active', payload: { user_id: userId, ts } })
-      lastActiveWriteRef.current = ts
-      supabase.rpc('update_active').then(() => {}, (err) => {
-        if (config.isDev) console.warn('[presence] update_active failed', err)
-      })
+      writePresence(ts, supabase)
     }
 
     // Seed/resync online set from DB — covers members active outside this tab, and
@@ -884,15 +896,57 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
       if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null }
     }
 
-    // Sweep stale entries from onlineUserIds every 15s — no network call, pure local math
+    // Sweep stale entries from onlineUserIds every 5s — no network call, pure local math.
+    // This is only the Tier-2 (timestamp/TTL) fallback's own decay cadence — the presence
+    // membership diff below is what actually makes the common case (someone in THIS room
+    // closes/backgrounds) near-instant instead of waiting on this sweep.
     const sweepTimer = setInterval(
       () => useChatStore.getState().sweepOnlineUserIds(ONLINE_THRESHOLD_MS),
-      15_000,
+      5_000,
     )
+
+    // Tracks who was present on this channel as of the last sync, so the handler below
+    // can tell "membership actually changed" (someone's socket joined/left this room)
+    // apart from "sync re-fired for an unrelated reason" (e.g. a typing-state track()
+    // update on an existing key also re-fires 'sync' for everyone on the channel).
+    // Starts null rather than an empty Set so the very first sync (our own join) just
+    // records the baseline instead of firing a reseed — seedPeerPresenceFromDb() was
+    // already called directly above; the first sync's membership is a subset of what
+    // that call just fetched, so re-firing for it would just be a duplicate query.
+    let presentPeerKeys: Set<string> | null = null
+    let reseedDebounceTimer: ReturnType<typeof setTimeout> | null = null
 
     ch
       .on('presence', { event: 'sync' }, () => {
-        // Presence channel used for typing indicators only — online status comes from timestamps.
+        // Single presenceState() read, reused for both the membership diff below and
+        // the typing extraction — Phoenix hands back the same live state either way,
+        // no reason to ask twice per sync.
+        const state = ch.presenceState<{ username: string; typing: boolean }>()
+        const keys = new Set(Object.keys(state))
+
+        // Presence channel is authoritative for typing; for online status it's used only
+        // as an instant TRIGGER, never an instant verdict — a user's absence from this one
+        // room's channel does not mean they're offline (they may be chatting in a
+        // different crew right now), so leaving this channel can't be asserted as
+        // "offline" here. What it CAN safely do is fast-path the same DB re-check
+        // seedPeerPresenceFromDb already does on a schedule, firing it (debounced, so a
+        // burst of several joins/leaves at once collapses into one query instead of one
+        // per event) instead of waiting up to ONLINE_THRESHOLD_MS + the sweep cadence
+        // above. In the common case — the person you're actively looking at closes their
+        // tab — this turns "notice within ~45-50s" into "notice within one DB round trip"
+        // without asserting anything unverified, since update_active() genuinely stopped
+        // being called the moment their own heartbeat stopped.
+        if (presentPeerKeys === null) {
+          presentPeerKeys = keys
+        } else if (!setsEqual(keys, presentPeerKeys)) {
+          presentPeerKeys = keys
+          if (reseedDebounceTimer) clearTimeout(reseedDebounceTimer)
+          reseedDebounceTimer = setTimeout(() => {
+            reseedDebounceTimer = null
+            seedPeerPresenceFromDb()
+          }, 400)
+        }
+
         // Written into chatStore (not local state) — see ChatTypingIndicator; the store's own
         // equality check bails out when this sync didn't actually change who's typing.
         // The presence key IS the user id (see acquireCrewMessageChannel call below), so a
@@ -900,7 +954,6 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
         // open in two tabs/devices at once) — collapse to one entry per key ("any connection
         // for this user is typing" instead of flatMap-ing every connection's own row) or a
         // user with two open sessions renders as two duplicate "X and X are typing..." names.
-        const state = ch.presenceState<{ username: string; typing: boolean }>()
         const others = Object.entries(state)
           .filter(([key]) => key !== userId)
           .filter(([, presences]) => presences.some((p) => p.typing))
@@ -1043,6 +1096,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
       window.removeEventListener('online', handleOnline)
       stopHeartbeat()
       clearInterval(sweepTimer)
+      if (reseedDebounceTimer) clearTimeout(reseedDebounceTimer)
       if (rebuildTimerRef.current) { clearTimeout(rebuildTimerRef.current); rebuildTimerRef.current = null }
       pendingRebuildRef.current = false
       releaseCrewMessageChannel(crewId)
@@ -1153,12 +1207,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
       const ts = Date.now()
       setLastActive(userId, ts)
       msgChannelRef.current?.send({ type: 'broadcast', event: 'active', payload: { user_id: userId, ts } })
-      if (ts - lastActiveWriteRef.current > ACTIVE_WRITE_THROTTLE_MS) {
-        lastActiveWriteRef.current = ts
-        createClient().rpc('update_active').then(() => {}, (err) => {
-          if (config.isDev) console.warn('[presence] update_active failed', err)
-        })
-      }
+      writePresence(ts, createClient())
     }
 
     tryClaimDailyGem(createClient(), showGemToast)
@@ -1206,7 +1255,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
         })
       }
     }
-  }, [crewId, userId, userProfile, fxpEnabled, isDM, dmPartnerId, liveCrewName, broadcastNewMessage, setLastActive, settleXp])
+  }, [crewId, userId, userProfile, fxpEnabled, isDM, dmPartnerId, liveCrewName, broadcastNewMessage, setLastActive, settleXp, writePresence])
 
   async function handleChatImagesPick(files: File[]) {
     if (files.length === 0) return
