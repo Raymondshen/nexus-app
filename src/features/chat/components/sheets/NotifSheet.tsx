@@ -171,7 +171,8 @@ export function NotifSheet({
               </p>
               <Button
                 variant="outlined"
-                size="sm"
+                size="lg"
+                style={{ height: 56 }}
                 loading={resubscribing}
                 onClick={handleResubscribe}
                 className="w-full"
