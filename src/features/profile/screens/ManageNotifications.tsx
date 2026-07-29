@@ -50,11 +50,11 @@ function platformLabel(user: PushDiagnosticUser): string | null {
 function detectIssues(user: PushDiagnosticUser): string[] {
   const issues: string[] = []
   if (!user.subscribed) {
-    issues.push('no push_subscriptions row — device has never completed a subscribe')
+    issues.push('never subscribed')
     return issues
   }
   if (!user.lastSeenAt) {
-    issues.push('subscribed but never confirmed alive — no push has round-tripped the heartbeat yet')
+    issues.push('not yet confirmed alive')
   }
   if (user.osGranted === 'no') {
     issues.push('OS permission is not "granted" on at least one subscribed device')
