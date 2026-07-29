@@ -127,17 +127,6 @@ Deno.serve(async (req: Request) => {
     if (message_type !== 'reaction') {
       const otherUserIds = (membersResult.data ?? []).map((m: { user_id: string }) => m.user_id)
       const mentionedSet = new Set(mentionedIds)
-      const fnUrl        = `${Deno.env.get('SUPABASE_URL')}/functions/v1/send-notification`
-      // send-notification is meant to be deployed with --no-verify-jwt (it's only ever
-      // called server-side/inter-function, never from a browser), but the gateway's
-      // verify_jwt flag is deploy-time config, not something this code controls — a
-      // future redeploy without that flag silently 401s every one of these calls
-      // before send-notification's own code even runs. Sending the service-role key
-      // as a bearer token makes these calls succeed regardless of that flag's state.
-      const fnHeaders = {
-        'Content-Type':  'application/json',
-        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
-      }
       const notifPayload = {
         sender_name:     username ?? 'Someone',
         content_preview: (content ?? '').slice(0, 80),
@@ -153,35 +142,36 @@ Deno.serve(async (req: Request) => {
         ? replyAuthorId
         : null
 
-      if (replyTargetId) {
-        fetch(fnUrl, {
-          method:  'POST',
-          headers: fnHeaders,
-          body: JSON.stringify({ user_id: replyTargetId, type: 'reply_received', payload: notifPayload }),
-        }).catch(() => {})
-      }
-
-      if (mentionedSet.size > 0) {
-        const validMentioned = otherUserIds.filter((id: string) => mentionedSet.has(id) && id !== replyTargetId)
-        if (validMentioned.length > 0) {
-          fetch(fnUrl, {
-            method:  'POST',
-            headers: fnHeaders,
-            body: JSON.stringify({ user_ids: validMentioned, type: 'mention_received', payload: notifPayload }),
-          }).catch(() => {})
-        }
-      }
-
+      const validMentioned  = otherUserIds.filter((id: string) => mentionedSet.has(id) && id !== replyTargetId)
       const nonMentionedIds = otherUserIds.filter((id: string) => !mentionedSet.has(id) && id !== replyTargetId)
-      if (nonMentionedIds.length > 0) {
-        fetch(fnUrl, {
+
+      // One batched request instead of up to 3 separate ones — send-notification
+      // does a single crew-prefs query + a single subscriptions query covering every
+      // group in the request, so this is also the faster path (one edge-function
+      // round trip to APNs/FCM per message instead of up to three).
+      const notifications: { user_id?: string; user_ids?: string[]; type: string; payload: typeof notifPayload }[] = []
+      if (replyTargetId)            notifications.push({ user_id: replyTargetId, type: 'reply_received', payload: notifPayload })
+      if (validMentioned.length)    notifications.push({ user_ids: validMentioned, type: 'mention_received', payload: notifPayload })
+      if (nonMentionedIds.length)   notifications.push({ user_ids: nonMentionedIds, type: 'message_received', payload: notifPayload })
+
+      if (notifications.length > 0) {
+        // send-notification is meant to be deployed with --no-verify-jwt (it's only
+        // ever called server-side/inter-function, never from a browser), but the
+        // gateway's verify_jwt flag is deploy-time config, not something this code
+        // controls — a future redeploy without that flag silently 401s this call
+        // before send-notification's own code even runs. Sending the service-role
+        // key as a bearer token makes this call succeed regardless of that flag's state.
+        fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-notification`, {
           method:  'POST',
-          headers: fnHeaders,
-          body: JSON.stringify({ user_ids: nonMentionedIds, type: 'message_received', payload: notifPayload }),
+          headers: {
+            'Content-Type':  'application/json',
+            'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+          },
+          body: JSON.stringify({ notifications }),
         }).catch(() => {})
       }
 
-      console.log(`[award-xp] notifications fired: ${nonMentionedIds.length} message_received, ${mentionedIds.length} mention_received, ${replyTargetId ? 1 : 0} reply_received (message ${message_id})`)
+      console.log(`[award-xp] notifications fired: ${nonMentionedIds.length} message_received, ${validMentioned.length} mention_received, ${replyTargetId ? 1 : 0} reply_received (message ${message_id})`)
     }
 
     // ─── 5-SECOND COOLDOWN (soft block) ─────────────────────────────────────

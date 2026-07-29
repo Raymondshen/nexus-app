@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { sendPushNotification } from '@/shared/utils/sendPushNotification'
 
 export async function GET(request: NextRequest) {
   try {
@@ -92,19 +93,15 @@ export async function POST(request: NextRequest) {
     const { data: { user }, error: authErr } = await admin.auth.getUser(token)
     if (authErr || !user) return NextResponse.json({ error: `Auth failed: ${authErr?.message}` }, { status: 401 })
 
-    const fnUrl = `${supabaseUrl}/functions/v1/send-notification`
-    let res: Response
+    let res: Response | null
     let rawText: string
     try {
-      res = await fetch(fnUrl, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${serviceKey}` },
-        body: JSON.stringify({
-          user_id: user.id,
-          type:    'message_received',
-          payload: { sender_name: 'Test', content_preview: '🔔 Push is working!', crew_name: 'Dev', crew_id: 'test' },
-        }),
-      })
+      res = await sendPushNotification([{
+        user_id: user.id,
+        type:    'message_received',
+        payload: { sender_name: 'Test', content_preview: '🔔 Push is working!', crew_name: 'Dev', crew_id: 'test' },
+      }])
+      if (!res) return NextResponse.json({ error: 'send-notification not configured (missing env vars)' }, { status: 500 })
       rawText = await res.text()
     } catch (fetchErr) {
       return NextResponse.json({ error: `fetch to send-notification failed: ${String(fetchErr)}` }, { status: 500 })

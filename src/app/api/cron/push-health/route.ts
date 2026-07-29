@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { sendPushNotification } from '@/shared/utils/sendPushNotification'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -45,23 +46,21 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ status: 'no_dev_accounts' }, { status: 500 })
   }
 
-  let sendRes: Response
+  let sendRes: Response | null
   try {
-    sendRes = await fetch(`${supabaseUrl}/functions/v1/send-notification`, {
-      method:  'POST',
-      // Same defensive Bearer-token pattern as every other send-notification caller
-      // (see friends/actions.ts, award-xp) — the service-role key is a valid signed
-      // JWT, so this succeeds regardless of the function's --no-verify-jwt deploy
-      // flag. A 401 here specifically means that flag drifted on a redeploy.
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${serviceKey}` },
-      body: JSON.stringify({
-        user_ids: devIds,
-        type:     'health_check',
-        payload:  { checked_at: new Date().toISOString() },
-      }),
-    })
+    // Same shared helper every other send-notification caller uses — the service-role
+    // key is a valid signed JWT, so this succeeds regardless of the function's
+    // --no-verify-jwt deploy flag. A 401 here specifically means that flag drifted.
+    sendRes = await sendPushNotification([{
+      user_ids: devIds,
+      type:     'health_check',
+      payload:  { checked_at: new Date().toISOString() },
+    }])
   } catch (err) {
     return NextResponse.json({ status: 'unreachable', error: String(err) }, { status: 500 })
+  }
+  if (!sendRes) {
+    return NextResponse.json({ status: 'server_misconfigured' }, { status: 500 })
   }
 
   let body: { results?: { user_id: string; status: string }[]; error?: string; status?: string }

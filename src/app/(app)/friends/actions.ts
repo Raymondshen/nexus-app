@@ -2,6 +2,7 @@
 
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { createClient } from '@/shared/supabase/server'
+import { sendPushNotification } from '@/shared/utils/sendPushNotification'
 
 export async function sendFriendRequestAction(addresseeId: string): Promise<{ ok?: boolean; error?: string }> {
   const supabase = await createClient()
@@ -23,21 +24,11 @@ export async function sendFriendRequestAction(addresseeId: string): Promise<{ ok
       .eq('id', user.id)
       .single()
 
-    const fnUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/send-notification`
-    await fetch(fnUrl, {
-      method:  'POST',
-      // send-notification is meant to be deployed with --no-verify-jwt (only ever
-      // called server-side), but that's deploy-time gateway config, not something
-      // this code controls — a future redeploy without that flag would silently
-      // 401 this call before send-notification's own code runs. The service-role
-      // key is a valid JWT the gateway accepts regardless of the flag's state.
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}` },
-      body: JSON.stringify({
-        user_id: addresseeId,
-        type:    'friend_request',
-        payload: { requester_name: profile?.username ?? 'Someone' },
-      }),
-    })
+    await sendPushNotification([{
+      user_id: addresseeId,
+      type:    'friend_request',
+      payload: { requester_name: profile?.username ?? 'Someone' },
+    }])
   } catch { /* notification is best-effort */ }
 
   // Bust friendship cache for both parties

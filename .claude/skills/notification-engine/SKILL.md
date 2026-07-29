@@ -13,13 +13,16 @@ Only deviate from "new NotificationType in the existing function" if the user ex
 
 ## Architecture overview
 
-One edge function (`supabase/functions/send-notification/index.ts`) is the sole delivery point for every push notification in the app — nothing calls `webpush.sendNotification` anywhere else. Callers (other edge functions or server actions) `fetch()` it directly (never `supabase.functions.invoke()`, per the repo-wide rule in CLAUDE.md) with a `type`, a target (`user_id` or `user_ids[]`), and a `payload`. The function resolves subscriptions, applies preference gating, builds the notification body, and fires `web-push` calls in parallel.
+One edge function (`supabase/functions/send-notification/index.ts`) is the sole delivery point for every push notification in the app — nothing calls `webpush.sendNotification` anywhere else. Callers (other edge functions or server actions) `fetch()` it directly (never `supabase.functions.invoke()`, per the repo-wide rule in CLAUDE.md) with a single **batched** request body: `{ notifications: [{ type, user_id | user_ids, payload }, ...] }`. A request can carry more than one group — e.g. a single chat message fans out to a reply target + mentioned users + everyone else, each needing its own `type`/title — so every trigger point sends exactly one request per event, never one request per group (see `award-xp/index.ts` for the reference example). The function resolves the union of every group's target ids into one subscriptions query and one crew-prefs query (2026-07-29 refactor — previously each group needed its own pair of queries), applies preference gating per group, builds each group's notification body, and fires all `web-push` calls across all groups in parallel.
 
-Two independent preference layers, both optional per type:
-- **Global** — `notification_preferences` (one row per user): `notif_messages`, `notif_mentions`.
-- **Per-crew** — `crew_notification_preferences` (one row per user+crew, `UNIQUE(user_id, crew_id)`): same two columns, lets a user mute one chat without muting all of them.
+Every Next.js-side caller (server actions, route handlers) goes through the shared `sendPushNotification()` helper (`src/shared/utils/sendPushNotification.ts`) rather than hand-building the fetch — it owns the URL, the service-role Bearer header, and the `{ notifications: [...] }` envelope in one place. The Deno edge runtime (`award-xp/index.ts`) can't import that module, so it builds its own single batched request the same shape.
 
-A type with no meaningful "mute" concept (e.g. `friend_request`, `health_check`) maps to `null` in `PREF_COLUMN` and is **always delivered** — it skips both preference queries entirely.
+One preference layer, optional per type:
+- **Per-crew** — `crew_notification_preferences` (one row per user+crew, `UNIQUE(user_id, crew_id)`): `notif_messages`, `notif_mentions`, `notif_replies`. This is the sole mute mechanism — a user has no row until they explicitly mute via `NotifSheet`, so every recipient is subscribed by default.
+
+A type with no meaningful "mute" concept (e.g. `friend_request`, `health_check`) maps to `null` in `PREF_COLUMN` and is **always delivered** — it skips the preference query entirely.
+
+`notification_preferences` (the *global* table) used to be a second layer ANDed on top of this one, but it has no client write path — the Settings-page toggle that wrote it was removed once muting became per-crew-only — and `send-notification` stopped reading it 2026-07-29 (see CLAUDE.md's Gotchas entry on this table). The table and its columns still exist, kept in case a global mute UI is reintroduced someday, but nothing reads or writes them today. Don't add a new read of that table without also giving it a write path — a read with no write is exactly what stranded users muted before the fix.
 
 ## The 4 pieces every notification type touches
 
@@ -50,72 +53,73 @@ case 'your_new_type':
 ```
 `data.url` is read by `public/sw-push.js`'s `notificationclick` handler to route the tap. Keep `icon`/`badge` as `/icons/icon-192.png` — iOS Web Push doesn't support `badge` in practice (`sw-push.js` already strips gracefully) but the field is harmless to include for other platforms.
 
-### 3. The trigger call site — where you `fetch()` the function
+### 3. The trigger call site — where you build the request
+
+From Next.js server code, use the shared helper:
+```ts
+import { sendPushNotification } from '@/shared/utils/sendPushNotification'
+
+await sendPushNotification([
+  { user_ids: [...], type: 'your_new_type', payload: { crew_id, crew_name, ... } },
+]).catch(() => {}) // fire-and-forget — never block the caller's main flow on push delivery
+```
+See `src/app/(app)/friends/actions.ts` for a single-group server-action example, or `src/app/api/cron/push-health/route.ts` for a canary/ops-only example (`health_check` type, not user-facing) that also inspects the response.
+
+From a Deno edge function (can't import the Next.js helper), build the request directly — always send the Bearer header, even though send-notification is meant to be deployed with `--no-verify-jwt` (only ever called server-side): that flag is deploy-time gateway config, not something the call site controls, and a future redeploy that forgets it would otherwise silently 401 every call before send-notification's own code runs. The service-role key is a valid signed JWT, so it passes the gateway check regardless of the flag's state.
 ```ts
 fetch(`${SUPABASE_URL}/functions/v1/send-notification`, {
   method:  'POST',
-  // Always send this, even though send-notification is meant to be deployed with
-  // --no-verify-jwt (only ever called server-side). That flag is deploy-time gateway
-  // config, not something this call site controls — a future redeploy that forgets
-  // it would otherwise silently 401 every call before send-notification's own code
-  // runs. The service-role key is a valid signed JWT, so it passes the gateway
-  // check regardless of the flag's state.
   headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` },
-  body: JSON.stringify({ user_ids: [...], type: 'your_new_type', payload: { crew_id, crew_name, ... } }),
-}).catch(() => {}) // fire-and-forget — never block the caller's main flow on push delivery
+  body: JSON.stringify({ notifications: [{ user_ids: [...], type: 'your_new_type', payload: { crew_id, crew_name, ... } }] }),
+}).catch(() => {})
 ```
-Every existing call site is **fire-and-forget** (`.catch(() => {})`, not awaited into the response) AND sends this Bearer header. Notification delivery must never block or fail the primary action (message send, friend request, etc). See `supabase/functions/award-xp/index.ts:101-134` for the canonical multi-recipient example (splits mentioned vs. non-mentioned users into two parallel calls), `src/app/(app)/friends/actions.ts` for a single-recipient server-action example, or `src/app/api/cron/push-health/route.ts` for a canary/ops-only example (`health_check` type, not user-facing).
+See `supabase/functions/award-xp/index.ts`'s "FIRE NOTIFICATION IMMEDIATELY" block for the canonical multi-group example — it builds up to 3 groups (reply target / mentioned / everyone else) from one message event and sends them all in a single request, not one request per group. Every call site is **fire-and-forget** (`.catch(() => {})`, not awaited into the response) — notification delivery must never block or fail the primary action (message send, friend request, etc).
 
-Include `payload.crew_id` whenever the notification is crew-scoped — the edge function only applies the per-crew mute query `if (payload?.crew_id)`. Omitting it silently skips crew-level muting (global prefs still apply).
+Include `payload.crew_id` whenever the notification is crew-scoped — the edge function only applies the per-crew mute query `if (payload?.crew_id)`. Omitting it silently skips crew-level muting entirely for that call (there is no global fallback to catch it anymore).
 
 ### 4. Settings UI — `NotifSheet` toggle row
-`NotifPrefs` (`src/features/chat/components/sheets/NotifSheet.tsx`) is a plain object type, currently `{ messages: boolean; mentions: boolean }`. `NotifSheet` renders one `<NotifToggleRow>` per key, in a fixed order, separated by `border-t border-border`. To add a row for an *existing* preference column, add a key to `NotifPrefs` and a `<NotifToggleRow>` in `NotifSheet`'s JSX — the component is shared, so both consumers below pick it up automatically.
+`NotifPrefs` (`src/features/chat/components/sheets/NotifSheet.tsx`) is `{ messages: boolean; mentions: boolean; replies: boolean }`. `NotifSheet` renders one `<NotifToggleRow>` per key, in a fixed order, separated by `border-t border-border`. To add a row for an *existing* preference column, add a key to `NotifPrefs` and a `<NotifToggleRow>` in `NotifSheet`'s JSX.
 
-Two consumers each own their own local prefs state and DB read/write — `NotifSheet` itself has no Supabase calls:
-- **Global**: `src/features/profile/screens/SettingsClient.tsx` — reads/writes `notification_preferences` via upsert on `onConflict: 'user_id'`.
-- **Per-crew**: `src/features/chat/components/header/ChatHeader.tsx` — reads/writes `crew_notification_preferences` via upsert on `onConflict: 'user_id,crew_id'`.
-
-Both follow the identical shape:
+There is exactly **one** consumer now — `src/features/chat/components/input/ChatInput.tsx` (opened via `ChatRoomBrowseSheet`'s Bell icon). It owns the local `notifPrefs` state and both the load and the upsert, reading/writing `crew_notification_preferences` keyed on `(user_id, crew_id)`:
 ```ts
-const [prefs, setPrefs] = useState<NotifPrefs>({ messages: true, mentions: true }) // default true
+// load (skipped for DMs)
+.from('crew_notification_preferences')
+.select('notif_messages, notif_mentions, notif_replies')
+.eq('user_id', userId).eq('crew_id', crewId).maybeSingle()
 
-// load
-.select('notif_messages, notif_mentions')
-if (data) setPrefs({ messages: data.notif_messages, mentions: data.notif_mentions })
-
-// toggle (optimistic)
-const next = { ...prefs, [key]: !prefs[key] }
-setPrefs(next)
-await supabase.from('...').upsert({ user_id, /* crew_id, */ notif_messages: next.messages, notif_mentions: next.mentions, updated_at: new Date().toISOString() }, { onConflict: '...' })
+// toggle (optimistic, rolled back on error)
+await supabase.from('crew_notification_preferences').upsert(
+  { user_id, crew_id, notif_messages, notif_mentions, notif_replies, updated_at: new Date().toISOString() },
+  { onConflict: 'user_id,crew_id' },
+)
 ```
-When adding a new toggle, update **both** consumers' `select()`, load-mapping, and upsert body — they're two independent copies, not a shared hook. Default new booleans to `true` (opt-out model, matches existing columns) unless the feature is explicitly opt-in.
+There used to be a second consumer writing a *global* `notification_preferences` table (a Settings-page toggle) — it was removed when muting became per-crew-only, and `send-notification` stopped reading that table 2026-07-29 (see the preference-layers section above and CLAUDE.md's Gotchas entry). Don't resurrect a "global" consumer without also updating `send-notification` to read it again — a write path with no corresponding read (or vice versa) is exactly the bug that got fixed.
 
-## Adding a whole new preference column (not just reusing messages/mentions)
+## Adding a whole new preference column
 
-1. Migration: `ALTER TABLE notification_preferences ADD COLUMN IF NOT EXISTS notif_<name> boolean NOT NULL DEFAULT true;` and the same on `crew_notification_preferences` — see `supabase/migrations/20240103000025_add_notif_mentions.sql` as the template (adds to both tables in one file).
-2. `src/types/notifications.ts` — add the field to `NotificationPreferences` and `CrewNotificationPreferences`.
+1. Migration: `ALTER TABLE crew_notification_preferences ADD COLUMN IF NOT EXISTS notif_<name> boolean NOT NULL DEFAULT true;` — see `supabase/migrations/20260708020000_add_notif_replies.sql` as the template. (Older migrations, e.g. `20240103000025_add_notif_mentions.sql`, also added the matching column to `notification_preferences` — don't bother; that table is no longer read, see above.)
+2. `src/types/notifications.ts` — add the field to `CrewNotificationPreferences`.
 3. `NotifPrefs` type + a new `<NotifToggleRow>` in `NotifSheet.tsx`.
-4. Both consumers' `select()` / load / upsert (`SettingsClient.tsx`, `ChatHeader.tsx`).
+4. `ChatInput.tsx`'s `select()` / load-mapping / upsert body (the sole consumer).
 5. `PREF_COLUMN`'s value union type in `send-notification/index.ts` gains the new column name.
 6. The new `NotificationType` case in `buildPayload()`, mapped to the new column in `PREF_COLUMN`.
 
 ## Full checklist for a new NotificationType (reusing an existing pref column, or `null`/always-deliver)
 
-1. Add the type to the `NotificationType` union in `send-notification/index.ts`.
+1. Add the type to the `NotificationType` union in `send-notification/index.ts` **and** the `PushNotificationType` union in `src/shared/utils/sendPushNotification.ts` — two independent unions in two different runtimes (Deno vs. Node), not a shared import. Forgetting the second one doesn't break anything at the JS level (both are just string literals at runtime), but it silently loses the TypeScript check that would've caught a typo'd `type` value at a Next.js call site.
 2. Add it to `PREF_COLUMN` (`null` = always deliver, no mute possible).
 3. Add a `case` to `buildPayload()` → `{ title, body, icon, badge, data: { url } }`.
-4. Call `send-notification` (raw `fetch`, fire-and-forget) from the actual trigger point — a DB write, an edge function, or a server action.
+4. Call it from the actual trigger point (a DB write, an edge function, or a server action) — `sendPushNotification([{ type, user_id|user_ids, payload }])` from Next.js code, or a direct batched `fetch()` from a Deno edge function. Fire-and-forget either way; if the trigger point already sends other groups in the same event (e.g. award-xp's reply/mention/message split), add this as one more entry in that same array rather than a second call.
 5. Deploy: `supabase functions deploy send-notification --project-ref tlveyeisjbythssmocth`. The function is meant to run with `--no-verify-jwt` (only ever called server-side), but every caller also sends `Authorization: Bearer <service-role-key>` regardless — see step 3's example — so a redeploy that forgets the flag doesn't silently 401 every call.
-6. **`git push` does NOT deploy edge functions** — always run the `supabase functions deploy` command yourself after editing `send-notification/index.ts` or CLAUDE.md's `mention_received` example will drift from what's actually live.
+6. **`git push` does NOT deploy edge functions** — always run the `supabase functions deploy` command yourself after editing `send-notification/index.ts` or CLAUDE.md's `mention_received` example will drift from what's actually live. `award-xp/index.ts` needs the same treatment if you touch its notification-building block — `supabase functions deploy award-xp --project-ref tlveyeisjbythssmocth`.
 
 ## Key files
-- `supabase/functions/send-notification/index.ts` — the only delivery point; `NotificationType`, `PREF_COLUMN`, `buildPayload()`, preference-gating + `web-push` fan-out + stale-subscription cleanup (410/404 → delete from `push_subscriptions`)
+- `supabase/functions/send-notification/index.ts` — the only delivery point; accepts a batched `{ notifications: [...] }` request, `NotificationType`, `PREF_COLUMN`, `buildPayload()`, preference-gating + `web-push` fan-out + stale-subscription cleanup (410/404 → delete from `push_subscriptions`)
+- `src/shared/utils/sendPushNotification.ts` — the shared helper every Next.js server action/route handler uses to call send-notification (URL + Bearer header + envelope in one place); `PushNotificationType` (kept in sync with `NotificationType` by hand, see the checklist above)
 - `src/types/notifications.ts` — `PushSubscription`, `NotificationPreferences`, `CrewNotificationMute`, `CrewNotificationPreferences`
-- `src/features/chat/components/sheets/NotifSheet.tsx` — `NotifPrefs` type, `NotifToggleRow`, `NotifSheet` (shared by both consumers)
-- `src/features/profile/screens/SettingsClient.tsx` — global prefs consumer
-- `src/features/chat/components/header/ChatHeader.tsx` — per-crew prefs consumer
-- `supabase/functions/award-xp/index.ts:101-134` — canonical multi-recipient trigger example (`message_received` / `mention_received` split)
-- `src/app/(app)/friends/actions.ts` — canonical single-recipient trigger example (`friend_request`)
+- `src/features/chat/components/sheets/NotifSheet.tsx` — `NotifPrefs` type, `NotifToggleRow`, `NotifSheet` (presentational; `ChatInput.tsx` owns the state and Supabase calls)
+- `supabase/functions/award-xp/index.ts` — canonical multi-group trigger example ("FIRE NOTIFICATION IMMEDIATELY" block splits reply/mention/message into one batched call)
+- `src/app/(app)/friends/actions.ts` — canonical single-group trigger example (`friend_request`), via `sendPushNotification()`
 - `public/sw-push.js` — service worker: displays the push (`showNotification`, minimal-options iOS fallback) and routes taps (`notificationclick` → `event.notification.data.url`)
 - `src/app/api/test/push/route.ts` — debug endpoint (`GET` = diagnostics on current subscriptions + muted crews, `POST` = sends a real `message_received` test push to the calling user)
 - `src/shared/components/pwa/PushDebugFAB.tsx` — dev-only floating action button UI for the above debug endpoint
@@ -134,7 +138,7 @@ When adding a new toggle, update **both** consumers' `select()`, load-mapping, a
 ## Opt-in gotchas (found while debugging "push isn't working" for a real user)
 
 - **A user must have a row in `push_subscriptions` before any of this matters.** Before assuming a bug in `send-notification`, `award-xp`'s trigger block, or `sw-push.js`, check `select count(*) from push_subscriptions where user_id = '<id>'`. Zero rows means the account never completed the browser-level subscribe — the delivery pipeline was never the problem.
-- **`NotificationPrompt` (the one-time "Enable Notifications" banner) is gated on `localStorage.nexus_crew_created`.** That flag used to be set in exactly one place — `WelcomeDetector.tsx`, during the one-time onboarding welcome screen. A user who created their crew on a different device, or whose account predates a given device, would never see the prompt on that device and had no other way to trigger a subscribe. `HomeClient.tsx` now also sets this flag as soon as it loads and finds `initialCrews.length > 0`, so any device that can see a real crew unlocks prompt eligibility — don't reintroduce a path that makes onboarding the *only* place this flag gets set.
+- **`NotificationPrompt` (the "Enable Notifications" banner) is gated purely on the live `Notification.permission === 'default'` check, once per hard app load.** It no longer depends on `localStorage.nexus_crew_created` or a 24h re-prompt throttle — those were removed so a device that's never been asked for permission gets prompted again on every fresh launch/hard-refresh (not just once, right after onboarding), while a device that already denied or granted is left alone (denied doesn't get re-nagged since the browser won't re-show its own native prompt anyway; granted is treated as "subscribed" even in the rare case the underlying `push_subscriptions` write itself failed — see `sub_failed`, which only guards the current session, not future relaunches). `nexus_crew_created` itself still exists and is still set by `WelcomeDetector.tsx`/`HomeClient.tsx` — it just isn't a gate for this prompt anymore.
 - **`nexus_push_diag` (devtools-only, no in-app toggle as of the Figma 708:18773 Developer Settings redesign) does not itself subscribe anything** — it only reveals the `PushDebugFAB` status pill. The actual subscribe/diagnose/force-resub/remove-user actions live on `/profile/developer/manage-notifications` (tap the pill, or Developer Settings → "Manage Notifications") — don't assume flipping the flag on is sufficient to get a device receiving push, and don't rename/repurpose it to mean "subscribe."
 - **`subscribeToPush()`'s `getSubscription()` call retries up to 3 times (150ms apart) before falling through to a fresh `pushManager.subscribe()`.** This exists because a single failed/thrown `getSubscription()` on iOS used to be treated as "no subscription exists," minting a brand-new endpoint — and iOS gives every fresh `subscribe()` call its own unique endpoint even when a working one already existed. One account accumulated 337 rows this way before the fix below; don't remove the retry or treat a single `getSubscription()` failure as authoritative — it reduces how often this fires, but doesn't eliminate it (a Safari-side quirk, not something client code fully controls).
 - **`push_subscriptions.device_id`** (migration `20260727130000_push_subscriptions_device_id`) is the schema change the mass-deletion gotcha below used to say was missing — a stable id generated once via `crypto.randomUUID()` and persisted in `localStorage.nexus_push_device_id` (`getOrCreateDeviceId()` in `notifications.ts`), stamped on every row `subscribeToPush()` writes. This is what makes the self-healing prune in the next bullet safe: it scopes "this device's own stale row" to an actual identifier instead of guessing from `user_id` alone. Nullable — rows written before this migration, or via a path with no `window`/`localStorage` access (`/api/push/resubscribe`, hit from inside the SW on APNs token rotation), stay `NULL` and are simply never matched by the prune query; they only get backfilled once that same device's `subscribeToPush()` runs again (its `trySave()` is now an `upsert` on `endpoint`, not a plain insert, specifically so an existing row picks up a `device_id` — and refreshed `os_permission`/`sw_state` — on its next successful save instead of only ever getting one at creation).
@@ -158,11 +162,11 @@ A push for `message_received`/`mention_received`/`reply_received` is **not shown
 
 ## Gotchas
 - **Fire-and-forget only.** Every trigger call site uses `.catch(() => {})` and does not `await` into the response path. A notification failure must never fail or delay the user-facing action it's attached to.
-- **`payload.crew_id` is what turns on per-crew mute checking.** The edge function only queries `crew_notification_preferences` `if (payload?.crew_id)`. A crew-scoped type that forgets to pass `crew_id` will still honor global mute but silently ignore per-crew mute.
-- **`prefCol !== null` gates both preference queries, not just one.** A `null`-mapped type (`friend_request`, `health_check`) skips the entire preference-fetch block and always resolves every target id — there is no way to opt out of these short of removing all push subscriptions.
+- **`payload.crew_id` is what turns on per-crew mute checking.** The edge function only queries `crew_notification_preferences` `if (payload?.crew_id)`. A crew-scoped type that forgets to pass `crew_id` skips muting entirely for that call — there's no global fallback to catch it since 2026-07-29 (see above).
+- **`prefCol !== null` gates the preference query.** A `null`-mapped type (`friend_request`, `health_check`) skips the fetch block and always resolves every target id — there is no way to opt out of these short of removing all push subscriptions.
 - **iOS Web Push only supports a minimal `showNotification` option set.** `sw-push.js` already handles this (retries with `{ body }` only if the full options object is rejected) — don't add new required fields to the push payload that iOS doesn't document support for without adding the same fallback.
 - **Stale subscription cleanup is automatic and global to the function** — any 410/404 from `web-push` during *any* notification type deletes that `push_subscriptions` row. You don't need (and shouldn't add) per-type cleanup logic.
-- **`NotifPrefs` is duplicated state, not a shared hook.** `SettingsClient.tsx` (global) and `ChatHeader.tsx` (per-crew) each independently load/upsert — a new toggle key must be wired into both or one surface will silently keep defaulting.
+- **`NotifPrefs` is owned by a single consumer now** (`ChatInput.tsx`) — a new toggle key only needs wiring in one place, not two. (Before 2026-07-29 there was a second, global consumer; if you find code or docs elsewhere still describing two, they're stale.)
 - **`git push` never deploys edge functions.** Any change to `send-notification/index.ts` needs an explicit `supabase functions deploy send-notification --project-ref tlveyeisjbythssmocth` or it stays live with the old code — same class of bug as the `react-to-message` "undeployed function" incident documented in CLAUDE.md's Edge Functions section.
 - **Legacy dead columns**: `notif_raids` and `notif_victory` existed in the original `notification_preferences`/`crew_notification_preferences` migration but were superseded by `notif_mentions` and are no longer read by `PREF_COLUMN` or any UI. If you see them referenced anywhere, it's stale — don't resurrect them for a new type; add a fresh `notif_<name>` column instead (see "Adding a whole new preference column").
-- **`award-xp` fires notifications before it writes XP, with no early return before that block.** The notification `fetch()` calls happen immediately after resolving crew/member data, ahead of the anti-spam soft-block and XP/coin writes (`supabase/functions/award-xp/index.ts:101-134`). If you add a new early-return path to `award-xp` for some other reason, make sure it doesn't land above the notification block — that would silently kill `message_received`/`mention_received` delivery for whatever case triggers the early return.
+- **`award-xp` fires notifications before it writes XP, with no early return before that block.** The notification `fetch()` call (now one batched call, not up to 3) happens immediately after resolving crew/member data, ahead of the anti-spam soft-block and XP/coin writes — see the "FIRE NOTIFICATION IMMEDIATELY" comment in `supabase/functions/award-xp/index.ts`. If you add a new early-return path to `award-xp` for some other reason, make sure it doesn't land above the notification block — that would silently kill `message_received`/`mention_received`/`reply_received` delivery for whatever case triggers the early return.

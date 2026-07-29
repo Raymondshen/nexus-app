@@ -3,34 +3,32 @@
 import { useEffect, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Close } from 'pixelarticons/react/Close'
-import { requestPermission, subscribeToPush, isSupported, getPermissionState } from '@/shared/utils/notifications'
-
-const PROMPTED_KEY = 'nexus_notif_prompted'
-const CREW_KEY     = 'nexus_crew_created'
-const RETRY_MS     = 24 * 60 * 60 * 1000 // 24 hours
+import { requestPermission, subscribeToPush, isSupported } from '@/shared/utils/notifications'
 
 type PromptState = 'hidden' | 'visible' | 'granted' | 'denied' | 'sub_failed'
 
 export function NotificationPrompt() {
   const [state, setState] = useState<PromptState>('hidden')
 
-  // Gating reads browser-only APIs (Notification support, permission state,
-  // localStorage) unavailable during SSR — must run post-mount, not derivable at
-  // render time or via a lazy useState initializer without a hydration mismatch.
-  // Not a state-mirroring anti-pattern.
+  // Gating reads browser-only APIs (Notification permission) unavailable during
+  // SSR — must run post-mount, not derivable at render time or via a lazy
+  // useState initializer without a hydration mismatch. Not a state-mirroring
+  // anti-pattern.
+  //
+  // No localStorage throttle and no crew-created gate: this effect runs once
+  // per hard app load ((app)/layout.tsx is a shared layout that only remounts
+  // on a genuine hard load — first launch, hard refresh, or SWRegister's
+  // post-deploy reload — never on ordinary client-side navigation, same
+  // property LaunchSplashGate relies on). That makes "prompt while unsubscribed"
+  // naturally once-per-session without extra bookkeeping. Gated on the browser's
+  // own live 'default' permission (never asked), not getPermissionState()'s
+  // granted/denied/unsupported — a user who already denied shouldn't be
+  // re-nagged every relaunch, since the browser won't re-show its own native
+  // prompt for them anyway (DeniedContent below points them at OS Settings
+  // instead, on the rare path where they still land in that state this session).
   useEffect(() => {
     if (!isSupported()) return
-
-    // Already granted — no need to ask
-    if (getPermissionState() === 'granted') return
-
-    // Check if crew was just created
-    const crewCreated = localStorage.getItem(CREW_KEY)
-    if (!crewCreated) return
-
-    // Throttle: don't re-prompt within 24 hours
-    const lastPrompted = localStorage.getItem(PROMPTED_KEY)
-    if (lastPrompted && Date.now() - parseInt(lastPrompted, 10) < RETRY_MS) return
+    if (Notification.permission !== 'default') return
 
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setState('visible')
@@ -51,12 +49,10 @@ export function NotificationPrompt() {
     } else {
       setState('denied')
     }
-    localStorage.setItem(PROMPTED_KEY, String(Date.now()))
   }, [])
 
   const handleLater = useCallback(() => {
     setState('hidden')
-    localStorage.setItem(PROMPTED_KEY, String(Date.now()))
   }, [])
 
   return (
@@ -68,7 +64,7 @@ export function NotificationPrompt() {
           animate={{ y: 0 }}
           exit={{ y: '100%' }}
           transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-          className="fixed bottom-0 left-0 right-0 z-50 bg-[#0f0820] border-t-2 border-[#bf5fff]"
+          className="fixed bottom-0 left-0 right-0 z-50 bg-black border-t-2 border-purple"
           style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 16px)' }}
         >
           {(state === 'visible' || state === 'sub_failed') && (
@@ -96,13 +92,13 @@ function DefaultContent({
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center gap-3">
           <BellIcon />
-          <h2 className="font-pixel text-[10px] text-[#bf5fff] leading-relaxed">
-            RAID ALERTS
+          <h2 className="font-pixel text-[10px] text-purple leading-relaxed">
+            SQUAD ALERTS
           </h2>
         </div>
         <button
           onClick={onLater}
-          className="w-8 h-8 flex items-center justify-center text-[#6b4f8f] hover:text-white"
+          className="w-8 h-8 flex items-center justify-center text-tertiary hover:text-primary"
           aria-label="Dismiss"
         >
           <Close style={{ width: 16, height: 16 }} aria-hidden="true" />
@@ -110,13 +106,13 @@ function DefaultContent({
       </div>
 
       {subFailed ? (
-        <p className="font-sans text-sm text-[#ff9944] mb-5 leading-relaxed">
+        <p className="font-sans text-sm text-yellow mb-5 leading-relaxed">
           Setup failed. Make sure this app is added to your<br />
-          <strong className="text-white">Home Screen</strong>, then tap Enable again.
+          <strong className="text-primary">Home Screen</strong>, then tap Enable again.
         </p>
       ) : (
-        <p className="font-sans text-sm text-[#a78fc0] mb-5 leading-relaxed">
-          Get notified when a boss spawns.<br />
+        <p className="font-sans text-sm text-tertiary mb-5 leading-relaxed">
+          Get notified about new messages, mentions, and replies.<br />
           Never leave your crew hanging.
         </p>
       )}
@@ -124,13 +120,13 @@ function DefaultContent({
       <div className="flex gap-3">
         <button
           onClick={onLater}
-          className="flex-1 h-12 font-pixel text-[9px] text-[#6b4f8f] border border-[#2a1545] hover:border-[#bf5fff] transition-colors"
+          className="flex-1 h-12 font-pixel text-[9px] text-tertiary border border-border hover:border-purple transition-colors"
         >
           LATER
         </button>
         <button
           onClick={onEnable}
-          className="flex-1 h-12 font-pixel text-[9px] text-[#0a0612] bg-[#bf5fff] shadow-[2px_2px_0px_#7b2fa8] active:shadow-none active:translate-y-[1px] transition-all"
+          className="flex-1 h-12 font-pixel text-[9px] text-black bg-purple shadow-[2px_2px_0px_0px_rgba(168,85,247,0.5)] active:shadow-none active:translate-y-[1px] transition-all"
         >
           ENABLE
         </button>
@@ -142,7 +138,7 @@ function DefaultContent({
 function GrantedContent() {
   return (
     <div className="px-5 py-6 flex items-center justify-center gap-3">
-      <span className="font-pixel text-[10px] text-[#66bb6a]">Raid alerts enabled ✓</span>
+      <span className="font-pixel text-[10px]" style={{ color: 'var(--color-success)' }}>Squad alerts enabled ✓</span>
     </div>
   )
 }
@@ -151,24 +147,24 @@ function DeniedContent({ onClose }: { onClose: () => void }) {
   return (
     <div className="px-5 pt-5 pb-2">
       <div className="flex items-start justify-between mb-3">
-        <h2 className="font-pixel text-[10px] text-[#ff4444] leading-relaxed">
+        <h2 className="font-pixel text-[10px] leading-relaxed" style={{ color: 'var(--color-danger)' }}>
           NOTIFICATIONS BLOCKED
         </h2>
         <button
           onClick={onClose}
-          className="w-8 h-8 flex items-center justify-center text-[#6b4f8f] hover:text-white"
+          className="w-8 h-8 flex items-center justify-center text-tertiary hover:text-primary"
           aria-label="Close"
         >
           <Close style={{ width: 16, height: 16 }} aria-hidden="true" />
         </button>
       </div>
-      <p className="font-sans text-sm text-[#a78fc0] mb-4 leading-relaxed">
+      <p className="font-sans text-sm text-tertiary mb-4 leading-relaxed">
         Enable in your phone settings:<br />
-        <strong className="text-white">Settings → Notifications → Nexus → Allow</strong>
+        <strong className="text-primary">Settings → Notifications → Nexus → Allow</strong>
       </p>
       <button
         onClick={onClose}
-        className="w-full h-12 font-pixel text-[9px] text-[#6b4f8f] border border-[#2a1545]"
+        className="w-full h-12 font-pixel text-[9px] text-tertiary border border-border"
       >
         CLOSE
       </button>
@@ -178,7 +174,7 @@ function DeniedContent({ onClose }: { onClose: () => void }) {
 
 function BellIcon() {
   return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#bf5fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-purple" aria-hidden="true">
       <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
       <path d="M13.73 21a2 2 0 0 1-3.46 0" />
       <line x1="12" y1="2" x2="12" y2="4" />
