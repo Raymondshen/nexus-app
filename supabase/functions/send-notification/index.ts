@@ -85,6 +85,13 @@ function buildPayload(type: NotificationType, data: Record<string, unknown>) {
         badge: '/icons/icon-192.png',
         data:  { url: '/profile' },
       }
+    default:
+      // An unrecognized type used to fall through to `undefined` here, which
+      // JSON.stringify()'d to the JS value `undefined` (not a string) a few lines
+      // down — sendNotification() would then fire with an effectively empty
+      // payload instead of a clean, loud rejection. Return null and let the caller
+      // skip the send and report it, rather than silently degrade.
+      return null
   }
 }
 
@@ -127,6 +134,24 @@ function resolveGroups(body: unknown): NotificationGroup[] {
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: CORS_HEADERS })
+  }
+
+  // This function is deployed with --no-verify-jwt (it's called server-side/
+  // inter-function, never from a browser with the anon key — see CLAUDE.md's Edge
+  // Functions section) — but that's a gateway-level flag, not a code-level identity
+  // check, and this function previously had no code-level check at all. That left
+  // it reachable by anyone who knows the URL (a standard, publicly-derivable
+  // supabase.co/functions/v1/... pattern) with no credential whatsoever, able to
+  // push an arbitrary notification to any user_id. Every real caller
+  // (sendPushNotification.ts, award-xp) already sends the service-role key as a
+  // bearer token specifically to survive a verify_jwt misconfiguration — so this
+  // check costs those callers nothing and closes the gap for everyone else.
+  const expectedAuth = `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
+  if (req.headers.get('Authorization') !== expectedAuth) {
+    return new Response(
+      JSON.stringify({ error: 'Unauthorized' }),
+      { status: 401, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } },
+    )
   }
 
   if (VAPID_MISSING) {
@@ -216,6 +241,10 @@ Deno.serve(async (req: Request) => {
       }
 
       const notifPayload = buildPayload(group.type, group.payload)
+      if (!notifPayload) {
+        results.push({ type: group.type, status: 'invalid_type' })
+        continue
+      }
 
       for (const uid of finalIds) {
         const subs = subsByUser.get(uid)

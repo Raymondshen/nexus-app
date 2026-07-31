@@ -443,7 +443,16 @@ self.addEventListener('notificationclick', (event) => {
   const path = event.notification.data && event.notification.data.url
   if (!path) return
 
+  // new URL(path, origin) only honors the origin base when `path` is relative —
+  // if `path` were ever a full absolute URL (e.g. a future notification type that
+  // echoes attacker-influenced data straight into `url` without a same-origin
+  // prefix), this would resolve to that absolute URL and openWindow/navigate would
+  // leave the app entirely. Every notification type built by send-notification
+  // today uses a hardcoded or same-origin-prefixed url, so this isn't reachable
+  // right now — this check is defense-in-depth so a future type can't turn into an
+  // open redirect by accident.
   const targetUrl = new URL(path, self.location.origin).href
+  if (new URL(targetUrl).origin !== self.location.origin) return
 
   event.waitUntil(
     clients
