@@ -19,7 +19,7 @@ interface ChatSquadDetailBarProps {
    *  logic for whatever this opens/closes (ChatRoomBrowseSheet). */
   onTap:         () => void
   /** Whether ChatRoomBrowseSheet (the thing this bar's `onTap` toggles) is
-   *  currently open — flips the swipe-hint chevron from up to down so it keeps
+   *  currently open — flips the expand-hint chevron from up to down so it keeps
    *  pointing toward whatever tapping it again would do (open below vs. close
    *  back down). */
   isSheetOpen?:  boolean
@@ -33,36 +33,9 @@ interface ChatSquadDetailBarProps {
 // chat-swipe-nav arrival transition — see ChatInput's barOverride mount-seeding effect).
 const SLIDE_TRANSITION = { type: 'spring', stiffness: 170, damping: 21 } as const
 
-// Figma 605:3639/605:3642's one-shot swipe-hint banner (ChatInput) uses this glyph —
-// a pixel-art arrow-in-a-frame mark, not a pixelarticons icon (checked; none of the
-// library's icons match this box+arrowhead shape), so the path data is reproduced
-// here directly. A continuous horizontal bounce (get_motion_context): x
-// 0 → 4 → 0 → 0 over 2s, linear, looping forever, solid purple throughout.
-const HINT_LOOP_TRANSITION = { duration: 2, times: [0, 0.05, 0.1015, 1], ease: 'linear' as const, repeat: Infinity }
-const SWIPE_HINT_LOOP = { x: [0, 4, 0, 0], transition: HINT_LOOP_TRANSITION }
-
-export function SwipeHintIcon() {
-  return (
-    <motion.svg
-      width={16}
-      height={16}
-      viewBox="0 0 13.3333 13.3333"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      initial={{ x: 0, color: '#a855f7' }}
-      animate={SWIPE_HINT_LOOP}
-      aria-hidden="true"
-    >
-      <path d="M1.33333 0H12V1.33333H1.33333V0ZM1.33333 12H12V13.3333H1.33333V12ZM0 1.33333H1.33333V12H0V1.33333ZM12 1.33333H13.3333V12H12V1.33333ZM6.04467 4.006H7.378V2.67267H6.04467V4.006ZM6.04467 10.6727H7.378V6.67267H6.04467V10.6727ZM4.71133 5.33933H8.71133V4.006H4.71133V5.33933ZM3.378 6.67267H10.0447V5.33933H3.378V6.67267Z" fill="currentColor" />
-    </motion.svg>
-  )
-}
-
 // Figma 637:3886's own hint icon (642:7731 "chevron_up") is a plain pixelarticons
-// ChevronUp, not the box-and-arrow glyph above — a genuinely different Figma
-// instance from the one-shot banner's, verified by diffing the exported path data.
-// Figma's own keyframe timeline for this node (get_motion_context) loops it
-// (y: 0 → -4 → 0 → 0, 300ms, linear, forever) — deliberately not reproduced here;
+// ChevronUp. Figma's own keyframe timeline for this node (get_motion_context) loops
+// it (y: 0 → -4 → 0 → 0, 300ms, linear, forever) — deliberately not reproduced here;
 // this instance renders as a static icon, no animation, by request.
 
 export function ChatSquadDetailBar({
@@ -168,12 +141,12 @@ export function ChatSquadDetailBar({
         )}
       </AnimatePresence>
 
-      {/* Swipe-gesture hint (Figma 645:8050 "chevron_up") — purely decorative, no
-          action of its own, so a tap here bubbles up to the row's own onClick like
-          the rest of the bar (same as the online-avatars row above) rather than
-          stopping propagation. Static — no accompanying text label. Flips to
-          ChevronDown while `isSheetOpen` (ChatRoomBrowseSheet is showing), so the
-          hint always points toward what tapping it again does. */}
+      {/* Expand hint (Figma 645:8050 "chevron_up") — purely decorative, no action of
+          its own, so a tap here bubbles up to the row's own onClick like the rest of
+          the bar (same as the online-avatars row above) rather than stopping
+          propagation. Static — no accompanying text label. Flips to ChevronDown
+          while `isSheetOpen` (ChatRoomBrowseSheet is showing), so the hint always
+          points toward what tapping it again does. */}
       <div className="flex-shrink-0" aria-hidden="true">
         {isSheetOpen
           ? <ChevronDown style={{ width: 24, height: 24, color: 'var(--color-primary)' }} aria-hidden="true" />

@@ -190,8 +190,7 @@ export function AnnouncementsSheet({
   // getDismissed() reads localStorage, unavailable during SSR — the read has to
   // happen post-mount, not in a lazy useState initializer, since the server-rendered
   // HTML always renders `visible` as null and the client's first hydration-matching
-  // render must agree with that exactly (same reasoning ChatInput's own
-  // showSwipeHint read documents). Not a state-mirroring anti-pattern.
+  // render must agree with that exactly. Not a state-mirroring anti-pattern.
   useEffect(() => {
     const dismissed = getDismissed();
     const hasUnseen = announcements.some((a) => !dismissed.has(a.id));

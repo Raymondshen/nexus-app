@@ -55,7 +55,7 @@ Flow: file picker → `PhotoCropModal` or a bespoke modal (`ZoomPanCropper`, `re
 - Background-style surfaces (16:9 hero, and crew background): single variant, but tries progressively smaller canvas sizes — `1080×608 → 800×450 → 540×304` — re-running `compressCanvas` at each until one hits 200KB.
 - Event cover and crew-creation pickers use a single `compressCanvas` call at their target size (no progressive shrink, no dual-variant) — acceptable since they're lower-traffic/one-shot surfaces, but keep in mind they have no 200KB fallback ladder beyond what `compressCanvas` itself does at that one size.
 
-### 2. Chat message images (`ChatInput.handleChatImagesPick`)
+### 2. Chat message images (`handleChatImagesPick`, `src/features/chat/hooks/useMessageSend.ts` — used by `ChatInput`)
 No cropping — resize + recompress at the original aspect ratio.
 
 - `validateImageUpload()` (`src/shared/utils/imageProcessing.ts`): MIME check (includes GIF) + size limit (15MB normal, 5MB GIF).

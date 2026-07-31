@@ -1,36 +1,27 @@
 'use client'
 
-import React, { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo, useSyncExternalStore } from 'react'
+import React, { useState, useRef, useCallback, useEffect, useMemo, useSyncExternalStore } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import type { PanInfo } from 'framer-motion'
 import { UserAvatar } from '@/shared/components/ui/UserAvatar'
-import type { RealtimeChannel } from '@supabase/supabase-js'
 import { createClient } from '@/shared/supabase/client'
 import { getXPProgress, getXPInCurrentLevel, getXPForCurrentLevel } from '@/shared/utils/xp'
 import { useChatStore } from '@/store/chatStore'
 import { FriendshipXPToast } from '@/shared/components/game/FriendshipXPToast'
 import { GemToast } from '@/shared/components/game/GemToast'
-import { SUPABASE_URL, PRESENCE_ONLINE_THRESHOLD_MS, config } from '@/shared/constants/config'
-import { haptic } from '@/shared/utils/sounds'
-import { compressImage, generateLQIP, validateImageUpload, getNetworkQuality } from '@/shared/utils/imageProcessing'
-import { computeOnlineIds, setsEqual } from '@/shared/utils/presence'
-import { notifyActiveCrew } from '@/shared/utils/notifications'
-import { sendWithRetry } from '@/shared/utils/sendWithRetry'
-import { postEdgeFn } from '@/shared/utils/edgeFetch'
-import { addToOutbox, readOutbox, type OutboxJob } from '@/shared/utils/outbox'
-import { acquireCrewMessageChannel, releaseCrewMessageChannel, isActiveCrewMessageChannel, evictCrewMessageChannel } from '@/shared/supabase/crewMessageChannel'
-import { IMAGE_CONFIG } from '@/shared/constants/config'
-import { ChatSquadDetailBar, SwipeHintIcon } from '@/features/chat/components/header/ChatSquadDetailBar'
+import { usePresenceChannel } from '@/features/chat/hooks/usePresenceChannel'
+import { useComposerField } from '@/features/chat/hooks/useComposerField'
+import { useMentionAutocomplete } from '@/features/chat/hooks/useMentionAutocomplete'
+import { useCrewProfileManagement } from '@/features/chat/hooks/useCrewProfileManagement'
+import { useMessageSend } from '@/features/chat/hooks/useMessageSend'
+import { ChatSquadDetailBar } from '@/features/chat/components/header/ChatSquadDetailBar'
 import { skipNextSlideEnter } from '@/app/layouts/SlidePage'
 import { useChatRoomPeekStore } from '@/features/chat/store/chatRoomPeekStore'
 import type { RoomMeta } from '@/features/chat/store/chatRoomPeekStore'
 import { ensureRoomMeta } from '@/features/chat/utils/ensureRoomMeta'
 import { ChatTypingIndicator } from '@/features/chat/components/input/ChatTypingIndicator'
 import { ChatRoomBrowseSheet, type SquadDetailInfo } from '@/features/chat/components/input/ChatRoomBrowseSheet'
-import { isGemGateOpen, recordGemClaim } from '@/shared/utils/gems'
 import { makeLocalStorageFlagStore, getServerFlagSnapshotFalse } from '@/shared/utils/localStorageFlag'
-import type { GemClaimResult } from '@/types'
 import { Send } from 'pixelarticons/react/Send'
 import { Plus } from 'pixelarticons/react/Plus'
 import { CornerUpLeft } from 'pixelarticons/react/CornerUpLeft'
@@ -39,40 +30,39 @@ import { MagicEdit } from 'pixelarticons/react/MagicEdit'
 import { Camera } from 'pixelarticons/react/Camera'
 import { GifIcon } from '@/shared/icons/GifIcon'
 import { DefinitionIcon } from '@/shared/icons/DefinitionIcon'
-import { kickMemberAction, renameCrewAction, birthdaysCommandAction, pinCrewAction } from '@/app/(app)/chat/actions'
+import { kickMemberAction, birthdaysCommandAction, pinCrewAction } from '@/app/(app)/chat/actions'
 import { leaveCrewAction } from '@/app/(app)/home/actions'
 import dynamic from 'next/dynamic'
-import { CrewImageUploadModal } from '@/features/chat/components/sheets/CrewImageUploadModal'
-import { CrewBackgroundUploadModal } from '@/features/chat/components/sheets/CrewBackgroundUploadModal'
 import { type MiniMember } from '@/features/chat/components/sheets/SquadDetailCard'
-import { ManageSquadProfile } from '@/features/chat/screens/ManageSquadProfile'
 import { NotifSheet, type NotifPrefs } from '@/features/chat/components/sheets/NotifSheet'
+import { BottomSheet } from '@/shared/components/ui/sheet/BottomSheet'
 
 // Rarely-opened sheets, all conditionally rendered below — code-split so their
-// weight (Klipy picker UI, event creation + crop flow, poll creator) stays out of
-// the eager chat bundle and is fetched on first open. NotifSheet stays static:
-// it's a core, frequently-used part of the screen.
+// weight (Klipy picker UI, event creation + crop flow, crew image/background crop
+// tooling, the Manage Squad screen) stays out of the eager chat bundle and is
+// fetched on first open. NotifSheet stays static: it's a core, frequently-used
+// part of the screen.
 const GifPickerSheet = dynamic(
   () => import('@/features/chat/components/input/GifPickerSheet').then((m) => m.GifPickerSheet),
-  { ssr: false },
-)
-const PollCreatorSheet = dynamic(
-  () => import('@/features/chat/components/polls/PollCreatorSheet').then((m) => m.PollCreatorSheet),
   { ssr: false },
 )
 const EventCreationSheet = dynamic(
   () => import('@/features/events/components/EventCreationSheet').then((m) => m.EventCreationSheet),
   { ssr: false },
 )
-import { setHomeLastMessage } from '@/features/home/utils/homePreviewCache'
-import type { Message, MessageWithProfile, Profile } from '@/types'
+const ManageSquadProfile = dynamic(
+  () => import('@/features/chat/screens/ManageSquadProfile').then((m) => m.ManageSquadProfile),
+  { ssr: false },
+)
+// CrewImageUploadModal/CrewBackgroundUploadModal's own dynamic() imports (and the
+// crewImageModalMounted/crewBgModalMounted lazy-mount flags that actually defer their
+// fetch) now live inside useCrewProfileManagement, alongside the rest of the crew
+// image/background/rename state — see that hook's own doc comment.
+import type { Profile } from '@/types'
 
-const MAX_MESSAGE_LENGTH   = 2000
-const RATE_LIMIT_MAX       = 30
-const RATE_LIMIT_WINDOW    = 60_000
-const ONLINE_THRESHOLD_MS  = PRESENCE_ONLINE_THRESHOLD_MS
-// Minimum gap between update_active DB writes triggered outside the 30s heartbeat interval
-const ACTIVE_WRITE_THROTTLE_MS = 10_000
+// Must match useMessageSend's own copy of this constant — this file's handleInput
+// independently truncates before handing off to the composer.
+const MAX_MESSAGE_LENGTH = 2000
 
 const SLASH_COMMANDS = [
   { name: 'birthdays', icon: '🎂', description: 'See upcoming squad birthdays' },
@@ -87,15 +77,6 @@ type SlashCommandName = typeof SLASH_COMMANDS[number]['name']
 // squadDetail — which feeds it — is always null on the DM screen).
 export type MemberProfile = Pick<Profile, 'id' | 'username' | 'avatar_class' | 'avatar_url' | 'status'> & { background_url?: string | null }
 
-interface PendingImage {
-  id:        string
-  localUrl:  string        // blob URL — shown immediately on selection
-  publicUrl: string | null // set after upload completes
-  lqip:      string | null // set after LQIP generation
-  uploading: boolean
-  error:     string | null
-}
-
 interface ChatInputProps {
   crewId:         string
   userId:         string
@@ -108,7 +89,6 @@ interface ChatInputProps {
   crewImageUrl?:           string | null
   crewBackgroundImageUrl?: string | null
   initialXP?:              number
-  currentUserId?:      string
   isDM?:               boolean
   dmPartnerId?:        string
   /** This user's group-chat crew ids, most-recently-active first (DMs excluded) — feeds
@@ -119,56 +99,12 @@ interface ChatInputProps {
   initialPinnedCrewId?: string | null
 }
 
-function sanitizeMessage(raw: string): string {
-  return raw.replace(/<[^>]*>/g, '').trim().slice(0, MAX_MESSAGE_LENGTH)
-}
-
-// Fire-and-forget daily gem claim. The local gate (idb-keyval) is a debounce only —
-// the award-gem Edge Function + claim_daily_gem RPC are the sole authority on the
-// award decision. Must never block sending or surface errors as a send failure.
-async function tryClaimDailyGem(supabase: ReturnType<typeof createClient>, onClaimed?: () => void) {
-  try {
-    if (!(await isGemGateOpen())) return
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.access_token) return
-
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/award-gem`, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-      body:    JSON.stringify({ timezone_offset_minutes: new Date().getTimezoneOffset() }),
-    })
-    const data: GemClaimResult = await res.json()
-    if (data.claimed) {
-      await recordGemClaim()
-      useChatStore.getState().setGemBalance(data.gem_balance)
-      onClaimed?.()
-    }
-  } catch {
-    // Silent — a failed gem claim must never surface as a message send error.
-  }
-}
-
-
 // Stable empty fallbacks for ChatSquadDetailBar while barOverride is active — the
 // swiped-to room's online members/avatars aren't tracked from here (presence only
 // runs for the mounted room), so the bar simply omits that row rather than mislabeling
 // the outgoing room's online members as the destination's.
 const EMPTY_MEMBERS: MemberProfile[] = []
 const EMPTY_ONLINE_IDS = new Set<string>()
-
-// Set once the user has actually triggered the swipe-up gesture — permanently hides
-// the "Swipe up to view notification and squad details" banner (Figma 605:3639,
-// redesigned from the older 589:5938/596:7443 two-hint layout — copy + styling
-// updated to match) for this device from then on, same one-shot-hint convention as
-// nexus_first_message/nexus_crew_created (see CLAUDE.md's Storage Keys). Only
-// renders for first-time/not-yet-triggered users (see dismissSwipeHint).
-//
-// `_v2` suffix: this key is intentionally a NEW name, not the pre-redesign one — by
-// request, the redesigned banner needed to show again for every device that had
-// already dismissed the old one, and a localStorage flag has no server-side record
-// to reset remotely. Retiring the old key name and starting a fresh one is the only
-// way to make an already-set client-side flag "unseen" again for everyone at once.
-const CHAT_SWIPE_HINT_SEEN_KEY = 'nexus_chat_swipe_nav_hint_seen_v2'
 
 // SSR-safe localStorage dev-flag reader, one instance per (storageKey, changeEvent)
 // pair — mirrors useQuickReactions' useSyncExternalStore pattern
@@ -208,6 +144,70 @@ function AddMenuPill({ icon, label, onClick, disabled = false }: { icon: React.R
         {label}
       </span>
     </button>
+  )
+}
+
+// Shared destructive-confirm sheet shell — "REMOVE FROM SQUAD" (kick) and "YOU'RE
+// THE LAST MEMBER" (leave-deletes-the-squad) below both used to hand-roll their own
+// backdrop + spring(320/32) + y-slide shell instead of the shared `BottomSheet`
+// (project rule: no custom bottom sheet implementations) despite being ~90%
+// identical to each other otherwise — consolidated into one local component (only
+// ever used here, same "used only in this file" treatment as `AddMenuPill` above).
+function ConfirmDestructiveSheet({
+  eyebrow, eyebrowColor = 'var(--color-tertiary)', title, description, errorText,
+  confirmLabel, confirmBusyLabel, busy, onConfirm, onCancel,
+}: {
+  eyebrow:          string
+  eyebrowColor?:    string
+  title:            string
+  description:      string
+  errorText?:       string | null
+  confirmLabel:     string
+  confirmBusyLabel: string
+  busy:             boolean
+  onConfirm:        () => void
+  onCancel:         () => void
+}) {
+  return (
+    <BottomSheet onClose={() => { if (!busy) onCancel() }} zIndex={80} disableDrag={busy}>
+      <div className="flex flex-col gap-6 p-4" style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 24px)' }}>
+        <div className="flex flex-col gap-2">
+          <p className="font-pixel text-[8px] leading-none" style={{ color: eyebrowColor }}>{eyebrow}</p>
+          <div className="flex flex-col gap-1">
+            <h2
+              className="font-body font-bold text-[18px] text-primary leading-none"
+              style={{ fontVariationSettings: '"opsz" 14' }}
+            >
+              {title}
+            </h2>
+            <p className="font-body text-[12px] text-secondary leading-normal">{description}</p>
+          </div>
+        </div>
+
+        {errorText && (
+          <p className="font-silkscreen text-[8px] text-[#ef4444] leading-none">{errorText}</p>
+        )}
+
+        <div className="flex flex-col gap-2">
+          <button
+            onClick={onConfirm}
+            disabled={busy}
+            className="w-full h-12 flex items-center justify-center bg-[#ef4444] disabled:opacity-50 transition-opacity active:opacity-70"
+          >
+            <span className="font-pixel text-[8px] text-primary leading-none">
+              {busy ? confirmBusyLabel : confirmLabel}
+            </span>
+          </button>
+          <button
+            onClick={onCancel}
+            disabled={busy}
+            className="w-full h-12 flex items-center justify-center transition-opacity active:opacity-70"
+          >
+            <span className="font-pixel text-[8px] text-tertiary leading-none">CANCEL</span>
+          </button>
+        </div>
+      </div>
+    </BottomSheet>
   )
 }
 
@@ -252,18 +252,12 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, memberP
     return null
   })
   const chatInputBoxRef = useRef<HTMLDivElement>(null)
-  const [text,           setText]          = useState('')
-  const [sendError,      setSendError]      = useState<string | null>(null)
   // Read via useSyncExternalStore (see makeLocalStorageFlagStore above), not a
   // useState+useEffect pair — that's what actually satisfies react-hooks/set-state-in-effect
   // here, not just a disable comment, since this genuinely is syncing from an external
-  // store. There's no separate `pollEnabled` — the poll-creation entry point that would
-  // have consumed it isn't wired to any UI anymore (`showPollCreator` below is never
-  // set true), so that flag was dead: read, stored, never once referenced.
+  // store.
   const eventsEnabled = useSyncExternalStore(EVENTS_FLAG_STORE.subscribe, EVENTS_FLAG_STORE.getSnapshot, getServerFlagSnapshotFalse)
   const fxpEnabled    = useSyncExternalStore(FXP_FLAG_STORE.subscribe,    FXP_FLAG_STORE.getSnapshot,    getServerFlagSnapshotFalse)
-  const [showSwipeHint,   setShowSwipeHint]   = useState(false)
-  const [gemToastVisible,   setGemToastVisible]   = useState(false)
   const [showNotifSheet,  setShowNotifSheet]  = useState(false)
   const [showManageSquad, setShowManageSquad] = useState(false)
   const [notifPrefs,      setNotifPrefs]      = useState<NotifPrefs>({ messages: true, mentions: true, replies: true })
@@ -286,110 +280,104 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, memberP
   // `chatRoomOrder` (a server-provided prop this component never otherwise mutates).
   const [locallyLeftRoomIds, setLocallyLeftRoomIds] = useState<Set<string>>(new Set())
   const [kickedIds,      setKickedIds]      = useState<Set<string>>(new Set())
-  const [crewImageUrl,   setCrewImageUrl]   = useState<string | null>(initialCrewImageUrl ?? null)
-  const [crewImageFile,  setCrewImageFile]  = useState<File | null>(null)
-  const [crewBgUrl,      setCrewBgUrl]      = useState<string | null>(initialCrewBgUrl ?? null)
-  const [crewBgFile,     setCrewBgFile]     = useState<File | null>(null)
-const [showPollCreator,  setShowPollCreator]  = useState(false)
   const [showGifPicker,    setShowGifPicker]    = useState(false)
   // Opened by the Plus button next to the text field (Figma 645:8116) — swaps the
   // squad detail bar for an inline Upload/GIF/Definition pill row and swaps the
   // Plus icon for a Close/X. Closed by tapping that X, or tapping anywhere outside
   // chatInputContainerRef (see the pointerdown effect below) — never a bottom sheet.
   const [showAddMenu,      setShowAddMenu]      = useState(false)
-  const [mentionQuery,    setMentionQuery]    = useState<string | null>(null)
-  const [mentionIndex,    setMentionIndex]    = useState(0)
   const [isFocused,       setIsFocused]       = useState(false)
-  // Opened by a swipe-up on chatInputContainer (see handleTopPanEnd) —
-  // ChatRoomBrowseSheet, a persistent "every room, scrollable, tap to navigate"
-  // overlay. Stays true until the user taps a card or the backdrop.
+  // Opened by a tap on ChatSquadDetailBar — ChatRoomBrowseSheet, a persistent
+  // "every room, scrollable, tap to navigate" overlay. Stays true until the user
+  // taps a card, taps the bar again, or the backdrop.
   const [showRoomBrowser, setShowRoomBrowser] = useState(false)
   const [showEventSheet,  setShowEventSheet]  = useState(false)
-  const [isMultiline,     setIsMultiline]     = useState(false)
 
-  const [pendingImages,      setPendingImages]      = useState<PendingImage[]>([])
-  const [friendshipToast,    setFriendshipToast]    = useState<{ totalXP: number; xpAwarded: number; partnerName: string; dailyCount: number } | null>(null)
-
-  const textareaRef           = useRef<HTMLTextAreaElement>(null)
-  const inputRef              = useRef<HTMLInputElement>(null)
-  const mirrorRef             = useRef<HTMLSpanElement>(null)
-  const innerContainerRef     = useRef<HTMLDivElement>(null)
   // The bordered "chatInputContainer" box (squad bar/add-menu + input row) — used to
   // detect a tap outside it while the add menu is open (see the pointerdown effect
   // below), separate from chatInputBoxRef, which wraps this plus the typing
   // indicator/swipe hint/ChatRoomBrowseSheet above it.
   const chatInputContainerRef = useRef<HTMLDivElement>(null)
-  const pendingCaretPosRef    = useRef<number | null>(null)
-  const isMultilineRef        = useRef(false)
-  const textRef               = useRef('')
   const overlayRef            = useRef<HTMLDivElement>(null)
-  const crewImageInputRef     = useRef<HTMLInputElement>(null)
-  const crewBgInputRef        = useRef<HTMLInputElement>(null)
-  const chatImageInputRef     = useRef<HTMLInputElement>(null)
-  const rateRef               = useRef({ count: 0, resetAt: Date.now() + RATE_LIMIT_WINDOW })
-  const typingTimerRef        = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const friendshipToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const gemToastTimerRef      = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const msgChannelRef         = useRef<RealtimeChannel | null>(null)
-  const channelReadyRef       = useRef(false)
-  const lastActiveWriteRef    = useRef(0)
-  const isTypingRef           = useRef(false)
-  // CLOSED-channel rebuild state — see the CLOSED branch in the subscribe callback.
-  // attempts drives the backoff (reset on SUBSCRIBED); pendingRebuild defers a
-  // rebuild that hit while backgrounded until the next foreground.
-  const rebuildTimerRef       = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const rebuildAttemptsRef    = useRef(0)
-  const pendingRebuildRef     = useRef(false)
-  // Single place that actually persists a presence write — throttled so a DB round
-  // trip only happens once per ACTIVE_WRITE_THROTTLE_MS regardless of which call site
-  // (heartbeat interval, foreground-resume, or a message-send piggyback) asked for it.
-  // Takes an existing client rather than calling createClient() itself — the mount
-  // effect's heartbeat fires every 30s for the life of the room session, and
-  // createBrowserClient() isn't free (GoTrueClient init, cookie reads, an
-  // auto-refresh timer) — constructing a fresh one per tick would leak that cost
-  // for as long as the chat screen stays open.
-  const writePresence = useCallback((ts: number, client: ReturnType<typeof createClient>) => {
-    if (ts - lastActiveWriteRef.current < ACTIVE_WRITE_THROTTLE_MS) return
-    lastActiveWriteRef.current = ts
-    client.rpc('update_active').then(() => {}, (err) => {
-      if (config.isDev) console.warn('[presence] update_active failed', err)
-    })
-  }, [])
   // Individual selectors — a bare useChatStore() destructure subscribes to the whole
   // store, so every Realtime-driven update (incoming messages, reaction patches,
   // optimistic-send reconciliation — all of which replace the `messages` array this
   // component never reads) re-rendered this entire component. Actions are stable
   // references, so their selectors never trigger a re-render.
   const addMessage        = useChatStore((s) => s.addMessage)
-  const updateMessage     = useChatStore((s) => s.updateMessage)
   const setCrewXP         = useChatStore((s) => s.setCrewXP)
-  const receiveXP         = useChatStore((s) => s.receiveXP)
-  const bumpCrewXP        = useChatStore((s) => s.bumpCrewXP)
   const crewXP            = useChatStore((s) => s.crewXP)
   const crewLevel         = useChatStore((s) => s.crewLevel)
   const onlineUserIds     = useChatStore((s) => s.onlineUserIds)
-  const setLastActive     = useChatStore((s) => s.setLastActive)
-  const addUserCoins      = useChatStore((s) => s.addUserCoins)
   const storeCrewName     = useChatStore((s) => s.crewName)
   const setCrewName       = useChatStore((s) => s.setCrewName)
   const replyTo           = useChatStore((s) => s.replyTo)
   const setReplyTo        = useChatStore((s) => s.setReplyTo)
   const editTo            = useChatStore((s) => s.editTo)
   const setEditTo         = useChatStore((s) => s.setEditTo)
-  const channelEpoch      = useChatStore((s) => s.channelEpoch)
+
+  // Realtime channel/presence/heartbeat/typing lifecycle for this crew — see
+  // usePresenceChannel's own doc comment. Everything else in this component reaches
+  // the channel only through the functions returned here; the channel/presence refs
+  // themselves are fully private to the hook.
+  const { broadcastNewMessage, broadcastXpUpdate, pingPresence, notifyTyping, clearTypingState } =
+    usePresenceChannel({ crewId, userId, userProfile, isDM, memberProfiles })
+
+  // Hybrid input/textarea composer — text state, the multiline swap, autosize, caret
+  // restore. See useComposerField's own doc comment. `clear` is destructured under
+  // its own name below (not shadowing anything) since ChatInput's own
+  // clearComposerText composes it with clearTypingState above.
+  const {
+    text, isMultiline, textareaRef, inputRef, mirrorRef, innerContainerRef, textRef,
+    getActiveField, focusField, recheckOverflow, setText, setTextRaw, clear: clearComposerField,
+  } = useComposerField()
+
+  // Shared "the composer's text is fully consumed" reset — composes the composer's
+  // own text/multiline/caret reset with the presence channel's typing-state clear.
+  // Every path that clears `text` outside of handleInput's own onChange (send,
+  // sendImages when text rode along, handleEditSend, executeCommand, the Escape-clear
+  // slash-command shortcut, cancel-edit) should call this rather than re-inlining the
+  // multiline reset — callers still own their own domain-specific resets around it
+  // (setReplyTo, setEditTo, focusField). Stable identity (both clearComposerField and
+  // clearTypingState are themselves stable) — this is passed into useMessageSend and
+  // listed in send/sendImages/handleEditSend's own dependency arrays, so an unstable
+  // reference here would recreate all three of those on every render.
+  const clearComposerText = useCallback((): boolean => {
+    const wasMultiline = clearComposerField()
+    clearTypingState()
+    return wasMultiline
+  }, [clearComposerField, clearTypingState])
 
   const liveCrewName = storeCrewName || crewName
 
-  // Keep refs in sync on every render so closures and effects always see current values
-  textRef.current = text
-  isMultilineRef.current = isMultiline
+  // Crew image/background upload + rename. See useCrewProfileManagement's own doc
+  // comment. crewImageUrl/crewBgUrl are read widely below (peek-store publish, squadDetail,
+  // ChatSquadDetailBar, ManageSquadProfile) so the hook still exposes them as plain values,
+  // same as useComposerField exposes `text`.
+  const {
+    crewImageUrl, crewBgUrl, crewImageInputRef, crewBgInputRef,
+    onCrewImageFileChange, onCrewBgFileChange, openImagePicker, openBackgroundPicker,
+    imageModal, bgModal, renameCrew,
+  } = useCrewProfileManagement({ crewId, initialCrewImageUrl, initialCrewBgUrl, liveCrewName })
 
   const profilesRef       = useRef(memberProfiles)
   profilesRef.current     = memberProfiles
-  const userProfileRef    = useRef(userProfile)
-  userProfileRef.current  = userProfile
-  const pendingImagesRef  = useRef<PendingImage[]>([])
-  pendingImagesRef.current = pendingImages
+
+  // Message-send pipeline: text/image/GIF send, edit-save, retry, outbox-resume, and
+  // their success side effects (XP settlement, presence piggyback, daily gem claim,
+  // friendship-XP toast). See useMessageSend's own doc comment.
+  const {
+    sendError, setSendError,
+    pendingImages, pendingImagesRef, removePendingImage,
+    chatImageInputRef, handleChatImagesPick,
+    friendshipToast, gemToastVisible,
+    send, sendImages, sendGif, handleEditSend,
+  } = useMessageSend({
+    crewId, userId, userProfile, isDM, dmPartnerId, liveCrewName, fxpEnabled,
+    text, textRef, inputRef, focusField, clearComposerText, profilesRef,
+    broadcastNewMessage, broadcastXpUpdate, pingPresence,
+  })
+
   const xpProgress  = getXPProgress(crewXP)
   const xpInLevel   = getXPInCurrentLevel(crewXP)
   const xpNeeded    = getXPForCurrentLevel(crewXP)
@@ -403,6 +391,13 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     [memberProfiles, kickedIds]
   )
   const memberCount = members.length
+
+  // @mention autocomplete — query detection, filtered matches, completion, and
+  // inline highlight rendering. See useMentionAutocomplete's own doc comment.
+  const {
+    mentionQuery, setMentionQuery, mentionIndex, setMentionIndex, mentionMatches,
+    getMentionQuery, completeMention, renderHighlightedInput,
+  } = useMentionAutocomplete({ members, userId, text, getActiveField, setTextRaw })
 
   // ChatRoomBrowseSheet's rich card (Figma 577:4895, via SwipePreviewCard) needs a
   // last-message-preview snippet for every room it shows, including this one — unlike
@@ -472,12 +467,6 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   // Only meaningful while the squad sheet is open, but hooks must run
   // unconditionally — cheap to recompute and now actually stable thanks to
   // the `members` memoization above, instead of a fresh array+objects per render.
-  // Lowercased usernames for the @mention overlay — renderHighlightedInput runs on
-  // every keystroke render, so build this Set once per membership change, not per call.
-  const memberUsernameSet = useMemo(
-    () => new Set(members.map((m) => m.username.toLowerCase())),
-    [members]
-  )
   const squadSheetMembers = useMemo(
     (): MiniMember[] => members.map((m) => ({
       id:             m.id,
@@ -490,26 +479,9 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     [members]
   )
 
-  // showSwipeHint has no other writer/change-event to subscribe to (see
-  // CHAT_SWIPE_HINT_SEEN_KEY's own doc comment — only this component's own
-  // dismissSwipeHint ever sets it, via a direct setState alongside the localStorage
-  // write, not a cross-tab/cross-component signal), so a full useSyncExternalStore
-  // store (like fxpEnabled/eventsEnabled above) isn't warranted here — but the read
-  // still has to happen post-mount, not in a lazy useState initializer, since the
-  // server-rendered HTML always renders the hint hidden (no `window` to read
-  // localStorage from during SSR) and the client's first hydration-matching render
-  // must match that exactly. Reading it eagerly client-side would make that first
-  // render disagree with the server's, a hydration mismatch — same reasoning
-  // useSyncExternalStore's getServerSnapshot exists to avoid above, just without that
-  // machinery since there's nothing external to subscribe to here.
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setShowSwipeHint(localStorage.getItem(CHAT_SWIPE_HINT_SEEN_KEY) !== '1')
-  }, [])
-
   useEffect(() => {
     if (replyTo) focusField()
-  }, [replyTo])
+  }, [replyTo, focusField])
 
   // Populate input when entering edit mode. Not just a state-mirroring effect
   // ("you might not need an effect") — recheckOverflow/focusField are genuine
@@ -519,9 +491,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   // would otherwise want.
   useEffect(() => {
     if (editTo) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setText(editTo.content)
-      textRef.current = editTo.content
+      setTextRaw(editTo.content)
       requestAnimationFrame(() => {
         recheckOverflow(editTo.content)
         focusField()
@@ -646,86 +616,8 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     }
     field.addEventListener('scroll', sync)
     return () => field.removeEventListener('scroll', sync)
-  }, [isMultiline])
+  }, [isMultiline, inputRef, textareaRef])
 
-  // ─── Hybrid input/textarea helpers ─────────────────────────────────────────
-
-  function getActiveField(): HTMLInputElement | HTMLTextAreaElement | null {
-    return isMultilineRef.current ? textareaRef.current : inputRef.current
-  }
-
-  function focusField() {
-    if (isMultilineRef.current) textareaRef.current?.focus()
-    else inputRef.current?.focus()
-  }
-
-  // Measures text width via the hidden mirror span and swaps element type if needed.
-  // Called on every keystroke and on container resize.
-  const recheckOverflow = useCallback((val?: string, caretPos?: number) => {
-    const currentVal = val ?? textRef.current
-    const mirror     = mirrorRef.current
-    const container  = innerContainerRef.current
-    if (!mirror || !container) return
-
-    mirror.textContent = currentVal || ''
-    const mirrorWidth    = mirror.offsetWidth
-    const containerWidth = container.clientWidth
-
-    // 2px forward buffer, 6px hysteresis before swapping back — prevents thrashing at boundary
-    const willWrap = mirrorWidth > containerWidth - 2
-    const willFit  = mirrorWidth < containerWidth - 6
-
-    if (!isMultilineRef.current && willWrap) {
-      const pos = caretPos ?? (inputRef.current?.selectionStart ?? currentVal.length)
-      pendingCaretPosRef.current = pos
-      isMultilineRef.current = true
-      setIsMultiline(true)
-    } else if (isMultilineRef.current && willFit && !currentVal.includes('\n')) {
-      const pos = caretPos ?? (textareaRef.current?.selectionStart ?? currentVal.length)
-      pendingCaretPosRef.current = pos
-      isMultilineRef.current = false
-      setIsMultiline(false)
-    } else if (isMultilineRef.current) {
-      // Already in textarea mode — update height as content changes
-      const el = textareaRef.current
-      if (el) {
-        el.style.height = 'auto'
-        const cs  = getComputedStyle(el)
-        const lh  = parseFloat(cs.lineHeight) || 24
-        const pt  = parseFloat(cs.paddingTop) || 12
-        const pb  = parseFloat(cs.paddingBottom) || 12
-        el.style.height = Math.min(el.scrollHeight, pt + pb + lh * 3) + 'px'
-      }
-    }
-  }, [])
-
-  // Restore caret and set initial textarea height after element swap
-  useLayoutEffect(() => {
-    const pos = pendingCaretPosRef.current
-    if (pos === null) return
-    pendingCaretPosRef.current = null
-    const el = isMultiline ? textareaRef.current : inputRef.current
-    if (!el) return
-    if (isMultiline && el instanceof HTMLTextAreaElement) {
-      el.style.height = 'auto'
-      const cs  = getComputedStyle(el)
-      const lh  = parseFloat(cs.lineHeight) || 24
-      const pt  = parseFloat(cs.paddingTop) || 12
-      const pb  = parseFloat(cs.paddingBottom) || 12
-      el.style.height = Math.min(el.scrollHeight, pt + pb + lh * 3) + 'px'
-    }
-    el.focus()
-    el.setSelectionRange(pos, pos)
-  }, [isMultiline])
-
-  // Re-check overflow when the container is resized (orientation change, keyboard open/close)
-  useEffect(() => {
-    const container = innerContainerRef.current
-    if (!container) return
-    const ro = new ResizeObserver(() => recheckOverflow())
-    ro.observe(container)
-    return () => ro.disconnect()
-  }, [recheckOverflow])
 
   // Publishes this room's rendered squad-bar+input height to chatRoomPeekStore so
   // ChatRoomPeekLayer can inset its message-log skeleton preview to match the real
@@ -741,30 +633,6 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   }, [])
 
   // ────────────────────────────────────────────────────────────────────────────
-
-  // A vertical, up-only pan gesture anywhere on chatInputContainer opens
-  // ChatRoomBrowseSheet — decided entirely at release, below. A horizontal drag
-  // doesn't open anything — it used to be reachable that way too, but that gesture
-  // was removed once swipe-up started opening the same sheet. A plain tap on
-  // ChatSquadDetailBar (its own `onClick`) opens the exact same sheet — see that
-  // call site's own doc comment — so swipe-up and tap are two gestures onto one
-  // destination, not two different overlays.
-
-  // One-shot hint dismissal — see CHAT_SWIPE_HINT_SEEN_KEY's own doc comment.
-  function dismissSwipeHint() {
-    if (!showSwipeHint) return
-    localStorage.setItem(CHAT_SWIPE_HINT_SEEN_KEY, '1')
-    setShowSwipeHint(false)
-  }
-
-  function handleTopPanEnd(_: PointerEvent, info: PanInfo) {
-    const isVertical = Math.abs(info.offset.y) > Math.abs(info.offset.x)
-    if (!isVertical) return
-    if (info.offset.y < -50 || info.velocity.y < -300) {
-      setShowRoomBrowser(true)
-      dismissSwipeHint()
-    }
-  }
 
   // Cancels the add menu (see showAddMenu's own doc comment) on a tap anywhere
   // outside chatInputContainerRef — the X button inside it closes via its own
@@ -826,749 +694,6 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
     router.push(`/chat/${targetId}`)
   }
 
-  useEffect(() => {
-    // Mark self online instantly, without discarding already-known peer presence
-    // (so a member who's already known online in this crew keeps showing online
-    // through a remount instead of flashing to empty); DB fetch + peer broadcasts
-    // below refine the rest of the set.
-    useChatStore.getState().markSelfOnline(userId)
-
-    // Tell the SW this crew's chat is open so a push for it can be suppressed —
-    // the message is already visible here via Realtime. Only announce while the
-    // page is actually foregrounded; handleVisibilityChange below keeps it in sync.
-    if (document.visibilityState === 'visible') notifyActiveCrew(crewId)
-
-    const supabase = createClient()
-    // Shared with MessageList's postgres_changes listeners — see crewMessageChannel.ts.
-    // This effect remains the sole owner of the actual .subscribe() call (deferred
-    // below) since it also owns the presence/heartbeat lifecycle.
-    const ch = acquireCrewMessageChannel(crewId, userId)
-    const fallbackProfile = (uid: string): MemberProfile =>
-      profilesRef.current[uid] ?? { id: uid, username: '???', avatar_class: null, avatar_url: null }
-
-    // Heartbeat: write to DB + broadcast timestamp so channel peers update their maps
-    const heartbeat = () => {
-      const ts = Date.now()
-      setLastActive(userId, ts)
-      ch.send({ type: 'broadcast', event: 'active', payload: { user_id: userId, ts } })
-      writePresence(ts, supabase)
-    }
-
-    // Seed/resync online set from DB — covers members active outside this tab, and
-    // (via the visibilitychange call below) members who came online/went offline while
-    // this device was backgrounded. Realtime 'active' broadcasts alone can't be trusted
-    // to catch that window: iOS suspends the socket's deliverability while the PWA is
-    // backgrounded/screen-locked, phoenix broadcasts are fire-and-forget (never queued
-    // for a suspended client to replay on resume), and a brief background often doesn't
-    // even trip CLOSED/rejoin — so nothing else re-reads the true DB state afterward.
-    const seedPeerPresenceFromDb = () => {
-      const memberIds = Object.keys(profilesRef.current)
-      if (memberIds.length === 0) return
-      supabase
-        .from('user_presence')
-        .select('user_id, last_active_at')
-        .in('user_id', memberIds)
-        .then(({ data }) => {
-          if (!data) return
-          // Build peer entries — skip self to protect the fresh Date.now() from markSelfOnline
-          const peerEntries: Record<string, number> = {}
-          data.forEach((p) => {
-            if (p.user_id === userId || !p.last_active_at) return
-            peerEntries[p.user_id] = new Date(p.last_active_at).getTime()
-          })
-          // Single atomic update: merge peers into map (peerEntries' fresh DB timestamp
-          // overwrites any stale locally-known one for that same id) and recompute the
-          // online set in one shot.
-          useChatStore.setState((s) => {
-            const lastActiveMap = { ...s.lastActiveMap, ...peerEntries }
-            return { lastActiveMap, onlineUserIds: computeOnlineIds(lastActiveMap, ONLINE_THRESHOLD_MS) }
-          })
-        })
-    }
-    seedPeerPresenceFromDb()
-
-    let heartbeatTimer: ReturnType<typeof setInterval> | null = null
-    const startHeartbeat = () => {
-      if (heartbeatTimer) return
-      heartbeatTimer = setInterval(heartbeat, 30_000)
-    }
-    const stopHeartbeat = () => {
-      if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null }
-    }
-
-    // Sweep stale entries from onlineUserIds every 5s — no network call, pure local math.
-    // This is only the Tier-2 (timestamp/TTL) fallback's own decay cadence — the presence
-    // membership diff below is what actually makes the common case (someone in THIS room
-    // closes/backgrounds) near-instant instead of waiting on this sweep.
-    const sweepTimer = setInterval(
-      () => useChatStore.getState().sweepOnlineUserIds(ONLINE_THRESHOLD_MS),
-      5_000,
-    )
-
-    // Tracks who was present on this channel as of the last sync, so the handler below
-    // can tell "membership actually changed" (someone's socket joined/left this room)
-    // apart from "sync re-fired for an unrelated reason" (e.g. a typing-state track()
-    // update on an existing key also re-fires 'sync' for everyone on the channel).
-    // Starts null rather than an empty Set so the very first sync (our own join) just
-    // records the baseline instead of firing a reseed — seedPeerPresenceFromDb() was
-    // already called directly above; the first sync's membership is a subset of what
-    // that call just fetched, so re-firing for it would just be a duplicate query.
-    let presentPeerKeys: Set<string> | null = null
-    let reseedDebounceTimer: ReturnType<typeof setTimeout> | null = null
-
-    ch
-      .on('presence', { event: 'sync' }, () => {
-        // Single presenceState() read, reused for both the membership diff below and
-        // the typing extraction — Phoenix hands back the same live state either way,
-        // no reason to ask twice per sync.
-        const state = ch.presenceState<{ username: string; typing: boolean }>()
-        const keys = new Set(Object.keys(state))
-
-        // Presence channel is authoritative for typing; for online status it's used only
-        // as an instant TRIGGER, never an instant verdict — a user's absence from this one
-        // room's channel does not mean they're offline (they may be chatting in a
-        // different crew right now), so leaving this channel can't be asserted as
-        // "offline" here. What it CAN safely do is fast-path the same DB re-check
-        // seedPeerPresenceFromDb already does on a schedule, firing it (debounced, so a
-        // burst of several joins/leaves at once collapses into one query instead of one
-        // per event) instead of waiting up to ONLINE_THRESHOLD_MS + the sweep cadence
-        // above. In the common case — the person you're actively looking at closes their
-        // tab — this turns "notice within ~45-50s" into "notice within one DB round trip"
-        // without asserting anything unverified, since update_active() genuinely stopped
-        // being called the moment their own heartbeat stopped.
-        if (presentPeerKeys === null) {
-          presentPeerKeys = keys
-        } else if (!setsEqual(keys, presentPeerKeys)) {
-          presentPeerKeys = keys
-          if (reseedDebounceTimer) clearTimeout(reseedDebounceTimer)
-          reseedDebounceTimer = setTimeout(() => {
-            reseedDebounceTimer = null
-            seedPeerPresenceFromDb()
-          }, 400)
-        }
-
-        // Written into chatStore (not local state) — see ChatTypingIndicator; the store's own
-        // equality check bails out when this sync didn't actually change who's typing.
-        // The presence key IS the user id (see acquireCrewMessageChannel call below), so a
-        // single user can still have >1 presence entry under that key (e.g. the same account
-        // open in two tabs/devices at once) — collapse to one entry per key ("any connection
-        // for this user is typing" instead of flatMap-ing every connection's own row) or a
-        // user with two open sessions renders as two duplicate "X and X are typing..." names.
-        const others = Object.entries(state)
-          .filter(([key]) => key !== userId)
-          .filter(([, presences]) => presences.some((p) => p.typing))
-          .map(([, presences]) => presences[0].username)
-        useChatStore.getState().setTypingUsernames(others)
-      })
-      .on('broadcast', { event: 'active' }, ({ payload }) => {
-        const { user_id: uid, ts } = payload as { user_id: string; ts: number }
-        if (!uid || typeof ts !== 'number') return
-        const store = useChatStore.getState()
-        store.setLastActive(uid, ts)
-        store.sweepOnlineUserIds(ONLINE_THRESHOLD_MS)
-      })
-      .on('broadcast', { event: 'new_message' }, (payload) => {
-        const msg = payload.payload as Message
-        if (!msg?.id || typeof msg.content !== 'string') return
-        addMessage({ ...msg, profile: fallbackProfile(msg.user_id) })
-        // Optimistic XP bump for others' text/image messages — xp_update broadcast reconciles later
-        if (msg.user_id !== userId && (msg.message_type === 'text' || msg.message_type === 'image') && !isDM) {
-          useChatStore.getState().bumpCrewXP()
-        }
-      })
-      .on('broadcast', { event: 'xp_update' }, (payload) => {
-        const { xp_earned, new_total_xp, sender_id } =
-          payload.payload as { xp_earned: number; new_total_xp: number; sender_id: string }
-        if (typeof new_total_xp !== 'number') return
-        if (sender_id === userId)               setCrewXP(new_total_xp)
-        else if (xp_earned > 0 && !isDM)        receiveXP(xp_earned, new_total_xp)
-        else                                    setCrewXP(new_total_xp)
-      })
-    // A CLOSED status is terminal: realtime-js removes the channel from its socket
-    // and never rejoins it (unlike CHANNEL_ERROR/TIMED_OUT, which phoenix's rejoin
-    // timer recovers), and the same channel instance can't be re-subscribed —
-    // phoenix's join() throws on a second call. The server sends this close on
-    // realtime tenant restarts, auth kicks, and rate-limit enforcement. Recovery
-    // is a brand-new channel: evict the dead one from the registry and bump the
-    // shared channelEpoch so this effect AND MessageList's listener effect re-run
-    // and re-acquire/re-attach against a fresh instance. Exponential backoff caps
-    // the loop if the server is mid-restart and keeps closing us.
-    const scheduleChannelRebuild = () => {
-      if (!isActiveCrewMessageChannel(crewId, ch)) return
-      if (rebuildTimerRef.current) return
-      const delay = Math.min(1000 * 2 ** rebuildAttemptsRef.current, 30_000)
-      rebuildAttemptsRef.current++
-      rebuildTimerRef.current = setTimeout(() => {
-        rebuildTimerRef.current = null
-        if (!isActiveCrewMessageChannel(crewId, ch)) return
-        evictCrewMessageChannel(crewId, ch)
-        useChatStore.getState().bumpChannelEpoch()
-      }, delay)
-    }
-
-    // Defer the single subscribe() call to a microtask so it always runs after every
-    // same-tick mount effect (MessageList's postgres_changes listeners included) has
-    // attached its .on() bindings — regardless of which component's effect ran first.
-    // The isActiveCrewMessageChannel guard skips a stale call if this exact channel
-    // instance was already torn down before the microtask fired (StrictMode dev
-    // double-invoke: mount → cleanup → mount all happen synchronously before this runs).
-    queueMicrotask(() => {
-      if (!isActiveCrewMessageChannel(crewId, ch)) return
-      ch.subscribe(async (status) => {
-        if (status === 'SUBSCRIBED') {
-          channelReadyRef.current = true
-          rebuildAttemptsRef.current = 0
-          await ch.track({ username: userProfileRef.current.username, typing: false })
-          heartbeat()
-          startHeartbeat()
-          // SUBSCRIBED fires on the initial join AND on every auto-rejoin after a
-          // drop — so this is exactly when to backfill anything that landed while
-          // the socket was down. Dedup-safe (see MessageList.resyncMessages).
-          useChatStore.getState().requestResync?.()
-        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-          // Socket is not deliverable — stop broadcasting into the void (a send
-          // while this is false skips the broadcast; peers get it via Postgres
-          // Changes once we rejoin, and our own catch-up runs on the next
-          // SUBSCRIBED). realtime-js auto-rejoins after CHANNEL_ERROR/TIMED_OUT;
-          // CLOSED needs the full rebuild above (deferred to foreground when
-          // hidden — a rebuild while backgrounded would just die again).
-          channelReadyRef.current = false
-          if (config.isDev) console.warn('[realtime] channel status', status, 'for crew', crewId)
-          if (status === 'CLOSED') {
-            if (document.visibilityState === 'visible') scheduleChannelRebuild()
-            else pendingRebuildRef.current = true
-          }
-        }
-      })
-    })
-
-    function handleVisibilityChange() {
-      if (document.visibilityState === 'visible') {
-        // A CLOSED status that landed while backgrounded deferred its rebuild to
-        // now — run it first so the fresh channel (not the dead one) carries the
-        // presence/heartbeat below.
-        if (pendingRebuildRef.current) {
-          pendingRebuildRef.current = false
-          scheduleChannelRebuild()
-        }
-        // Treat socket as suspect after backgrounding — re-track typing + fire
-        // heartbeat. Skip the presence round-trip when the channel is known-dead
-        // (track() on a closed channel throws, and it's wasted rate-limit budget).
-        if (channelReadyRef.current) {
-          ch.track({ username: userProfileRef.current.username, typing: false }).catch(() => {})
-        }
-        heartbeat()
-        startHeartbeat()
-        notifyActiveCrew(crewId)
-        // Re-read peer presence from the DB rather than trusting whatever broadcasts
-        // happened to arrive while backgrounded — see seedPeerPresenceFromDb above for
-        // why broadcasts alone can't be trusted to have covered that window. This is
-        // what makes the online-avatar row (ChatSquadDetailBar) accurate immediately on
-        // foreground instead of waiting up to one more 30s peer heartbeat cycle.
-        seedPeerPresenceFromDb()
-        // Backfill anything that arrived while backgrounded. If the socket stayed
-        // up (brief background) no SUBSCRIBED re-fires, so this is the only catch-up
-        // trigger for that case; if it dropped, this runs before the rejoin's
-        // SUBSCRIBED and that one runs again — both are dedup-safe.
-        useChatStore.getState().requestResync?.()
-      } else {
-        // Stop heartbeating when hidden — let timestamp age naturally; no iOS throttle fights
-        stopHeartbeat()
-        notifyActiveCrew(null)
-      }
-    }
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-
-    // Network came back (e.g. tunnel, elevator, wifi↔cellular handoff) without a
-    // visibility change — nudge presence and catch up on the missed window.
-    function handleOnline() {
-      heartbeat()
-      startHeartbeat()
-      seedPeerPresenceFromDb()
-      useChatStore.getState().requestResync?.()
-    }
-    window.addEventListener('online', handleOnline)
-
-    msgChannelRef.current     = ch
-    channelReadyRef.current   = false
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-      window.removeEventListener('online', handleOnline)
-      stopHeartbeat()
-      clearInterval(sweepTimer)
-      if (reseedDebounceTimer) clearTimeout(reseedDebounceTimer)
-      if (rebuildTimerRef.current) { clearTimeout(rebuildTimerRef.current); rebuildTimerRef.current = null }
-      pendingRebuildRef.current = false
-      releaseCrewMessageChannel(crewId)
-      msgChannelRef.current     = null
-      channelReadyRef.current   = false
-      isTypingRef.current       = false
-      // Clear so a stale "X is typing" from this crew never bleeds into the next
-      // crew's chat before its own first presence sync arrives.
-      useChatStore.getState().setTypingUsernames([])
-      notifyActiveCrew(null)
-    }
-    // channelEpoch is deliberately a dep — a bump evicts the dead channel and
-    // forces this effect to rebuild against a fresh one (see scheduleChannelRebuild).
-  }, [crewId, userId, channelEpoch]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Presence .track() is a network round-trip — only send it on an actual state
-  // transition instead of on every keystroke (handleInput calls this on every change).
-  // Skipped entirely while the channel isn't joined: track() on a closed channel
-  // throws (unhandled rejection noise), and every dropped call is wasted presence
-  // rate-limit budget (ClientPresenceRateLimitReached shows up in realtime logs).
-  // isTypingRef is left untouched on the skip so the next keystroke after the
-  // channel recovers re-sends the edge.
-  function broadcastTyping(isTyping: boolean) {
-    if (!channelReadyRef.current) return
-    if (isTypingRef.current === isTyping) return
-    isTypingRef.current = isTyping
-    msgChannelRef.current?.track({ username: userProfileRef.current.username, typing: isTyping }).catch(() => {})
-  }
-
-  // Every place that clears/replaces `text` outside of handleInput's own onChange
-  // (send, edit-save, slash-command execute, Escape-clear, cancel-edit) must call this
-  // too — broadcastTyping/the 3s debounce timer only fire from handleInput, so a
-  // programmatic setText('') alone leaves "X is typing..." stuck for stale viewers
-  // until the old debounce timer happens to fire.
-  function clearTypingState() {
-    broadcastTyping(false)
-    if (typingTimerRef.current) { clearTimeout(typingTimerRef.current); typingTimerRef.current = null }
-  }
-
-  const removePendingImage = useCallback((id: string) => {
-    setPendingImages((prev) => {
-      const img = prev.find((i) => i.id === id)
-      if (img?.localUrl.startsWith('blob:')) URL.revokeObjectURL(img.localUrl)
-      return prev.filter((i) => i.id !== id)
-    })
-  }, [])
-
-  const clearPendingImages = useCallback(() => {
-    setPendingImages((prev) => {
-      prev.forEach((img) => { if (img.localUrl.startsWith('blob:')) URL.revokeObjectURL(img.localUrl) })
-      return []
-    })
-  }, [])
-
-  useEffect(() => {
-    return () => {
-      if (friendshipToastTimerRef.current) clearTimeout(friendshipToastTimerRef.current)
-      if (gemToastTimerRef.current) clearTimeout(gemToastTimerRef.current)
-      // Revoke any remaining blob URLs on unmount
-      pendingImagesRef.current.forEach((img) => {
-        if (img.localUrl.startsWith('blob:')) URL.revokeObjectURL(img.localUrl)
-      })
-    }
-  }, [])
-
-  const showGemToast = () => {
-    if (gemToastTimerRef.current) clearTimeout(gemToastTimerRef.current)
-    setGemToastVisible(true)
-    gemToastTimerRef.current = setTimeout(() => setGemToastVisible(false), 3000)
-  }
-
-  // Broadcasts the authoritative server row (already contains every column via the
-  // insert_message RPC's RETURNING *) — avoids hand-picking fields that can drift
-  // from what was actually written.
-  const broadcastNewMessage = useCallback((message: Message) => {
-    if (!channelReadyRef.current) return
-    msgChannelRef.current?.send({ type: 'broadcast', event: 'new_message', payload: message })
-  }, [])
-
-  // Shared award-xp settlement used by every send path (text/image/gif): applies the
-  // XP/coin response and broadcasts xp_update to peers.
-  const settleXp = useCallback((msgId: string, messageType: string, content: string, mentionedUserIds: string[], replyToId?: string | null) => {
-    postEdgeFn('award-xp', { message_id: msgId, crew_id: crewId, user_id: userId, username: userProfile.username, message_type: messageType, content, mentioned_user_ids: mentionedUserIds, reply_to_id: replyToId ?? null })
-      .then((r) => { if (!r) throw new Error('no session'); return r.json() })
-      .then((data: { xp_earned?: number; new_total_xp?: number; coins_earned?: number }) => {
-        if (typeof data.xp_earned === 'number') updateMessage(msgId, { xp_awarded: data.xp_earned })
-        if (typeof data.new_total_xp === 'number') {
-          setCrewXP(data.new_total_xp)
-          if (channelReadyRef.current) msgChannelRef.current?.send({
-            type: 'broadcast', event: 'xp_update',
-            payload: { xp_earned: data.xp_earned ?? 0, new_total_xp: data.new_total_xp, sender_id: userId },
-          })
-        }
-        if (typeof data.coins_earned === 'number' && data.coins_earned > 0) addUserCoins(data.coins_earned)
-      })
-      .catch(() => {})
-  }, [crewId, userId, userProfile, updateMessage, setCrewXP, addUserCoins])
-
-  // Shared "message successfully persisted" side effects — same for a fresh send and
-  // a retried one, so text/image/gif/retry all get identical broadcast/XP/friendship-xp
-  // behavior instead of four subtly-diverging inline copies of this logic.
-  const handleSendSuccess = useCallback((raw: Message, job: OutboxJob) => {
-    setHomeLastMessage(crewId, { content: job.content || raw.content, created_at: raw.created_at, sender: userProfile.username })
-
-    if (channelReadyRef.current) {
-      broadcastNewMessage(raw)
-      // Piggyback heartbeat on send — proves liveness, keeps DB timestamp fresh between intervals.
-      const ts = Date.now()
-      setLastActive(userId, ts)
-      msgChannelRef.current?.send({ type: 'broadcast', event: 'active', payload: { user_id: userId, ts } })
-      writePresence(ts, createClient())
-    }
-
-    tryClaimDailyGem(createClient(), showGemToast)
-    settleXp(raw.id, job.messageType, job.content, job.mentionedUserIds, job.replyToId)
-
-    if (fxpEnabled && job.messageType === 'text') {
-      // Friendship XP — shared helper: fade-in 200ms, hold 2000ms, then exit animation (400ms) runs
-      const showFriendshipToast = (totalXP: number, xpAwarded: number, partnerName: string, dailyCount: number) => {
-        if (friendshipToastTimerRef.current) clearTimeout(friendshipToastTimerRef.current)
-        setFriendshipToast({ totalXP, xpAwarded, partnerName, dailyCount })
-        friendshipToastTimerRef.current = setTimeout(() => setFriendshipToast(null), 2200)
-      }
-
-      // Local midnight as UTC ISO string — used by the server to compute the daily limit window
-      const now = new Date()
-      const localMidnightUTC = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).toISOString()
-
-      // Friendship XP — DM send
-      if (isDM && dmPartnerId) {
-        const dmPartnerName = liveCrewName
-        postEdgeFn('award-friendship-xp', { user_a_id: userId, user_b_id: dmPartnerId, source: 'dm', local_midnight_utc: localMidnightUTC })
-          .then((r) => { if (!r) throw new Error('no session'); return r.json() })
-          .then((data: { total_xp?: number; xp_awarded?: number; skipped?: boolean; daily_count?: number }) => {
-            if (typeof data.total_xp === 'number' && (data.xp_awarded ?? 0) > 0) {
-              showFriendshipToast(data.total_xp, data.xp_awarded!, dmPartnerName, data.daily_count ?? 1)
-            }
-          })
-          .catch(() => {})
-      }
-
-      // Friendship XP — @mention in group chat (toast for first awarded pair)
-      if (!isDM && job.mentionedUserIds.length > 0) {
-        let toastShown = false
-        job.mentionedUserIds.forEach((friendId) => {
-          const partnerName = profilesRef.current[friendId]?.username ?? 'Friend'
-          postEdgeFn('award-friendship-xp', { user_a_id: userId, user_b_id: friendId, source: 'mention', local_midnight_utc: localMidnightUTC })
-            .then((r) => { if (!r) throw new Error('no session'); return r.json() })
-            .then((data: { total_xp?: number; xp_awarded?: number; skipped?: boolean; daily_count?: number }) => {
-              if (!toastShown && typeof data.total_xp === 'number' && (data.xp_awarded ?? 0) > 0) {
-                toastShown = true
-                showFriendshipToast(data.total_xp, data.xp_awarded!, partnerName, data.daily_count ?? 1)
-              }
-            })
-            .catch(() => {})
-        })
-      }
-    }
-  }, [crewId, userId, userProfile, fxpEnabled, isDM, dmPartnerId, liveCrewName, broadcastNewMessage, setLastActive, settleXp, writePresence])
-
-  async function handleChatImagesPick(files: File[]) {
-    if (files.length === 0) return
-
-    const networkQuality = getNetworkQuality()
-    const qualityScale   = networkQuality === 'slow' ? 0.7 : networkQuality === 'medium' ? 0.85 : 1
-    const quality        = IMAGE_CONFIG.CHAT_IMAGE_QUALITY * qualityScale
-    const supabase       = createClient()
-
-    // Create entries with blob URLs immediately — instant preview before upload
-    const entries: PendingImage[] = files.map((file, i) => ({
-      id:        `img_${Date.now()}_${i}`,
-      localUrl:  URL.createObjectURL(file),
-      publicUrl: null,
-      lqip:      null,
-      uploading: true,
-      error:     null,
-    }))
-
-    setPendingImages((prev) => [...prev, ...entries].slice(0, 4))
-
-    // Upload all in parallel
-    await Promise.all(entries.map(async (entry, i) => {
-      const file = files[i]
-      const patch = (p: Partial<PendingImage>) =>
-        setPendingImages((prev) => prev.map((img) => img.id === entry.id ? { ...img, ...p } : img))
-
-      try {
-        const validation = validateImageUpload(file)
-        if (!validation.ok) { patch({ uploading: false, error: validation.error }); return }
-
-        const [lqip, compressed] = await Promise.all([
-          generateLQIP(file),
-          compressImage(file, { maxWidthOrHeight: IMAGE_CONFIG.CHAT_IMAGE_MAX_WIDTH_PX, quality }),
-        ])
-        patch({ lqip })
-
-        const ext  = file.type === 'image/gif' ? 'gif' : compressed.type.includes('jpeg') ? 'jpg' : 'webp'
-        const path = `${crewId}/${userId}/${Date.now()}_${i}.${ext}`
-        const { error: uploadError } = await supabase.storage.from('chat-images').upload(path, compressed, {
-          contentType:  file.type === 'image/gif' ? 'image/gif' : compressed.type,
-          cacheControl: '31536000',
-        })
-        if (uploadError) throw uploadError
-
-        const { data: { publicUrl } } = supabase.storage.from('chat-images').getPublicUrl(path)
-        patch({ publicUrl, uploading: false })
-      } catch (err) {
-        patch({ uploading: false, error: err instanceof Error ? err.message : 'Upload failed.' })
-      }
-    }))
-  }
-
-  const sendImages = useCallback(() => {
-    const readyImages = pendingImagesRef.current.filter((img) => !!img.publicUrl)
-    if (readyImages.length === 0) return
-
-    const snapshots   = readyImages.map((img) => ({ publicUrl: img.publicUrl!, lqip: img.lqip }))
-    const textContent = sanitizeMessage(textRef.current)
-
-    setSendError(null)
-    clearPendingImages()
-
-    // Clear text field when images and text are sent together
-    if (textContent) {
-      setText('')
-      textRef.current = ''
-      setReplyTo(null)
-      clearTypingState()
-      const wasMultiline = isMultilineRef.current
-      setIsMultiline(false)
-      isMultilineRef.current = false
-      if (wasMultiline) pendingCaretPosRef.current = 0
-    }
-
-    haptic(10)
-
-    const urls  = snapshots.map((s) => s.publicUrl)
-    const lqips = snapshots.map((s) => s.lqip ?? null)
-    // Pack all URLs + LQIPs as JSON so the server stores one message regardless of count.
-    // MessageBubble detects this by JSON.parse(image_url) → array.
-    const imageUrlJson  = JSON.stringify(urls)
-    const imageBlurJson = JSON.stringify(lqips)
-    // content = typed text (shown below images); fall back to first URL for home preview compat
-    const msgContent = textContent || urls[0]
-
-    // Client-generated id doubles as the outbox job key — random suffix (not just
-    // Date.now()) avoids a collision if multiple sends fire within the same millisecond,
-    // which concurrent (non-blocking) sends make possible.
-    const tempId = `opt_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
-    const optimisticMsg: MessageWithProfile = {
-      id:              tempId,
-      crew_id:         crewId,
-      user_id:         userId,
-      content:         msgContent,
-      message_type:    'image',
-      element_type:    null,
-      xp_awarded:      1,
-      reactions:       {},
-      created_at:      new Date().toISOString(),
-      image_url:       imageUrlJson,
-      image_blur_hash: imageBlurJson,
-      profile:         userProfile,
-      tempId,
-      sendStatus:      'sending',
-    }
-    addMessage(optimisticMsg)
-    if (!isDM) bumpCrewXP()
-
-    const job: OutboxJob = {
-      tempId, crewId, userId, username: userProfile.username, content: msgContent,
-      messageType: 'image', imageUrl: imageUrlJson, imageBlurHash: imageBlurJson,
-      mentionedUserIds: [], createdAt: optimisticMsg.created_at,
-    }
-    addToOutbox(job).catch(() => {})
-    void sendWithRetry(job, (raw) => handleSendSuccess(raw, job))
-
-    focusField()
-  }, [crewId, userId, userProfile, isDM, addMessage, bumpCrewXP, clearPendingImages, handleSendSuccess]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const sendGif = useCallback((gifUrl: string) => {
-    const tempId = `opt_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
-    setSendError(null)
-    haptic(10)
-
-    const optimisticMsg: MessageWithProfile = {
-      id:              tempId,
-      crew_id:         crewId,
-      user_id:         userId,
-      content:         gifUrl,
-      message_type:    'image',
-      element_type:    'nature',
-      xp_awarded:      1,
-      reactions:       {},
-      created_at:      new Date().toISOString(),
-      image_url:       gifUrl,
-      image_blur_hash: undefined,
-      profile:         userProfile,
-      tempId,
-      sendStatus:      'sending',
-    }
-    addMessage(optimisticMsg)
-    if (!isDM) bumpCrewXP()
-
-    const job: OutboxJob = {
-      tempId, crewId, userId, username: userProfile.username, content: gifUrl,
-      messageType: 'image', imageUrl: gifUrl, imageBlurHash: null,
-      mentionedUserIds: [], createdAt: optimisticMsg.created_at,
-    }
-    addToOutbox(job).catch(() => {})
-    void sendWithRetry(job, (raw) => handleSendSuccess(raw, job))
-
-    focusField()
-  }, [crewId, userId, userProfile, isDM, addMessage, bumpCrewXP, handleSendSuccess])
-
-  const send = useCallback(() => {
-    const content = sanitizeMessage(text)
-    if (!content) return
-
-    // Detect mentioned user IDs from @username patterns in the message
-    const currentProfiles = profilesRef.current
-    const usernameToId    = new Map(Object.values(currentProfiles).map((m) => [m.username.toLowerCase(), m.id]))
-    const mentionedSet    = new Set<string>()
-    const mentionRx       = /@(\w+)/g
-    let mx: RegExpExecArray | null
-    while ((mx = mentionRx.exec(content)) !== null) {
-      const uid = usernameToId.get(mx[1].toLowerCase())
-      if (uid && uid !== userId) mentionedSet.add(uid)
-    }
-    const mentionedUserIds = [...mentionedSet]
-
-    const now = Date.now()
-    if (now >= rateRef.current.resetAt) rateRef.current = { count: 0, resetAt: now + RATE_LIMIT_WINDOW }
-    rateRef.current.count++
-    if (rateRef.current.count > RATE_LIMIT_MAX) { setSendError('Slow down, warrior.'); return }
-
-    if (!localStorage.getItem('nexus_first_message')) localStorage.setItem('nexus_first_message', String(Date.now()))
-
-    // Capture reply context before clearing state
-    const currentReply = useChatStore.getState().replyTo
-
-    setSendError(null)
-    setText('')
-    textRef.current = ''
-    setReplyTo(null)
-    clearTypingState()
-    const wasMultiline = isMultilineRef.current
-    setIsMultiline(false)
-    isMultilineRef.current = false
-    if (wasMultiline) pendingCaretPosRef.current = 0
-    haptic(10)
-    // Refocus immediately (not after the network round trip) — the compose box is
-    // already clear, so the user can keep typing the next message right away instead
-    // of waiting for this one to be confirmed by the server.
-    inputRef.current?.focus()
-
-    const replyToId     = currentReply?.id ?? null
-    const replyPreview  = currentReply ? currentReply.content.slice(0, 100) : null
-    const replyUsername = currentReply?.profile?.username ?? null
-
-    // Optimistic: add the message instantly so it appears before the RPC round-trip.
-    // Client-generated id doubles as the outbox job key — random suffix avoids a
-    // collision if multiple sends fire within the same millisecond, which concurrent
-    // (non-blocking) sends make possible.
-    const tempId = `opt_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
-    const optimisticMsg: MessageWithProfile = {
-      id: tempId, crew_id: crewId, user_id: userId, content,
-      message_type: 'text', element_type: null,
-      xp_awarded: 1, reactions: {}, created_at: new Date().toISOString(),
-      profile: userProfile,
-      reply_to_id: replyToId, reply_preview: replyPreview, reply_username: replyUsername,
-      tempId, sendStatus: 'sending',
-    }
-    addMessage(optimisticMsg)
-    if (!isDM) bumpCrewXP()
-
-    const job: OutboxJob = {
-      tempId, crewId, userId, username: userProfile.username, content,
-      messageType: 'text', replyToId, replyPreview, replyUsername,
-      mentionedUserIds, createdAt: optimisticMsg.created_at,
-    }
-    addToOutbox(job).catch(() => {})
-    // Fire-and-forget — sendWithRetry owns retries/backoff and never blocks the
-    // compose box, so the user is free to send more messages immediately, even on
-    // a connection slow enough that this particular send takes several seconds.
-    void sendWithRetry(job, (raw) => handleSendSuccess(raw, job))
-  }, [text, crewId, userId, userProfile, isDM, addMessage, bumpCrewXP, setReplyTo, handleSendSuccess]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Retries a previously-failed send. Reads the original job back from the outbox by
-  // tempId (persists across reloads, so this also works for a failed send resumed in
-  // a later session) and resumes it through the exact same success path as a fresh send.
-  const retrySend = useCallback((tempId: string) => {
-    readOutbox(crewId).then((jobs) => {
-      const job = jobs.find((j) => j.tempId === tempId)
-      if (!job) return
-      void sendWithRetry(job, (raw) => handleSendSuccess(raw, job))
-    })
-  }, [crewId, handleSendSuccess])
-
-  // Register this crew's retry dispatcher so MessageBubble's "failed — tap to retry"
-  // affordance can reach it despite living in a sibling component (MessageList).
-  useEffect(() => {
-    useChatStore.getState().setRequestRetrySend(retrySend)
-    return () => {
-      if (useChatStore.getState().requestRetrySend === retrySend) {
-        useChatStore.getState().setRequestRetrySend(null)
-      }
-    }
-  }, [retrySend])
-
-  // Resume any sends still pending from a previous session (app killed or tab closed
-  // mid-send) — reconstructs the optimistic bubble if it isn't already in the store
-  // (a fresh page load never persisted it), then re-attempts exactly like a manual retry.
-  useEffect(() => {
-    let cancelled = false
-    readOutbox(crewId).then((jobs) => {
-      if (cancelled) return
-      for (const job of jobs) {
-        const exists = useChatStore.getState().messages.some((m) => m.id === job.tempId)
-        if (!exists) {
-          const optimisticMsg: MessageWithProfile = {
-            id: job.tempId, crew_id: job.crewId, user_id: job.userId, content: job.content,
-            message_type: job.messageType, element_type: null,
-            xp_awarded: 1, reactions: {}, created_at: job.createdAt,
-            profile: userProfile,
-            reply_to_id: job.replyToId ?? null, reply_preview: job.replyPreview ?? null, reply_username: job.replyUsername ?? null,
-            image_url: job.imageUrl ?? undefined, image_blur_hash: job.imageBlurHash ?? undefined,
-            tempId: job.tempId, sendStatus: 'sending',
-          }
-          addMessage(optimisticMsg)
-        }
-        void sendWithRetry(job, (raw) => handleSendSuccess(raw, job))
-      }
-    })
-    return () => { cancelled = true }
-  }, [crewId]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const handleEditSend = useCallback(async () => {
-    const currentEdit = useChatStore.getState().editTo
-    if (!currentEdit) return
-    const newContent = sanitizeMessage(text)
-
-    // Close edit mode immediately regardless of outcome
-    setEditTo(null)
-    setText('')
-    textRef.current = ''
-    clearTypingState()
-    const wasMultiline = isMultilineRef.current
-    setIsMultiline(false)
-    isMultilineRef.current = false
-    if (wasMultiline) pendingCaretPosRef.current = 0
-
-    if (!newContent || newContent === currentEdit.content) return
-
-    const prevContent = currentEdit.content
-    const msgId       = currentEdit.id
-
-    // Optimistic update
-    updateMessage(msgId, { content: newContent })
-
-    const supabase = createClient()
-    const { error } = await supabase
-      .from('messages')
-      .update({ content: newContent })
-      .eq('id', msgId)
-      .eq('user_id', userId)
-
-    if (error) {
-      updateMessage(msgId, { content: prevContent })
-      setSendError('Failed to edit message.')
-    }
-  }, [text, userId, updateMessage]) // eslint-disable-line react-hooks/exhaustive-deps
-
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) {
     // @mention picker navigation
     if (mentionQuery !== null && mentionMatches.length > 0) {
@@ -1580,9 +705,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
 
     if (e.key === 'Escape' && text.startsWith('/') && !text.includes(' ')) {
       e.preventDefault()
-      setText('')
-      textRef.current = ''
-      clearTypingState()
+      clearComposerText()
       return
     }
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -1601,17 +724,10 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   function handleInput(e: React.ChangeEvent<HTMLInputElement> | React.ChangeEvent<HTMLTextAreaElement>) {
     const target = e.target as HTMLInputElement | HTMLTextAreaElement
     const val    = target.value.slice(0, MAX_MESSAGE_LENGTH)
-    setText(val)
-    textRef.current = val
-
     const caretPos = target.selectionStart ?? val.length
-    recheckOverflow(val, caretPos)
+    setText(val, caretPos)
 
-    if (val.trim()) {
-      broadcastTyping(true)
-      if (typingTimerRef.current) clearTimeout(typingTimerRef.current)
-      typingTimerRef.current = setTimeout(() => broadcastTyping(false), 3000)
-    } else { clearTypingState() }
+    notifyTyping(!!val.trim())
     // Detect @mention query at cursor position
     const q = getMentionQuery(val, caretPos)
     setMentionQuery(q)
@@ -1624,14 +740,8 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
   }
 
   async function executeCommand(name: SlashCommandName) {
-    setText('')
-    textRef.current = ''
-    clearTypingState()
-    const wasMultiline = isMultilineRef.current
-    setIsMultiline(false)
-    isMultilineRef.current = false
-    if (wasMultiline) pendingCaretPosRef.current = 0
-    else focusField()
+    const wasMultiline = clearComposerText()
+    if (!wasMultiline) focusField()
 
     if (name === 'event') {
       if (eventsEnabled) setShowEventSheet(true)
@@ -1657,12 +767,6 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
         setSendError('Failed to send — try again')
       }
     }
-  }
-
-  function handlePollCreated(message: MessageWithProfile) {
-    setShowPollCreator(false)
-    addMessage(message)
-    broadcastNewMessage(message)
   }
 
   async function handleKick() {
@@ -1729,66 +833,6 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
       setLocallyLeftRoomIds((prev) => new Set(prev).add(target.id))
     }
   }
-
-  // ─── @mention helpers ───────────────────────────────────────────────────────
-
-  function getMentionQuery(val: string, cursorPos: number): string | null {
-    const before = val.slice(0, cursorPos)
-    const atIdx  = before.lastIndexOf('@')
-    if (atIdx === -1) return null
-    const query = before.slice(atIdx + 1)
-    if (/[\s\n]/.test(query)) return null
-    return query
-  }
-
-  function completeMention(username: string) {
-    const field = getActiveField()
-    if (!field) return
-    const pos     = field.selectionStart ?? text.length
-    const before  = text.slice(0, pos)
-    const after   = text.slice(pos)
-    const atIdx   = before.lastIndexOf('@')
-    if (atIdx === -1) return
-    const newText = before.slice(0, atIdx) + '@' + username + ' ' + after
-    setText(newText)
-    textRef.current = newText
-    setMentionQuery(null)
-    setMentionIndex(0)
-    requestAnimationFrame(() => {
-      const f = getActiveField()
-      if (f) {
-        const cur = atIdx + username.length + 2
-        f.focus()
-        f.setSelectionRange(cur, cur)
-      }
-    })
-  }
-
-  function renderHighlightedInput(val: string): React.ReactNode {
-    const memberSet = memberUsernameSet
-    const regex     = /@(\w+)/g
-    const parts: React.ReactNode[] = []
-    let lastIdx = 0
-    let match: RegExpExecArray | null
-    while ((match = regex.exec(val)) !== null) {
-      if (memberSet.has(match[1].toLowerCase())) {
-        if (match.index > lastIdx) parts.push(val.slice(lastIdx, match.index))
-        parts.push(
-          <mark key={match.index} style={{ background: 'transparent', color: 'var(--color-purple)' }}>
-            @{match[1]}
-          </mark>
-        )
-        lastIdx = match.index + match[0].length
-      }
-    }
-    if (lastIdx < val.length) parts.push(val.slice(lastIdx))
-    parts.push('​')
-    return parts
-  }
-
-  const mentionMatches = mentionQuery !== null
-    ? members.filter((m) => m.id !== userId && m.username.toLowerCase().startsWith(mentionQuery.toLowerCase()))
-    : []
 
   const totalMessages = [...memberMsgCounts.values()].reduce((s, n) => s + n, 0)
 
@@ -1880,37 +924,9 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
           presence sync doesn't re-render all of ChatInput — see ChatTypingIndicator. ── */}
       <ChatTypingIndicator />
 
-      {/* Figma 605:3639 — one-shot banner teaching the swipe-up gesture (redesigned
-          from the older 589:5938/596:7443 two-hint layout — that one covered
-          swipe-up/SquadDetailsSheet + swipe-left-or-right/ChatRoomBrowseSheet; the
-          horizontal gesture was removed once swipe-up itself started opening
-          ChatRoomBrowseSheet, so only one hint remains, now with updated copy and a
-          dashed top divider), hidden when there's nothing to switch to. Permanently
-          dismissed the first time the gesture actually fires — see
-          CHAT_SWIPE_HINT_SEEN_KEY / dismissSwipeHint. Uses SwipeHintIcon's own
-          continuous horizontal-bounce motion spec (Figma 605:3642) — a distinct
-          glyph/timeline from ChatSquadDetailBar's own persistent chevron hint. */}
-      {showSwipeHint && chatRoomOrder.length > 1 && (
-        <div
-          className="flex items-center justify-center w-full"
-          style={{ gap: 8, padding: 'var(--x3) var(--x5)', borderTop: '1px dashed var(--color-border)' }}
-        >
-          <div className="flex items-center" style={{ gap: 8 }}>
-            <p
-              className="font-body font-light text-tertiary whitespace-nowrap"
-              style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14', lineHeight: 1.4 }}
-            >
-              Swipe up to view notification and squad details
-            </p>
-            <SwipeHintIcon />
-          </div>
-        </div>
-      )}
-
       {/* Swipe-on-the-container overlay — every room, scrollable, tap to navigate.
-          Opened at the current room by handleTopPanEnd (swipe up — see this
-          component's own doc comment) or by tap-scrolling within the sheet itself
-          once open. */}
+          Opened at the current room by a tap on ChatSquadDetailBar, or by
+          tap-scrolling within the sheet itself once open. */}
       <ChatRoomBrowseSheet
         visible={showRoomBrowser}
         rooms={browseRooms}
@@ -1927,15 +943,10 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
       />
 
       {/* Figma 645:8036 ("chatInputContainer", supersedes the older 637:3886 revision)
-          — squad bar/add-menu + input field together, as one unit.
-
-          onPanEnd lives HERE (the whole container), not on ChatSquadDetailBar — a
-          swipe up anywhere in the container (bar or input row) should drive
-          ChatRoomBrowseSheet, per handleTopPanEnd's own doc comment. */}
+          — squad bar/add-menu + input field together, as one unit. */}
       <motion.div
         ref={chatInputContainerRef}
         className="border-t border-border flex flex-col"
-        onPanEnd={handleTopPanEnd}
         style={{
           // top/gap: var(--x3, 8px) — tightened from var(--space-4)/12px by
           // explicit request.
@@ -2027,10 +1038,9 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
                     memberCount={barOverride ? barOverride.memberCount : memberCount}
                     members={barOverride ? EMPTY_MEMBERS : members}
                     onlineUserIds={barOverride ? EMPTY_ONLINE_IDS : onlineUserIds}
-                    // Toggles ChatRoomBrowseSheet — same destination the swipe-up gesture opens
-                    // (see handleTopPanEnd's own doc comment). A tap while it's already open
-                    // closes it, matching every other "tap outside the row" dismissal instead
-                    // of stacking a second open on top.
+                    // Toggles ChatRoomBrowseSheet. A tap while it's already open closes it,
+                    // matching every other "tap outside the row" dismissal instead of
+                    // stacking a second open on top.
                     onTap={() => setShowRoomBrowser((prev) => !prev)}
                     isSheetOpen={showRoomBrowser}
                   />
@@ -2080,7 +1090,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
                 Editing message
               </p>
               <button
-                onClick={() => { setEditTo(null); setText(''); textRef.current = ''; clearTypingState() }}
+                onClick={() => { setEditTo(null); clearComposerText() }}
                 className="flex-shrink-0 flex items-center justify-center active:opacity-60"
                 style={{ width: 32, height: 32, marginTop: -8, marginRight: -8, marginBottom: -8 }}
                 aria-label="Cancel edit"
@@ -2380,64 +1390,17 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
       {/* ── Kick confirmation sheet ── */}
       <AnimatePresence>
         {removeTarget && (
-          <motion.div
-            className="fixed inset-0 z-[80] flex items-end justify-center"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => { if (!removing) setRemoveTarget(null) }}
-          >
-            <div className="absolute inset-0 bg-black/60" />
-            <motion.div
-              initial={{ y: '100%' }}
-              animate={{ y: 0 }}
-              exit={{ y: '100%' }}
-              transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-              className="relative w-full max-w-[480px] bg-surface border-t border-border-hover flex flex-col gap-6 p-4"
-              style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 24px)' }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Header */}
-              <div className="flex flex-col gap-2">
-                <p className="font-pixel text-[8px] text-tertiary leading-none">REMOVE FROM SQUAD</p>
-                <div className="flex flex-col gap-1">
-                  <h2
-                    className="font-body font-bold text-[18px] text-primary leading-none"
-                    style={{ fontVariationSettings: '"opsz" 14' }}
-                  >
-                    {removeTarget.username}
-                  </h2>
-                  <p className="font-body text-[12px] text-secondary leading-normal">
-                    Removing this member will redistribute their XP and any gains within the squad equally to all remaining members.
-                  </p>
-                </div>
-              </div>
-
-              {removeError && (
-                <p className="font-silkscreen text-[8px] text-[#ef4444] leading-none">{removeError}</p>
-              )}
-
-              {/* Buttons */}
-              <div className="flex flex-col gap-2">
-                <button
-                  onClick={handleKick}
-                  disabled={removing}
-                  className="w-full h-12 flex items-center justify-center bg-[#ef4444] disabled:opacity-50 transition-opacity active:opacity-70"
-                >
-                  <span className="font-pixel text-[8px] text-primary leading-none">
-                    {removing ? '...' : 'REMOVE MEMBER'}
-                  </span>
-                </button>
-                <button
-                  onClick={() => { setRemoveTarget(null); setRemoveError(null) }}
-                  disabled={removing}
-                  className="w-full h-12 flex items-center justify-center transition-opacity active:opacity-70"
-                >
-                  <span className="font-pixel text-[8px] text-tertiary leading-none">CANCEL</span>
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
+          <ConfirmDestructiveSheet
+            eyebrow="REMOVE FROM SQUAD"
+            title={removeTarget.username}
+            description="Removing this member will redistribute their XP and any gains within the squad equally to all remaining members."
+            errorText={removeError}
+            confirmLabel="REMOVE MEMBER"
+            confirmBusyLabel="..."
+            busy={removing}
+            onConfirm={handleKick}
+            onCancel={() => { setRemoveTarget(null); setRemoveError(null) }}
+          />
         )}
       </AnimatePresence>
 
@@ -2455,16 +1418,9 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
             crewXP={crewXP}
             xpProgress={xpProgress}
             totalMessages={totalMessages}
-            onUploadPhoto={() => crewImageInputRef.current?.click()}
-            onUploadBackground={() => crewBgInputRef.current?.click()}
-            onSave={async (newName) => {
-              const trimmed = newName.trim()
-              const prev = liveCrewName
-              setCrewName(trimmed)
-              const result = await renameCrewAction(crewId, trimmed)
-              if (result?.error) { setCrewName(prev); return result }
-              return result
-            }}
+            onUploadPhoto={openImagePicker}
+            onUploadBackground={openBackgroundPicker}
+            onSave={renameCrew}
             onClose={() => { setShowManageSquad(false); setShowRoomBrowser(false) }}
           />
         )}
@@ -2473,60 +1429,17 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
       {/* ── Last-member leave warning — leaving now would delete the whole squad ── */}
       <AnimatePresence>
         {showLastMemberWarning && (
-          <motion.div
-            className="fixed inset-0 z-[80] flex items-end justify-center"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => { if (!leavingSquad) { setShowLastMemberWarning(false); setLeaveTarget(null) } }}
-          >
-            <div className="absolute inset-0 bg-black/60" />
-            <motion.div
-              initial={{ y: '100%' }}
-              animate={{ y: 0 }}
-              exit={{ y: '100%' }}
-              transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-              className="relative w-full max-w-[480px] bg-surface border-t border-border-hover flex flex-col gap-6 p-4"
-              style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 24px)' }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Header */}
-              <div className="flex flex-col gap-2">
-                <p className="font-pixel text-[8px] text-[#ef4444] leading-none">YOU&apos;RE THE LAST MEMBER</p>
-                <div className="flex flex-col gap-1">
-                  <h2
-                    className="font-body font-bold text-[18px] text-primary leading-none"
-                    style={{ fontVariationSettings: '"opsz" 14' }}
-                  >
-                    {leaveTarget?.name ?? liveCrewName}
-                  </h2>
-                  <p className="font-body text-[12px] text-secondary leading-normal">
-                    Leaving will permanently delete this squad — its messages and vibes cannot be recovered.
-                  </p>
-                </div>
-              </div>
-
-              {/* Buttons */}
-              <div className="flex flex-col gap-2">
-                <button
-                  onClick={() => void performLeaveSquad(leaveTarget ?? { id: crewId, name: liveCrewName })}
-                  disabled={leavingSquad}
-                  className="w-full h-12 flex items-center justify-center bg-[#ef4444] disabled:opacity-50 transition-opacity active:opacity-70"
-                >
-                  <span className="font-pixel text-[8px] text-primary leading-none">
-                    {leavingSquad ? '...' : 'DELETE & LEAVE'}
-                  </span>
-                </button>
-                <button
-                  onClick={() => { setShowLastMemberWarning(false); setLeaveTarget(null) }}
-                  disabled={leavingSquad}
-                  className="w-full h-12 flex items-center justify-center transition-opacity active:opacity-70"
-                >
-                  <span className="font-pixel text-[8px] text-tertiary leading-none">CANCEL</span>
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
+          <ConfirmDestructiveSheet
+            eyebrow="YOU'RE THE LAST MEMBER"
+            eyebrowColor="#ef4444"
+            title={leaveTarget?.name ?? liveCrewName}
+            description="Leaving will permanently delete this squad — its messages and vibes cannot be recovered."
+            confirmLabel="DELETE & LEAVE"
+            confirmBusyLabel="..."
+            busy={leavingSquad}
+            onConfirm={() => void performLeaveSquad(leaveTarget ?? { id: crewId, name: liveCrewName })}
+            onCancel={() => { setShowLastMemberWarning(false); setLeaveTarget(null) }}
+          />
         )}
       </AnimatePresence>
 
@@ -2536,11 +1449,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
         type="file"
         accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif"
         style={{ position: 'fixed', top: -1, left: -1, width: 1, height: 1, opacity: 0, pointerEvents: 'none' }}
-        onChange={(e) => {
-          const f = e.target.files?.[0]
-          if (f) setCrewImageFile(f)
-          e.target.value = ''
-        }}
+        onChange={onCrewImageFileChange}
       />
 
       {/* Background image picker */}
@@ -2549,11 +1458,7 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
         type="file"
         accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif"
         style={{ position: 'fixed', top: -1, left: -1, width: 1, height: 1, opacity: 0, pointerEvents: 'none' }}
-        onChange={(e) => {
-          const f = e.target.files?.[0]
-          if (f) setCrewBgFile(f)
-          e.target.value = ''
-        }}
+        onChange={onCrewBgFileChange}
       />
 
       {/* Chat image picker — fixed position prevents .click() issues in transforms.
@@ -2574,30 +1479,8 @@ const [showPollCreator,  setShowPollCreator]  = useState(false)
         }}
       />
 
-      <CrewImageUploadModal
-        file={crewImageFile}
-        crewId={crewId}
-        onClose={() => setCrewImageFile(null)}
-        onSuccess={(url) => setCrewImageUrl(url)}
-      />
-
-      <CrewBackgroundUploadModal
-        file={crewBgFile}
-        crewId={crewId}
-        onClose={() => setCrewBgFile(null)}
-        onSuccess={(url) => setCrewBgUrl(url)}
-      />
-
-      <AnimatePresence>
-        {showPollCreator && (
-          <PollCreatorSheet
-            crewId={crewId}
-            userProfile={userProfile}
-            onClose={() => setShowPollCreator(false)}
-            onCreated={handlePollCreated}
-          />
-        )}
-      </AnimatePresence>
+      {imageModal}
+      {bgModal}
 
       <AnimatePresence>
         {showGifPicker && (

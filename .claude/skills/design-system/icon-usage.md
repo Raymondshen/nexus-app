@@ -25,5 +25,4 @@ Icons (`pixelarticons`) — key usages:
 | Friends — remove | `AvatarCircleMinus` | 16×16 |
 | Inbox — accept / decline | `Check` / `Close` | 16×16 |
 | ChatInput — send | `Send` | 16×16 |
-| ChatInput — poll | `Chart` | 16×16 |
 | Upload buttons | `Upload` | 16×16, `--color-purple` |

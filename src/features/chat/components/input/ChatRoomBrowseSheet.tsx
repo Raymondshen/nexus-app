@@ -26,13 +26,12 @@ import { joinCrewFromHomeAction } from '@/app/(app)/home/actions'
 const PIN_LONG_PRESS_MS = 500
 
 // ─── ChatRoomBrowseSheet a.k.a. "Updates" (Figma 589:3619 "body") ─────────────
-// Opened two ways, both toggles onto the same sheet: a vertical, up-only pan
-// gesture anywhere on chatInputContainer (decided at release — see ChatInput's
-// handleTopPan/handleTopPanEnd), or a plain tap on ChatSquadDetailBar (its own
-// `onTap`, which just toggles ChatInput's `showRoomBrowser` state — a second tap
-// while it's open closes it). This is the sole way to quick-switch rooms or view
-// squad details from inside a chat room now — there is no separate sheet/page for
-// squad details or room-switching anymore, this one covers both.
+// Opened by a plain tap on ChatSquadDetailBar (its own `onTap`, which just toggles
+// ChatInput's `showRoomBrowser` state — a second tap while it's open closes it).
+// This is the sole way to quick-switch rooms or view squad details from inside a
+// chat room now — there is no separate sheet/page for squad details or
+// room-switching anymore, this one covers both. (A vertical swipe-up gesture used
+// to open this too; it was removed by explicit request — tap-only now.)
 //
 // Header (Figma 674:13991, "page-header"): the shared `PageHeader`,
 // `variant="sheet"` (bold non-uppercase DM Sans title, no back chevron) rather
@@ -57,13 +56,13 @@ const PIN_LONG_PRESS_MS = 500
 // only carries the remaining bottom padding + inter-section gap.
 //
 // A brief revision reused `ChatSquadDetailBar` (crew identity + online-avatars row,
-// with its trailing swipe-hint chevron overridden by real Bell/BellOff+ChevronDown
+// with its trailing expand-hint chevron overridden by real Bell/BellOff+ChevronDown
 // action buttons) for this header instead of the static title — reverted back to
 // this by explicit request. The override mechanism that reuse needed (a
 // `trailingSlot` prop on `ChatSquadDetailBar`) was removed outright rather than left
 // as dead code once this was its only consumer; `ChatSquadDetailBar`'s `isSheetOpen`
 // prop is unrelated and still live, driving the collapsed in-room bar's own up/down
-// swipe-hint chevron.
+// expand-hint chevron.
 //
 // "Notifications" section (Figma 674:14485 — the node itself reads "Group
 // Notifications", but per explicit request the in-app copy drops "Group"; this went

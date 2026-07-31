@@ -300,7 +300,6 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
           crewImageUrl={crew.image_url ?? null}
           crewBackgroundImageUrl={(crew as { background_image_url?: string | null }).background_image_url ?? null}
           initialXP={crew.total_xp}
-          currentUserId={user.id}
           chatRoomOrder={chatRoomOrder}
           initialPinnedCrewId={pinnedCrewId}
         />
