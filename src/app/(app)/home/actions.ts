@@ -3,6 +3,7 @@
 import { revalidatePath, revalidateTag, unstable_cache } from 'next/cache'
 import { createClient } from '@supabase/supabase-js'
 import { createClient as createSupabaseClient, createServiceClient } from '@/shared/supabase/server'
+import { completeCrewJoin } from '@/shared/utils/joinCrew'
 import type { Database, Announcement } from '@/types'
 import type { AnnouncementItem } from '@/shared/components/banners/AnnouncementsSheet'
 
@@ -164,25 +165,15 @@ export async function joinCrewFromHomeAction(
 
   const id = crewId as string
 
-  const [{ data: profile }, { data: crewRow }, { count }] = await Promise.all([
-    supabase.from('profiles').select('username').eq('id', user.id).single(),
+  const [{ data: crewRow }, { count }] = await Promise.all([
     supabase.from('crews').select('name, image_url, background_image_url').eq('id', id).single(),
     supabase.from('crew_members').select('id', { count: 'exact', head: true }).eq('crew_id', id),
   ])
 
-  await supabase.from('messages').insert({
-    crew_id:      id,
-    user_id:      user.id,
-    content:      `JOIN:${(profile as { username?: string } | null)?.username ?? 'warrior'}`,
-    message_type: 'system',
-    element_type: null,
-    xp_awarded:   0,
-  })
+  await completeCrewJoin(supabase, user.id, id)
 
   const crew = crewRow as { name?: string; image_url?: string | null; background_image_url?: string | null } | null
 
-  revalidatePath('/home')
-  revalidateTag(`crew-members:${id}`, 'max')
   return {
     crewId:                 id,
     crewName:               crew?.name ?? '',

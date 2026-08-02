@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation'
 import { revalidateTag } from 'next/cache'
 import { createClient } from '@/shared/supabase/server'
+import { validateBirthday, formatBirthday } from '@/shared/utils/birthday'
 
 export async function saveBirthdayAction(
   _prevState: { error: string } | null,
@@ -20,18 +21,9 @@ export async function saveBirthdayAction(
 
   if (!month || !day || !year) return { error: 'Please fill in all birthday fields.' }
 
-  // Validate the date is real (catches Feb 30, Apr 31, etc.)
-  const date = new Date(year, month - 1, day)
-  if (
-    date.getMonth()    !== month - 1 ||
-    date.getDate()     !== day       ||
-    date.getFullYear() !== year
-  ) {
-    return { error: 'That date doesn\'t exist. Please check your birthday.' }
-  }
-  if (date >= new Date()) return { error: 'Birthday cannot be today or in the future.' }
-
-  const birthday = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+  const birthday = formatBirthday(year, month, day)
+  const birthdayError = validateBirthday(birthday)
+  if (birthdayError) return { error: birthdayError }
 
   const { error } = await supabase
     .from('profiles')

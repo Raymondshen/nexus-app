@@ -29,7 +29,13 @@ interface PageHeaderProps {
   // title in --color-secondary instead of Silkscreen/--color-primary. For
   // overlay-style sheets that dismiss via their own `right`-slot action (a
   // close X, or a row of icons) rather than a back chevron — ChatRoomBrowseSheet.
-  variant?: 'default' | 'sheet'
+  // 'auth' (Figma 774:20857 "subpage - header") — ChevronLeft back button, same
+  // as 'default', but bold (non-uppercase) DM Sans title at --color-primary
+  // instead of Silkscreen — the pre-auth/onboarding flow's own subpage header
+  // style (LoginForm's Join a Group step and its sibling screens), distinct
+  // from the main app's uppercase-Silkscreen subpages. Icon↔title gap is --x3
+  // (8px) here vs 'default''s --x5 (16px), per that node's own spacing.
+  variant?: 'default' | 'sheet' | 'auth'
   // Overrides the variant's own default title color token — 'sheet' normally
   // renders --color-secondary (ChatRoomBrowseSheet's crew-name/"Updates" title).
   // A caller whose own Figma spec deviates from that default (bold DM Sans, no
@@ -43,6 +49,7 @@ interface PageHeaderProps {
 // 'default' variant: ChevronLeft back button + uppercase Silkscreen title, used by
 // the Definitions list page, CreateDefinitionPage overlay, ManageSquadProfile,
 // ManageUserProfile, and DeveloperUserSettings. 'sheet' variant: see above.
+// 'auth' variant: LoginForm's JoinGroupStep (pre-auth flow) — see above.
 export function PageHeader({ title, onBack, right, icon, variant = 'default', titleColor }: PageHeaderProps) {
   const slideBack = useSlideBack()
   const handleBack = onBack ?? slideBack
@@ -68,7 +75,10 @@ export function PageHeader({ title, onBack, right, icon, variant = 'default', ti
             </p>
           </div>
         ) : (
-          <div className="flex items-center h-full" style={{ gap: 'var(--x5)' }}>
+          <div
+            className={`flex items-center h-full min-w-0 ${variant === 'auth' ? 'flex-1' : ''}`}
+            style={{ gap: variant === 'auth' ? 'var(--x3)' : 'var(--x5)' }}
+          >
             <button
               onClick={handleBack}
               aria-label="Back"
@@ -80,12 +90,21 @@ export function PageHeader({ title, onBack, right, icon, variant = 'default', ti
                 aria-hidden="true"
               />
             </button>
-            <h1
-              className="font-silkscreen uppercase leading-none text-primary"
-              style={{ fontSize: 'var(--xl)' }}
-            >
-              {title}
-            </h1>
+            {variant === 'auth' ? (
+              <h1
+                className="font-body font-bold leading-none text-primary truncate min-w-0"
+                style={{ fontSize: 'var(--xl)', fontVariationSettings: '"opsz" 14' }}
+              >
+                {title}
+              </h1>
+            ) : (
+              <h1
+                className="font-silkscreen uppercase leading-none text-primary"
+                style={{ fontSize: 'var(--xl)' }}
+              >
+                {title}
+              </h1>
+            )}
           </div>
         )}
         {right}

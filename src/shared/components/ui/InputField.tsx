@@ -20,14 +20,24 @@ function FieldLabel({ htmlFor, label, required }: { htmlFor: string; label: stri
   )
 }
 
-function FieldHelperText({ helperText }: { helperText?: string }) {
-  if (!helperText) return null
+// `error` (Figma 774:20922 — JoinGroupStep's invalid invite code) and
+// `success` (Figma 784:5792 — JoinGroupStep's found-a-valid-code state)
+// override `helperText`, rendering in --red / --green instead of
+// --color-tertiary. The border itself doesn't change color for either per
+// those same specs — only this text. `error` wins if somehow both are passed.
+function FieldHelperText({ helperText, error, success }: { helperText?: string; error?: string; success?: string }) {
+  const text = error ?? success ?? helperText
+  if (!text) return null
   return (
     <p
-      className="font-body font-normal text-tertiary tracking-[0.2px] leading-normal w-full"
-      style={{ fontSize: 'var(--xxs)', fontVariationSettings: '"opsz" 14' }}
+      className="font-body font-normal tracking-[0.2px] leading-normal w-full"
+      style={{
+        fontSize: 'var(--xxs)',
+        fontVariationSettings: '"opsz" 14',
+        color: error ? 'var(--red)' : success ? 'var(--green)' : 'var(--color-tertiary)',
+      }}
     >
-      {helperText}
+      {text}
     </p>
   )
 }
@@ -42,12 +52,22 @@ interface InputFieldProps {
   onChange:        (value: string) => void
   placeholder?:    string
   helperText?:     string
+  // Validation error — overrides `helperText`/`success`, rendered in --red
+  // instead of --color-tertiary. See FieldHelperText's own doc comment.
+  error?:          string
+  // Success message — overrides `helperText`, rendered in --green. See
+  // FieldHelperText's own doc comment.
+  success?:        string
   required?:       boolean
   disabled?:       boolean
   maxLength?:      number
   autoComplete?:   string
   autoCapitalize?: string
   type?:           string
+  // Native min/max attributes — only meaningful for type="date"/"number" (e.g.
+  // capping a Birthday field's native date picker at today, Figma 774:20657).
+  min?:            string
+  max?:            string
   /**
    * Fixed, non-editable text rendered before the input (Figma 470:5509's social-link
    * fields, e.g. `https://www.instagram.com/`) — `value`/`onChange` only ever hold
@@ -62,12 +82,16 @@ export const InputField = forwardRef<HTMLInputElement, InputFieldProps>(function
   onChange,
   placeholder,
   helperText,
+  error,
+  success,
   required = false,
   disabled = false,
   maxLength,
   autoComplete = 'off',
   autoCapitalize,
   type = 'text',
+  min,
+  max,
   prefix,
 }, ref) {
   const id = useId()
@@ -95,15 +119,21 @@ export const InputField = forwardRef<HTMLInputElement, InputFieldProps>(function
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
           maxLength={maxLength}
+          min={min}
+          max={max}
           autoComplete={autoComplete}
           autoCapitalize={autoCapitalize}
           required={required}
           disabled={disabled}
           className="flex-1 min-w-0 h-full bg-transparent font-body font-normal text-primary placeholder:text-muted focus:outline-none disabled:cursor-not-allowed"
-          style={{ fontSize: 'var(--sm)', fontVariationSettings: '"opsz" 14' }}
+          // `colorScheme: dark` is only load-bearing for native-chrome input
+          // types (date/time/number) — e.g. without it, `type="date"`'s
+          // calendar-icon glyph renders black-on-black against this app's
+          // exclusively-dark theme (no light mode exists to conflict with).
+          style={{ fontSize: 'var(--sm)', fontVariationSettings: '"opsz" 14', colorScheme: 'dark' }}
         />
       </div>
-      <FieldHelperText helperText={helperText} />
+      <FieldHelperText helperText={helperText} error={error} success={success} />
     </div>
   )
 })

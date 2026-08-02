@@ -2,6 +2,12 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { motion, useMotionValue, useReducedMotion, animate, type AnimationPlaybackControls } from 'framer-motion'
+import {
+  GHOST_LAUNCH_FRAME_COUNT,
+  GHOST_LAUNCH_FRAME_MS,
+  ghostLaunchFrameSrc,
+  preloadGhostLaunchFrames,
+} from '@/shared/constants/ghostLaunchSprite'
 
 // Figma 544:2721 "home - screen" (2026-07 redesign) — a live date row (705:18051,
 // Silkscreen xxs tertiary, "Thursday July 28") + the ghost (642:8315 "launch 1",
@@ -27,12 +33,12 @@ const FILL_FRACTION  = 0.2496
 const LOOP_EASE: [number, number, number, number] = [0.5, 0, 0.5, 1]
 const FINISH_S       = 0.2
 
-// Frame-cycling ghost sprite (public/sprites/ghost/launch/launch_0001.webp…0009.webp,
-// 1-indexed) — same interval-based frame-swap pattern ChatRoomBrowseSheet's
-// SleepingGhost uses for its own 9-frame loop.
-const GHOST_FRAME_COUNT = 9
-const GHOST_FRAME_MS    = 130
-const GHOST_PX          = 48
+// Frame-cycling ghost sprite — frame count/interval/path live in the shared
+// ghostLaunchSprite module (also used by the login landing screen's
+// LandingGhost); same interval-based frame-swap pattern ChatRoomBrowseSheet's
+// SleepingGhost uses for its own 9-frame loop, just at this component's own
+// 48px size.
+const GHOST_PX = 48
 
 // Live date row — computed client-side only via useSyncExternalStore with a
 // never-notifying subscribe and a `null` server snapshot (same convention
@@ -90,11 +96,8 @@ export function LaunchSplashContent({
     // tiny (~250B each) but on a cold Cache Storage (first-ever launch, or an
     // iOS storage-pressure eviction) an un-primed fetch mid-cycle can show a
     // blank frame for a beat, reading as a flicker in the sprite itself.
-    for (let i = 1; i <= GHOST_FRAME_COUNT; i++) {
-      const img = new window.Image()
-      img.src = `/sprites/ghost/launch/launch_${String(i).padStart(4, '0')}.webp`
-    }
-    const id = setInterval(() => setFrame((f) => (f + 1) % GHOST_FRAME_COUNT), GHOST_FRAME_MS)
+    preloadGhostLaunchFrames()
+    const id = setInterval(() => setFrame((f) => (f + 1) % GHOST_LAUNCH_FRAME_COUNT), GHOST_LAUNCH_FRAME_MS)
     return () => clearInterval(id)
   }, [reduceMotion])
 
@@ -168,7 +171,7 @@ export function LaunchSplashContent({
       <motion.div className="relative flex-shrink-0" style={{ width: GHOST_PX, height: GHOST_PX, opacity: fill }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={`/sprites/ghost/launch/launch_${String(frame + 1).padStart(4, '0')}.webp`}
+          src={ghostLaunchFrameSrc(frame)}
           alt=""
           style={{ width: GHOST_PX, height: GHOST_PX, objectFit: 'contain', imageRendering: 'pixelated' }}
           aria-hidden="true"

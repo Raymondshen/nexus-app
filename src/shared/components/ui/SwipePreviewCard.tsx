@@ -38,9 +38,23 @@ import { User } from 'pixelarticons/react/User'
 // gets a `--color-tertiary` border when it isn't also the pinned room. Pinned
 // still wins outright (purple + badge) if a room is both current and pinned; the
 // two states are mutually exclusive borders, never combined/doubled.
+//
+// Promoted from features/chat/ into shared/ui once JoinGroupStep (the pre-auth
+// "invite success" screen, Figma 784:5792) became a second consumer — reusing
+// the exact same card rather than a one-off lookalike, per that screen's own
+// explicit spec. That screen's card is 210×280 (matching its dashed
+// empty/invalid-state sibling cards, not this one's own 180×240 Groups-row
+// size) with a plain neutral border (neither pinned nor current apply to a
+// not-yet-joined crew) and its own steeper bottom-heavy overlay gradient
+// (matching the full-page background behind it, which Figma reuses the exact
+// same gradient for — see JoinGroupStep's own PAGE_BACKGROUND_GRADIENT
+// comment for why that one isn't on the shared --gradient-image-overlay
+// token) instead of this card's own default — hence the
+// `width`/`height`/`border`/`overlayGradient` overrides below, all optional
+// and defaulting to the original ChatRoomBrowseSheet look.
 
 export function SwipePreviewCard({
-  room, pinned = false, isCurrent = false,
+  room, pinned = false, isCurrent = false, width = 180, height = 240, border, overlayGradient,
 }: {
   room:      RoomMeta & { id: string }
   /** Figma 674:14650 — top-right badge AND the card's purple border (see this
@@ -50,18 +64,29 @@ export function SwipePreviewCard({
   /** The room actually open in chat right now — tertiary border, badge-less.
    *  Ignored (no border) when `pinned` is also true. */
   isCurrent?: boolean
+  /** Card footprint in px — defaults to ChatRoomBrowseSheet's Groups-row size. */
+  width?:  number
+  height?: number
+  /** Raw CSS border override — takes precedence over the pinned/isCurrent-derived
+   *  border. Only JoinGroupStep's 210×280 card uses this so far. */
+  border?: string
+  /** Raw CSS background override for the cover-image scrim — takes precedence
+   *  over this card's own default `--gradient-image-overlay`. Only
+   *  JoinGroupStep's card uses this so far (Figma 784:5798's own steeper
+   *  bottom-heavy curve). */
+  overlayGradient?: string
 }) {
   return (
     <div
       className="relative flex-shrink-0 overflow-hidden rounded-[var(--x3,8px)]"
       style={{
-        width:  180,
-        height: 240,
-        border: pinned
+        width,
+        height,
+        border: border ?? (pinned
           ? '1px solid var(--color-purple)'
           : isCurrent
             ? '1px solid var(--color-tertiary)'
-            : 'none',
+            : 'none'),
       }}
     >
       {/* eslint-disable-next-line @next/next/no-img-element -- full-bleed cover fill, same pattern as UserCard/ProfileHeroBackground */}
@@ -71,7 +96,7 @@ export function SwipePreviewCard({
         aria-hidden
         style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
       />
-      <div className="absolute inset-0 pointer-events-none" style={{ background: 'var(--gradient-image-overlay)' }} />
+      <div className="absolute inset-0 pointer-events-none" style={{ background: overlayGradient ?? 'var(--gradient-image-overlay)' }} />
 
       <div className="relative flex flex-col h-full justify-between" style={{ padding: 16 }}>
         <div className="flex justify-end w-full flex-shrink-0">

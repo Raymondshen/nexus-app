@@ -9,8 +9,13 @@ export const metadata: Metadata = {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ newAccount?: string }>
+  searchParams: Promise<{ newAccount?: string; inviteError?: string; code?: string }>
 }) {
-  const { newAccount } = await searchParams
-  return <LoginForm newAccount={newAccount} />
+  const { newAccount, inviteError, code } = await searchParams
+  return (
+    <LoginForm
+      newAccount={newAccount}
+      staleInviteCode={inviteError === '1' ? code : undefined}
+    />
+  )
 }
