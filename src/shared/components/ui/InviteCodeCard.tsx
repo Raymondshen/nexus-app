@@ -77,7 +77,14 @@ export function InviteCodeCard({ inviteCode, groupName, style, variant = 'border
           className="flex items-center justify-center flex-shrink-0 appearance-none transition-opacity active:opacity-80 rounded-[var(--x3)]"
           style={{ height: 48, padding: 'var(--x3) var(--x5)', background: 'linear-gradient(90deg, #a855f7, #d946ef)' }}
         >
+          {/* `key` forces React to mount a brand-new node per state instead of mutating
+              the existing text node in place — iOS Safari can otherwise leave the old
+              label's glyphs painted through the gradient background for a frame (a
+              WebKit repaint/compositing quirk that coincides with this button's own
+              active:opacity-80 → opacity-1 release transition), which read as "Copied!"
+              rendering on top of/behind "Copy Invite Code" instead of cleanly replacing it. */}
           <span
+            key={copied ? 'copied' : 'copy'}
             className="font-body font-medium leading-none text-primary whitespace-nowrap"
             style={{ fontSize: 'var(--sm)', fontVariationSettings: '"opsz" 14' }}
           >
@@ -127,7 +134,7 @@ export function InviteCodeCard({ inviteCode, groupName, style, variant = 'border
         ) : (
           <Copy style={{ width: 12, height: 12, color: 'var(--color-primary)' }} aria-hidden="true" />
         ))}
-        <span className="font-silkscreen leading-none text-primary whitespace-nowrap" style={{ fontSize: 'var(--xxs)' }}>
+        <span key={copied ? 'copied' : 'copy'} className="font-silkscreen leading-none text-primary whitespace-nowrap" style={{ fontSize: 'var(--xxs)' }}>
           {copied ? 'Copied!' : 'Copy Code'}
         </span>
       </button>

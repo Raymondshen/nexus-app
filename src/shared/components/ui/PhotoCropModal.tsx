@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import type { Area } from 'react-easy-crop'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ZoomPanCropper } from '@/shared/components/ui/ZoomPanCropper'
@@ -29,6 +30,21 @@ export function PhotoCropModal({
   const [imgSrc, setImgSrc]                       = useState('')
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null)
   const [confirming, setConfirming]               = useState(false)
+
+  // Gates the createPortal call below — document.body doesn't exist during SSR, so
+  // this must flip after mount, not during the initial render; same pattern as
+  // GemToast/MessageBubble's ChatSheetReact. Needed because callers routinely nest
+  // this modal inside a SlidePage (whose Framer Motion root carries a live `transform`
+  // even at rest) — a transformed ancestor becomes the containing block for `position:
+  // fixed` descendants per the CSS spec, silently repositioning/clipping this sheet
+  // against the SlidePage's own box instead of the true viewport (the same class of
+  // bug documented for VinylActionSheet). Portaling to document.body sidesteps it
+  // regardless of what this modal happens to be nested inside.
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMounted(true)
+  }, [])
 
   // Synchronizes local state with the `file` prop's lifecycle — genuinely an effect,
   // not a state-mirroring anti-pattern: createObjectURL/revokeObjectURL is a real
@@ -59,7 +75,9 @@ export function PhotoCropModal({
     }
   }
 
-  return (
+  if (!mounted) return null
+
+  return createPortal(
     <AnimatePresence>
       {isOpen && (
         <>
@@ -123,6 +141,7 @@ export function PhotoCropModal({
           </motion.div>
         </>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   )
 }
