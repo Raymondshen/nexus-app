@@ -43,7 +43,7 @@ function dayLabel(date: Date): string {
 // Two conditions:
 //  - justCreated (crew has no other members yet): ghost + "share the invite code" copy + invite-code card
 //  - otherwise (members present, nobody has sent a message yet): ghost + "send the first message" copy
-function EmptyState({ inviteCode, justCreated }: { inviteCode?: string; justCreated: boolean }) {
+function EmptyState({ inviteCode, crewName, justCreated }: { inviteCode?: string; crewName: string; justCreated: boolean }) {
   const showInvite = justCreated && !!inviteCode
 
   return (
@@ -67,7 +67,7 @@ function EmptyState({ inviteCode, justCreated }: { inviteCode?: string; justCrea
         </p>
       </div>
 
-      {showInvite && inviteCode && <InviteCodeCard inviteCode={inviteCode} />}
+      {showInvite && inviteCode && <InviteCodeCard inviteCode={inviteCode} groupName={crewName} />}
     </div>
   )
 }
@@ -116,6 +116,7 @@ function definitionsEqual(a: SquadDefinitionWithCreator[], b: SquadDefinitionWit
 
 export function MessageList({
   crewId,
+  crewName,
   currentUserId,
   memberProfiles,
   creatorId,
@@ -1048,7 +1049,7 @@ export function MessageList({
           // the composer regardless of viewport height (unlike sizing a virtual row to
           // a fixed estimate).
           <div className="flex flex-col items-center justify-end w-full h-full">
-            <EmptyState inviteCode={inviteCode} justCreated={Object.keys(memberProfiles).length <= 1} />
+            <EmptyState inviteCode={inviteCode} crewName={crewName} justCreated={Object.keys(memberProfiles).length <= 1} />
           </div>
         ) : (
           /* Total scroll height governed by the virtualizer */

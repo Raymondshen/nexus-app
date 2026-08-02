@@ -16,6 +16,7 @@ export default async function LoginPage({
     <LoginForm
       newAccount={newAccount}
       staleInviteCode={inviteError === '1' ? code : undefined}
+      sharedInviteCode={inviteError !== '1' ? code : undefined}
     />
   )
 }

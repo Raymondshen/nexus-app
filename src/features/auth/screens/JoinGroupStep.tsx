@@ -1,13 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { PageHeader } from '@/shared/components/ui/PageHeader'
 import { PageFooter } from '@/shared/components/ui/PageFooter'
 import { InputField } from '@/shared/components/ui/InputField'
 import { Button } from '@/shared/components/ui/Button'
 import { ProfileHeroBackground } from '@/shared/components/ui/ProfileHeroBackground'
-import { SwipePreviewCard } from '@/shared/components/ui/SwipePreviewCard'
+import { SwipePreviewCard, COVER_FADE_GRADIENT } from '@/shared/components/ui/SwipePreviewCard'
 import { useSpriteFrameLoop } from '@/shared/hooks/useSpriteFrameLoop'
 import { checkInviteCodeAction, joinCrewSessionAction, type JoinableCrewPreview } from '@/app/(auth)/login/actions'
 import { signInWithGoogle } from '@/shared/supabase/auth'
@@ -56,23 +56,9 @@ function SleepingGhost() {
 // full-page background: the crew's own cover image (ProfileHeroBackground is
 // generic full-bleed-cover-image markup despite its "Profile" name — reused
 // rather than re-hand-rolling the same img/supabaseImageLoader boilerplate) +
-// a bottom-heavy vertical fade so the header/card/form stay legible over an
-// arbitrary photo. This exact curve (transparent at the top, 0.8 opacity by
-// the bottom) doesn't match either canonical cover-scrim token
-// (--gradient-image-overlay is a gentler 0.2→0.8 curve over a card THUMBNAIL,
-// not a full page; --gradient-hero-top-scrim fades the opposite direction) —
-// see the design-system skill's gradients.md "Exceptions" entry for
-// EventPageInfoClient, the one other screen with its own bespoke cover fade;
-// this is the same kind of one-off, not worth forcing onto either token.
-const PAGE_BACKGROUND_GRADIENT = `linear-gradient(
-  180deg,
-  color-mix(in srgb, var(--color-background) 0%, transparent) 0%,
-  color-mix(in srgb, var(--color-background) 20%, transparent) 51%,
-  color-mix(in srgb, var(--color-background) 50%, transparent) 69%,
-  color-mix(in srgb, var(--color-background) 70%, transparent) 80%,
-  color-mix(in srgb, var(--color-background) 80%, transparent) 100%
-)`
-
+// COVER_FADE_GRADIENT (SwipePreviewCard.tsx) so the header/card/form stay
+// legible over an arbitrary photo — see that constant's own doc comment for
+// why it isn't on either canonical cover-scrim token.
 const CODE_NOT_FOUND_ERROR = 'The group code you’ve entered doesn’t exist.'
 
 // Shared by handleCodeChange and the `initialStaleCode` seed below —
@@ -133,12 +119,25 @@ type FoundCrew = JoinableCrewPreview & {
 export function JoinGroupStep({
   onBack,
   initialStaleCode,
+  initialCode,
 }: {
-  onBack: () => void
+  // Optional — when omitted, PageHeader falls back to useSlideBack() context
+  // (see JoinGroupPage, the authenticated-route wrapper that renders this
+  // inside a real SlidePage). LoginForm's pre-auth usage isn't under a
+  // SlidePage at all, so it still passes its own local step-back function.
+  onBack?: () => void
   initialStaleCode?: string
+  // A code shared via InviteCodeCard's "Join my group on {name} — {link}"
+  // copy text (`/login?code=XXX`, see login/page.tsx's `code` param and
+  // LoginForm's `sharedInviteCode` prop) — pre-fills the field AND
+  // auto-checks it on mount (see the effect below), unlike
+  // initialStaleCode, which pre-fills but shows its error immediately
+  // instead of re-checking a code already known to be stale. Ignored if
+  // initialStaleCode is also set (that bounce-back case always wins).
+  initialCode?: string
 }) {
   const router = useRouter()
-  const [code, setCode] = useState(() => sanitizeInviteCode(initialStaleCode ?? ''))
+  const [code, setCode] = useState(() => sanitizeInviteCode(initialStaleCode ?? initialCode ?? ''))
   const [error, setError] = useState<string | null>(initialStaleCode ? CODE_NOT_FOUND_ERROR : null)
   const [checking, setChecking] = useState(false)
   const [foundCrew, setFoundCrew] = useState<FoundCrew | null>(null)
@@ -155,12 +154,12 @@ export function JoinGroupStep({
 
   const canSubmit = code.length === 6
 
-  async function handleJoinGroup() {
-    if (!canSubmit || checking) return
+  async function checkCode(codeToCheck: string) {
+    if (codeToCheck.length !== 6 || checking) return
     setChecking(true)
     setError(null)
     try {
-      const result = await checkInviteCodeAction(code)
+      const result = await checkInviteCodeAction(codeToCheck)
       if (!result.valid) {
         setError(CODE_NOT_FOUND_ERROR)
         return
@@ -172,6 +171,26 @@ export function JoinGroupStep({
       setChecking(false)
     }
   }
+
+  function handleJoinGroup() {
+    if (!canSubmit) return
+    checkCode(code)
+  }
+
+  // Deep-link entry (InviteCodeCard's shared "join my group" link) — check the
+  // shared code automatically instead of making the recipient re-type/re-tap
+  // a code they already arrived with. Skipped when initialStaleCode is also
+  // set — that one's already known-bad, re-checking it would just reproduce
+  // the same error a beat later. Genuine fetch-on-mount (one of the two
+  // legitimate effect uses per React's own docs) — checkCode's own
+  // setChecking(true) is what react-hooks/set-state-in-effect flags here.
+  useEffect(() => {
+    if (initialStaleCode || !initialCode) return
+    const clean = sanitizeInviteCode(initialCode)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (clean.length === 6) checkCode(clean)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   async function handleContinueWithGoogle() {
     setSignInLoading(true)
@@ -224,7 +243,7 @@ export function JoinGroupStep({
       {foundCrew && (
         <div className="absolute inset-0 pointer-events-none" aria-hidden>
           <ProfileHeroBackground url={foundCrew.backgroundImageUrl} />
-          <div className="absolute inset-0" style={{ backgroundImage: PAGE_BACKGROUND_GRADIENT }} />
+          <div className="absolute inset-0" style={{ backgroundImage: COVER_FADE_GRADIENT }} />
         </div>
       )}
 
@@ -254,7 +273,7 @@ export function JoinGroupStep({
                   width={210}
                   height={280}
                   border="1px solid var(--color-border-hover)"
-                  overlayGradient={PAGE_BACKGROUND_GRADIENT}
+                  overlayGradient={COVER_FADE_GRADIENT}
                 />
               ) : (
                 <div

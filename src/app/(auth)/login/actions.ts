@@ -86,19 +86,24 @@ export async function checkInviteCodeAction(code: string): Promise<InviteCodeChe
   if (clean.length !== 6) return { valid: false }
 
   const service = createServiceClient()
-  const { data: crew } = await service
-    .from('crews')
-    .select('id, name, image_url, background_image_url, level')
-    .eq('invite_code', clean)
-    .eq('is_dm', false)
-    .maybeSingle()
+
+  // The crew lookup and the session check are independent — run them
+  // together rather than sequentially. This fires more often now that
+  // InviteCodeCard's shared "join my group" link auto-checks on mount
+  // (JoinGroupStep's initialCode prop), not just on a manual "Join Group" tap.
+  const [{ data: crew }, { data: { session } }] = await Promise.all([
+    service
+      .from('crews')
+      .select('id, name, image_url, background_image_url, level')
+      .eq('invite_code', clean)
+      .eq('is_dm', false)
+      .maybeSingle(),
+    createClient().then((supabase) => supabase.auth.getSession()),
+  ])
 
   type CrewLookupRow = { id: string; name: string; image_url: string | null; background_image_url: string | null; level: number }
   const crewRow = crew as CrewLookupRow | null
   if (!crewRow) return { valid: false }
-
-  const supabase = await createClient()
-  const { data: { session } } = await supabase.auth.getSession()
 
   const { count } = await service
     .from('crew_members')

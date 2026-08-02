@@ -34,8 +34,9 @@ const LOOP_EASE: [number, number, number, number] = [0.5, 0, 0.5, 1]
 const FINISH_S       = 0.2
 
 // Frame-cycling ghost sprite — frame count/interval/path live in the shared
-// ghostLaunchSprite module (also used by the login landing screen's
-// LandingGhost); same interval-based frame-swap pattern ChatRoomBrowseSheet's
+// ghostLaunchSprite module (also used by the shared GhostLaunchSprite
+// component, the login landing screen's and ChatroomEmptyScreen's 64px
+// ghost); same interval-based frame-swap pattern ChatRoomBrowseSheet's
 // SleepingGhost uses for its own 9-frame loop, just at this component's own
 // 48px size.
 const GHOST_PX = 48

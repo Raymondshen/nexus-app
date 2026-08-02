@@ -5,6 +5,27 @@ import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
 import type { RoomMeta } from '@/features/chat/store/chatRoomPeekStore'
 import { User } from 'pixelarticons/react/User'
 
+// Full-page cover-fade background gradient (Figma 784:5792 "onboarding -
+// Invite Success" / 784:24784 "chatroom - create success") — a bottom-heavy
+// vertical fade (transparent at the top, 0.8 opacity by the bottom) so a
+// header-less full-bleed photo page stays legible under its centered card +
+// CTAs. Doesn't match either canonical cover-scrim token
+// (--gradient-image-overlay is a gentler 0.2->0.8 curve over a card
+// THUMBNAIL, not a full page; --gradient-hero-top-scrim fades the opposite
+// direction) — see the design-system skill's gradients.md "Exceptions" entry.
+// Originally JoinGroupStep-only; promoted here once CreateSquadPage's own
+// create-success screen became a second consumer of the exact same curve,
+// same reasoning this file's own SwipePreviewCard was promoted out of
+// features/chat/ for.
+export const COVER_FADE_GRADIENT = `linear-gradient(
+  180deg,
+  color-mix(in srgb, var(--color-background) 0%, transparent) 0%,
+  color-mix(in srgb, var(--color-background) 20%, transparent) 51%,
+  color-mix(in srgb, var(--color-background) 50%, transparent) 69%,
+  color-mix(in srgb, var(--color-background) 70%, transparent) 80%,
+  color-mix(in srgb, var(--color-background) 80%, transparent) 100%
+)`
+
 // One 180×240 squad card (Figma 674:14650 pinned / 674:14663 default) — full-bleed
 // cover photo + `--gradient-image-overlay` scrim (see the design-system skill's
 // gradients.md — same token `SquadDetailCard`'s hero uses for this exact

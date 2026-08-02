@@ -1,10 +1,12 @@
 // Shared metadata for the "launch 1" ghost sprite
 // (public/sprites/ghost/launch/launch_0001.webp…0009.webp, 1-indexed) — used by
-// both LaunchSplashContent (the global app-launch splash, 48px) and the login
-// landing screen's LandingGhost (774:19681, 64px). Frame count/interval/path
-// used to be duplicated independently in both files; centralized here so a
-// future re-export of the sprite sheet (different frame count, different
-// timing) only needs to change one place.
+// LaunchSplashContent (the global app-launch splash, 48px, bespoke — see its
+// own doc comment for why) and the shared GhostLaunchSprite component
+// (login landing screen + ChatroomEmptyScreen, both 64px, Figma
+// 774:19681/774:20394). Frame count/interval/path used to be duplicated
+// independently across these call sites; centralized here so a future
+// re-export of the sprite sheet (different frame count, different timing)
+// only needs to change one place.
 export const GHOST_LAUNCH_FRAME_COUNT = 9
 export const GHOST_LAUNCH_FRAME_MS    = 130
 

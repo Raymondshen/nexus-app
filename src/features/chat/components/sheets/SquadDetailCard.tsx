@@ -104,7 +104,7 @@ export function SquadDetailCard({
           {/* Figma 674:14743 "invite card" — borderless row treatment, not the
               bordered/drop-shadow default MessageList's empty state uses; see
               InviteCodeCard's own `variant` doc comment. */}
-          {inviteCode && <InviteCodeCard inviteCode={inviteCode} variant="inline" />}
+          {inviteCode && <InviteCodeCard inviteCode={inviteCode} groupName={crewName} variant="inline" />}
           {/* Figma 674:14748 — outlined purple, restores the entry point into
               ManageSquadProfile that the header's MagicEdit icon used to own. */}
           {onManageSquad && (

@@ -3,7 +3,6 @@
 import { revalidatePath, revalidateTag, unstable_cache } from 'next/cache'
 import { createClient } from '@supabase/supabase-js'
 import { createClient as createSupabaseClient, createServiceClient } from '@/shared/supabase/server'
-import { completeCrewJoin } from '@/shared/utils/joinCrew'
 import type { Database, Announcement } from '@/types'
 import type { AnnouncementItem } from '@/shared/components/banners/AnnouncementsSheet'
 
@@ -115,7 +114,7 @@ function genCrewCode() {
 
 export async function createCrewFromHomeAction(
   name: string,
-): Promise<{ crewId: string } | { error: string }> {
+): Promise<{ crewId: string; inviteCode: string } | { error: string }> {
   const supabase = await createSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Not authenticated' }
@@ -124,87 +123,18 @@ export async function createCrewFromHomeAction(
   if (cleaned.length < 2) return { error: 'Squad name must be at least 2 characters.' }
 
   for (let attempt = 0; attempt < 5; attempt++) {
+    const inviteCode = genCrewCode()
     const { data: crewId, error } = await supabase.rpc('create_crew', {
       p_name:        cleaned,
-      p_invite_code: genCrewCode(),
+      p_invite_code: inviteCode,
     })
     if (!error && crewId) {
       revalidatePath('/home')
-      return { crewId: crewId as string }
+      return { crewId: crewId as string, inviteCode }
     }
     if (error && !error.message.includes('unique')) return { error: error.message }
   }
   return { error: 'Could not generate a unique invite code. Try again.' }
-}
-
-export async function joinCrewFromHomeAction(
-  inviteCode: string,
-): Promise<{
-  crewId:                 string
-  crewName:               string
-  crewImageUrl:           string | null
-  crewBackgroundImageUrl: string | null
-  memberCount:            number
-} | { error: string }> {
-  const supabase = await createSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Not authenticated' }
-
-  const code = inviteCode.trim().toUpperCase()
-  if (code.length !== 6) return { error: 'Enter the full 6-character code.' }
-
-  const { data: crewId, error } = await supabase.rpc('join_crew', { p_invite_code: code })
-
-  if (error || !crewId) {
-    const msg = error?.message ?? ''
-    if (msg.toLowerCase().includes('not found') || msg.toLowerCase().includes('does not exist')) {
-      return { error: 'No crew found with that code.' }
-    }
-    return { error: msg || 'Could not join crew.' }
-  }
-
-  const id = crewId as string
-
-  const [{ data: crewRow }, { count }] = await Promise.all([
-    supabase.from('crews').select('name, image_url, background_image_url').eq('id', id).single(),
-    supabase.from('crew_members').select('id', { count: 'exact', head: true }).eq('crew_id', id),
-  ])
-
-  await completeCrewJoin(supabase, user.id, id)
-
-  const crew = crewRow as { name?: string; image_url?: string | null; background_image_url?: string | null } | null
-
-  return {
-    crewId:                 id,
-    crewName:               crew?.name ?? '',
-    crewImageUrl:           crew?.image_url ?? null,
-    crewBackgroundImageUrl: crew?.background_image_url ?? null,
-    memberCount:            count ?? 1,
-  }
-}
-
-export async function joinSelectClassAction(
-  crewId: string,
-  cls:    string,
-): Promise<{ ok: true } | { error: string }> {
-  const validClasses = ['warrior', 'healer', 'archer', 'rogue', 'mage']
-  if (!validClasses.includes(cls)) return { error: 'Invalid class.' }
-
-  const supabase = await createSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Not authenticated' }
-
-  const { error } = await supabase
-    .from('crew_members')
-    .update({ class: cls })
-    .eq('crew_id', crewId)
-    .eq('user_id', user.id)
-
-  if (error) return { error: error.message }
-
-  revalidateTag(`crew-members:${crewId}`, 'max')
-  revalidatePath('/home')
-  return { ok: true }
 }
 
 export async function leaveCrewAction(

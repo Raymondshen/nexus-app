@@ -1,16 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import dynamic from 'next/dynamic'
 import { Button } from '@/shared/components/ui/Button'
 import DelayedSkeleton from '@/shared/components/ui/DelayedSkeleton'
-import { useSpriteFrameLoop } from '@/shared/hooks/useSpriteFrameLoop'
-import {
-  GHOST_LAUNCH_FRAME_COUNT,
-  GHOST_LAUNCH_FRAME_MS,
-  ghostLaunchFrameSrc,
-  preloadGhostLaunchFrames,
-} from '@/shared/constants/ghostLaunchSprite'
+import { GhostLaunchSprite } from '@/shared/components/ui/GhostLaunchSprite'
 import { signInWithGoogle } from '@/shared/supabase/auth'
 
 type Step =
@@ -82,67 +76,10 @@ function JoinGroupStepFallback() {
   )
 }
 
-// Landing screen ghost (Figma 774:19681 "launch 1") — the same frame-cycling
-// sprite as LaunchSplashContent's wordmark ghost (frame count/interval/path
-// shared via ghostLaunchSprite.ts), just spec'd at 64px here instead of 48px.
-// Not launch-critical (unlike LaunchSplashContent's copy), so this one goes
-// through the shared useSpriteFrameLoop hook rather than a bespoke effect —
-// but still needs its own one-time frame preload (see the effect below):
-// useSpriteFrameLoop only cycles an index, it doesn't know the frames are
-// image assets that need warming, and without it the first cycle through all
-// 9 frames on a cold cache can flash a blank frame right on the very first
-// screen a logged-out visitor sees.
-const GHOST_PX = 64
-
-// The 56x56 sprite frames carry a lot of baked-in transparent padding around
-// the actual ghost — measured directly off each frame's alpha channel (union
-// bounding box across all 9 frames, so the crop window is guaranteed to fit
-// every walk-cycle pose without clipping): content sits roughly in
-// x:[16,38] y:[15,38] of the 56x56 canvas. Rendering at 100%
-// (LaunchSplashContent's `objectFit: contain` treatment) leaves the ghost
-// looking small inside its container. Figma's own export for this node
-// applies the same "zoom past the padding" crop (~182% size / -41% offset);
-// these values are re-derived from this asset's real bounding box (crop
-// window x:[11,43] y:[10.5,42.5], padded evenly around that bbox) rather than
-// assumed, so the fill is pixel-accurate for the actual file on disk.
-const GHOST_CROP_SCALE   = '175%'
-const GHOST_CROP_LEFT    = '-34.38%'
-const GHOST_CROP_TOP     = '-32.81%'
-
-function LandingGhost() {
-  const frame = useSpriteFrameLoop(GHOST_LAUNCH_FRAME_COUNT, GHOST_LAUNCH_FRAME_MS)
-
-  useEffect(() => {
-    preloadGhostLaunchFrames()
-  }, [])
-
-  return (
-    <div
-      className="absolute top-1/2 left-1/2 overflow-hidden pointer-events-none"
-      style={{ width: GHOST_PX, height: GHOST_PX, transform: 'translate(-50%, -50%)' }}
-    >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={ghostLaunchFrameSrc(frame)}
-        alt=""
-        aria-hidden="true"
-        style={{
-          position:  'absolute',
-          left:      GHOST_CROP_LEFT,
-          top:       GHOST_CROP_TOP,
-          width:     GHOST_CROP_SCALE,
-          height:    GHOST_CROP_SCALE,
-          maxWidth:  'none',
-          imageRendering: 'pixelated',
-        }}
-      />
-    </div>
-  )
-}
-
 export function LoginForm({
   newAccount,
   staleInviteCode,
+  sharedInviteCode,
 }: {
   newAccount?: string
   // Set by /auth/callback (via ?inviteError=1&code=...) when a pending Join a
@@ -152,9 +89,15 @@ export function LoginForm({
   // pre-filled and its red error already showing, same as CreateProfileStep's
   // onInviteJoinFailed callback below does for the brand-new-account case.
   staleInviteCode?: string
+  // Set by login/page.tsx's plain `?code=` param (no `inviteError=1`) —
+  // InviteCodeCard's shared "Join my group on {name} — {link}" deep link
+  // lands here. Jumps straight to the join-group step and auto-checks the
+  // code (JoinGroupStep's `initialCode` prop) instead of showing a stale-code
+  // error, since this code was never actually tried yet.
+  sharedInviteCode?: string
 }) {
   const [step, setStep] = useState<Step>(
-    newAccount === '1' ? 'create-profile' : staleInviteCode ? 'join-group' : 'landing'
+    newAccount === '1' ? 'create-profile' : (staleInviteCode || sharedInviteCode) ? 'join-group' : 'landing'
   )
   const [error, setError]                 = useState<string | null>(null)
   const [signInLoading, setSignInLoading] = useState(false)
@@ -180,7 +123,7 @@ export function LoginForm({
           paddingBottom: 'max(env(safe-area-inset-bottom), var(--x8))',
         }}
       >
-        <LandingGhost />
+        <GhostLaunchSprite size={64} />
 
         <div className="flex flex-col items-start w-full" style={{ gap: 'var(--x2)' }}>
           <h1
@@ -248,7 +191,13 @@ export function LoginForm({
   }
 
   if (step === 'join-group') {
-    return <JoinGroupStep onBack={() => setStep('landing')} initialStaleCode={pendingStaleCode} />
+    return (
+      <JoinGroupStep
+        onBack={() => setStep('landing')}
+        initialStaleCode={pendingStaleCode}
+        initialCode={pendingStaleCode ? undefined : sharedInviteCode}
+      />
+    )
   }
 
   // ── Create Profile (Figma 547:2289) ──────────────────────────────────────

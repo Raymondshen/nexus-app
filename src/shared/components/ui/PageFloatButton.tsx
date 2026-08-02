@@ -98,12 +98,22 @@ export function PageFloatButton({ icon, onClick, ariaLabel, disabled, className 
 }
 
 interface ChatFloatingNavProps {
-  crewId:             string
+  /** Omitted when this identity card renders outside an actual chat room (see
+   *  ChatroomEmptyScreen) — the dev-gated Events button/sheet is crew-scoped,
+   *  so it just doesn't render without one. */
+  crewId?:            string
   currentUserId:      string
   avatarUrl:          string | null
   username:           string | null
   initialGemBalance?: number
   initialCoins?:      number
+  /** Defaults true. The /chat/[crewId] history-stacking guard below only makes
+   *  sense when this card is actually rendered on a chat room route (it exists
+   *  so the OS/browser back button pops through a /home entry beneath THAT
+   *  route) — a caller rendering this same identity card ON /home itself
+   *  (ChatroomEmptyScreen) must pass false, or every mount would rewrite the
+   *  current /home history entry and push a duplicate one on top of it. */
+  historyGuard?:      boolean
   /** This user's class for THIS crew (crew_members.class, not profiles.avatar_class —
    *  class is per-membership) — drives the right-side sprite + label (Figma 603:3526). */
   avatarClass?:                 AvatarClass | null
@@ -221,7 +231,7 @@ interface ChatFloatingNavProps {
 // it: this is the pre-existing class-label readout, just moved into the bottom row.
 export function ChatFloatingNav({
   crewId, currentUserId, avatarUrl, username, initialGemBalance, initialCoins,
-  avatarClass, initialTotalUnreadMessages,
+  avatarClass, initialTotalUnreadMessages, historyGuard = true,
 }: ChatFloatingNavProps) {
   const router          = useRouter()
   const gemBalance       = useChatStore((s) => s.gemBalance)
@@ -247,6 +257,7 @@ export function ChatFloatingNav({
   // the app instead of going home. Skipped when nexus_chat_from is set — see the Gotchas note
   // in CLAUDE.md for the sessionStorage handshake this participates in.
   useEffect(() => {
+    if (!historyGuard) return
     const from = sessionStorage.getItem('nexus_chat_from')
     sessionStorage.removeItem('nexus_chat_from')
     if (from) return
@@ -254,7 +265,7 @@ export function ChatFloatingNav({
     const current = window.location.pathname + window.location.search
     window.history.replaceState({ __NA: true }, '', '/home')
     window.history.pushState(null, '', current)
-  }, [])
+  }, [historyGuard])
 
   useEffect(() => {
     if (initialGemBalance !== undefined) setGemBalance(initialGemBalance)
@@ -395,7 +406,7 @@ export function ChatFloatingNav({
             </div>
           </button>
 
-          {devMode && eventsEnabled && (
+          {devMode && eventsEnabled && crewId && (
             <PageFloatButton
               onClick={() => setShowEventPreview(true)}
               ariaLabel="Group events"
@@ -407,7 +418,7 @@ export function ChatFloatingNav({
       </div>
 
       <AnimatePresence>
-        {showEventPreview && devMode && eventsEnabled && (
+        {showEventPreview && devMode && eventsEnabled && crewId && (
           <EventSheetBottomPreview
             crewId={crewId}
             currentUserId={currentUserId}

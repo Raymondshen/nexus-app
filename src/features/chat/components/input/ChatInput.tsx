@@ -670,6 +670,15 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, memberP
     router.push('/home/create')
   }
 
+  // Used by ChatRoomBrowseSheet's own Join a Group card tap (its onJoinGroup
+  // prop below) — routes to the standalone Join a Group page (JoinGroupStep
+  // via /home/join) rather than opening an in-sheet invite-code entry sheet,
+  // same consolidation openCreateSquadFromBrowse already did for Create.
+  function openJoinGroupFromBrowse() {
+    setShowRoomBrowser(false)
+    router.push('/home/join')
+  }
+
   // Used by ChatRoomBrowseSheet's tap-to-navigate (see its onSelectRoom call site
   // below) — `direction` only affects which side ChatRoomPeekLayer's ghost enters
   // from; a tap has no real drag direction, so the caller passes whichever is
@@ -936,6 +945,7 @@ export function ChatInput({ crewId, userId, userProfile, memberProfiles, memberP
         allMuted={allMuted}
         onSelectRoom={handleSelectRoomFromBrowse}
         onCreateSquad={openCreateSquadFromBrowse}
+        onJoinGroup={openJoinGroupFromBrowse}
         onPinCrew={handlePinCrew}
         onLeaveRoom={(room) => requestLeaveSquad({ id: room.id, name: room.name, memberCount: room.memberCount })}
         onNotif={() => setShowNotifSheet(true)}

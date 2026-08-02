@@ -3,6 +3,7 @@ import { unstable_cache } from 'next/cache'
 import { createClient, createServiceClient } from '@/shared/supabase/server'
 import { HomeClient } from '@/features/home/screens/HomeClient'
 import type { FriendSummary } from '@/features/home/screens/HomeClient'
+import { ChatroomEmptyScreen } from '@/features/home/screens/ChatroomEmptyScreen'
 import type { Crew } from '@/types'
 import { getActiveAnnouncementsAction } from './actions'
 
@@ -156,51 +157,73 @@ export default async function HomePage() {
 
   if (memberError) console.error('[home] crew_members query error:', memberError)
 
-  // Prompt existing users who haven't set their birthday yet
-  if (!profile?.birthday) redirect('/onboarding/birthday')
+  // Defensive backstop, not the primary gate — /auth/callback is what's
+  // actually supposed to keep a still-mid-signup account (no username set)
+  // from ever reaching /home; completeSignupAction writes username and
+  // birthday together in one update, so a real account here should always
+  // have both. If this somehow fires anyway, send it to Setup Profile
+  // directly rather than the legacy birthday-only step below, which has
+  // nothing to offer an account that's missing everything, not just a
+  // birthday.
+  if (!profile?.username) redirect('/login?newAccount=1')
 
   const memberships = (membershipRows ?? []) as unknown as MembershipWithCrew[]
   const memberSince = profile?.created_at ? new Date(profile.created_at).getFullYear().toString() : ''
   const friendUserIds = friendshipRows.map(f => f.requester_id === user.id ? f.addressee_id : f.requester_id)
 
-  // Launch redirect (server-side): skip Home and land directly in the user's pinned
-  // squad — or failing that, whichever squad they most recently had open, or their
-  // only one. Runs on every request to /home (PWA cold launch via manifest start_url,
+  // Same target-squad resolution the launch redirect below needs — computed
+  // once, up front, so the birthday backfill check above it (see next block)
+  // can also use it: an existing account with real squads that simply
+  // predates the birthday requirement must return to its own squad
+  // afterward, not land on the empty-groups screen looking like it has none.
+  // DM channels are excluded (`!m.crew.is_dm`) — a stale pin pointing at a
+  // squad the user has since left just falls through to the most-recent/
+  // only-squad fallback, same as having no pin at all.
+  const squadMemberships = memberships.filter((m) => m.crew && !m.crew.is_dm)
+  const pinnedId = profile?.pinned_crew_id ?? null
+  const pinnedMembership = pinnedId ? squadMemberships.find((m) => m.crew_id === pinnedId) : undefined
+  const targetMembership = pinnedMembership ?? (squadMemberships.length === 1
+    ? squadMemberships[0]
+    : squadMemberships.length > 1
+      ? [...squadMemberships].sort((a, b) => (b.last_seen ?? '').localeCompare(a.last_seen ?? ''))[0]
+      : undefined)
+
+  // Prompt existing (legacy) accounts that predate the birthday requirement —
+  // completeSignupAction requires birthday for every current signup, so this
+  // can only fire for an account created before that requirement existed.
+  // Preserves the target squad (if any) via the birthday page's existing
+  // `crew` query param so /onboarding/birthday -> /onboarding/class ->
+  // /chat/{crewId} resumes there afterward instead of stranding them on
+  // /onboarding/welcome's "Create a Group / Join a Group" screen.
+  if (!profile?.birthday) {
+    redirect(targetMembership ? `/onboarding/birthday?crew=${targetMembership.crew_id}` : '/onboarding/birthday')
+  }
+
+  // Launch redirect (server-side): skip Home and land directly in the user's target
+  // squad. Runs on every request to /home (PWA cold launch via manifest start_url,
   // a hard refresh, or any of the app's many `redirect('/home')`/`router.push('/home')`
   // fallback call sites), not just once per session — this replaced an earlier
   // client-side version of the same logic (HomeClient's old sessionStorage-gated
-  // effect) that couldn't guarantee a redirect on a plain page refresh. DM channels
-  // are excluded (`!m.crew.is_dm`) — a stale pin pointing at a squad the user has
-  // since left just falls through to the most-recent/only-squad fallback, same as
-  // having no pin at all.
-  const squadMemberships = memberships.filter((m) => m.crew && !m.crew.is_dm)
-  if (squadMemberships.length > 0) {
-    const pinnedId = profile?.pinned_crew_id ?? null
-    const pinned = pinnedId ? squadMemberships.find((m) => m.crew_id === pinnedId) : undefined
-    const target = pinned ?? (squadMemberships.length === 1
-      ? squadMemberships[0]
-      : [...squadMemberships].sort((a, b) => (b.last_seen ?? '').localeCompare(a.last_seen ?? ''))[0])
-    redirect(`/chat/${target.crew_id}`)
+  // effect) that couldn't guarantee a redirect on a plain page refresh.
+  if (targetMembership) {
+    redirect(`/chat/${targetMembership.crew_id}`)
   }
 
+  // Zero crew_members rows at all (no squads AND no DMs) — Figma 774:20383
+  // "chatroom - empty". This is the state a brand-new account lands in
+  // straight out of CreateProfileStep's "Create Account" (see Login section
+  // of CLAUDE.md), and the only way an existing account can reach it is by
+  // leaving its last squad with no DM ever started — so unlike every other
+  // branch below, there's no crew list, friends list, or announcements data
+  // worth fetching for it.
   if (memberships.length === 0) {
-    const friendProfiles = await getCachedFriendProfiles(friendUserIds)
-    const friends = buildFriends(friendshipRows, friendProfiles, user.id)
     return (
-      <HomeClient
-        initialCrews={[]}
+      <ChatroomEmptyScreen
         userId={user.id}
         username={profile?.username ?? ''}
         avatarUrl={profile?.avatar_url ?? null}
-        memberSince={memberSince}
-        profileCache={{}}
-        totalMessages={profile?.totalMessages ?? 0}
-        status={profile?.status ?? null}
-        friends={friends}
         initialCoins={profile?.coins ?? 0}
         initialGemBalance={profile?.gem_balance ?? 0}
-        announcements={announcements}
-        totalFriendshipXP={profile?.totalFriendshipXP ?? 0}
       />
     )
   }

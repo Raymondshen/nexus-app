@@ -10,10 +10,12 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   // 'purple' (502:2788), 'red' (502:2789), 'tertiary' (502:2723), 'green',
   // 'primary' (774:19621 — white/primary border, e.g. the login landing
   // screen's "Join A Group" button).
-  // Filled: only 'red' and 'green' override the default purple background
-  // (danger / success states, e.g. the "Reserved" success button) — 'tertiary'
-  // and 'primary' are outlined-only and silently no-op on a filled button
-  // (falls through to the default purple fill).
+  // Filled: 'red' and 'green' override the default purple background (danger
+  // / success states, e.g. the "Reserved" success button); 'primary' renders
+  // an inverted white-bg/black-text button (774:19616 — the "Start Chatting"
+  // CTA on the create/join success screens). 'tertiary' is outlined-only and
+  // silently no-ops on a filled button (falls through to the default purple
+  // fill) — no filled Figma spec for it exists yet.
   color?:   'purple' | 'red' | 'green' | 'tertiary' | 'primary'
   size?:    'lg' | 'md' | 'sm'
   shadow?:  boolean
@@ -72,9 +74,10 @@ export function Button({
         size === 'md'            && ['py-[var(--space-4)] px-[var(--space-5)]', 'gap-[var(--x2)]'],
         size === 'sm'            && ['py-[var(--space-3)] px-[var(--space-5)]', 'gap-[var(--x2)]'],
         // Colors — outlined is always transparent (Figma 502:2788 purple / 502:2789 red / 502:2723 tertiary), never filled
-        !isOutlined && !isRed && !isGreen && 'bg-purple active:opacity-80',
-        !isOutlined &&  isRed             && 'bg-[var(--red)] active:opacity-80',
-        !isOutlined &&  isGreen           && 'bg-[var(--green)] active:opacity-80',
+        !isOutlined && !isRed && !isGreen && !isPrimary && 'bg-purple active:opacity-80',
+        !isOutlined &&  isRed                           && 'bg-[var(--red)] active:opacity-80',
+        !isOutlined &&  isGreen                         && 'bg-[var(--green)] active:opacity-80',
+        !isOutlined &&  isPrimary && !isRed && !isGreen && 'bg-[var(--color-primary)] active:opacity-80',
          isOutlined &&  isTertiary && 'border border-tertiary active:opacity-70',
          isOutlined &&  isGreen && 'border border-[var(--green)] active:opacity-70',
          isOutlined &&  isPrimary && 'border border-primary active:opacity-70',
@@ -108,7 +111,7 @@ export function Button({
                 : isGreen    ? 'var(--green)'
                 : isPrimary  ? 'var(--color-primary)'
                 : 'var(--color-purple)'
-              : 'var(--color-primary)',
+              : isPrimary ? 'var(--color-background)' : 'var(--color-primary)',
           }}
         >
           {children}

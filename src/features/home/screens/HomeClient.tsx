@@ -17,10 +17,7 @@ import { GroupAvatar } from '@/shared/components/ui/GroupAvatar'
 import { InviteCodeCard } from '@/shared/components/ui/InviteCodeCard'
 import { UserCard, type MiniMember } from '@/shared/components/ui/UserCard'
 import { createClient } from '@/shared/supabase/client'
-import { leaveCrewAction, joinCrewFromHomeAction, joinSelectClassAction } from '@/app/(app)/home/actions'
-import { spriteIdFor } from '@/shared/components/game/PixelSprite'
-import { CLASS_BASE_STATS } from '@/shared/constants/classStats'
-import type { CombatClass } from '@/types'
+import { leaveCrewAction } from '@/app/(app)/home/actions'
 import { Button } from '@/shared/components/ui/Button'
 import type { CrewSummary } from '@/app/(app)/home/page'
 import type { MessageWithProfile } from '@/types'
@@ -288,391 +285,19 @@ function AccountPreview({
   )
 }
 
-// ─── Home action sheet (Create / Join / Invite) ───────────────────────────────
-
-type SheetView = 'menu' | 'join' | 'class'
-
-const JOIN_CLASSES: {
-  id:          CombatClass
-  name:        string
-  role:        string
-  attackDesc:  string
-  abilityName: string
-  abilityDesc: string
-  passiveName: string
-  passiveDesc: string
-}[] = [
-  {
-    id:          'warrior',
-    name:        'WARRIOR',
-    role:        'tank/dps',
-    attackDesc:  'atk-scaled strike. hits harder at low hp.',
-    abilityName: 'guard',
-    abilityDesc: 'force the boss to attack you for 60s. your def rises 40%.',
-    passiveName: 'last stand',
-    passiveDesc: 'below 30% hp, all damage dealt increases by 20%.',
-  },
-  {
-    id:          'healer',
-    name:        'HEALER',
-    role:        'support/sustain',
-    attackDesc:  'weak hit. restores 5% of damage dealt back to yourself.',
-    abilityName: 'mend',
-    abilityDesc: 'int-scaled heal to all living crew members. cannot revive the downed.',
-    passiveName: 'second wind',
-    passiveDesc: '+15% to all healing — both mend and normal attack self-heal.',
-  },
-  {
-    id:          'archer',
-    name:        'ARCHER',
-    role:        'dps/accuracy',
-    attackDesc:  'atk-scaled hit. high dex raises crit chance significantly.',
-    abilityName: 'volley',
-    abilityDesc: 'hit + apply a 20% damage-taken debuff on the boss for 30s.',
-    passiveName: 'precision',
-    passiveDesc: 'highest natural crit chance in the squad. aim true.',
-  },
-  {
-    id:          'rogue',
-    name:        'ROGUE',
-    role:        'burst/speed',
-    attackDesc:  'fast atk-scaled hit. consecutive messages stack a damage bonus.',
-    abilityName: 'backstab',
-    abilityDesc: 'guaranteed crit. 2.5× damage if boss is above 50% hp.',
-    passiveName: 'momentum',
-    passiveDesc: 'each message stacks +5% dmg (cap 25%). resets after 1hr silence.',
-  },
-  {
-    id:          'mage',
-    name:        'MAGE',
-    role:        'high damage/fragile',
-    attackDesc:  'highest atk of any class. hits hardest on every normal attack.',
-    abilityName: 'cast',
-    abilityDesc: '3× atk arcane nuke. crit-eligible.',
-    passiveName: 'arcane ward',
-    passiveDesc: 'below 40% hp, your def is multiplied by 1.3 dynamically.',
-  },
-]
-
+// ─── Home action sheet (Create / Join) ─────────────────────────────────────────
+// Both options are now plain navigations to their own real pages
+// (/home/create → CreateSquadPage, /home/join → JoinGroupStep) — this used to
+// also host an in-sheet invite-code entry + immediate class-select flow for
+// Join, consolidated away once /home/join became the one canonical Join a
+// Group implementation (see ChatRoomBrowseSheet's onJoinGroup and
+// ChatroomEmptyScreen, which route here too now).
 function HomeActionSheet({
   onClose,
 }: {
   onClose:       () => void
 }) {
   const router = useRouter()
-  const [view, setView] = useState<SheetView>('menu')
-
-  // ── Join state ───────────────────────────────────────────────────────────
-  const [joinCode,    setJoinCode]    = useState('')
-  const [joinLoading, setJoinLoading] = useState(false)
-  const [joinError,   setJoinError]   = useState<string | null>(null)
-
-  // ── Class picker state (shown after crew join) ───────────────────────────
-  const [joinedCrewId,     setJoinedCrewId]     = useState('')
-  const [joinedCrewName,   setJoinedCrewName]   = useState('')
-  const [joinedCrewImg,    setJoinedCrewImg]     = useState<string | null>(null)
-  const [joinedCrewBgUrl,  setJoinedCrewBgUrl]  = useState<string | null>(null)
-  const [joinedMemberCount,setJoinedMemberCount]= useState(1)
-  const [classIdx,         setClassIdx]         = useState(0)
-  const [classLoading,     setClassLoading]     = useState(false)
-  const [classError,       setClassError]       = useState<string | null>(null)
-
-  async function handleJoin() {
-    if (joinLoading || joinCode.length !== 6) return
-    setJoinLoading(true)
-    setJoinError(null)
-    const result = await joinCrewFromHomeAction(joinCode)
-    if ('error' in result) { setJoinError(result.error); setJoinLoading(false); return }
-    setJoinedCrewId(result.crewId)
-    setJoinedCrewName(result.crewName)
-    setJoinedCrewImg(result.crewImageUrl)
-    setJoinedCrewBgUrl(result.crewBackgroundImageUrl)
-    setJoinedMemberCount(result.memberCount)
-    setClassIdx(0)
-    setClassError(null)
-    setJoinLoading(false)
-    setView('class')
-  }
-
-  async function handleClassJoin() {
-    if (classLoading) return
-    setClassLoading(true)
-    setClassError(null)
-    const result = await joinSelectClassAction(joinedCrewId, JOIN_CLASSES[classIdx].id)
-    if ('error' in result) { setClassError(result.error); setClassLoading(false); return }
-    sessionStorage.setItem('nexus_chat_from', '/home')
-    router.push(`/chat/${joinedCrewId}`)
-    onClose()
-  }
-
-  function handleJoinCodeChange(e: React.ChangeEvent<HTMLInputElement>) {
-    setJoinCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))
-  }
-
-  const sheetContent = (() => {
-    if (view === 'class') {
-      const selected  = JOIN_CLASSES[classIdx]
-      const spriteId  = spriteIdFor(selected.id as import('@/types').AvatarClass)
-      const stats     = CLASS_BASE_STATS[selected.id]
-
-      return (
-        <>
-          {/* Header */}
-          <div className="flex flex-col flex-shrink-0" style={{ gap: 8 }}>
-            <p className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}>
-              Squad Sh**t...
-            </p>
-            <div className="flex flex-col" style={{ gap: 4 }}>
-              <p className="font-body font-bold text-primary leading-none" style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}>
-                Choose Your Class
-              </p>
-              <p className="font-body font-light text-tertiary leading-none" style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}>
-                You cannot change your class afterwards.
-              </p>
-            </div>
-          </div>
-
-          {/* Group header */}
-          <div className="relative w-full flex-shrink-0 overflow-hidden" style={{ height: 180, padding: 8 }}>
-            {joinedCrewBgUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={joinedCrewBgUrl} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
-            ) : (
-              <div style={{ position: 'absolute', inset: 0, background: 'var(--color-surface)' }} />
-            )}
-            <div style={{ position: 'absolute', inset: 0, background: 'var(--gradient-image-overlay)' }} />
-            <div className="relative flex items-start justify-between w-full">
-              <div className="flex items-center flex-1 min-w-0" style={{ gap: 16 }}>
-                {/* Crew avatar */}
-                <div className="flex-shrink-0 overflow-hidden" style={{ width: 40, height: 40, background: joinedCrewImg ? 'transparent' : 'var(--color-primary)' }}>
-                  {joinedCrewImg ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={joinedCrewImg} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <span className="font-body font-black text-black leading-none" style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}>
-                        {joinedCrewName.charAt(0).toUpperCase()}
-                      </span>
-                    </div>
-                  )}
-                </div>
-                {/* Name + count */}
-                <div className="flex flex-col" style={{ gap: 4 }}>
-                  <p className="font-body font-black leading-none" style={{ fontSize: 'var(--text-md)', color: 'var(--color-secondary)', fontVariationSettings: '"opsz" 14' }}>
-                    {joinedCrewName.toUpperCase()}
-                  </p>
-                  <p className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>
-                    {joinedMemberCount} member{joinedMemberCount !== 1 ? 's' : ''}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Class tabs */}
-          <div className="flex items-center justify-between flex-shrink-0">
-            {JOIN_CLASSES.map((cls, i) => {
-              const id         = spriteIdFor(cls.id as import('@/types').AvatarClass)
-              const isSelected = i === classIdx
-              return (
-                <button
-                  key={cls.id}
-                  type="button"
-                  onClick={() => setClassIdx(i)}
-                  className="flex items-center justify-center overflow-hidden flex-shrink-0"
-                  style={{
-                    width:      48,
-                    height:     48,
-                    background: 'var(--color-surface-sheet)',
-                    border:     `1px solid ${isSelected ? 'var(--color-purple)' : 'var(--color-border-hover)'}`,
-                  }}
-                >
-                  {id && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={`/sprites/${id}/south.png`}
-                      alt={cls.name}
-                      style={{ width: '100%', height: '100%', objectFit: 'contain', imageRendering: 'pixelated' }}
-                    />
-                  )}
-                </button>
-              )
-            })}
-          </div>
-
-          {/* Class detail */}
-          <div className="flex flex-col flex-shrink-0" style={{ gap: 8 }}>
-            <div className="flex items-center justify-between">
-              {/* Left: sprite + name */}
-              <div className="flex items-center" style={{ gap: 8 }}>
-                <div className="relative flex-shrink-0" style={{ width: 56, height: 56 }}>
-                  {spriteId && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={`/sprites/${spriteId}/south.png`}
-                      alt={selected.name}
-                      style={{
-                        position:       'absolute',
-                        top:            '50%',
-                        left:           '50%',
-                        transform:      'translate(-50%, -50%)',
-                        width:          80,
-                        height:         80,
-                        imageRendering: 'pixelated',
-                        maxWidth:       'none',
-                        objectFit:      'contain',
-                      }}
-                    />
-                  )}
-                </div>
-                <div className="flex flex-col" style={{ gap: 4 }}>
-                  <span className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>lv. 1</span>
-                  <span className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-md)', color: 'var(--color-primary)' }}>{selected.name}</span>
-                  <span className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}>{selected.role}</span>
-                </div>
-              </div>
-              {/* Right: stats */}
-              <div className="flex items-start" style={{ gap: 8 }}>
-                <div className="flex flex-col" style={{ gap: 8 }}>
-                  <span className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>HP: {stats.hp}</span>
-                  <span className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>ATK: {stats.atk}</span>
-                  <span className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>DEF: {stats.def}</span>
-                </div>
-                <div className="flex flex-col" style={{ gap: 8 }}>
-                  <span className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>Dex: {stats.dex}</span>
-                  <span className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-secondary)' }}>int: {stats.int}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Descriptions */}
-            <div className="flex flex-col" style={{ gap: 16 }}>
-              <p className="font-silkscreen leading-normal" style={{ fontSize: 11, color: 'var(--color-secondary)' }}>
-                <span style={{ color: '#f59e0b' }}>normal attack</span>
-                {` - ${selected.attackDesc}`}
-              </p>
-              <p className="font-silkscreen leading-normal" style={{ fontSize: 11, color: 'var(--color-secondary)' }}>
-                <span style={{ color: '#f59e0b' }}>ability {selected.abilityName}</span>
-                {` - ${selected.abilityDesc}`}
-              </p>
-              <p className="font-silkscreen leading-normal" style={{ fontSize: 11, color: 'var(--color-secondary)' }}>
-                <span style={{ color: '#60a5fa' }}>passive {selected.passiveName}</span>
-                {` - ${selected.passiveDesc}`}
-              </p>
-            </div>
-          </div>
-
-          {/* Buttons */}
-          <div className="flex flex-col flex-shrink-0" style={{ gap: 20 }}>
-            {classError && (
-              <p className="font-silkscreen" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-danger)' }}>{classError}</p>
-            )}
-            <button
-              type="button"
-              onClick={handleClassJoin}
-              disabled={classLoading}
-              className="w-full flex items-center justify-center font-silkscreen text-primary bg-[var(--color-purple)] overflow-hidden disabled:opacity-40"
-              style={{ fontSize: 'var(--text-xs)', height: 48, boxShadow: '4px 4px 0 rgba(168,85,247,0.5)' }}
-            >
-              {classLoading ? '...' : 'Join the squad'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setView('join')}
-              disabled={classLoading}
-              className="w-full flex items-center justify-center font-silkscreen overflow-hidden disabled:opacity-40"
-              style={{ height: 48, fontSize: 'var(--text-xs)', color: 'var(--red)', border: '1px solid var(--red)' }}
-            >
-              Cancel
-            </button>
-          </div>
-        </>
-      )
-    }
-
-    if (view === 'join') {
-      return (
-        <>
-          {/* Header */}
-          <div className="flex flex-col" style={{ gap: 8 }}>
-            <p className="font-silkscreen leading-none" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}>
-              Squad Sh**t...
-            </p>
-            <div className="flex flex-col" style={{ gap: 4 }}>
-              <p className="font-body font-bold text-primary leading-none" style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}>
-                Join A Squad
-              </p>
-              <p className="font-body font-light text-tertiary leading-none" style={{ fontSize: 'var(--text-xs)', fontVariationSettings: '"opsz" 14' }}>
-                Join the squad from the code you&apos;ve received from a member.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-col" style={{ gap: 'var(--space-7)' }}>
-            <div className="flex flex-col" style={{ gap: 'var(--space-3)' }}>
-              <p className="font-body leading-none tracking-[0.2px] text-primary" style={{ fontSize: 'var(--text-sm)', fontVariationSettings: '"opsz" 14', fontWeight: 500 }}>
-                Invite Code
-              </p>
-              <input
-                value={joinCode}
-                onChange={handleJoinCodeChange}
-                placeholder="A3X9KP"
-                autoComplete="off"
-                autoFocus
-                className="w-full bg-[var(--color-surface-sheet)] font-silkscreen text-primary placeholder:text-muted focus:outline-none uppercase tracking-[0.2px]"
-                style={{ border: '1px solid var(--color-border-hover)', padding: 12, fontSize: 'var(--text-xl)', height: 48 }}
-              />
-              {joinError && (
-                <p className="font-silkscreen" style={{ fontSize: 'var(--text-mini)', color: 'var(--red)' }}>{joinError}</p>
-              )}
-            </div>
-            <div className="flex flex-col" style={{ gap: 'var(--space-5)' }}>
-              <button
-                type="button"
-                onClick={handleJoin}
-                disabled={joinLoading || joinCode.length !== 6}
-                className="w-full flex items-center justify-center font-silkscreen text-primary bg-[var(--color-purple)] overflow-hidden disabled:opacity-40"
-                style={{ fontSize: 'var(--text-xs)', height: 48, boxShadow: '4px 4px 0 rgba(168,85,247,0.5)' }}
-              >
-                {joinLoading ? '...' : 'Join the Squad'}
-              </button>
-              <button
-                type="button"
-                onClick={() => setView('menu')}
-                disabled={joinLoading}
-                className="w-full flex items-center justify-center font-silkscreen overflow-hidden disabled:opacity-40"
-                style={{ height: 48, fontSize: 'var(--text-xs)', color: 'var(--red)', border: '1px solid var(--red)' }}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </>
-      )
-    }
-
-    // Menu view
-    return (
-      <>
-        <div className="flex flex-col" style={{ gap: 'var(--space-3)' }}>
-          <p className="font-silkscreen leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}>SQUAD SH**!</p>
-          <h2 className="font-body font-bold text-primary leading-none" style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}>
-            What would you like to do?
-          </h2>
-        </div>
-
-        <div className="flex flex-col" style={{ gap: 'var(--space-5)' }}>
-          <Button shadow className="w-full" onClick={() => { onClose(); router.push('/home/create') }}>
-            CREATE A SQUAD
-          </Button>
-
-          <Button variant="outlined" shadow className="w-full" onClick={() => setView('join')}>
-            JOIN A SQUAD
-          </Button>
-        </div>
-      </>
-    )
-  })()
 
   return (
     <motion.div
@@ -688,7 +313,7 @@ function HomeActionSheet({
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
         transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-        drag={joinLoading || classLoading ? false : 'y'}
+        drag="y"
         dragConstraints={{ top: 0, bottom: 0 }}
         dragElastic={{ top: 0, bottom: 1 }}
         onDragEnd={(_, info) => {
@@ -701,14 +326,29 @@ function HomeActionSheet({
         <div
           className="overflow-y-auto nexus-scroll flex flex-col"
           style={{
-            gap:           view === 'class' ? 20 : 'var(--space-7)',
+            gap:           'var(--space-7)',
             paddingTop:    24,
             paddingLeft:   16,
             paddingRight:  16,
             paddingBottom: 'max(env(safe-area-inset-bottom), 28px)',
           }}
         >
-          {sheetContent}
+          <div className="flex flex-col" style={{ gap: 'var(--space-3)' }}>
+            <p className="font-silkscreen leading-none whitespace-nowrap" style={{ fontSize: 'var(--text-mini)', color: 'var(--color-tertiary)' }}>SQUAD SH**!</p>
+            <h2 className="font-body font-bold text-primary leading-none" style={{ fontSize: 'var(--text-md)', fontVariationSettings: '"opsz" 14' }}>
+              What would you like to do?
+            </h2>
+          </div>
+
+          <div className="flex flex-col" style={{ gap: 'var(--space-5)' }}>
+            <Button shadow className="w-full" onClick={() => { onClose(); router.push('/home/create') }}>
+              CREATE A SQUAD
+            </Button>
+
+            <Button variant="outlined" shadow className="w-full" onClick={() => { onClose(); router.push('/home/join') }}>
+              JOIN A SQUAD
+            </Button>
+          </div>
         </div>
       </motion.div>
     </motion.div>
@@ -988,6 +628,7 @@ function SwipeableCrewCard({
 // ─── Empty state ─────────────────────────────────────────────────────────────
 
 function EmptyState({ onCreate }: { onCreate: () => void }) {
+  const router = useRouter()
   return (
     <div className="flex flex-col items-center justify-center flex-1 px-8 text-center py-12">
       <h2 className="font-pixel text-[10px] text-primary mb-2">NO CREWS YET</h2>
@@ -1000,12 +641,13 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
       >
         ⚔ CREATE CREW
       </button>
-      <a
-        href="/onboarding/join"
+      <button
+        type="button"
+        onClick={() => router.push('/home/join')}
         className="w-full max-w-[280px] flex items-center justify-center h-12 font-pixel text-[10px] text-purple border border-purple/50 hover:border-purple transition-colors"
       >
         🔗 JOIN WITH CODE
-      </a>
+      </button>
     </div>
   )
 }
@@ -1275,7 +917,7 @@ function HomeCrewDetailsSheet({
             Members
           </p>
 
-          {crew.invite_code && <InviteCodeCard inviteCode={crew.invite_code} style={{ flexShrink: 0 }} />}
+          {crew.invite_code && <InviteCodeCard inviteCode={crew.invite_code} groupName={crew.name} style={{ flexShrink: 0 }} />}
 
           {/* Horizontally-scrollable member card row */}
           <div className="flex overflow-x-auto no-scrollbar flex-shrink-0" style={{ gap: 8 }}>

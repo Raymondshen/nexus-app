@@ -1,7 +1,6 @@
 'use client'
 
 import { useLayoutEffect, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronDown } from 'pixelarticons/react/ChevronDown'
 import { Bell } from 'pixelarticons/react/Bell'
@@ -9,17 +8,14 @@ import { BellOff } from 'pixelarticons/react/BellOff'
 import { Plus } from 'pixelarticons/react/Plus'
 import { PageHeader } from '@/shared/components/ui/PageHeader'
 import { Button } from '@/shared/components/ui/Button'
-import { InputField } from '@/shared/components/ui/InputField'
 import { supabaseImageLoader } from '@/shared/supabase/imageLoader'
 import { BottomSheet } from '@/shared/components/ui/sheet/BottomSheet'
-import { SheetFooter } from '@/shared/components/ui/sheet/SheetFooter'
 import { SheetActionButton } from '@/shared/components/ui/SheetActionButton'
 import { SwipePreviewCard } from '@/shared/components/ui/SwipePreviewCard'
 import { SquadDetailCard, SquadMemberRow, type MiniMember } from '@/features/chat/components/sheets/SquadDetailCard'
 import { useSheetDrag } from '@/shared/components/ui/sheet/useSheetDrag'
 import { useSpriteFrameLoop } from '@/shared/hooks/useSpriteFrameLoop'
 import { useChatRoomPeekStore, type RoomMeta } from '@/features/chat/store/chatRoomPeekStore'
-import { joinCrewFromHomeAction } from '@/app/(app)/home/actions'
 
 // Long-press timing for the room card's Pin Squad sheet — same 500ms threshold
 // ChatSheetReact/MessageBubble already use for their own long-press-opened sheets.
@@ -91,8 +87,10 @@ const PIN_LONG_PRESS_MS = 500
 // a flat pixelarticons `Plus` glyph — see RainbowGhost's own doc comment for where the
 // dropped ghost sprites went). Create Squad navigates straight to the standalone
 // Create Squad page (`onCreateSquad`'s call site in ChatInput → `/home/create`); Join
-// a Group instead opens `JoinGroupSheet` (below) for invite-code entry, since there's
-// no equivalent standalone "join" page/route to send it to. Neither card is part of
+// a Group navigates to the standalone Join a Group page the same way (`onJoinGroup`'s
+// call site in ChatInput → `/home/join`) — this used to open an in-sheet
+// `JoinGroupSheet` instead, before that page existed; see `onJoinGroup`'s own doc
+// comment below for why it was consolidated away. Neither card is part of
 // the equalizer's own room-tracking (see ScrollEqualizerBars — it's built from
 // `rooms`, not the rendered card list). Dismisses three ways: tap a room card
 // (navigates there immediately), tap anywhere in the sheet OTHER than the scrollable
@@ -202,6 +200,7 @@ export function ChatRoomBrowseSheet({
   allMuted,
   onSelectRoom,
   onCreateSquad,
+  onJoinGroup,
   onPinCrew,
   onLeaveRoom,
   onNotif,
@@ -218,6 +217,12 @@ export function ChatRoomBrowseSheet({
   allMuted:      boolean
   onSelectRoom:  (id: string) => void
   onCreateSquad: () => void
+  /** Join a Group card tap — routes straight to /home/join (JoinGroupStep),
+   *  same as onCreateSquad routes to /home/create. Used to open an in-sheet
+   *  JoinGroupSheet with its own invite-code entry; consolidated onto the
+   *  one real Join a Group page instead of a third parallel implementation
+   *  (see ChatroomEmptyScreen/HomeActionSheet, which route here too now). */
+  onJoinGroup:   () => void
   /** Long-press sheet's Pin Squad tap — always (re)assigns the pin to this room, no
    *  unpin path (see RoomPinSheet's own doc comment for the invariant). */
   onPinCrew:     (id: string) => void
@@ -241,10 +246,6 @@ export function ChatRoomBrowseSheet({
   const [pinSheetRoomId, setPinSheetRoomId] = useState<string | null>(null)
   const pinLongPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pinLongPressFiredRef = useRef(false)
-
-  // Join a Group (Figma 674:15428 "Frame 331") — opens the invite-code entry sheet
-  // below rather than navigating anywhere; see JoinGroupSheet's own doc comment.
-  const [showJoinGroup, setShowJoinGroup] = useState(false)
 
   function handleCardPressStart(roomId: string) {
     pinLongPressFiredRef.current = false
@@ -527,11 +528,13 @@ export function ChatRoomBrowseSheet({
                       this card a deliberately quieter, secondary look). A flat pixelarticons
                       `Plus` icon now, not a looping ghost sprite — an earlier revision used
                       one (first WaveGhost, then a dedicated PhotoGhost), both dropped once
-                      Figma's own node was updated to the plain plus glyph. Opens
-                      JoinGroupSheet rather than navigating directly. */}
+                      Figma's own node was updated to the plain plus glyph. Routes to
+                      /home/join (onJoinGroup, from ChatInput's openJoinGroupFromBrowse) —
+                      used to open an in-sheet JoinGroupSheet instead; see onJoinGroup's
+                      own doc comment above for why that was consolidated away. */}
                   <button
                     type="button"
-                    onClick={() => setShowJoinGroup(true)}
+                    onClick={onJoinGroup}
                     className="flex-shrink-0 appearance-none flex flex-col items-center justify-center rounded-[var(--x3,8px)]"
                     style={{
                       width:  CARD_WIDTH,
@@ -693,12 +696,6 @@ export function ChatRoomBrowseSheet({
       />
     )}
 
-    {showJoinGroup && (
-      <JoinGroupSheet
-        onClose={() => setShowJoinGroup(false)}
-        onCloseBrowseSheet={onClose}
-      />
-    )}
     </>
   )
 }
@@ -795,98 +792,6 @@ function RoomPinSheet({
           />
         </div>
       </div>
-    </BottomSheet>
-  )
-}
-
-// Join a Group (Figma 674:15428's tap target) — invite-code entry sheet, opened by
-// the Groups row's own Join a Group card above. Reuses `joinCrewFromHomeAction`
-// (home/actions.ts) — the exact same server action HomeClient's Join A Squad flow
-// already calls — rather than duplicating the invite-code/`join_crew` RPC plumbing
-// a second time. Unlike that flow, this deliberately skips the post-join class-select
-// step: `class` is a nullable, flavor-only column now that the boss-fight combat
-// system that used to consume it is gone, and every consumer already renders a
-// graceful fallback for a null class (UserCard's `classLabel` falls back to
-// "Unknown", `spriteInfoFor(null)` has its own default) — so forcing a class pick
-// here would only add friction with no functional payoff. `onCloseBrowseSheet` is
-// the parent ChatRoomBrowseSheet's own `onClose`, called on a successful join (same
-// as a room card's onSelectRoom already does) so navigating to the new room doesn't
-// leave the browse overlay stacked underneath it.
-function JoinGroupSheet({
-  onClose, onCloseBrowseSheet,
-}: {
-  onClose:            () => void
-  onCloseBrowseSheet: () => void
-}) {
-  const router = useRouter()
-  const [code,    setCode]    = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error,   setError]   = useState<string | null>(null)
-
-  function handleCodeChange(value: string) {
-    setError(null)
-    setCode(value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))
-  }
-
-  async function handleJoin() {
-    if (loading || code.length !== 6) return
-    setLoading(true)
-    setError(null)
-    const result = await joinCrewFromHomeAction(code)
-    if ('error' in result) { setError(result.error); setLoading(false); return }
-    // Same nexus_chat_from guard ChatInput's own commitRoomSwitch/openCreateSquadFromBrowse
-    // use before routing away from a chat room — see ChatFloatingNav's Gotchas entry.
-    sessionStorage.setItem('nexus_chat_from', 'chat')
-    // Close both this sheet and the parent browse overlay before navigating — neither
-    // one unmounts on its own just because the destination page is about to replace
-    // the tree, and a client-side navigation isn't necessarily instant, so leaving
-    // either `visible`/`showJoinGroup` true would let this sheet (and the backdrop
-    // beneath it) keep rendering on top for however long the transition takes.
-    onClose()
-    onCloseBrowseSheet()
-    router.push(`/chat/${result.crewId}`)
-  }
-
-  return (
-    <BottomSheet onClose={onClose} zIndex={90} disableDrag={loading}>
-      <div
-        className="flex flex-col w-full"
-        style={{ gap: 'var(--x5)', paddingLeft: 'var(--md)', paddingRight: 'var(--md)' }}
-      >
-        <div className="flex flex-col w-full" style={{ gap: 'var(--x2)' }}>
-          <p
-            className="font-body font-bold leading-none w-full"
-            style={{ fontSize: 'var(--md)', color: 'var(--color-primary)', fontVariationSettings: '"opsz" 14' }}
-          >
-            Join a Group
-          </p>
-          <p
-            className="font-body font-light leading-none w-full"
-            style={{ fontSize: 'var(--text-xs)', color: 'var(--color-tertiary)', fontVariationSettings: '"opsz" 14' }}
-          >
-            Join the group from the code you&apos;ve received from a member.
-          </p>
-        </div>
-
-        <InputField
-          label="Invite Code"
-          value={code}
-          onChange={handleCodeChange}
-          placeholder="A3X9KP"
-          autoComplete="off"
-          maxLength={6}
-        />
-        {error && (
-          <p className="font-body font-normal leading-none" style={{ fontSize: 'var(--text-xs)', color: 'var(--red)', fontVariationSettings: '"opsz" 14' }}>
-            {error}
-          </p>
-        )}
-      </div>
-      <SheetFooter>
-        <Button onClick={handleJoin} loading={loading} disabled={code.length !== 6} className="w-full">
-          Join Group
-        </Button>
-      </SheetFooter>
     </BottomSheet>
   )
 }
