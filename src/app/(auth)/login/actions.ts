@@ -216,7 +216,7 @@ export async function completeSignupAction(
     return { success: false, error: 'That warrior name is already taken. Choose another.' }
   }
 
-  const profileUpdate: Record<string, unknown> = { username: usernameClean, avatar_class: cls as AvatarClass }
+  const profileUpdate: Record<string, unknown> = { username: usernameClean, avatar_class: cls as AvatarClass, onboarding_completed: true }
   if (firstNameClean) profileUpdate.first_name = firstNameClean
   if (lastNameClean)  profileUpdate.last_name  = lastNameClean
   if (extra.status !== undefined) profileUpdate.status = extra.status.trim().slice(0, 100) || null

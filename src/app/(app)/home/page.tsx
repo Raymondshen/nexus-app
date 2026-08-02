@@ -46,14 +46,14 @@ type MemberRow = { crew_id: string; user_id: string; profiles: { username: strin
 type HomeProfile = {
   username: string; avatar_url: string | null; birthday: string | null
   coins: number; gem_balance: number; created_at: string; totalMessages: number; status: string | null
-  totalFriendshipXP: number; pinned_crew_id: string | null
+  totalFriendshipXP: number; pinned_crew_id: string | null; onboarding_completed: boolean
 }
 function getCachedHomeProfile(userId: string) {
   return unstable_cache(
     async () => {
       const supabase = createServiceClient()
       const [{ data: profile }, { count: msgCount }, { data: fxpRows }] = await Promise.all([
-        supabase.from('profiles').select('username, avatar_url, birthday, coins, gem_balance, created_at, status, pinned_crew_id').eq('id', userId).single(),
+        supabase.from('profiles').select('username, avatar_url, birthday, coins, gem_balance, created_at, status, pinned_crew_id, onboarding_completed').eq('id', userId).single(),
         supabase.from('messages').select('id', { count: 'exact', head: true }).eq('user_id', userId).neq('message_type', 'system'),
         supabase.from('friendship_xp').select('total_xp').or(`user_a.eq.${userId},user_b.eq.${userId}`),
       ])
@@ -158,14 +158,15 @@ export default async function HomePage() {
   if (memberError) console.error('[home] crew_members query error:', memberError)
 
   // Defensive backstop, not the primary gate — /auth/callback is what's
-  // actually supposed to keep a still-mid-signup account (no username set)
-  // from ever reaching /home; completeSignupAction writes username and
-  // birthday together in one update, so a real account here should always
-  // have both. If this somehow fires anyway, send it to Setup Profile
-  // directly rather than the legacy birthday-only step below, which has
-  // nothing to offer an account that's missing everything, not just a
+  // actually supposed to keep a still-mid-signup account from ever reaching
+  // /home. Keyed off `onboarding_completed`, not `profiles.username` — the
+  // handle_new_user trigger auto-fills a placeholder username the instant
+  // auth.users gets a row, so that column is never actually empty here even
+  // for a brand-new signup. If this somehow fires anyway, send it to Setup
+  // Profile directly rather than the legacy birthday-only step below, which
+  // has nothing to offer an account that's missing everything, not just a
   // birthday.
-  if (!profile?.username) redirect('/login?newAccount=1')
+  if (!profile?.onboarding_completed) redirect('/login?newAccount=1')
 
   const memberships = (membershipRows ?? []) as unknown as MembershipWithCrew[]
   const memberSince = profile?.created_at ? new Date(profile.created_at).getFullYear().toString() : ''

@@ -35,11 +35,16 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // Signup is public: any authenticated Google account without a Nexus
-      // profile yet goes straight to the Create Profile screen.
-      const { data: profile } = await supabase.from('profiles').select('username').eq('id', user.id).maybeSingle()
+      // Signup is public: any authenticated Google account that hasn't
+      // finished the Create Profile screen yet goes straight there. Can't
+      // key this off `profiles.username` — the handle_new_user trigger
+      // auto-fills a placeholder username (email local-part) the instant
+      // auth.users gets a row, so that column is never actually empty for a
+      // brand-new signup. `onboarding_completed` is only ever set once
+      // completeSignupAction (Setup Profile's "Create Account") succeeds.
+      const { data: profile } = await supabase.from('profiles').select('onboarding_completed').eq('id', user.id).maybeSingle()
 
-      if (profile?.username) {
+      if (profile?.onboarding_completed) {
         // Returning user (already has a profile) — if there's a pending Join
         // a Group invite, finish that join now via the just-established
         // session (same RPC joinCrewFromHomeAction uses for a normal
